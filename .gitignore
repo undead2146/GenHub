@@ -71,7 +71,7 @@ publish/
 
 # Publish Web Output
 *.Publish.xml
-*.pubxml
+#*.pubxml # Commented out for now since we don't work with azure
 *.azurePubxml
 
 # NuGet Packages Directory
