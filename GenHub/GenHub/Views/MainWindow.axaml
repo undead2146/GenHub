@@ -5,6 +5,7 @@
         xmlns:local="clr-namespace:GenHub.Views"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="GenHub.Views.MainWindow"
-        Title="GenHub">
+        Title="GenHub"
+        WindowStartupLocation="CenterScreen">
     <local:MainView />
 </Window>

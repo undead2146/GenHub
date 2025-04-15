@@ -85,7 +85,7 @@ class Program
         if(process == null)
             return;
 
-        // Restore the windows if minimized and bring it to the foreground
+        // Restore the window if minimized and bring it to the foreground
         var windowHandle = process.MainWindowHandle;
         ShowWindow(windowHandle, SW_RESTORE);
         SetForegroundWindow(windowHandle);
