@@ -1,21 +1,23 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <!-- net9.0-linux doesn't exist for various reasons, so we have to use the generic net9.0 target framework -->
         <TargetFramework>net9.0</TargetFramework>
         <Nullable>enable</Nullable>
+        <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Avalonia" />
         <PackageReference Include="Avalonia.Desktop" />
-        <PackageReference Include="Avalonia.Themes.Fluent" />
-        <PackageReference Include="Avalonia.Fonts.Inter" />
         <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
         <PackageReference Include="Avalonia.Diagnostics" >
             <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
             <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
         </PackageReference>
-        <PackageReference Include="CommunityToolkit.Mvvm" />
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\GenHub\GenHub.csproj" />
     </ItemGroup>
 </Project>

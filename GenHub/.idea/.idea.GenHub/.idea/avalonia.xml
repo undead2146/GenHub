@@ -3,6 +3,7 @@
   <component name="AvaloniaProject">
     <option name="projectPerEditor">
       <map>
+        <entry key="GenHub/App.axaml" value="GenHub/GenHub.csproj" />
         <entry key="GenHub/MainWindow.axaml" value="GenHub/GenHub.csproj" />
       </map>
     </option>
