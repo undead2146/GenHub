@@ -1,7 +1,9 @@
 ﻿using System;
-using System.Runtime.InteropServices;
-using System.Threading;
 using Avalonia;
+using GenHub.Core;
+using GenHub.Services;
+using GenHub.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace GenHub.Linux;
 
@@ -13,6 +15,23 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // TODO: Create lockfile to guarantee that only one instance is running on linux
+
+        // Dependency injection
+        var services = new ServiceCollection();
+
+        // Linux-specific DI
+        services.AddSingleton<IGameDetector, LinuxGameDetector>();
+
+        // Core DI
+        services.AddSingleton<GameDetectionService>();
+        services.AddSingleton<MainViewModel>();
+
+        var serviceProvider = services.BuildServiceProvider();
+
+        // Set static service locator for bootstrapping. This is needed for avalonia to receive the service provider
+        AppLocator.Services = serviceProvider;
+
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 

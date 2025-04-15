@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GenHub.Windows", "GenHub.Wi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GenHub.Linux", "GenHub.Linux\GenHub.Linux.csproj", "{C3DADBAC-BF54-4171-92E5-AB59F8ECCD43}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GenHub.Core", "GenHub.Core\GenHub.Core.csproj", "{9109F64F-923F-48FB-A0D5-0B1586EA34DF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -29,5 +31,9 @@ Global
 		{C3DADBAC-BF54-4171-92E5-AB59F8ECCD43}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C3DADBAC-BF54-4171-92E5-AB59F8ECCD43}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C3DADBAC-BF54-4171-92E5-AB59F8ECCD43}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9109F64F-923F-48FB-A0D5-0B1586EA34DF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9109F64F-923F-48FB-A0D5-0B1586EA34DF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9109F64F-923F-48FB-A0D5-0B1586EA34DF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9109F64F-923F-48FB-A0D5-0B1586EA34DF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace GenHub;
+namespace GenHub.Views;
 
 public partial class MainWindow : Window
 {
