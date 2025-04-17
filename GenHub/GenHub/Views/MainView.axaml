@@ -8,7 +8,8 @@
              x:DataType="vm:MainViewModel">
     <StackPanel>
         <!-- Mock layout for testing, will be removed - NH -->
-        <Label Content="{Binding GamePath, FallbackValue='None'}" />
+        <Label Content="{Binding VanillaGamePath, FallbackValue='Not installed'}" />
+        <Label Content="{Binding ZeroHourGamePath, FallbackValue='Not installed'}" />
         <Button Command="{Binding DetectCommand}" Content="Detect" />
     </StackPanel>
 </UserControl>

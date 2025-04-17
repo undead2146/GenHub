@@ -2,5 +2,12 @@
 
 public class DummyGameDetector : IGameDetector
 {
-    public string GamePath => "Mock Dummy Path";
+    public bool IsVanillaInstalled => false;
+    public string VanillaGamePath => "";
+    public bool IsZeroHourInstalled => false;
+    public string ZeroHourGamePath => "";
+    public void Detect()
+    {
+        throw new System.NotImplementedException();
+    }
 }

@@ -8,11 +8,17 @@ namespace GenHub.ViewModels;
 public partial class MainViewModel(GameDetectionService gameDetectionService) : ViewModelBase
 {
     [ObservableProperty]
-    private string? _gamePath;
+    private string? _vanillaGamePath;
+
+    [ObservableProperty]
+    private string? _zeroHourGamePath;
 
     [RelayCommand]
     private void Detect()
     {
-        GamePath = gameDetectionService.GamePath;
+        gameDetectionService.DetectGames();
+
+        VanillaGamePath = gameDetectionService.VanillaGamePath;
+        ZeroHourGamePath = gameDetectionService.ZerHourGamePath;
     }
 }

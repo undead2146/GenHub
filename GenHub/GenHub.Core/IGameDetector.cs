@@ -2,5 +2,10 @@
 
 public interface IGameDetector
 {
-    public string GamePath { get; }
+    public bool IsVanillaInstalled { get; }
+    public string VanillaGamePath { get; }
+    public bool IsZeroHourInstalled { get; }
+    public string ZeroHourGamePath { get; }
+
+    public void Detect();
 }
