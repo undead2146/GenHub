@@ -1,9 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
+﻿using System.Collections.Generic;
 using GenHub.Core;
 using GenHub.Windows.Installations;
-using Microsoft.Win32;
 
 namespace GenHub.Windows;
 
@@ -16,5 +13,6 @@ public class WindowsGameDetector : IGameDetector
         Installations.Clear();
 
         Installations.Add(new SteamInstallation(true));
+        Installations.Add(new EaAppInstallation(true));
     }
 }

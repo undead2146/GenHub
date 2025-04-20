@@ -33,8 +33,11 @@ public class SteamInstallation : IGameInstallation
         if(!TryGetSteamLibraries(out var libraryPaths))
             return;
 
-        foreach (var lib in libraryPaths!)
+        foreach (var lib in libraryPaths)
         {
+            if(string.IsNullOrEmpty(lib))
+                continue;
+
             string gamePath;
 
             // Fetch generals
@@ -43,6 +46,8 @@ public class SteamInstallation : IGameInstallation
                 gamePath = Path.Combine(lib, "Command and Conquer Generals");
                 if (Directory.Exists(gamePath))
                 {
+                    // TODO: Add a more sophisticated check? E.g. check for generals.exe.
+                    // So that an empty folder doesn't cause a false positive
                     IsVanillaInstalled = true;
                     VanillaGamePath = gamePath;
                 }
@@ -53,14 +58,17 @@ public class SteamInstallation : IGameInstallation
             {
                 gamePath = Path.Combine(lib, "Command & Conquer Generals - Zero Hour");
                 {
+                    // TODO: Add a more sophisticated check? E.g. check for generals.exe.
+                    // So that an empty folder doesn't cause a false positive
                     IsZeroHourInstalled = true;
                     ZeroHourGamePath = gamePath;
                 }
             }
         }
 
-        Console.WriteLine($"Is Vanilla installed? {IsVanillaInstalled} - If yes then it's here: {VanillaGamePath}");
-        Console.WriteLine($"Is Zero Hour installed? {IsZeroHourInstalled} - If yes then it's here: {ZeroHourGamePath}");
+        // Just for testing, will probably be removed or refactored with more sophisticated logging - NH
+        Console.WriteLine($"Steam: Is Vanilla installed? {IsVanillaInstalled} - If yes then it's here: {VanillaGamePath}");
+        Console.WriteLine($"Steam: Is Zero Hour installed? {IsZeroHourInstalled} - If yes then it's here: {ZeroHourGamePath}");
     }
 
     /// <summary>
