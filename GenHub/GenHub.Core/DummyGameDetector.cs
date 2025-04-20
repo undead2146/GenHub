@@ -2,10 +2,8 @@
 
 public class DummyGameDetector : IGameDetector
 {
-    public bool IsVanillaInstalled => false;
-    public string VanillaGamePath => "";
-    public bool IsZeroHourInstalled => false;
-    public string ZeroHourGamePath => "";
+    public List<IGameInstallation> Installations => null;
+
     public void Detect()
     {
         throw new System.NotImplementedException();
