@@ -16,6 +16,7 @@
             <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
         </PackageReference>
         <PackageReference Include="CommunityToolkit.Mvvm" />
+        <PackageReference Include="Material.Icons.Avalonia" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     </ItemGroup>
 
@@ -28,5 +29,16 @@
         <DependentUpon>MainWindow.axaml</DependentUpon>
         <SubType>Code</SubType>
       </Compile>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Assets\Images\" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="Assets\Images\generals-logo.png" />
+      <AvaloniaResource Include="Assets\Images\generals-logo.png" />
+      <None Remove="Assets\Images\zero-hour-logo.png" />
+      <AvaloniaResource Include="Assets\Images\zero-hour-logo.png" />
     </ItemGroup>
 </Project>

@@ -7,6 +7,11 @@ namespace GenHub.ViewModels;
 
 public partial class MainViewModel(GameDetectionService gameDetectionService) : ViewModelBase
 {
+    /// <summary>
+    /// Design-time only constructor
+    /// </summary>
+    public MainViewModel() : this(new GameDetectionService(new DummyGameDetector())) { }
+
     [ObservableProperty]
     private string? _vanillaGamePath;
 
