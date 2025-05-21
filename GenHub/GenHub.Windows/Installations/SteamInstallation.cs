@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using GenHub.Core;
 using Microsoft.Win32;
+using GenHub.Core.Interfaces;
+using GenHub.Core.Models;
 
 namespace GenHub.Windows.Installations;
 
@@ -33,10 +35,12 @@ public class SteamInstallation : IGameInstallation
         if(!TryGetSteamLibraries(out var libraryPaths))
             return;
 
-        foreach (var lib in libraryPaths)
+        if (libraryPaths != null)
         {
-            if(string.IsNullOrEmpty(lib))
-                continue;
+            foreach (var lib in libraryPaths)
+            {
+                if(string.IsNullOrEmpty(lib))
+                    continue;
 
             string gamePath;
 
@@ -65,6 +69,7 @@ public class SteamInstallation : IGameInstallation
                 }
             }
         }
+    }
 
         // Just for testing, will probably be removed or refactored with more sophisticated logging - NH
         Console.WriteLine($"Steam: Is Vanilla installed? {IsVanillaInstalled} - If yes then it's here: {VanillaGamePath}");

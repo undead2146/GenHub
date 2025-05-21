@@ -2,6 +2,8 @@
 using System.IO;
 using GenHub.Core;
 using Microsoft.Win32;
+using GenHub.Core.Interfaces;
+using GenHub.Core.Models;
 
 namespace GenHub.Windows.Installations;
 

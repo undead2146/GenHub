@@ -1,44 +1,57 @@
 ﻿using System;
+using System.IO;
 using Avalonia;
-using GenHub.Core;
-using GenHub.Services;
-using GenHub.ViewModels;
+using GenHub.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 
-namespace GenHub.Linux;
+using GenHub.Infrastructure.DependencyInjection;
+using GenHub.Core.Interfaces.AppUpdate;
+using GenHub.Linux.UpdateInstallers;
 
-class Program
+namespace GenHub.Linux
 {
-    // Initialization code. Don't use any Avalonia, third-party APIs or any
-    // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
-    // yet and stuff might break.
-    [STAThread]
-    public static void Main(string[] args)
+    class Program
     {
-        // TODO: Create lockfile to guarantee that only one instance is running on linux
+        // Initialization code. Don't use any Avalonia, third-party APIs or any
+        // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
+        // yet and stuff might break.
+        [STAThread]
+        public static void Main(string[] args)
+        {
+            // TODO: Create lockfile to guarantee that only one instance is running on linux
 
-        // Dependency injection
-        var services = new ServiceCollection();
+            // Load configuration
+            var configuration = new ConfigurationBuilder()
+                .SetBasePath(AppContext.BaseDirectory)
+                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                .Build();
 
-        // Linux-specific DI
-        services.AddSingleton<IGameDetector, LinuxGameDetector>();
+            // Configure dependency injection
+            var services = new ServiceCollection();
 
-        // Core DI
-        services.AddSingleton<GameDetectionService>();
-        services.AddSingleton<MainViewModel>();
+            // Register Linux-specific services first
+            services.AddSingleton<IGameDetector, LinuxGameDetector>();
+            Console.WriteLine("  - LinuxGameDetector registered for IGameDetector.");
 
-        var serviceProvider = services.BuildServiceProvider();
+            services.AddSingleton<GenHub.Linux.UpdateInstallers.LinuxUpdateInstaller>();
 
-        // Set static service locator for bootstrapping. This is needed for avalonia to receive the service provider
-        AppLocator.Services = serviceProvider;
+            // Register all common services using our new structured approach
+            services.AddAllCommonServices(configuration);
 
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            // Build the service provider
+            var serviceProvider = services.BuildServiceProvider();
+
+            AppLocator.Configure(serviceProvider);
+
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        }
+
+        // Avalonia configuration, don't remove; also used by visual designer.
+        public static AppBuilder BuildAvaloniaApp()
+            => AppBuilder.Configure<App>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace();
     }
-
-    // Avalonia configuration, don't remove; also used by visual designer.
-    public static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
-            .UsePlatformDetect()
-            .WithInterFont()
-            .LogToTrace();
 }

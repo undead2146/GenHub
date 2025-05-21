@@ -1,0 +1,353 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:GenHub.Features.AppUpdate.ViewModels"
+             xmlns:converters="using:GenHub.Infrastructure.Converters"
+             mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="600"
+             x:DataType="vm:UpdateNotificationViewModel"
+             x:Class="GenHub.Features.AppUpdate.Views.UpdateNotificationView">
+    
+    <UserControl.Resources>
+        <converters:BoolToValueConverter x:Key="BoolToValueConverter"/>
+        <converters:NotNullConverter x:Key="NotNullConverter"/>
+        <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
+        <converters:NullFallbackConverter x:Key="NullFallbackConverter"/>
+    </UserControl.Resources>
+
+    <!-- Main content panel with rounded corners -->
+    <Border Margin="0,8">
+        <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="10">
+            <!-- Current version header -->
+            <Border Grid.Row="0" 
+                    Padding="15" 
+                    Margin="0,0,0,16" 
+                    Background="#20FFFFFF" 
+                    CornerRadius="8">
+                <Grid ColumnDefinitions="*,Auto">
+                    <Grid Grid.Column="0" ColumnDefinitions="Auto,*">
+                        <!-- Version icon - FIXED: Changed from music note to version icon -->
+                        <Path Grid.Column="0"
+                              Data="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12M8.8,14L10,12.8V4H14V12.8L15.2,14H8.8Z"
+                              Fill="#80FFFFFF"
+                              Width="24" Height="24"
+                              Margin="0,0,12,0"
+                              VerticalAlignment="Center" />
+                        
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Current Version" 
+                                      Foreground="#90FFFFFF" 
+                                      FontSize="14"
+                                      Margin="0,0,0,4" />
+                            <TextBlock Text="{Binding CurrentAppVersion, FallbackValue=Unknown}" 
+                                      FontWeight="SemiBold" 
+                                      FontSize="22" />
+                        </StackPanel>
+                    </Grid>
+                    
+                    <Button Grid.Column="1" 
+                            Command="{Binding CheckForUpdatesCommand}"
+                            IsEnabled="{Binding !IsUpdating}"
+                            VerticalAlignment="Center"
+                            Classes="accent">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <!-- FIXED: Ensure icon is properly aligned -->
+                            <Path Data="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"
+                                  Fill="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  Width="16" Height="16" 
+                                  VerticalAlignment="Center" />
+                            <TextBlock Text="Check For Updates" 
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- Repository selection -->
+            <Border Grid.Row="1" 
+                    Padding="15" 
+                    Margin="0,0,0,16" 
+                    Background="#15FFFFFF" 
+                    CornerRadius="8">
+                <StackPanel Spacing="12">
+                    <Grid ColumnDefinitions="Auto,*">
+                        <!-- Repository icon -->
+                        <Path Grid.Column="0"
+                              Data="M12,1A3,3 0 0,1 15,4V5H9V4A3,3 0 0,1 12,1M12,2A2,2 0 0,0 10,4V5H14V4A2,2 0 0,0 12,2M10,6H14A1,1 0 0,1 15,7V8H9V7A1,1 0 0,1 10,6M7,9H17A1,1 0 0,1 18,10V19A1,1 0 0,1 17,20H7A1,1 0 0,1 6,19V10A1,1 0 0,1 7,9M9,10V12H10V10H9M9,13V15H10V13H9M9,16V18H10V16H9M11,10V12H12V10H11M11,13V15H12V13H11M11,16V18H12V16H11M13,10V12H14V10H13M13,13V15H14V13H13M13,16V18H14V16H13M15,10V12H16V10H15M15,13V15H16V13H15M15,16V18H16V16H15Z"
+                              Fill="#80FFFFFF"
+                              Width="24" Height="24"
+                              Margin="0,0,12,0"
+                              VerticalAlignment="Center" />
+                        
+                        <TextBlock Grid.Column="1" 
+                                  Text="Update Source" 
+                                  FontSize="16" 
+                                  FontWeight="SemiBold" 
+                                  VerticalAlignment="Center" />
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,Auto">
+                        <!-- FIXED: Made ComboBox color a lighter shade -->
+                        <ComboBox Grid.Column="0" 
+                                  ItemsSource="{Binding AvailableRepositories}" 
+                                  SelectedItem="{Binding SelectedRepository}" 
+                                  HorizontalAlignment="Stretch"
+                                  Margin="0,0,10,0"
+                                  Background="#25FFFFFF">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding DisplayName, FallbackValue=Repository}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        
+                        <!-- FIXED: Icon alignment in button -->
+                        <Button Grid.Column="1" 
+                                Command="{Binding SaveRepositorySettingsCommand}"
+                                IsEnabled="{Binding !IsLoadingSettings}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <!-- Save icon with proper alignment -->
+                                <Path Data="M15,9H5V5H15M12,19A3,3 0 0,1 9,16A3,3 0 0,1 12,13A3,3 0 0,1 15,16A3,3 0 0,1 12,19M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3Z"
+                                      Fill="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      Width="16" Height="16" 
+                                      VerticalAlignment="Center" />
+                                <TextBlock Text="Save Settings" 
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <!-- Custom repository input -->
+                    <Expander Header="Custom Repository" 
+                              Margin="0,8,0,0" 
+                              CornerRadius="4"
+                              Background="#10FFFFFF">
+                        <Grid ColumnDefinitions="*,*" 
+                              RowDefinitions="Auto,Auto" 
+                              Margin="8">
+                            <StackPanel Grid.Column="0" Grid.Row="0" Margin="0,0,8,8">
+                                <TextBlock Text="Owner:" 
+                                           Foreground="#B0B0B0" 
+                                           Margin="0,0,0,4" />
+                                <TextBox Text="{Binding RepositoryOwner}" 
+                                         Watermark="Repository owner" />
+                            </StackPanel>
+                            
+                            <StackPanel Grid.Column="1" Grid.Row="0" Margin="8,0,0,8">
+                                <TextBlock Text="Repository:" 
+                                           Foreground="#B0B0B0" 
+                                           Margin="0,0,0,4" />
+                                <TextBox Text="{Binding RepositoryName}" 
+                                         Watermark="Repository name" />
+                            </StackPanel>
+                        </Grid>
+                    </Expander>
+                </StackPanel>
+            </Border>
+
+            <!-- Status and update info -->
+            <Border Grid.Row="2" 
+                    Background="#15FFFFFF" 
+                    CornerRadius="8" 
+                    Padding="15" 
+                    Margin="0,0,0,16">
+                <StackPanel>
+                    <!-- Status message -->
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Grid Grid.Column="0" ColumnDefinitions="Auto,*">
+                            <!-- Status icon -->
+                            <Path Grid.Column="0"
+                                  Data="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"
+                                  Fill="#70FFFFFF"
+                                  Width="20" Height="20"
+                                  Margin="0,0,12,0"
+                                  VerticalAlignment="Center" />
+                            
+                            <TextBlock Grid.Column="1" 
+                                       Text="{Binding StatusMessage, FallbackValue='Ready to check for updates'}" 
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                        
+                        <!-- Use a custom animated circle progress indicator -->
+                        <Panel Grid.Column="1" IsVisible="{Binding IsUpdating}" Width="24" Height="24">
+                            <Ellipse Width="20" Height="20" 
+                                     Stroke="#30FFFFFF" 
+                                     StrokeThickness="2"
+                                     HorizontalAlignment="Center"
+                                     VerticalAlignment="Center" />
+                            <Path Width="20" Height="20"
+                                  StrokeThickness="2"
+                                  Stroke="{DynamicResource SystemAccentColor}"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center">
+                                <Path.Data>
+                                    <PathGeometry>
+                                        <PathFigure StartPoint="10,0">
+                                            <ArcSegment Size="10,10" 
+                                                       IsLargeArc="False" 
+                                                       SweepDirection="Clockwise"
+                                                       Point="20,10" />
+                                        </PathFigure>
+                                    </PathGeometry>
+                                </Path.Data>
+                                <Path.RenderTransform>
+                                    <RotateTransform Angle="0" CenterX="10" CenterY="10" />
+                                </Path.RenderTransform>
+                                <Path.Transitions>
+                                    <Transitions>
+                                        <DoubleTransition Property="(RotateTransform.Angle)"
+                                                         Duration="0:01:00" />
+                                    </Transitions>
+                                </Path.Transitions>
+                            </Path>
+                        </Panel>
+                    </Grid>
+                    
+                    <!-- Update available panel -->
+                    <Border IsVisible="{Binding UpdateCheckResult.IsUpdateAvailable, FallbackValue=False}"
+                            Background="#30559c6e"
+                            BorderBrush="#559c6e"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="15"
+                            Margin="0,16,0,0">
+                        <Grid RowDefinitions="Auto,Auto,Auto,Auto">
+                            <!-- Header row -->
+                            <Grid Grid.Row="0" 
+                                  ColumnDefinitions="Auto,*,Auto" 
+                                  Margin="0,0,0,8">
+                                <!-- FIXED: Update available icon - improved checkmark icon -->
+                                <Path Data="M9,20.42L2.79,14.21L5.62,11.38L9,14.77L18.88,4.88L21.71,7.71L9,20.42Z"
+                                      Grid.Column="0"
+                                      Fill="#7ccea8"
+                                      Width="20" Height="20"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,10,0" />
+                                          
+                                <TextBlock Text="Update Available!" 
+                                           Grid.Column="1"
+                                           FontWeight="SemiBold" 
+                                           FontSize="18" 
+                                           Foreground="#7ccea8" 
+                                           VerticalAlignment="Center" />
+
+                                <Border Grid.Column="2" 
+                                        Background="#40FFFFFF" 
+                                        CornerRadius="4" 
+                                        Padding="8,4">
+                                    <TextBlock Text="{Binding UpdateCheckResult.LatestRelease.Version, 
+                                                              FallbackValue='0.0.0',
+                                                              StringFormat='v{0}'}" 
+                                               FontFamily="Consolas,Menlo,Monospace"
+                                               FontWeight="SemiBold" />
+                                </Border>
+                            </Grid>
+                            
+                            <!-- Release name -->
+                            <TextBlock Grid.Row="1" 
+                                       Text="{Binding UpdateCheckResult.LatestRelease.Name, 
+                                                      FallbackValue='Release information'}" 
+                                       FontWeight="SemiBold"
+                                       Foreground="White"
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,8" />
+                            
+                            <!-- Release body/description -->
+                            <ScrollViewer Grid.Row="2" 
+                                          MaxHeight="120" 
+                                          Margin="0,0,0,12"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto">
+                                <TextBlock Text="{Binding UpdateCheckResult.LatestRelease.Body, 
+                                                          FallbackValue='No description provided.'}" 
+                                          TextWrapping="Wrap"
+                                          Opacity="0.8" />
+                            </ScrollViewer>
+                            
+                            <!-- Update button and additional options -->
+                            <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto">
+                                <!-- FIXED: View release notes link alignment -->
+                                <Button Grid.Column="0"
+                                        Command="{Binding ViewReleaseNotesCommand}"
+                                        IsEnabled="{Binding UpdateCheckResult.LatestRelease.HtmlUrl, 
+                                                           Converter={StaticResource NotNullConverter}}"
+                                        Classes="Hyperlink"
+                                        Background="Transparent"
+                                        Padding="0"
+                                        BorderThickness="0">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <Path Data="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z"
+                                              Fill="{DynamicResource SystemAccentColorLight1}"
+                                              Width="14" Height="14"
+                                              VerticalAlignment="Center" />
+                                        <TextBlock Text="View Release Notes"
+                                                   Foreground="{DynamicResource SystemAccentColorLight1}"
+                                                   TextDecorations="Underline"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                
+                                <!-- FIXED: Update button binding and icon alignment -->
+                                <Button Grid.Column="2" 
+                                        Command="{Binding InitiateUpdateCommand}"
+                                        IsEnabled="{Binding CanInitiateUpdate}"
+                                        Classes="accent">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <!-- Download icon -->
+                                        <Path Data="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z" 
+                                              Fill="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                              Width="16" Height="16"
+                                              VerticalAlignment="Center" />
+                                        <TextBlock Text="Update Now" 
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- Progress area -->
+            <Border Grid.Row="4" 
+                    IsVisible="{Binding IsUpdating}"
+                    Background="#15FFFFFF" 
+                    CornerRadius="8" 
+                    Padding="15" 
+                    Margin="0,16,0,0">
+                <Grid RowDefinitions="Auto,Auto,Auto">
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto,*" Margin="0,0,0,8">
+                        <!-- Update progress icon -->
+                        <Path Grid.Column="0"
+                              Data="M13,2.03V2.05L13,4.05C17.39,4.59 20.5,8.58 19.96,12.97C19.5,16.61 16.64,19.5 13,19.93V21.93C18.5,21.38 22.5,16.5 21.95,11C21.5,6.25 17.73,2.5 13,2.03M11,2.06C9.05,2.25 7.19,3 5.67,4.26L7.1,5.74C8.22,4.84 9.57,4.26 11,4.06V2.06M4.26,5.67C3,7.19 2.25,9.04 2.05,11H4.05C4.24,9.58 4.8,8.23 5.69,7.1L4.26,5.67M2.06,13C2.26,14.96 3.03,16.81 4.27,18.33L5.69,16.9C4.81,15.77 4.24,14.42 4.06,13H2.06M7.1,18.37L5.67,19.74C7.18,21 9.04,21.79 11,22V20C9.58,19.82 8.23,19.25 7.1,18.37M16.82,15.19L12.71,11.08C13.12,10.04 12.89,8.82 12.03,7.97C11.13,7.06 9.78,6.88 8.69,7.38L10.63,9.32L9.28,10.68L7.29,8.73C6.75,9.82 7,11.17 7.88,12.08C8.74,12.94 9.96,13.16 11,12.76L15.11,16.86C15.29,17.05 15.56,17.05 15.74,16.86L16.78,15.83C17,15.65 17,15.33 16.82,15.19Z"
+                              Fill="#80FFFFFF"
+                              Width="22" Height="22"
+                              Margin="0,0,12,0"
+                              VerticalAlignment="Center" />
+                              
+                        <TextBlock Grid.Column="1" 
+                                   Text="Installing Update" 
+                                   FontWeight="SemiBold"
+                                   FontSize="16"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                               
+                    <ProgressBar Grid.Row="1" 
+                                 Value="{Binding InstallProgress}" 
+                                 Maximum="1.0" 
+                                 Height="8"
+                                 CornerRadius="4"
+                                 Foreground="#559c6e"
+                                 Margin="0,0,0,8" />
+                                 
+                    <TextBlock Grid.Row="2" 
+                               Text="{Binding StatusMessage}" 
+                               TextWrapping="Wrap"
+                               Opacity="0.8" 
+                               FontSize="14" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

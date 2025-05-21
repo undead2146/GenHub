@@ -1,35 +1,58 @@
 ﻿using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
-using GenHub.ViewModels;
+using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 
-namespace GenHub;
-
-public class ViewLocator : IDataTemplate
+namespace GenHub
 {
-    public Control? Build(object? data)
+    /// <summary>
+    /// Maps view models to views in the application
+    /// </summary>
+    public class ViewLocator : IDataTemplate
     {
-        if (data is null)
-            return null;
+        private readonly ILogger<ViewLocator>? _logger;
 
-        var viewName = data.GetType().FullName!.Replace("ViewModel", "View", StringComparison.InvariantCulture);
-        var type = Type.GetType(viewName);
-
-        if (type is null)
+        public ViewLocator(ILogger<ViewLocator>? logger = null)
         {
-            return new TextBlock
-            {
-                Text = "Couldn't find view: " + viewName
-            };
+            _logger = logger;
+        }
+        public ViewLocator()
+        {
         }
 
-        var control = (Control)Activator.CreateInstance(type)!;
-        control.DataContext = data;
-        return control;
-    }
+        public Control Build(object? data)
+        {
+            if (data == null)
+                return new TextBlock { Text = "No data context provided" };
 
-    public bool Match(object? data)
-    {
-        return data is ViewModelBase;
+            try
+            {
+                var name = data.GetType().FullName!.Replace("ViewModel", "View");
+                var type = Type.GetType(name);
+
+                if (type != null)
+                {
+                    var instance = Activator.CreateInstance(type) as Control;
+                    return instance ?? new TextBlock { Text = $"Could not create instance of {name}" };
+                }
+                else
+                {
+                    _logger?.LogWarning("Could not find view for {ViewModelType}", data.GetType().FullName);
+                    return new TextBlock { Text = $"Not Found: {name}" };
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error locating view for {ViewModelType}", data.GetType().FullName);
+                Console.WriteLine($"ViewLocator error: {ex.Message}");
+                return new TextBlock { Text = $"Error: {ex.Message}" };
+            }
+        }
+
+        public bool Match(object? data)
+        {
+            return data is not null && data.GetType().Name.EndsWith("ViewModel");
+        }
     }
 }

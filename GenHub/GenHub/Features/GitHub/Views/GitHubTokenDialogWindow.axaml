@@ -1,0 +1,51 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="280"
+        x:Class="GenHub.Features.GitHub.Views.GitHubTokenDialogWindow"
+        Width="450" Height="280"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Title="GitHub Token Configuration"
+    Icon="avares://GenHub/Assets/Icons/genhub-logo.png">
+
+    <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto,Auto">
+        <TextBlock Grid.Row="0" 
+                   Text="GitHub Personal Access Token"
+                   FontSize="18" 
+                   FontWeight="SemiBold" 
+                   Margin="0,0,0,15"/>
+
+        <TextBlock Grid.Row="1" 
+                   TextWrapping="Wrap" 
+                   Margin="0,0,0,20">
+            Enter your GitHub personal access token to access private repositories and avoid rate limits. 
+            The token should have 'workflow' permission.
+        </TextBlock>
+
+        <TextBox Grid.Row="2" 
+                 Name="TokenTextBox" 
+                 PasswordChar="•"
+                 AcceptsReturn="False" 
+                 VerticalAlignment="Top"
+                 Watermark="Enter your GitHub personal access token" />
+
+        <TextBlock Grid.Row="3"
+                  Name="ErrorMessage"
+                  Foreground="#CC0000"
+                  FontSize="12"
+                  Margin="0,8,0,0"
+                  TextWrapping="Wrap"
+                  IsVisible="False" />
+
+        <StackPanel Grid.Row="4" 
+                    Orientation="Horizontal" 
+                    HorizontalAlignment="Right" 
+                    Margin="0,16,0,0"
+                    Spacing="10">
+            <Button Name="CancelButton" Content="Cancel" />
+            <Button Name="OkButton" Content="OK" Classes="accent" />
+        </StackPanel>
+    </Grid>
+</Window>

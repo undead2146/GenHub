@@ -1,0 +1,197 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="using:GenHub.Features.GitHub.Views"
+        xmlns:vm="using:GenHub.Features.GitHub.ViewModels"
+        xmlns:conv="using:GenHub.Infrastructure.Converters"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+        Width="1200" Height="800"
+        Title="GenHub Manager"
+        x:Class="GenHub.Features.GitHub.Views.GitHubManagerWindow"
+        WindowStartupLocation="CenterScreen"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="32"
+        Background="{DynamicResource WindowBackground}"
+        x:CompileBindings="False">
+
+    <!-- Window resources -->
+    <Window.Resources>
+
+        <StreamGeometry x:Key="DownloadIcon">M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z</StreamGeometry>
+        <StreamGeometry x:Key="RefreshIcon">M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z</StreamGeometry>
+        <StreamGeometry x:Key="SearchIcon">M15.5,14.5L20,19L19,20L14.5,15.5C13.2,16.5 11.7,17 10,17C7.3,17 5.1,16.1 3.3,14.3C1.5,12.5 0.6,10.3 0.6,7.6C0.6,4.9 1.5,2.7 3.3,0.9C5.1,0.1 7.3,-0.8 10,-0.8C12.7,-0.8 14.9,0.1 16.7,1.9C18.5,3.7 19.4,5.9 19.4,8.6C19.4,10.3 18.9,11.8 17.9,13.1L15.5,14.5M10,15C12,15 13.7,14.3 15,13C16.3,11.7 17,10 17,8C17,6 16.3,4.3 15,3C13.7,1.7 12,1 10,1C8,1 6.3,1.7 5,3C3.7,4.3 3,6 3,8C3,10 3.7,11.7 5,13C6.3,14.3 8,15 10,15Z</StreamGeometry>
+        <StreamGeometry x:Key="EmptyStateIcon">M19,20H4C2.89,20 2,19.1 2,18V6C2,4.89 2.89,4 4,4H10L12,6H19A2,2 0 0,1 21,8H21L4,8V18L6.14,10H23.21L20.93,18.5C20.7,19.37 19.92,20 19,20Z</StreamGeometry>
+        <StreamGeometry x:Key="FileZipIcon">M14,17H12V15H10V13H12V15H14M14,9H12V11H14V13H12V11H10V9H12V7H10V5H12V7H14M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3Z</StreamGeometry>
+    </Window.Resources>
+
+    <!-- Window styles -->
+    <Window.Styles>
+        <Style Selector="Border.tag">
+            <Setter Property="Padding" Value="4,2"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Background" Value="#333333"/>
+        </Style>
+        <Style Selector="Border.tag TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style Selector="Border.draft">
+            <Setter Property="Background" Value="#FFD700"/>
+        </Style>
+        <Style Selector="Border.draft TextBlock">
+            <Setter Property="Foreground" Value="#333"/>
+        </Style>
+        <Style Selector="Border.prerelease">
+            <Setter Property="Background" Value="#FF7F50"/>
+        </Style>
+        <Style Selector="Border.prerelease TextBlock">
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="Border.release">
+            <Setter Property="Background" Value="#2ECC71"/>
+        </Style>
+        <Style Selector="Border.release TextBlock">
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="{DynamicResource PrimaryButtonBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryButtonForeground}"/>
+            <Setter Property="Padding" Value="15,8"/>
+        </Style>
+        <Style Selector="Border.installation-badge">
+            <Setter Property="CornerRadius" Value="2" />
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="Margin" Value="5,0,0,0" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+        <Style Selector="Border.installed-badge">
+            <Setter Property="Background" Value="#22AA22" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Border.installing-badge">
+            <Setter Property="Background" Value="#D68910" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Border.installation-badge TextBlock">
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        
+        <!-- Custom styles for window -->
+        <Style Selector="Window">
+            <Setter Property="TransparencyLevelHint" Value="AcrylicBlur" />
+        </Style>
+        
+        <!-- Improved title bar buttons -->
+        <Style Selector="Button.window-control">
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource TitleBarForeground}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+        
+        <Style Selector="Button.window-control:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColorLight1}" />
+        </Style>
+        
+        <Style Selector="Button.window-close:pointerover">
+            <Setter Property="Background" Value="#E81123" />
+        </Style>
+        
+        <!-- Improved window drag area style - remove incorrect event handler setter -->
+        <Style Selector="Grid.TitleBarArea">
+            <Setter Property="Background" Value="{DynamicResource TitleBarBackground}"/>
+            <Setter Property="Height" Value="32"/>
+        </Style>
+    </Window.Styles>
+
+    <!-- Root container Grid that wraps everything -->
+    <Grid>
+        <!-- Main content Grid with improved spacing -->
+        <Grid RowDefinitions="Auto,*">
+            <!-- Title bar with draggable behavior -->
+            <Grid x:Name="TitleBarGrid" 
+                  Grid.Row="0" 
+                  Classes="TitleBarArea"
+                  PointerPressed="TitleBar_PointerPressed"
+                  ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="10,0,0,0">
+                    <Image Source="avares://GenHub/Assets/Icons/genhub-logo.png" Width="24" Height="24"/>
+                    <TextBlock Text="GitHub Manager" VerticalAlignment="Center" Margin="8,0,0,0" 
+                              Foreground="{DynamicResource TitleBarForeground}"/>
+                </StackPanel>
+                
+                <!-- Window control buttons with proper spacing -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="0">
+                    <Button Content="⚙️" Command="{Binding ConfigureTokenCommand}" 
+                            ToolTip.Tip="Configure GitHub Token" Classes="window-control"/>
+                    <Button Content="🗙" Click="CloseButton_Click"
+                            ToolTip.Tip="Close" Classes="window-control window-close"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- Main content area -->
+            <Grid Grid.Row="1" ColumnDefinitions="300,*" Background="{DynamicResource MainContentBackground}">
+                <!-- Left panel - Display Items View with proper background -->
+                <local:GitHubDisplayItemsView Grid.Column="0" 
+                                             DataContext="{Binding}"
+                                             Background="{DynamicResource SidebarBackground}"
+                                             BorderThickness="0,0,1,0"
+                                             BorderBrush="{DynamicResource BorderBrush}">
+                    <local:GitHubDisplayItemsView.Resources>
+                        <x:Double x:Key="IconSize">16</x:Double>
+                    </local:GitHubDisplayItemsView.Resources>
+                </local:GitHubDisplayItemsView>
+
+                <!-- Right panel - Details View -->
+                <Grid Grid.Column="1">
+                    <!-- Main content area when items are available -->
+                    <local:GitHubDetailsView IsVisible="{Binding !ShowEmptyState}"
+                                            DataContext="{Binding DetailsVM}"
+                                            Background="{DynamicResource DetailsBackground}"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Stretch" />
+
+                    <!-- Empty state content with improved visuals -->
+                    <Grid IsVisible="{Binding ShowEmptyState}" RowDefinitions="*,Auto,*" Background="{DynamicResource DetailsBackground}">
+                        <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="15">
+                            <PathIcon Data="{StaticResource EmptyStateIcon}" Width="64" Height="64" Foreground="{DynamicResource EmptyStateForeground}" Opacity="0.7"/>
+                            <TextBlock Text="No items to display" 
+                                      HorizontalAlignment="Center" 
+                                      FontSize="20" 
+                                      FontWeight="SemiBold"
+                                      Foreground="{DynamicResource EmptyStateForeground}"/>
+                            <TextBlock Text="Select a repository and workflow to get started" 
+                                      HorizontalAlignment="Center" 
+                                      FontSize="16" 
+                                      Opacity="0.7" 
+                                      TextWrapping="Wrap"
+                                      Margin="20,0"
+                                      TextAlignment="Center"
+                                      Foreground="{DynamicResource EmptyStateForeground}"/>
+                            <Button Command="{Binding RefreshCommand}" 
+                                    HorizontalAlignment="Center" 
+                                    Margin="0,10,0,0"
+                                    Classes="primary">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <PathIcon Data="{StaticResource RefreshIcon}" Width="16" Height="16"/>
+                                    <TextBlock Text="Refresh"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <!-- Improved loading overlay -->
+        <local:LoadingOverlay IsVisible="{Binding IsLoading}" Text="{Binding StatusMessage}" />
+    </Grid>
+</Window>

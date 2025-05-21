@@ -1,0 +1,94 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="using:GenHub.Features.AppUpdate.Views"
+        xmlns:vm="using:GenHub.Features.AppUpdate.ViewModels"
+        xmlns:i="using:Avalonia.Xaml.Interactivity"
+        xmlns:ia="using:Avalonia.Xaml.Interactions.Core"
+        mc:Ignorable="d" 
+        Width="580" Height="640"
+        MinWidth="500" MinHeight="580"
+        x:Class="GenHub.Features.AppUpdate.Views.UpdateNotificationWindow"
+        Title="GenHub Updates"
+        WindowStartupLocation="CenterScreen"
+        SystemDecorations="BorderOnly"
+        TransparencyLevelHint="AcrylicBlur"
+        Background="Transparent"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        CanResize="True"
+        x:DataType="vm:UpdateNotificationViewModel">
+    
+    <!-- Window styles -->
+    <Window.Styles>
+        <Style Selector="Grid.TitleBarArea">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Height" Value="40"/>
+        </Style>
+    </Window.Styles>
+    
+    <Panel>
+        <!-- Background with corner radius -->
+        <Border CornerRadius="8" BoxShadow="0 4 20 0 #50000000">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                    <GradientStop Color="#242938" Offset="0" />
+                    <GradientStop Color="#1e2430" Offset="1" />
+                </LinearGradientBrush>
+            </Border.Background>
+        </Border>
+        
+        <!-- Main content -->
+        <Grid RowDefinitions="Auto,*,Auto">
+            <!-- Custom title bar with direct event handler -->
+            <Grid Grid.Row="0" Height="40" Margin="8,8,8,0"
+                  ColumnDefinitions="Auto,*,Auto"
+                  Classes="TitleBarArea"
+                  x:Name="TitleBarGrid"
+                  PointerPressed="TitleBar_PointerPressed">
+                  
+                <!-- App icon and title -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
+                    <!-- Detailed app icon using vector paths -->
+                    <Canvas Width="24" Height="24" Margin="8,0,0,0" VerticalAlignment="Center">
+                        <!-- Main icon shape -->
+                        <Path Data="M12,0 L24,8 L24,24 L0,24 L0,8 Z" Fill="#3399FF" />
+                        
+                        <!-- Gear icon overlay -->
+                        <Path Data="M17.5,12C17.5,13.93 16.1,15.57 14.25,15.92V17H9.75V15.92C7.9,15.57 6.5,13.93 6.5,12C6.5,10.07 7.9,8.43 9.75,8.08V7H14.25V8.08C16.1,8.43 17.5,10.07 17.5,12M16,12C16,10.34 14.66,9 13,9V10.25C13,10.66 12.66,11 12.25,11H11.75C11.34,11 11,10.66 11,10.25V9C9.34,9 8,10.34 8,12C8,13.66 9.34,15 11,15V13.75C11,13.34 11.34,13 11.75,13H12.25C12.66,13 13,13.34 13,13.75V15C14.66,15 16,13.66 16,12M9,2L4,7H8V15H10V7H14L9,2M14,17V21H10V17H9L12,14L15,17H14Z" 
+                              Fill="#FFFFFF" Opacity="0.8" />
+                    </Canvas>
+                    
+                    <TextBlock Text="GenHub Updates" 
+                              VerticalAlignment="Center"
+                              FontSize="16" FontWeight="SemiBold" />
+                </StackPanel>
+                
+                <!-- Window controls -->
+                <Button Grid.Column="2"
+                        Content="✕"
+                        Click="CloseButton_Click"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Right"
+                        Background="Transparent"
+                        Width="40" Height="40" />
+            </Grid>
+
+            <!-- Main content area -->
+            <Border Grid.Row="1" Margin="12,0,12,0">
+                <views:UpdateNotificationView DataContext="{Binding}" />
+            </Border>
+
+            <!-- Bottom bar with app info -->
+            <Grid Grid.Row="2" Height="40" Margin="12">
+                <TextBlock Text="{Binding CurrentAppVersion, StringFormat={}GenHub v{0}}"
+                          Opacity="0.7"
+                          FontSize="12"
+                          HorizontalAlignment="Right"
+                          VerticalAlignment="Center" />
+            </Grid>
+        </Grid>
+    </Panel>
+</Window>
