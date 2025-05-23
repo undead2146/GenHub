@@ -4,6 +4,9 @@ using Microsoft.Extensions.Logging;
 
 using GenHub.Common.ViewModels;
 using GenHub.Core.Interfaces.UI;
+using GenHub.Features.Downloads.ViewModels;
+using GenHub.Features.Settings.ViewModels;
+using GenHub.Features.GameProfiles.ViewModels;
 
 namespace GenHub.Infrastructure.DependencyInjection
 {
@@ -25,11 +28,19 @@ namespace GenHub.Infrastructure.DependencyInjection
                 services.AddSingleton<MainViewModel>();
                 logger.LogDebug("MainViewModel registered (critical for startup)");
                 
+                // Register tab ViewModels
+                services.AddSingleton<GameProfileLauncherViewModel>();
+                logger.LogDebug("GameProfileLauncherViewModel registered");
+                
+                services.AddSingleton<DownloadsViewModel>();
+                logger.LogDebug("DownloadsViewModel registered");
+                
+                services.AddSingleton<SettingsViewModel>();
+                logger.LogDebug("SettingsViewModel registered");
+
                 // Register ViewLocator to help resolve views for ViewModels
                 services.AddSingleton<ViewLocator>();
                 logger.LogDebug("ViewLocator registered");
-                
-                // Register any other application-wide/shell ViewModels here
                 
                 logger.LogInformation("Shared ViewModels configured successfully");
                 return services;

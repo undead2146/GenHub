@@ -1,106 +1,226 @@
 ﻿<UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="clr-namespace:GenHub.Common.ViewModels"
-             xmlns:profileViews="clr-namespace:GenHub.Features.GameProfiles.Views"
-             xmlns:GitHubManagerWindows="clr-namespace:GenHub.Features.GitHub.Views"
-             mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
-             x:Class="GenHub.Common.Views.MainView"
-             x:DataType="vm:MainViewModel">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:GenHub.Common.ViewModels"
+    xmlns:profileViews="clr-namespace:GenHub.Features.GameProfiles.Views"
+    xmlns:downloadsViews="clr-namespace:GenHub.Features.Downloads.Views"
+    xmlns:settingsViews="clr-namespace:GenHub.Features.Settings.Views"
+    xmlns:conv="clr-namespace:GenHub.Infrastructure.Converters"
+    xmlns:system="clr-namespace:System;assembly=System.Runtime"
+    mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
+    x:Class="GenHub.Common.Views.MainView"
+    x:DataType="vm:MainViewModel"
+    x:Name="MainViewRoot">
+
+    <UserControl.Styles>
+        <!-- Modern tab button styles -->
+        <Style Selector="Button.modern-tab">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#B0B0B0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="20,12" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="MinWidth" Value="120" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Transitions">
+                <Setter.Value>
+                    <Transitions>
+                        <BrushTransition Property="Background" Duration="0:0:0.15" />
+                        <BrushTransition Property="Foreground" Duration="0:0:0.15" />
+                        <TransformOperationsTransition Property="RenderTransform"
+                            Duration="0:0:0.15" />
+                    </Transitions>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="8,8,0,0"
+                        Margin="{TemplateBinding Margin}">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Padding="{TemplateBinding Padding}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            TextBlock.Foreground="{TemplateBinding Foreground}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+
+        <Style Selector="Button.modern-tab:pointerover">
+            <Setter Property="Background" Value="#2A2A2A" />
+            <Setter Property="Foreground" Value="#E0E0E0" />
+            <Setter Property="RenderTransform" Value="translateY(-1px)" />
+        </Style>
+
+        <Style Selector="Button.modern-tab.active">
+            <Setter Property="Background" Value="#1A1A1A" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="BorderThickness" Value="0,0,0,2" />
+            <Setter Property="BorderBrush" Value="#4A9EFF" />
+        </Style>
+
+        <Style Selector="Button.modern-tab.active:pointerover">
+            <Setter Property="Background" Value="#1A1A1A" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="RenderTransform" Value="none" />
+        </Style>
+
+        <!-- Update notification button style -->
+        <Style Selector="Button.update-notification">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="20" />
+            <Setter Property="Padding" Value="12" />
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="44" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Transitions">
+                <Setter.Value>
+                    <Transitions>
+                        <BrushTransition Property="Background" Duration="0:0:0.2" />
+                        <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2" />
+                    </Transitions>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style Selector="Button.update-notification:pointerover">
+            <Setter Property="Background" Value="#2A2A2A" />
+            <Setter Property="RenderTransform" Value="scale(1.1)" />
+        </Style>
+
+        <!-- Header gradient background -->
+        <Style Selector="Border.header-background">
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                        <GradientStop Color="#2D2D2D" Offset="0" />
+                        <GradientStop Color="#202020" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="BorderBrush" Value="#404040" />
+        </Style>
+    </UserControl.Styles>
+
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Header with tabs and update notification button -->
-        <Grid Grid.Row="0" Background="#202020">
-            <Grid ColumnDefinitions="Auto,*,Auto" Margin="16,10">
-                <!-- App icon -->
-                <Image Grid.Column="0" 
-                       Source="avares://Genhub/Assets/Icons/genhub-icon.png"
-                       Height="50" 
-                       VerticalAlignment="Center"
-                       Margin="0,0,10,0" />
-                
-                <!-- Center - empty for now -->
-                <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" 
-                           Orientation="Horizontal" Spacing="8">
-                </StackPanel>
-                
-                <!-- Update notification button - positioned in the top-right -->
-                <Button Grid.Column="2"
-                        Name="UpdateButton" 
-                        HorizontalAlignment="Right" 
-                        VerticalAlignment="Center"
-                        Margin="0,0,10,0"
+        <!-- Enhanced Header -->
+        <Border Grid.Row="0" Classes="header-background">
+            <Grid RowDefinitions="Auto,Auto">
+                <!-- Top section with app info and update button -->
+                <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="5,5,5,5">
+                    <!-- App icon and title -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Image Source="avares://GenHub/Assets/Icons/genhub-icon.png"
+                            Width="75" Height="75"
+                            VerticalAlignment="Center"
+                            Margin="0,0,12,0" />
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="C&amp;C Generals Launcher"
+                                FontSize="11"
+                                Foreground="#A0A0A0"
+                                Margin="0,-2,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Update notification button -->
+                    <Button Grid.Column="2"
+                        Classes="update-notification"
                         Command="{Binding ShowUpdateNotificationCommand}"
-                        ToolTip.Tip="Updates available"
-                        Classes="icon-button"
-                        Width="32" Height="32">
-                    <Panel>
-                        <PathIcon Data="M12,4C7,4 2.73,7.11 1,11.5C2.73,15.89 7,19 12,19C17,19 21.27,15.89 23,11.5C21.27,7.11 17,4 12,4ZM12,16.5C9.24,16.5 7,14.26 7,11.5C7,8.74 9.24,6.5 12,6.5C14.76,6.5 17,8.74 17,11.5C17,14.26 14.76,16.5 12,16.5ZM12,8.5A3,3 0 0,0 9,11.5A3,3 0 0,0 12,14.5A3,3 0 0,0 15,11.5A3,3 0 0,0 12,8.5Z" 
-                                  Width="16" Height="16"
-                                  Foreground="#4CAF50"/>
-                        <Ellipse Width="8" Height="8" 
-                                 Fill="#FF4500" 
-                                 HorizontalAlignment="Right" 
-                                 VerticalAlignment="Top" 
-                                 Margin="0,-2,-2,0"/>
-                    </Panel>
-                </Button>
-            </Grid>
-        </Grid>
-        
-        <!-- Main content area -->
-        <TabControl Grid.Row="1" 
-                   Margin="0"
-                   SelectedIndex="{Binding SelectedTabIndex}"
-                   Background="#1A1A1A"
-                   TabStripPlacement="Top">
-            <TabItem Header="Game Profiles">
-                <profileViews:GameProfileLauncherView/>
-            </TabItem>
-            <TabItem Header="Downloads">
-                <Grid Background="#141414">
-                    <StackPanel HorizontalAlignment="Center" 
-                               VerticalAlignment="Center" 
-                               Spacing="20">
-                        <TextBlock Text="Download Game Builds" 
-                                  FontSize="24"
-                                  HorizontalAlignment="Center"
-                                  FontWeight="SemiBold"
-                                  Margin="0,0,0,20"/>
-                                  
-                        <Button Command="{Binding OpenGitHubBuildsCommand}"
-                                Classes="accent"
-                                Padding="25,15"
-                                HorizontalAlignment="Center">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <PathIcon Data="M12,2A10,10 0 0,0 2,12C2,16.42 4.87,20.17 8.84,21.5C9.34,21.58 9.5,21.27 9.5,21C9.5,20.77 9.5,20.14 9.5,19.31C6.73,19.91 6.14,17.97 6.14,17.97C5.68,16.81 5.03,16.5 5.03,16.5C4.12,15.88 5.1,15.9 5.1,15.9C6.1,15.97 6.63,16.93 6.63,16.93C7.5,18.45 8.97,18 9.54,17.76C9.63,17.11 9.89,16.67 10.17,16.42C7.95,16.17 5.62,15.31 5.62,11.5C5.62,10.39 6,9.5 6.65,8.79C6.55,8.54 6.2,7.5 6.75,6.15C6.75,6.15 7.59,5.88 9.5,7.17C10.29,6.95 11.15,6.84 12,6.84C12.85,6.84 13.71,6.95 14.5,7.17C16.41,5.88 17.25,6.15 17.25,6.15C17.8,7.5 17.45,8.54 17.35,8.79C18,9.5 18.38,10.39 18.38,11.5C18.38,15.32 16.04,16.16 13.81,16.41C14.17,16.72 14.5,17.33 14.5,18.26C14.5,19.6 14.5,20.68 14.5,21C14.5,21.27 14.66,21.59 15.17,21.5C19.14,20.16 22,16.42 22,12A10,10 0 0,0 12,2Z" Width="20" Height="20" />
-                                <TextBlock Text="Browse GitHub Builds" FontSize="16" />
-                            </StackPanel>
+                        IsVisible="{Binding HasUpdateAvailable}"
+                        ToolTip.Tip="Update available - click to download">
+                        <Panel>
+                            <Ellipse Width="20" Height="20"
+                                Fill="#4CAF50"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                            <PathIcon Data="M7,10L12,15L17,10H7Z"
+                                Width="12" Height="12"
+                                Foreground="White"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                            <!-- Notification dot -->
+                            <Ellipse Width="8" Height="8"
+                                Fill="#FF4500"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Margin="0,-2,-2,0" />
+                        </Panel>
+                    </Button>
+                </Grid>
+
+                <!-- Tab navigation section -->
+                <Grid Grid.Row="1" Margin="20,0,20,0">
+                    <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Bottom">
+
+                        <Button Classes="modern-tab"
+                            Classes.active="{Binding SelectedTabIndex, Converter={x:Static conv:EqualityConverter.Instance}, ConverterParameter=0}"
+                            Command="{Binding SelectTabCommand}"
+                            Content="Game Profiles"
+                            Name="Tab0Button">
+                            <Button.CommandParameter>
+                                <system:Int32>0</system:Int32>
+                            </Button.CommandParameter>
                         </Button>
-                        
-                        <TextBlock Text="Access the latest development builds from GitHub repositories"
-                                  Foreground="#AAAAAA" 
-                                  TextAlignment="Center" 
-                                  TextWrapping="Wrap"
-                                  MaxWidth="400" 
-                                  Margin="0,20,0,0"/>
+
+                        <Button Classes="modern-tab"
+                            Classes.active="{Binding SelectedTabIndex, Converter={x:Static conv:EqualityConverter.Instance}, ConverterParameter=1}"
+                            Command="{Binding SelectTabCommand}"
+                            Content="Downloads"
+                            Name="Tab1Button">
+                            <Button.CommandParameter>
+                                <system:Int32>1</system:Int32>
+                            </Button.CommandParameter>
+                        </Button>
+
+                        <Button Classes="modern-tab"
+                            Classes.active="{Binding SelectedTabIndex, Converter={x:Static conv:EqualityConverter.Instance}, ConverterParameter=2}"
+                            Command="{Binding SelectTabCommand}"
+                            Content="Settings"
+                            Name="Tab2Button">
+                            <Button.CommandParameter>
+                                <system:Int32>2</system:Int32>
+                            </Button.CommandParameter>
+                        </Button>
                     </StackPanel>
                 </Grid>
-            </TabItem>
-            <TabItem Header="Settings">
-                <Grid Background="#141414">
-                    <TextBlock Text="Settings coming soon" 
-                              HorizontalAlignment="Center" 
-                              VerticalAlignment="Center"
-                              Foreground="White"
-                              FontSize="18"/>
-                </Grid>
-            </TabItem>
-        </TabControl>
+            </Grid>
+        </Border>
+
+        <!-- Main content area -->
+        <Grid Grid.Row="1" Background="#1A1A1A">
+            <!-- Game Profiles Tab -->
+            <Grid IsVisible="{Binding SelectedTabIndex, Converter={x:Static conv:TabIndexToVisibilityConverter.Instance}, ConverterParameter=0}">
+                <profileViews:GameProfileLauncherView DataContext="{Binding GameProfilesViewModel}" />
+            </Grid>
+
+            <!-- Downloads Tab -->
+            <Grid IsVisible="{Binding SelectedTabIndex, Converter={x:Static conv:TabIndexToVisibilityConverter.Instance}, ConverterParameter=1}">
+                <downloadsViews:DownloadsView DataContext="{Binding DownloadsViewModel}" />
+            </Grid>
+
+            <!-- Settings Tab -->
+            <Grid IsVisible="{Binding SelectedTabIndex, Converter={x:Static conv:TabIndexToVisibilityConverter.Instance}, ConverterParameter=2}">
+                <settingsViews:SettingsView DataContext="{Binding SettingsViewModel}" />
+            </Grid>
+        </Grid>
     </Grid>
 </UserControl>

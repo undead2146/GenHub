@@ -40,7 +40,6 @@ namespace GenHub.Infrastructure.DependencyInjection
 
             // Register profile-specific ViewModels
             services.AddTransient<GameProfileItemViewModel>();
-            services.AddSingleton<GameProfileLauncherViewModel>();
             
             // GameProfileSettingsViewModel requires special registration with owner window
             services.AddTransient<GameProfileSettingsViewModel>(provider =>

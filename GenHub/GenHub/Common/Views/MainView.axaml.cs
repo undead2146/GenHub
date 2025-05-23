@@ -1,27 +1,37 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using System;
-using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Avalonia.Controls.ApplicationLifetimes;
 
-using GenHub.Features.GitHub.ViewModels;
-using GenHub.Features.GitHub.Views;
 using GenHub.Common.ViewModels;
-using GenHub.Core.Interfaces.GitHub;
-using GenHub.Core.Interfaces;
-using GenHub.Features.GitHub.Services;
 
 namespace GenHub.Common.Views
 {
     public partial class MainView : UserControl
     {
+        private static ILogger? _logger;
+
         public MainView()
         {
             InitializeComponent();
+            _logger = AppLocator.Services?.GetService<ILogger<MainView>>();
+            
+            // Ensure DataContext is set
+            if (DataContext == null)
+            {
+                var mainViewModel = AppLocator.Services?.GetService<MainViewModel>();
+                if (mainViewModel != null)
+                {
+                    DataContext = mainViewModel;
+                    _logger?.LogInformation("MainView DataContext set to MainViewModel");
+                }
+                else
+                {
+                    _logger?.LogError("Could not resolve MainViewModel from services");
+                }
+            }
 
             this.Loaded += async (s, e) =>
             {
@@ -42,39 +52,6 @@ namespace GenHub.Common.Views
         private void InitializeComponent()
         {
             AvaloniaXamlLoader.Load(this);
-        }
-        /// <summary>
-        /// Static helper to open the GitHub Builds window
-        /// </summary>
-        public static async void OpenGitHubBuildsWindow()
-        {
-            try
-            {
-                var gitHubWindow = new GitHubManagerWindow
-                {
-                    WindowStartupLocation = WindowStartupLocation.CenterScreen,
-                    Title = "GitHub Builds Manager"
-                };
-
-                // Set the DataContext if needed
-                var vm = AppLocator.GetService<GitHubManagerViewModel>();
-
-                // Show the window modally if this is being called from a window
-                if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow is Window parentWindow)
-                {
-                    await gitHubWindow.ShowDialog(parentWindow);
-                }
-                else
-                {
-                    gitHubWindow.Show();
-                }
-            }
-
-            catch (Exception ex)
-            {
-                // Log exception
-                Console.WriteLine($"Error opening GitHub window: {ex.Message}");
-            }
         }
     }
 }

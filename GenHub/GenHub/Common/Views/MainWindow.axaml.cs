@@ -3,9 +3,10 @@ using Avalonia.Platform;
 using Avalonia.Markup.Xaml;
 using System;
 using Avalonia;
-using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Threading;
 using Avalonia.Media.Imaging;
+using Microsoft.Extensions.DependencyInjection;
+using GenHub.Common.ViewModels;
+using Microsoft.Extensions.Logging;
 
 namespace GenHub.Common.Views;
 
@@ -16,7 +17,31 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         InitializeWindowIcon();
+
+        var logger = AppLocator.Services?.GetService<ILogger<MainWindow>>();
+
+        // Ensure MainView gets the MainViewModel
+        var mainViewModel = AppLocator.Services?.GetService<MainViewModel>();
+        if (mainViewModel != null)
+        {
+            // Find the MainView and set its DataContext
+            var mainView = this.FindControl<MainView>("MainViewRoot") ?? this.Content as MainView;
+            if (mainView != null)
+            {
+                mainView.DataContext = mainViewModel;
+                logger?.LogInformation("MainWindow set MainView DataContext to MainViewModel");
+            }
+            else
+            {
+                logger?.LogWarning("Could not find MainView in MainWindow");
+            }
+        }
+        else
+        {
+            logger?.LogError("Could not resolve MainViewModel for MainWindow");
+        }
     }
+    
     private void InitializeWindowIcon()
     {
         if (!OperatingSystem.IsWindows())
@@ -44,5 +69,4 @@ public partial class MainWindow : Window
                 Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
         }
     }
-
 }

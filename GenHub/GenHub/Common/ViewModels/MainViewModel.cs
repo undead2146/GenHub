@@ -11,11 +11,12 @@ using Microsoft.Extensions.DependencyInjection;
 
 using GenHub.Common.Views;
 using GenHub.Core.Interfaces;
-using GenHub.Core.Models;
 using GenHub.Core.Interfaces.AppUpdate;
-using GenHub.Features.GameVersions.Services;
 using GenHub.Features.AppUpdate.ViewModels;
 using GenHub.Features.AppUpdate.Views;
+using GenHub.Features.GameProfiles.ViewModels;
+using GenHub.Features.Downloads.ViewModels;
+using GenHub.Features.Settings.ViewModels;
 
 namespace GenHub.Common.ViewModels
 {
@@ -47,23 +48,42 @@ namespace GenHub.Common.ViewModels
         private string _selectedZeroHourExecutable;
 
         [ObservableProperty]
-        private bool _updateAvailable;
+        private bool _hasUpdateAvailable;
 
         [ObservableProperty]
         private UpdateNotificationViewModel? _updateViewModel;
 
+        // Tab ViewModels
+        public GameProfileLauncherViewModel GameProfilesViewModel { get; }
+        public DownloadsViewModel DownloadsViewModel { get; }
+        public SettingsViewModel SettingsViewModel { get; }
+
         public MainViewModel(
             IGameVersionServiceFacade gameVersionService,
             ILogger<MainViewModel> logger,
-            IAppUpdateService updateService)
+            IAppUpdateService updateService,
+            GameProfileLauncherViewModel gameProfilesViewModel,
+            DownloadsViewModel downloadsViewModel,
+            SettingsViewModel settingsViewModel)
         {
             _gameVersionService = gameVersionService;
             _logger = logger;
             _updateService = updateService;
 
+            // Initialize tab ViewModels
+            GameProfilesViewModel = gameProfilesViewModel;
+            DownloadsViewModel = downloadsViewModel;
+            SettingsViewModel = settingsViewModel;
 
             _selectedGeneralsExecutable = "generals.exe";
             _selectedZeroHourExecutable = "generals.exe";
+
+            // Verify command generation
+            _logger.LogInformation("MainViewModel constructor - SelectTabCommand is null: {IsNull}", SelectTabCommand == null);
+            if (SelectTabCommand != null)
+            {
+                _logger.LogInformation("SelectTabCommand exists and CanExecute: {CanExecute}", SelectTabCommand.CanExecute(0));
+            }
 
             // Initialize the update notification check
             Task.Run(CheckForUpdatesAsync);
@@ -103,8 +123,6 @@ namespace GenHub.Common.ViewModels
                 ZeroHourGamePath = null;
 
                 // Find paths from detected versions
-                // Assuming GameType strings are "Generals" and "Zero Hour" or similar defined constants/enums
-                // You might need to adjust these strings based on your GameVersion.GameType values
                 var vanillaVersion = detectedVersions.FirstOrDefault(v =>
                     (v.GameType?.Equals("Generals", StringComparison.OrdinalIgnoreCase) == true ||
                      v.GameType?.Equals("Command & Conquer Generals", StringComparison.OrdinalIgnoreCase) == true) &&
@@ -141,34 +159,17 @@ namespace GenHub.Common.ViewModels
         }
 
         [RelayCommand]
-        private async void OpenGitHubBuilds()
+        private void SelectTab(int tabIndex)
         {
-            try
-            {
-                // Log that we're starting to avoid any ambiguity
-                _logger.LogInformation("=== DIAGNOSTIC TEST: Starting GitHub UI diagnostic test ===");
-                
-                // First test if the GitHub services are working properly before trying to open the window
-                _logger.LogInformation("Creating service tester to diagnose GitHub services");
-                
-                
-                // Now open the window (which we've modified to be minimal)
-                _logger.LogInformation("Calling OpenGitHubBuildsWindow with simplified window");
-                MainView.OpenGitHubBuildsWindow();
-                
-                _logger.LogInformation("=== DIAGNOSTIC TEST: GitHub UI diagnostic test completed ===");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error in OpenGitHubBuilds");
-            }
-        }
-
-        [RelayCommand]
-        private Task SwitchTab(int tabIndex)
-        {
+            _logger.LogInformation("Selecting tab {TabIndex}", tabIndex);
+            
+            var oldIndex = SelectedTabIndex;
             SelectedTabIndex = tabIndex;
-            return Task.CompletedTask;
+            
+            _logger.LogInformation("Tab changed from {OldIndex} to {NewIndex}", oldIndex, SelectedTabIndex);
+            
+            // Force property change notification to ensure UI updates
+            OnPropertyChanged(nameof(SelectedTabIndex));
         }
 
         [RelayCommand]
@@ -217,9 +218,9 @@ namespace GenHub.Common.ViewModels
             try
             {
                 var result = await _updateService.CheckForUpdatesAsync();
-                UpdateAvailable = result.IsUpdateAvailable;
+                HasUpdateAvailable = result.IsUpdateAvailable;
 
-                if (UpdateAvailable)
+                if (HasUpdateAvailable)
                 {
                     _logger.LogInformation("Updates available: {Version}", result.LatestRelease?.Version);
                 }
@@ -229,6 +230,7 @@ namespace GenHub.Common.ViewModels
                 _logger.LogError(ex, "Error checking for updates");
             }
         }
+
         private Window? GetMainWindow()
         {
             if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)

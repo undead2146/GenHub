@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using Microsoft.Extensions.Logging;
+using GenHub.Features.GameProfiles.Services;
 
 namespace GenHub.Infrastructure.DependencyInjection
 {
@@ -62,7 +63,7 @@ namespace GenHub.Infrastructure.DependencyInjection
                 logger.LogDebug("Shared ViewModel module added");
                 
                 // Add GameProfileFactory if it's not already registered elsewhere
-                services.AddSingleton<GenHub.Features.GameProfiles.Services.GameProfileFactory>();
+                services.AddSingleton<GameProfileFactory>();
                 logger.LogDebug("GameProfileFactory added as fallback");
                 
                 logger.LogInformation("All application services configured successfully");
