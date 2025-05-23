@@ -37,7 +37,7 @@ namespace GenHub.Linux
             services.AddSingleton<GenHub.Linux.UpdateInstallers.LinuxUpdateInstaller>();
 
             // Register all common services using our new structured approach
-            services.AddAllCommonServices(configuration);
+            services.ConfigureApplicationServices(configuration);
 
             // Build the service provider
             var serviceProvider = services.BuildServiceProvider();
