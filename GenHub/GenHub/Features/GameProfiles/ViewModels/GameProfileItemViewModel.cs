@@ -234,39 +234,46 @@ namespace GenHub.Features.GameProfiles.ViewModels
                 var propTypes = gameProfile.GetType();
 
                 // For backward compatibility - these are still directly on GameProfile
-                if (propTypes.GetProperty("PullRequestNumber")?.GetValue(gameProfile) is int prNum)
+                try
                 {
-                    PullRequestNumber = prNum > 0 ? prNum : null;
-                }
+                    if (propTypes.GetProperty("PullRequestNumber")?.GetValue(gameProfile) is int prNum)
+                    {
+                        PullRequestNumber = prNum > 0 ? prNum : null;
+                    }
 
-                if (propTypes.GetProperty("WorkflowNumber")?.GetValue(gameProfile) is int wfNum)
-                {
-                    WorkflowNumber = wfNum > 0 ? wfNum : null;
-                }
+                    if (propTypes.GetProperty("WorkflowNumber")?.GetValue(gameProfile) is int wfNum)
+                    {
+                        WorkflowNumber = wfNum > 0 ? wfNum : null;
+                    }
 
-                if (propTypes.GetProperty("CommitMessage")?.GetValue(gameProfile) is string commitMsg)
-                {
-                    CommitMessage = !string.IsNullOrEmpty(commitMsg) ? commitMsg : null;
-                }
+                    if (propTypes.GetProperty("CommitMessage")?.GetValue(gameProfile) is string commitMsg)
+                    {
+                        CommitMessage = !string.IsNullOrEmpty(commitMsg) ? commitMsg : null;
+                    }
 
-                if (propTypes.GetProperty("CommitSha")?.GetValue(gameProfile) is string sha)
-                {
-                    CommitSha = !string.IsNullOrEmpty(sha) ? sha : null;
-                }
+                    if (propTypes.GetProperty("CommitSha")?.GetValue(gameProfile) is string sha)
+                    {
+                        CommitSha = !string.IsNullOrEmpty(sha) ? sha : null;
+                    }
 
-                if (propTypes.GetProperty("BuildPreset")?.GetValue(gameProfile) is string preset)
-                {
-                    BuildPreset = !string.IsNullOrEmpty(preset) ? preset : null;
-                }
+                    if (propTypes.GetProperty("BuildPreset")?.GetValue(gameProfile) is string preset)
+                    {
+                        BuildPreset = !string.IsNullOrEmpty(preset) ? preset : null;
+                    }
 
-                if (propTypes.GetProperty("BuildInfo")?.GetValue(gameProfile) is GitHubBuild buildInfo)
-                {
-                    BuildInfo = buildInfo;
-                }
+                    if (propTypes.GetProperty("BuildInfo")?.GetValue(gameProfile) is GitHubBuild buildInfo)
+                    {
+                        BuildInfo = buildInfo;
+                    }
 
-                if (propTypes.GetProperty("HasWorkflowInfo")?.GetValue(gameProfile) is bool hasWf)
+                    if (propTypes.GetProperty("HasWorkflowInfo")?.GetValue(gameProfile) is bool hasWf)
+                    {
+                        HasWorkflowInfo = hasWf;
+                    }
+                }
+                catch (Exception)
                 {
-                    HasWorkflowInfo = hasWf;
+                    // Ignore reflection errors and continue with default values
                 }
             }
         }
@@ -288,7 +295,20 @@ namespace GenHub.Features.GameProfiles.ViewModels
                 SourceType = GameInstallationType.GitHubArtifact;
 
                 // Update the underlying source-specific metadata with a clone
-                _sourceSpecificMetadata = githubMetadata.Clone();
+                try
+                {
+                    _sourceSpecificMetadata = githubMetadata.Clone() as BaseSourceMetadata;
+                }
+                catch (Exception)
+                {
+                    // If cloning fails, create a new instance
+                    _sourceSpecificMetadata = new GitHubSourceMetadata
+                    {
+                        AssociatedArtifact = githubMetadata.AssociatedArtifact,
+                        WorkflowDefinitionName = githubMetadata.WorkflowDefinitionName,
+                        WorkflowRunStatus = githubMetadata.WorkflowRunStatus
+                    };
+                }
             }
             else
             {
@@ -374,12 +394,13 @@ namespace GenHub.Features.GameProfiles.ViewModels
                     if (_sourceSpecificMetadata is GitHubSourceMetadata githubMeta)
                     {
                         // Use existing metadata if available
-                        model.SourceSpecificMetadata = githubMeta.Clone();
+                        model.SourceSpecificMetadata = githubMeta.Clone() as BaseSourceMetadata;
                         
                         // Ensure BuildInfo exists
-                        if (model.GitHubMetadata!.BuildInfo == null)
+                        if (model.SourceSpecificMetadata is GitHubSourceMetadata clonedGithubMeta && 
+                            clonedGithubMeta.BuildInfo == null)
                         {
-                            model.GitHubMetadata.BuildInfo = new GitHubBuild
+                            clonedGithubMeta.BuildInfo = new GitHubBuild
                             {
                                 Compiler = "Unknown",
                                 Configuration = "Unknown",
@@ -390,12 +411,14 @@ namespace GenHub.Features.GameProfiles.ViewModels
                     else
                     {
                         // Create new metadata with valid BuildInfo for GitHub artifacts
-                        var safeMetadata = new GitHubSourceMetadata();
-                        safeMetadata.BuildInfo = new GitHubBuild
+                        var safeMetadata = new GitHubSourceMetadata
                         {
-                            Compiler = "Unknown",
-                            Configuration = "Unknown",
-                            Version = "Unknown"
+                            BuildInfo = new GitHubBuild
+                            {
+                                Compiler = "Unknown",
+                                Configuration = "Unknown",
+                                Version = "Unknown"
+                            }
                         };
                         model.SourceSpecificMetadata = safeMetadata;
                     }
@@ -405,9 +428,9 @@ namespace GenHub.Features.GameProfiles.ViewModels
                     // For non-GitHub metadata types
                     try
                     {
-                        model.SourceSpecificMetadata = _sourceSpecificMetadata.Clone();
+                        model.SourceSpecificMetadata = _sourceSpecificMetadata.Clone() as BaseSourceMetadata;
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
                         // If cloning fails, set to null rather than crashing
                         model.SourceSpecificMetadata = null;
@@ -419,7 +442,7 @@ namespace GenHub.Features.GameProfiles.ViewModels
                     model.SourceSpecificMetadata = null;
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // If all metadata handling fails, set to null rather than crashing
                 model.SourceSpecificMetadata = null;
