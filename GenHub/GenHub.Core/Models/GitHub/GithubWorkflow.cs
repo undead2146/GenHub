@@ -5,135 +5,163 @@ using System.Text.Json.Serialization;
 namespace GenHub.Core.Models
 {
     /// <summary>
-    /// Represents a GitHub Actions workflow run.
+    /// Represents a GitHub workflow run following MVVM patterns
     /// </summary>
     public class GitHubWorkflow
     {
         /// <summary>
-        /// Unique ID of the workflow run.
+        /// The unique identifier for the workflow run
         /// </summary>
         public long RunId { get; set; }
 
         /// <summary>
-        /// ID of the workflow definition.
+        /// The unique identifier for the workflow
         /// </summary>
         public long WorkflowId { get; set; }
 
         /// <summary>
-        /// The display name of the workflow definition (e.g., "Build and Test", "Release").
-        /// </summary>
-        public string Name { get; set; } = string.Empty; // Name of the workflow definition
-
-        /// <summary>
-        /// Path to the workflow definition file (e.g., .github/workflows/ci.yml).
-        /// </summary>
-        public string WorkflowPath { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Run number of this specific workflow execution.
+        /// The workflow run number
         /// </summary>
         public int WorkflowNumber { get; set; }
 
         /// <summary>
-        /// When the workflow run was created.
+        /// Gets or sets the name of the workflow
         /// </summary>
-        public DateTime CreatedAt { get; set; }
+        public string WorkflowName { get; set; } = string.Empty;
 
         /// <summary>
-        /// The commit SHA that triggered the workflow.
+        /// Gets or sets the display name for the workflow (alias for WorkflowName for backward compatibility)
         /// </summary>
-        public string? CommitSha { get; set; }
+        [JsonIgnore]
+        public string Name 
+        { 
+            get => WorkflowName; 
+            set => WorkflowName = value; 
+        }
 
         /// <summary>
-        /// Commit message that triggered the workflow.
+        /// The display title of the workflow run
         /// </summary>
-        public string? CommitMessage { get; set; }
+        public string DisplayTitle { get; set; } = string.Empty;
 
         /// <summary>
-        /// Event type that triggered the workflow (e.g., push, pull_request).
+        /// The status of the workflow run (queued, in_progress, completed)
         /// </summary>
-        public string EventType { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
 
         /// <summary>
-        /// Pull request number if the workflow was triggered by a pull request.
-        /// </summary>
-        public int? PullRequestNumber { get; set; }
-
-        /// <summary>
-        /// Pull request title if available.
-        /// </summary>
-        public string? PullRequestTitle { get; set; }
-
-        /// <summary>
-        /// Status of the workflow run (e.g., "queued", "in_progress", "completed").
-        /// </summary>
-        public string? Status { get; set; }
-
-        /// <summary>
-        /// Conclusion of the workflow run if completed (e.g., "success", "failure", "cancelled").
+        /// The conclusion of the workflow run (success, failure, cancelled, etc.)
         /// </summary>
         public string? Conclusion { get; set; }
 
         /// <summary>
-        /// The head branch of the workflow run.
+        /// The event that triggered the workflow run
+        /// </summary>
+        public string EventType { get; set; } = string.Empty;
+
+        /// <summary>
+        /// When the workflow run was created
+        /// </summary>
+        public DateTime CreatedAt { get; set; }
+
+        /// <summary>
+        /// When the workflow run was last updated
+        /// </summary>
+        public DateTime UpdatedAt { get; set; }
+
+        /// <summary>
+        /// The SHA of the commit that triggered the workflow
+        /// </summary>
+        public string CommitSha { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The commit message
+        /// </summary>
+        public string CommitMessage { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Pull request number if the workflow was triggered by a PR
+        /// </summary>
+        public int? PullRequestNumber { get; set; }
+
+        /// <summary>
+        /// Pull request title if the workflow was triggered by a PR
+        /// </summary>
+        public string? PullRequestTitle { get; set; }
+
+        /// <summary>
+        /// Repository information
+        /// </summary>
+        public GitHubRepoSettings? RepositoryInfo { get; set; }
+
+        /// <summary>
+        /// The URL to view the workflow run on GitHub
+        /// </summary>
+        public string? HtmlUrl { get; set; }
+
+        /// <summary>
+        /// The branch or tag that triggered the workflow
         /// </summary>
         public string? HeadBranch { get; set; }
 
         /// <summary>
-        /// Artifacts produced by this workflow run.
-        /// This list should be populated by the GitHubWorkflowReader.
+        /// The name of the actor who triggered the workflow
         /// </summary>
-        public List<GitHubArtifact> Artifacts { get; set; } = new List<GitHubArtifact>();
+        public string? Actor { get; set; }
 
         /// <summary>
-        /// Count of artifacts associated with this workflow run. 
-        /// Can be set from API summary before fetching all artifacts.
+        /// The workflow file path
+        /// </summary>
+        public string? WorkflowPath { get; set; }
+
+        /// <summary>
+        /// Additional metadata for the workflow
+        /// </summary>
+        public Dictionary<string, object>? Metadata { get; set; }
+
+        /// <summary>
+        /// Whether this workflow run has artifacts
+        /// </summary>
+        public bool HasArtifacts { get; set; }
+
+        /// <summary>
+        /// Number of artifacts for this workflow run
         /// </summary>
         public int ArtifactCount { get; set; }
 
-
         /// <summary>
-        /// Repository information this workflow run belongs to.
-        /// This should be populated by a service when the workflow is fetched.
+        /// Helper property to get a formatted display name
         /// </summary>
         [JsonIgnore]
-        public GitHubRepoSettings? RepositoryInfo { get; set; }
+        public string FormattedDisplayName => !string.IsNullOrEmpty(DisplayTitle) ? DisplayTitle : Name;
 
-
-        // Convenience Accessors
+        /// <summary>
+        /// Helper property to check if the workflow run is completed
+        /// </summary>
         [JsonIgnore]
-        public string ShortCommitSha => !string.IsNullOrEmpty(CommitSha) && CommitSha.Length > 7
-            ? CommitSha.Substring(0, 7)
-            : CommitSha ?? string.Empty;
+        public bool IsCompleted => Status?.Equals("completed", StringComparison.OrdinalIgnoreCase) == true;
 
+        /// <summary>
+        /// Helper property to check if the workflow run was successful
+        /// </summary>
         [JsonIgnore]
-        public string ShortName => Name.Contains("/") ? Name.Split("/")[^1] : Name; // Short name of the workflow definition
+        public bool IsSuccessful => IsCompleted && Conclusion?.Equals("success", StringComparison.OrdinalIgnoreCase) == true;
 
+        /// <summary>
+        /// Helper property to get a short commit SHA
+        /// </summary>
         [JsonIgnore]
-        public bool HasPullRequestInfo => PullRequestNumber.HasValue;
+        public string ShortCommitSha => CommitSha?.Length > 7 ? CommitSha.Substring(0, 7) : CommitSha ?? string.Empty;
 
+        /// <summary>
+        /// Helper property to get formatted creation time
+        /// </summary>
         [JsonIgnore]
-        public string DisplayName
+        public string FormattedCreatedAt => CreatedAt.ToString("yyyy-MM-dd HH:mm:ss");
+
+        public GitHubWorkflow()
         {
-            get
-            {
-                if (HasPullRequestInfo && !string.IsNullOrEmpty(PullRequestTitle))
-                    return $"PR #{PullRequestNumber}: {PullRequestTitle}";
-                if (!string.IsNullOrEmpty(CommitMessage))
-                    return $"Run #{WorkflowNumber}: {CommitMessageShort}";
-                return $"Run #{WorkflowNumber} - {Name}"; // Fallback if no PR title and no commit message
-            }
-        }
-
-        [JsonIgnore]
-        public string CommitMessageShort =>
-            !string.IsNullOrEmpty(CommitMessage) && CommitMessage.Length > 70
-            ? CommitMessage.Substring(0, 67) + "..."
-            : CommitMessage ?? string.Empty;
-
-        public override string ToString()
-        {
-            return $"{Name} Run #{WorkflowNumber} (ID: {RunId})";
+            Metadata = new Dictionary<string, object>();
         }
     }
 }
