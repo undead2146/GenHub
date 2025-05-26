@@ -4,127 +4,93 @@ using Avalonia.Markup.Xaml;
 using System;
 using System.Threading.Tasks;
 using GenHub.Core.Models;
+using GenHub.Features.GitHub.ViewModels;
+using GenHub.Core.Interfaces.GitHub;
+using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.GitHub.Views
-
 {
+    /// <summary>
+    /// Dialog window for GitHub token configuration
+    /// </summary>
     public partial class GitHubTokenDialogWindow : Window
     {
-        public string TokenText
-        {
-            get => _tokenTextBox?.Text ?? string.Empty;
-            set
-            {
-                if (_tokenTextBox != null)
-                    _tokenTextBox.Text = value;
-            }
-        }
-        
-        // Store the dialog result as a property
-        private DialogResult _dialogResult = DialogResult.Cancel;
-        
-        private TextBox? _tokenTextBox;
-        private TextBlock? _errorTextBlock;
-        
+        private GitHubTokenDialogViewModel? _viewModel;
+        private bool _isClosing = false;
+
         public GitHubTokenDialogWindow()
         {
             InitializeComponent();
-#if DEBUG
-            this.AttachDevTools();
-#endif
-            _tokenTextBox = this.FindControl<TextBox>("TokenTextBox");
-            _errorTextBlock = this.FindControl<TextBlock>("ErrorMessage");
-            
-            if (_errorTextBlock != null)
-            {
-                _errorTextBlock.IsVisible = false;
-            }
-            
-            // Hook up the button events
-            var okButton = this.FindControl<Button>("OkButton");
-            var cancelButton = this.FindControl<Button>("CancelButton");
-            
-            if (okButton != null)
-                okButton.Click += OnOkButtonClick;
-                
-            if (cancelButton != null)
-                cancelButton.Click += (s, e) => Close(DialogResult.Cancel);
         }
 
-        private void OnOkButtonClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        public GitHubTokenDialogWindow(IGitHubApiClient apiClient, ILogger logger)
         {
-            // Validate token before closing
-            if (string.IsNullOrWhiteSpace(TokenText))
-            {
-                if (_errorTextBlock != null)
-                {
-                    _errorTextBlock.Text = "Token cannot be empty";
-                    _errorTextBlock.IsVisible = true;
-                }
-                return;
-            }
+            InitializeComponent();
             
-            // Basic format validation (GitHub PATs usually start with ghp_ and have a minimum length)
-            if (!TokenText.StartsWith("ghp_") && !TokenText.StartsWith("github_pat_") && TokenText.Length < 20)
-            {
-                if (_errorTextBlock != null)
-                {
-                    _errorTextBlock.Text = "Token doesn't appear to be valid. It should start with 'ghp_' or 'github_pat_'";
-                    _errorTextBlock.IsVisible = true;
-                }
-                return;
-            }
+            var vmLogger = logger as ILogger<GitHubTokenDialogViewModel> ?? 
+                new Microsoft.Extensions.Logging.Abstractions.NullLogger<GitHubTokenDialogViewModel>();
             
-            // If validation passes, close with OK
-            Close(DialogResult.OK);
+            _viewModel = new GitHubTokenDialogViewModel(apiClient, vmLogger);
+            DataContext = _viewModel;
         }
 
         private void InitializeComponent()
         {
             AvaloniaXamlLoader.Load(this);
         }
-        
-        // Method to show dialog and return result
-        public new async Task<(DialogResult Result, string Token)> ShowDialog(Window parent)
+
+        /// <summary>
+        /// Sets the initial token value
+        /// </summary>
+        public void SetToken(string token)
         {
-            var tcs = new TaskCompletionSource<(DialogResult, string)>();
-            
-            this.Closed += (sender, args) =>
-            {
-                tcs.TrySetResult((_dialogResult, TokenText));
-            };
-            
-            await base.ShowDialog(parent);
-            return await tcs.Task;
+            _viewModel?.SetInitialToken(token);
         }
-        
-        // Alternative method without parent
-        public async Task<(DialogResult Result, string Token)> ShowDialog()
+
+        /// <summary>
+        /// Shows the dialog asynchronously
+        /// </summary>
+        public Task<GitHubTokenDialogResult> ShowDialogAsync()
         {
-            // Get the main window as the parent
-            var mainWindow = Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop 
-                ? desktop.MainWindow 
-                : null;
-                
-            if (mainWindow != null)
-                return await ShowDialog(mainWindow);
-                
-            // Fallback for cases where we can't determine the main window
-            var tcs = new TaskCompletionSource<(DialogResult, string)>();
+            var completionSource = new TaskCompletionSource<GitHubTokenDialogResult>();
             
-            Closed += (s, e) => {
-                tcs.TrySetResult((_dialogResult, TokenText));
+            _viewModel?.SetCompletionSource(completionSource);
+            
+            // Handle window closing to complete the task only if not already completed
+            Closed += (s, e) =>
+            {
+                _isClosing = true;
+                if (!completionSource.Task.IsCompleted)
+                {
+                    completionSource.SetResult(new GitHubTokenDialogResult
+                    {
+                        Success = false,
+                        Token = null
+                    });
+                }
             };
+            
+            // Handle window closing event to set flag
+            Closing += (s, e) =>
+            {
+                _isClosing = true;
+            };
+            
+            // Handle completion source task completion to close window
+            completionSource.Task.ContinueWith(task =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    if (!_isClosing && IsVisible)
+                    {
+                        Close();
+                    }
+                });
+            }, TaskScheduler.Default);
             
             Show();
-            return await tcs.Task;
-        }
-        
-        // Method to close with a specific result
-        public void Close(DialogResult result)
-        {
-            _dialogResult = result;
-            Close();
+            
+            return completionSource.Task;
         }
     }
 }

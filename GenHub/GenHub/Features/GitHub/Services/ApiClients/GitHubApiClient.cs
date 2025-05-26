@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
@@ -89,6 +90,47 @@ public async Task<RateLimitInfo?> GetRateLimitAsync(CancellationToken cancellati
     }
 }
 
+/// <summary>
+/// Tests the current authentication token by making a simple API call
+/// </summary>
+public async Task<bool> TestAuthenticationAsync(CancellationToken cancellationToken = default)
+{
+    try
+    {
+        await EnsureAuthenticationAsync();
+        
+        if (string.IsNullOrEmpty(_authToken))
+        {
+            _logger.LogWarning("No authentication token available for testing");
+            return false;
+        }
+        
+        // Make a simple authenticated request to test the token
+        var response = await SendRequestAsync(HttpMethod.Get, "user", cancellationToken: cancellationToken);
+        
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            _logger.LogWarning("Authentication token test failed - unauthorized");
+            TokenInvalid?.Invoke(this, EventArgs.Empty);
+            return false;
+        }
+        
+        if (response.IsSuccessStatusCode)
+        {
+            _logger.LogDebug("Authentication token test successful");
+            return true;
+        }
+        
+        _logger.LogWarning("Authentication token test failed with status: {StatusCode}", response.StatusCode);
+        return false;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error testing authentication token");
+        return false;
+    }
+}
+
         /// <summary>
         /// Authenticates with the GitHub API using the provided token
         /// </summary>
@@ -119,16 +161,24 @@ public async Task<RateLimitInfo?> GetRateLimitAsync(CancellationToken cancellati
         {
             if (string.IsNullOrEmpty(token))
             {
-            TokenMissing?.Invoke(this, EventArgs.Empty);
-            return;
+                TokenMissing?.Invoke(this, EventArgs.Empty);
+                return;
             }
             
-            _authToken = token;
-            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            
-            // Persist the token using token storage service
-            await _tokenStorage.SaveTokenAsync(token);
-            _logger.LogInformation("GitHub API token set and saved to storage");
+            try
+            {
+                _authToken = token;
+                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                
+                // Persist the token using token storage service with ConfigureAwait(false)
+                await _tokenStorage.SaveTokenAsync(token).ConfigureAwait(false);
+                _logger.LogInformation("GitHub API token set and saved to storage");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error setting and saving GitHub token");
+                throw; // Re-throw to let caller handle
+            }
         }
         
         /// <summary>
@@ -308,11 +358,121 @@ public async Task<RateLimitInfo?> GetRateLimitAsync(CancellationToken cancellati
         /// <summary>
         /// Gets artifacts for a specific run
         /// </summary>
-        public async Task<IEnumerable<GitHubArtifact>> GetArtifactsForRunAsync(GitHubRepoSettings repoSettings, long runId, CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<GitHubArtifact>> GetArtifactsForRunAsync(
+            GitHubRepoSettings repoConfig,
+            long runId,
+            CancellationToken cancellationToken = default)
         {
-            return await GetArtifactsForWorkflowRunAsync(repoSettings.RepoOwner, repoSettings.RepoName, runId, cancellationToken);
+            try
+            {
+                _logger.LogDebug("Getting artifacts for run {RunId} from {Owner}/{Repo}", 
+                    runId, repoConfig.RepoOwner, repoConfig.RepoName);
+
+                var url = $"repos/{repoConfig.RepoOwner}/{repoConfig.RepoName}/actions/runs/{runId}/artifacts";
+                
+                var response = await GetAsync<HttpResponseMessage>(repoConfig, url, cancellationToken);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("Failed to get artifacts for run {RunId}: {StatusCode}", runId, response.StatusCode);
+                    return Enumerable.Empty<GitHubArtifact>();
+                }
+
+                var jsonContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                
+                if (string.IsNullOrWhiteSpace(jsonContent))
+                {
+                    _logger.LogWarning("Empty response when getting artifacts for run {RunId}", runId);
+                    return Enumerable.Empty<GitHubArtifact>();
+                }
+
+                var artifacts = ParseArtifactsFromJson(jsonContent);
+                var artifactsList = artifacts.ToList();
+
+                _logger.LogDebug("Successfully retrieved {Count} artifacts for run {RunId}", artifactsList.Count, runId);
+
+                return artifactsList;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting artifacts for run {RunId}", runId);
+                return Enumerable.Empty<GitHubArtifact>();
+            }
         }
-        
+
+        /// <summary>
+        /// Parses artifacts from JSON response with enhanced validation
+        /// </summary>
+        private IEnumerable<GitHubArtifact> ParseArtifactsFromJson(string jsonContent)
+        {
+            var artifacts = new List<GitHubArtifact>();
+
+            try
+            {
+                var document = JsonDocument.Parse(jsonContent);
+
+                if (!document.RootElement.TryGetProperty("artifacts", out var artifactsElement))
+                {
+                    _logger.LogWarning("No 'artifacts' property found in JSON response");
+                    return artifacts;
+                }
+
+                var artifactsArray = artifactsElement.EnumerateArray().ToList();
+                _logger.LogDebug("Found {Count} artifacts in JSON array", artifactsArray.Count);
+
+                foreach (var (artifactElement, index) in artifactsArray.Select((a, i) => (a, i)))
+                {
+                    try
+                    {
+                        var artifact = new GitHubArtifact
+                        {
+                            Id = artifactElement.TryGetProperty("id", out var idProp) ? idProp.GetInt64() : 0,
+                            Name = artifactElement.TryGetProperty("name", out var nameProp) ? nameProp.GetString() ?? "Unknown Artifact" : "Unknown Artifact",
+                            SizeInBytes = artifactElement.TryGetProperty("size_in_bytes", out var sizeProp) ? sizeProp.GetInt64() : 0,
+                            WorkflowNumber = 0 // This will be set later by the artifact reader
+                        };
+
+                        // Parse created_at
+                        if (artifactElement.TryGetProperty("created_at", out var createdAtProp) && 
+                            createdAtProp.ValueKind != JsonValueKind.Null)
+                        {
+                            var rawCreatedAt = createdAtProp.GetString();
+                            if (DateTime.TryParse(rawCreatedAt, out var createdAt))
+                            {
+                                artifact.CreatedAt = createdAt;
+                            }
+                        }
+
+                        // Parse archive_download_url
+                        if (artifactElement.TryGetProperty("archive_download_url", out var urlProp))
+                        {
+                            artifact.ArchiveDownloadUrl = urlProp.GetString();
+                        }
+
+                        // Parse expired
+                        if (artifactElement.TryGetProperty("expired", out var expiredProp))
+                        {
+                            artifact.Expired = expiredProp.GetBoolean();
+                        }
+
+                        artifacts.Add(artifact);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Error parsing artifact at index {Index}", index);
+                    }
+                }
+
+                _logger.LogDebug("Successfully parsed {Count} artifacts", artifacts.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing artifacts from JSON");
+            }
+
+            return artifacts;
+        }
+
         /// <summary>
         /// Handles API rate limiting
         /// </summary>

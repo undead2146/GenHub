@@ -169,7 +169,6 @@ namespace GenHub.Features.GitHub.ViewModels
                 
                 _assetsLoaded = true;
                 SetLoadedState(true);
-                await LoadChildrenInternalAsync(cancellationToken);
             }
             catch (Exception ex)
             {
@@ -178,26 +177,6 @@ namespace GenHub.Features.GitHub.ViewModels
             finally
             {
                 IsLoadingAssets = false;
-            }
-        }
-        
-        /// <summary>
-        /// Additional internal child loading logic
-        /// </summary>
-        protected override async Task LoadChildrenInternalAsync(CancellationToken cancellationToken = default)
-        {
-            try
-            {
-                _logger.LogDebug("Creating view models for release assets: {ReleaseName}", ReleaseName);
-                
-                // No need to recreate asset view models if they're already created from LoadChildrenAsync
-                // This method serves as an extension point for derived classes
-                
-                await Task.CompletedTask; // For future async operations
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error loading release assets for {ReleaseName}", ReleaseName);
             }
         }
         

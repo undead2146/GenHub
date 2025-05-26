@@ -1,51 +1,265 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="280"
+        xmlns:vm="using:GenHub.Features.GitHub.ViewModels"
         x:Class="GenHub.Features.GitHub.Views.GitHubTokenDialogWindow"
-        Width="450" Height="280"
-        CanResize="False"
+        x:DataType="vm:GitHubTokenDialogViewModel"
+        Title="GitHub Token Configuration - GenHub"
+        Width="650"
+        Height="500"
         WindowStartupLocation="CenterOwner"
-        Title="GitHub Token Configuration"
-    Icon="avares://GenHub/Assets/Icons/genhub-logo.png">
+        CanResize="False"
+        Icon="avares://GenHub/Assets/Icons/genhub-logo.png"
+        Background="{DynamicResource WindowBackground}"
+        Foreground="{DynamicResource WindowForeground}">
 
-    <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto,Auto">
-        <TextBlock Grid.Row="0" 
-                   Text="GitHub Personal Access Token"
-                   FontSize="18" 
-                   FontWeight="SemiBold" 
-                   Margin="0,0,0,15"/>
+  <Window.Resources>
+    <!-- Custom brushes for consistent theming -->
+    <SolidColorBrush x:Key="DialogBackground" Color="#2D2D30"/>
+    <SolidColorBrush x:Key="DialogForeground" Color="#F1F1F1"/>
+    <SolidColorBrush x:Key="DialogBorderBrush" Color="#3F3F46"/>
+    <SolidColorBrush x:Key="InputBackground" Color="#1E1E1E"/>
+    <SolidColorBrush x:Key="InputForeground" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="InputBorderBrush" Color="#434343"/>
+    <SolidColorBrush x:Key="SuccessBackground" Color="#2D5A27"/>
+    <SolidColorBrush x:Key="SuccessForeground" Color="#90EE90"/>
+    <SolidColorBrush x:Key="ErrorBackground" Color="#5A1F1F"/>
+    <SolidColorBrush x:Key="ErrorForeground" Color="#FFB3B3"/>
+    <SolidColorBrush x:Key="AccentColor" Color="#0078D4"/>
+    <SolidColorBrush x:Key="AccentHover" Color="#106EBE"/>
+  </Window.Resources>
 
-        <TextBlock Grid.Row="1" 
-                   TextWrapping="Wrap" 
-                   Margin="0,0,0,20">
-            Enter your GitHub personal access token to access private repositories and avoid rate limits. 
-            The token should have 'workflow' permission.
-        </TextBlock>
+  <Window.Styles>
+    <!-- Dialog-specific styles -->
+    <Style Selector="Window">
+      <Setter Property="Background" Value="{StaticResource DialogBackground}"/>
+      <Setter Property="Foreground" Value="{StaticResource DialogForeground}"/>
+    </Style>
+    
+    <Style Selector="TextBlock.title">
+      <Setter Property="FontSize" Value="20"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Foreground" Value="{StaticResource DialogForeground}"/>
+    </Style>
+    
+    <Style Selector="TextBlock.instruction">
+      <Setter Property="FontSize" Value="14"/>
+      <Setter Property="Foreground" Value="#CCCCCC"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+      <Setter Property="LineHeight" Value="20"/>
+    </Style>
+    
+    <Style Selector="TextBox.token-input">
+      <Setter Property="Background" Value="{StaticResource InputBackground}"/>
+      <Setter Property="Foreground" Value="{StaticResource InputForeground}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource InputBorderBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Padding" Value="12,10"/>
+      <Setter Property="FontFamily" Value="Consolas, 'Courier New', monospace"/>
+      <Setter Property="FontSize" Value="13"/>
+    </Style>
+    
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{StaticResource AccentColor}"/>
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Padding" Value="16,8"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    
+    <Style Selector="Button.primary:pointerover">
+      <Setter Property="Background" Value="{StaticResource AccentHover}"/>
+    </Style>
+    
+    <Style Selector="Button.secondary">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Foreground" Value="{StaticResource DialogForeground}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Padding" Value="16,8"/>
+    </Style>
+    
+    <Style Selector="Button.secondary:pointerover">
+      <Setter Property="Background" Value="#404040"/>
+    </Style>
+    
+    <Style Selector="Button.link">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Foreground" Value="{StaticResource AccentColor}"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="4,2"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="FontFamily" Value="Consolas"/>
+      <Setter Property="FontSize" Value="13"/>
+    </Style>
+    
+    <Style Selector="Button.link:pointerover">
+      <Setter Property="Foreground" Value="{StaticResource AccentHover}"/>
+      <Setter Property="Background" Value="Transparent"/>
+    </Style>
+  </Window.Styles>
 
-        <TextBox Grid.Row="2" 
-                 Name="TokenTextBox" 
-                 PasswordChar="•"
-                 AcceptsReturn="False" 
-                 VerticalAlignment="Top"
-                 Watermark="Enter your GitHub personal access token" />
-
-        <TextBlock Grid.Row="3"
-                  Name="ErrorMessage"
-                  Foreground="#CC0000"
-                  FontSize="12"
-                  Margin="0,8,0,0"
-                  TextWrapping="Wrap"
-                  IsVisible="False" />
-
-        <StackPanel Grid.Row="4" 
-                    Orientation="Horizontal" 
-                    HorizontalAlignment="Right" 
-                    Margin="0,16,0,0"
-                    Spacing="10">
-            <Button Name="CancelButton" Content="Cancel" />
-            <Button Name="OkButton" Content="OK" Classes="accent" />
+  <Border Background="{StaticResource DialogBackground}" 
+          BorderBrush="{StaticResource DialogBorderBrush}" 
+          BorderThickness="1">
+    <Grid Margin="30">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+      
+      <!-- Title with icon -->
+      <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,20">
+        <Image Source="avares://GenHub/Assets/Icons/genhub-logo.png" 
+               Width="32" Height="32" VerticalAlignment="Center"/>
+        <TextBlock Text="GitHub Personal Access Token" 
+                   Classes="title"
+                   VerticalAlignment="Center"
+                   Margin="12,0,0,0"/>
+      </StackPanel>
+      
+      <!-- Instructions -->
+      <TextBlock Grid.Row="1"
+                 Classes="instruction"
+                 Margin="0,0,0,20">
+        <Run Text="Enter your GitHub Personal Access Token to enable downloading from private repositories and increase API rate limits."/>
+        <LineBreak/>
+        <LineBreak/>
+        <Run Text="Required permissions: "/>
+        <Run Text="repo, workflow, actions:read" FontWeight="SemiBold" Foreground="{StaticResource AccentColor}"/>
+      </TextBlock>
+      
+      <!-- Create Token Link -->
+      <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,25">
+        <TextBlock Text="Create a token at: " 
+                   VerticalAlignment="Center"
+                   Foreground="#CCCCCC"/>
+        <Button Content="https://github.com/settings/tokens"
+                Command="{Binding OpenGitHubTokenPageCommand}"
+                Classes="link"/>
+      </StackPanel>
+      
+      <!-- Token Input Section -->
+      <StackPanel Grid.Row="3" Margin="0,0,0,20">
+        <TextBlock Text="Personal Access Token:" 
+                   Margin="0,0,0,8"
+                   FontWeight="SemiBold"
+                   Foreground="{StaticResource DialogForeground}"/>
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          
+          <TextBox Grid.Column="0"
+                   Text="{Binding Token}"
+                   Watermark="Enter your GitHub token here (starts with ghp_ or github_pat_)"
+                   Classes="token-input"
+                   MinHeight="44"
+                   Margin="0,0,12,0"/>
+          
+          <Button Grid.Column="1"
+                  Content="Test"
+                  Command="{Binding ValidateTokenCommand}"
+                  IsEnabled="{Binding !IsValidating}"
+                  Classes="secondary"
+                  Width="80"
+                  Height="44"/>
+        </Grid>
+      </StackPanel>
+      
+      <!-- Status Messages Section -->
+      <StackPanel Grid.Row="4" Margin="0,0,0,15">
+        
+        <!-- Validation Progress -->
+        <StackPanel IsVisible="{Binding IsValidating}"
+                    Orientation="Vertical"
+                    Spacing="8"
+                    Margin="0,0,0,10">
+          <ProgressBar IsIndeterminate="True" 
+                       Height="3"
+                       Background="#404040"
+                       Foreground="{StaticResource AccentColor}"/>
+          <TextBlock Text="{Binding ValidationMessage}" 
+                     FontSize="14"
+                     Foreground="#CCCCCC"
+                     HorizontalAlignment="Center"/>
         </StackPanel>
+        
+        <!-- Validation Success -->
+        <Border IsVisible="{Binding ShowValidationSuccess}"
+                Background="{StaticResource SuccessBackground}"
+                BorderBrush="{StaticResource SuccessForeground}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="16,12"
+                Margin="0,0,0,10">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="✓" 
+                       FontSize="18"
+                       FontWeight="Bold"
+                       Foreground="{StaticResource SuccessForeground}"
+                       VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding ValidationMessage}"
+                       Foreground="{StaticResource SuccessForeground}"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"/>
+          </StackPanel>
+        </Border>
+        
+        <!-- Error Message -->
+        <Border IsVisible="{Binding HasError}"
+                Background="{StaticResource ErrorBackground}"
+                BorderBrush="{StaticResource ErrorForeground}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="16,12"
+                Margin="0,0,0,10">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="✗" 
+                       FontSize="18"
+                       FontWeight="Bold"
+                       Foreground="{StaticResource ErrorForeground}"
+                       VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding ErrorMessage}"
+                       Foreground="{StaticResource ErrorForeground}"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap"
+                       VerticalAlignment="Center"/>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+      
+      <!-- Spacer -->
+      <Rectangle Grid.Row="6" Fill="Transparent"/>
+      
+      <!-- Buttons -->
+      <StackPanel Grid.Row="7" 
+                  Orientation="Horizontal" 
+                  HorizontalAlignment="Right"
+                  Spacing="12"
+                  Margin="0,20,0,0">
+        <Button Content="Cancel" 
+                Command="{Binding CancelCommand}"
+                Classes="secondary"
+                Width="100"
+                Height="36"/>
+        <Button Content="Save &amp; Close" 
+                Command="{Binding OkCommand}"
+                Classes="primary"
+                Width="130"
+                Height="36"
+                IsDefault="True"
+                IsEnabled="{Binding !IsValidating}"/>
+      </StackPanel>
     </Grid>
+  </Border>
 </Window>

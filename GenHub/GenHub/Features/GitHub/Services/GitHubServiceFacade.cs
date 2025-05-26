@@ -913,5 +913,23 @@ namespace GenHub.Features.GitHub.Services
                 return null;
             }
         }
+
+        /// <summary>
+        /// Tests the current authentication token
+        /// </summary>
+        public async Task<bool> TestAuthenticationAsync(CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await EnsureTokenInitializedAsync().ConfigureAwait(false);
+                
+                return await _apiClient.TestAuthenticationAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error testing authentication token");
+                return false;
+            }
+        }
     }
 }
