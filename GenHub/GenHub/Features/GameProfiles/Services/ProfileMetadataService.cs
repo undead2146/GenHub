@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using GenHub.Core.Models;
 using GenHub.Core.Models.GameProfiles;
 using GenHub.Core.Interfaces;
+using GenHub.Core.Interfaces.GameVersions;
 using GenHub.Core.Models.SourceMetadata;
 using GenHub.Core.Interfaces.GitHub;
 
@@ -158,168 +159,226 @@ namespace GenHub.Features.GameProfiles.Services
                 _logger.LogError(ex, "Error extracting GitHub info for profile {ProfileId}", profile.Id);
             }
         }
-/// <summary>
-/// Loads GitHub metadata for a game version asynchronously
-/// </summary>
-public async Task<GitHubSourceMetadata?> LoadGitHubMetadataAsync(GameVersion version, CancellationToken cancellationToken = default)
-{
-    if (version == null || !version.IsFromGitHub)
-        return null;
-
-    try
-    {
-        // Create a new metadata object if one doesn't exist
-        var metadata = version.GitHubMetadata ?? new GitHubSourceMetadata();
-        
-        // Initialize artifact object if needed
-        if (metadata.AssociatedArtifact == null)
+        /// <summary>
+        /// Validates and enhances a profile with additional metadata
+        /// </summary>
+        public async Task ValidateAndEnhanceProfileAsync(GameProfile profile, CancellationToken cancellationToken = default)
         {
-            metadata.AssociatedArtifact = new GitHubArtifact();
-        }
-        
-        var artifact = metadata.AssociatedArtifact;
-
-        if (metadata.BuildInfo == null)
-        {
-            metadata.BuildInfo = new GitHubBuild
+            try
             {
-                // Default values to avoid null reference exceptions in bindings
-                Compiler = "Unknown",
-                Configuration = "Unknown",
-                Version = "Unknown"
-            };
-        }
-
-        // Fix repository info if missing
-        if (artifact.RepositoryInfo == null)
-        {
-            artifact.RepositoryInfo = new GitHubRepoSettings
-            {
-                RepoOwner = "TheSuperHackers", 
-                RepoName = "GeneralsGameCode"
-            };
-            
-            if (!string.IsNullOrEmpty(version.InstallPath))
-            {
-                // Extract from path if possible
-                var pathSegments = version.InstallPath.Split(Path.DirectorySeparatorChar);
-                var repoSegment = pathSegments.FirstOrDefault(p => p.Contains('/'));
-                if (repoSegment != null)
+                if (profile?.GameVersion == null)
                 {
-                    var parts = repoSegment.Split('/');
-                    if (parts.Length == 2)
+                    _logger.LogWarning("Cannot validate profile with null GameVersion");
+                    return;
+                }
+
+                var gameVersion = profile.GameVersion;
+                bool executableExists = false;
+                bool installExists = false;
+
+                if (!string.IsNullOrEmpty(profile.ExecutablePath))
+                {
+                    executableExists = File.Exists(profile.ExecutablePath);
+                    if (!executableExists)
                     {
-                        artifact.RepositoryInfo.RepoOwner = parts[0];
-                        artifact.RepositoryInfo.RepoName = parts[1];
+                        _logger.LogWarning("Executable does not exist for profile {ProfileName}: {ExecutablePath}", 
+                            profile.Name, profile.ExecutablePath);
+                    }
+                    else
+                    {
+                        _logger.LogDebug("Executable exists for profile {ProfileName}: {ExecutablePath}", 
+                            profile.Name, profile.ExecutablePath);
                     }
                 }
+
+                if (!string.IsNullOrEmpty(gameVersion.InstallPath))
+                {
+                    installExists = Directory.Exists(gameVersion.InstallPath);
+                    if (!installExists)
+                    {
+                        _logger.LogWarning("Install path does not exist for profile {ProfileName}: {InstallPath}", 
+                            profile.Name, gameVersion.InstallPath);
+                    }
+                }
+
+                if (string.IsNullOrEmpty(profile.WorkingDirectory) && !string.IsNullOrEmpty(gameVersion.GamePath))
+                {
+                    profile.WorkingDirectory = gameVersion.GamePath;
+                    _logger.LogDebug("Set working directory for profile {ProfileName}: {WorkingDirectory}", 
+                        profile.Name, profile.WorkingDirectory);
+                }
+
+                _logger.LogInformation("Profile validation completed for {ProfileName}", profile.Name);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error validating profile {ProfileName}", profile?.Name ?? "unknown");
+                throw;
             }
         }
-
-        if (version.BuildDate.HasValue)
-        {
-            artifact.CreatedAt = version.BuildDate.Value;
-        }
         
-        if (_gitHubApiClient == null)
+/// <summary>
+        /// Loads GitHub metadata for a game version asynchronously
+        /// </summary>
+        public async Task<GitHubSourceMetadata?> LoadGitHubMetadataAsync(GameVersion version, CancellationToken cancellationToken = default)
         {
-            _logger.LogWarning("GitHubApiClient not available, using default metadata");
-            
-            version.SourceSpecificMetadata = metadata;
-            version.GitHubMetadata = metadata;
-            
-            return metadata;
-        }
+            if (version == null || !version.IsFromGitHub)
+                return null;
 
-        // Use a linked cancellation token to ensure we respect timeouts
-        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(7));
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-            timeoutCts.Token, cancellationToken);
-
-        try
-        {
-            // Load repository details if available
-            if (!string.IsNullOrEmpty(artifact.RepositoryInfo.RepoOwner) && 
-                !string.IsNullOrEmpty(artifact.RepositoryInfo.RepoName))
+            try
             {
-                // Get workflow details if available with timeout
-                if (artifact.WorkflowNumber > 0)
-                {
-                    try
-                    {
-                        var run = await _gitHubApiClient.GetWorkflowRunAsync(
-                            artifact.RepositoryInfo.RepoOwner,
-                            artifact.RepositoryInfo.RepoName,
-                            artifact.WorkflowNumber,
-                            linkedCts.Token);
+                // Create a new metadata object if one doesn't exist
+                var metadata = version.GitHubMetadata ?? new GitHubSourceMetadata();
 
-                        if (run != null)
+                // Initialize artifact object if needed
+                if (metadata.AssociatedArtifact == null)
+                {
+                    metadata.AssociatedArtifact = new GitHubArtifact();
+                }
+
+                var artifact = metadata.AssociatedArtifact;
+
+                if (metadata.BuildInfo == null)
+                {
+                    metadata.BuildInfo = new GitHubBuild
+                    {
+                        // Default values to avoid null reference exceptions in bindings
+                        Compiler = "Unknown",
+                        Configuration = "Unknown",
+                        Version = "Unknown"
+                    };
+                }
+
+                // Fix repository info if missing
+                if (artifact.RepositoryInfo == null)
+                {
+                    artifact.RepositoryInfo = new GitHubRepoSettings
+                    {
+                        RepoOwner = "TheSuperHackers",
+                        RepoName = "GeneralsGameCode"
+                    };
+
+                    if (!string.IsNullOrEmpty(version.InstallPath))
+                    {
+                        // Extract from path if possible
+                        var pathSegments = version.InstallPath.Split(Path.DirectorySeparatorChar);
+                        var repoSegment = pathSegments.FirstOrDefault(p => p.Contains('/'));
+                        if (repoSegment != null)
                         {
-                            metadata.BuildInfo.GameVariant = DetermineGameVariant(run);
-                            metadata.BuildInfo.Configuration = DetermineConfiguration(run);
-                            metadata.BuildInfo.Compiler = DetermineCompiler(run);
-                            metadata.BuildInfo.HasTFlag = run.Name?.Contains("+t") ?? false;
-                            metadata.BuildInfo.HasEFlag = run.Name?.Contains("+e") ?? false;
-                            
-                            // Update artifact with workflow details
-                            artifact.WorkflowId = run.WorkflowId;
-                            artifact.WorkflowNumber = run.WorkflowNumber;
-                            artifact.Name = run.Name;
-                            artifact.CommitSha = run.CommitSha;
-                            artifact.CommitMessage = run.CommitMessage;
-                            artifact.PullRequestNumber = run.PullRequestNumber;
-                            artifact.PullRequestTitle = run.PullRequestTitle;
-                            
-                            _logger.LogDebug("Updated metadata from workflow run: {RunName}", run.Name);
+                            var parts = repoSegment.Split('/');
+                            if (parts.Length == 2)
+                            {
+                                artifact.RepositoryInfo.RepoOwner = parts[0];
+                                artifact.RepositoryInfo.RepoName = parts[1];
+                            }
                         }
                     }
-                    catch (OperationCanceledException)
-                    {
-                        _logger.LogWarning("GitHub API request timed out for workflow #{RunNumber}", 
-                            artifact.WorkflowNumber);
-                        // Continue with default values
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Failed to get workflow details for run #{RunNumber}", 
-                            artifact.WorkflowNumber);
-                        // Continue with default values
-                    }
                 }
 
-                // IMPORTANT: Update the version's metadata before returning
-                version.SourceSpecificMetadata = metadata;
-                version.GitHubMetadata = metadata;
+                if (version.BuildDate.HasValue)
+                {
+                    artifact.CreatedAt = version.BuildDate.Value;
+                }
+
+                if (_gitHubApiClient == null)
+                {
+                    _logger.LogWarning("GitHubApiClient not available, using default metadata");
+
+                    version.SourceSpecificMetadata = metadata;
+                    version.GitHubMetadata = metadata;
+
+                    return metadata;
+                }
+
+                // Use a linked cancellation token to ensure we respect timeouts
+                using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(7));
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                    timeoutCts.Token, cancellationToken);
+
+                try
+                {
+                    // Load repository details if available
+                    if (!string.IsNullOrEmpty(artifact.RepositoryInfo.RepoOwner) &&
+                        !string.IsNullOrEmpty(artifact.RepositoryInfo.RepoName))
+                    {
+                        // Get workflow details if available with timeout
+                        if (artifact.WorkflowNumber > 0)
+                        {
+                            try
+                            {
+                                var run = await _gitHubApiClient.GetWorkflowRunAsync(
+                                    artifact.RepositoryInfo.RepoOwner,
+                                    artifact.RepositoryInfo.RepoName,
+                                    artifact.WorkflowNumber,
+                                    linkedCts.Token);
+
+                                if (run != null)
+                                {
+                                    metadata.BuildInfo.GameVariant = DetermineGameVariant(run);
+                                    metadata.BuildInfo.Configuration = DetermineConfiguration(run);
+                                    metadata.BuildInfo.Compiler = DetermineCompiler(run);
+                                    metadata.BuildInfo.HasTFlag = run.Name?.Contains("+t") ?? false;
+                                    metadata.BuildInfo.HasEFlag = run.Name?.Contains("+e") ?? false;
+
+                                    // Update artifact with workflow details
+                                    artifact.WorkflowId = run.WorkflowId;
+                                    artifact.WorkflowNumber = run.WorkflowNumber;
+                                    artifact.Name = run.Name;
+                                    artifact.CommitSha = run.CommitSha;
+                                    artifact.CommitMessage = run.CommitMessage;
+                                    artifact.PullRequestNumber = run.PullRequestNumber;
+                                    artifact.PullRequestTitle = run.PullRequestTitle;
+
+                                    _logger.LogDebug("Updated metadata from workflow run: {RunName}", run.Name);
+                                }
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                _logger.LogWarning("GitHub API request timed out for workflow #{RunNumber}",
+                                    artifact.WorkflowNumber);
+                                // Continue with default values
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Failed to get workflow details for run #{RunNumber}",
+                                    artifact.WorkflowNumber);
+                                // Continue with default values
+                            }
+                        }
+
+                        // IMPORTANT: Update the version's metadata before returning
+                        version.SourceSpecificMetadata = metadata;
+                        version.GitHubMetadata = metadata;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogWarning("GitHub metadata loading timed out");
+                    // Still return metadata with default values
+                }
+
+                return metadata;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading GitHub metadata for version {VersionId}", version.Id);
+
+                // Create a fallback metadata object with valid BuildInfo
+                var fallbackMetadata = new GitHubSourceMetadata();
+                fallbackMetadata.BuildInfo = new GitHubBuild
+                {
+                    Compiler = "Unknown",
+                    Configuration = "Unknown",
+                    Version = "Unknown"
+                };
+
+                // IMPORTANT: Update the version's metadata even in error case
+                version.SourceSpecificMetadata = fallbackMetadata;
+                version.GitHubMetadata = fallbackMetadata;
+
+                return fallbackMetadata;
             }
         }
-        catch (OperationCanceledException)
-        {
-            _logger.LogWarning("GitHub metadata loading timed out");
-            // Still return metadata with default values
-        }
-
-        return metadata;
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Error loading GitHub metadata for version {VersionId}", version.Id);
-        
-        // Create a fallback metadata object with valid BuildInfo
-        var fallbackMetadata = new GitHubSourceMetadata();
-        fallbackMetadata.BuildInfo = new GitHubBuild 
-        {
-            Compiler = "Unknown",
-            Configuration = "Unknown",
-            Version = "Unknown"
-        };
-        
-        // IMPORTANT: Update the version's metadata even in error case
-        version.SourceSpecificMetadata = fallbackMetadata;
-        version.GitHubMetadata = fallbackMetadata;
-        
-        return fallbackMetadata;
-    }
-}
 
         // Helper methods to extract information from workflow runs
         private GameVariant DetermineGameVariant(GitHubWorkflow workflow)

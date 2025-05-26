@@ -7,7 +7,9 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 using GenHub.Core.Interfaces;
+using GenHub.Core.Interfaces.GameVersions;
 using GenHub.Core.Models;
+using GenHub.Core.Models.SourceMetadata;
 using GenHub.Core.Models.GameProfiles;
 namespace GenHub.Features.GameProfiles.Services
 {
@@ -259,6 +261,307 @@ namespace GenHub.Features.GameProfiles.Services
             
             // Default to Generals for anything else
             return "Generals";
+        }
+
+        /// <summary>
+        /// Creates a base profile from a game version
+        /// </summary>
+        private GameProfile CreateBaseProfile(GameVersion gameVersion, string profileName)
+        {
+            if (gameVersion == null)
+                throw new ArgumentNullException(nameof(gameVersion));
+
+            var profile = new GameProfile
+            {
+                Id = Guid.NewGuid().ToString(),
+                Name = profileName,
+                GameVersion = gameVersion,
+                GameVariant = gameVersion.GameVariant,
+                Description = $"Profile for {gameVersion.Name}",
+                ExecutablePath = gameVersion.ExecutablePath,
+                DataPath = gameVersion.GamePath,
+                WorkingDirectory = gameVersion.GamePath,
+                VersionId = gameVersion.Id,
+                IsCustomProfile = false,
+                IsDefaultProfile = false,
+                SourceType = gameVersion.SourceType,
+                ColorValue = "#FF4A90E2", // Default blue color
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                LastModified = DateTime.UtcNow
+            };
+
+            // Set default launch arguments based on game type
+            if (gameVersion.IsZeroHour)
+            {
+                profile.LaunchArguments = "-quickstart";
+            }
+
+            return profile;
+        }
+
+        private void PopulateFromGitHubSourceMetadata(GameProfile profile, GitHubSourceMetadata githubMetadata)
+        {
+            profile.Description = $"GitHub Build: {githubMetadata.BuildPreset ?? "Unknown"}";
+            
+            // Populate additional profile fields based on GitHub metadata
+            if (githubMetadata.AssociatedArtifact != null)
+            {
+                var artifact = githubMetadata.AssociatedArtifact;
+                profile.Description += $" - Run #{githubMetadata.WorkflowRunNumber ?? artifact.WorkflowNumber}";
+                
+                if (githubMetadata.PullRequestNumber.HasValue)
+                {
+                    profile.Description += $" (PR #{githubMetadata.PullRequestNumber})";
+                    profile.ColorValue = "#FF28A745"; // Green for PR builds
+                }
+                else
+                {
+                    profile.ColorValue = "#FF007BFF"; // Blue for regular builds
+                }
+                
+                // Set game variant based on build info
+                if (githubMetadata.BuildInfo != null)
+                {
+                    profile.GameVariant = githubMetadata.BuildInfo.GameVariant;
+                }
+            }
+        }
+
+        public async Task<GameProfile> CreateFromGitHubSourceAsync(
+            GameVersion gameVersion, 
+            string profileName,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var profile = CreateBaseProfile(gameVersion, profileName);
+                
+                if (gameVersion.GitHubMetadata != null)
+                {
+                    PopulateFromGitHubSourceMetadata(profile, gameVersion.GitHubMetadata);
+                }
+
+                // Validate and enhance the profile with metadata service
+                await _metadataService.ValidateAndEnhanceProfileAsync(profile, cancellationToken);
+                
+                return profile;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating profile from GitHub source");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Generates a description for a game profile based on its metadata
+        /// </summary>
+        public string GenerateGameDescription(GameProfile profile)
+        {
+            if (profile == null)
+                return "Unknown Game Profile";
+
+            try
+            {
+                var description = new List<string>();
+
+                // Add game variant
+                if (profile.GameVariant != GameVariant.Unknown)
+                {
+                    description.Add($"Game: {profile.GameVariant}");
+                }
+
+                // Add source type
+                if (profile.SourceType != GameInstallationType.Unknown)
+                {
+                    description.Add($"Source: {profile.SourceType}");
+                }
+
+                // Add GitHub-specific information if available
+                if (profile.IsFromGitHub && profile.GitHubMetadata != null)
+                {
+                    var githubMeta = profile.GitHubMetadata;
+
+                    if (githubMeta.PullRequestNumber.HasValue)
+                    {
+                        description.Add($"Pull Request: #{githubMeta.PullRequestNumber}");
+                        if (!string.IsNullOrEmpty(githubMeta.PullRequestTitle))
+                        {
+                            description.Add($"PR Title: {githubMeta.PullRequestTitle}");
+                        }
+                    }
+
+                    if (githubMeta.WorkflowRunNumber.HasValue)
+                    {
+                        description.Add($"Build: #{githubMeta.WorkflowRunNumber}");
+                    }
+
+                    if (!string.IsNullOrEmpty(githubMeta.BuildPreset))
+                    {
+                        description.Add($"Configuration: {githubMeta.BuildPreset}");
+                    }
+
+                    if (githubMeta.BuildInfo != null)
+                    {
+                        if (!string.IsNullOrEmpty(githubMeta.BuildInfo.Compiler))
+                        {
+                            description.Add($"Compiler: {githubMeta.BuildInfo.Compiler}");
+                        }
+                        if (!string.IsNullOrEmpty(githubMeta.BuildInfo.Configuration))
+                        {
+                            description.Add($"Build Type: {githubMeta.BuildInfo.Configuration}");
+                        }
+                    }
+
+                    if (githubMeta.ArtifactCreationDate.HasValue)
+                    {
+                        description.Add($"Built: {githubMeta.ArtifactCreationDate.Value:yyyy-MM-dd}");
+                    }
+                }
+
+                // Add installation path info
+                if (!string.IsNullOrEmpty(profile.ExecutablePath))
+                {
+                    var directory = Path.GetDirectoryName(profile.ExecutablePath);
+                    if (!string.IsNullOrEmpty(directory))
+                    {
+                        description.Add($"Location: {Path.GetFileName(directory)}");
+                    }
+                }
+
+                // Add install date
+                description.Add($"Created: {profile.CreatedAt:yyyy-MM-dd}");
+
+                return string.Join(" | ", description);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating description for profile: {ProfileName}", profile.Name);
+                return $"Profile: {profile.Name}";
+            }
+        }
+
+        /// <summary>
+        /// Generates a description for a game version
+        /// </summary>
+        public string GenerateGameDescription(GameVersion version)
+        {
+            if (version == null)
+                return "Unknown Version";
+
+            try
+            {
+                var description = new List<string>();
+
+                // Add game variant
+                if (version.GameVariant != GameVariant.Unknown)
+                {
+                    description.Add($"Game: {version.GameVariant}");
+                }
+
+                // Add source type
+                if (version.SourceType != GameInstallationType.Unknown)
+                {
+                    description.Add($"Source: {version.SourceType}");
+                }
+
+                // Add GitHub-specific information if available
+                if (version.IsFromGitHub && version.GitHubMetadata != null)
+                {
+                    var githubMeta = version.GitHubMetadata;
+
+                    if (githubMeta.PullRequestNumber.HasValue)
+                    {
+                        description.Add($"Pull Request: #{githubMeta.PullRequestNumber}");
+                    }
+
+                    if (githubMeta.WorkflowRunNumber.HasValue)
+                    {
+                        description.Add($"Build: #{githubMeta.WorkflowRunNumber}");
+                    }
+
+                    if (!string.IsNullOrEmpty(githubMeta.BuildPreset))
+                    {
+                        description.Add($"Configuration: {githubMeta.BuildPreset}");
+                    }
+
+                    if (githubMeta.ArtifactCreationDate.HasValue)
+                    {
+                        description.Add($"Built: {githubMeta.ArtifactCreationDate.Value:yyyy-MM-dd}");
+                    }
+                }
+
+                // Add build date
+                if (version.BuildDate.HasValue)
+                {
+                    description.Add($"Built: {version.BuildDate.Value:yyyy-MM-dd}");
+                }
+
+                return string.Join(" | ", description);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating description for version: {VersionName}", version.Name);
+                return $"Version: {version.Name}";
+            }
+        }
+
+        /// <summary>
+        /// Creates a game profile from a game version
+        /// </summary>
+        public async Task<GameProfile> CreateFromGameVersionAsync(GameVersion version, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                if (version == null)
+                    throw new ArgumentNullException(nameof(version));
+
+                _logger.LogInformation("Creating profile from game version: {VersionName}", version.Name);
+
+                var profile = new GameProfile
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = version.GetDisplayName(),
+                    Description = await Task.Run(() => _metadataService.GenerateGameDescription(version), cancellationToken),
+                    GameVersion = version,
+                    GameVariant = version.GameVariant,
+                    ExecutablePath = version.ExecutablePath,
+                    WorkingDirectory = version.GamePath,
+                    DataPath = version.InstallPath,
+                    SourceType = version.SourceType,
+                    SourceSpecificMetadata = version.SourceSpecificMetadata?.Clone() as BaseSourceMetadata,
+                    IsInstalled = !string.IsNullOrEmpty(version.ExecutablePath) && File.Exists(version.ExecutablePath),
+                    IsCustomProfile = false,
+                    IsDefaultProfile = false,
+                    CreatedAt = DateTime.UtcNow,
+                    LastModified = DateTime.UtcNow
+                };
+
+                // Set color based on source type
+                profile.ColorValue = version.SourceType switch
+                {
+                    GameInstallationType.GitHubArtifact => "#FF007BFF", // Blue for GitHub
+                    GameInstallationType.GitHubRelease => "#FF28A745", // Green for releases
+                    GameInstallationType.Steam => "#FF17A2B8", // Teal for Steam
+                    GameInstallationType.EaApp => "#FFFFC107", // Yellow for EA App
+                    _ => "#FF6C757D" // Gray for unknown
+                };
+
+                // Extract additional metadata if needed
+                if (profile.IsFromGitHub)
+                {
+                    _metadataService?.ExtractGitHubInfo(profile);
+                }
+
+                _logger.LogInformation("Created profile from version: {ProfileName}", profile.Name);
+                return profile;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating profile from game version: {VersionName}", version?.Name ?? "Unknown");
+                throw;
+            }
         }
     }
 }
