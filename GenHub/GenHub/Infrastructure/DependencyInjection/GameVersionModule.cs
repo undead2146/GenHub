@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 
 using GenHub.Core.Interfaces;
 using GenHub.Features.GameVersions.Services;
+using GenHub.Core.Interfaces.GameVersions;
 
 
 namespace GenHub.Infrastructure.DependencyInjection

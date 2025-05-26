@@ -21,6 +21,7 @@ using GenHub.Core.Models.GameProfiles;
 using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.Views;
 using GenHub.Features.GameVersions.Services;
+using GenHub.Core.Interfaces.GameVersions;
 
 namespace GenHub.Features.GameProfiles.ViewModels
 {
