@@ -112,6 +112,13 @@
             <Setter Property="BorderThickness" Value="0,0,0,1" />
             <Setter Property="BorderBrush" Value="#404040" />
         </Style>
+
+        <!-- Compact branding style -->
+        <Style Selector="StackPanel.compact-branding">
+            <Setter Property="Orientation" Value="Horizontal" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,16,0" />
+        </Style>
     </UserControl.Styles>
 
     <Grid>
@@ -120,31 +127,82 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Enhanced Header -->
+        <!-- Header -->
         <Border Grid.Row="0" Classes="header-background">
-            <Grid RowDefinitions="Auto,Auto">
-                <!-- Top section with app info and update button -->
-                <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="5,5,5,5">
-                    <!-- App icon and title -->
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+            <Grid ColumnDefinitions="Auto,*,Auto" Margin="20,6,20,6" Height="75">
+                
+                <!-- Tab navigation - Left side -->
+                <StackPanel Grid.Column="0" 
+                    Orientation="Horizontal"
+                    VerticalAlignment="Bottom"
+                    Margin="0,0,0,6">
+
+                    <Button Classes="modern-tab"
+                        Classes.active="{Binding SelectedTabIndex, Converter={x:Static conv:EqualityConverter.Instance}, ConverterParameter=0}"
+                        Command="{Binding SelectTabCommand}"
+                        Content="Game Profiles"
+                        Name="Tab0Button">
+                        <Button.CommandParameter>
+                            <system:Int32>0</system:Int32>
+                        </Button.CommandParameter>
+                    </Button>
+
+                    <Button Classes="modern-tab"
+                        Classes.active="{Binding SelectedTabIndex, Converter={x:Static conv:EqualityConverter.Instance}, ConverterParameter=1}"
+                        Command="{Binding SelectTabCommand}"
+                        Content="Downloads"
+                        Name="Tab1Button">
+                        <Button.CommandParameter>
+                            <system:Int32>1</system:Int32>
+                        </Button.CommandParameter>
+                    </Button>
+
+                    <Button Classes="modern-tab"
+                        Classes.active="{Binding SelectedTabIndex, Converter={x:Static conv:EqualityConverter.Instance}, ConverterParameter=2}"
+                        Command="{Binding SelectTabCommand}"
+                        Content="Settings"
+                        Name="Tab2Button">
+                        <Button.CommandParameter>
+                            <system:Int32>2</system:Int32>
+                        </Button.CommandParameter>
+                    </Button>
+                </StackPanel>
+
+                <!-- Bold branding and update button - Right side -->
+                <Grid Grid.Column="2" 
+                    ColumnDefinitions="Auto,Auto"
+                    VerticalAlignment="Center">
+
+                    <!-- Logo and title section -->
+                    <StackPanel Grid.Column="0" 
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Top"
+                        Margin="0,0,0,0">
+                        
+                        <!-- Prominent logo -->
                         <Image Source="avares://GenHub/Assets/Icons/genhub-icon.png"
-                            Width="75" Height="75"
-                            VerticalAlignment="Center"
-                            Margin="0,0,12,0" />
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="C&amp;C Generals Launcher"
-                                FontSize="11"
-                                Foreground="#A0A0A0"
-                                Margin="0,-2,0,0" />
-                        </StackPanel>
+                            Width="90" Height="90"
+                            HorizontalAlignment="Center"
+                            Margin="0,-10,0,-15" />
+                        
+                        <!-- Launcher text below logo -->
+                        <TextBlock Text="C&amp;C Generals Launcher"
+                            FontSize="9"
+                            Foreground="#A0A0A0"
+                            FontWeight="Normal"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Top"
+                            TextAlignment="Center"
+                            Margin="0,0,0,0" />
                     </StackPanel>
 
                     <!-- Update notification button -->
-                    <Button Grid.Column="2"
+                    <Button Grid.Column="1"
                         Classes="update-notification"
                         Command="{Binding ShowUpdateNotificationCommand}"
                         IsVisible="{Binding HasUpdateAvailable}"
-                        ToolTip.Tip="Update available - click to download">
+                        ToolTip.Tip="Update available - click to download"
+                        VerticalAlignment="Center">
                         <Panel>
                             <Ellipse Width="20" Height="20"
                                 Fill="#4CAF50"
@@ -163,44 +221,6 @@
                                 Margin="0,-2,-2,0" />
                         </Panel>
                     </Button>
-                </Grid>
-
-                <!-- Tab navigation section -->
-                <Grid Grid.Row="1" Margin="20,0,20,0">
-                    <StackPanel Orientation="Horizontal"
-                        HorizontalAlignment="Left"
-                        VerticalAlignment="Bottom">
-
-                        <Button Classes="modern-tab"
-                            Classes.active="{Binding SelectedTabIndex, Converter={x:Static conv:EqualityConverter.Instance}, ConverterParameter=0}"
-                            Command="{Binding SelectTabCommand}"
-                            Content="Game Profiles"
-                            Name="Tab0Button">
-                            <Button.CommandParameter>
-                                <system:Int32>0</system:Int32>
-                            </Button.CommandParameter>
-                        </Button>
-
-                        <Button Classes="modern-tab"
-                            Classes.active="{Binding SelectedTabIndex, Converter={x:Static conv:EqualityConverter.Instance}, ConverterParameter=1}"
-                            Command="{Binding SelectTabCommand}"
-                            Content="Downloads"
-                            Name="Tab1Button">
-                            <Button.CommandParameter>
-                                <system:Int32>1</system:Int32>
-                            </Button.CommandParameter>
-                        </Button>
-
-                        <Button Classes="modern-tab"
-                            Classes.active="{Binding SelectedTabIndex, Converter={x:Static conv:EqualityConverter.Instance}, ConverterParameter=2}"
-                            Command="{Binding SelectTabCommand}"
-                            Content="Settings"
-                            Name="Tab2Button">
-                            <Button.CommandParameter>
-                                <system:Int32>2</system:Int32>
-                            </Button.CommandParameter>
-                        </Button>
-                    </StackPanel>
                 </Grid>
             </Grid>
         </Border>
