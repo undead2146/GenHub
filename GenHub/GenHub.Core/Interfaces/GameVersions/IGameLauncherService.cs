@@ -15,16 +15,16 @@ namespace GenHub.Core.Interfaces.GameVersions
         /// <summary>
         /// Launches a game profile
         /// </summary>
-        Task<LaunchResult> LaunchGameAsync(IGameProfile profile, CancellationToken cancellationToken = default);
+        Task<OperationResult> LaunchGameAsync(IGameProfile profile, CancellationToken cancellationToken = default);
         
         /// <summary>
         /// Launches a game version with optional arguments
         /// </summary>
-        Task<LaunchResult> LaunchVersionAsync(GameVersion version, string? arguments = null, CancellationToken cancellationToken = default);
+        Task<OperationResult> LaunchVersionAsync(GameVersion version, string? arguments = null, CancellationToken cancellationToken = default);
         
         /// <summary>
         /// Launches a game profile (alternative signature for compatibility)
         /// </summary>
-        Task<LaunchResult> LaunchVersionAsync(IGameProfile profile, CancellationToken cancellationToken = default);
+        Task<OperationResult> LaunchVersionAsync(IGameProfile profile, CancellationToken cancellationToken = default);
     }
 }

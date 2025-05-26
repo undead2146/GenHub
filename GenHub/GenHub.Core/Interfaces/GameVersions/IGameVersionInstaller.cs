@@ -52,9 +52,9 @@ namespace GenHub.Core.Interfaces.GameVersions
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Installs a game version - compatibility method for facade interface
+        /// Installs a game version - facade compatibility method
         /// </summary>
-        Task<bool> InstallVersionAsync(
+        Task<OperationResult> InstallVersionAsync(
             GameVersion version,
             CancellationToken cancellationToken = default,
             IProgress<string>? progress = null);
@@ -62,11 +62,6 @@ namespace GenHub.Core.Interfaces.GameVersions
         /// <summary>
         /// Uninstalls a game version by ID
         /// </summary>
-        Task<OperationResult> UninstallVersionAsync(string versionId);
-
-        /// <summary>
-        /// Uninstalls a game version - simplified interface for facade
-        /// </summary>
-        Task<bool> UninstallVersionAsync(string versionId, CancellationToken cancellationToken = default);
+        Task<OperationResult> UninstallVersionAsync(string versionId, CancellationToken cancellationToken = default);
     }
 }
