@@ -8,14 +8,16 @@ using System.Threading.Tasks;
 using GenHub.Core.Interfaces;
 using GenHub.Core.Models;
 using GenHub.Core.Models.GameProfiles;
+using GenHub.Core.Interfaces.GameVersions;
 using Microsoft.Extensions.Logging;
+using GenHub.Core.Interfaces.Facades;
 
 namespace GenHub.Features.GameVersions.Services
 {
     /// <summary>
-    /// Facade service for game detection across different platforms
+    /// Facade that coordinates game detection across different platforms
     /// </summary>
-    public class GameDetectionFacade : IGameDetector, IGameExecutableLocator
+    public class GameDetectionFacade : IGameDetectionFacade
     {
         private readonly ILogger<GameDetectionFacade> _logger;
         private readonly IGameDetector _gameDetector;
@@ -504,6 +506,12 @@ namespace GenHub.Features.GameVersions.Services
         public bool IsValidGameExecutable(string filePath)
         {
             return _gameExecutableLocator.IsValidGameExecutable(filePath);
+        }
+
+        /// <inheritdoc />
+        public async Task<GameExecutableInfo?> LocateExecutableAsync(string installPath, string gameType, CancellationToken cancellationToken = default)
+        {
+            return await _gameExecutableLocator.LocateExecutableAsync(installPath, gameType, cancellationToken);
         }
     }
 }

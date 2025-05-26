@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using GenHub.Core.Interfaces;
+using GenHub.Core.Interfaces.GameVersions;
 using GenHub.Core.Models;
 using GenHub.Core.Models.GameProfiles;
 
@@ -789,6 +790,80 @@ namespace GenHub.Features.GameVersions.Services
             bool success = !string.IsNullOrEmpty(executablePath) && File.Exists(executablePath);
             
             return (success, success ? executablePath : null);
+        }
+
+        /// <summary>
+        /// Locate and validate executable with enhanced metadata
+        /// </summary>
+        public async Task<GameExecutableInfo?> LocateExecutableAsync(string installPath, string gameType, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrEmpty(installPath) || !Directory.Exists(installPath))
+            {
+                _logger.LogWarning("Invalid install path provided: {InstallPath}", installPath);
+                return null;
+            }
+
+            try
+            {
+                _logger.LogDebug("Locating executable for {GameType} in {InstallPath}", gameType, installPath);
+
+                // Determine source type from path
+                var sourceType = DetermineSourceType(installPath);
+                
+                // Find the best executable based on game type preference
+                bool preferZeroHour = gameType.Equals("Zero Hour", StringComparison.OrdinalIgnoreCase) || 
+                                     gameType.Contains("ZH", StringComparison.OrdinalIgnoreCase);
+                
+                string executablePath = await FindBestGameExecutableAsync(installPath, preferZeroHour, cancellationToken);
+                
+                if (string.IsNullOrEmpty(executablePath) || !File.Exists(executablePath))
+                {
+                    _logger.LogWarning("No valid executable found for {GameType} in {InstallPath}", gameType, installPath);
+                    return null;
+                }
+
+                // Validate the executable
+                if (!IsValidGameExecutable(executablePath))
+                {
+                    _logger.LogWarning("Found executable is not valid: {ExecutablePath}", executablePath);
+                    return null;
+                }
+
+                // Determine if this is actually Zero Hour based on installation context
+                bool isZeroHour;
+                if (_retailInstallationTypes.Contains(sourceType))
+                {
+                    // For retail installations, use directory-based detection
+                    isZeroHour = IsZeroHourDirectory(installPath);
+                }
+                else
+                {
+                    // For non-retail, use executable name
+                    string fileName = Path.GetFileName(executablePath).ToLowerInvariant();
+                    isZeroHour = fileName.Contains("zh", StringComparison.OrdinalIgnoreCase);
+                }
+
+                // Create enhanced executable info
+                var executableInfo = new GameExecutableInfo
+                {
+                    ExecutablePath = executablePath,
+                    GameType = isZeroHour ? "Zero Hour" : "Generals",
+                    IsZeroHour = isZeroHour,
+                    IsValid = true,
+                    InstallPath = installPath,
+                    SourceType = sourceType
+                };
+
+                _logger.LogDebug("Successfully located executable: {ExecutablePath} for {GameType}", 
+                    executablePath, executableInfo.GameType);
+
+                return executableInfo;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error locating executable for {GameType} in {InstallPath}", gameType, installPath);
+                return null;
+            }
         }
 
         /// <summary>
