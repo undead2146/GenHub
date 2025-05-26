@@ -13,6 +13,41 @@ namespace GenHub.Core.Models.GitHub
         
         [JsonPropertyName("rate")]
         public RateLimit? Rate { get; set; }
+        
+        /// <summary>
+        /// The maximum number of requests allowed per hour
+        /// </summary>
+        public int Limit { get; set; }
+
+        /// <summary>
+        /// The number of requests remaining in the current rate limit window
+        /// </summary>
+        public int Remaining { get; set; }
+
+        /// <summary>
+        /// The time at which the current rate limit window resets
+        /// </summary>
+        public DateTimeOffset Reset { get; set; }
+
+        /// <summary>
+        /// The number of seconds until the rate limit window resets
+        /// </summary>
+        public int ResetSeconds { get; set; }
+
+        /// <summary>
+        /// The type of rate limit (e.g., "core", "search", "graphql")
+        /// </summary>
+        public string? ResourceType { get; set; }
+
+        /// <summary>
+        /// Gets a value indicating whether the rate limit has been exceeded
+        /// </summary>
+        public bool IsExceeded => Remaining <= 0;
+
+        /// <summary>
+        /// Gets the time remaining until the rate limit resets
+        /// </summary>
+        public TimeSpan TimeUntilReset => Reset - DateTimeOffset.UtcNow;
     }
     
     public class RateLimitResources

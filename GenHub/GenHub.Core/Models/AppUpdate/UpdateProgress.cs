@@ -1,27 +1,50 @@
-public class UpdateProgress
+using System;
+
+namespace GenHub.Core.Models.AppUpdate
 {
     /// <summary>
-    /// Gets or sets the current status of the update process.
+    /// Represents the progress of an update operation
     /// </summary>
-    public string Status { get; set; } = string.Empty;
+    public class UpdateProgress
+    {
+        /// <summary>
+        /// Gets or sets the current status message
+        /// </summary>
+        public string Status { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Gets or sets the percentage of the update that has been completed.
-    /// </summary>
-    public double PercentageCompleted { get; set; } = 0.0;
+        /// <summary>
+        /// Gets or sets the current stage of the update
+        /// </summary>
+        public string Stage { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Gets or sets a message providing additional information about the update progress.
-    /// </summary>
-    public string Message { get; set; } = string.Empty;
+        /// <summary>
+        /// Gets or sets the percentage complete (0-100)
+        /// </summary>
+        public int PercentComplete { get; set; }
 
-    /// <summary>
-    /// Gets or sets a value indicating whether the update is currently in progress.
-    /// </summary>
-    public bool IsInProgress { get; set; } = false;
+        /// <summary>
+        /// Gets or sets the percentage completed as decimal (0.0-1.0)
+        /// </summary>
+        public double PercentageCompleted { get; set; }
 
-    /// <summary>
-    /// Gets or sets a value indicating whether the update was successful.
-    /// </summary>
-    public bool IsSuccessful { get; set; } = false;
+        /// <summary>
+        /// Gets or sets whether the operation is currently in progress
+        /// </summary>
+        public bool IsInProgress { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether the operation completed successfully
+        /// </summary>
+        public bool IsSuccessful { get; set; }
+
+        /// <summary>
+        /// Gets or sets any additional message
+        /// </summary>
+        public string? Message { get; set; }
+
+        /// <summary>
+        /// Gets or sets any error that occurred
+        /// </summary>
+        public Exception? Error { get; set; }
+    }
 }

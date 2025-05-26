@@ -26,6 +26,24 @@ namespace GenHub.Core.Models.Results
         /// The time when the operation completed
         /// </summary>
         public DateTime CompletedAt { get; set; } = DateTime.Now;
+
+        /// <summary>
+        /// Default constructor
+        /// </summary>
+        public OperationResult()
+        {
+        }
+
+        /// <summary>
+        /// Constructor for derived classes
+        /// </summary>
+        protected OperationResult(bool success, string? errorMessage = null, Exception? exception = null)
+        {
+            Success = success;
+            ErrorMessage = errorMessage;
+            Exception = exception;
+            CompletedAt = DateTime.Now;
+        }
         
         /// <summary>
         /// Creates a successful result
@@ -58,8 +76,23 @@ namespace GenHub.Core.Models.Results
         /// The data returned by the operation
         /// </summary>
         public T? Data { get; set; }
+
+        /// <summary>
+        /// Default constructor
+        /// </summary>
+        public OperationResult()
+        {
+        }
+
+        /// <summary>
+        /// Constructor for derived classes
+        /// </summary>
+        protected OperationResult(bool success, string? errorMessage = null, Exception? exception = null)
+            : base(success, errorMessage, exception)
+        {
+        }
         
-        ///summary>
+        /// <summary>
         /// Creates a successful result with data
         /// </summary>
         public static OperationResult<T> Succeeded(T data)
