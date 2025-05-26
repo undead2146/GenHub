@@ -4,7 +4,6 @@ using GenHub.Core.Interfaces;
 using GenHub.Core.Models;
 using GenHub.Core.Models.GameProfiles;
 using GenHub.Core.Models.Results;
-using GenHub.Core.Interfaces.GameProfiles;
 
 namespace GenHub.Core.Interfaces.GameVersions
 {

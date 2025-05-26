@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using GenHub.Core.Models;
 using GenHub.Core.Models.GameProfiles;
 
 namespace GenHub.Core.Interfaces.GameVersions
@@ -50,18 +49,5 @@ namespace GenHub.Core.Interfaces.GameVersions
         /// Locate and validate executable with enhanced metadata
         /// </summary>
         Task<GameExecutableInfo?> LocateExecutableAsync(string installPath, string gameType, CancellationToken cancellationToken = default);
-    }
-
-    /// <summary>
-    /// Enhanced executable information
-    /// </summary>
-    public class GameExecutableInfo
-    {
-        public string ExecutablePath { get; set; } = string.Empty;
-        public string GameType { get; set; } = string.Empty;
-        public bool IsZeroHour { get; set; }
-        public bool IsValid { get; set; }
-        public string InstallPath { get; set; } = string.Empty;
-        public GameInstallationType SourceType { get; set; }
     }
 }
