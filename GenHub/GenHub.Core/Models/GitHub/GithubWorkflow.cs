@@ -130,6 +130,11 @@ namespace GenHub.Core.Models
         public int ArtifactCount { get; set; }
 
         /// <summary>
+        /// Collection of artifacts associated with this workflow run
+        /// </summary>
+        public List<GitHubArtifact>? Artifacts { get; set; }
+
+        /// <summary>
         /// Helper property to get a formatted display name
         /// </summary>
         [JsonIgnore]
@@ -162,6 +167,7 @@ namespace GenHub.Core.Models
         public GitHubWorkflow()
         {
             Metadata = new Dictionary<string, object>();
+            Artifacts = new List<GitHubArtifact>();
         }
     }
 }
