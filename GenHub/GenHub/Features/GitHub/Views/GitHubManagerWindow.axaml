@@ -1,5 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
+        xmlns:ui="clr-namespace:GenHub.Infrastructure.UI"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="using:GenHub.Features.GitHub.Views"
@@ -120,8 +122,13 @@
             <Grid x:Name="TitleBarGrid" 
                   Grid.Row="0" 
                   Classes="TitleBarArea"
-                  PointerPressed="TitleBar_PointerPressed"
                   ColumnDefinitions="Auto,*,Auto">
+                
+                <!-- Add drag behavior to title bar -->
+                <i:Interaction.Behaviors>
+                    <ui:WindowDragBehavior />
+                </i:Interaction.Behaviors>
+                
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="10,0,0,0">
                     <Image Source="avares://GenHub/Assets/Icons/genhub-logo.png" Width="24" Height="24"/>
                     <TextBlock Text="GitHub Manager" VerticalAlignment="Center" Margin="8,0,0,0" 
@@ -132,7 +139,7 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="0">
                     <Button Content="⚙️" Command="{Binding ConfigureTokenCommand}" 
                             ToolTip.Tip="Configure GitHub Token" Classes="window-control"/>
-                    <Button Content="🗙" Click="CloseButton_Click"
+                    <Button Content="🗙" Command="{Binding CloseWindowCommand}"
                             ToolTip.Tip="Close" Classes="window-control window-close"/>
                 </StackPanel>
             </Grid>
