@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace GenHub.Core.Models.SourceMetadata
@@ -39,12 +40,30 @@ namespace GenHub.Core.Models.SourceMetadata
         }
 
         /// <summary>
-        /// Creates a shallow copy of this metadata instance
-        /// Override in derived classes for deep copying
+        /// Creates a deep copy of this metadata instance using JSON serialization
+        /// Override in derived classes for more efficient copying if needed
         /// </summary>
         public virtual object Clone()
         {
-            return this.MemberwiseClone();
+            try
+            {
+                // Use JSON serialization for deep cloning
+                var options = new JsonSerializerOptions
+                {
+                    WriteIndented = false,
+                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+                };
+
+                string json = JsonSerializer.Serialize(this, this.GetType(), options);
+                var cloned = JsonSerializer.Deserialize(json, this.GetType(), options);
+                
+                return cloned ?? this.MemberwiseClone();
+            }
+            catch (Exception)
+            {
+                // Fallback to shallow clone if JSON serialization fails
+                return this.MemberwiseClone();
+            }
         }
 
         public override string ToString()
