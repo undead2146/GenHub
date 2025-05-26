@@ -28,7 +28,39 @@
         </Style>
         <Style Selector="TreeViewItem">
             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
-            <Setter Property="Padding" Value="4"/>
+            <Setter Property="Padding" Value="2"/>
+        </Style>
+        
+        <!-- Restore compact expand/collapse toggle button with negative margins -->
+        <Style Selector="TreeViewItem ToggleButton">
+            <Setter Property="Width" Value="16"/>
+            <Setter Property="Height" Value="16"/>
+            <Setter Property="Margin" Value="-10,0,10,0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinWidth" Value="16"/>
+            <Setter Property="MinHeight" Value="16"/>
+        </Style>
+        
+        <!-- Style the actual arrow/chevron inside the toggle -->
+        <Style Selector="TreeViewItem ToggleButton PathIcon">
+            <Setter Property="Width" Value="10"/>
+            <Setter Property="Height" Value="10"/>
+            <Setter Property="Margin" Value="0"/>
+        </Style>
+        
+        <!-- Only apply compensating margin to items that have ToggleButtons (expandable items) -->
+        <Style Selector="TreeViewItem:nth-child(n) ContentPresenter">
+            <Setter Property="Margin" Value="0,0,0,0"/>
+        </Style>
+        
+        <!-- Apply negative margin only when ToggleButton is present and visible -->
+        <Style Selector="TreeViewItem[IsExpanded=True] ContentPresenter, TreeViewItem[IsExpanded=False] ContentPresenter">
+            <Setter Property="Margin" Value="-20,0,0,0"/>
+        </Style>
+        
+        <!-- Alternative approach: Target items that have children -->
+        <Style Selector="TreeViewItem:has-children ContentPresenter">
+            <Setter Property="Margin" Value="-20,0,0,0"/>
         </Style>
         
         <!-- Text wrapping for TreeViewItems -->
@@ -148,7 +180,7 @@
                             <PathIcon Data="{Binding IconKey, Converter={StaticResource IconKeyToPathDataConverter}}" 
                                       Width="16" Height="16" 
                                       Foreground="{Binding IsActive, Converter={StaticResource BoolToColorConverter}}"
-                                      VerticalAlignment="Top"
+                                      VerticalAlignment="Center"
                                       Margin="0,2,0,0"/>
                             <TextBlock Text="{Binding DisplayName}" 
                                        TextWrapping="Wrap" 

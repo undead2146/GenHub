@@ -14,7 +14,7 @@ namespace GenHub.Infrastructure.Converters
             if (value is int level)
             {
                 int additionalIndent = parameter is int extra ? extra : 0;
-                return new Thickness((level + additionalIndent) * 16, 0, 0, 0);
+                return new Thickness((level + additionalIndent) * 8, 0, 0, 0);
             }
             return new Thickness(0);
         }
