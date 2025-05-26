@@ -729,67 +729,109 @@ namespace GenHub.Features.GitHub.Services
                         {
                             var workflow = new GitHubWorkflow
                             {
-                                RunId = run.TryGetProperty("id", out var id) ? id.GetInt64() : 0,
-                                WorkflowId = run.TryGetProperty("workflow_id", out var workflowId) ? workflowId.GetInt64() : 0,
-                                Name = run.TryGetProperty("name", out var name) ? name.GetString() ?? string.Empty : string.Empty,
-                                WorkflowNumber = run.TryGetProperty("run_number", out var runNumber) ? runNumber.GetInt32() : 0,
-                                CreatedAt = run.TryGetProperty("created_at", out var createdAt) ? createdAt.GetDateTime() : DateTime.MinValue,
-                                CommitSha = run.TryGetProperty("head_sha", out var headSha) ? headSha.GetString() ?? string.Empty : string.Empty,
-                                EventType = run.TryGetProperty("event", out var eventType) ? eventType.GetString() ?? string.Empty : string.Empty,
                                 RepositoryInfo = repoConfig
                             };
 
-                            // Extract workflow path from html_url if available
-                            if (run.TryGetProperty("html_url", out var htmlUrl))
+                            // Parse basic workflow properties
+                            if (run.TryGetProperty("id", out var id))
+                                workflow.RunId = id.GetInt64();
+
+                            if (run.TryGetProperty("workflow_id", out var workflowId))
+                                workflow.WorkflowId = workflowId.GetInt64();
+
+                            if (run.TryGetProperty("run_number", out var runNumber))
+                                workflow.WorkflowNumber = runNumber.GetInt32();
+
+                            // Enhanced workflow name parsing with multiple fallbacks
+                            if (run.TryGetProperty("name", out var name) && !name.ValueEquals("null"))
                             {
-                                string url = htmlUrl.GetString() ?? string.Empty;
-                                if (url.Contains("/actions/runs/"))
+                                workflow.Name = name.GetString() ?? "Unknown Workflow";
+                                _logger.LogDebug("Found workflow name from 'name' field: {Name}", workflow.Name);
+                            }
+                            else if (run.TryGetProperty("display_title", out var displayTitle) && !displayTitle.ValueEquals("null"))
+                            {
+                                workflow.Name = displayTitle.GetString() ?? "Unknown Workflow";
+                                _logger.LogDebug("Found workflow name from 'display_title' field: {Name}", workflow.Name);
+                            }
+                            else if (run.TryGetProperty("head_commit", out var headCommit) && 
+                                     headCommit.TryGetProperty("message", out var commitMessage))
+                            {
+                                // Use first line of commit message as fallback
+                                var commitMsg = commitMessage.GetString();
+                                if (!string.IsNullOrEmpty(commitMsg))
                                 {
-                                    try
-                                    {
-                                        // Try to extract workflow file path from workflow name or other properties
-                                        if (run.TryGetProperty("path", out var path))
-                                        {
-                                            workflow.WorkflowPath = path.GetString() ?? string.Empty;
-                                        }
-                                        else if (run.TryGetProperty("workflow_url", out var workflowUrl))
-                                        {
-                                            string wfUrl = workflowUrl.GetString() ?? string.Empty;
-                                            if (wfUrl.Contains("/workflows/"))
-                                            {
-                                                int lastIdx = wfUrl.LastIndexOf("/workflows/");
-                                                if (lastIdx >= 0)
-                                                {
-                                                    workflow.WorkflowPath = wfUrl.Substring(lastIdx + 11);
-                                                }
-                                            }
-                                        }
-                                    }
-                                    catch
-                                    {
-                                        // Ignore path extraction errors
-                                    }
+                                    var firstLine = commitMsg.Split('\n')[0].Trim();
+                                    workflow.Name = firstLine.Length > 50 ? firstLine.Substring(0, 47) + "..." : firstLine;
+                                    _logger.LogDebug("Using commit message as workflow name: {Name}", workflow.Name);
+                                }
+                                else
+                                {
+                                    workflow.Name = "Unknown Workflow";
+                                }
+                            }
+                            else
+                            {
+                                workflow.Name = "Unknown Workflow";
+                                _logger.LogDebug("No workflow name found, using default: {Name}", workflow.Name);
+                            }
+
+                            // FIX: Enhanced workflow path parsing
+                            if (run.TryGetProperty("path", out var path))
+                            {
+                                workflow.WorkflowPath = path.GetString();
+                                
+                                // If no name was found, extract from path as last resort
+                                if (workflow.Name == "Unknown Workflow" && !string.IsNullOrEmpty(workflow.WorkflowPath))
+                                {
+                                    var fileName = System.IO.Path.GetFileNameWithoutExtension(workflow.WorkflowPath);
+                                    workflow.Name = fileName.Replace("_", " ").Replace("-", " ");
+                                    _logger.LogDebug("Extracted workflow name from path: {Name}", workflow.Name);
                                 }
                             }
 
-                            // Parse commit message
-                            if (run.TryGetProperty("head_commit", out var headCommit) &&
-                                headCommit.TryGetProperty("message", out var message))
+                            // Parse additional workflow properties
+                            if (run.TryGetProperty("created_at", out var createdAt))
                             {
-                                workflow.CommitMessage = message.GetString() ?? string.Empty;
+                                if (DateTime.TryParse(createdAt.GetString(), out var parsedCreatedAt))
+                                    workflow.CreatedAt = parsedCreatedAt;
                             }
 
-                            // Parse PR details
+                            if (run.TryGetProperty("head_sha", out var headSha))
+                                workflow.CommitSha = headSha.GetString() ?? string.Empty;
+
+                            if (run.TryGetProperty("event", out var eventType))
+                                workflow.EventType = eventType.GetString();
+
+                            if (run.TryGetProperty("html_url", out var htmlUrl))
+                            {
+                                var url = htmlUrl.GetString() ?? string.Empty;
+                                if (url.Contains("/actions/runs/"))
+                                {
+                                    workflow.HtmlUrl = url;
+                                }
+                            }
+
+                            if (run.TryGetProperty("head_commit", out var headCommitElement) &&
+                                headCommitElement.TryGetProperty("message", out var message))
+                            {
+                                workflow.CommitMessage = message.GetString();
+                            }
+
                             if (run.TryGetProperty("pull_requests", out var pullRequests) &&
                                 pullRequests.GetArrayLength() > 0)
                             {
                                 var firstPr = pullRequests[0];
+                                
                                 if (firstPr.TryGetProperty("number", out var prNumber))
                                     workflow.PullRequestNumber = prNumber.GetInt32();
 
                                 if (firstPr.TryGetProperty("title", out var prTitle))
                                     workflow.PullRequestTitle = prTitle.GetString();
                             }
+
+                            // Log the parsed workflow for debugging
+                            _logger.LogDebug("Parsed workflow: Name='{Name}', ID={WorkflowId}, RunNumber={RunNumber}, Path='{Path}'", 
+                                workflow.Name, workflow.WorkflowId, workflow.WorkflowNumber, workflow.WorkflowPath);
 
                             result.Add(workflow);
                         }
@@ -802,7 +844,7 @@ namespace GenHub.Features.GitHub.Services
                 else
                 {
                     // Log the JSON content for better diagnostics
-                    var preview = json.Length > 100 ? json.Substring(0, 100) + "..." : json;
+                    var preview = json.Length > 200 ? json.Substring(0, 200) + "..." : json;
                     _logger.LogWarning("No workflow_runs property found in response: {Preview}", preview);
                 }
             }
@@ -811,6 +853,7 @@ namespace GenHub.Features.GitHub.Services
                 _logger.LogError(ex, "Error parsing workflow runs JSON");
             }
 
+            _logger.LogInformation("Parsed {Count} workflows from JSON response", result.Count);
             return result;
         }
 

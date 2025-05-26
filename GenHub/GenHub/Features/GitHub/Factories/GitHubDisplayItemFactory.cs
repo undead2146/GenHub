@@ -35,16 +35,32 @@ namespace GenHub.Features.GitHub.Factories
         }
         
         /// <summary>
-        /// Creates a display item from a workflow
+        /// Creates a display item from a workflow with enhanced logging
         /// </summary>
         public IGitHubDisplayItem CreateFromWorkflow(GitHubWorkflow workflow)
         {
             var logger = _loggerFactory.CreateLogger<GitHubWorkflowDisplayItemViewModel>();
-            return new GitHubWorkflowDisplayItemViewModel(
+            
+            // Add validation and logging
+            if (workflow == null)
+            {
+                logger.LogError("Attempted to create workflow display item from null workflow");
+                throw new ArgumentNullException(nameof(workflow));
+            }
+            
+            logger.LogDebug("Creating workflow display item: Name='{Name}', ID={WorkflowId}, RunNumber={RunNumber}", 
+                workflow.Name, workflow.WorkflowId, workflow.WorkflowNumber);
+            
+            var viewModel = new GitHubWorkflowDisplayItemViewModel(
                 workflow, 
                 _artifactReader,
                 _gitHubServiceFacade,
                 logger);
+            
+            logger.LogDebug("Created workflow display item with DisplayName: '{DisplayName}'", 
+                viewModel.DisplayName);
+            
+            return viewModel;
         }
         
         /// <summary>
@@ -68,11 +84,38 @@ namespace GenHub.Features.GitHub.Factories
         }
         
         /// <summary>
-        /// Creates display items from a collection of workflows
+        /// Creates display items from a collection of workflows with validation
         /// </summary>
         public IEnumerable<IGitHubDisplayItem> CreateFromWorkflows(IEnumerable<GitHubWorkflow> workflows)
         {
-            return workflows.Select(workflow => CreateFromWorkflow(workflow)).ToList();
+            if (workflows == null)
+            {
+                _loggerFactory.CreateLogger<GitHubDisplayItemFactory>()
+                    .LogWarning("Attempted to create workflow display items from null collection");
+                return Enumerable.Empty<IGitHubDisplayItem>();
+            }
+            
+            var result = new List<IGitHubDisplayItem>();
+            var logger = _loggerFactory.CreateLogger<GitHubDisplayItemFactory>();
+            
+            foreach (var workflow in workflows)
+            {
+                try
+                {
+                    var displayItem = CreateFromWorkflow(workflow);
+                    result.Add(displayItem);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error creating display item for workflow {WorkflowId}", 
+                        workflow?.WorkflowId);
+                }
+            }
+            
+            logger.LogDebug("Created {Count} workflow display items from {InputCount} workflows", 
+                result.Count, workflows.Count());
+            
+            return result;
         }
         
         /// <summary>
