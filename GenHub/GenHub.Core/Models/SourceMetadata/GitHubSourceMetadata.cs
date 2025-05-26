@@ -1,230 +1,160 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json.Serialization;
 using GenHub.Core.Models.GitHub;
 
 namespace GenHub.Core.Models.SourceMetadata
 {
     /// <summary>
-    /// Holds GitHub-specific metadata for a GameVersion or GameProfile.
-    /// This class primarily references the specific artifact and adds essential workflow context.
+    /// GitHub-specific source metadata for game versions
     /// </summary>
     public class GitHubSourceMetadata : BaseSourceMetadata
     {
         /// <summary>
-        /// The specific GitHub artifact that this game version/profile is derived from.
-        /// This object contains most of the granular details like commit, PR info (if related to the artifact's context),
-        /// build info, download URLs, etc.
-        /// This property will be serialized.
+        /// The associated GitHub artifact
         /// </summary>
         public GitHubArtifact? AssociatedArtifact { get; set; }
 
-        // --- Context from the GitHub Workflow Run that produced the AssociatedArtifact ---
-        // These properties provide broader context about the workflow run itself,
-        // which might not be directly on the artifact or might be more about the run's trigger/definition.
-        // These will be serialized.
+        /// <summary>
+        /// The associated GitHub release asset
+        /// </summary>
+        public GitHubReleaseAsset? AssociatedReleaseAsset { get; set; }
 
         /// <summary>
-        /// The display name of the workflow definition (e.g., "Build and Release").
-        /// (Corresponds to GitHubWorkflow.Name)
+        /// Build information parsed from the artifact
+        /// </summary>
+        public GitHubBuild? BuildInfo { get; set; }
+
+        /// <summary>
+        /// The repository information
+        /// </summary>
+        public GitHubRepoSettings? RepositoryInfo { get; set; }
+
+        /// <summary>
+        /// The name of the release (for release assets)
+        /// </summary>
+        public string? ReleaseName { get; set; }
+
+        /// <summary>
+        /// The tag name of the release (for release assets)
+        /// </summary>
+        public string? ReleaseTagName { get; set; }
+
+        /// <summary>
+        /// Whether the release is a prerelease
+        /// </summary>
+        public bool ReleaseIsPrerelease { get; set; }
+
+        /// <summary>
+        /// When the release was published
+        /// </summary>
+        public DateTime? ReleasePublishedAt { get; set; }
+
+        /// <summary>
+        /// The workflow definition name
         /// </summary>
         public string? WorkflowDefinitionName { get; set; }
 
         /// <summary>
-        /// The path to the workflow definition file (e.g., ".github/workflows/main.yml").
-        /// (Corresponds to GitHubWorkflow.WorkflowPath)
+        /// The workflow definition path
         /// </summary>
         public string? WorkflowDefinitionPath { get; set; }
 
         /// <summary>
-        /// The overall status of the workflow run (e.g., "completed", "in_progress").
-        /// (Corresponds to GitHubWorkflow.Status)
+        /// The workflow run status
         /// </summary>
         public string? WorkflowRunStatus { get; set; }
 
         /// <summary>
-        /// The conclusion of the workflow run if completed (e.g., "success", "failure").
-        /// (Corresponds to GitHubWorkflow.Conclusion)
+        /// The workflow run conclusion
         /// </summary>
         public string? WorkflowRunConclusion { get; set; }
 
         /// <summary>
-        /// The head branch that triggered the workflow run.
-        /// (Corresponds to GitHubWorkflow.HeadBranch)
+        /// The source control branch
         /// </summary>
         public string? SourceControlBranch { get; set; }
-        public long? AssociatedReleaseId { get; set; }
-        public string? ReleaseTag { get; set; }
-        public string? ReleaseName { get; set; }
-        public long? AssociatedReleaseAssetId { get; set; }
-        public string? ReleaseAssetName { get; set; }
 
-        public object? AssociatedReleaseAsset { get; set; }
-        public string? ReleaseTagName { get; set; }
-        public bool? ReleaseIsDraft { get; set; }
-        public bool? ReleaseIsPrerelease { get; set; }
-        public DateTimeOffset? ReleasePublishedAt { get; set; }
-        public GitHubRepoSettings? RepositoryInfo { get; set; }
+        /// <summary>
+        /// The build preset name
+        /// </summary>
+        public string? BuildPreset { get; set; }
 
+        /// <summary>
+        /// Convenience accessor for pull request number
+        /// </summary>
+        public int? PullRequestNumber => AssociatedArtifact?.PullRequestNumber;
 
-        // --- Convenience Accessors (derived from AssociatedArtifact or the properties above) ---
-        // These are for ease of use in code and are NOT serialized to avoid redundancy.
+        /// <summary>
+        /// Convenience accessor for pull request title
+        /// </summary>
+        public string? PullRequestTitle => AssociatedArtifact?.PullRequestTitle;
 
-        [JsonIgnore]
-        public GitHubBuild? BuildInfo { get; set; } = null;
+        /// <summary>
+        /// Convenience accessor for workflow run number
+        /// </summary>
+        public int? WorkflowRunNumber => AssociatedArtifact?.WorkflowNumber;
 
-        [JsonIgnore]
-        public long? ArtifactId 
-        { 
-            get => AssociatedArtifact?.Id; 
-            set 
-            {
-                if (AssociatedArtifact == null && value.HasValue)
-                    AssociatedArtifact = new GitHubArtifact { Id = value.Value };
-                else if (AssociatedArtifact != null)
-                    AssociatedArtifact.Id = value ?? 0;
-            }
-        }
+        /// <summary>
+        /// Convenience accessor for commit SHA
+        /// </summary>
+        public string? CommitSha => AssociatedArtifact?.CommitSha;
 
-        [JsonIgnore]
-        public int? PullRequestNumber 
-        { 
-            get => AssociatedArtifact?.PullRequestNumber; 
-            set 
-            {
-                if (AssociatedArtifact == null)
-                    AssociatedArtifact = new GitHubArtifact();
-                AssociatedArtifact.PullRequestNumber = value;
-            }
-        }
+        /// <summary>
+        /// Convenience accessor for commit message
+        /// </summary>
+        public string? CommitMessage => AssociatedArtifact?.CommitMessage;
 
-        [JsonIgnore]
-        public string? PullRequestTitle 
-        { 
-            get => AssociatedArtifact?.PullRequestTitle; 
-            set 
-            {
-                if (AssociatedArtifact == null)
-                    AssociatedArtifact = new GitHubArtifact();
-                AssociatedArtifact.PullRequestTitle = value;
-            }
-        }
+        /// <summary>
+        /// Convenience accessor for artifact creation date
+        /// </summary>
+        public DateTime? ArtifactCreationDate => AssociatedArtifact?.CreatedAt;
 
-        [JsonIgnore]
-        public string? CommitSha 
-        { 
-            get => AssociatedArtifact?.CommitSha; 
-            set 
-            {
-                if (AssociatedArtifact == null)
-                    AssociatedArtifact = new GitHubArtifact();
-                AssociatedArtifact.CommitSha = value;
-            }
-        }
+        /// <summary>
+        /// The workflow run ID (convenience accessor)
+        /// </summary>
+        public long? WorkflowRunId => AssociatedArtifact?.RunId;
 
-        [JsonIgnore]
-        public string ShortCommitSha => AssociatedArtifact?.ShortCommitSha ?? string.Empty;
-
-        [JsonIgnore]
-        public string? CommitMessage 
-        { 
-            get => AssociatedArtifact?.CommitMessage; 
-            set 
-            {
-                if (AssociatedArtifact == null)
-                    AssociatedArtifact = new GitHubArtifact();
-                AssociatedArtifact.CommitMessage = value;
-            }
-        }
-
-        [JsonIgnore]
-        public int? WorkflowRunNumber 
-        { 
-            get => AssociatedArtifact?.WorkflowNumber; 
-            set 
-            {
-                if (AssociatedArtifact == null)
-                    AssociatedArtifact = new GitHubArtifact();
-                AssociatedArtifact.WorkflowNumber = value ?? 0;
-            }
-        }
-
-        [JsonIgnore]
-        public long? WorkflowRunId 
-        { 
-            get => AssociatedArtifact?.RunId; 
-            set 
-            {
-                if (AssociatedArtifact == null)
-                    AssociatedArtifact = new GitHubArtifact();
-                AssociatedArtifact.RunId = value ?? 0;
-            }
-        }
-
-        [JsonIgnore]
+        /// <summary>
+        /// The workflow definition ID
+        /// </summary>
         public long? WorkflowDefinitionId => AssociatedArtifact?.WorkflowId;
 
-        [JsonIgnore]
+        /// <summary>
+        /// The triggering event type for the workflow
+        /// </summary>
         public string? TriggeringEventType => AssociatedArtifact?.EventType;
 
+        /// <summary>
+        /// Checks if this metadata has complete workflow context information
+        /// </summary>
         [JsonIgnore]
-        public DateTime? ArtifactCreationDate 
-        { 
-            get => AssociatedArtifact?.CreatedAt; 
-            set 
-            {
-                if (AssociatedArtifact == null)
-                    AssociatedArtifact = new GitHubArtifact();
-                if (value.HasValue)
-                    AssociatedArtifact.CreatedAt = value.Value;
-            }
+        public bool HasCompleteWorkflowContext =>
+            AssociatedArtifact != null &&
+            !string.IsNullOrEmpty(WorkflowDefinitionName) &&
+            WorkflowRunId.HasValue &&
+            !string.IsNullOrEmpty(SourceControlBranch);
+
+        public GitHubSourceMetadata()
+        {
+            SourceType = "GitHub";
         }
 
-        [JsonIgnore]
-        public string? BuildPreset => AssociatedArtifact?.BuildPreset ?? AssociatedArtifact?.BuildInfo?.Configuration;
-
         /// <summary>
-        /// Gets a value indicating whether there is meaningful workflow information available,
-        /// such as a workflow run ID, definition name, or run status.
+        /// Creates a deep copy of this GitHubSourceMetadata instance
         /// </summary>
-        [JsonIgnore]
-        public bool HasWorkflowInfo =>
-            WorkflowRunId.HasValue ||
-            !string.IsNullOrEmpty(WorkflowDefinitionName) ||
-            !string.IsNullOrEmpty(WorkflowRunStatus);
-
-        [JsonIgnore]
-        public bool HasCompleteWorkflowContext => 
-            !string.IsNullOrEmpty(WorkflowDefinitionName) && 
-            WorkflowRunId.HasValue &&
-            !string.IsNullOrEmpty(WorkflowRunStatus);
-
-        /// <summary>
-        /// Creates a deep copy of this metadata instance
-        /// </summary>
-        public override BaseSourceMetadata? Clone()
+        public new GitHubSourceMetadata Clone()
         {
-            // Create a new instance
-            var clone = new GitHubSourceMetadata
+            var cloned = new GitHubSourceMetadata
             {
-                // Copy all simple properties
-                WorkflowDefinitionName = this.WorkflowDefinitionName,
-                WorkflowDefinitionPath = this.WorkflowDefinitionPath,
-                WorkflowRunStatus = this.WorkflowRunStatus,
-                WorkflowRunConclusion = this.WorkflowRunConclusion,
-                SourceControlBranch = this.SourceControlBranch,
-                AssociatedReleaseId = this.AssociatedReleaseId,
-                ReleaseTag = this.ReleaseTag,
-                ReleaseName = this.ReleaseName,
-                ReleaseTagName = this.ReleaseTagName,
-                ReleaseIsDraft = this.ReleaseIsDraft,
-                ReleaseIsPrerelease = this.ReleaseIsPrerelease,
-                ReleasePublishedAt = this.ReleasePublishedAt
-            };
-            
-            // Deep copy artifact if present
-            if (this.AssociatedArtifact != null)
-            {
-                clone.AssociatedArtifact = new GitHubArtifact
+                SourceType = this.SourceType,
+                CreatedAt = this.CreatedAt,
+                UpdatedAt = this.UpdatedAt,
+                ExtensionData = this.ExtensionData?.ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
+                
+                // Clone GitHubArtifact manually
+                AssociatedArtifact = this.AssociatedArtifact == null ? null : new GitHubArtifact
                 {
                     Id = this.AssociatedArtifact.Id,
                     Name = this.AssociatedArtifact.Name,
@@ -232,6 +162,8 @@ namespace GenHub.Core.Models.SourceMetadata
                     RunId = this.AssociatedArtifact.RunId,
                     WorkflowNumber = this.AssociatedArtifact.WorkflowNumber,
                     SizeInBytes = this.AssociatedArtifact.SizeInBytes,
+                    IsRelease = this.AssociatedArtifact.IsRelease,
+                    DownloadUrl = this.AssociatedArtifact.DownloadUrl,
                     ArchiveDownloadUrl = this.AssociatedArtifact.ArchiveDownloadUrl,
                     Expired = this.AssociatedArtifact.Expired,
                     CreatedAt = this.AssociatedArtifact.CreatedAt,
@@ -241,37 +173,105 @@ namespace GenHub.Core.Models.SourceMetadata
                     CommitSha = this.AssociatedArtifact.CommitSha,
                     CommitMessage = this.AssociatedArtifact.CommitMessage,
                     EventType = this.AssociatedArtifact.EventType,
-                    BuildPreset = this.AssociatedArtifact.BuildPreset
-                };
-                
-                // Clone repository info if present
-                if (this.AssociatedArtifact.RepositoryInfo != null)
-                {
-                    clone.AssociatedArtifact.RepositoryInfo = new GitHubRepoSettings
+                    BuildPreset = this.AssociatedArtifact.BuildPreset,
+                    IsActive = this.AssociatedArtifact.IsActive,
+                    IsInstalled = this.AssociatedArtifact.IsInstalled,
+                    IsInstalling = this.AssociatedArtifact.IsInstalling,
+                    // Clone nested objects manually
+                    BuildInfo = this.AssociatedArtifact.BuildInfo == null ? null : new GitHubBuild
+                    {
+                        GameVariant = this.AssociatedArtifact.BuildInfo.GameVariant,
+                        Compiler = this.AssociatedArtifact.BuildInfo.Compiler,
+                        Configuration = this.AssociatedArtifact.BuildInfo.Configuration,
+                        Version = this.AssociatedArtifact.BuildInfo.Version,
+                        HasTFlag = this.AssociatedArtifact.BuildInfo.HasTFlag,
+                        HasEFlag = this.AssociatedArtifact.BuildInfo.HasEFlag
+                    },
+                    RepositoryInfo = this.AssociatedArtifact.RepositoryInfo == null ? null : new GitHubRepoSettings
                     {
                         RepoOwner = this.AssociatedArtifact.RepositoryInfo.RepoOwner,
                         RepoName = this.AssociatedArtifact.RepositoryInfo.RepoName,
                         DisplayName = this.AssociatedArtifact.RepositoryInfo.DisplayName
-                    };
-                }
-            }
-            
-            // Clone build info if present
-            if (this.BuildInfo != null)
-            {
-                clone.BuildInfo = new GitHubBuild
+                    }
+                },
+                
+                // Clone GitHubReleaseAsset manually
+                AssociatedReleaseAsset = this.AssociatedReleaseAsset == null ? null : new GitHubReleaseAsset
                 {
-                    Version = this.BuildInfo.Version,
+                    Id = this.AssociatedReleaseAsset.Id,
+                    Name = this.AssociatedReleaseAsset.Name,
+                    Label = this.AssociatedReleaseAsset.Label,
+                    ContentType = this.AssociatedReleaseAsset.ContentType,
+                    Size = this.AssociatedReleaseAsset.Size,
+                    DownloadCount = this.AssociatedReleaseAsset.DownloadCount,
+                    BrowserDownloadUrl = this.AssociatedReleaseAsset.BrowserDownloadUrl,
+                    CreatedAt = this.AssociatedReleaseAsset.CreatedAt,
+                    UpdatedAt = this.AssociatedReleaseAsset.UpdatedAt,
+                    State = this.AssociatedReleaseAsset.State
+                },
+                
+                // Clone BuildInfo manually
+                BuildInfo = this.BuildInfo == null ? null : new GitHubBuild
+                {
                     GameVariant = this.BuildInfo.GameVariant,
-                    HasEFlag = this.BuildInfo.HasEFlag,
-                    HasTFlag = this.BuildInfo.HasTFlag,
                     Compiler = this.BuildInfo.Compiler,
-                    Configuration = this.BuildInfo.Configuration
-                };
-            }
-            
-            return clone;
+                    Configuration = this.BuildInfo.Configuration,
+                    Version = this.BuildInfo.Version,
+                    HasTFlag = this.BuildInfo.HasTFlag,
+                    HasEFlag = this.BuildInfo.HasEFlag
+                },
+                
+                // Clone RepositoryInfo manually
+                RepositoryInfo = this.RepositoryInfo == null ? null : new GitHubRepoSettings
+                {
+                    RepoOwner = this.RepositoryInfo.RepoOwner,
+                    RepoName = this.RepositoryInfo.RepoName,
+                    DisplayName = this.RepositoryInfo.DisplayName
+                },
+                
+                // Copy simple properties
+                ReleaseName = this.ReleaseName,
+                ReleaseTagName = this.ReleaseTagName,
+                ReleaseIsPrerelease = this.ReleaseIsPrerelease,
+                ReleasePublishedAt = this.ReleasePublishedAt,
+                WorkflowDefinitionName = this.WorkflowDefinitionName,
+                WorkflowDefinitionPath = this.WorkflowDefinitionPath,
+                WorkflowRunStatus = this.WorkflowRunStatus,
+                WorkflowRunConclusion = this.WorkflowRunConclusion,
+                SourceControlBranch = this.SourceControlBranch,
+                BuildPreset = this.BuildPreset
+            };
+
+            return cloned;
         }
+
+        public override string ToString()
+        {
+            if (BuildInfo != null)
+            {
+                return $"GitHub: {BuildInfo}";
+            }
+
+            if (AssociatedArtifact != null)
+            {
+                return $"GitHub: {AssociatedArtifact.Name}";
+            }
+
+            if (AssociatedReleaseAsset != null)
+            {
+                return $"GitHub Release: {AssociatedReleaseAsset.Name}";
+            }
+
+            return "GitHub Source";
+        }
+
+        /// <summary>
+        /// Gets a shortened version of the commit SHA (first 8 characters)
+        /// </summary>
+        [JsonIgnore]
+        public string? ShortCommitSha => 
+            string.IsNullOrEmpty(CommitSha) ? null : 
+            CommitSha.Length > 8 ? CommitSha.Substring(0, 8) : CommitSha;
     }
 }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using GenHub.Core.Interfaces;
 using GenHub.Core.Models;
 using GenHub.Core.Models.GitHub;
@@ -11,7 +12,7 @@ namespace GenHub.Features.GitHub.Helpers
     /// <summary>
     /// Extension methods for working with GitHub data models and source metadata
     /// </summary>
-    public static class GitHubExtensions
+    public static class GitHubSourceMetadataExtensions
     {
         /// <summary>
         /// Converts a GitHubArtifact to GitHubSourceMetadata
@@ -20,13 +21,16 @@ namespace GenHub.Features.GitHub.Helpers
         {
             var metadata = new GitHubSourceMetadata
             {
-                AssociatedArtifact = artifact
+                AssociatedArtifact = artifact,
+                BuildInfo = artifact.BuildInfo,
+                RepositoryInfo = artifact.RepositoryInfo,
+                BuildPreset = artifact.BuildPreset
             };
             
             // Add workflow context if available
             if (workflow != null)
             {
-                metadata.WorkflowDefinitionName = workflow.Name;
+                metadata.WorkflowDefinitionName = workflow.WorkflowName;
                 metadata.WorkflowDefinitionPath = workflow.WorkflowPath;
                 metadata.WorkflowRunStatus = workflow.Status;
                 metadata.WorkflowRunConclusion = workflow.Conclusion;
@@ -100,6 +104,9 @@ namespace GenHub.Features.GitHub.Helpers
             
             if (metadata.AssociatedArtifact != null)
                 return metadata.AssociatedArtifact.Name;
+
+            if (metadata.AssociatedReleaseAsset != null)
+                return $"Release: {metadata.ReleaseName} - {metadata.AssociatedReleaseAsset.Name}";
                 
             return $"Build #{metadata.WorkflowRunNumber}";
         }
@@ -109,8 +116,8 @@ namespace GenHub.Features.GitHub.Helpers
             if (metadata.BuildInfo != null)
             {
                 string variant = metadata.BuildInfo.GameVariant.ToString();
-                string config = metadata.BuildInfo.Configuration;
-                string compiler = metadata.BuildInfo.Compiler;
+                string config = metadata.BuildInfo.Configuration ?? "Unknown";
+                string compiler = metadata.BuildInfo.Compiler ?? "Unknown";
                 
                 return $"{variant} {config} ({compiler})";
             }
