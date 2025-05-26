@@ -146,7 +146,7 @@ namespace GenHub.Infrastructure.Repositories
         /// <summary>
         /// Gets cached workflow data for a repository
         /// </summary>
-        public async Task<IEnumerable<GitHubWorkflow>?> GetCachedWorkflowsAsync(string repoFullName, CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<GitHubWorkflow>> GetCachedWorkflowsAsync(string repoFullName, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -181,75 +181,13 @@ namespace GenHub.Infrastructure.Repositories
                 }
 
                 // Read and deserialize the cached data using CachingService
-                var workflows = await _cacheService.GetFromCacheAsync<List<GitHubWorkflow>>(cacheFilePath, cancellationToken);
-
-                if (workflows == null || !workflows.Any())
-                {
-                    _logger.LogWarning("Failed to deserialize workflows from cache or cache is empty: {CachePath}", cacheFilePath);
-                    return null;
-                }
-
-                // Ensure each workflow has a valid repository info property
-                foreach (var workflow in workflows)
-                {
-                    // Make sure repository info is populated for all workflows to prevent errors
-                    if (workflow.RepositoryInfo == null)
-                    {
-                        workflow.RepositoryInfo = new GitHubRepoSettings
-                        {
-                            RepoOwner = owner,
-                            RepoName = name,
-                            DisplayName = $"{owner}/{name}"
-                        };
-                    }
-
-                    // Try to load cached artifacts for this workflow
-                    try
-                    {
-                        var artifactsCacheFile = Path.Combine(repoCachePath, $"artifacts_{workflow.RunId}.json");
-
-                        if (File.Exists(artifactsCacheFile))
-                        {
-                            // Use CachingService to load artifacts
-                            var artifacts = await _cacheService.GetFromCacheAsync<List<GitHubArtifact>>(artifactsCacheFile, cancellationToken);
-
-                            if (artifacts != null && artifacts.Any())
-                            {
-                                // Ensure repository info is set for each artifact
-                                foreach (var artifact in artifacts)
-                                {
-                                    if (artifact.RepositoryInfo == null)
-                                    {
-                                        artifact.RepositoryInfo = workflow.RepositoryInfo;
-                                    }
-
-                                    // Match the workflow run details to ensure we have complete data
-                                    artifact.RunId = workflow.RunId;
-                                    artifact.WorkflowId = workflow.WorkflowId;
-                                }
-
-                                // Set artifacts on the workflow
-                                workflow.Artifacts = artifacts;
-
-                                _logger.LogDebug("Loaded {Count} cached artifacts for workflow {WorkflowId}",
-                                    artifacts.Count, workflow.RunId);
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error loading cached artifacts for workflow {WorkflowId}", workflow.RunId);
-                    }
-                }
-
-                _logger.LogInformation("Loaded {Count} cached workflows for repository {RepoName}", workflows.Count, repoFullName);
-
-                return workflows;
+                var result = await _cacheService.GetFromCacheAsync<List<GitHubWorkflow>>(cacheFilePath, cancellationToken);
+                return result ?? new List<GitHubWorkflow>();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting cached workflows for repository {RepoName}", repoFullName);
-                return null;
+                return new List<GitHubWorkflow>();
             }
         }
 

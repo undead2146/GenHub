@@ -215,5 +215,22 @@ namespace GenHub.Infrastructure.Repositories
                 return OperationResult<IEnumerable<TEntity>>.Failed($"Failed to load {CollectionName}: {ex.Message}", ex);
             }
         }
+
+        /// <summary>
+        /// Checks if an entity with the specified ID exists
+        /// </summary>
+        public virtual async Task<bool> ExistsAsync(TKey id, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var entity = await GetByIdAsync(id, cancellationToken);
+                return entity != null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking if entity with ID {Id} exists in collection {CollectionName}", id, CollectionName);
+                return false; // Return false on error to indicate entity doesn't exist or can't be verified
+            }
+        }
     }
 }
