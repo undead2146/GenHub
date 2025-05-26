@@ -14,14 +14,16 @@ using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+
+using GenHub.Core.Interfaces.GameVersions;
 using GenHub.Core.Interfaces;
 using GenHub.Core.Models.GameProfiles;
+using GenHub.Features.GameProfiles.Views;
 using GenHub.Features.GameProfiles.Services;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Models.SourceMetadata;
 using GenHub.Core.Interfaces.UI;
 using GenHub.Core.Models.UI;
-using GenHub.Features.GameProfiles.Views;
 using GenHub.Core.Models;
 using GenHub.Core.Models.GitHub;
 

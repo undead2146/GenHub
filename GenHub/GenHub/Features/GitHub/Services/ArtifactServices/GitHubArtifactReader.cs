@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 
 using GenHub.Core.Interfaces;
 using GenHub.Core.Interfaces.Repositories;
+using GenHub.Core.Interfaces.GameVersions;
 using GenHub.Core.Models;
 using GenHub.Core.Models.GitHub;
 using GenHub.Core.Models.GameProfiles;

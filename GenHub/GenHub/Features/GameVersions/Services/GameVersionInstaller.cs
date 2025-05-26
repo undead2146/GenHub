@@ -8,14 +8,15 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
-using GenHub.Features.GitHub.Helpers;
 using GenHub.Core.Interfaces;
+using GenHub.Core.Interfaces.GameVersions;
+using GenHub.Core.Interfaces.Repositories;
 using GenHub.Core.Models;
 using GenHub.Core.Models.GitHub;
 using GenHub.Core.Models.GameProfiles;
 using GenHub.Core.Models.SourceMetadata;
 using GenHub.Core.Models.Results;
-using GenHub.Core.Interfaces.Repositories;
+using GenHub.Features.GitHub.Helpers;
 
 namespace GenHub.Features.GameVersions.Services
 {

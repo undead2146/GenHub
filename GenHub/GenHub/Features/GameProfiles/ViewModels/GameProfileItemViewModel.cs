@@ -7,6 +7,7 @@ using Avalonia.Controls;
 
 using System.Threading.Tasks;
 using GenHub.Core.Interfaces;
+using GenHub.Core.Interfaces.GameVersions;
 using GenHub.Core.Models;
 using GenHub.Core.Models.GameProfiles;
 using GenHub.Core.Models.SourceMetadata;
