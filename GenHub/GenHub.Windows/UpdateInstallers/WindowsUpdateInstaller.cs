@@ -1,11 +1,13 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using GenHub.Core.Interfaces.AppUpdate;
+using GenHub.Core.Models.AppUpdate;
 using GenHub.Core.Models;
 using GenHub.Core.Models.GitHub;
 
@@ -41,6 +43,11 @@ namespace GenHub.Windows.UpdateInstallers
             _logger.LogInformation("WindowsUpdateInstaller initialized. App folder: {AppFolder}, Temp folder: {TempFolder}", 
                 _appFolder, _tempFolder);
         }
+
+        /// <summary>
+        /// Gets the supported file extensions for update files on this platform
+        /// </summary>
+        public string[] SupportedExtensions => new[] { ".zip", ".msi", ".exe" };
 
         /// <summary>
         /// Installs an application update for Windows
@@ -127,6 +134,58 @@ namespace GenHub.Windows.UpdateInstallers
             }
         }
         
+        /// <summary>
+        /// Installs an update from the specified file path
+        /// </summary>
+        public async Task InstallUpdateAsync(string updateFilePath, IProgress<UpdateProgress>? progress = null, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrEmpty(updateFilePath))
+                throw new ArgumentException("Update file path cannot be null or empty", nameof(updateFilePath));
+
+            if (!File.Exists(updateFilePath))
+                throw new FileNotFoundException($"Update file not found: {updateFilePath}");
+
+            _logger.LogInformation("Starting Windows update installation from file: {FilePath}", updateFilePath);
+
+            try
+            {
+                var extension = Path.GetExtension(updateFilePath).ToLowerInvariant();
+
+                if (extension == ".zip")
+                {
+                    await InstallFromZipAsync(updateFilePath, progress, cancellationToken);
+                }
+                else if (extension == ".msi" || extension == ".exe")
+                {
+                    await InstallFromInstallerAsync(updateFilePath, progress, cancellationToken);
+                }
+                else
+                {
+                    throw new NotSupportedException($"Unsupported update file format: {extension}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error installing update from file: {FilePath}", updateFilePath);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Validates that the update file is compatible with the current platform
+        /// </summary>
+        public bool ValidateUpdateFile(string updateFilePath)
+        {
+            if (string.IsNullOrEmpty(updateFilePath))
+                return false;
+
+            if (!File.Exists(updateFilePath))
+                return false;
+
+            var extension = Path.GetExtension(updateFilePath).ToLowerInvariant();
+            return SupportedExtensions.Contains(extension);
+        }
+
         /// <summary>
         /// Finds the appropriate asset for the update
         /// </summary>
