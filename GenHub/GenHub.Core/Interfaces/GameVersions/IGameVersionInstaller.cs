@@ -3,13 +3,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Models;
 using GenHub.Core.Models.GameProfiles;
-using GenHub.Core.Models.Results;
 using GenHub.Core.Models.GitHub;
+using GenHub.Core.Models.Results;
 
-namespace GenHub.Core.Interfaces
+namespace GenHub.Core.Interfaces.GameVersions
 {
     /// <summary>
-    /// Service for installing game versions
+    /// Interface for installing and uninstalling game versions
     /// </summary>
     public interface IGameVersionInstaller
     {
@@ -22,7 +22,7 @@ namespace GenHub.Core.Interfaces
             ExtractOptions? options = null,
             IProgress<InstallProgress>? progress = null,
             CancellationToken cancellationToken = default);
-            
+
         /// <summary>
         /// Installs a game version from a local ZIP file
         /// </summary>
@@ -31,9 +31,9 @@ namespace GenHub.Core.Interfaces
             ExtractOptions? options = null,
             IProgress<InstallProgress>? progress = null,
             CancellationToken cancellationToken = default);
-        
+
         /// <summary>
-        /// Installs a game version from an archive (ZIP) with the specified options
+        /// Installs a game version from an archive with the specified options
         /// </summary>
         Task<OperationResult<GameVersion>> InstallGameVersionFromArchiveAsync(
             ExtractOptions options,
@@ -41,19 +41,32 @@ namespace GenHub.Core.Interfaces
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Installs a game version from a GitHub release asset
+        /// Installs a game version from a GitHub Release asset
         /// </summary>
         Task<OperationResult<GameVersion>> InstallVersionFromReleaseAssetAsync(
             GitHubReleaseAsset asset,
-            GitHubRelease release, 
+            GitHubRelease release,
             string downloadedFilePath,
             ExtractOptions options,
             IProgress<InstallProgress>? progress = null,
             CancellationToken cancellationToken = default);
-            
+
         /// <summary>
-        /// Uninstalls a game version
+        /// Installs a game version - compatibility method for facade interface
+        /// </summary>
+        Task<bool> InstallVersionAsync(
+            GameVersion version,
+            CancellationToken cancellationToken = default,
+            IProgress<string>? progress = null);
+
+        /// <summary>
+        /// Uninstalls a game version by ID
         /// </summary>
         Task<OperationResult> UninstallVersionAsync(string versionId);
+
+        /// <summary>
+        /// Uninstalls a game version - simplified interface for facade
+        /// </summary>
+        Task<bool> UninstallVersionAsync(string versionId, CancellationToken cancellationToken = default);
     }
 }
