@@ -14,7 +14,8 @@
         CDISO = 6,
         GitHubArtifact = 7,
         GitHubRelease = 8,
-        LocalZipFile = 9,    
-        DirectoryImport = 10, 
+        LocalZipFile = 9,
+        DirectoryImport = 10,
+        Custom = 11,
     }
 }

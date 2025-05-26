@@ -2,6 +2,7 @@ using System;
 using System.Text.Json.Serialization;
 using GenHub.Core.Interfaces.Repositories;
 using GenHub.Core.Models.SourceMetadata;
+using GenHub.Core.Models;
 
 namespace GenHub.Core.Models.GameProfiles
 {
@@ -141,8 +142,16 @@ namespace GenHub.Core.Models.GameProfiles
             }
         }
         
+        private string? _sourceTypeName;
         [JsonIgnore]
-        public string SourceTypeName => SourceType.ToString();
+        public string SourceTypeName 
+        { 
+            get => _sourceTypeName ?? SourceType.ToString();
+            set => _sourceTypeName = value;
+        }
+
+        public DateTime LastModified { get; set; } = DateTime.UtcNow;
+        public long SizeInBytes { get; set; }
 
         public GameVersion()
         {
@@ -173,6 +182,46 @@ namespace GenHub.Core.Models.GameProfiles
                 return !string.IsNullOrEmpty(buildInfoStr) ? buildInfoStr : Name;
             }
             return Name;
+        }
+
+        /// <summary>
+        /// Creates a deep copy of this GameVersion instance
+        /// </summary>
+        public GameVersion Clone()
+        {
+            var cloned = new GameVersion
+            {
+                Id = this.Id,
+                Name = this.Name,
+                InstallationType = this.InstallationType,
+                Description = this.Description,
+                InstallPath = this.InstallPath,
+                GamePath = this.GamePath,
+                ExecutablePath = this.ExecutablePath,
+                InstallDate = this.InstallDate,
+                SourceType = this.SourceType,
+                GameType = this.GameType,
+                InstallName = this.InstallName,
+                DisplayName = this.DisplayName,
+                GameVariant = this.GameVariant,
+                IsValid = this.IsValid,
+                IsZeroHour = this.IsZeroHour,
+                InstallSizeBytes = this.InstallSizeBytes,
+                BuildDate = this.BuildDate,
+                Options = this.Options // Note: ExtractOptions might need its own Clone method
+            };
+
+            // Handle source-specific metadata cloning
+            if (this.SourceSpecificMetadata != null)
+            {
+                cloned.SourceSpecificMetadata = this.SourceSpecificMetadata switch
+                {
+                    GitHubSourceMetadata githubMeta => githubMeta.Clone(),
+                    _ => (BaseSourceMetadata)this.SourceSpecificMetadata.Clone() // Use base Clone method
+                };
+            }
+
+            return cloned;
         }
     }
 }
