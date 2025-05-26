@@ -3,12 +3,12 @@ namespace GenHub.Core.Interfaces.Repositories
     /// <summary>
     /// Interface for entities that have an identifier
     /// </summary>
-    /// <typeparam name="TKey">The type of the entity identifier</typeparam>
-    public interface IEntityIdentifier<TKey>
+    /// <typeparam name="T">Type of the identifier</typeparam>
+    public interface IEntityIdentifier<T>
     {
         /// <summary>
-        /// Gets the identifier of the entity
+        /// Gets or sets the unique identifier for this entity
         /// </summary>
-        TKey Id { get; }
+        T Id { get; set; }
     }
 }
