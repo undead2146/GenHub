@@ -3,12 +3,15 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
+using System.Threading;
 
 using GenHub.Core.Interfaces;
 using GenHub.Core.Interfaces.Repositories;
+using GenHub.Core.Interfaces.GameVersions;
 using GenHub.Core.Models;
 using GenHub.Core.Models.GameProfiles;
 using GenHub.Core.Models.Results;
+using GenHub.Core.Models.SourceMetadata;
 using GenHub.Features.GitHub.Helpers;
 
 namespace GenHub.Features.GameVersions.Services
@@ -33,6 +36,14 @@ namespace GenHub.Features.GameVersions.Services
             _logger = logger;
             _versionRepository = versionRepository;
             _executableLocator = executableLocator;
+        }
+
+        /// <summary>
+        /// Launches a game profile
+        /// </summary>
+        public async Task<OperationResult> LaunchGameAsync(IGameProfile profile, CancellationToken cancellationToken = default)
+        {
+            return await LaunchVersionAsync(profile, cancellationToken);
         }
 
         /// <summary>
@@ -109,9 +120,70 @@ namespace GenHub.Features.GameVersions.Services
         }
 
         /// <summary>
+        /// Launches a game version with optional arguments
+        /// </summary>
+        public async Task<OperationResult> LaunchVersionAsync(GameVersion version, string? arguments = null, CancellationToken cancellationToken = default)
+        {
+            if (version == null)
+            {
+                _logger.LogWarning("Cannot launch null game version");
+                return OperationResult.Failed("Game version cannot be null");
+            }
+
+            try
+            {
+                _logger.LogInformation("Launching game version: {VersionId} - {Name}", version.Id, version.Name);
+
+                if (string.IsNullOrEmpty(version.ExecutablePath))
+                {
+                    _logger.LogWarning("Cannot launch version - no executable path specified");
+                    return OperationResult.Failed("No executable path specified");
+                }
+                
+                if (!FileExists(version.ExecutablePath))
+                {
+                    _logger.LogWarning("Cannot launch version - executable not found: {ExecutablePath}", version.ExecutablePath);
+                    return OperationResult.Failed($"Executable not found: {version.ExecutablePath}");
+                }
+
+                // Extract arguments and admin flag from version options if they exist
+                string effectiveArguments = arguments ?? string.Empty;
+                bool runAsAdmin = false;
+
+                if (version.Options?.AdditionalParams != null)
+                {
+                    if (version.Options.AdditionalParams.TryGetValue("CommandLineArguments", out var commandLineArgs))
+                    {
+                        effectiveArguments = string.IsNullOrEmpty(arguments) ? commandLineArgs : $"{arguments} {commandLineArgs}";
+                    }
+
+                    if (version.Options.AdditionalParams.TryGetValue("RunAsAdmin", out var runAsAdminOption) &&
+                        bool.TryParse(runAsAdminOption, out var runAsAdminValue))
+                    {
+                        runAsAdmin = runAsAdminValue;
+                    }
+                }
+
+                // Use the version's install path as working directory if available
+                string workingDirectory = !string.IsNullOrEmpty(version.InstallPath) && DirectoryExists(version.InstallPath) 
+                    ? version.InstallPath 
+                    : GetDirectoryName(version.ExecutablePath) ?? string.Empty;
+                
+                // Launch the executable and return the result
+                var result = await LaunchExecutableAsync(version.ExecutablePath, workingDirectory, effectiveArguments, runAsAdmin);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error launching game version: {VersionId}", version.Id);
+                return OperationResult.Failed($"Failed to launch game version: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
         /// Launches a game using the specified profile
         /// </summary>
-        public async Task<OperationResult> LaunchVersionAsync(IGameProfile profile)
+        public async Task<OperationResult> LaunchVersionAsync(IGameProfile profile, CancellationToken cancellationToken = default)
         {
             if (profile == null)
             {
@@ -142,67 +214,6 @@ namespace GenHub.Features.GameVersions.Services
             {
                 _logger.LogError(ex, "Failed to launch profile: {ProfileId}", profile.Id);
                 return OperationResult.Failed($"Failed to launch profile: {ex.Message}", ex);
-            }
-        }
-
-        /// <summary>
-        /// Launches a game version directly
-        /// </summary>
-        public async Task<OperationResult> LaunchGameVersionAsync(GameVersion version)
-        {
-            if (version == null)
-            {
-                _logger.LogWarning("Cannot launch null game version");
-                return OperationResult.Failed("Game version cannot be null");
-            }
-
-            try
-            {
-                _logger.LogInformation("Launching game version: {VersionId} - {Name}", version.Id, version.Name);
-
-                if (string.IsNullOrEmpty(version.ExecutablePath))
-                {
-                    _logger.LogWarning("Cannot launch version - no executable path specified");
-                    return OperationResult.Failed("No executable path specified");
-                }
-                
-                if (!FileExists(version.ExecutablePath))
-                {
-                    _logger.LogWarning("Cannot launch version - executable not found: {ExecutablePath}", version.ExecutablePath);
-                    return OperationResult.Failed($"Executable not found: {version.ExecutablePath}");
-                }
-
-                // Extract arguments and admin flag from version options if they exist
-                string arguments = string.Empty;
-                bool runAsAdmin = false;
-
-                if (version.Options?.AdditionalParams != null)
-                {
-                    if (version.Options.AdditionalParams.TryGetValue("CommandLineArguments", out var commandLineArgs))
-                    {
-                        arguments = commandLineArgs;
-                    }
-
-                    if (version.Options.AdditionalParams.TryGetValue("RunAsAdmin", out var runAsAdminOption) &&
-                        bool.TryParse(runAsAdminOption, out var runAsAdminValue))
-                    {
-                        runAsAdmin = runAsAdminValue;
-                    }
-                }
-
-                // Use the version's install path as working directory if available
-                string workingDirectory = !string.IsNullOrEmpty(version.InstallPath) && DirectoryExists(version.InstallPath) 
-                    ? version.InstallPath 
-                    : GetDirectoryName(version.ExecutablePath) ?? string.Empty;
-                
-                // Launch the executable and return the result
-                var result = await LaunchExecutableAsync(version.ExecutablePath, workingDirectory, arguments, runAsAdmin);
-                return result;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error launching game version: {VersionId}", version.Id);
-                return OperationResult.Failed($"Failed to launch game version: {ex.Message}", ex);
             }
         }
 
@@ -244,10 +255,16 @@ namespace GenHub.Features.GameVersions.Services
                     processInfo.Verb = "runas"; // Run as administrator
                 }
                 
-                StartProcess(processInfo);
-                _logger.LogInformation("Successfully launched: {ExePath}", executablePath);
-                
-                return OperationResult.Succeeded();
+                var process = StartProcess(processInfo);
+                if (process != null)
+                {
+                    _logger.LogInformation("Successfully launched: {ExePath}", executablePath);
+                    return OperationResult.Succeeded();
+                }
+                else
+                {
+                    return OperationResult.Failed("Failed to start process");
+                }
             }
             catch (Exception ex)
             {
@@ -287,12 +304,14 @@ namespace GenHub.Features.GameVersions.Services
                         var executableInfo = _executableLocator.GetExecutableInfo(executablePath);
                         
                         // For tools/utilities, find appropriate game executable instead
-                        if (executableInfo.GameType == "Utility")
+                        if (executableInfo?.GameType == "Utility")
                         {
                             var exeDir = GetDirectoryName(executablePath) ?? string.Empty;
                             
                             // First try to find the appropriate game executable based on profile settings
-                            bool isZeroHour = profile.GitHubMetadata.AssociatedArtifact.BuildInfo?.GameVariant == GameVariant.ZeroHour;
+                            bool isZeroHour = profile.SourceSpecificMetadata is GitHubSourceMetadata githubMeta &&
+                                            githubMeta.AssociatedArtifact?.BuildInfo?.GameVariant == GameVariant.ZeroHour;
+                                            
                             var gameExePath = await _executableLocator.FindBestGameExecutableAsync(exeDir, isZeroHour);
                             
                             if (!string.IsNullOrEmpty(gameExePath) && FileExists(gameExePath))
@@ -318,7 +337,7 @@ namespace GenHub.Features.GameVersions.Services
 
                 // Handle special case for separate executable and data directories
                 bool needsWorkingDirFix = !string.IsNullOrEmpty(workingDir) && 
-                                         !GetDirectoryName(executablePath)?.Equals(workingDir, StringComparison.OrdinalIgnoreCase) == true;
+                                         !string.Equals(GetDirectoryName(executablePath), workingDir, StringComparison.OrdinalIgnoreCase);
                 
                 // If it's a GitHub artifact or has different paths, try to ensure executable works from data dir
                 if (executablePath.Contains("GenHub") && executablePath.Contains("Versions") && needsWorkingDirFix)
@@ -409,7 +428,8 @@ namespace GenHub.Features.GameVersions.Services
                     // Try to find any valid game executable in the working directory
                     var executableInfo = await _executableLocator.FindBestGameExecutableAsync(
                         workingDir,
-                        profile.GitHubMetadata.AssociatedArtifact.BuildInfo?.GameVariant == GameVariant.ZeroHour);
+                        profile.SourceSpecificMetadata is GitHubSourceMetadata githubMeta &&
+                        githubMeta.AssociatedArtifact?.BuildInfo?.GameVariant == GameVariant.ZeroHour);
                     
                     if (!string.IsNullOrEmpty(executableInfo) && FileExists(executableInfo))
                     {
@@ -434,11 +454,11 @@ namespace GenHub.Features.GameVersions.Services
         // Protected virtual methods for file system operations to facilitate testing
         protected virtual bool FileExists(string path) => File.Exists(path);
         protected virtual bool DirectoryExists(string path) => Directory.Exists(path);
-        protected virtual string GetDirectoryName(string path) => Path.GetDirectoryName(path);
+        protected virtual string? GetDirectoryName(string path) => Path.GetDirectoryName(path);
         protected virtual void CopyFile(string source, string destination, bool overwrite) => File.Copy(source, destination, overwrite);
         protected virtual FileAttributes GetFileAttributes(string path) => File.GetAttributes(path);
         protected virtual void SetFileAttributes(string path, FileAttributes attributes) => File.SetAttributes(path, attributes);
         protected virtual void DeleteFile(string path) => File.Delete(path);
-        protected virtual Process StartProcess(ProcessStartInfo startInfo) => Process.Start(startInfo);
+        protected virtual Process? StartProcess(ProcessStartInfo startInfo) => Process.Start(startInfo);
     }
 }
