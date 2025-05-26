@@ -25,21 +25,21 @@ namespace GenHub.Features.GitHub.ViewModels
         private readonly IGitHubServiceFacade? _gitHubService;
         private GitHubManagerViewModel? _parentViewModel;
         private bool _artifactsLoaded;
-        
+
         private int? _artifactCountValue;
         private string _displayName = string.Empty;
-        
+
         [ObservableProperty]
         private ObservableCollection<IGitHubDisplayItem> _artifacts = new();
-        
+
         [ObservableProperty]
         private bool _isLoadingArtifacts;
-        
+
         /// <summary>
         /// Initializes a new instance of the GitHubWorkflowDisplayItemViewModel class
         /// </summary>
         public GitHubWorkflowDisplayItemViewModel(
-            GitHubWorkflow workflow, 
+            GitHubWorkflow workflow,
             IGitHubArtifactReader artifactReader,
             IGitHubServiceFacade? gitHubService,
             ILogger logger)
@@ -48,13 +48,13 @@ namespace GenHub.Features.GitHub.ViewModels
             _artifactReader = artifactReader ?? throw new ArgumentNullException(nameof(artifactReader));
             _gitHubService = gitHubService;
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            
+
             _iconKey = "WorkflowIcon";
-            
+
             // Update the display name with workflow information
             UpdateDisplayName();
         }
-        
+
         /// <summary>
         /// Sets the parent ViewModel reference for backward compatibility with factory methods
         /// </summary>
@@ -62,12 +62,14 @@ namespace GenHub.Features.GitHub.ViewModels
         {
             _parentViewModel = parent;
         }
-        
+
         // Update display name with workflow details
         private void UpdateDisplayName()
         {
-            string baseTitle = $"GenCi #{_workflow.WorkflowNumber}";
-            
+            string workflowName = !string.IsNullOrEmpty(_workflow.Name) ? _workflow.Name : "Workflow";
+
+            string baseTitle = $"{workflowName} #{_workflow.WorkflowNumber}";
+
             if (_workflow.PullRequestNumber.HasValue && !string.IsNullOrEmpty(_workflow.PullRequestTitle))
             {
                 _displayName = $"{baseTitle} - PR #{_workflow.PullRequestNumber}: {_workflow.PullRequestTitle}";
@@ -80,12 +82,12 @@ namespace GenHub.Features.GitHub.ViewModels
                 {
                     commitMsg = commitMsg.Substring(0, newlineIndex);
                 }
-                
+
                 if (commitMsg.Length > 60)
                 {
                     commitMsg = commitMsg.Substring(0, 57) + "...";
                 }
-                
+
                 _displayName = $"{baseTitle} - {commitMsg}";
             }
             else
@@ -97,7 +99,7 @@ namespace GenHub.Features.GitHub.ViewModels
                 }
             }
         }
-        
+
         // Properties from workflow
         public long RunId => _workflow.RunId;
         public long WorkflowId => _workflow.WorkflowId;
@@ -110,19 +112,19 @@ namespace GenHub.Features.GitHub.ViewModels
         public string? PullRequestTitle => _workflow.PullRequestTitle;
         public string? EventType => _workflow.EventType;
         public string? WorkflowPath => _workflow.WorkflowPath;
-        
+
         public GitHubRepoSettings? RepositoryInfo => _workflow.RepositoryInfo;
-        
+
         public bool HasArtifacts => ArtifactCount > 0;
-        
+
         // Computed artifact count - Fix: Add parentheses to call the Count method
         public int ArtifactCount => _artifactCountValue ?? Artifacts.Count;
-        
+
         // Safe accessor for the first artifact
-        public GitHubArtifact? FirstArtifact => 
+        public GitHubArtifact? FirstArtifact =>
             Artifacts.OfType<GitHubArtifactDisplayItemViewModel>()
                    .FirstOrDefault()?.Artifact;
-        
+
         // Override abstract properties
         public override string DisplayName => _displayName;
         public override string Description => $"Run #{WorkflowNumber} - {CreatedAt:g}";
@@ -130,29 +132,30 @@ namespace GenHub.Features.GitHub.ViewModels
         public override DateTime SortDate => CreatedAt;
         public override bool IsRelease => false;
         public override bool IsWorkflowRun => true;
-        
+
         /// <summary>
         /// Loads artifacts associated with this workflow
         /// </summary>
         public override async Task LoadChildrenAsync(CancellationToken cancellationToken = default)
         {
-            if (_artifactsLoaded || IsLoadingArtifacts) 
+            if (_artifactsLoaded || IsLoadingArtifacts)
                 return;
-            
+
             IsLoadingArtifacts = true;
-            
+
             try
             {
                 _logger.LogDebug("Loading artifacts for workflow {WorkflowId}", RunId);
-                
+
                 // Get artifacts from the artifact reader - use RunId directly for better consistency
                 var artifacts = await _artifactReader.GetArtifactsForRunAsync(
-                    new GitHubWorkflow { 
+                    new GitHubWorkflow
+                    {
                         RunId = this.RunId,
                         RepositoryInfo = this.RepositoryInfo
-                    }, 
+                    },
                     cancellationToken);
-                
+
                 // Ensure we have the right workflow context for each artifact
                 foreach (var artifact in artifacts)
                 {
@@ -161,13 +164,13 @@ namespace GenHub.Features.GitHub.ViewModels
                     artifact.WorkflowNumber = this.WorkflowNumber;
                     artifact.RunId = this.RunId;
                 }
-                
+
                 // Create display items for the artifacts
                 var displayItems = artifacts.Select(a => new GitHubArtifactDisplayItemViewModel(
-                    a, 
-                    _gitHubService, 
+                    a,
+                    _gitHubService,
                     _logger)).ToList();
-                
+
                 // Add artifacts to the collection on UI thread
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
@@ -176,20 +179,20 @@ namespace GenHub.Features.GitHub.ViewModels
                     {
                         Artifacts.Add(item);
                     }
-                    
+
                     // Also update Children collection for IGitHubDisplayItem interface
                     Children.Clear();
                     foreach (var item in displayItems)
                     {
                         Children.Add(item);
                     }
-                    
+
                     // Update artifact count
                     _artifactCountValue = displayItems.Count;
                     OnPropertyChanged(nameof(ArtifactCount));
                     OnPropertyChanged(nameof(HasArtifacts));
                 });
-                
+
                 _artifactsLoaded = true;
                 SetLoadedState(true);
             }
