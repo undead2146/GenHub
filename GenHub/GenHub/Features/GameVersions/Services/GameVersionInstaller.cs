@@ -790,5 +790,97 @@ namespace GenHub.Features.GameVersions.Services
                 _logger.LogError(ex, "Error creating metadata for version in {InstallDir}", installDir);
             }
         }
+
+        /// <summary>
+        /// Installs a game version - facade compatibility method
+        /// </summary>
+        public async Task<OperationResult> InstallVersionAsync(
+            GameVersion version,
+            CancellationToken cancellationToken = default,
+            IProgress<string>? progress = null)
+        {
+            try
+            {
+                if (version == null)
+                {
+                    return OperationResult.Failed("Game version cannot be null");
+                }
+
+                _logger.LogInformation("Installing game version: {VersionName} (ID: {VersionId})", version.Name, version.Id);
+
+                // Convert string progress to InstallProgress if provided
+                IProgress<InstallProgress>? installProgress = null;
+                if (progress != null)
+                {
+                    installProgress = new Progress<InstallProgress>(ip => progress.Report(ip.Message ?? ip.Stage.ToString()));
+                }
+
+                // If this is a GitHub artifact, try to install from artifact metadata
+                if (version.SourceSpecificMetadata is GitHubSourceMetadata githubMetadata && 
+                    githubMetadata.AssociatedArtifact != null)
+                {
+                    // We need a zip path - check if there's a cached download or temp file
+                    string? zipPath = null;
+                    
+                    // Try to find existing installation or download
+                    if (!string.IsNullOrEmpty(version.InstallPath) && Directory.Exists(version.InstallPath))
+                    {
+                        // Already installed, just register it
+                        await _versionRepository.AddAsync(version, cancellationToken);
+                        return OperationResult.Succeeded();
+                    }
+
+                    if (string.IsNullOrEmpty(zipPath))
+                    {
+                        return OperationResult.Failed("GitHub artifact installation requires a zip file path");
+                    }
+
+                    var result = await InstallVersionAsync(
+                        githubMetadata.AssociatedArtifact,
+                        zipPath,
+                        version.Options,
+                        installProgress,
+                        cancellationToken);
+
+                    return result.Success ? OperationResult.Succeeded() : OperationResult.Failed(result.ErrorMessage ?? "Installation failed");
+                }
+                else if (!string.IsNullOrEmpty(version.InstallPath) && File.Exists(version.InstallPath) && 
+                         Path.GetExtension(version.InstallPath).Equals(".zip", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Install from local zip file
+                    var result = await InstallVersionFromZipAsync(
+                        version.InstallPath,
+                        version.Options,
+                        installProgress,
+                        cancellationToken);
+
+                    return result.Success ? OperationResult.Succeeded() : OperationResult.Failed(result.ErrorMessage ?? "Installation failed");
+                }
+                else
+                {
+                    // Simple registration of existing installation
+                    if (!string.IsNullOrEmpty(version.InstallPath) && Directory.Exists(version.InstallPath))
+                    {
+                        await _versionRepository.AddAsync(version, cancellationToken);
+                        return OperationResult.Succeeded();
+                    }
+                    
+                    return OperationResult.Failed("Cannot install version: no valid installation source found");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error installing game version: {VersionId}", version?.Id ?? "Unknown");
+                return OperationResult.Failed($"Installation failed: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Uninstalls a game version - simplified interface for facade
+        /// </summary>
+        public async Task<OperationResult> UninstallVersionAsync(string versionId, CancellationToken cancellationToken = default)
+        {
+            return await UninstallVersionAsync(versionId);
+        }
     }
 }
