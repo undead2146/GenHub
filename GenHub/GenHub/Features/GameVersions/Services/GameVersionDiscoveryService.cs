@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Interfaces;
+using GenHub.Core.Interfaces.GameVersions;
 using GenHub.Core.Models.GameProfiles;
 using Microsoft.Extensions.Logging;
 
