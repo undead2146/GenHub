@@ -145,7 +145,7 @@
             </Grid>
 
             <!-- Main content area -->
-            <Grid Grid.Row="1" ColumnDefinitions="300,*" Background="{DynamicResource MainContentBackground}">
+            <Grid Grid.Row="1" ColumnDefinitions="400,*" Background="{DynamicResource MainContentBackground}">
                 <!-- Left panel - Display Items View with proper background -->
                 <local:GitHubDisplayItemsView Grid.Column="0" 
                                              DataContext="{Binding}"
