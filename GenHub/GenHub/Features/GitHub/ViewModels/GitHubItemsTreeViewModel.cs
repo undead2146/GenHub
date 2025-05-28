@@ -11,6 +11,7 @@ using GenHub.Core.Interfaces;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Models;
 using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.GitHub;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.GitHub.ViewModels
@@ -72,6 +73,10 @@ namespace GenHub.Features.GitHub.ViewModels
         private GitHubRepoSettings? _currentRepository;
         private WorkflowDefinitionViewModel? _currentWorkflow;
         private DisplayMode _currentDisplayMode = DisplayMode.All;
+        
+        // Private backing fields
+        private ObservableCollection<IGitHubDisplayItem> _items = new();
+        private object? _parentViewModel;
         #endregion
 
         public GitHubItemsTreeViewModel(
@@ -718,5 +723,136 @@ namespace GenHub.Features.GitHub.ViewModels
         /// Event that fires when an item is selected
         /// </summary>
         public event EventHandler<IGitHubDisplayItem?>? ItemSelected;
+
+        /// <summary>
+        /// Gets the items to display in the tree
+        /// </summary>
+        public ObservableCollection<IGitHubDisplayItem> Items
+        {
+            get
+            {
+                _logger.LogTrace("Items getter called. Count: {Count}", _items?.Count ?? -1);
+                return _items;
+            }
+            private set
+            {
+                _logger.LogDebug("Setting Items collection. Old count: {OldCount}, New count: {NewCount}", 
+                    _items?.Count ?? -1, value?.Count ?? -1);
+                    
+                if (value != null && value.Any())
+                {
+                    for (int i = 0; i < Math.Min(3, value.Count); i++)
+                    {
+                        var item = value[i];
+                        _logger.LogDebug("New Item {Index}: Type={Type}, DisplayName='{DisplayName}'", 
+                            i, item?.GetType().Name, item?.DisplayName);
+                    }
+                }
+                
+                SetProperty(ref _items, value);
+                
+                // Monitor collection changes
+                if (_items != null)
+                {
+                    _items.CollectionChanged += (sender, args) =>
+                    {
+                        _logger.LogDebug("Items collection changed. Action: {Action}, NewItems: {NewCount}, OldItems: {OldCount}", 
+                            args.Action, args.NewItems?.Count ?? 0, args.OldItems?.Count ?? 0);
+                    };
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether there are items to display
+        /// </summary>
+        public bool HasItems => Items?.Count > 0;
+
+        /// <summary>
+        /// Updates the display with workflows and releases
+        /// </summary>
+        public async Task UpdateDisplayAsync(
+            IEnumerable<GitHubWorkflow>? workflows = null,
+            IEnumerable<GitHubRelease>? releases = null,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                _logger.LogDebug("UpdateDisplayAsync called. Workflows: {WorkflowCount}, Releases: {ReleaseCount}", 
+                    workflows?.Count() ?? 0, releases?.Count() ?? 0);
+                
+                IsLoading = true;
+                var displayItems = new List<IGitHubDisplayItem>();
+
+                if (workflows != null && workflows.Any())
+                {
+                    _logger.LogDebug("Processing {Count} workflows through factory", workflows.Count());
+                    
+                    var workflowItems = _displayItemFactory.CreateFromWorkflows(workflows, _parentViewModel);
+                    displayItems.AddRange(workflowItems);
+                    
+                    _logger.LogDebug("Factory created {Count} workflow display items", workflowItems.Count());
+                }
+
+                if (releases != null && releases.Any())
+                {
+                    _logger.LogDebug("Processing {Count} releases", releases.Count());
+                    
+                    var releaseItems = releases.Select(r => _displayItemFactory.CreateFromRelease(r));
+                    displayItems.AddRange(releaseItems);
+                    
+                    _logger.LogDebug("Created {Count} release display items", releaseItems.Count());
+                }
+
+                // Update on UI thread
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    try
+                    {
+                        _logger.LogDebug("Updating Items collection on UI thread with {Count} items", displayItems.Count);
+                        
+                        var oldCount = Items.Count;
+                        Items.Clear();
+                        
+                        foreach (var item in displayItems)
+                        {
+                            if (item != null)
+                            {
+                                Items.Add(item);
+                            }
+                            else
+                            {
+                                _logger.LogWarning("Skipping null item in display update");
+                            }
+                        }
+                        
+                        _logger.LogDebug("Items collection updated. Old count: {OldCount}, New count: {NewCount}", 
+                            oldCount, Items.Count);
+                        
+                        // Force property change notifications
+                        OnPropertyChanged(nameof(Items));
+                        OnPropertyChanged(nameof(HasItems));
+                        
+                        // Validate final state
+                        if (!Items.Any() && displayItems.Any())
+                        {
+                            _logger.LogWarning("Items collection is empty after update despite having display items");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error updating Items collection on UI thread");
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in UpdateDisplayAsync");
+            }
+            finally
+            {
+                IsLoading = false;
+            }
+        }
     }
 }

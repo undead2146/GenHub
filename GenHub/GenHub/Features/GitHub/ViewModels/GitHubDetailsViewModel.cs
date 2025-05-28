@@ -13,7 +13,7 @@ using GenHub.Core.Interfaces;
 namespace GenHub.Features.GitHub.ViewModels
 {
     /// <summary>
-    /// ViewModel for GitHub item details display
+    /// ViewModel for GitHub item details display and installation management
     /// </summary>
     public partial class GitHubDetailsViewModel : ObservableObject
     {
@@ -56,12 +56,24 @@ namespace GenHub.Features.GitHub.ViewModels
         #endregion
 
         #region Computed Properties
+        /// <summary>
+        /// Gets a value indicating whether any item is currently selected
+        /// </summary>
         public bool HasSelection => SelectedGitHubItem != null || SelectedArtifact != null;
 
+        /// <summary>
+        /// Gets a value indicating whether an artifact is currently selected
+        /// </summary>
         public bool HasSelectedArtifact => SelectedArtifact != null;
 
+        /// <summary>
+        /// Gets a value indicating whether a release is currently selected
+        /// </summary>
         public bool HasSelectedRelease => SelectedGitHubItem is GitHubReleaseDisplayItemViewModel;
 
+        /// <summary>
+        /// Gets a value indicating whether a workflow is currently selected
+        /// </summary>
         public bool HasSelectedWorkflow => SelectedGitHubItem is GitHubWorkflowDisplayItemViewModel;
         #endregion
 
@@ -81,6 +93,7 @@ namespace GenHub.Features.GitHub.ViewModels
         /// <summary>
         /// Sets the selected item and updates the details view accordingly
         /// </summary>
+        /// <param name="item">The item to select, or null to clear selection</param>
         public void SetSelectedItem(IGitHubDisplayItem? item)
         {
             try
@@ -96,34 +109,18 @@ namespace GenHub.Features.GitHub.ViewModels
 
                 if (item == null) return;
 
-                // Handle artifact display items
-                if (item is GitHubArtifactDisplayItemViewModel artifactViewModel)
+                // Handle different item types
+                switch (item)
                 {
-                    // Assign the ViewModel
-                    SelectedArtifact = artifactViewModel;
-                    SelectedArtifactSizeFormatted = FormatFileSize(artifactViewModel.SizeInBytes);
-                }
-                // Handle workflow display items
-                else if (item is GitHubWorkflowDisplayItemViewModel workflow)
-                {
-                    SelectedWorkflowGroup = workflow;
-
-                    // First load the artifacts
-                    _ = workflow.LoadChildrenAsync();
-
-                    // After loading, update the workflow run items with the artifacts
-                    _ = UpdateWorkflowRunItemsFromWorkflowAsync(workflow);
-                }
-                // Handle release display items
-                else if (item is GitHubReleaseDisplayItemViewModel release)
-                {
-                    SelectedRelease = release;
-
-                    // First load the assets
-                    _ = release.LoadChildrenAsync();
-
-                    // Update the workflow run items with the assets
-                    _ = UpdateWorkflowRunItemsFromReleaseAsync(release);
+                    case GitHubArtifactDisplayItemViewModel artifactViewModel:
+                        HandleArtifactSelection(artifactViewModel);
+                        break;
+                    case GitHubWorkflowDisplayItemViewModel workflow:
+                        HandleWorkflowSelection(workflow);
+                        break;
+                    case GitHubReleaseDisplayItemViewModel release:
+                        HandleReleaseSelection(release);
+                        break;
                 }
 
                 // Notify property changes for computed properties
@@ -139,21 +136,65 @@ namespace GenHub.Features.GitHub.ViewModels
         }
 
         /// <summary>
-        /// Updates items from a workflow
+        /// Handles selection of an artifact item
+        /// </summary>
+        private void HandleArtifactSelection(GitHubArtifactDisplayItemViewModel artifactViewModel)
+        {
+            SelectedArtifact = artifactViewModel;
+            SelectedArtifactSizeFormatted = FormatFileSize(artifactViewModel.SizeInBytes);
+            _logger.LogDebug("Selected artifact: {Name} ({Size})", artifactViewModel.Name, SelectedArtifactSizeFormatted);
+        }
+
+        /// <summary>
+        /// Handles selection of a workflow item
+        /// </summary>
+        private void HandleWorkflowSelection(GitHubWorkflowDisplayItemViewModel workflow)
+        {
+            SelectedWorkflowGroup = workflow;
+            _logger.LogDebug("Selected workflow: {Name}", workflow.DisplayName);
+
+            // Load artifacts asynchronously
+            _ = Task.Run(async () =>
+            {
+                await workflow.LoadChildrenAsync();
+                await UpdateWorkflowRunItemsFromWorkflowAsync(workflow);
+            });
+        }
+
+        /// <summary>
+        /// Handles selection of a release item
+        /// </summary>
+        private void HandleReleaseSelection(GitHubReleaseDisplayItemViewModel release)
+        {
+            SelectedRelease = release;
+            _logger.LogDebug("Selected release: {Name}", release.DisplayName);
+
+            // Load assets asynchronously
+            _ = Task.Run(async () =>
+            {
+                await release.LoadChildrenAsync();
+                await UpdateWorkflowRunItemsFromReleaseAsync(release);
+            });
+        }
+
+        /// <summary>
+        /// Updates the workflow run items collection with artifacts from the selected workflow
         /// </summary>
         private async Task UpdateWorkflowRunItemsFromWorkflowAsync(GitHubWorkflowDisplayItemViewModel workflow)
         {
             try
             {
-                // Wait for async loading to complete
+                // Allow time for async loading to complete
                 await Task.Delay(100);
                 
-                // Update collection
+                // Update collection on UI thread
                 WorkflowRunItems.Clear();
                 foreach (var item in workflow.Artifacts)
                 {
                     WorkflowRunItems.Add(item);
                 }
+                
+                _logger.LogDebug("Updated workflow items: {Count} artifacts", WorkflowRunItems.Count);
             }
             catch (Exception ex)
             {
@@ -162,21 +203,23 @@ namespace GenHub.Features.GitHub.ViewModels
         }
 
         /// <summary>
-        /// Updates items from a release
+        /// Updates the workflow run items collection with assets from the selected release
         /// </summary>
         private async Task UpdateWorkflowRunItemsFromReleaseAsync(GitHubReleaseDisplayItemViewModel release)
         {
             try
             {
-                // Wait for async loading to complete
+                // Allow time for async loading to complete
                 await Task.Delay(100);
                 
-                // Update collection
+                // Update collection on UI thread
                 WorkflowRunItems.Clear();
                 foreach (var asset in release.Assets)
                 {
                     WorkflowRunItems.Add(asset);
                 }
+                
+                _logger.LogDebug("Updated release items: {Count} assets", WorkflowRunItems.Count);
             }
             catch (Exception ex)
             {
@@ -185,7 +228,7 @@ namespace GenHub.Features.GitHub.ViewModels
         }
 
         /// <summary>
-        /// Installs the selected artifact
+        /// Installs the currently selected artifact
         /// </summary>
         [RelayCommand]
         private async Task InstallSelectedArtifactAsync()
@@ -202,6 +245,10 @@ namespace GenHub.Features.GitHub.ViewModels
                 InstallStatusMessage = "Starting installation...";
                 CurrentlyInstallingArtifact = artifactToInstall;
 
+                _logger.LogInformation("Starting installation of artifact: {ArtifactName}", artifactToInstall.Name);
+
+                var startTime = DateTime.Now;
+
                 // Create progress tracker
                 var progress = new Progress<InstallProgress>(p =>
                 {
@@ -209,46 +256,67 @@ namespace GenHub.Features.GitHub.ViewModels
                     InstallStatusMessage = p.Message;
                 });
 
-                // Install the artifact - use the actual GitHubArtifact model
-                var gameVersion = await _gitHubService.InstallArtifactAsync(
-                    artifactToInstall,
-                    progress);
+                // Install the artifact
+                var gameVersion = await _gitHubService.InstallArtifactAsync(artifactToInstall, progress);
 
+                var installationDuration = DateTime.Now - startTime;
+
+                InstallationResult result;
                 if (gameVersion != null)
                 {
-                    // Update UI
                     InstallStatusMessage = "Installation successful!";
                     InstallProgress = 1;
 
                     // Update artifact status
                     artifactToInstall.IsInstalled = true;
-                    // Add null check
                     if (SelectedArtifact != null)
                     {
                         SelectedArtifact.IsInstalled = true; 
                     }
+
+                    _logger.LogInformation("Successfully installed artifact: {ArtifactName} as {VersionName}", 
+                        artifactToInstall.Name, gameVersion.Name);
+
+                    result = InstallationResult.Succeeded(
+                        artifactToInstall, 
+                        gameVersion, 
+                        gameVersion.InstallPath,
+                        artifactToInstall.SizeInBytes,
+                        installationDuration);
                 }
                 else
                 {
                     InstallStatusMessage = "Installation failed";
+                    _logger.LogWarning("Installation failed for artifact: {ArtifactName}", artifactToInstall.Name);
+                    
+                    result = InstallationResult.Failed(
+                        "Installation completed but no game version was created",
+                        artifactToInstall);
                 }
                 
                 // Notify installation result
-                InstallationCompleted?.Invoke(this, new InstallationResult 
-                { 
-                    Success = gameVersion != null,
-                    Artifact = artifactToInstall,
-                    GameVersion = gameVersion
-                });
+                InstallationCompleted?.Invoke(this, result);
             }
             catch (OperationCanceledException)
             {
                 InstallStatusMessage = "Installation cancelled";
+                _logger.LogInformation("Installation cancelled for artifact: {ArtifactName}", artifactToInstall?.Name);
+                
+                var cancelledResult = InstallationResult.Failed(
+                    "Installation was cancelled", 
+                    artifactToInstall);
+                InstallationCompleted?.Invoke(this, cancelledResult);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error installing artifact");
+                _logger.LogError(ex, "Error installing artifact: {ArtifactName}", artifactToInstall?.Name);
                 InstallStatusMessage = $"Error: {ex.Message}";
+                
+                var errorResult = InstallationResult.Failed(
+                    ex.Message, 
+                    artifactToInstall, 
+                    ex);
+                InstallationCompleted?.Invoke(this, errorResult);
             }
             finally
             {
@@ -258,14 +326,14 @@ namespace GenHub.Features.GitHub.ViewModels
         }
 
         /// <summary>
-        /// Cancels the current installation
+        /// Cancels the current installation operation
         /// </summary>
         [RelayCommand]
         public void CancelInstallation()
         {
             try
             {
-                // TODO: Implement cancellation
+                // TODO: Implement proper cancellation token support
                 _logger.LogInformation("Installation cancellation requested");
                 InstallStatusMessage = "Cancelling installation...";
             }
@@ -278,6 +346,8 @@ namespace GenHub.Features.GitHub.ViewModels
         /// <summary>
         /// Formats a file size in bytes to a human-readable string
         /// </summary>
+        /// <param name="bytes">The size in bytes</param>
+        /// <returns>A formatted string representation of the file size</returns>
         private string FormatFileSize(long bytes)
         {
             string[] suffixes = { "B", "KB", "MB", "GB", "TB" };
@@ -294,10 +364,13 @@ namespace GenHub.Features.GitHub.ViewModels
         }
         
         /// <summary>
-        /// Event fired when an installation completes
+        /// Event fired when an installation operation completes
         /// </summary>
         public event EventHandler<InstallationResult>? InstallationCompleted;
 
+        /// <summary>
+        /// Handles changes to the SelectedItem property with enhanced validation
+        /// </summary>
         partial void OnSelectedItemChanged(IGitHubDisplayItem? value)
         {
             _logger.LogDebug("SelectedItem changed. New value: {Type}, DisplayName: '{DisplayName}'", 
@@ -327,26 +400,18 @@ namespace GenHub.Features.GitHub.ViewModels
                     _logger.LogDebug("Set SelectedArtifact: {DisplayName}, WorkflowNumber: {WorkflowNumber}, CreatedAt: {CreatedAt}", 
                         artifact.DisplayName, artifact.WorkflowNumber, artifact.CreatedAt);
                     
-                    // Validate artifact data immediately after assignment
+                    // Validate artifact data
                     if (artifact.Artifact == null)
                     {
                         _logger.LogError("SelectedArtifact has null Artifact property!");
                     }
                     else
                     {
-                        _logger.LogDebug("Artifact validation - Name: '{Name}', WorkflowNumber: {WorkflowNumber}, BuildInfo: {BuildInfo}", 
+                        _logger.LogTrace("Artifact validation - Name: '{Name}', WorkflowNumber: {WorkflowNumber}, BuildInfo: {BuildInfo}", 
                             artifact.Artifact.Name, artifact.Artifact.WorkflowNumber, artifact.Artifact.BuildInfo?.GameVariant);
-                        
-                        // Test property access immediately
-                        var testName = artifact.Name;
-                        var testBuildInfo = artifact.BuildInfo;
-                        var testWorkflowNumber = artifact.WorkflowNumber;
-                        
-                        _logger.LogDebug("Property access test - Name: '{Name}', BuildInfo: {BuildInfo}, WorkflowNumber: {WorkflowNumber}", 
-                            testName, testBuildInfo?.GameVariant, testWorkflowNumber);
                     }
                     
-                    // Notify UI that SelectedArtifact properties changed
+                    // Notify UI that artifact-related properties changed
                     OnPropertyChanged(nameof(HasSelectedArtifact));
                     OnPropertyChanged(nameof(HasSelection));
                     break;
@@ -361,15 +426,5 @@ namespace GenHub.Features.GitHub.ViewModels
                     break;
             }
         }
-    }
-
-    /// <summary>
-    /// Result of an installation operation
-    /// </summary>
-    public class InstallationResult
-    {
-        public bool Success { get; set; }
-        public GitHubArtifact? Artifact { get; set; }
-        public GameVersion? GameVersion { get; set; }
     }
 }
