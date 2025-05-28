@@ -151,9 +151,18 @@ namespace GenHub.Features.GitHub.Services
                     
                     if (repo != null)
                     {
-                        _logger.LogDebug("Loaded current repository: {Owner}/{Name}", 
-                            repo.RepoOwner, repo.RepoName);
-                        return repo;
+                        _logger.LogDebug("Loaded current repository: {Owner}/{Name}", repo.RepoOwner, repo.RepoName);
+
+                        // Return a new instance
+                        return new GitHubRepoSettings
+                        {
+                            RepoOwner = repo.RepoOwner,
+                            RepoName = repo.RepoName,
+                            DisplayName = repo.DisplayName,
+                            Token = repo.Token,
+                            WorkflowFile = repo.WorkflowFile,
+                            Branch = repo.Branch
+                        };
                     }
                 }
                 
@@ -163,9 +172,18 @@ namespace GenHub.Features.GitHub.Services
                 
                 if (firstRepo != null)
                 {
-                    _logger.LogDebug("Using first repository as current: {Owner}/{Name}", 
-                        firstRepo.RepoOwner, firstRepo.RepoName);
-                    return firstRepo;
+                    _logger.LogDebug("Using first repository as current: {Owner}/{Name}", firstRepo.RepoOwner, firstRepo.RepoName);
+
+                    // Return a new instance
+                    return new GitHubRepoSettings
+                    {
+                        RepoOwner = firstRepo.RepoOwner,
+                        RepoName = firstRepo.RepoName,
+                        DisplayName = firstRepo.DisplayName,
+                        Token = firstRepo.Token,
+                        WorkflowFile = firstRepo.WorkflowFile,
+                        Branch = firstRepo.Branch
+                    };
                 }
                 
                 // Default fallback
