@@ -1,20 +1,15 @@
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Markup.Xaml;
 
 namespace GenHub.Features.GitHub.Views
 {
+    /// <summary>
+    /// View for displaying GitHub items tree - pure view with no logic
+    /// </summary>
     public partial class GitHubDisplayItemsView : UserControl
     {
         public GitHubDisplayItemsView()
         {
             InitializeComponent();
-        }
-
-        private void InitializeComponent()
-        {
-            AvaloniaXamlLoader.Load(this);
-            // No event handlers needed - using MVVM bindings
         }
     }
 }

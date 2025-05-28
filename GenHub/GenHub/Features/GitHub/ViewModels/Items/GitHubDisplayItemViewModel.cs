@@ -67,49 +67,42 @@ namespace GenHub.Features.GitHub.ViewModels
         }
         
         /// <summary>
-        /// Gets whether this item is currently loading its children
+        /// Gets a value indicating whether children are currently being loaded
         /// </summary>
         public bool IsLoadingChildren => _isLoadingChildren;
         
         /// <summary>
-        /// Gets whether this item's children have been loaded
+        /// Gets a value indicating whether children have been loaded
         /// </summary>
         public bool ChildrenLoaded => _childrenLoaded;
         
         /// <summary>
-        /// Gets the key for the icon to use for this item
+        /// Gets the icon key for this item
         /// </summary>
         public string IconKey => _iconKey;
-
+        
         /// <summary>
-        /// Loads child items for this display item
+        /// Loads children for this item (virtual method to be overridden by derived classes)
         /// </summary>
-        public virtual Task LoadChildrenAsync(CancellationToken cancellationToken = default)
+        public virtual async Task LoadChildrenAsync(CancellationToken cancellationToken = default)
         {
-            // Base implementation is empty - derived classes will override as needed
-            return Task.CompletedTask;
+            await Task.CompletedTask;
         }
         
         /// <summary>
-        /// Internal method for loading children that can be overridden by derived classes
+        /// Sets the loading state for children
         /// </summary>
-        protected virtual Task LoadChildrenInternalAsync(CancellationToken cancellationToken = default)
-        {
-            return Task.CompletedTask;
-        }
-        
-        // Helper method to update loading state
         protected void SetLoadingState(bool isLoading)
         {
-            _isLoadingChildren = isLoading;
-            OnPropertyChanged(nameof(IsLoadingChildren));
+            SetProperty(ref _isLoadingChildren, isLoading, nameof(IsLoadingChildren));
         }
         
-        // Helper method to update loaded state
+        /// <summary>
+        /// Sets the loaded state for children
+        /// </summary>
         protected void SetLoadedState(bool isLoaded)
         {
-            _childrenLoaded = isLoaded;
-            OnPropertyChanged(nameof(ChildrenLoaded));
+            SetProperty(ref _childrenLoaded, isLoaded, nameof(ChildrenLoaded));
         }
     }
 }
