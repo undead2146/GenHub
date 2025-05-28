@@ -106,5 +106,12 @@ namespace GenHub.Core.Interfaces.GitHub
         /// <param name="cancellationToken">Optional cancellation token</param>
         /// <returns>Rate limit information or null if not available</returns>
         Task<RateLimitInfo?> GetRateLimitAsync(CancellationToken cancellationToken = default);
+        
+        /// <summary>
+        /// Tests the current authentication token
+        /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
+        /// <returns>True if authentication is valid, false otherwise</returns>
+        Task<bool> TestAuthenticationAsync(CancellationToken cancellationToken = default);
     }
 }

@@ -9,15 +9,6 @@ namespace GenHub.Core.Interfaces.GitHub
     /// </summary>
     public interface ITokenStorageService
     {
-        /// <summary>
-        /// Event that fires when a token is missing
-        /// </summary>
-        event EventHandler? TokenMissing;
-        
-        /// <summary>
-        /// Event that fires when a token is invalid
-        /// </summary>
-        event EventHandler? TokenInvalid;
         
         /// <summary>
         /// Gets the current GitHub token

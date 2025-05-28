@@ -32,11 +32,11 @@ namespace GenHub.Features.GitHub.Services
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public string GetCurrentToken()
+        public async Task<string> GetCurrentToken()
         {
             try
             {
-                var token = _tokenStorage.GetTokenAsync().GetAwaiter().GetResult();
+                var token = await _tokenStorage.GetTokenAsync();
                 return token ?? string.Empty;
             }
             catch (Exception ex)
@@ -59,7 +59,7 @@ namespace GenHub.Features.GitHub.Services
                 // Test the token before saving
                 var oldToken = await _tokenStorage.GetTokenAsync();
                 await _tokenStorage.SaveTokenAsync(token);
-                
+
                 // Update the API client with the new token
                 await _apiClient.SetAuthTokenAsync(token);
 
@@ -77,6 +77,7 @@ namespace GenHub.Features.GitHub.Services
                         await _tokenStorage.ClearTokenAsync();
                         await _apiClient.SetAuthTokenAsync(string.Empty);
                     }
+                    OnTokenInvalid();
                     return false;
                 }
 
@@ -86,6 +87,7 @@ namespace GenHub.Features.GitHub.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error saving and validating token");
+                OnTokenInvalid();
                 return false;
             }
         }
@@ -98,7 +100,7 @@ namespace GenHub.Features.GitHub.Services
                 if (string.IsNullOrEmpty(token))
                 {
                     _logger.LogWarning("No token available to test");
-                    TokenMissing?.Invoke(this, EventArgs.Empty);
+                    OnTokenMissing();
                     return false;
                 }
 
@@ -107,7 +109,7 @@ namespace GenHub.Features.GitHub.Services
                 if (!testResult)
                 {
                     _logger.LogWarning("Token authentication test failed");
-                    TokenInvalid?.Invoke(this, EventArgs.Empty);
+                    OnTokenInvalid();
                 }
 
                 return testResult;
@@ -115,7 +117,7 @@ namespace GenHub.Features.GitHub.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error testing token");
-                TokenInvalid?.Invoke(this, EventArgs.Empty);
+                OnTokenInvalid();
                 return false;
             }
         }
@@ -128,7 +130,7 @@ namespace GenHub.Features.GitHub.Services
 
                 // Create the dialog using the constructor that takes dependencies
                 var dialog = new GitHubTokenDialogWindow(_apiClient, _logger);
-                
+
                 // Set current token if available
                 var currentToken = await _tokenStorage.GetTokenAsync();
                 if (!string.IsNullOrEmpty(currentToken))
@@ -143,7 +145,7 @@ namespace GenHub.Features.GitHub.Services
                 if (result?.Success == true && !string.IsNullOrWhiteSpace(result.Token))
                 {
                     _logger.LogInformation("User provided token, attempting to save and validate");
-                    
+
                     var saveSuccess = await SetAndSaveTokenAsync(result.Token);
                     if (saveSuccess)
                     {
@@ -165,6 +167,24 @@ namespace GenHub.Features.GitHub.Services
                 _logger.LogError(ex, "Error during token configuration");
                 return (false, null);
             }
+        }
+        
+        /// <summary>
+        /// Raises the TokenMissing event
+        /// </summary>
+        protected virtual void OnTokenMissing()
+        {
+            _logger.LogDebug("Firing TokenMissing event");
+            TokenMissing?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Raises the TokenInvalid event
+        /// </summary>
+        protected virtual void OnTokenInvalid()
+        {
+            _logger.LogDebug("Firing TokenInvalid event");
+            TokenInvalid?.Invoke(this, EventArgs.Empty);
         }
     }
 }

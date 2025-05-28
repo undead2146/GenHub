@@ -9,19 +9,18 @@ namespace GenHub.Core.Interfaces.GitHub
     public interface IGitHubTokenService
     {
         /// <summary>
-        /// Event raised when a token is missing
+        /// Event that fires when a token is missing and user intervention is needed
         /// </summary>
         event EventHandler? TokenMissing;
 
         /// <summary>
-        /// Event raised when a token is invalid
+        /// Event that fires when a token is invalid and user intervention is needed
         /// </summary>
         event EventHandler? TokenInvalid;
-
         /// <summary>
         /// Gets the current authentication token
         /// </summary>
-        string GetCurrentToken();
+        Task<string> GetCurrentToken();
 
         /// <summary>
         /// Sets and saves a new authentication token
@@ -37,5 +36,6 @@ namespace GenHub.Core.Interfaces.GitHub
         /// Shows a token configuration dialog
         /// </summary>
         Task<(bool Success, string? Token)> ConfigureTokenAsync();
+        
     }
 }

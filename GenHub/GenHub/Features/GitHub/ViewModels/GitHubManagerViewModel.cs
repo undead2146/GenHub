@@ -4,15 +4,11 @@ using Microsoft.Extensions.Logging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Avalonia.Controls;
-using Avalonia;
-using Avalonia.Controls.ApplicationLifetimes;
 
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces;
 using GenHub.Core.Models;
-using GenHub.Features.GitHub.Views;
 
 namespace GenHub.Features.GitHub.ViewModels
 {
@@ -22,7 +18,7 @@ namespace GenHub.Features.GitHub.ViewModels
     public partial class GitHubManagerViewModel : ObservableObject
     {
         private readonly ILogger<GitHubManagerViewModel> _logger;
-        private readonly ITokenStorageService _tokenService;
+        private readonly IGitHubTokenService _tokenService;
         private bool _isInitialized = false;
 
         #region Child ViewModels
@@ -56,7 +52,7 @@ namespace GenHub.Features.GitHub.ViewModels
 
         public GitHubManagerViewModel(
             ILogger<GitHubManagerViewModel> logger,
-            ITokenStorageService tokenService,
+            IGitHubTokenService tokenService,
             IGitHubServiceFacade gitHubService,
             RepositoryControlViewModel repositoryControlViewModel,
             ContentModeFilterViewModel contentModeFilterViewModel,
@@ -107,8 +103,7 @@ namespace GenHub.Features.GitHub.ViewModels
                 // Clear details
                 DetailsVM.SetSelectedItem(null);
                 
-                // Fix: Use ConfigureAwait(false) to avoid deadlocks and keep UI responsive
-                // Fix: No nested Task.Run, just use ConfigureAwait(false) for background processing
+                // Load workflow files for the repository
                 await ContentModeFilterVM.LoadWorkflowFilesForRepositoryAsync(repository)
                     .ConfigureAwait(false);
                 
@@ -119,8 +114,7 @@ namespace GenHub.Features.GitHub.ViewModels
                         ContentModeFilterVM.SelectedWorkflow,
                         ContentModeFilterVM.CurrentDisplayMode);
                     
-                    // Fix: Use proper async continuation with ConfigureAwait(true)
-                    // so we correctly handle exceptions and UI updates
+                    // Load repository content asynchronously
                     LoadRepositoryContentAsync(repository).FireAndForget(_logger);
                 });
             }
@@ -356,7 +350,7 @@ namespace GenHub.Features.GitHub.ViewModels
         }
         
         /// <summary>
-        /// Configures the API token
+        /// Configures the API token using the token service
         /// </summary>
         [RelayCommand]
         public async Task ConfigureTokenAsync()
@@ -364,50 +358,29 @@ namespace GenHub.Features.GitHub.ViewModels
             try
             {
                 StatusMessage = "Configuring token...";
-                
-                // Create and configure the token dialog
-                var tokenDialog = new GitHubTokenDialogWindow
+                _logger.LogInformation("Starting token configuration");
+
+                // Use the token service to handle the configuration
+                var (success, token) = await _tokenService.ConfigureTokenAsync();
+
+                if (success && !string.IsNullOrEmpty(token))
                 {
-                    TokenText = (await _tokenService.GetTokenAsync()) ?? string.Empty
-                };
-
-                // Find the current active window to use as the owner
-                // Fix: Use the correct namespace for application lifetime
-                Window? mainWindow = null;
-                if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-                {
-                    mainWindow = desktop.MainWindow;
-                }
-
-                // Show the dialog as a modal with the correct owner
-                var dialogResult = await tokenDialog.ShowDialog<bool?>(mainWindow);
-
-                if (dialogResult == true) // User clicked Save
-                {
-                    string token = tokenDialog.TokenText.Trim();
-
-                    // Check if token is empty
-                    if (string.IsNullOrEmpty(token))
-                    {
-                        StatusMessage = "Token cleared";
-                        await _tokenService.ClearTokenAsync();
-                        return;
-                    }
-
-                    // Validate and save token
-                    StatusMessage = "Validating token...";
-                    await _tokenService.SaveTokenAsync(token);
-                    
                     StatusMessage = "Token configured successfully";
+                    _logger.LogInformation("Token configuration completed successfully");
                     
                     // Refresh content with the new token
                     await RefreshAsync();
+                }
+                else
+                {
+                    StatusMessage = "Token configuration cancelled or failed";
+                    _logger.LogWarning("Token configuration was cancelled or failed");
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error configuring token");
-                StatusMessage = $"Error: {ex.Message}";
+                StatusMessage = $"Error configuring token: {ex.Message}";
             }
         }
 
@@ -446,9 +419,14 @@ namespace GenHub.Features.GitHub.ViewModels
         }
     }
 
-    // Add helper extension method for proper fire-and-forget pattern
+    /// <summary>
+    /// Extension methods for fire-and-forget task execution
+    /// </summary>
     public static class TaskExtensions
     {
+        /// <summary>
+        /// Executes a task in fire-and-forget manner with proper error handling
+        /// </summary>
         public static async void FireAndForget(this Task task, ILogger logger)
         {
             try

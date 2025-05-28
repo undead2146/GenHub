@@ -37,6 +37,10 @@ namespace GenHub.Infrastructure.DependencyInjection
             services.AddSingleton<ITokenStorageService, TokenStorageService>();
             logger.LogDebug("TokenStorageService registered");
 
+            // Register GitHub Token Service early
+            services.AddSingleton<IGitHubTokenService, GitHubTokenService>();
+            logger.LogDebug("GitHubTokenService registered");
+
             // Register HttpClient for GitHub API
             services.AddHttpClient("GitHubApi", (sp, client) =>
             {
@@ -105,22 +109,12 @@ namespace GenHub.Infrastructure.DependencyInjection
             services.AddSingleton<GitHubDetailsViewModel>();
             services.AddSingleton<InstallationViewModel>();
             
-            // Register the main GitHub Manager ViewModel (orchestrator) - ensure service facade is provided
-            services.AddSingleton<GitHubManagerViewModel>(sp => {
-                return new GitHubManagerViewModel(
-                    sp.GetRequiredService<ILogger<GitHubManagerViewModel>>(),
-                    sp.GetRequiredService<ITokenStorageService>(),
-                    sp.GetRequiredService<IGitHubServiceFacade>(), 
-                    sp.GetRequiredService<RepositoryControlViewModel>(),
-                    sp.GetRequiredService<ContentModeFilterViewModel>(),
-                    sp.GetRequiredService<GitHubItemsTreeViewModel>(),
-                    sp.GetRequiredService<GitHubDetailsViewModel>(),
-                    sp.GetRequiredService<InstallationViewModel>()
-                );
-            });
+            // Register the main GitHub Manager ViewModel (orchestrator)
+            services.AddSingleton<GitHubManagerViewModel>();
             
             // Register supporting ViewModels
             services.AddTransient<WorkflowDefinitionViewModel>();
+            services.AddTransient<GitHubTokenDialogViewModel>();
             
             logger.LogDebug("GitHub ViewModels registered");
         }
