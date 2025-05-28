@@ -729,7 +729,16 @@ namespace GenHub.Features.GitHub.Services
                         {
                             var workflow = new GitHubWorkflow
                             {
-                                RepositoryInfo = repoConfig
+                                // Create a new repository instance for each workflow
+                                RepositoryInfo = new GitHubRepoSettings
+                                {
+                                    RepoOwner = repoConfig.RepoOwner,
+                                    RepoName = repoConfig.RepoName,
+                                    DisplayName = repoConfig.DisplayName,
+                                    Token = repoConfig.Token,
+                                    WorkflowFile = repoConfig.WorkflowFile,
+                                    Branch = repoConfig.Branch
+                                }
                             };
 
                             // Parse basic workflow properties
@@ -865,7 +874,7 @@ namespace GenHub.Features.GitHub.Services
         {
             try
             {
-                _logger.LogInformation("Getting workflow run {RunId} for repo {Owner}/{Repo}", 
+                _logger.LogDebug("GetWorkflowRunAsync called for runId {RunId} in repo {Owner}/{Repo}", 
                     runId, repoSettings.RepoOwner, repoSettings.RepoName);
 
                 // Use caching for workflow run
@@ -877,11 +886,25 @@ namespace GenHub.Features.GitHub.Services
                     cachePath,
                     async () =>
                     {
+                        _logger.LogDebug("Cache miss, fetching from API");
+                        
                         // Use actions/runs/{runId} which will be expanded correctly
-                        return await _apiClient.GetWorkflowRunAsync(
+                        var result = await _apiClient.GetWorkflowRunAsync(
                             repoSettings,
                             runId,
                             cancellationToken);
+                            
+                        if (result != null)
+                        {
+                            _logger.LogDebug("API returned workflow: RunId={RunId}, WorkflowId={WorkflowId}, Name='{Name}'", 
+                                result.RunId, result.WorkflowId, result.Name);
+                        }
+                        else
+                        {
+                            _logger.LogDebug("API returned null workflow");
+                        }
+                        
+                        return result;
                     },
                     TimeSpan.FromMinutes(10)
                 );
@@ -889,7 +912,17 @@ namespace GenHub.Features.GitHub.Services
                 // Ensure repository info is set
                 if (workflow != null && workflow.RepositoryInfo == null)
                 {
-                    workflow.RepositoryInfo = repoSettings;
+                    workflow.RepositoryInfo = new GitHubRepoSettings
+                    {
+                        RepoOwner = repoSettings.RepoOwner,
+                        RepoName = repoSettings.RepoName,
+                        DisplayName = repoSettings.DisplayName,
+                        Token = repoSettings.Token,
+                        WorkflowFile = repoSettings.WorkflowFile,
+                        Branch = repoSettings.Branch
+                    };
+                    
+                    _logger.LogDebug("Set repository info on workflow");
                 }
 
                 return workflow;
