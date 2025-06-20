@@ -197,8 +197,8 @@ namespace GenHub.Features.GameVersions.Services
                 var prepResult = await PrepareGameLaunchAsync(profile);
                 if (!prepResult.Success)
                 {
-                    _logger.LogWarning("Failed to prepare game for launch: {Error}", prepResult.ErrorMessage);
-                    return OperationResult.Failed(prepResult.ErrorMessage ?? "Failed to prepare game for launch");
+                    _logger.LogWarning("Failed to prepare game for launch: {Error}", prepResult.Message);
+                    return OperationResult.Failed(prepResult.Message ?? "Failed to prepare game for launch");
                 }
                 
                 // Launch with the optimized paths

@@ -160,7 +160,7 @@ namespace GenHub.Features.GitHub.Services
         /// Gets workflow runs for a specific workflow file
         /// </summary>
         public async Task<IEnumerable<GitHubWorkflow>> GetWorkflowRunsForWorkflowFileAsync(
-            GitHubRepoSettings repo,
+            GitHubRepository repo,
             string workflowPath,
             int page = 1,
             int perPage = 30,
@@ -214,7 +214,7 @@ namespace GenHub.Features.GitHub.Services
 
         /// <inheritdoc />
         public async Task<IEnumerable<GitHubWorkflow>> GetWorkflowRunsForRepositoryAsync(
-            GitHubRepoSettings repo,
+            GitHubRepository repo,
             int page = 1,
             int perPage = 30,
             CancellationToken cancellationToken = default)
@@ -324,7 +324,7 @@ namespace GenHub.Features.GitHub.Services
         /// Fetches workflow runs from the GitHub API
         /// </summary>
         private async Task<List<GitHubWorkflow>> FetchWorkflowRunsAsync(
-            GitHubRepoSettings repo, 
+            GitHubRepository repo, 
             int page, 
             int perPage,
             CancellationToken cancellationToken)
@@ -656,7 +656,7 @@ namespace GenHub.Features.GitHub.Services
         /// Gets the workflow ID for a workflow file
         /// </summary>
         private async Task<string> GetWorkflowIdAsync(
-            GitHubRepoSettings repoConfig,
+            GitHubRepository repoConfig,
             string workflowFile,
             CancellationToken cancellationToken)
         {
@@ -705,7 +705,7 @@ namespace GenHub.Features.GitHub.Services
         /// <summary>
         /// Parses workflow runs from JSON response
         /// </summary>
-        private IEnumerable<GitHubWorkflow> ParseWorkflowRuns(string json, GitHubRepoSettings repoConfig)
+        private IEnumerable<GitHubWorkflow> ParseWorkflowRuns(string json, GitHubRepository repoConfig)
         {
             var result = new List<GitHubWorkflow>();
 
@@ -730,7 +730,7 @@ namespace GenHub.Features.GitHub.Services
                             var workflow = new GitHubWorkflow
                             {
                                 // Create a new repository instance for each workflow
-                                RepositoryInfo = new GitHubRepoSettings
+                                RepositoryInfo = new GitHubRepository
                                 {
                                     RepoOwner = repoConfig.RepoOwner,
                                     RepoName = repoConfig.RepoName,
@@ -868,7 +868,7 @@ namespace GenHub.Features.GitHub.Services
 
         /// <inheritdoc />
         public async Task<GitHubWorkflow?> GetWorkflowRunAsync(
-            GitHubRepoSettings repoSettings, 
+            GitHubRepository repoSettings, 
             long runId,
             CancellationToken cancellationToken = default)
         {
@@ -912,7 +912,7 @@ namespace GenHub.Features.GitHub.Services
                 // Ensure repository info is set
                 if (workflow != null && workflow.RepositoryInfo == null)
                 {
-                    workflow.RepositoryInfo = new GitHubRepoSettings
+                    workflow.RepositoryInfo = new GitHubRepository
                     {
                         RepoOwner = repoSettings.RepoOwner,
                         RepoName = repoSettings.RepoName,

@@ -30,7 +30,7 @@ namespace GenHub.Infrastructure.DependencyInjection
             logger.LogInformation("Configuring GitHub services and ViewModels");
 
             // Register GitHub configuration
-            services.Configure<GitHubRepoSettings>(config.GetSection("GitHub"));
+            services.Configure<GitHubRepository>(config.GetSection("GitHub"));
             logger.LogDebug("GitHub configuration registered from config section");
 
             // Register TokenStorageService first since other services might need it
@@ -70,6 +70,9 @@ namespace GenHub.Infrastructure.DependencyInjection
             
             // Register remaining GitHub services
             services.AddSingleton<IGitHubRepositoryManager, GitHubRepositoryManager>();
+            // Register repository discovery service
+            services.AddSingleton<IGitHubRepositoryDiscoveryService, GitHubRepositoryDiscoveryService>();
+
             services.AddSingleton<IGitHubReleaseReader, GitHubReleaseReader>();
             services.AddSingleton<IGitHubWorkflowReader, GitHubWorkflowReader>();
             services.AddSingleton<IGitHubArtifactReader, GitHubArtifactReader>();

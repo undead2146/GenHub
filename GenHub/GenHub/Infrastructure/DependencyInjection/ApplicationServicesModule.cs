@@ -53,10 +53,17 @@ namespace GenHub.Infrastructure.DependencyInjection
                 
                 services.AddProfileModule(logger);
                 logger.LogDebug("Profile module added");
-                
-                // Add app update services (must come after GitHub services)
+                  // Add app update services (must come after GitHub services)
                 services.AddAppUpdateModule(config, logger);
                 logger.LogDebug("App update module added");
+
+                // Add advanced launcher services
+                services.AddAdvancedLauncherModule(logger);
+                logger.LogDebug("Advanced launcher module added");
+
+                // Add desktop shortcut services (depends on advanced launcher)
+                services.AddDesktopShortcutModule(logger);
+                logger.LogDebug("Desktop shortcut module added");
                 
                 // Add shared ViewModels last since they depend on services
                 services.AddSharedViewModelModule(logger);

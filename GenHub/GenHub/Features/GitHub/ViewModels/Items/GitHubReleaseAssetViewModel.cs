@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -44,9 +45,11 @@ namespace GenHub.Features.GitHub.ViewModels
             _parentRelease = parentRelease ?? throw new ArgumentNullException(nameof(parentRelease));
             _gitHubService = gitHubService ?? throw new ArgumentNullException(nameof(gitHubService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            
-            // Set icon based on asset type
-            UpdateIconKey();
+
+            _iconKey = "AssetIcon";
+
+            _logger.LogDebug("Created GitHubReleaseAssetViewModel for asset {AssetName} (ID: {AssetId})",
+                asset.Name, asset.Id);
         }
         
         /// <summary>
@@ -94,60 +97,61 @@ namespace GenHub.Features.GitHub.ViewModels
         /// <summary>
         /// Gets a value indicating whether this asset can be downloaded
         /// </summary>
-        public bool CanDownload => !IsDownloading && !string.IsNullOrEmpty(_asset.BrowserDownloadUrl);
-        
+        public override bool CanDownload => !IsDownloading && !string.IsNullOrEmpty(_asset.BrowserDownloadUrl);
+
         /// <summary>
-        /// Downloads the asset
+        /// Downloads the release asset using proper GitHubServiceFacade
         /// </summary>
-        [RelayCommand(CanExecute = nameof(CanDownload))]
-        private async Task DownloadAsync()
+        [RelayCommand]
+        private async Task DownloadAssetAsync()
         {
-            if (IsDownloading) return;
-            
+            if (!CanDownload)
+                return;
+
             IsDownloading = true;
-            DownloadProgress = 0;
-            
+            _downloadCts = new CancellationTokenSource();
+
             try
             {
-                _logger.LogInformation("Starting download for asset: {AssetName} ({AssetId})", Name, Id);
-                
-                _downloadCts = new CancellationTokenSource();
-                
-                // Create destination folder
-                string downloadsPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 
-                    "Downloads");
-                
-                string destinationPath = Path.Combine(downloadsPath, Name);
-                
-                // Check if file already exists and add a number if needed
-                string baseName = Path.GetFileNameWithoutExtension(Name);
-                string extension = Path.GetExtension(Name);
-                int counter = 1;
-                
-                while (File.Exists(destinationPath))
+                _logger.LogInformation("Starting download of asset: {AssetName}", _asset.Name);
+
+                var downloadFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "GenHub", "Downloads");
+                Directory.CreateDirectory(downloadFolder);
+
+                // Create progress tracker
+                var progress = new Progress<double>(value => 
                 {
-                    destinationPath = Path.Combine(
-                        downloadsPath, 
-                        $"{baseName}_{counter}{extension}");
-                    counter++;
-                }
-                
-                // Download progress reporter
-                var progress = new Progress<double>(value => DownloadProgress = value * 100);
-                
-                // Download the file
+                    DownloadProgress = value * 100;
+                    _logger.LogDebug("Download progress for {AssetName}: {Progress}%", _asset.Name, DownloadProgress);
+                });
+
+                // Use proper GitHubServiceFacade method
                 var (stream, contentLength) = await _gitHubService.DownloadReleaseAssetAsync(
-                    BrowserDownloadUrl, 
+                    _asset.BrowserDownloadUrl, 
                     _downloadCts.Token);
-                
+
                 if (stream == Stream.Null)
                 {
                     throw new InvalidOperationException("Failed to get download stream");
                 }
+
+                // Determine file path
+                var fileName = Path.GetFileName(_asset.Name);
+                var filePath = Path.Combine(downloadFolder, fileName);
                 
+                // Check if file already exists and add number if needed
+                var baseName = Path.GetFileNameWithoutExtension(fileName);
+                var extension = Path.GetExtension(fileName);
+                int counter = 1;
+                
+                while (File.Exists(filePath))
+                {
+                    filePath = Path.Combine(downloadFolder, $"{baseName}_{counter}{extension}");
+                    counter++;
+                }
+
                 // Save the stream to file with progress tracking
-                using (var fileStream = File.Create(destinationPath))
+                using (var fileStream = File.Create(filePath))
                 {
                     long bytesRead = 0;
                     byte[] buffer = new byte[81920]; // 80 KB buffer
@@ -166,20 +170,20 @@ namespace GenHub.Features.GitHub.ViewModels
                         }
                     }
                 }
-                
+
                 DownloadProgress = 100;
-                _logger.LogInformation("Download completed: {FilePath}", destinationPath);
-                
-                // Open containing folder
-                OpenContainingFolder(destinationPath);
+                _logger.LogInformation("Successfully downloaded asset to: {FilePath}", filePath);
+                OpenContainingFolder(filePath);
             }
             catch (OperationCanceledException)
             {
-                _logger.LogInformation("Download cancelled for asset: {AssetName}", Name);
+                _logger.LogInformation("Download cancelled for asset: {AssetName}", _asset.Name);
+                DownloadProgress = 0;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error downloading asset: {AssetName} ({AssetId})", Name, Id);
+                _logger.LogError(ex, "Error downloading asset: {AssetName}", _asset.Name);
+                DownloadProgress = 0;
             }
             finally
             {
@@ -188,83 +192,30 @@ namespace GenHub.Features.GitHub.ViewModels
                 _downloadCts = null;
             }
         }
-        
+
         /// <summary>
-        /// Cancels the download
+        /// Gets the download command
         /// </summary>
-        [RelayCommand]
-        private void CancelDownload()
-        {
-            if (!IsDownloading || _downloadCts == null) return;
-            
-            _downloadCts.Cancel();
-            _logger.LogInformation("Download cancelled for asset: {AssetName}", Name);
-        }
-        
-        /// <summary>
-        /// Updates the icon key based on file type
-        /// </summary>
-        private void UpdateIconKey()
-        {
-            string extension = Path.GetExtension(Name).ToLowerInvariant();
-            
-            switch (extension)
-            {
-                case ".zip":
-                case ".7z":
-                case ".rar":
-                case ".tar":
-                case ".gz":
-                    _iconKey = "ArchiveIcon";
-                    break;
-                case ".exe":
-                case ".msi":
-                case ".dmg":
-                    _iconKey = "ExecutableIcon";
-                    break;
-                case ".iso":
-                    _iconKey = "DiskIcon";
-                    break;
-                case ".txt":
-                case ".md":
-                case ".log":
-                    _iconKey = "DocumentIcon";
-                    break;
-                default:
-                    _iconKey = "FileIcon";
-                    break;
-            }
-        }
-        
+        public override ICommand? DownloadCommand => DownloadAssetCommand;
+
         /// <summary>
         /// Loads children for this item - assets have no children
         /// </summary>
         public override Task LoadChildrenAsync(CancellationToken cancellationToken = default)
         {
-            // Assets don't have children, so this is a no-op
             return Task.CompletedTask;
         }
         
         /// <summary>
-        /// Formats a file size in bytes to human-readable format
+        /// Cancels the download
         /// </summary>
-        private string FormatFileSize(long bytes)
+        public void CancelDownload()
         {
-            string[] suffixes = { "B", "KB", "MB", "GB", "TB" };
-            int counter = 0;
-            decimal size = bytes;
-            
-            while (size >= 1024 && counter < suffixes.Length - 1)
-            {
-                size /= 1024;
-                counter++;
-            }
-            
-            return $"{size:0.##} {suffixes[counter]}";
+            _downloadCts?.Cancel();
         }
-        
+
         /// <summary>
-        /// Opens the folder containing the downloaded file
+        /// Opens the containing folder of the downloaded file
         /// </summary>
         private void OpenContainingFolder(string filePath)
         {
@@ -280,6 +231,11 @@ namespace GenHub.Features.GitHub.ViewModels
                     string directory = Path.GetDirectoryName(filePath) ?? "/";
                     System.Diagnostics.Process.Start("xdg-open", directory);
                 }
+                else if (OperatingSystem.IsMacOS())
+                {
+                    string directory = Path.GetDirectoryName(filePath) ?? "/";
+                    System.Diagnostics.Process.Start("open", directory);
+                }
                 else
                 {
                     _logger.LogWarning("Opening folder not supported on this platform");
@@ -287,8 +243,23 @@ namespace GenHub.Features.GitHub.ViewModels
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error opening containing folder for file: {FilePath}", filePath);
+                _logger.LogWarning(ex, "Could not open containing folder for {FilePath}", filePath);
             }
+        }
+
+        /// <summary>
+        /// Formats a file size in bytes to human-readable format
+        /// </summary>
+        private static string FormatFileSize(long bytes)
+        {
+            if (bytes < 1024)
+                return $"{bytes} B";
+            if (bytes < 1024 * 1024)
+                return $"{bytes / 1024.0:F1} KB";
+            if (bytes < 1024 * 1024 * 1024)
+                return $"{bytes / (1024.0 * 1024.0):F1} MB";
+            
+            return $"{bytes / (1024.0 * 1024.0 * 1024.0):F1} GB";
         }
     }
 }

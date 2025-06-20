@@ -6,44 +6,41 @@ using Avalonia.Data.Converters;
 namespace GenHub.Infrastructure.Converters
 {
     /// <summary>
-    /// Converter that takes a boolean value and converts it to a string based on the parameter
-    /// Parameter should be in the format "TrueString|FalseString"
+    /// Converts boolean values to custom string values
     /// </summary>
     public class BoolToStringConverter : IValueConverter
     {
         /// <summary>
-        /// Singleton instance of the converter for static XAML reference
+        /// String to return when value is true
         /// </summary>
-        public static readonly BoolToStringConverter Instance = new BoolToStringConverter();
+        public string TrueValue { get; set; } = "True";
 
-        public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        /// <summary>
+        /// String to return when value is false
+        /// </summary>
+        public string FalseValue { get; set; } = "False";
+
+        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
-            if (value is bool boolValue && parameter is string stringParam)
+            if (value is bool boolValue)
             {
-                var parts = stringParam.Split('|');
-                if (parts.Length == 2)
-                {
-                    return boolValue ? parts[0] : parts[1];
-                }
-                return boolValue ? "True" : "False";
+                return boolValue ? TrueValue : FalseValue;
             }
-            
-            return BindingOperations.DoNothing;
+
+            return FalseValue;
         }
 
-        public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
-            if (value is string stringValue && parameter is string stringParam)
+            if (value is string stringValue)
             {
-                var parts = stringParam.Split('|');
-                if (parts.Length == 2)
-                {
-                    if (stringValue == parts[0]) return true;
-                    if (stringValue == parts[1]) return false;
-                }
+                if (stringValue == TrueValue)
+                    return true;
+                if (stringValue == FalseValue)
+                    return false;
             }
-            
-            return BindingOperations.DoNothing;
+
+            return false;
         }
     }
 }

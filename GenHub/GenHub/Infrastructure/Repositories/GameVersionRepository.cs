@@ -72,7 +72,7 @@ namespace GenHub.Infrastructure.Repositories
                 var result = await LoadAllAsync(cancellationToken);
                 if (!result.Success)
                 {
-                    _logger.LogWarning("Failed to load versions: {ErrorMessage}", result.ErrorMessage);
+                    _logger.LogWarning("Failed to load versions: {ErrorMessage}", result.Message);
                     return new List<GameVersion>();
                 }
                 

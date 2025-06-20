@@ -16,14 +16,14 @@ namespace GenHub.Core.Interfaces.GitHub
         /// Gets workflow files from workflows
         /// </summary>
         Task<IEnumerable<GitHubWorkflow>> GetWorkflowFilesAsync(
-            GitHubRepoSettings repository,
+            GitHubRepository repository,
             CancellationToken cancellationToken = default);
             
         /// <summary>
         /// Gets workflows from a repository
         /// </summary>
         Task<IEnumerable<GitHubWorkflow>> GetWorkflowsAsync(
-            GitHubRepoSettings repository,
+            GitHubRepository repository,
             string? workflowPath = null,
             int page = 1,
             int perPage = 30,
@@ -33,7 +33,7 @@ namespace GenHub.Core.Interfaces.GitHub
         /// Gets releases for display
         /// </summary>
         Task<IEnumerable<GitHubRelease>> GetReleasesForDisplayAsync(
-            GitHubRepoSettings repository,
+            GitHubRepository repository,
             int page = 1,
             int perPage = 30,
             bool includePrereleases = true,

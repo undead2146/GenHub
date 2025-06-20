@@ -15,7 +15,7 @@ namespace GenHub.Core.Models.Results
         /// <summary>
         /// Error message if the operation failed
         /// </summary>
-        public string? ErrorMessage { get; set; }
+        public string? Message { get; set; }
         
         /// <summary>
         /// Any exception that occurred during the operation
@@ -37,10 +37,10 @@ namespace GenHub.Core.Models.Results
         /// <summary>
         /// Constructor for derived classes
         /// </summary>
-        protected OperationResult(bool success, string? errorMessage = null, Exception? exception = null)
+        protected OperationResult(bool success, string? message = null, Exception? exception = null)
         {
             Success = success;
-            ErrorMessage = errorMessage;
+            Message = message;
             Exception = exception;
             CompletedAt = DateTime.Now;
         }
@@ -52,16 +52,25 @@ namespace GenHub.Core.Models.Results
         {
             return new OperationResult { Success = true };
         }
-        
+                /// <summary>
+        /// Creates a successful result
+        /// </summary>
+        public static OperationResult Succeeded(string message)
+        {
+            return new OperationResult
+            {
+                Success = true,
+                Message = message};
+        }
         /// <summary>
         /// Creates a failed result
         /// </summary>
-        public static OperationResult Failed(string errorMessage, Exception? exception = null)
+        public static OperationResult Failed(string message, Exception? exception = null)
         {
             return new OperationResult 
             { 
                 Success = false, 
-                ErrorMessage = errorMessage,
+                Message = message,
                 Exception = exception
             };
         }
@@ -87,8 +96,8 @@ namespace GenHub.Core.Models.Results
         /// <summary>
         /// Constructor for derived classes
         /// </summary>
-        protected OperationResult(bool success, string? errorMessage = null, Exception? exception = null)
-            : base(success, errorMessage, exception)
+        protected OperationResult(bool success, string? message = null, Exception? exception = null)
+            : base(success, message, exception)
         {
         }
         
@@ -103,12 +112,12 @@ namespace GenHub.Core.Models.Results
         /// <summary>
         /// Creates a failed result
         /// </summary>
-        public static new OperationResult<T> Failed(string errorMessage, Exception? exception = null)
+        public static new OperationResult<T> Failed(string message, Exception? exception = null)
         {
             return new OperationResult<T> 
             { 
                 Success = false, 
-                ErrorMessage = errorMessage,
+                Message = message,
                 Exception = exception,
                 Data = default
             };

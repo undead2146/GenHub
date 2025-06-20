@@ -6,9 +6,9 @@ permissions:
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, development ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, development ]
   workflow_dispatch:
 
 concurrency:
@@ -22,6 +22,7 @@ env:
   UI_PROJECT: 'GenHub/GenHub/GenHub.csproj'
   WINDOWS_PROJECT: 'GenHub/GenHub.Windows/GenHub.Windows.csproj'
   LINUX_PROJECT: 'GenHub/GenHub.Linux/GenHub.Linux.csproj'
+  TEST_PROJECT: 'Tests/GenHub.Tests.Core/GenHub.Tests.Core.csproj'
 
 jobs:
   detect-changes:
@@ -33,6 +34,7 @@ jobs:
       ui: ${{ steps.filter.outputs.ui }}
       windows: ${{ steps.filter.outputs.windows }}
       linux: ${{ steps.filter.outputs.linux }}
+      tests: ${{ steps.filter.outputs.tests }}
       any: ${{ steps.filter.outputs.any }}
     steps:
       - name: Checkout Code
@@ -51,6 +53,8 @@ jobs:
               - 'GenHub/GenHub.Windows/**'
             linux:
               - 'GenHub/GenHub.Linux/**'
+            tests:
+              - 'Tests/**'
             any:
               - '**/*.cs'
               - '**/*.axaml'

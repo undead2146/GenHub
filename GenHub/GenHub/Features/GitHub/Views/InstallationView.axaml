@@ -1,0 +1,126 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:GenHub.Features.GitHub.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="600"
+             x:Class="GenHub.Features.GitHub.Views.InstallationView"
+             x:DataType="vm:InstallationViewModel">
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- Header -->
+    <Border Grid.Row="0" 
+            Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+            Padding="15,10">
+      <TextBlock Text="Installation Manager" 
+                 FontSize="16"
+                 FontWeight="SemiBold" />
+    </Border>
+
+    <!-- Main Content -->
+    <ScrollViewer Grid.Row="1" Padding="15">
+      <StackPanel Spacing="15">
+        
+        <!-- Selected Item Info -->
+        <StackPanel Spacing="8" IsVisible="{Binding SelectedItem, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <TextBlock Text="Selected Item" 
+                     FontSize="12"
+                     FontWeight="Medium"
+                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+          <TextBlock Text="{Binding SelectedItem.DisplayName}" 
+                     FontSize="14"
+                     FontWeight="SemiBold" />
+          <TextBlock Text="{Binding SelectedItem.Description}" 
+                     FontSize="12"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+        </StackPanel>
+
+        <!-- No Selection Message -->
+        <StackPanel Spacing="8" 
+                    IsVisible="{Binding SelectedItem, Converter={x:Static ObjectConverters.IsNull}}"
+                    HorizontalAlignment="Center">
+          <TextBlock Text="📦" 
+                     FontSize="32"
+                     HorizontalAlignment="Center"
+                     Opacity="0.5" />
+          <TextBlock Text="No item selected" 
+                     FontSize="14"
+                     HorizontalAlignment="Center"
+                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+          <TextBlock Text="Select an artifact or release from the list to install" 
+                     FontSize="12"
+                     HorizontalAlignment="Center"
+                     TextAlignment="Center"
+                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                     MaxWidth="250"
+                     TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!-- Progress Section -->
+        <StackPanel Spacing="8" IsVisible="{Binding IsInstalling}">
+          <TextBlock Text="Installation Progress" 
+                     FontSize="12"
+                     FontWeight="Medium"
+                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+          
+          <ProgressBar Value="{Binding Progress}" 
+                       Minimum="0" 
+                       Maximum="100"
+                       Height="8"
+                       CornerRadius="4" />
+          
+          <TextBlock Text="{Binding StatusMessage}" 
+                     FontSize="12"
+                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                     TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!-- Status Message (when not installing) -->
+        <StackPanel IsVisible="{Binding IsInstalling, Converter={x:Static BoolConverters.Not}}">
+          <TextBlock Text="{Binding StatusMessage}" 
+                     FontSize="12"
+                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                     TextWrapping="Wrap"
+                     HorizontalAlignment="Center" />
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- Action Buttons -->
+    <Border Grid.Row="2" 
+            Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            BorderThickness="0,1,0,0"
+            Padding="15">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Install Button -->
+        <Button Grid.Column="0"
+                Content="Install Selected Item"
+                Command="{Binding InstallCommand}"
+                IsEnabled="{Binding CanInstall}"
+                HorizontalAlignment="Stretch"
+                Margin="0,0,10,0"
+                Padding="12,8" />
+
+        <!-- Cancel Button -->
+        <Button Grid.Column="1"
+                Content="Cancel"
+                Command="{Binding CancelInstallationCommand}"
+                IsVisible="{Binding IsInstalling}"
+                Padding="12,8" />
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

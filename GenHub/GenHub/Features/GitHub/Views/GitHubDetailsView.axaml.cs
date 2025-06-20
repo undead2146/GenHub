@@ -4,6 +4,7 @@ using Avalonia.Markup.Xaml;
 using System;
 using Microsoft.Extensions.Logging;
 using GenHub.Features.GitHub.ViewModels;
+using Avalonia.Interactivity;
 
 namespace GenHub.Features.GitHub.Views
 {
@@ -15,15 +16,14 @@ namespace GenHub.Features.GitHub.Views
         {
             try
             {
-                // Attempt to get logger from service provider if available
-                _logger = AppLocator.GetService<ILogger<GitHubDetailsView>>();
-                
                 InitializeComponent();
-                DataContextChanged += OnDataContextChanged;
+                _logger = AppLocator.GetServiceOrDefault<ILogger<GitHubDetailsView>>();
+                _logger?.LogDebug("GitHubDetailsView initialized");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error initializing GitHubDetailsView: {ex.Message}");
+                throw;
             }
         }
 
@@ -32,12 +32,20 @@ namespace GenHub.Features.GitHub.Views
             AvaloniaXamlLoader.Load(this);
         }
 
-        private void OnDataContextChanged(object? sender, EventArgs e)
+        protected override void OnLoaded(RoutedEventArgs e)
         {
-            if (DataContext is GitHubDetailsViewModel viewModel)
+            base.OnLoaded(e);
+            
+            try
             {
-                _logger?.LogDebug("GitHubDetailsView received ViewModel: {ItemName}", 
-                    viewModel.SelectedGitHubItem?.DisplayName ?? "null");
+                if (DataContext is GitHubDetailsViewModel viewModel)
+                {
+                    _logger?.LogDebug("GitHubDetailsView loaded with ViewModel");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error during GitHubDetailsView loaded event");
             }
         }
     }

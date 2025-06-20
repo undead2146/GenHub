@@ -47,21 +47,21 @@ namespace GenHub.Core.Interfaces.Repositories
         /// <summary>
         /// Gets all configured repositories
         /// </summary>
-        Task<IEnumerable<GitHubRepoSettings>> GetRepositoriesAsync(CancellationToken cancellationToken = default);
+        Task<IEnumerable<GitHubRepository>> GetRepositoriesAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Saves the list of repositories
         /// </summary>
-        Task SaveRepositoriesAsync(IEnumerable<GitHubRepoSettings> repositories, CancellationToken cancellationToken = default);
+        Task SaveRepositoriesAsync(IEnumerable<GitHubRepository> repositories, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Gets the currently selected repository
         /// </summary>
-        Task<GitHubRepoSettings?> GetCurrentRepositoryAsync(CancellationToken cancellationToken = default);
+        Task<GitHubRepository?> GetCurrentRepositoryAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Saves the currently selected repository
         /// </summary>
-        Task SaveCurrentRepositoryAsync(GitHubRepoSettings repository, CancellationToken cancellationToken = default);
+        Task SaveCurrentRepositoryAsync(GitHubRepository repository, CancellationToken cancellationToken = default);
     }
 }

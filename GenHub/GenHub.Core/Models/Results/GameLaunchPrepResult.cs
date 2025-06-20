@@ -25,7 +25,7 @@ namespace GenHub.Core.Models.Results
         /// <summary>
         /// Error message if launch preparation failed
         /// </summary>
-        public string? ErrorMessage { get; set; }
+        public string? Message { get; set; }
         
         /// <summary>
         /// Creates a successful result
@@ -48,7 +48,7 @@ namespace GenHub.Core.Models.Results
             return new GameLaunchPrepResult
             {
                 Success = false,
-                ErrorMessage = errorMessage
+                Message = errorMessage
             };
         }
     }

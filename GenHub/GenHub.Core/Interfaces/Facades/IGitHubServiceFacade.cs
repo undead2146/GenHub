@@ -9,6 +9,7 @@ using GenHub.Core.Models.GitHub;
 using GenHub.Core.Models.GameProfiles;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Interfaces.GitHub;
+using GenHub.Core.Models.Enums;
 
 
 namespace GenHub.Core.Interfaces
@@ -19,6 +20,10 @@ namespace GenHub.Core.Interfaces
     /// </summary>
     public interface IGitHubServiceFacade : IGitHubApiClient, IGitHubWorkflowReader
     {
+        /// <summary>
+        /// Repository discovery service
+        /// </summary>
+        IGitHubRepositoryDiscoveryService RepositoryDiscovery { get; }
         /// <summary>
         /// Run diagnostic check on GitHub API access
         /// </summary>
@@ -57,7 +62,7 @@ namespace GenHub.Core.Interfaces
         /// Get workflow runs from a specific repository
         /// </summary>
         Task<IEnumerable<GitHubWorkflow>> GetWorkflowRunsForRepositoryAsync(
-            GitHubRepoSettings repoConfig,
+            GitHubRepository repoConfig,
             int page = 1,
             int perPage = 10,
             CancellationToken cancellationToken = default);
@@ -66,7 +71,7 @@ namespace GenHub.Core.Interfaces
         /// Get a specific workflow run by run number
         /// </summary>
         Task<GitHubWorkflow?> GetWorkflowRunByNumberAsync(
-            GitHubRepoSettings repoConfig,
+            GitHubRepository repoConfig,
             int runNumber,
             CancellationToken cancellationToken = default);
 
@@ -88,14 +93,14 @@ namespace GenHub.Core.Interfaces
         /// Get artifacts from a specific repository
         /// </summary>
         Task<IEnumerable<GitHubArtifact>> GetArtifactsForRepositoryAsync(
-            GitHubRepoSettings repoConfig,
+            GitHubRepository repoConfig,
             CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Download an artifact from a specific repository
         /// </summary>
         Task<string> DownloadArtifactFromRepositoryAsync(
-            GitHubRepoSettings repoConfig,
+            GitHubRepository repoConfig,
             long artifactId,
             string destinationFolder,
             IProgress<double>? progress = null,
@@ -104,12 +109,12 @@ namespace GenHub.Core.Interfaces
         /// <summary>
         /// Get all configured repositories
         /// </summary>
-        IEnumerable<GitHubRepoSettings> GetRepositories();
+        IEnumerable<GitHubRepository> GetRepositories();
 
         /// <summary>
         /// Get default repository
         /// </summary>
-        GitHubRepoSettings GetDefaultRepository();
+        GitHubRepository GetDefaultRepository();
 
         /// <summary>
         /// Set authentication token for GitHub API
@@ -137,7 +142,7 @@ namespace GenHub.Core.Interfaces
         /// Searches for workflow runs related to a specific pull request number in a specific repository
         /// </summary>
         Task<IEnumerable<GitHubWorkflow>> SearchWorkflowsByPullRequestAsync(
-            GitHubRepoSettings repository,
+            GitHubRepository repository,
             int pullRequestNumber,
             CancellationToken cancellationToken = default);
 
@@ -145,7 +150,7 @@ namespace GenHub.Core.Interfaces
         /// Searches workflow runs by text in commit messages, titles, etc.
         /// </summary>
         Task<IEnumerable<GitHubWorkflow>> SearchWorkflowsByTextAsync(
-            GitHubRepoSettings repository,
+            GitHubRepository repository,
             string searchText,
             CancellationToken cancellationToken = default);
 
@@ -177,7 +182,7 @@ namespace GenHub.Core.Interfaces
         /// Gets workflow runs for a specific workflow file
         /// </summary>
         Task<IEnumerable<GitHubWorkflow>> GetWorkflowRunsForWorkflowFileAsync(
-            GitHubRepoSettings repoConfig,
+            GitHubRepository repoConfig,
             string workflowFile,
             int page = 1,
             int perPage = 10,
@@ -197,14 +202,14 @@ namespace GenHub.Core.Interfaces
         /// Gets the list of detected versions from GitHub artifacts for a specific repository
         /// </summary>
         Task<IEnumerable<GameVersion>> GetDetectedVersionsAsync(
-            GitHubRepoSettings repoConfig,
+            GitHubRepository repoConfig,
             CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Gets releases for a repository
         /// </summary>
         Task<IEnumerable<GitHubRelease>> GetReleasesAsync(
-            GitHubRepoSettings repoSettings,
+            GitHubRepository repoSettings,
             int page = 1,
             int perPage = 30,
             bool includePrereleases = true,
@@ -223,6 +228,22 @@ namespace GenHub.Core.Interfaces
         Task<GameVersion?> InstallArtifactAsync(
             GitHubArtifact artifact,
             IProgress<InstallProgress>? progress = null,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Context-aware search method that supports both "All Items" and specific workflow contexts
+        /// </summary>
+        /// <param name="repository">Repository context for the search</param>
+        /// <param name="searchText">Search query text</param>
+        /// <param name="searchCriteria">Type of search to perform</param>
+        /// <param name="workflowPath">Optional workflow file path (null = all items)</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Collection of matching workflows</returns>
+        Task<IEnumerable<GitHubWorkflow>> SearchWithContextAsync(
+            GitHubRepository repository,
+            string searchText,
+            GitHubSearchCriteria searchCriteria,
+            string? workflowPath = null,
             CancellationToken cancellationToken = default);
     }
 }

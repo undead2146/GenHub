@@ -66,13 +66,13 @@ namespace GenHub.Core.Interfaces.AppUpdate
         /// Gets the repository settings used for update checking.
         /// </summary>
         /// <returns>Repository settings.</returns>
-        Task<GitHubRepoSettings> GetRepositorySettingsAsync();
+        Task<GitHubRepository> GetRepositorySettingsAsync();
         
         /// <summary>
         /// Saves the repository settings used for update checking.
         /// </summary>
         /// <param name="settings">Repository settings to save.</param>
-        Task SaveRepositorySettingsAsync(GitHubRepoSettings settings);
+        Task SaveRepositorySettingsAsync(GitHubRepository settings);
         
         /// <summary>
         /// Updates the application to the specified release.

@@ -89,7 +89,7 @@ namespace GenHub.Features.GitHub.Services
                 _logger.LogInformation("Downloading artifact to: {TempFolder}", tempFolder);
                 
                 // Ensure the method signature on IGitHubArtifactReader matches this call:
-                // Task<string> DownloadArtifactAsync(GitHubRepoSettings repoSettings, long artifactId, string destinationFolder, IProgress<double>? progress, CancellationToken cancellationToken);
+                // Task<string> DownloadArtifactAsync(GitHubRepository repoSettings, long artifactId, string destinationFolder, IProgress<double>? progress, CancellationToken cancellationToken);
                 string downloadedFile = await _artifactReader.DownloadArtifactAsync(
                     artifact.RepositoryInfo, // Must be non-null due to the check above
                     artifact.Id,
@@ -136,7 +136,7 @@ namespace GenHub.Features.GitHub.Services
      public async Task<OperationResult<GameVersion>> InstallReleaseAssetAsync(
     string assetDownloadUrl,
     string assetName,
-    GitHubRepoSettings repoSettings, 
+    GitHubRepository repoSettings, 
     IProgress<InstallProgress> progress, // This is the main progress object for the entire operation
     CancellationToken cancellationToken)
 {
@@ -227,7 +227,7 @@ namespace GenHub.Features.GitHub.Services
         };
 
         // Create copy of repository settings instead of redeclaring the variable
-        var repoSettingsCopy = new GitHubRepoSettings
+        var repoSettingsCopy = new GitHubRepository
         {
             RepoOwner = repoSettings.RepoOwner,
             RepoName = repoSettings.RepoName,

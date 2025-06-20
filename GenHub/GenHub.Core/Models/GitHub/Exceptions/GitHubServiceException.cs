@@ -10,15 +10,29 @@ namespace GenHub.Core.Models.GitHub
     public class GitHubServiceException : Exception
     {
         /// <summary>
+        /// Gets the error code if available
+        /// </summary>
+        public string? ErrorCode { get; }
+        
+        /// <summary>
+        /// Gets the HTTP status code if available
+        /// </summary>
+        public int? HttpStatusCode { get; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="GitHubServiceException"/> class
         /// </summary>
-        public GitHubServiceException() : base() { }
+        public GitHubServiceException() : base("GitHub service error")
+        {
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GitHubServiceException"/> class with a specified error message
         /// </summary>
         /// <param name="message">The message that describes the error</param>
-        public GitHubServiceException(string message) : base(message) { }
+        public GitHubServiceException(string message) : base(message)
+        {
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GitHubServiceException"/> class with a specified error message
@@ -26,7 +40,44 @@ namespace GenHub.Core.Models.GitHub
         /// </summary>
         /// <param name="message">The message that describes the error</param>
         /// <param name="innerException">The exception that is the cause of the current exception</param>
-        public GitHubServiceException(string message, Exception innerException) : base(message, innerException) { }
+        public GitHubServiceException(string message, Exception innerException) : base(message, innerException)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="GitHubServiceException"/> class with a specified error message
+        /// and error code
+        /// </summary>
+        /// <param name="message">The message that describes the error</param>
+        /// <param name="errorCode">The error code associated with the error</param>
+        public GitHubServiceException(string message, string errorCode) : base(message)
+        {
+            ErrorCode = errorCode;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="GitHubServiceException"/> class with a specified error message
+        /// and HTTP status code
+        /// </summary>
+        /// <param name="message">The message that describes the error</param>
+        /// <param name="httpStatusCode">The HTTP status code associated with the error</param>
+        public GitHubServiceException(string message, int httpStatusCode) : base(message)
+        {
+            HttpStatusCode = httpStatusCode;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="GitHubServiceException"/> class with a specified error message
+        /// error code, and HTTP status code
+        /// </summary>
+        /// <param name="message">The message that describes the error</param>
+        /// <param name="errorCode">The error code associated with the error</param>
+        /// <param name="httpStatusCode">The HTTP status code associated with the error</param>
+        public GitHubServiceException(string message, string errorCode, int httpStatusCode) : base(message)
+        {
+            ErrorCode = errorCode;
+            HttpStatusCode = httpStatusCode;
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GitHubServiceException"/> class with serialized data
@@ -36,4 +87,4 @@ namespace GenHub.Core.Models.GitHub
         protected GitHubServiceException(SerializationInfo info, StreamingContext context) : base(info, context) { }
     }
 }
-        /// 
+        ///

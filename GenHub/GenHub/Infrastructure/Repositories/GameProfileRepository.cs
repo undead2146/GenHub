@@ -46,7 +46,7 @@ namespace GenHub.Infrastructure.Repositories
                 var result = await LoadAllAsync(cancellationToken);
                 if (!result.Success)
                 {
-                    _logger.LogWarning("Failed to load profiles: {ErrorMessage}", result.ErrorMessage);
+                    _logger.LogWarning("Failed to load profiles: {ErrorMessage}", result.Message);
                     return new List<IGameProfile>();
                 }
                 

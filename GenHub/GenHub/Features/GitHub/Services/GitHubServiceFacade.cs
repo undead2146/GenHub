@@ -14,6 +14,7 @@ using GenHub.Core.Models;
 using GenHub.Core.Models.GitHub;
 using GenHub.Core.Models.GameProfiles;
 using GenHub.Core.Models.Results;
+using GenHub.Core.Models.Enums;
 using GenHub.Features.GitHub.Helpers;
 
 namespace GenHub.Features.GitHub.Services
@@ -30,6 +31,9 @@ namespace GenHub.Features.GitHub.Services
         private readonly IGitHubApiClient _apiClient;
         private readonly IGitHubArtifactInstaller _artifactInstaller;
         private readonly IGitHubSearchService _searchService;
+
+
+        public IGitHubRepositoryDiscoveryService RepositoryDiscovery { get; }
         private readonly ILogger<GitHubServiceFacade> _logger;
         private readonly ITokenStorageService _tokenStorageService;
         private bool _tokenInitialized = false;
@@ -56,6 +60,7 @@ namespace GenHub.Features.GitHub.Services
             IGitHubSearchService searchService,
             IGitHubApiClient apiClient,
             ITokenStorageService tokenStorageService,
+        IGitHubRepositoryDiscoveryService repositoryDiscovery,
             ILogger<GitHubServiceFacade> logger)
         {
             _workflowReader = workflowReader ?? throw new ArgumentNullException(nameof(workflowReader));
@@ -67,6 +72,7 @@ namespace GenHub.Features.GitHub.Services
             _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
             _tokenStorageService = tokenStorageService ?? throw new ArgumentNullException(nameof(tokenStorageService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            RepositoryDiscovery = repositoryDiscovery ?? throw new ArgumentNullException(nameof(repositoryDiscovery));
 
             _logger.LogInformation("GitHubServiceFacade initialized");
         }
@@ -76,7 +82,7 @@ namespace GenHub.Features.GitHub.Services
             try
             {
                 if (_tokenInitialized) return;
-                
+
                 string? savedToken = await _tokenStorageService.GetTokenAsync().ConfigureAwait(false);
                 if (!string.IsNullOrEmpty(savedToken))
                 {
@@ -108,7 +114,7 @@ namespace GenHub.Features.GitHub.Services
         }
 
         public async Task<(Stream Stream, long? ContentLength)> GetStreamAsync(
-            GitHubRepoSettings repoSettings,
+            GitHubRepository repoSettings,
             string endpoint,
             CancellationToken cancellationToken = default)
         {
@@ -120,7 +126,7 @@ namespace GenHub.Features.GitHub.Services
                 using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
                     cancellationToken.CanBeCanceled ? cancellationToken : timeoutCts.Token);
-                
+
                 return await _apiClient.GetStreamAsync(repoSettings, endpoint, linkedCts.Token);
             }
             catch (Exception ex)
@@ -133,37 +139,41 @@ namespace GenHub.Features.GitHub.Services
         public async Task<bool> RunDiagnosticCheckAsync(CancellationToken cancellationToken = default)
         {
             Console.WriteLine("RunDiagnosticCheckAsync called - checking for deadlocks");
-            
+
             // Detect if this is on the UI thread
             bool isOnUIThread = Dispatcher.UIThread.CheckAccess();
             Console.WriteLine($"On UI thread: {isOnUIThread}");
-            
+
             // If on UI thread, we must not block or we'll deadlock
-            if (isOnUIThread) {
+            if (isOnUIThread)
+            {
                 Console.WriteLine("WARNING: Running on UI thread - using Task.Run to prevent deadlock");
                 return await Task.Run(() => RunDiagnosticCheckInternalAsync(cancellationToken));
             }
-            
+
             return await RunDiagnosticCheckInternalAsync(cancellationToken);
         }
 
         private async Task<bool> RunDiagnosticCheckInternalAsync(CancellationToken cancellationToken)
         {
             // Safe to do synchronous work here as we're guaranteed not on UI thread
-            try {
+            try
+            {
                 Console.WriteLine("Diagnostic check running");
-                
+
                 // Add a timeout to prevent infinite waiting
                 using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
                     cancellationToken, timeoutCts.Token);
-                    
+
                 // Add your actual diagnostic logic here
-                
+                await Task.Delay(100, linkedCts.Token); // Add actual async work
+
                 Console.WriteLine("Diagnostic check succeeded");
                 return true;
             }
-            catch (Exception ex) {
+            catch (Exception ex)
+            {
                 Console.WriteLine($"Diagnostic check failed: {ex.Message}");
                 return false;
             }
@@ -179,7 +189,7 @@ namespace GenHub.Features.GitHub.Services
                 using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
                     cancellationToken.CanBeCanceled ? cancellationToken : timeoutCts.Token);
-                
+
                 var defaultRepo = _repositoryManager.GetDefaultRepository();
                 return await _artifactReader.GetArtifactsForRepositoryAsync(defaultRepo, linkedCts.Token) ??
                        Enumerable.Empty<GitHubArtifact>();
@@ -206,6 +216,10 @@ namespace GenHub.Features.GitHub.Services
             {
                 await EnsureTokenInitializedAsync().ConfigureAwait(false);
 
+                _logger.LogInformation("Starting download for artifact {ArtifactId} to folder {DestinationFolder}",
+                    artifactId, destinationFolder);
+
+                // Use the artifact reader directly with proper parameters
                 return await _artifactReader.DownloadArtifactAsync(
                     artifactId, destinationFolder, progress, cancellationToken);
             }
@@ -229,7 +243,7 @@ namespace GenHub.Features.GitHub.Services
                 using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
                     cancellationToken.CanBeCanceled ? cancellationToken : timeoutCts.Token);
-                
+
                 var defaultRepo = _repositoryManager.GetDefaultRepository();
                 return await _workflowReader.GetWorkflowRunsForRepositoryAsync(
                     defaultRepo, page, perPage, linkedCts.Token);
@@ -247,7 +261,7 @@ namespace GenHub.Features.GitHub.Services
         }
 
         public async Task<IEnumerable<GitHubWorkflow>> GetWorkflowRunsForRepositoryAsync(
-            GitHubRepoSettings repoConfig,
+            GitHubRepository repoConfig,
             int page = 1,
             int perPage = 10,
             CancellationToken cancellationToken = default)
@@ -268,7 +282,7 @@ namespace GenHub.Features.GitHub.Services
         }
 
         public async Task<GitHubWorkflow?> GetWorkflowRunByNumberAsync(
-            GitHubRepoSettings repoConfig,
+            GitHubRepository repoConfig,
             int runNumber,
             CancellationToken cancellationToken = default)
         {
@@ -331,7 +345,7 @@ namespace GenHub.Features.GitHub.Services
         }
 
         public async Task<IEnumerable<GitHubArtifact>> GetArtifactsForRepositoryAsync(
-            GitHubRepoSettings repoConfig,
+            GitHubRepository repoConfig,
             CancellationToken cancellationToken = default)
         {
             try
@@ -349,7 +363,7 @@ namespace GenHub.Features.GitHub.Services
         }
 
         public async Task<string> DownloadArtifactFromRepositoryAsync(
-            GitHubRepoSettings repoConfig,
+            GitHubRepository repoConfig,
             long artifactId,
             string destinationFolder,
             IProgress<double>? progress = null,
@@ -370,7 +384,7 @@ namespace GenHub.Features.GitHub.Services
             }
         }
 
-        public async Task<IEnumerable<GitHubRepoSettings>> GetRepositoriesAsync(CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<GitHubRepository>> GetRepositoriesAsync(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -379,11 +393,11 @@ namespace GenHub.Features.GitHub.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting repositories asynchronously");
-                return Enumerable.Empty<GitHubRepoSettings>();
+                return Enumerable.Empty<GitHubRepository>();
             }
         }
 
-        public IEnumerable<GitHubRepoSettings> GetRepositories()
+        public IEnumerable<GitHubRepository> GetRepositories()
         {
             try
             {
@@ -392,11 +406,11 @@ namespace GenHub.Features.GitHub.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting repositories");
-                return Enumerable.Empty<GitHubRepoSettings>();
+                return Enumerable.Empty<GitHubRepository>();
             }
         }
 
-        public GitHubRepoSettings GetDefaultRepository()
+        public GitHubRepository GetDefaultRepository()
         {
             try
             {
@@ -405,7 +419,7 @@ namespace GenHub.Features.GitHub.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting default repository");
-                return new GitHubRepoSettings();
+                return new GitHubRepository();
             }
         }
 
@@ -455,7 +469,7 @@ namespace GenHub.Features.GitHub.Services
         }
 
         public async Task<IEnumerable<GitHubWorkflow>> SearchWorkflowsByPullRequestAsync(
-            GitHubRepoSettings repository,
+            GitHubRepository repository,
             int pullRequestNumber,
             CancellationToken cancellationToken = default)
         {
@@ -477,7 +491,7 @@ namespace GenHub.Features.GitHub.Services
         }
 
         public async Task<IEnumerable<GitHubWorkflow>> SearchWorkflowsByTextAsync(
-            GitHubRepoSettings repository,
+            GitHubRepository repository,
             string searchText,
             CancellationToken cancellationToken = default)
         {
@@ -540,6 +554,25 @@ namespace GenHub.Features.GitHub.Services
             }
         }
 
+        // Add missing interface implementations
+        public async Task<GitHubRepository?> GetRepositoryInfoAsync(string owner, string repo, CancellationToken cancellationToken = default)
+        {
+            await EnsureTokenInitializedAsync().ConfigureAwait(false);
+            return await _apiClient.GetRepositoryInfoAsync(owner, repo, cancellationToken);
+        }
+
+        public async Task<IEnumerable<GitHubRepository>> GetRepositoryForksAsync(string owner, string repo, CancellationToken cancellationToken = default)
+        {
+            await EnsureTokenInitializedAsync().ConfigureAwait(false);
+            return await _apiClient.GetRepositoryForksAsync(owner, repo, cancellationToken);
+        }
+
+        public async Task<IEnumerable<GitHubRepository>> SearchRepositoriesAsync(string query, string sortBy = "best-match", CancellationToken cancellationToken = default)
+        {
+            await EnsureTokenInitializedAsync().ConfigureAwait(false);
+            return await _apiClient.SearchRepositoriesAsync(query, sortBy, cancellationToken);
+        }
+
         public string GetWorkflowRunUrl(GitHubArtifact artifact)
         {
             try
@@ -569,7 +602,7 @@ namespace GenHub.Features.GitHub.Services
         }
 
         public async Task<IEnumerable<GitHubWorkflow>> GetWorkflowRunsForWorkflowFileAsync(
-            GitHubRepoSettings repoConfig,
+            GitHubRepository repoConfig,
             string workflowFile,
             int page = 1,
             int perPage = 10,
@@ -623,7 +656,7 @@ namespace GenHub.Features.GitHub.Services
         }
 
         public async Task<IEnumerable<GameVersion>> GetDetectedVersionsAsync(
-            GitHubRepoSettings repoConfig,
+            GitHubRepository repoConfig,
             CancellationToken cancellationToken = default)
         {
             try
@@ -665,7 +698,7 @@ namespace GenHub.Features.GitHub.Services
         }
 
         public async Task<IEnumerable<GitHubRelease>> GetReleasesAsync(
-            GitHubRepoSettings repoSettings,
+            GitHubRepository repoSettings,
             int page = 1,
             int perPage = 30,
             bool includePrereleases = true,
@@ -699,7 +732,7 @@ namespace GenHub.Features.GitHub.Services
             {
                 await EnsureTokenInitializedAsync().ConfigureAwait(false);
 
-                return await _apiClient.GetStreamAsync(new GitHubRepoSettings(), assetDownloadUrl, cancellationToken);
+                return await _apiClient.GetStreamAsync(new GitHubRepository(), assetDownloadUrl, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -711,7 +744,7 @@ namespace GenHub.Features.GitHub.Services
         /// <summary>
         /// Gets a raw HTTP response for a GitHub API request
         /// </summary>
-        public async Task<HttpResponseMessage> GetRawAsync(GitHubRepoSettings repoSettings, string endpoint, CancellationToken cancellationToken = default)
+        public async Task<HttpResponseMessage> GetRawAsync(GitHubRepository repoSettings, string endpoint, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -746,7 +779,7 @@ namespace GenHub.Features.GitHub.Services
                 else
                 {
                     _logger.LogError("Failed to install artifact {ArtifactId}: {ErrorMessage}",
-                        artifact.Id, result.ErrorMessage);
+                        artifact.Id, result.Message);
                     return null;
                 }
             }
@@ -756,7 +789,7 @@ namespace GenHub.Features.GitHub.Services
                 return null;
             }
         }
-        
+
         /// <summary>
         /// Gets a specific workflow run by its ID using owner and repo names
         /// </summary>
@@ -767,7 +800,7 @@ namespace GenHub.Features.GitHub.Services
                 await EnsureTokenInitializedAsync().ConfigureAwait(false);
 
                 // Create a temporary repo settings object
-                var repoSettings = new GitHubRepoSettings
+                var repoSettings = new GitHubRepository
                 {
                     RepoOwner = owner,
                     RepoName = repo
@@ -782,8 +815,8 @@ namespace GenHub.Features.GitHub.Services
                 return null;
             }
         }
-        
-        public async Task<GitHubWorkflow?> GetWorkflowRunAsync(GitHubRepoSettings repoSettings, long runId, CancellationToken cancellationToken = default)
+
+        public async Task<GitHubWorkflow?> GetWorkflowRunAsync(GitHubRepository repoSettings, long runId, CancellationToken cancellationToken = default)
         {
             await EnsureTokenInitializedAsync().ConfigureAwait(false);
 
@@ -797,7 +830,7 @@ namespace GenHub.Features.GitHub.Services
             return await _apiClient.GetAsync<T>(endpoint, cancellationToken);
         }
 
-        public async Task<T?> GetAsync<T>(GitHubRepoSettings repoSettings, string endpoint, CancellationToken cancellationToken = default) where T : class
+        public async Task<T?> GetAsync<T>(GitHubRepository repoSettings, string endpoint, CancellationToken cancellationToken = default) where T : class
         {
             await EnsureTokenInitializedAsync().ConfigureAwait(false);
 
@@ -818,7 +851,7 @@ namespace GenHub.Features.GitHub.Services
             return await _apiClient.HandleRateLimiting(response);
         }
 
-        public async Task<IEnumerable<GitHubArtifact>> GetArtifactsForRunAsync(GitHubRepoSettings repoSettings, long runId, CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<GitHubArtifact>> GetArtifactsForRunAsync(GitHubRepository repoSettings, long runId, CancellationToken cancellationToken = default)
         {
             await EnsureTokenInitializedAsync().ConfigureAwait(false);
 
@@ -838,8 +871,9 @@ namespace GenHub.Features.GitHub.Services
         {
             await EnsureTokenInitializedAsync().ConfigureAwait(false);
 
-            // Return the IDictionary directly without conversion
-            return await _workflowReader.GetArtifactCountsForWorkflowsAsync(workflowIds, cancellationToken);
+            // Fix null reference warning with safe navigation
+            var counts = await _workflowReader.GetArtifactCountsForWorkflowsAsync(workflowIds, cancellationToken);
+            return counts ?? new Dictionary<long, int>();
         }
 
         /// <summary>
@@ -902,7 +936,7 @@ namespace GenHub.Features.GitHub.Services
         public async Task<RateLimitInfo?> GetRateLimitAsync(CancellationToken cancellationToken = default)
         {
             await EnsureTokenInitializedAsync().ConfigureAwait(false);
-            
+
             try
             {
                 return await _apiClient.GetRateLimitAsync(cancellationToken);
@@ -922,7 +956,7 @@ namespace GenHub.Features.GitHub.Services
             try
             {
                 await EnsureTokenInitializedAsync().ConfigureAwait(false);
-                
+
                 return await _apiClient.TestAuthenticationAsync(cancellationToken);
             }
             catch (Exception ex)
@@ -931,5 +965,50 @@ namespace GenHub.Features.GitHub.Services
                 return false;
             }
         }
+
+        /// <summary>
+        /// Context-aware search method that supports both "All Items" and specific workflow contexts
+        /// </summary>
+        public async Task<IEnumerable<GitHubWorkflow>> SearchWithContextAsync(
+            GitHubRepository repository,
+            string searchText,
+            GitHubSearchCriteria searchCriteria,
+            string? workflowPath = null,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await EnsureTokenInitializedAsync().ConfigureAwait(false);
+
+                return await _searchService.SearchWithContextAsync(
+                    repository,
+                    searchText,
+                    searchCriteria,
+                    workflowPath,
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in context-aware search for repository {Repo} with text '{SearchText}' and criteria '{SearchCriteria}'",
+                    $"{repository.RepoOwner}/{repository.RepoName}", searchText, searchCriteria);
+                return Enumerable.Empty<GitHubWorkflow>();
+            }
+
+
+        }
+        
+        
+        public async Task<IEnumerable<GitHubWorkflow>?> GetWorkflowRunsForRepositoryAsync(string owner, string repo, int perPage = 5, CancellationToken cancellationToken = default)
+        {
+            await EnsureTokenInitializedAsync().ConfigureAwait(false);
+            return await _apiClient.GetWorkflowRunsForRepositoryAsync(owner, repo, perPage, cancellationToken);
+        }
+
+        public async Task<IEnumerable<GitHubRelease>?> GetReleasesForRepositoryAsync(string owner, string repo, int perPage = 5, CancellationToken cancellationToken = default)
+        {
+            await EnsureTokenInitializedAsync().ConfigureAwait(false);
+            return await _apiClient.GetReleasesForRepositoryAsync(owner, repo, perPage, cancellationToken);
+        }
+
     }
 }

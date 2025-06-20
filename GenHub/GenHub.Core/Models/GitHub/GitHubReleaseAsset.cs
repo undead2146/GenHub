@@ -91,5 +91,46 @@ namespace GenHub.Core.Models.GitHub
                 return $"{size:0.##} {suffixes[suffixIndex]}";
             }
         }
+
+        /// <summary>
+        /// Gets a formatted file size string
+        /// </summary>
+        public string GetFormattedSize()
+        {
+            if (Size < 1024)
+                return $"{Size} B";
+            if (Size < 1024 * 1024)
+                return $"{Size / 1024.0:F1} KB";
+            if (Size < 1024 * 1024 * 1024)
+                return $"{Size / (1024.0 * 1024.0):F1} MB";
+            
+            return $"{Size / (1024.0 * 1024.0 * 1024.0):F1} GB";
+        }
+
+        /// <summary>
+        /// Gets the file extension of the asset
+        /// </summary>
+        public string GetFileExtension()
+        {
+            return System.IO.Path.GetExtension(Name).ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Gets whether this asset is likely an executable
+        /// </summary>
+        public bool IsExecutable()
+        {
+            var extension = GetFileExtension();
+            return extension == ".exe" || extension == ".msi" || extension == ".deb" || extension == ".rpm" || extension == ".dmg";
+        }
+
+        /// <summary>
+        /// Gets whether this asset is likely an archive
+        /// </summary>
+        public bool IsArchive()
+        {
+            var extension = GetFileExtension();
+            return extension == ".zip" || extension == ".tar" || extension == ".gz" || extension == ".7z" || extension == ".rar";
+        }
     }
 }

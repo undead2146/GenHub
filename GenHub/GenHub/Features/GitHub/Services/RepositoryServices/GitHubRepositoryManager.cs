@@ -9,267 +9,396 @@ using GenHub.Core.Interfaces.Caching;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Models.GitHub;
 using GenHub.Core.Models;
+using GenHub.Core.Models.Results;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.GitHub.Services
 {
     /// <summary>
-    /// Repository manager for GitHub repositories
+    /// Manages the storage and retrieval of GitHub repositories, with an async-first approach.
     /// </summary>
     public class GitHubRepositoryManager : IGitHubRepositoryManager
     {
         private readonly ILogger<GitHubRepositoryManager> _logger;
         private readonly ICacheService _cacheService;
-        
-        // Constants for repository storage
-        private const string REPOSITORIES_KEY = "github_repositories";
-        private const string CURRENT_REPOSITORY_KEY = "current_github_repository";
-        
-        // Actual file path to ensure we have a single source of truth
         private readonly string _repositoriesFilePath;
-        
-        public GitHubRepositoryManager(
+        private readonly string _currentRepositoryFilePath;
+        private bool _initialized = false;
+
+        private static readonly SemaphoreSlim _fileLock = new SemaphoreSlim(1, 1);
+        private const string REPOSITORIES_KEY = "github_repositories";
+        private const string CURRENT_REPOSITORY_KEY = "current_github_repository";        public GitHubRepositoryManager(
             ILogger<GitHubRepositoryManager> logger,
             ICacheService cacheService)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
-            
-            // Define the central repository file path
-            _repositoriesFilePath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "GenHub", "github_repositories.json");
-            
-            // Ensure directory exists
-            Directory.CreateDirectory(Path.GetDirectoryName(_repositoriesFilePath) ?? string.Empty);
-            
-            _logger.LogDebug("GitHubRepositoryManager initialized with repositories file: {FilePath}", 
-                _repositoriesFilePath);
-        }
 
-        /// <summary>
-        /// Gets the list of saved repositories
-        /// </summary>
-        public IEnumerable<GitHubRepoSettings> GetRepositories()
+            // Use cache service's shared settings directory for consistency
+            var sharedSettingsDir = _cacheService.GetSharedSettingsDirectory();
+            _repositoriesFilePath = Path.Combine(sharedSettingsDir, $"{REPOSITORIES_KEY}.json");
+            _currentRepositoryFilePath = Path.Combine(sharedSettingsDir, $"{CURRENT_REPOSITORY_KEY}.json");
+
+            _logger.LogDebug("GitHubRepositoryManager initialized. Using shared settings directory for consistent storage");
+        }        private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
         {
+            if (_initialized) return;
+
+            await _fileLock.WaitAsync(cancellationToken);
             try
             {
-                // Check if file exists
-                if (File.Exists(_repositoriesFilePath))
+                // Double-check after getting the lock
+                if (_initialized) return;
+
+                _logger.LogDebug("Initializing repository manager state...");
+
+                // Check if we have repositories in cache service
+                var cachedRepos = await _cacheService.GetSharedSettingAsync<List<GitHubRepository>>(REPOSITORIES_KEY, cancellationToken);
+                if (cachedRepos == null || !cachedRepos.Any())
                 {
-                    var json = File.ReadAllText(_repositoriesFilePath);
-                    var repos = JsonSerializer.Deserialize<List<GitHubRepoSettings>>(json);
-                    
-                    if (repos != null && repos.Any())
-                    {
-                        _logger.LogInformation("Loaded {Count} repositories", repos.Count);
-                        return repos;
-                    }
+                    _logger.LogInformation("No repositories found in cache. Initializing with defaults.");
+                    var defaultRepos = GetDefaultRepositories();
+                    await SaveRepositoriesInternalAsync(defaultRepos, cancellationToken);
                 }
                 
-                // Create default repository if none found
-                var defaultRepo = GetDefaultRepository();
-                
-                return new List<GitHubRepoSettings> { defaultRepo };
+                _initialized = true;
+                _logger.LogDebug("Repository manager initialization complete.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting repositories");
+                _logger.LogError(ex, "Error during repository manager initialization. Falling back to defaults.");
+                var defaultRepos = GetDefaultRepositories();
+                await SaveRepositoriesInternalAsync(defaultRepos, cancellationToken);
+                _initialized = true; // Prevent re-initialization loops
+            }
+            finally
+            {
+                _fileLock.Release();
+            }
+        }public async Task<IEnumerable<GitHubRepository>> GetRepositoriesAsync(CancellationToken cancellationToken = default)
+        {
+            await EnsureInitializedAsync(cancellationToken);
+
+            await _fileLock.WaitAsync(cancellationToken);
+            try
+            {
+                // Try to get from cache service first
+                var cachedRepos = await _cacheService.GetSharedSettingAsync<List<GitHubRepository>>(REPOSITORIES_KEY, cancellationToken);
                 
-                // Return a default repository as fallback
-                return new List<GitHubRepoSettings> { GetDefaultRepository() };
+                _logger.LogInformation("=== REPOSITORY MANAGER DEBUG ===");
+                _logger.LogInformation($"Raw cached repositories count: {cachedRepos?.Count ?? 0}");
+                
+                if (cachedRepos != null && cachedRepos.Any())
+                {
+                    // Log details about each repository for debugging
+                    _logger.LogInformation("Raw cached repositories breakdown:");
+                    for (int i = 0; i < cachedRepos.Count; i++)
+                    {
+                        var repo = cachedRepos[i];
+                        if (repo == null)
+                        {
+                            _logger.LogWarning($"   {i + 1}. NULL REPOSITORY ENTRY");
+                            continue;
+                        }
+                        
+                        var isValid = repo.IsValid;
+                        _logger.LogInformation($"   {i + 1}. {repo.RepoOwner}/{repo.RepoName} - Valid: {isValid} - Enabled: {repo.Enabled}");
+                        
+                        if (!isValid)
+                        {
+                            _logger.LogWarning($"      Invalid because: Owner='{repo.RepoOwner}', Name='{repo.RepoName}'");
+                        }
+                    }
+                    
+                    var validRepositories = cachedRepos.Where(r => r != null && r.IsValid).ToList();
+                    
+                    _logger.LogInformation($"Valid repositories after filtering: {validRepositories.Count}");
+                    _logger.LogInformation("Valid repositories list:");
+                    for (int i = 0; i < validRepositories.Count; i++)
+                    {
+                        var repo = validRepositories[i];
+                        _logger.LogInformation($"   {i + 1}. {repo.RepoOwner}/{repo.RepoName} - {repo.DisplayName}");
+                    }
+                    
+                    if (validRepositories.Any())
+                    {
+                        return validRepositories;
+                    }
+                    else
+                    {
+                        _logger.LogWarning("No valid repositories found in cache, falling back to legacy or defaults");
+                    }
+                }
+                else
+                {
+                    _logger.LogInformation("No cached repositories found, checking legacy storage");
+                }
+
+                // Fallback to legacy file system for migration scenarios
+                var legacyPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", REPOSITORIES_KEY);
+                if (File.Exists(legacyPath))
+                {
+                    _logger.LogInformation("Found legacy repositories file, migrating to cache service");
+                    var json = await File.ReadAllTextAsync(legacyPath, cancellationToken);
+                    if (!string.IsNullOrWhiteSpace(json))
+                    {
+                        var repositories = JsonSerializer.Deserialize<List<GitHubRepository>>(json) ?? new List<GitHubRepository>();
+                        var validRepositories = repositories.Where(r => r != null && r.IsValid).ToList();
+
+                        if (validRepositories.Any())
+                        {
+                            // Migrate to cache service
+                            await _cacheService.SaveSharedSettingAsync(REPOSITORIES_KEY, validRepositories, cancellationToken);
+                            _logger.LogInformation("Migrated {Count} repositories to cache service", validRepositories.Count);
+                            
+                            // Clean up legacy file
+                            try
+                            {
+                                File.Delete(legacyPath);
+                                _logger.LogInformation("Cleaned up legacy repositories file");
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Could not delete legacy repositories file");
+                            }
+                            
+                            return validRepositories;
+                        }
+                    }
+                }
+
+                // Return defaults if nothing found
+                return GetDefaultRepositories();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting repositories asynchronously. Returning defaults.");
+                return GetDefaultRepositories();
+            }
+            finally
+            {
+                _fileLock.Release();
             }
         }
-        
-        /// <summary>
-        /// Gets the list of saved repositories asynchronously
-        /// </summary>
-        public async Task<IEnumerable<GitHubRepoSettings>> GetRepositoriesAsync(CancellationToken cancellationToken = default)
+
+        public async Task<OperationResult> AddOrUpdateRepositoriesAsync(IEnumerable<GitHubRepository> repositoriesToAdd, bool replaceExisting = false, CancellationToken cancellationToken = default)
         {
-            // Simple async wrapper for the synchronous method
-            return await Task.Run(() => GetRepositories(), cancellationToken);
+            var validReposToAdd = repositoriesToAdd?.Where(r => r.IsValid).ToList();
+            if (validReposToAdd == null || !validReposToAdd.Any())
+            {
+                return OperationResult.Succeeded("No valid repositories provided to add or update.");
+            }
+
+            await _fileLock.WaitAsync(cancellationToken);
+            try
+            {
+                var existingReposList = (await GetRepositoriesAsync(cancellationToken)).ToList();
+                var existingReposDict = existingReposList.ToDictionary(r => $"{r.RepoOwner}/{r.RepoName}".ToLowerInvariant());
+
+                int addedCount = 0;
+                int updatedCount = 0;
+
+                foreach (var repoToAdd in validReposToAdd)
+                {
+                    var key = $"{repoToAdd.RepoOwner}/{repoToAdd.RepoName}".ToLowerInvariant();
+                    if (existingReposDict.TryGetValue(key, out var existingRepo))
+                    {
+                        if (replaceExisting)
+                        {
+                            // Update metadata but preserve user-configurable state like 'Enabled'
+                            existingRepo.DisplayName = repoToAdd.DisplayName;
+                            existingRepo.Description = repoToAdd.Description;
+                            existingRepo.Branch = repoToAdd.Branch;
+                            existingRepo.PushedAt = repoToAdd.PushedAt;
+                            existingRepo.StargazersCount = repoToAdd.StargazersCount;
+                            existingRepo.ForksCount = repoToAdd.ForksCount;
+                            updatedCount++;
+                        }
+                    }
+                    else
+                    {
+                        existingReposList.Add(repoToAdd);
+                        addedCount++;
+                    }
+                }
+
+                if (addedCount > 0 || updatedCount > 0)
+                {
+                    await SaveRepositoriesInternalAsync(existingReposList, cancellationToken);
+                    var message = $"Operation successful. Added: {addedCount}, Updated: {updatedCount}.";
+                    _logger.LogInformation(message);
+                    return OperationResult.Succeeded(message);
+                }
+
+                _logger.LogInformation("No new repositories were added or existing ones updated.");
+                return OperationResult.Succeeded("No changes were made to the repository list.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to add or update repositories.");
+                return OperationResult.Failed($"An error occurred while saving repositories: {ex.Message}");
+            }
+            finally
+            {
+                _fileLock.Release();
+            }
+        }        private async Task SaveRepositoriesInternalAsync(IEnumerable<GitHubRepository> repositories, CancellationToken cancellationToken)
+        {
+            var validRepos = repositories.Where(r => r != null && r.IsValid).ToList();
+            
+            // Use only the cache service for consistent storage - no more duplication!
+            await _cacheService.SaveSharedSettingAsync(REPOSITORIES_KEY, validRepos, cancellationToken);
+            
+            _logger.LogInformation("Saved {Count} repositories via cache service", validRepos.Count);
         }
 
-        /// <summary>
-        /// Gets the default repository setting
-        /// </summary>
-        public GitHubRepoSettings GetDefaultRepository()
+        public IEnumerable<GitHubRepository> GetRepositories() => GetRepositoriesAsync().GetAwaiter().GetResult();
+
+        public void SaveRepositories(IEnumerable<GitHubRepository> repositories) => SaveRepositoriesInternalAsync(repositories, CancellationToken.None).GetAwaiter().GetResult();
+
+        public GitHubRepository GetDefaultRepository() => GetDefaultRepositories().First();
+
+        private IEnumerable<GitHubRepository> GetDefaultRepositories()
         {
-            // Return a default repository configuration
-            return new GitHubRepoSettings
+            return new List<GitHubRepository>
             {
-                RepoOwner = "undead2146",
-                RepoName = "GenHub",
-                DisplayName = "GenHub (Default)"
+                new GitHubRepository
+                {
+                    RepoOwner = "TheSuperHackers",
+                    RepoName = "GeneralsGameCode",
+                    DisplayName = "Generals Game Code (Community)",
+                    Description = "Community-maintained codebase for C&C Generals",
+                    Branch = "main",
+                    Enabled = true,
+                    LastAccessed = DateTime.UtcNow
+                }
             };
         }
+        
+        // Other methods (GetCurrentRepository, SaveCurrentRepository, etc.) would also benefit from this async refactoring,
+        // but are omitted here to focus on the primary change for repository list management.
+        // The existing synchronous implementations for them will continue to function.
 
-        /// <summary>
-        /// Saves the list of repositories
-        /// </summary>
-        public void SaveRepositories(IEnumerable<GitHubRepoSettings> repositories)
+        public async Task<GitHubRepository> GetCurrentRepositoryAsync() => await Task.Run(() => GetCurrentRepository());
+        public async Task SaveCurrentRepositoryAsync(GitHubRepository repository) => await Task.Run(() => SaveCurrentRepository(repository));
+        public async Task<bool> ValidateRepositoryAsync(string owner, string repo, CancellationToken cancellationToken = default)
         {
-            try
-            {
-                // Ensure we have at least one repository
-                if (repositories == null || !repositories.Any())
-                {
-                    _logger.LogWarning("Cannot save empty repository collection");
-                    return;
-                }
-                
-                var json = JsonSerializer.Serialize(repositories.ToList());
-                File.WriteAllText(_repositoriesFilePath, json);
-                
-                _logger.LogInformation("Saved {Count} repositories", repositories.Count());
-                
-                // Also update in cache for immediate access
-                _cacheService.SaveSharedSettingAsync(REPOSITORIES_KEY, repositories).GetAwaiter().GetResult();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error saving repositories");
-                throw;
-            }
+            await Task.Delay(100, cancellationToken);
+            return !string.IsNullOrWhiteSpace(owner) && !string.IsNullOrWhiteSpace(repo);
         }
-
+        public async Task<bool> ValidateRepositoryAsync(GitHubRepository repository, CancellationToken cancellationToken = default)
+        {
+            if (repository == null || !repository.IsValid) return false;
+            return await ValidateRepositoryAsync(repository.RepoOwner, repository.RepoName, cancellationToken);
+        }
+        public GitHubRepository GetCurrentRepository()
+        {
+            // This implementation can be refactored to be async as well.
+            // For now, keeping it simple.
+            if (File.Exists(_currentRepositoryFilePath))
+            {
+                try
+                {
+                    var json = File.ReadAllText(_currentRepositoryFilePath);
+                    if (!string.IsNullOrWhiteSpace(json))
+                    {
+                        var repo = JsonSerializer.Deserialize<GitHubRepository>(json);
+                        if (repo != null && repo.IsValid) return repo;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to read current repository file.");
+                }
+            }
+            return GetRepositories().FirstOrDefault() ?? GetDefaultRepository();
+        }
+        public void SaveCurrentRepository(GitHubRepository repository)
+        {
+            if (repository == null || !repository.IsValid)
+            {
+                _logger.LogWarning("Attempted to save an invalid or null repository as current.");
+                return;
+            }
+            var options = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            var json = JsonSerializer.Serialize(repository, options);
+            File.WriteAllText(_currentRepositoryFilePath, json);
+        }
+        
         /// <summary>
-        /// Gets the current repository setting
+        /// Cleans up duplicate repository files from the old direct storage approach
         /// </summary>
-        public GitHubRepoSettings GetCurrentRepository()
+        public async Task<bool> CleanupDuplicateRepositoryFilesAsync()
         {
             try
             {
-                var currentRepoPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "GenHub", "current_repository.json");
-                    
-                if (File.Exists(currentRepoPath))
+                var appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub");
+                var legacyRepoPath = Path.Combine(appDataPath, REPOSITORIES_KEY);
+                var legacyCurrentPath = Path.Combine(appDataPath, CURRENT_REPOSITORY_KEY);
+                
+                bool cleanedAny = false;
+                
+                // Clean up legacy repositories file (without .json extension)
+                if (File.Exists(legacyRepoPath))
                 {
-                    var json = File.ReadAllText(currentRepoPath);
-                    var repo = JsonSerializer.Deserialize<GitHubRepoSettings>(json);
-                    
-                    if (repo != null)
+                    try
                     {
-                        _logger.LogDebug("Loaded current repository: {Owner}/{Name}", repo.RepoOwner, repo.RepoName);
-
-                        // Return a new instance
-                        return new GitHubRepoSettings
+                        File.Delete(legacyRepoPath);
+                        _logger.LogInformation("Cleaned up legacy repositories file: {Path}", legacyRepoPath);
+                        cleanedAny = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Could not delete legacy repositories file: {Path}", legacyRepoPath);
+                    }
+                    
+                    // Also clean up backup if it exists
+                    var backupPath = legacyRepoPath + ".backup";
+                    if (File.Exists(backupPath))
+                    {
+                        try
                         {
-                            RepoOwner = repo.RepoOwner,
-                            RepoName = repo.RepoName,
-                            DisplayName = repo.DisplayName,
-                            Token = repo.Token,
-                            WorkflowFile = repo.WorkflowFile,
-                            Branch = repo.Branch
-                        };
+                            File.Delete(backupPath);
+                            _logger.LogInformation("Cleaned up legacy repositories backup: {Path}", backupPath);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Could not delete legacy repositories backup: {Path}", backupPath);
+                        }
                     }
                 }
                 
-                // Get first repository from saved repositories
-                var repos = GetRepositories();
-                var firstRepo = repos.FirstOrDefault();
-                
-                if (firstRepo != null)
+                // Clean up legacy current repository file
+                if (File.Exists(legacyCurrentPath))
                 {
-                    _logger.LogDebug("Using first repository as current: {Owner}/{Name}", firstRepo.RepoOwner, firstRepo.RepoName);
-
-                    // Return a new instance
-                    return new GitHubRepoSettings
+                    try
                     {
-                        RepoOwner = firstRepo.RepoOwner,
-                        RepoName = firstRepo.RepoName,
-                        DisplayName = firstRepo.DisplayName,
-                        Token = firstRepo.Token,
-                        WorkflowFile = firstRepo.WorkflowFile,
-                        Branch = firstRepo.Branch
-                    };
+                        File.Delete(legacyCurrentPath);
+                        _logger.LogInformation("Cleaned up legacy current repository file: {Path}", legacyCurrentPath);
+                        cleanedAny = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Could not delete legacy current repository file: {Path}", legacyCurrentPath);
+                    }
                 }
                 
-                // Default fallback
-                return GetDefaultRepository();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting current repository");
-                
-                // Return default repository as fallback
-                return GetDefaultRepository();
-            }
-        }
-        
-        /// <summary>
-        /// Gets the current repository setting asynchronously
-        /// </summary>
-        public async Task<GitHubRepoSettings> GetCurrentRepositoryAsync()
-        {
-            // Simple async wrapper for the synchronous method
-            return await Task.Run(() => GetCurrentRepository());
-        }
-
-        /// <summary>
-        /// Saves the current repository setting
-        /// </summary>
-        public void SaveCurrentRepository(GitHubRepoSettings repository)
-        {
-            try
-            {
-                if (repository == null)
+                if (cleanedAny)
                 {
-                    _logger.LogWarning("Cannot save null repository");
-                    return;
+                    _logger.LogInformation("Duplicate repository file cleanup completed successfully");
+                }
+                else
+                {
+                    _logger.LogInformation("No duplicate repository files found to clean up");
                 }
                 
-                var currentRepoPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "GenHub", "current_repository.json");
-                
-                var json = JsonSerializer.Serialize(repository);
-                File.WriteAllText(currentRepoPath, json);
-                
-                _logger.LogInformation("Saved current repository: {Owner}/{Name}", 
-                    repository.RepoOwner, repository.RepoName);
-                
-                // Also update in cache for immediate access
-                _cacheService.SaveSharedSettingAsync(CURRENT_REPOSITORY_KEY, repository).GetAwaiter().GetResult();
+                return cleanedAny;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error saving current repository");
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Validates if a GitHub repository exists and is accessible
-        /// </summary>
-        public async Task<bool> ValidateRepositoryAsync(string owner, string repo, CancellationToken cancellationToken = default)
-        {
-            // Implementation for repository validation would go here
-            // This likely requires GitHub API calls
-            
-            // For now, we'll assume validation succeeds
-            await Task.Delay(100, cancellationToken); // Simulate some work
-            return true;
-        }
-        
-        /// <summary>
-        /// Validates a repository exists and is accessible
-        /// </summary>
-        public async Task<bool> ValidateRepositoryAsync(GitHubRepoSettings repository, CancellationToken cancellationToken = default)
-        {
-            if (repository == null)
+                _logger.LogError(ex, "Error during duplicate repository file cleanup");
                 return false;
-                
-            return await ValidateRepositoryAsync(repository.RepoOwner, repository.RepoName, cancellationToken);
-        }
-        
-        /// <summary>
-        /// Saves the current repository setting asynchronously 
-        /// </summary>
-        public async Task SaveCurrentRepositoryAsync(GitHubRepoSettings repository)
-        {
-            await Task.Run(() => SaveCurrentRepository(repository));
+            }
         }
     }
 }

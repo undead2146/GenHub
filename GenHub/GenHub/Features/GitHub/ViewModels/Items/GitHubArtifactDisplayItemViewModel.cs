@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,10 @@ namespace GenHub.Features.GitHub.ViewModels
         private readonly ILogger _logger;
         private readonly IGitHubServiceFacade? _gitHubService;
         private CancellationTokenSource? _downloadCts;
+        
+        // Manually created commands to avoid conflicts
+        private IRelayCommand? _downloadArtifactCommand;
+        private IRelayCommand? _installArtifactCommand;
         
         public GitHubArtifact Artifact { get; }
         
@@ -44,9 +49,6 @@ namespace GenHub.Features.GitHub.ViewModels
         private string _sizeFormatted = string.Empty;
 
         [ObservableProperty]
-        private int _runNumber;
-        
-        [ObservableProperty]
         private bool _canBeInstalled;
 
         [ObservableProperty]
@@ -54,6 +56,19 @@ namespace GenHub.Features.GitHub.ViewModels
 
         [ObservableProperty]
         private long _workflowRunId;
+        #endregion
+        
+        
+        public long SizeInBytes => Artifact.SizeInBytes;
+        
+        #region Overridden Properties
+        public override string DisplayName => Artifact.Name ?? string.Empty;
+        
+        public override string Description => $"{SizeFormatted} - Run #{WorkflowNumber}";
+        
+        public override bool IsExpandable => false;
+        public override DateTime SortDate => Artifact.CreatedAt;
+        public override bool IsRelease => false;
         #endregion
         
         public GitHubArtifactDisplayItemViewModel(
@@ -64,254 +79,304 @@ namespace GenHub.Features.GitHub.ViewModels
             Artifact = artifact ?? throw new ArgumentNullException(nameof(artifact));
             _gitHubService = gitHubService;
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            
+
             InitializeFromArtifact();
             SetIconKey();
+            InitializeCommands();
+
+            _logger.LogDebug("Created GitHubArtifactDisplayItemViewModel for artifact {ArtifactName} (ID: {ArtifactId})",
+                artifact.Name, artifact.Id);
         }
 
         private void InitializeFromArtifact()
         {
             Name = Artifact.Name ?? string.Empty;
             SizeFormatted = FormatFileSize(Artifact.SizeInBytes);
-            RunNumber = Math.Max(Artifact.WorkflowNumber, 0);
             WorkflowId = Artifact.WorkflowId;
             WorkflowRunId = Artifact.RunId;
             CanBeInstalled = Artifact.BuildInfo != null && !string.IsNullOrEmpty(Artifact.Name);
             IsInstalled = Artifact.IsInstalled;
         }
-        
-        public long SizeInBytes => Artifact.SizeInBytes;
-        
-        #region Overridden Properties
-        public override string DisplayName => Artifact.Name ?? string.Empty;
-        
-        public override string Description => $"{SizeFormatted} - Run #{RunNumber}";
-        
-        public override bool IsExpandable => false;
-        public override DateTime SortDate => Artifact.CreatedAt;
-        public override bool IsRelease => false;
-        #endregion
+
+        private void InitializeCommands()
+        {
+            _downloadArtifactCommand = new AsyncRelayCommand(DownloadAsync, () => CanExecuteDownload);
+            _installArtifactCommand = new AsyncRelayCommand(InstallAsync, () => CanExecuteInstall);
+        }
         
         private void SetIconKey()
         {
             if (Artifact.BuildInfo != null)
             {
-                // Set icon based on game variant
-                _iconKey = Artifact.BuildInfo.GameVariant switch
-                {
-                    GameVariant.Generals => "GeneralsIcon",
-                    GameVariant.ZeroHour => "ZeroHourIcon",
-                    _ => "FileIcon"
-                };
+                _iconKey = "ArtifactIcon";
             }
             else
             {
-                // Set icon based on file extension
-                string extension = Path.GetExtension(Artifact.Name).ToLowerInvariant();
-                _iconKey = extension switch
-                {
-                    ".zip" or ".7z" => "ArchiveIcon",
-                    ".exe" => "ExecutableIcon",
-                    _ => "FileIcon"
-                };
+                _iconKey = "FileIcon";
             }
         }
         
         #region Commands
+
+        // Use different method names to avoid conflicts with interface properties
+        private bool CanExecuteDownload => !IsDownloading && !IsInstalling && _gitHubService != null;
+        private bool CanExecuteInstall => !IsInstalling && !IsDownloading && CanBeInstalled && !IsInstalled && _gitHubService != null;
+
         /// <summary>
-        /// Downloads the artifact to the local machine
+        /// Downloads the artifact to the local machine using proper GitHubServiceFacade
         /// </summary>
-        [RelayCommand(CanExecute = nameof(CanDownload))]
         private async Task DownloadAsync()
         {
-            if (IsDownloading || _gitHubService == null)
+            if (!CanExecuteDownload || _gitHubService == null)
                 return;
 
             _downloadCts = new CancellationTokenSource();
-            IsDownloading = true;
-            DownloadProgress = 0;
 
             try
             {
-                _logger.LogInformation("Starting download of artifact: {ArtifactName}", Artifact.Name);
+                IsDownloading = true;
+                DownloadProgress = 0;
 
-                var downloadFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "GenHub", "Downloads");
-                Directory.CreateDirectory(downloadFolder);
+                _logger.LogInformation("Starting download for artifact: {ArtifactName} (ID: {ArtifactId})", 
+                    Name, Artifact.Id);
 
-                var progress = new Progress<double>(p => DownloadProgress = p);
+                // Create progress tracker that updates the UI
+                var progress = new Progress<double>(value => 
+                {
+                    DownloadProgress = value * 100; // Convert to percentage
+                    _logger.LogDebug("Download progress for {ArtifactName}: {Progress}%", Name, DownloadProgress);
+                });
 
-                var downloadedFile = await _gitHubService.DownloadArtifactAsync(
+                // Use the proper GitHubServiceFacade method
+                var downloadsFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "GenHub", "Downloads");
+                Directory.CreateDirectory(downloadsFolder);
+
+                var filePath = await _gitHubService.DownloadArtifactAsync(
                     Artifact.Id,
-                    downloadFolder,
+                    downloadsFolder,
                     progress,
                     _downloadCts.Token);
 
-                _logger.LogInformation("Successfully downloaded artifact to: {FilePath}", downloadedFile);
-                OpenContainingFolder(downloadedFile);
+                // Handle the result properly
+                if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+                {
+                    DownloadProgress = 100;
+                    _logger.LogInformation("Download completed for artifact: {ArtifactName} to {FilePath}", Name, filePath);
+                    
+                    // Open the download location
+                    try
+                    {
+                        OpenContainingFolder(filePath);
+                        _logger.LogDebug("Opened download folder for {FilePath}", filePath);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Could not open download folder for {FilePath}", filePath);
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("Download failed for artifact: {ArtifactName}. No valid file path returned", Name);
+                }
             }
             catch (OperationCanceledException)
             {
-                _logger.LogInformation("Download cancelled for artifact: {ArtifactName}", Artifact.Name);
+                _logger.LogInformation("Download cancelled for artifact: {ArtifactName}", Name);
+                DownloadProgress = 0;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error downloading artifact: {ArtifactName}", Artifact.Name);
+                _logger.LogError(ex, "Error downloading artifact: {ArtifactName} (ID: {ArtifactId})", 
+                    Name, Artifact.Id);
+                DownloadProgress = 0;
             }
             finally
             {
                 IsDownloading = false;
-                DownloadProgress = 0;
                 _downloadCts?.Dispose();
                 _downloadCts = null;
+                
+                // Update command can execute states
+                _downloadArtifactCommand?.NotifyCanExecuteChanged();
+                _installArtifactCommand?.NotifyCanExecuteChanged();
             }
         }
-        
+
         /// <summary>
-        /// Installs the artifact as a game version
+        /// Installs the artifact as a game version using proper GitHubServiceFacade
         /// </summary>
-        [RelayCommand(CanExecute = nameof(CanInstall))]
         private async Task InstallAsync()
         {
-            if (IsInstalling || IsDownloading || _gitHubService == null)
+            if (!CanExecuteInstall || _gitHubService == null)
                 return;
 
             IsInstalling = true;
-
+            
             try
             {
-                _logger.LogInformation("Starting installation of artifact: {ArtifactName}", Artifact.Name);
+                _logger.LogInformation("Starting installation for artifact: {ArtifactName} (ID: {ArtifactId})", 
+                    Name, Artifact.Id);
 
                 var progress = new Progress<InstallProgress>(p =>
                 {
-                    // Progress updates could be handled by parent view model
-                    _logger.LogTrace("Installation progress: {Percentage}% - {Message}", p.Percentage * 100, p.Message);
+                    _logger.LogDebug("Installation progress for {ArtifactName}: {Percentage}% - {Message}", 
+                        Name, p.Percentage * 100, p.Message);
                 });
 
-                var gameVersion = await _gitHubService.InstallArtifactAsync(Artifact, progress);
+                // Use the proper GitHubServiceFacade method
+                var gameVersion = await _gitHubService.InstallArtifactAsync(
+                    Artifact,
+                    progress);
 
-                if (gameVersion != null)
+                // Handle the result properly
+                if (gameVersion != null && !string.IsNullOrEmpty(gameVersion.Id))
                 {
                     IsInstalled = true;
-                    _logger.LogInformation("Successfully installed artifact: {ArtifactName} as {VersionName}",
-                        Artifact.Name, gameVersion.Name);
+                    _logger.LogInformation("Installation completed for artifact: {ArtifactName}. Game version: {GameVersionName} (ID: {GameVersionId})", 
+                        Name, gameVersion.DisplayName ?? gameVersion.Name, gameVersion.Id);
                 }
                 else
                 {
-                    _logger.LogWarning("Installation completed but no game version was returned for: {ArtifactName}",
-                        Artifact.Name);
+                    _logger.LogWarning("Installation failed for artifact: {ArtifactName}. No valid game version returned", Name);
                 }
-            }
-            catch (OperationCanceledException)
-            {
-                _logger.LogInformation("Installation cancelled for artifact: {ArtifactName}", Artifact.Name);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error installing artifact: {ArtifactName}", Artifact.Name);
+                _logger.LogError(ex, "Error installing artifact: {ArtifactName} (ID: {ArtifactId})", 
+                    Name, Artifact.Id);
             }
             finally
             {
                 IsInstalling = false;
+                
+                // Update command can execute states
+                _downloadArtifactCommand?.NotifyCanExecuteChanged();
+                _installArtifactCommand?.NotifyCanExecuteChanged();
             }
         }
-        
+
         /// <summary>
-        /// Cancels the current download operation
+        /// Opens the folder containing the downloaded file
         /// </summary>
-        [RelayCommand(CanExecute = nameof(IsDownloading))]
-        private void CancelDownload()
+        private void OpenContainingFolder(string filePath)
         {
-            _downloadCts?.Cancel();
-            _logger.LogInformation("Download cancellation requested for artifact: {ArtifactName}", Artifact.Name);
+            try
+            {
+                if (OperatingSystem.IsWindows())
+                {
+                    string argument = $"/select,\"{filePath}\"";
+                    System.Diagnostics.Process.Start("explorer.exe", argument);
+                }
+                else if (OperatingSystem.IsLinux())
+                {
+                    string directory = Path.GetDirectoryName(filePath) ?? "/";
+                    System.Diagnostics.Process.Start("xdg-open", directory);
+                }
+                else if (OperatingSystem.IsMacOS())
+                {
+                    string directory = Path.GetDirectoryName(filePath) ?? "/";
+                    System.Diagnostics.Process.Start("open", directory);
+                }
+                else
+                {
+                    _logger.LogWarning("Opening folder not supported on this platform");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error opening containing folder for file: {FilePath}", filePath);
+            }
         }
-        #endregion
-        
-        #region Command CanExecute Properties
-        /// <summary>
-        /// Gets a value indicating whether the artifact can be downloaded
-        /// </summary>
-        public bool CanDownload => !IsDownloading && !IsInstalling && _gitHubService != null;
-        
-        /// <summary>
-        /// Gets a value indicating whether the artifact can be installed
-        /// </summary>
-        public bool CanInstall => !IsInstalling && !IsDownloading && CanBeInstalled && !IsInstalled && _gitHubService != null;
         #endregion
         
         #region Utility Methods
         /// <summary>
         /// Formats a file size in bytes to human-readable format
         /// </summary>
-        /// <param name="bytes">The size in bytes</param>
-        /// <returns>A formatted string representation of the file size</returns>
-        private string FormatFileSize(long bytes)
+        private static string FormatFileSize(long bytes)
         {
-            string[] suffixes = { "B", "KB", "MB", "GB", "TB" };
-            int counter = 0;
-            decimal size = bytes;
+            if (bytes < 1024)
+                return $"{bytes} B";
+            if (bytes < 1024 * 1024)
+                return $"{bytes / 1024.0:F1} KB";
+            if (bytes < 1024 * 1024 * 1024)
+                return $"{bytes / (1024.0 * 1024.0):F1} MB";
             
-            while (Math.Round(size / 1024) >= 1 && counter < suffixes.Length - 1)
-            {
-                size /= 1024;
-                counter++;
-            }
-            
-            return $"{size:n1} {suffixes[counter]}";
+            return $"{bytes / (1024.0 * 1024.0 * 1024.0):F1} GB";
         }
-        
+
         /// <summary>
-        /// Opens the folder containing the specified file
+        /// Gets the workflow number for display
         /// </summary>
-        /// <param name="filePath">The path to the file</param>
-        private void OpenContainingFolder(string filePath)
-        {
-            try
-            {
-                if (File.Exists(filePath))
-                {
-                    var folder = Path.GetDirectoryName(filePath);
-                    if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder))
-                    {
-                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                        {
-                            FileName = folder,
-                            UseShellExecute = true
-                        });
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error opening containing folder for {FilePath}", filePath);
-            }
-        }
-        #endregion
+        public int WorkflowNumber => Artifact?.WorkflowNumber ?? 0;
         
-        #region Simplified Property Accessors
         /// <summary>
-        /// Gets the creation date of the artifact
+        /// Gets the creation date
         /// </summary>
         public DateTime CreatedAt => Artifact?.CreatedAt ?? DateTime.MinValue;
         
         /// <summary>
-        /// Gets the workflow number associated with this artifact
-        /// </summary>
-        public int WorkflowNumber => Artifact?.WorkflowNumber ?? 0;
-
-        /// <summary>
-        /// Gets the build information for this artifact
+        /// Gets the build information
         /// </summary>
         public GitHubBuild? BuildInfo => Artifact?.BuildInfo;
-
+        
         /// <summary>
         /// Gets the artifact name
         /// </summary>
         public string ArtifactName => Artifact?.Name ?? string.Empty;
+        
+        /// <summary>
+        /// Gets the repository information
+        /// </summary>
+        public GitHubRepository? RepositoryInfo => Artifact?.RepositoryInfo;
+        #endregion
+        
+        #region Interface Property Overrides
+        /// <summary>
+        /// Gets the run number for this artifact
+        /// </summary>
+        public override int? RunNumber => WorkflowNumber > 0 ? WorkflowNumber : null;
+        
+        /// <summary>
+        /// Gets a value indicating whether this artifact can be downloaded
+        /// </summary>
+        public override bool CanDownload => CanExecuteDownload;
+        
+        /// <summary>
+        /// Gets a value indicating whether this artifact can be installed
+        /// </summary>
+        public override bool CanInstall => CanExecuteInstall;
 
         /// <summary>
-        /// Gets the repository information for this artifact
+        /// Gets the download command
         /// </summary>
-        public GitHubRepoSettings? RepositoryInfo => Artifact?.RepositoryInfo;
+        public override ICommand? DownloadCommand => _downloadArtifactCommand;
+
+        /// <summary>
+        /// Gets the install command
+        /// </summary>
+        public override ICommand? InstallCommand => _installArtifactCommand;
+
+        /// <summary>
+        /// Loads children for this item - artifacts have no children
+        /// </summary>
+        public override Task LoadChildrenAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Property change handlers to update command states
+        /// </summary>
+        partial void OnIsDownloadingChanged(bool value) => UpdateCommandStates();
+        partial void OnIsInstallingChanged(bool value) => UpdateCommandStates();
+        partial void OnIsInstalledChanged(bool value) => UpdateCommandStates();
+        
+        private void UpdateCommandStates()
+        {
+            _downloadArtifactCommand?.NotifyCanExecuteChanged();
+            _installArtifactCommand?.NotifyCanExecuteChanged();
+        }
         #endregion
     }
 }

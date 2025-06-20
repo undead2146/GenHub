@@ -9,7 +9,7 @@ The primary goal of these helpers is to encapsulate common operations and logic 
 ## Key Components
 
 *   **`GitHubModelExtensions.cs`**:
-    *   **Purpose**: Provides extension methods for various GitHub-related models (e.g., `GitHubArtifact`, `GitHubBuild`, `GitHubRepoSettings` from `GenHub.Core.Models`).
+    *   **Purpose**: Provides extension methods for various GitHub-related models (e.g., `GitHubArtifact`, `GitHubBuild`, `GitHubRepository` from `GenHub.Core.Models`).
     *   **Functionality**: Includes methods for:
         *   Creating deep copies of model instances (e.g., `CreateCopy`).
         *   Generating display-friendly strings (e.g., `GetDisplayName`, `GetFormattedSize`).

@@ -1507,12 +1507,12 @@ namespace GenHub.Features.GameProfiles.ViewModels
                 }
                 else
                 {
-                    _logger.LogWarning("Game launch test failed: {Error}", result.ErrorMessage);
-                    StatusMessage = $"Game launch failed: {result.ErrorMessage}";
+                    _logger.LogWarning("Game launch test failed: {Error}", result.Message);
+                    StatusMessage = $"Game launch failed: {result.Message}";
                     
                     await _dialogService.ShowMessageBoxAsync(
                         "Launch Failed", 
-                        $"Failed to launch game: {result.ErrorMessage}",
+                        $"Failed to launch game: {result.Message}",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error);
                 }

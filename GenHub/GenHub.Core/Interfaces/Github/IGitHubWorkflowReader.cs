@@ -14,7 +14,7 @@ namespace GenHub.Core.Interfaces.GitHub
         /// Gets workflow runs for a repository
         /// </summary>
         Task<IEnumerable<GitHubWorkflow>> GetWorkflowRunsForRepositoryAsync(
-            GitHubRepoSettings repoSettings,
+            GitHubRepository repoSettings,
             int page = 1,
             int perPage = 30,
             CancellationToken cancellationToken = default);
@@ -23,7 +23,7 @@ namespace GenHub.Core.Interfaces.GitHub
         /// Gets a specific workflow run by its ID
         /// </summary>
         Task<GitHubWorkflow?> GetWorkflowRunAsync(
-            GitHubRepoSettings repoSettings, 
+            GitHubRepository repoSettings, 
             long runId,
             CancellationToken cancellationToken = default);
             

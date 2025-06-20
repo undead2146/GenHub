@@ -17,10 +17,21 @@ namespace GenHub.Features.GitHub.Views
     {
         private GitHubTokenDialogViewModel? _viewModel;
         private bool _isClosing = false;
+        private readonly ILogger<GitHubTokenDialogWindow>? _logger;
 
         public GitHubTokenDialogWindow()
         {
-            InitializeComponent();
+            try
+            {
+                InitializeComponent();
+                _logger = AppLocator.GetServiceOrDefault<ILogger<GitHubTokenDialogWindow>>();
+                _logger?.LogDebug("GitHubTokenDialogWindow initialized");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error initializing GitHubTokenDialogWindow: {ex.Message}");
+                throw;
+            }
         }
 
         public GitHubTokenDialogWindow(IGitHubApiClient apiClient, ILogger logger)

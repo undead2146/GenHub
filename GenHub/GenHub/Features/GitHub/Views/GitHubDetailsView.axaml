@@ -4,279 +4,251 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:GenHub.Features.GitHub.ViewModels"
              xmlns:conv="using:GenHub.Infrastructure.Converters"
-             xmlns:models="using:GenHub.Core.Models"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="400"
              x:Class="GenHub.Features.GitHub.Views.GitHubDetailsView"
-             x:CompileBindings="False">
+             x:DataType="vm:GitHubDetailsViewModel">
 
-    <UserControl.Resources>
-        <conv:FileSizeConverter x:Key="FileSizeConverter" />
-        <conv:IconKeyToPathDataConverter x:Key="IconKeyToPathDataConverter" />
-        <conv:NotNullConverter x:Key="NotNullConverter" />
-    </UserControl.Resources>
+  <UserControl.Resources>
+    <conv:FileSizeConverter x:Key="FileSizeConverter"/>
+    <conv:IconKeyToPathDataConverter x:Key="IconConverter"/>
+    <conv:NotNullConverter x:Key="NotNullConverter"/>
+  </UserControl.Resources>
 
-    <UserControl.Styles>
-        <Style Selector="TextBlock.SectionHeader">
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="FontSize" Value="16"/>
-            <Setter Property="Margin" Value="0,0,0,10"/>
-        </Style>
-        <Style Selector="TextBlock.DetailLabel">
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Width" Value="100"/>
-            <Setter Property="VerticalAlignment" Value="Top"/>
-            <Setter Property="Margin" Value="0,0,10,5"/>
-        </Style>
-        <Style Selector="TextBlock.DetailValue">
-            <Setter Property="TextWrapping" Value="Wrap"/>
-            <Setter Property="Margin" Value="0,0,0,5"/>
-        </Style>
-        <Style Selector="Border.SectionBorder">
-            <Setter Property="Background" Value="{DynamicResource CardBackground}"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="15"/>
-            <Setter Property="Margin" Value="0,0,0,15"/>
-            <Setter Property="BoxShadow" Value="0 2 4 0 #20000000"/>
-        </Style>
-        
-        <!-- Fix Border styles - removing Foreground property from Border controls -->
-        <Style Selector="Border.tag">
-            <Setter Property="Padding" Value="4,2"/>
-            <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="Background" Value="#333333"/>
-        </Style>
-        
-        <Style Selector="Border.tag TextBlock">
-            <Setter Property="FontSize" Value="11"/>
-        </Style>
-        
-        <Style Selector="Border.draft">
-            <Setter Property="Background" Value="#FFD700"/>
-        </Style>
-        
-        <Style Selector="Border.draft TextBlock">
-            <Setter Property="Foreground" Value="#333"/>
-        </Style>
-        
-        <Style Selector="Border.prerelease">
-            <Setter Property="Background" Value="#FF7F50"/>
-        </Style>
-        
-        <Style Selector="Border.prerelease TextBlock">
-            <Setter Property="Foreground" Value="White"/>
-        </Style>
-        
-        <!-- Remove Foreground from Border.release style -->
-        <Style Selector="Border.release">
-            <Setter Property="Background" Value="#2ECC71"/>
-            <!-- Removed invalid Foreground property -->
-        </Style>
-        
-        <Style Selector="Border.release TextBlock">
-            <Setter Property="Foreground" Value="White"/>
-        </Style>
-        
-        <Style Selector="Button.primary">
-            <Setter Property="Background" Value="{DynamicResource PrimaryButtonBackground}"/>
-            <Setter Property="Foreground" Value="{DynamicResource PrimaryButtonForeground}"/>
-            <Setter Property="Padding" Value="15,8"/>
-        </Style>
-    </UserControl.Styles>
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
 
-    <Grid RowDefinitions="Auto,*">
-        <!-- Header content -->
-        <Border Grid.Row="0" Padding="10" Classes="HeaderBorder">
-            <TextBlock Text="Item Details" 
-                       FontSize="18" 
-                       FontWeight="Bold"
-                       IsVisible="{Binding HasSelection}"/>
-        </Border>
+    <!-- Header -->
+    <Border Grid.Row="0" 
+            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="15,10">
+      <TextBlock Text="Details" 
+                 FontSize="16" 
+                 FontWeight="SemiBold" />
+    </Border>
 
-        <!-- Main content area -->
-        <ScrollViewer Grid.Row="1">
-            <Grid Margin="10" RowDefinitions="Auto,Auto,Auto,Auto,*">
-                <!-- Artifact Details Section -->
-                <Border Grid.Row="0" Classes="SectionBorder" IsVisible="{Binding HasSelectedArtifact}">
-                    <StackPanel Spacing="10">
-                        <TextBlock Classes="SectionHeader" Text="Artifact Details" />
-                        
-                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" IsVisible="{Binding HasSelectedArtifact}">
-                            <!-- Name -->
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Name:" Classes="DetailLabel" />
-                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedArtifact.Name}" Classes="DetailValue" TextWrapping="Wrap" />
-                            
-                            <!-- Size -->
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Size:" Classes="DetailLabel" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedArtifactSizeFormatted}" Classes="DetailValue" />
-                            
-                            <!-- Game Variant -->
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Game:" Classes="DetailLabel" />
-                            <TextBlock Grid.Row="2" Grid.Column="1" Classes="DetailValue">
-                                <TextBlock.Text>
-                                    <Binding Path="SelectedArtifact.BuildInfo.GameVariant" FallbackValue="Unknown" />
-                                </TextBlock.Text>
-                            </TextBlock>
-                            
-                            <!-- Compiler -->
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Compiler:" Classes="DetailLabel" />
-                            <TextBlock Grid.Row="3" Grid.Column="1" Classes="DetailValue">
-                                <TextBlock.Text>
-                                    <Binding Path="SelectedArtifact.BuildInfo.Compiler" FallbackValue="Unknown" />
-                                </TextBlock.Text>
-                            </TextBlock>
-                            
-                            <!-- Configuration -->
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Config:" Classes="DetailLabel" />
-                            <TextBlock Grid.Row="4" Grid.Column="1" Classes="DetailValue">
-                                <TextBlock.Text>
-                                    <Binding Path="SelectedArtifact.BuildInfo.Configuration" FallbackValue="Unknown" />
-                                </TextBlock.Text>
-                            </TextBlock>
-                            
-                            <!-- Run Number -->
-                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Run #:" Classes="DetailLabel" />
-                            <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding SelectedArtifact.WorkflowNumber}" Classes="DetailValue" />
-                            
-                            <!-- Created Date -->
-                            <TextBlock Grid.Row="6" Grid.Column="0" Text="Created:" Classes="DetailLabel" />
-                            <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding SelectedArtifact.CreatedAt, StringFormat='{}{0:g}'}" Classes="DetailValue" />
-                        </Grid>
-                        
-                        <!-- Install button -->
-                        <Button Command="{Binding InstallSelectedArtifactCommand}" 
-                                IsEnabled="{Binding !IsInstalling}"
-                                HorizontalAlignment="Left" 
-                                Classes="primary">
-                            <StackPanel Orientation="Horizontal" Spacing="5">
-                                <PathIcon Data="{StaticResource DownloadIcon}" Width="16" Height="16" />
-                                <TextBlock Text="Install" />
-                            </StackPanel>
-                        </Button>
+    <!-- Content -->
+    <ScrollViewer Grid.Row="1" Padding="15">
+      <StackPanel Spacing="15">
+        
+        <!-- Artifact Details  -->
+        <StackPanel Spacing="12" 
+                    IsVisible="{Binding HasSelectedArtifact}">
+          <TextBlock Text="Artifact Details" 
+                     FontSize="14" 
+                     FontWeight="SemiBold" />
+          
+          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" 
+                RowSpacing="8" ColumnSpacing="12">
+            
+            <!-- Name  -->
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Name:" FontWeight="Medium" />
+            <TextBlock Grid.Row="0" Grid.Column="1" 
+                       Text="{Binding SelectedArtifact.DisplayName, FallbackValue='N/A'}" 
+                       TextWrapping="Wrap" />
+            
+            <!-- Size -->
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Size:" FontWeight="Medium" />
+            <TextBlock Grid.Row="1" Grid.Column="1">
+              <TextBlock.Text>
+                <MultiBinding StringFormat="{}{0}">
+                  <Binding Path="SelectedArtifact.SizeInBytes" 
+                           Converter="{StaticResource FileSizeConverter}" 
+                           FallbackValue="Unknown" />
+                </MultiBinding>
+              </TextBlock.Text>
+            </TextBlock>
+            
+            <!-- Run Number with Safe Binding -->
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Run #:" FontWeight="Medium" />
+            <TextBlock Grid.Row="2" Grid.Column="1" 
+                       Text="{Binding SelectedArtifact.WorkflowNumber, FallbackValue='N/A'}" />
+            
+            <!-- Created with Safe Date Formatting -->
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="Created:" FontWeight="Medium" />
+            <TextBlock Grid.Row="3" Grid.Column="1">
+              <TextBlock.Text>
+                <MultiBinding StringFormat="{}{0:g}">
+                  <Binding Path="SelectedArtifact.CreatedAt" FallbackValue="Unknown" />
+                </MultiBinding>
+              </TextBlock.Text>
+            </TextBlock>
+            
+            <!-- Build Info with Null Checks -->
+            <TextBlock Grid.Row="4" Grid.Column="0" Text="Build:" FontWeight="Medium" 
+                       IsVisible="{Binding SelectedArtifact.BuildInfo, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            <StackPanel Grid.Row="4" Grid.Column="1" Spacing="4"
+                        IsVisible="{Binding SelectedArtifact.BuildInfo, Converter={x:Static ObjectConverters.IsNotNull}}">
+              <TextBlock Text="{Binding SelectedArtifact.BuildInfo.GameVariant, FallbackValue='N/A'}" FontSize="12" />
+              <TextBlock Text="{Binding SelectedArtifact.BuildInfo.Configuration, FallbackValue='N/A'}" FontSize="12" 
+                         Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+
+        <!-- Workflow Details with Safe Binding -->
+        <StackPanel Spacing="12" 
+                    IsVisible="{Binding HasSelectedWorkflow}">
+          <TextBlock Text="Workflow Details" 
+                     FontSize="14" 
+                     FontWeight="SemiBold" />
+          
+          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" 
+                RowSpacing="8" ColumnSpacing="12">
+            
+            <!-- Workflow Name -->
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Workflow:" FontWeight="Medium" />
+            <TextBlock Grid.Row="0" Grid.Column="1" 
+                       Text="{Binding SelectedWorkflow.WorkflowName, FallbackValue='N/A'}" 
+                       TextWrapping="Wrap" />
+            
+            <!-- Run Number -->
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Run #:" FontWeight="Medium" />
+            <TextBlock Grid.Row="1" Grid.Column="1" 
+                       Text="{Binding SelectedWorkflow.WorkflowNumber, FallbackValue='N/A'}" />
+            
+            <!-- Commit Message -->
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Commit:" FontWeight="Medium" />
+            <TextBlock Grid.Row="2" Grid.Column="1" 
+                       Text="{Binding SelectedWorkflow.CommitMessage, FallbackValue='N/A'}" 
+                       TextWrapping="Wrap" MaxWidth="200" />
+            
+            <!-- Pull Request with Safe Visibility -->
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="PR:" FontWeight="Medium" 
+                       IsVisible="{Binding SelectedWorkflow.PullRequestNumber, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            <StackPanel Grid.Row="3" Grid.Column="1" Spacing="2"
+                        IsVisible="{Binding SelectedWorkflow.PullRequestNumber, Converter={x:Static ObjectConverters.IsNotNull}}">
+              <TextBlock Text="{Binding SelectedWorkflow.PullRequestNumber, StringFormat='#{0}', FallbackValue='N/A'}" FontSize="12" />
+              <TextBlock Text="{Binding SelectedWorkflow.PullRequestTitle, FallbackValue='N/A'}" FontSize="12" 
+                         Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                         TextWrapping="Wrap" MaxWidth="200" />
+            </StackPanel>
+            
+            <!-- Created Date -->
+            <TextBlock Grid.Row="4" Grid.Column="0" Text="Created:" FontWeight="Medium" />
+            <TextBlock Grid.Row="4" Grid.Column="1">
+              <TextBlock.Text>
+                <MultiBinding StringFormat="{}{0:g}">
+                  <Binding Path="SelectedWorkflow.CreatedAt" FallbackValue="Unknown" />
+                </MultiBinding>
+              </TextBlock.Text>
+            </TextBlock>
+          </Grid>
+
+          <!-- Workflow Run Items (Artifacts) -->
+          <StackPanel Spacing="8" IsVisible="{Binding HasWorkflowRunItems}">
+            <TextBlock Text="Artifacts" FontWeight="Medium" FontSize="12" />
+            <ListBox ItemsSource="{Binding WorkflowRunItems}" 
+                     SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
+                     MaxHeight="200"
+                     Background="Transparent"
+                     BorderThickness="1"
+                     BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                     CornerRadius="4">
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <Border Padding="8,4" Background="Transparent">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <PathIcon Data="{Binding IconKey, Converter={StaticResource IconConverter}}" 
+                                Width="16" Height="16" />
+                      <TextBlock Text="{Binding DisplayName, FallbackValue='Unknown Item'}" VerticalAlignment="Center" />
+                      <Button Content="Select" 
+                              Command="{Binding $parent[UserControl].DataContext.SelectItemCommand}"
+                              CommandParameter="{Binding}"
+                              Classes="accent"
+                              FontSize="10"
+                              Padding="6,2" />
                     </StackPanel>
-                </Border>
-                
-                <!-- Workflow Details Section -->
-                <Border Grid.Row="1" Classes="SectionBorder" IsVisible="{Binding HasSelectedWorkflow}">
-                    <StackPanel Spacing="10">
-                        <TextBlock Classes="SectionHeader" Text="Workflow Details" />
-                        
-                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" IsVisible="{Binding HasSelectedWorkflow}">
-                            <!-- Run ID -->
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Run ID:" Classes="DetailLabel" />
-                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedWorkflowGroup.RunId}" Classes="DetailValue" />
-                            
-                            <!-- Workflow Number -->
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Run #:" Classes="DetailLabel" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedWorkflowGroup.WorkflowNumber}" Classes="DetailValue" />
-                            
-                            <!-- Commit Message -->
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Commit:" Classes="DetailLabel" />
-                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedWorkflowGroup.CommitMessage}" Classes="DetailValue" TextWrapping="Wrap" />
-                            
-                            <!-- PR Number -->
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="PR:" Classes="DetailLabel" />
-                            <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="5">
-                                <TextBlock Text="{Binding SelectedWorkflowGroup.PullRequestNumber}" Classes="DetailValue" />
-                                <TextBlock Text="-" Classes="DetailValue" IsVisible="{Binding SelectedWorkflowGroup.PullRequestNumber, Converter={StaticResource NotNullConverter}}" />
-                                <TextBlock Text="{Binding SelectedWorkflowGroup.PullRequestTitle}" Classes="DetailValue" TextWrapping="Wrap" />
-                            </StackPanel>
-                            
-                            <!-- Created Date -->
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Created:" Classes="DetailLabel" />
-                            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedWorkflowGroup.CreatedAt, StringFormat='{}{0:g}'}" Classes="DetailValue" />
-                        </Grid>
-                        
-                        <!-- Artifacts list - updated binding to include Mode=TwoWay -->
-                        <TextBlock Text="Artifacts:" FontWeight="SemiBold" Margin="0,10,0,5" />
-                        <ListBox ItemsSource="{Binding WorkflowRunItems}" 
-                                 SelectedItem="{Binding SelectedArtifact, Mode=TwoWay}"
-                                 MaxHeight="200">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" Spacing="5">
-                                        <PathIcon Data="{Binding IconKey, Converter={StaticResource IconKeyToPathDataConverter}}" Width="16" Height="16" />
-                                        <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </StackPanel>
-                </Border>
-                
-                <!-- Release Details Section -->
-                <Border Grid.Row="2" Classes="SectionBorder" IsVisible="{Binding HasSelectedRelease}">
-                    <StackPanel Spacing="10">
-                        <TextBlock Classes="SectionHeader" Text="Release Details" />
-                        
-                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" IsVisible="{Binding HasSelectedRelease}">
-                            <!-- Name -->
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Name:" Classes="DetailLabel" />
-                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedRelease.Name}" Classes="DetailValue" TextWrapping="Wrap" />
-                            
-                            <!-- Tag -->
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Tag:" Classes="DetailLabel" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedRelease.TagName}" Classes="DetailValue" />
-                            
-                            <!-- Status - Fixed markup to avoid converter issues -->
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Status:" Classes="DetailLabel" />
-                            <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="5">
-                                <Border Classes="tag draft" IsVisible="{Binding SelectedRelease.Draft}">
-                                    <TextBlock Text="Draft" />
-                                </Border>
-                                <Border Classes="tag prerelease" IsVisible="{Binding SelectedRelease.IsPrerelease}">
-                                    <TextBlock Text="Pre-release" />
-                                </Border>
-                                <!-- Fixed conditional visibility without MultiValueConverter -->
-                                <Border Classes="tag release" IsVisible="{Binding !SelectedRelease.Draft}">
-                                    <TextBlock Text="Release" IsVisible="{Binding !SelectedRelease.IsPrerelease}" />
-                                </Border>
-                            </StackPanel>
-                            
-                            <!-- Published Date -->
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Published:" Classes="DetailLabel" />
-                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedRelease.PublishedAt, StringFormat='{}{0:g}'}" Classes="DetailValue" />
-                        </Grid>
-                        
-                        <!-- Release Notes -->
-                        <TextBlock Text="Release Notes:" FontWeight="SemiBold" Margin="0,10,0,5" />
-                        <TextBox Text="{Binding SelectedRelease.Body}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="200" Margin="0,0,0,10" />
-                        
-                        <!-- Assets list - also updated with TwoWay binding -->
-                        <TextBlock Text="Assets:" FontWeight="SemiBold" Margin="0,0,0,5" />
-                        <ListBox ItemsSource="{Binding SelectedRelease.Assets}" 
-                                 SelectedItem="{Binding SelectedAsset, Mode=TwoWay}"
-                                 MaxHeight="200">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" Spacing="5">
-                                        <PathIcon Data="{Binding IconKey, Converter={StaticResource IconKeyToPathDataConverter}}" Width="16" Height="16" />
-                                        <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
-                                        <Button Command="{Binding DownloadCommand}" ToolTip.Tip="Download asset">
-                                            <PathIcon Data="{StaticResource DownloadIcon}" Width="12" Height="12" />
-                                        </Button>
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </StackPanel>
-                </Border>
-                
-                <!-- Installation Progress Section -->
-                <Border Grid.Row="3" Classes="SectionBorder" IsVisible="{Binding IsInstalling}">
-                    <StackPanel Spacing="10">
-                        <TextBlock Classes="SectionHeader" Text="Installation Progress" />
-                        
-                        <Grid RowDefinitions="Auto,Auto,Auto">
-                            <TextBlock Grid.Row="0" Text="{Binding InstallStatusMessage}" Margin="0,0,0,10" />
-                            <ProgressBar Grid.Row="1" Value="{Binding InstallProgress}" Maximum="1" Height="20" Margin="0,0,0,10" />
-                            <Button Grid.Row="2" Command="{Binding CancelInstallationCommand}" HorizontalAlignment="Left">Cancel</Button>
-                        </Grid>
-                    </StackPanel>
-                </Border>
-                
-                <!-- Empty space for bottom padding -->
-                <Grid Grid.Row="4" Height="20" />
-            </Grid>
-        </ScrollViewer>
-    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </StackPanel>
+        </StackPanel>
+
+        <!-- Release Details-->
+        <StackPanel Spacing="12" 
+                    IsVisible="{Binding HasSelectedRelease}">
+          <TextBlock Text="Release Details" 
+                     FontSize="14" 
+                     FontWeight="SemiBold" />
+          
+          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" 
+                RowSpacing="8" ColumnSpacing="12">
+            
+            <!-- Name -->
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Name:" FontWeight="Medium" />
+            <TextBlock Grid.Row="0" Grid.Column="1" 
+                       Text="{Binding SelectedRelease.DisplayName, FallbackValue='N/A'}" 
+                       TextWrapping="Wrap" />
+            
+            <!-- Tag -->
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Tag:" FontWeight="Medium" />
+            <TextBlock Grid.Row="1" Grid.Column="1" 
+                       Text="{Binding SelectedRelease.TagName, FallbackValue='N/A'}" />
+            
+            <!-- Status with Safe Boolean Binding -->
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Status:" FontWeight="Medium" />
+            <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="4">
+              <Border Background="#FFD700" CornerRadius="8" Padding="4,1"
+                      IsVisible="{Binding SelectedRelease.IsDraft, FallbackValue=False}">
+                <TextBlock Text="Draft" FontSize="10" Foreground="Black" />
+              </Border>
+              <Border Background="#FF7F50" CornerRadius="8" Padding="4,1"
+                      IsVisible="{Binding SelectedRelease.IsPrerelease, FallbackValue=False}">
+                <TextBlock Text="Pre-release" FontSize="10" Foreground="White" />
+              </Border>
+            </StackPanel>
+            
+            <!-- Published Date -->
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="Published:" FontWeight="Medium" />
+            <TextBlock Grid.Row="3" Grid.Column="1">
+              <TextBlock.Text>
+                <MultiBinding StringFormat="{}{0:g}">
+                  <Binding Path="SelectedRelease.PublishedAt" FallbackValue="Unknown" />
+                </MultiBinding>
+              </TextBlock.Text>
+            </TextBlock>
+          </Grid>
+
+          <!-- Release Body with Safe String Binding -->
+          <StackPanel Spacing="8" 
+                      IsVisible="{Binding SelectedRelease.Body, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Text="Release Notes" FontWeight="Medium" FontSize="12" />
+            <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                    CornerRadius="4" Padding="8" MaxHeight="150">
+              <ScrollViewer>
+                <TextBlock Text="{Binding SelectedRelease.Body, FallbackValue=''}" 
+                           TextWrapping="Wrap" FontSize="12" />
+              </ScrollViewer>
+            </Border>
+          </StackPanel>
+        </StackPanel>
+
+        <!-- No Selection Message -->
+        <StackPanel Spacing="8" 
+                    IsVisible="{Binding SelectedItem, Converter={x:Static ObjectConverters.IsNull}}"
+                    HorizontalAlignment="Center">
+          <TextBlock Text="ℹ️" 
+                     FontSize="32"
+                     HorizontalAlignment="Center"
+                     Opacity="0.5" />
+          <TextBlock Text="No item selected" 
+                     FontSize="14"
+                     HorizontalAlignment="Center"
+                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+          <TextBlock Text="Select an item to view details" 
+                     FontSize="12"
+                     HorizontalAlignment="Center"
+                     TextAlignment="Center"
+                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+        </StackPanel>
+
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
 </UserControl>

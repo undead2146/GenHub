@@ -39,7 +39,7 @@ This directory defines contracts for data repositories. The repository pattern a
         *   `GetCachedWorkflowRunsAsync(string repoFullName)`: Retrieves cached workflow runs.
         *   `CacheWorkflowRunsAsync(string repoFullName, IEnumerable<GitHubWorkflow> runs)`: Caches workflow runs.
         *   `GetRepoSettingsAsync(string repoFullName)`: Retrieves stored settings for a repository.
-        *   `SaveRepoSettingsAsync(GitHubRepoSettings settings)`: Saves repository settings.
+        *   `SaveRepoSettingsAsync(GitHubRepository settings)`: Saves repository settings.
     *   **Usage**: Could be used by GitHub services to implement a caching layer.
 
 *   **`IJsonRepository.cs`**:

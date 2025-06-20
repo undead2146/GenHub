@@ -92,7 +92,7 @@ namespace GenHub.Core.Models
         /// <summary>
         /// Repository information
         /// </summary>
-        public GitHubRepoSettings? RepositoryInfo { get; set; }
+        public GitHubRepository? RepositoryInfo { get; set; }
 
         /// <summary>
         /// The URL to view the workflow run on GitHub

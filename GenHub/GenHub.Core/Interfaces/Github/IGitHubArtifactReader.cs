@@ -40,14 +40,14 @@ namespace GenHub.Core.Interfaces
         /// Get artifacts from a specific repository
         /// </summary>
         Task<IEnumerable<GitHubArtifact>> GetArtifactsForRepositoryAsync(
-            GitHubRepoSettings repoConfig,
+            GitHubRepository repoConfig,
             CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Download an artifact from a specific repository
         /// </summary>
         Task<string> DownloadArtifactAsync(
-            GitHubRepoSettings repoConfig,
+            GitHubRepository repoConfig,
             long artifactId,
             string destinationFolder,
             IProgress<double>? progress = null,
@@ -66,6 +66,6 @@ namespace GenHub.Core.Interfaces
         /// <summary>
         /// Gets the list of detected versions from GitHub artifacts for a specific repository
         /// </summary>
-        Task<IEnumerable<GameVersion>> GetDetectedVersionsAsync(GitHubRepoSettings repoConfig, CancellationToken cancellationToken = default);
+        Task<IEnumerable<GameVersion>> GetDetectedVersionsAsync(GitHubRepository repoConfig, CancellationToken cancellationToken = default);
     }
 }

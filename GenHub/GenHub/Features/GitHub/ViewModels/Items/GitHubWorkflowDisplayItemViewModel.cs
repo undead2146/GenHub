@@ -4,9 +4,9 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
-using Avalonia.Threading;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces;
 using GenHub.Core.Models;
@@ -15,7 +15,7 @@ using GenHub.Core.Models.GitHub;
 namespace GenHub.Features.GitHub.ViewModels
 {
     /// <summary>
-    /// ViewModel for a GitHub workflow run with artifact loading capabilities
+    /// View model for a GitHub workflow run with enhanced display and interaction capabilities
     /// </summary>
     public partial class GitHubWorkflowDisplayItemViewModel : GitHubDisplayItemViewModel
     {
@@ -35,78 +35,24 @@ namespace GenHub.Features.GitHub.ViewModels
         [ObservableProperty]
         private bool _isLoadingArtifacts;
 
+        #region Additional Properties for UI Binding
         /// <summary>
-        /// Initializes a new instance of the GitHubWorkflowDisplayItemViewModel class
+        /// Gets the workflow status
         /// </summary>
-        /// <param name="workflow">The GitHub workflow data</param>
-        /// <param name="artifactReader">Service for reading artifacts</param>
-        /// <param name="gitHubService">The GitHub service facade</param>
-        /// <param name="logger">Logger for diagnostics</param>
-        public GitHubWorkflowDisplayItemViewModel(
-            GitHubWorkflow workflow,
-            IGitHubArtifactReader artifactReader,
-            IGitHubServiceFacade? gitHubService,
-            ILogger logger)
-        {
-            _workflow = workflow ?? throw new ArgumentNullException(nameof(workflow));
-            _artifactReader = artifactReader ?? throw new ArgumentNullException(nameof(artifactReader));
-            _gitHubService = gitHubService;
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
-            _iconKey = "WorkflowIcon";
-
-            // Initialize display name
-            UpdateDisplayName();
-            
-            _logger.LogDebug("Created GitHubWorkflowDisplayItemViewModel for workflow {WorkflowId}, run {RunId}", 
-                WorkflowId, RunId);
-        }
+        public string Status => _workflow?.Status ?? string.Empty;
 
         /// <summary>
-        /// Sets the parent ViewModel reference for backward compatibility with factory methods
+        /// Gets the short commit SHA (first 7 characters)
         /// </summary>
-        public void SetParentViewModel(GitHubManagerViewModel parent)
-        {
-            _parentViewModel = parent;
-        }
+        public string ShortCommitSha => !string.IsNullOrEmpty(_workflow?.CommitSha) && _workflow.CommitSha.Length > 7 
+            ? _workflow.CommitSha.Substring(0, 7) 
+            : _workflow?.CommitSha ?? string.Empty;
 
         /// <summary>
-        /// Updates the display name with workflow details and context
+        /// Gets the formatted creation date
         /// </summary>
-        private void UpdateDisplayName()
-        {
-            string workflowName = !string.IsNullOrEmpty(_workflow.Name) ? _workflow.Name : "Workflow";
-            string baseTitle = $"{workflowName} #{_workflow.WorkflowNumber}";
-
-            if (_workflow.PullRequestNumber.HasValue && !string.IsNullOrEmpty(_workflow.PullRequestTitle))
-            {
-                _displayName = $"{baseTitle} - PR #{_workflow.PullRequestNumber}: {_workflow.PullRequestTitle}";
-            }
-            else if (!string.IsNullOrEmpty(_workflow.CommitMessage))
-            {
-                string commitMsg = _workflow.CommitMessage;
-                int newlineIndex = commitMsg.IndexOf('\n');
-                if (newlineIndex > 0)
-                {
-                    commitMsg = commitMsg.Substring(0, newlineIndex);
-                }
-
-                if (commitMsg.Length > 60)
-                {
-                    commitMsg = commitMsg.Substring(0, 57) + "...";
-                }
-
-                _displayName = $"{baseTitle} - {commitMsg}";
-            }
-            else
-            {
-                _displayName = baseTitle;
-                if (!string.IsNullOrEmpty(_workflow.Name))
-                {
-                    _displayName += $" - {_workflow.Name}";
-                }
-            }
-        }
+        public string FormattedCreatedAt => _workflow?.CreatedAt.ToString("MMM dd, HH:mm") ?? string.Empty;
+        #endregion
 
         #region Workflow Properties
         /// <summary>
@@ -167,7 +113,7 @@ namespace GenHub.Features.GitHub.ViewModels
         /// <summary>
         /// Gets the repository information
         /// </summary>
-        public GitHubRepoSettings? RepositoryInfo => _workflow.RepositoryInfo;
+        public GitHubRepository? RepositoryInfo => _workflow.RepositoryInfo;
 
         /// <summary>
         /// Gets a value indicating whether this workflow has artifacts
@@ -232,18 +178,92 @@ namespace GenHub.Features.GitHub.ViewModels
         public override bool IsWorkflowRun => true;
         #endregion
 
+        #region Interface Property Overrides
+        /// <summary>
+        /// Gets the run number for this workflow
+        /// </summary>
+        public override int? RunNumber => WorkflowNumber > 0 ? WorkflowNumber : null;
+        #endregion
+
+        /// <summary>
+        /// Initializes a new instance of the GitHubWorkflowDisplayItemViewModel class
+        /// </summary>
+        /// <param name="workflow">The GitHub workflow data</param>
+        /// <param name="artifactReader">Service for reading artifacts</param>
+        /// <param name="gitHubService">The GitHub service facade</param>
+        /// <param name="logger">Logger for diagnostics</param>
+        public GitHubWorkflowDisplayItemViewModel(
+            GitHubWorkflow workflow,
+            IGitHubArtifactReader artifactReader,
+            IGitHubServiceFacade gitHubService,
+            ILogger logger)
+        {
+            _workflow = workflow ?? throw new ArgumentNullException(nameof(workflow));
+            _artifactReader = artifactReader ?? throw new ArgumentNullException(nameof(artifactReader));
+            _gitHubService = gitHubService;
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            
+            InitializeFromWorkflow();
+        }
+
+        /// <summary>
+        /// Sets the parent ViewModel reference for backward compatibility with factory methods
+        /// </summary>
+        public void SetParentViewModel(GitHubManagerViewModel parent)
+        {
+            _parentViewModel = parent;
+        }
+
+        /// <summary>
+        /// Updates the display name with workflow details and context
+        /// </summary>
+        private void UpdateDisplayName()
+        {
+            string workflowName = !string.IsNullOrEmpty(_workflow.Name) ? _workflow.Name : "Workflow";
+            string baseTitle = $"{workflowName} #{_workflow.WorkflowNumber}";
+
+            if (_workflow.PullRequestNumber.HasValue && !string.IsNullOrEmpty(_workflow.PullRequestTitle))
+            {
+                _displayName = $"{baseTitle} - PR #{_workflow.PullRequestNumber}: {_workflow.PullRequestTitle}";
+            }
+            else if (!string.IsNullOrEmpty(_workflow.CommitMessage))
+            {
+                string commitMsg = _workflow.CommitMessage;
+                int newlineIndex = commitMsg.IndexOf('\n');
+                if (newlineIndex > 0)
+                {
+                    commitMsg = commitMsg.Substring(0, newlineIndex);
+                }
+
+                if (commitMsg.Length > 60)
+                {
+                    commitMsg = commitMsg.Substring(0, 57) + "...";
+                }
+
+                _displayName = $"{baseTitle} - {commitMsg}";
+            }
+            else
+            {
+                _displayName = baseTitle;
+                if (!string.IsNullOrEmpty(_workflow.Name))
+                {
+                    _displayName += $" - {_workflow.Name}";
+                }
+            }
+        }
+
         /// <summary>
         /// Loads artifacts associated with this workflow
         /// </summary>
         public override async Task LoadChildrenAsync(CancellationToken cancellationToken = default)
         {
-            if (_artifactsLoaded || IsLoadingArtifacts)
+            if (_artifactsLoaded || IsLoadingChildren)
             {
                 _logger.LogDebug("Skipping LoadChildrenAsync - already loaded or loading for workflow {WorkflowId}", WorkflowId);
                 return;
             }
 
-            IsLoadingArtifacts = true;
+            IsLoadingChildren = true;
             
             try
             {
@@ -281,7 +301,7 @@ namespace GenHub.Features.GitHub.ViewModels
                 await UpdateUIWithArtifacts(displayItems);
 
                 _artifactsLoaded = true;
-                SetLoadedState(true);
+                ChildrenLoaded = true;
                 
                 _logger.LogInformation("Successfully loaded {Count} artifacts for workflow {WorkflowId}", 
                     displayItems.Count, WorkflowId);
@@ -299,8 +319,18 @@ namespace GenHub.Features.GitHub.ViewModels
             }
             finally
             {
-                IsLoadingArtifacts = false;
+                IsLoadingChildren = false;
             }
+        }
+
+        /// <summary>
+        /// Initializes the display name and other properties from the workflow data
+        /// </summary>
+        private void InitializeFromWorkflow()
+        {
+            _displayName = !string.IsNullOrEmpty(_workflow?.DisplayTitle) 
+                ? _workflow.DisplayTitle 
+                : _workflow?.Name ?? "Unknown Workflow";
         }
 
         /// <summary>
@@ -315,15 +345,7 @@ namespace GenHub.Features.GitHub.ViewModels
                 WorkflowNumber = this.WorkflowNumber,
                 Name = this.WorkflowName,
                 CreatedAt = this.CreatedAt,
-                RepositoryInfo = this.RepositoryInfo != null ? new GitHubRepoSettings
-                {
-                    RepoOwner = this.RepositoryInfo.RepoOwner,
-                    RepoName = this.RepositoryInfo.RepoName,
-                    DisplayName = this.RepositoryInfo.DisplayName,
-                    Token = this.RepositoryInfo.Token,
-                    WorkflowFile = this.RepositoryInfo.WorkflowFile,
-                    Branch = this.RepositoryInfo.Branch
-                } : null
+                RepositoryInfo = this.RepositoryInfo
             };
         }
 
@@ -364,33 +386,14 @@ namespace GenHub.Features.GitHub.ViewModels
                     {
                         if (item != null)
                         {
-                            _logger.LogTrace("UI Update - Adding artifact: {ArtifactName}", item.DisplayName);
-                            
                             Artifacts.Add(item);
                             Children.Add(item);
                         }
                     }
 
-                    // Update computed properties
                     _artifactCountValue = displayItems.Count;
                     OnPropertyChanged(nameof(ArtifactCount));
                     OnPropertyChanged(nameof(HasArtifacts));
-                    OnPropertyChanged(nameof(FirstArtifact));
-
-                    // Force UI refresh
-                    OnPropertyChanged(nameof(Children));
-                    OnPropertyChanged(nameof(Artifacts));
-                    
-                    _logger.LogDebug("UI Update - Final counts - Artifacts: {ArtifactsCount}, Children: {ChildrenCount}", 
-                        Artifacts.Count, Children.Count);
-                    
-                    // Force expansion if artifacts were loaded
-                    if (displayItems.Count > 0)
-                    {
-                        IsExpanded = true;
-                        OnPropertyChanged(nameof(IsExpanded));
-                        _logger.LogTrace("UI Update - Set IsExpanded = true for workflow with {Count} artifacts", displayItems.Count);
-                    }
                 }
                 catch (Exception ex)
                 {
@@ -400,7 +403,7 @@ namespace GenHub.Features.GitHub.ViewModels
         }
 
         /// <summary>
-        /// Resets artifact collections when an error occurs
+        /// Resets the artifacts and UI state in case of an error
         /// </summary>
         private async Task ResetArtifactsOnError()
         {
@@ -408,6 +411,8 @@ namespace GenHub.Features.GitHub.ViewModels
             {
                 try
                 {
+                    _logger.LogWarning("Resetting artifacts and UI state for workflow {WorkflowId} due to error", WorkflowId);
+                    
                     Artifacts.Clear();
                     Children.Clear();
                     _artifactCountValue = 0;

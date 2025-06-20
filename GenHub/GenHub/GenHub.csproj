@@ -28,9 +28,7 @@
         <PackageReference Include="Serilog.Extensions.Logging.File" />
         <PackageReference Include="System.Security.Cryptography.ProtectedData" />
         <PackageReference Include="xunit" />
-    </ItemGroup>
-
-    <ItemGroup>
+    </ItemGroup>    <ItemGroup>
         <ProjectReference Include="..\GenHub.Core\GenHub.Core.csproj" />
     </ItemGroup>
 

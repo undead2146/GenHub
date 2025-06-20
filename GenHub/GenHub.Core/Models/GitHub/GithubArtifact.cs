@@ -1,151 +1,183 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace GenHub.Core.Models
 {
     /// <summary>
-    /// Represents a build artifact from GitHub.
-    /// This model should closely mirror the data structure provided by the GitHub API for an artifact,
-    /// plus any locally derived information like BuildInfo or RepositoryInfo.
+    /// Represents a GitHub workflow artifact
     /// </summary>
     public class GitHubArtifact
     {
         /// <summary>
-        /// Gets or sets the artifact ID.
+        /// Unique identifier for the artifact
         /// </summary>
+        [JsonPropertyName("id")]
         public long Id { get; set; }
 
         /// <summary>
-        /// Gets or sets the artifact name.
+        /// Name of the artifact
         /// </summary>
+        [JsonPropertyName("name")]
         public string Name { get; set; } = string.Empty;
 
         /// <summary>
-        /// Gets or sets the workflow ID that produced this artifact.
+        /// Size of the artifact in bytes
         /// </summary>
-        public long WorkflowId { get; set; } // ID of the workflow definition
+        [JsonPropertyName("size_in_bytes")]
+        public long SizeInBytes { get; set; }
 
         /// <summary>
-        /// Gets or sets the run ID of the workflow that produced this artifact.
+        /// URL for downloading the artifact archive
+        /// </summary>
+        [JsonPropertyName("archive_download_url")]
+        public string? ArchiveDownloadUrl { get; set; }
+
+        /// <summary>
+        /// When the artifact was created
+        /// </summary>
+        [JsonPropertyName("created_at")]
+        public DateTime CreatedAt { get; set; }
+
+        /// <summary>
+        /// When the artifact expires
+        /// </summary>
+        [JsonPropertyName("expires_at")]
+        public DateTime? ExpiresAt { get; set; }
+
+        /// <summary>
+        /// Whether the artifact has expired
+        /// </summary>
+        [JsonPropertyName("expired")]
+        public bool Expired { get; set; }
+
+        /// <summary>
+        /// The workflow run ID this artifact belongs to
         /// </summary>
         public long RunId { get; set; }
 
         /// <summary>
-        /// Gets or sets the workflow run number.
+        /// The workflow ID this artifact belongs to
+        /// </summary>
+        public long WorkflowId { get; set; }
+
+        /// <summary>
+        /// The workflow run number
         /// </summary>
         public int WorkflowNumber { get; set; }
 
         /// <summary>
-        /// Gets or sets the size of the artifact in bytes.
-        /// </summary>
-        public long SizeInBytes { get; set; }
-        
-        /// <summary>
-        /// Flag indicating if this is a release asset (not a workflow artifact)
-        /// </summary>
-        public bool IsRelease { get; set; }
-
-        /// <summary>
-        /// Direct download URL for release assets
-        /// </summary>
-        public string DownloadUrl { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Gets or sets the URL to download the artifact archive.
-        /// </summary>
-        public string? ArchiveDownloadUrl { get; set; }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether the artifact has expired.
-        /// </summary>
-        public bool Expired { get; set; }
-
-        /// <summary>
-        /// Gets or sets the creation time of the artifact.
-        /// </summary>
-        public DateTime CreatedAt { get; set; }
-
-        /// <summary>
-        /// Gets or sets the expiration time of the artifact.
-        /// </summary>
-        public DateTime? ExpiresAt { get; set; }
-
-        // Contextual information often included with artifact data by GitHub API
-        /// <summary>
-        /// Gets or sets the pull request number associated with this artifact's workflow run.
+        /// Pull request number if this artifact is from a PR
         /// </summary>
         public int? PullRequestNumber { get; set; }
 
         /// <summary>
-        /// Gets or sets the pull request title.
+        /// Pull request title if this artifact is from a PR
         /// </summary>
         public string? PullRequestTitle { get; set; }
 
         /// <summary>
-        /// Gets or sets the commit SHA that triggered the workflow run.
+        /// Commit SHA this artifact was built from
         /// </summary>
         public string? CommitSha { get; set; }
 
         /// <summary>
-        /// Gets or sets the commit message.
+        /// Commit message this artifact was built from
         /// </summary>
         public string? CommitMessage { get; set; }
-        
+
         /// <summary>
-        /// Gets the event type that triggered the workflow (e.g., pull_request, push).
+        /// Repository information
+        /// </summary>
+        public GitHubRepository? RepositoryInfo { get; set; }
+
+        /// <summary>
+        /// Build information parsed from the artifact name
+        /// </summary>
+        public GitHubBuild? BuildInfo { get; set; }
+
+        /// <summary>
+        /// Whether this artifact represents a release
+        /// </summary>
+        public bool IsRelease { get; set; }
+
+        /// <summary>
+        /// Whether this artifact is installed locally
+        /// </summary>
+        public bool IsInstalled { get; set; }
+
+        /// <summary>
+        /// Custom download URL if different from archive URL
+        /// </summary>
+        public string? DownloadUrl { get; set; }
+
+        /// <summary>
+        /// The event type that triggered the workflow
         /// </summary>
         public string? EventType { get; set; }
 
         /// <summary>
-        /// Gets or sets the build preset parsed or identified for this artifact (e.g., Debug, Release).
-        /// This might be derived from BuildInfo.Configuration or set directly.
+        /// Build preset used for this artifact
         /// </summary>
         public string? BuildPreset { get; set; }
 
-
-        // Locally populated or UI-related properties
         /// <summary>
-        /// Gets or sets the parsed build information from the artifact name or metadata.
-        /// This should be populated by a service (e.g., GitHubArtifactReader).
+        /// Whether this artifact is currently active
         /// </summary>
-        [JsonIgnore]
-        public GitHubBuild? BuildInfo { get; set; }
+        public bool IsActive { get; set; }
 
         /// <summary>
-        /// Gets or sets the repository information this artifact belongs to.
-        /// This should be populated by a service when the artifact is fetched.
+        /// Whether this artifact is currently being installed
         /// </summary>
-        [JsonIgnore]
-        public GitHubRepoSettings? RepositoryInfo { get; set; }
-        
-        [JsonIgnore]
-        public bool IsActive { get; set; } // UI state or similar
+        public bool IsInstalling { get; set; }
 
-        [JsonIgnore]
-        public bool IsInstalled { get; set; } // UI state or similar
-
-        [JsonIgnore]
-        public bool IsInstalling { get; set; } // UI state or similar
-
-
-        // Convenience Accessors
-        [JsonIgnore]
-        public string ShortCommitSha => !string.IsNullOrEmpty(CommitSha) 
-            ? CommitSha.Substring(0, Math.Min(7, CommitSha.Length)) 
-            : string.Empty;
-
-        [JsonIgnore]
-        public bool HasBuildInfo => BuildInfo != null;
-        
+        /// <summary>
+        /// Gets a display name for the artifact
+        /// </summary>
         public string GetDisplayName()
         {
-            if (PullRequestNumber.HasValue && !string.IsNullOrWhiteSpace(PullRequestTitle))
-                return $"PR #{PullRequestNumber}: {PullRequestTitle} ({Name})";
+            if (BuildInfo != null)
+            {
+                return $"{Name} ({BuildInfo.GameVariant})";
+            }
+            return Name;
+        }
+
+        /// <summary>
+        /// Gets a formatted description
+        /// </summary>
+        public string GetDescription()
+        {
+            var parts = new List<string>();
+            
+            if (SizeInBytes > 0)
+            {
+                parts.Add(FormatFileSize(SizeInBytes));
+            }
             
             if (WorkflowNumber > 0)
-                return $"Build #{WorkflowNumber} ({Name})";
-                
-            return Name;
+            {
+                parts.Add($"Run #{WorkflowNumber}");
+            }
+            
+            if (PullRequestNumber.HasValue)
+            {
+                parts.Add($"PR #{PullRequestNumber}");
+            }
+            
+            return string.Join(" - ", parts);
+        }
+
+        private static string FormatFileSize(long bytes)
+        {
+            if (bytes < 1024)
+                return $"{bytes} B";
+            if (bytes < 1024 * 1024)
+                return $"{bytes / 1024.0:F1} KB";
+            if (bytes < 1024 * 1024 * 1024)
+                return $"{bytes / (1024.0 * 1024.0):F1} MB";
+            
+            return $"{bytes / (1024.0 * 1024.0 * 1024.0):F1} GB";
         }
     }
 }

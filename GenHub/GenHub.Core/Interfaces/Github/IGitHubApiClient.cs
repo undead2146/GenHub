@@ -28,7 +28,7 @@ namespace GenHub.Core.Interfaces.GitHub
         /// <summary>
         /// Gets artifacts for a workflow run
         /// </summary>
-        Task<IEnumerable<GitHubArtifact>> GetArtifactsForRunAsync(GitHubRepoSettings repoSettings, long runId, CancellationToken cancellationToken = default);
+        Task<IEnumerable<GitHubArtifact>> GetArtifactsForRunAsync(GitHubRepository repoSettings, long runId, CancellationToken cancellationToken = default);
         
         /// <summary>
         /// Handles API rate limiting
@@ -43,7 +43,7 @@ namespace GenHub.Core.Interfaces.GitHub
         /// <summary>
         /// Gets a stream for downloading content
         /// </summary>
-        Task<(Stream Stream, long? ContentLength)> GetStreamAsync(GitHubRepoSettings repoSettings, string endpoint, CancellationToken cancellationToken = default);
+        Task<(Stream Stream, long? ContentLength)> GetStreamAsync(GitHubRepository repoSettings, string endpoint, CancellationToken cancellationToken = default);
         
         /// <summary>
         /// Generic method to make a GET request to the GitHub API and deserialize the response
@@ -53,7 +53,7 @@ namespace GenHub.Core.Interfaces.GitHub
         /// <summary>
         /// Generic method to make a GET request to the GitHub API with a repository context and deserialize the response
         /// </summary>
-        Task<T?> GetAsync<T>(GitHubRepoSettings repoSettings, string endpoint, CancellationToken cancellationToken = default) where T : class;
+        Task<T?> GetAsync<T>(GitHubRepository repoSettings, string endpoint, CancellationToken cancellationToken = default) where T : class;
         
         /// <summary>
         /// Generic method to make a GET request to the GitHub API using owner and repo directly
@@ -63,7 +63,7 @@ namespace GenHub.Core.Interfaces.GitHub
         /// <summary>
         /// Gets a specific workflow run by its ID
         /// </summary>
-        Task<GitHubWorkflow?> GetWorkflowRunAsync(GitHubRepoSettings repoSettings, long runId, CancellationToken cancellationToken = default);
+        Task<GitHubWorkflow?> GetWorkflowRunAsync(GitHubRepository repoSettings, long runId, CancellationToken cancellationToken = default);
         
         /// <summary>
         /// Gets a specific workflow run by its ID with owner and repo names
@@ -88,7 +88,7 @@ namespace GenHub.Core.Interfaces.GitHub
         /// <summary>
         /// Gets a raw HTTP response for a GitHub API request
         /// </summary>
-        Task<HttpResponseMessage> GetRawAsync(GitHubRepoSettings repoSettings, string endpoint, CancellationToken cancellationToken = default);
+        Task<HttpResponseMessage> GetRawAsync(GitHubRepository repoSettings, string endpoint, CancellationToken cancellationToken = default);
         
         /// <summary>
         /// Gets the latest release for a repository
@@ -113,5 +113,42 @@ namespace GenHub.Core.Interfaces.GitHub
         /// <param name="cancellationToken">Optional cancellation token</param>
         /// <returns>True if authentication is valid, false otherwise</returns>
         Task<bool> TestAuthenticationAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Gets repository information
+        /// </summary>
+        /// <param name="owner">Repository owner</param>
+        /// <param name="name">Repository name</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Repository information</returns>
+        Task<GitHubRepository?> GetRepositoryInfoAsync(string owner, string name, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Gets forks of a repository
+        /// </summary>
+        /// <param name="owner">Repository owner</param>
+        /// <param name="name">Repository name</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>List of repository forks</returns>
+        Task<IEnumerable<GitHubRepository>?> GetRepositoryForksAsync(string owner, string name, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Searches for repositories
+        /// </summary>
+        /// <param name="query">Search query</param>
+        /// <param name="sortBy">Sort field (e.g., 'stars', 'forks', 'updated'). Defaults to 'best-match'.</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>List of repositories matching the search</returns>
+        Task<IEnumerable<GitHubRepository>?> SearchRepositoriesAsync(string query, string sortBy = "best-match", CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Gets the most recent workflow runs for a specific repository.
+        /// </summary>
+        Task<IEnumerable<GitHubWorkflow>?> GetWorkflowRunsForRepositoryAsync(string owner, string repo, int perPage = 5, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Gets the most recent releases for a specific repository.
+        /// </summary>
+        Task<IEnumerable<GitHubRelease>?> GetReleasesForRepositoryAsync(string owner, string repo, int perPage = 5, CancellationToken cancellationToken = default);
     }
 }

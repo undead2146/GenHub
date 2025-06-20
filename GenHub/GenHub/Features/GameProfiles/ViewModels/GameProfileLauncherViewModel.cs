@@ -17,6 +17,7 @@ using GenHub.Common.ViewModels;
 using GenHub.Core.Interfaces;
 using GenHub.Core.Models;
 using GenHub.Core.Models.GameProfiles;
+using GenHub.Core.Interfaces.DesktopShortcuts;
 
 using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.Views;
@@ -24,8 +25,7 @@ using GenHub.Features.GameVersions.Services;
 using GenHub.Core.Interfaces.GameVersions;
 
 namespace GenHub.Features.GameProfiles.ViewModels
-{
-    /// <summary>
+{    /// <summary>
     /// ViewModel responsible for launching games and managing game profiles
     /// </summary>
     public partial class GameProfileLauncherViewModel : ViewModelBase
@@ -37,6 +37,7 @@ namespace GenHub.Features.GameProfiles.ViewModels
         private readonly GameDetectionFacade _gameDetectionFacade;
         private readonly IGameExecutableLocator _gameExecutableLocator;
         private readonly IGameProfileFactory _gameProfileFactory;
+        private readonly IDesktopShortcutServiceFacade _shortcutService;
 
         [ObservableProperty]
         private string _statusMessage = string.Empty;
@@ -61,9 +62,7 @@ namespace GenHub.Features.GameProfiles.ViewModels
         private ObservableCollection<GameProfileItemViewModel> _profiles = new();
 
         [ObservableProperty]
-        private bool _isLoading;
-
-        /// <summary>
+        private bool _isLoading;        /// <summary>
         /// Initializes a new instance of the GameProfileLauncherViewModel class
         /// </summary>
         public GameProfileLauncherViewModel(
@@ -73,7 +72,8 @@ namespace GenHub.Features.GameProfiles.ViewModels
             IGameProfileManagerService profileManagerService,
             GameDetectionFacade gameDetectionFacade,
             IGameExecutableLocator gameExecutableLocator,
-            IGameProfileFactory gameProfileFactory
+            IGameProfileFactory gameProfileFactory,
+            IDesktopShortcutServiceFacade shortcutService
             )
         {
             _logger = logger;
@@ -83,6 +83,7 @@ namespace GenHub.Features.GameProfiles.ViewModels
             _gameDetectionFacade = gameDetectionFacade;
             _gameExecutableLocator = gameExecutableLocator;
             _gameProfileFactory = gameProfileFactory;
+            _shortcutService = shortcutService;
 
             // Subscribe to profile updates event
             _profileManagerService.ProfilesUpdated += OnProfilesUpdated;
@@ -720,80 +721,152 @@ public async Task EditProfile(GameProfileItemViewModel profile)
                 IsLaunching = false;
             }
         }
-    }
 
-    /// <summary>
-    /// Extension methods for service location
-    /// </summary>
-    public static class ServiceProviderExtensions
-    {
         /// <summary>
-        /// Get a required service with additional constructor parameters
+        /// Creates a desktop shortcut for the specified profile
         /// </summary>
-        public static T GetRequiredService<T>(this IServiceProvider provider, params object[] additionalArgs)
+        [RelayCommand]
+        public async Task CreateShortcut(GameProfileItemViewModel profile)
         {
-            // Try to find a suitable constructor that can take the additional args
-            var type = typeof(T);
-            var constructors = type.GetConstructors();
+            if (profile == null) return;
 
-            // Sort constructors by parameter count (descending) to find the most specific match
-            Array.Sort(constructors, (x, y) => y.GetParameters().Length.CompareTo(x.GetParameters().Length));
-
-            foreach (var constructor in constructors)
+            try
             {
-                var parameters = constructor.GetParameters();
-                var resolvedArgs = new object[parameters.Length];
-                bool canResolve = true;
+                StatusMessage = $"Creating shortcut for '{profile.Name}'...";
+                _logger.LogInformation("Creating desktop shortcut for profile: {ProfileName} ({ProfileId})", profile.Name, profile.Id);
 
-                for (int i = 0; i < parameters.Length; i++)
+                var result = await _shortcutService.CreateShortcutAsync(profile.Id);                if (result.Success)
                 {
-                    var param = parameters[i];
-
-                    // Check if this parameter matches an additional arg by type
-                    var additionalArg = additionalArgs.FirstOrDefault(a => a != null && param.ParameterType.IsInstanceOfType(a));
-                    if (additionalArg != null)
-                    {
-                        resolvedArgs[i] = additionalArg;
-                    }
-                    else
-                    {
-                        // Try to resolve from DI
-                        try
-                        {
-                            var service = provider.GetService(param.ParameterType);
-                            if (service != null)
-                            {
-                                resolvedArgs[i] = service;
-                            }
-                            else
-                            {
-                                canResolve = false;
-                                break;
-                            }
-                        }
-                        catch
-                        {
-                            canResolve = false;
-                            break;
-                        }
-                    }
+                    StatusMessage = $"Shortcut created for '{profile.Name}'";
+                    _logger.LogInformation("Successfully created desktop shortcut for profile {ProfileId}", profile.Id);
                 }
-
-                if (canResolve)
+                else
                 {
-                    try
-                    {
-                        return (T)constructor.Invoke(resolvedArgs);
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error creating instance: {ex.Message}");
-                        continue; // Try next constructor
-                    }
+                    StatusMessage = $"Failed to create shortcut: {result.Message}";
+                    _logger.LogError("Failed to create desktop shortcut for profile {ProfileId}: {Error}", profile.Id, result.Message);
                 }
             }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error creating shortcut: {ex.Message}";
+                _logger.LogError(ex, "Error creating desktop shortcut for profile {ProfileId}", profile.Id);
+            }
+        }
 
-            throw new InvalidOperationException($"Could not find a suitable constructor for {typeof(T).Name}");
+        /// <summary>
+        /// Removes the desktop shortcut for the specified profile
+        /// </summary>
+        [RelayCommand]
+        public async Task RemoveShortcut(GameProfileItemViewModel profile)
+        {
+            if (profile == null) return;
+
+            try
+            {
+                StatusMessage = $"Removing shortcut for '{profile.Name}'...";
+                _logger.LogInformation("Removing desktop shortcut for profile: {ProfileName} ({ProfileId})", profile.Name, profile.Id);
+
+                var result = await _shortcutService.RemoveShortcutAsync(profile.Id);
+
+                if (result.Success)
+                {
+                    StatusMessage = $"Shortcut removed for '{profile.Name}'";
+                    _logger.LogInformation("Successfully removed desktop shortcut for profile {ProfileId}", profile.Id);
+                }
+                else
+                {
+                    StatusMessage = $"Failed to remove shortcut: {result.Message}";
+                    _logger.LogError("Failed to remove desktop shortcut for profile {ProfileId}: {Error}", profile.Id, result.Message);
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error removing shortcut: {ex.Message}";
+                _logger.LogError(ex, "Error removing desktop shortcut for profile {ProfileId}", profile.Id);
+            }
+        }
+
+        /// <summary>
+        /// Creates desktop shortcuts for all profiles
+        /// </summary>
+        [RelayCommand]
+        public async Task CreateAllShortcuts()
+        {
+            try
+            {
+                StatusMessage = "Creating shortcuts for all profiles...";
+                _logger.LogInformation("Creating desktop shortcuts for all profiles");
+
+                var profileIds = Profiles.Where(p => !p.IsDefaultProfile).Select(p => p.Id).ToArray();
+                
+                if (profileIds.Length == 0)
+                {
+                    StatusMessage = "No profiles to create shortcuts for";
+                    return;
+                }
+
+                var result = await _shortcutService.CreateBulkShortcutsAsync(profileIds);
+
+                if (result.Success)
+                {
+                    StatusMessage = $"Created shortcuts for {profileIds.Length} profiles";
+                    _logger.LogInformation("Successfully created shortcuts for {Count} profiles", profileIds.Length);
+                }
+                else
+                {
+                    StatusMessage = $"Failed to create shortcuts: {result.Message}";
+                    _logger.LogError("Failed to create bulk shortcuts: {Error}", result.Message);
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error creating shortcuts: {ex.Message}";
+                _logger.LogError(ex, "Error creating bulk desktop shortcuts");
+            }
+        }
+
+        /// <summary>
+        /// Validates all existing shortcuts and shows a summary
+        /// </summary>
+        [RelayCommand]
+        public async Task ValidateShortcuts()
+        {
+            try
+            {
+                StatusMessage = "Validating desktop shortcuts...";
+                _logger.LogInformation("Validating all desktop shortcuts");
+
+                var result = await _shortcutService.ValidateAllShortcutsAsync();                if (result.Success)
+                {
+                    var summary = result.Data;
+                    var validCount = summary?.ValidShortcuts ?? 0;
+                    var brokenCount = summary?.InvalidShortcuts ?? 0;
+                    
+                    StatusMessage = $"Validation complete: {validCount} valid, {brokenCount} broken shortcuts";
+                    _logger.LogInformation("Shortcut validation complete: {ValidCount} valid, {BrokenCount} broken", validCount, brokenCount);
+                }
+                else
+                {
+                    StatusMessage = $"Failed to validate shortcuts: {result.Message}";
+                    _logger.LogError("Failed to validate shortcuts: {Error}", result.Message);
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error validating shortcuts: {ex.Message}";
+                _logger.LogError(ex, "Error validating desktop shortcuts");
+            }
+        }
+        /// <summary>
+        /// Cleanup method
+        /// </summary>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                // Cleanup managed resources
+            }
+            base.Dispose(disposing);
         }
     }
 }

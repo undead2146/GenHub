@@ -57,10 +57,10 @@ namespace GenHub.Features.AppUpdate.ViewModels
         private bool _isLoadingSettings;
 
         [ObservableProperty]
-        private ObservableCollection<GitHubRepoSettings> _availableRepositories = new();
+        private ObservableCollection<GitHubRepository> _availableRepositories = new();
 
         [ObservableProperty]
-        private GitHubRepoSettings? _selectedRepository;
+        private GitHubRepository? _selectedRepository;
 
         // Add this new property
         [ObservableProperty]
@@ -116,7 +116,7 @@ namespace GenHub.Features.AppUpdate.ViewModels
             {
                 // Load repositories using the repository manager, not direct file access
                 var repositories = await _gitHubCachingManager.GetRepositoriesAsync();
-                AvailableRepositories = new ObservableCollection<GitHubRepoSettings>(repositories);
+                AvailableRepositories = new ObservableCollection<GitHubRepository>(repositories);
 
                 if (AvailableRepositories.Count > 0)
                 {
@@ -172,7 +172,7 @@ namespace GenHub.Features.AppUpdate.ViewModels
                 if (!AvailableRepositories.Any(r =>
                     r.RepoOwner == "undead2146" && r.RepoName == "GenHub"))
                 {
-                    var defaultRepo = new GitHubRepoSettings
+                    var defaultRepo = new GitHubRepository
                     {
                         RepoOwner = "undead2146",
                         RepoName = "GenHub",
@@ -192,7 +192,7 @@ namespace GenHub.Features.AppUpdate.ViewModels
             }
         }
 
-        partial void OnSelectedRepositoryChanged(GitHubRepoSettings? oldValue, GitHubRepoSettings? newValue)
+        partial void OnSelectedRepositoryChanged(GitHubRepository? oldValue, GitHubRepository? newValue)
         {
             if (newValue != null)
             {
@@ -453,7 +453,7 @@ namespace GenHub.Features.AppUpdate.ViewModels
                 }
 
                 // Create settings object from current values
-                var settings = new GitHubRepoSettings
+                var settings = new GitHubRepository
                 {
                     RepoOwner = RepositoryOwner,
                     RepoName = RepositoryName,

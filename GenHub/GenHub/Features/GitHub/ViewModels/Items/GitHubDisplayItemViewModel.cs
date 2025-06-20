@@ -2,107 +2,63 @@ using System;
 using System.Collections.ObjectModel;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using GenHub.Core.Interfaces.GitHub;
 
 namespace GenHub.Features.GitHub.ViewModels
 {
     /// <summary>
-    /// Base class for GitHub display items
+    /// Base class for all GitHub display items with common functionality
     /// </summary>
     public abstract partial class GitHubDisplayItemViewModel : ObservableObject, IGitHubDisplayItem
     {
-        // Protected fields accessible to derived classes
         protected string _iconKey = "FileIcon";
         
-        private readonly ObservableCollection<IGitHubDisplayItem> _children = new();
-        private bool _isExpanded;
-        private bool _isSelected;
-        private bool _isLoadingChildren;
-        private bool _childrenLoaded;
-        
-        // Abstract properties that must be implemented by derived classes
+        #region Observable Properties
+        [ObservableProperty]
+        private ObservableCollection<IGitHubDisplayItem> _children = new();
+
+        [ObservableProperty]
+        private bool _isExpanded = false;
+
+        [ObservableProperty]
+        private bool _childrenLoaded = false;
+
+        [ObservableProperty]
+        private bool _isSelected = false;
+
+        [ObservableProperty]
+        private bool _isLoadingChildren = false;
+        #endregion
+
+        #region Abstract Properties (Required by Interface)
         public abstract string DisplayName { get; }
         public abstract string Description { get; }
-        public abstract bool IsExpandable { get; }
         public abstract DateTime SortDate { get; }
+        public abstract bool IsExpandable { get; }
         public abstract bool IsRelease { get; }
+        #endregion
 
-        /// <summary>
-        /// Gets the icon source for the item
-        /// </summary>
+        #region Virtual Properties (Can be overridden)
+        public virtual int? RunNumber => null;
+        public virtual bool CanDownload => false;
+        public virtual bool CanInstall => false;
+        public virtual bool IsWorkflowRun => false;
+        public virtual bool IsActive => false;
         public virtual string? IconSource => null;
 
-        /// <summary>
-        /// Gets the children of this item
-        /// </summary>
-        public ObservableCollection<IGitHubDisplayItem> Children => _children;
-        
-        /// <summary>
-        /// Gets a value indicating whether this item represents a workflow run
-        /// </summary>
-        public virtual bool IsWorkflowRun => false;
-        
-        /// <summary>
-        /// Gets a value indicating whether this item is active
-        /// </summary>
-        public virtual bool IsActive => false;
-        
-        /// <summary>
-        /// Gets or sets a value indicating whether this item is selected
-        /// </summary>
-        public bool IsSelected 
-        { 
-            get => _isSelected;
-            set => SetProperty(ref _isSelected, value);
-        }
-        
-        /// <summary>
-        /// Gets or sets a value indicating whether the item is expanded
-        /// </summary>
-        public bool IsExpanded
-        {
-            get => _isExpanded;
-            set => SetProperty(ref _isExpanded, value);
-        }
-        
-        /// <summary>
-        /// Gets a value indicating whether children are currently being loaded
-        /// </summary>
-        public bool IsLoadingChildren => _isLoadingChildren;
-        
-        /// <summary>
-        /// Gets a value indicating whether children have been loaded
-        /// </summary>
-        public bool ChildrenLoaded => _childrenLoaded;
-        
-        /// <summary>
-        /// Gets the icon key for this item
-        /// </summary>
+        // Command properties - virtual so they can be overridden
+        public virtual ICommand? InstallCommand => null;
+        public virtual ICommand? DownloadCommand => null;
+        #endregion
+
+        #region Common Properties
         public string IconKey => _iconKey;
-        
-        /// <summary>
-        /// Loads children for this item (virtual method to be overridden by derived classes)
-        /// </summary>
-        public virtual async Task LoadChildrenAsync(CancellationToken cancellationToken = default)
-        {
-            await Task.CompletedTask;
-        }
-        
-        /// <summary>
-        /// Sets the loading state for children
-        /// </summary>
-        protected void SetLoadingState(bool isLoading)
-        {
-            SetProperty(ref _isLoadingChildren, isLoading, nameof(IsLoadingChildren));
-        }
-        
-        /// <summary>
-        /// Sets the loaded state for children
-        /// </summary>
-        protected void SetLoadedState(bool isLoaded)
-        {
-            SetProperty(ref _childrenLoaded, isLoaded, nameof(ChildrenLoaded));
-        }
+        #endregion
+
+        #region Abstract Methods
+        public abstract Task LoadChildrenAsync(CancellationToken cancellationToken = default);
+        #endregion
     }
 }

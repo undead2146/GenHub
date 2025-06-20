@@ -252,7 +252,7 @@ namespace GenHub.Features.GameProfiles.Services
                 // Fix repository info if missing
                 if (artifact.RepositoryInfo == null)
                 {
-                    artifact.RepositoryInfo = new GitHubRepoSettings
+                    artifact.RepositoryInfo = new GitHubRepository
                     {
                         RepoOwner = "TheSuperHackers",
                         RepoName = "GeneralsGameCode"

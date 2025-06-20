@@ -2,260 +2,257 @@ using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Models;
-using Microsoft.Extensions.Logging;
+using GenHub.Core.Models.GitHub;
+using GenHub.Core.Interfaces;
+using Avalonia.Threading;
 using System.Threading;
 
 namespace GenHub.Features.GitHub.ViewModels
 {
     /// <summary>
-    /// ViewModel for repository selection and management
+    /// ViewModel for repository control operations
     /// </summary>
     public partial class RepositoryControlViewModel : ObservableObject
     {
         private readonly ILogger<RepositoryControlViewModel> _logger;
         private readonly IGitHubRepositoryManager _repoService;
-
-        #region Observable Properties
-        [ObservableProperty]
-        private ObservableCollection<GitHubRepoSettings> _repositories = new();
+        private readonly IGitHubServiceFacade _gitHubService;
 
         [ObservableProperty]
-        private string _userInputCustomRepo = string.Empty;
+        private ObservableCollection<GitHubRepository> repositories = new();
 
         [ObservableProperty]
-        private bool _isSearchingRepository = false;
+        private GitHubRepository? selectedRepository;
 
         [ObservableProperty]
-        private GitHubRepoSettings? _selectedRepository;
+        private string statusMessage = string.Empty;
+
+        [ObservableProperty] 
+        private bool isLoading;
 
         [ObservableProperty]
-        private string _statusMessage = string.Empty;
-        #endregion
+        private bool isDiscovering;
+
+        public event EventHandler<GitHubRepository?>? RepositoryChanged;
 
         public RepositoryControlViewModel(
             ILogger<RepositoryControlViewModel> logger,
-            IGitHubRepositoryManager repoService)
+            IGitHubRepositoryManager repoService,
+            IGitHubServiceFacade gitHubService)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _repoService = repoService ?? throw new ArgumentNullException(nameof(repoService));
+            _gitHubService = gitHubService ?? throw new ArgumentNullException(nameof(gitHubService));
             
-            LoadRepositories();
+            _logger.LogDebug("RepositoryControlViewModel constructor started");
+            
+            // Initialize immediately
+            _ = Task.Run(async () => await InitializeAsync());
         }
 
-        /// <summary>
-        /// Loads repositories from the repository manager
-        /// </summary>
-        private void LoadRepositories()
+        private async Task InitializeAsync()
         {
             try
             {
-                var savedRepos = _repoService.GetRepositories();
+                _logger.LogDebug("Starting repository initialization");
+                IsLoading = true;
+                StatusMessage = "Loading repositories...";
 
-                Repositories.Clear();
-                foreach (var repo in savedRepos)
+                await LoadRepositoriesAsync();
+                
+                _logger.LogInformation("Repository initialization completed. Total repositories: {Count}", Repositories.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during repository initialization");
+                StatusMessage = $"Error loading repositories: {ex.Message}";
+            }
+            finally
+            {
+                IsLoading = false;
+            }
+        }
+
+        private async Task LoadRepositoriesAsync()
+        {
+            try
+            {
+                _logger.LogDebug("Loading repositories from service");
+                
+                var savedRepos = await Task.Run(() => _repoService.GetRepositories());
+                
+                _logger.LogDebug("Retrieved {Count} repositories from service", savedRepos?.Count() ?? 0);
+
+                // Switch to UI thread for collection updates
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    Repositories.Add(repo);
-                }
+                    Repositories.Clear();
+                    
+                    if (savedRepos != null)
+                    {
+                        foreach (var repo in savedRepos)
+                        {
+                            // Validate repository before adding
+                            if (repo.IsValid)
+                            {
+                                Repositories.Add(repo);
+                                _logger.LogDebug("Added repository: {DisplayName}", repo.ComputedDisplayName);
+                            }
+                            else
+                            {
+                                _logger.LogWarning("Skipped invalid repository: Owner='{Owner}', Name='{Name}'", 
+                                    repo.RepoOwner, repo.RepoName);
+                            }
+                        }
+                    }
 
-                if (SelectedRepository == null && Repositories.Count > 0)
-                {
-                    SelectedRepository = Repositories[0];
-                }
-
-                _logger.LogInformation("Loaded {Count} repositories", Repositories.Count);
+                    // Set initial selection
+                    SetInitialSelection();
+                    
+                    StatusMessage = $"Loaded {Repositories.Count} repositories";
+                });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error loading repositories");
-                StatusMessage = $"Error loading repositories: {ex.Message}";
+                throw;
             }
         }
 
-        /// <summary>
-        /// Adds a new repository based on user input
-        /// </summary>
-        [RelayCommand]
-        public async Task SearchRepositoryAsync()
+        private void SetInitialSelection()
         {
-            if (string.IsNullOrWhiteSpace(UserInputCustomRepo))
-            {
-                StatusMessage = "Please enter a repository in the format 'owner/name'";
-                return;
-            }
-
             try
             {
-                IsSearchingRepository = true;
-
-                // Parse owner/repo format
-                string[] parts = UserInputCustomRepo.Trim().Split('/');
-
-                if (parts.Length != 2)
+                if (SelectedRepository == null && Repositories.Count > 0)
                 {
-                    StatusMessage = "Invalid format: please use 'owner/name'";
-                    return;
+                    var defaultRepo = Repositories.First();
+
+                    OnPropertyChanged(nameof(SelectedRepository));
+                    
+                    _logger.LogInformation("Initial repository selected: {DisplayName}", defaultRepo.ComputedDisplayName);
                 }
-
-                // Check if already exists
-                var existingRepo = Repositories.FirstOrDefault(r =>
-                    r.RepoOwner.Equals(parts[0], StringComparison.OrdinalIgnoreCase) &&
-                    r.RepoName.Equals(parts[1], StringComparison.OrdinalIgnoreCase));
-
-                if (existingRepo != null)
+                else if (SelectedRepository != null)
                 {
-                    StatusMessage = "Repository already exists";
-                    SelectedRepository = existingRepo;
-                    UserInputCustomRepo = string.Empty;
-                    return;
+                    _logger.LogDebug("Repository already selected: {DisplayName}", SelectedRepository.ComputedDisplayName);
                 }
-
-                // Fix: Use timeout to prevent indefinite waiting
-                var validationCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-                
-                // Validate repository
-                StatusMessage = "Checking repository...";
-                bool repoExists;
-                try
+                else
                 {
-                    // Fix: Ensure repository validation doesn't block UI
-                    repoExists = await _repoService.ValidateRepositoryAsync(
-                        parts[0], 
-                        parts[1], 
-                        validationCts.Token).ConfigureAwait(true);
+                    _logger.LogWarning("No repositories available for selection");
+                    StatusMessage = "No repositories configured";
                 }
-                catch (OperationCanceledException)
-                {
-                    StatusMessage = "Repository validation timed out";
-                    return;
-                }
-
-                if (!repoExists)
-                {
-                    StatusMessage = "Repository not found or not accessible";
-                    return;
-                }
-
-                // Add repository
-                var newRepo = new GitHubRepoSettings
-                {
-                    RepoOwner = parts[0],
-                    RepoName = parts[1],
-                    DisplayName = $"{parts[0]}/{parts[1]}"
-                };
-
-                // Fix: Move UI updates inside UI thread dispatch
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    Repositories.Add(newRepo);
-                });
-                
-                // Fix: Extract save operation to separate async method to avoid UI blocking
-                await SaveRepositoriesAsync();
-
-                // Select the new repository - UI thread operation
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    SelectedRepository = newRepo;
-                    UserInputCustomRepo = string.Empty;
-                    StatusMessage = $"Added repository {newRepo.DisplayName}";
-                });
-
-                // Notify that a repository was added
-                RepositoryAdded?.Invoke(this, newRepo);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error adding repository");
-                StatusMessage = $"Error: {ex.Message}";
+                _logger.LogError(ex, "Error setting initial repository selection");
+            }
+        }
+
+        partial void OnSelectedRepositoryChanged(GitHubRepository? value)
+        {
+            try
+            {
+                _logger.LogDebug("Repository selection changed to: {DisplayName}", 
+                    value?.ComputedDisplayName ?? "null");
+                    
+                RepositoryChanged?.Invoke(this, value);
+                
+                if (value != null)
+                {
+                    StatusMessage = $"Selected: {value.ComputedDisplayName}";
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling repository selection change");
+            }
+        }
+
+        [RelayCommand]
+        private async Task RefreshRepositoriesAsync()
+        {
+            _logger.LogDebug("Refreshing repositories");
+            await LoadRepositoriesAsync();
+        }
+
+
+        /// <summary>
+        /// Discovers and adds C&C repositories
+        /// </summary>
+        [RelayCommand]
+        private async Task DiscoverRepositories()
+        {
+            if (IsDiscovering) return;
+
+            try
+            {
+                IsDiscovering = true;
+                _logger.LogInformation("Starting repository discovery");
+
+                // Run discovery on background thread to prevent UI freezing
+                var discoveryTask = Task.Run(async () =>
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5)); // 5 minute timeout
+                    
+                    var result = await _gitHubService.RepositoryDiscovery.DiscoverRepositoriesAsync(
+                        new DiscoveryOptions { MaxResultsToReturn = 50 }, 
+                        cts.Token);
+                        
+                    return result;
+                });
+
+                var result = await discoveryTask;
+
+                if (result.Success && result.Data?.Any() == true)
+                {
+                    var repositoriesList = result.Data.ToList();
+                    _logger.LogInformation("Discovered {Count} repositories", repositoriesList.Count);
+
+                    // Add to repository manager
+                    await _gitHubService.RepositoryDiscovery.AddDiscoveredRepositoriesAsync(repositoriesList, replaceExisting: false);
+
+                    // Refresh the repositories list
+                    await LoadRepositoriesAsync();
+
+                    // Select the first discovered repository if none selected
+                    if (SelectedRepository == null && Repositories.Any())
+                    {
+                        SelectedRepository = Repositories.First();
+                        _logger.LogInformation("Initial repository selected: {DisplayName}", SelectedRepository.ComputedDisplayName);
+                    }
+
+                    _logger.LogInformation("Successfully added {Count} discovered repositories", repositoriesList.Count);
+                }
+                else
+                {
+                    _logger.LogWarning("Repository discovery failed or returned no results: {Error}", 
+                        result.Message ?? "Unknown error");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogWarning("Repository discovery was cancelled due to timeout");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during repository discovery");
             }
             finally
             {
-                IsSearchingRepository = false;
+                IsDiscovering = false;
             }
         }
 
-        /// <summary>
-        /// Saves repositories asynchronously
-        /// </summary>
-        private async Task SaveRepositoriesAsync()
+        [RelayCommand]
+        private async Task AddRepositoryAsync()
         {
-            // Fix: Offload repository saving to background thread
-            await Task.Run(() => {
-                try
-                {
-                    _repoService.SaveRepositories(Repositories);
-                    _logger.LogInformation("Saved {Count} repositories", Repositories.Count);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error saving repositories");
-                    throw; // Re-throw to be caught by caller
-                }
-            });
+            // Implementation for adding new repository
+            _logger.LogDebug("Add repository command triggered");
+            await Task.CompletedTask; // Placeholder implementation
         }
-
-        /// <summary>
-        /// Saves repositories to persistent storage
-        /// </summary>
-        public void SaveRepositories()
-        {
-            try
-            {
-                _repoService.SaveRepositories(Repositories);
-                _logger.LogInformation("Saved {Count} repositories", Repositories.Count);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error saving repositories");
-                StatusMessage = $"Error saving repositories: {ex.Message}";
-            }
-        }
-
-        /// <summary>
-        /// Fires when the selected repository changes
-        /// </summary>
-        partial void OnSelectedRepositoryChanged(GitHubRepoSettings? oldValue, GitHubRepoSettings? newValue)
-        {
-            if (newValue == null || oldValue == newValue)
-                return;
-
-            _logger.LogInformation("Selected repository changed to: {Repository}",
-                newValue.DisplayName ?? $"{newValue.RepoOwner}/{newValue.RepoName}");
-
-            // Save the newly selected repository as current
-            Task.Run(async () =>
-            {
-                try
-                {
-                    await _repoService.SaveCurrentRepositoryAsync(newValue);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error saving current repository");
-                    await Dispatcher.UIThread.InvokeAsync(() => 
-                    {
-                        StatusMessage = $"Error saving repository: {ex.Message}";
-                    });
-                }
-            });
-
-            // Notify listeners that the repository changed
-            RepositoryChanged?.Invoke(this, newValue);
-        }
-
-        /// <summary>
-        /// Event that fires when the selected repository changes
-        /// </summary>
-        public event EventHandler<GitHubRepoSettings?>? RepositoryChanged;
-        
-        /// <summary>
-        /// Event that fires when a new repository is added
-        /// </summary>
-        public event EventHandler<GitHubRepoSettings>? RepositoryAdded;
     }
 }

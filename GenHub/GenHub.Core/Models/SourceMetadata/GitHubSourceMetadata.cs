@@ -29,7 +29,7 @@ namespace GenHub.Core.Models.SourceMetadata
         /// <summary>
         /// The repository information
         /// </summary>
-        public GitHubRepoSettings? RepositoryInfo { get; set; }
+        public GitHubRepository? RepositoryInfo { get; set; }
 
         /// <summary>
         /// The name of the release (for release assets)
@@ -187,11 +187,10 @@ namespace GenHub.Core.Models.SourceMetadata
                         HasTFlag = this.AssociatedArtifact.BuildInfo.HasTFlag,
                         HasEFlag = this.AssociatedArtifact.BuildInfo.HasEFlag
                     },
-                    RepositoryInfo = this.AssociatedArtifact.RepositoryInfo == null ? null : new GitHubRepoSettings
+                    RepositoryInfo = this.AssociatedArtifact.RepositoryInfo == null ? null : new GitHubRepository
                     {
                         RepoOwner = this.AssociatedArtifact.RepositoryInfo.RepoOwner,
                         RepoName = this.AssociatedArtifact.RepositoryInfo.RepoName,
-                        DisplayName = this.AssociatedArtifact.RepositoryInfo.DisplayName
                     }
                 },
                 
@@ -222,11 +221,10 @@ namespace GenHub.Core.Models.SourceMetadata
                 },
                 
                 // Clone RepositoryInfo manually
-                RepositoryInfo = this.RepositoryInfo == null ? null : new GitHubRepoSettings
+                RepositoryInfo = this.RepositoryInfo == null ? null : new GitHubRepository
                 {
                     RepoOwner = this.RepositoryInfo.RepoOwner,
                     RepoName = this.RepositoryInfo.RepoName,
-                    DisplayName = this.RepositoryInfo.DisplayName
                 },
                 
                 // Copy simple properties

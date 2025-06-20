@@ -42,6 +42,16 @@ namespace GenHub.Features.GitHub.ViewModels
 
         [ObservableProperty]
         private bool _isLoading = false;
+
+        [ObservableProperty]
+        private GitHubSearchCriteria _selectedSearchCriteria = GitHubSearchCriteria.All;
+
+        [ObservableProperty]
+        private bool _showSearchControls = true;
+        #endregion
+
+        #region Additional Observable Properties for UI Binding
+        private bool _showWorkflowSelector = true;
         #endregion
 
         public ContentModeFilterViewModel(
@@ -80,16 +90,20 @@ namespace GenHub.Features.GitHub.ViewModels
                 DisplayName = "GitHub Releases"
             });
 
-            // Select "All Items" by default
-            _selectionChangeInProgress = true;
-            SelectedWorkflow = AvailableWorkflows.FirstOrDefault();
-            _selectionChangeInProgress = false;
+            // Select "All Items" by default if nothing is selected
+            if (SelectedWorkflow == null)
+            {
+                _selectionChangeInProgress = true;
+                SelectedWorkflow = AvailableWorkflows.FirstOrDefault();
+                _selectionChangeInProgress = false;
+                _logger.LogDebug("Set default workflow selection: {WorkflowName}", SelectedWorkflow?.DisplayName);
+            }
         }
 
         /// <summary>
         /// Loads available workflow files for a repository
         /// </summary>
-        public async Task LoadWorkflowFilesForRepositoryAsync(GitHubRepoSettings repository)
+        public async Task LoadWorkflowFilesForRepositoryAsync(GitHubRepository repository)
         {
             if (repository == null)
             {
@@ -254,6 +268,40 @@ namespace GenHub.Features.GitHub.ViewModels
             }
         }
 
+        #region Properties
+        /// <summary>
+        /// Available search criteria options for UI binding
+        /// </summary>
+        public List<GitHubSearchCriteria> SearchCriteriaOptions { get; } = 
+            Enum.GetValues<GitHubSearchCriteria>().ToList();
+
+        /// <summary>
+        /// Available display modes for UI binding
+        /// </summary>
+        public List<DisplayMode> DisplayModes { get; } = 
+            Enum.GetValues<DisplayMode>().ToList();
+
+        /// <summary>
+        /// Workflow options for UI binding (alias for AvailableWorkflows)
+        /// </summary>
+        public ObservableCollection<WorkflowDefinitionViewModel> WorkflowOptions => AvailableWorkflows;
+
+        /// <summary>
+        /// Gets whether to show the workflow selector based on display mode
+        /// </summary>
+        public bool ShowWorkflowSelector => CurrentDisplayMode != DisplayMode.Releases;
+
+        /// <summary>
+        /// Gets the current workflow path for search context
+        /// </summary>
+        public string? CurrentWorkflowPath => SelectedWorkflow?.Path;
+
+        /// <summary>
+        /// Gets whether the current selection supports search
+        /// </summary>
+        public bool SupportsSearch => CurrentDisplayMode != DisplayMode.Releases;
+        #endregion
+
         /// <summary>
         /// Handles changes to the selected workflow
         /// </summary>
@@ -270,15 +318,21 @@ namespace GenHub.Features.GitHub.ViewModels
             if (newValue.Path == "releases")
             {
                 CurrentDisplayMode = DisplayMode.Releases;
+                ShowSearchControls = false; // Hide search for releases
             }
             else if (string.IsNullOrEmpty(newValue.Path))
             {
                 CurrentDisplayMode = DisplayMode.All;
+                ShowSearchControls = true;
             }
             else
             {
                 CurrentDisplayMode = DisplayMode.Workflows;
+                ShowSearchControls = true;
             }
+
+            // Notify property changed for computed properties
+            OnPropertyChanged(nameof(ShowWorkflowSelector));
 
             // Notify listeners of the workflow change
             if (previousMode != CurrentDisplayMode)
@@ -290,6 +344,17 @@ namespace GenHub.Features.GitHub.ViewModels
         }
 
         /// <summary>
+        /// Handles changes to search criteria
+        /// </summary>
+        partial void OnSelectedSearchCriteriaChanged(GitHubSearchCriteria oldValue, GitHubSearchCriteria newValue)
+        {
+            _logger.LogDebug("Search criteria changed from {OldCriteria} to {NewCriteria}", oldValue, newValue);
+            
+            // Notify listeners of search criteria change
+            SearchCriteriaChanged?.Invoke(this, newValue);
+        }
+
+        /// <summary>
         /// Event that fires when the selected workflow changes
         /// </summary>
         public event EventHandler<WorkflowDefinitionViewModel?>? WorkflowChanged;
@@ -298,5 +363,10 @@ namespace GenHub.Features.GitHub.ViewModels
         /// Event that fires when the display mode changes
         /// </summary>
         public event EventHandler<DisplayMode>? DisplayModeChanged;
+
+        /// <summary>
+        /// Event that fires when the search criteria changes
+        /// </summary>
+        public event EventHandler<GitHubSearchCriteria>? SearchCriteriaChanged;
     }
 }

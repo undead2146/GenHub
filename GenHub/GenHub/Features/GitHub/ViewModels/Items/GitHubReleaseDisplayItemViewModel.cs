@@ -4,7 +4,9 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using GenHub.Core.Models.GitHub;
 using GenHub.Core.Interfaces.GitHub;
@@ -66,15 +68,12 @@ namespace GenHub.Features.GitHub.ViewModels
             _displayItemFactory = displayItemFactory ?? throw new ArgumentNullException(nameof(displayItemFactory));
             _gitHubService = gitHubService ?? throw new ArgumentNullException(nameof(gitHubService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            
-            // Initialize properties from release model
+
             InitializeProperties();
-            
-            // Set icon based on release state
             UpdateIconKey();
-            
-            _logger.LogDebug("Created GitHubReleaseDisplayItemViewModel for release {ReleaseId}: {ReleaseName}", 
-                Id, ReleaseName);
+
+            _logger.LogDebug("Created GitHubReleaseDisplayItemViewModel for release {ReleaseName} (ID: {ReleaseId})",
+                release.Name, release.Id);
         }
 
         /// <summary>
@@ -83,12 +82,32 @@ namespace GenHub.Features.GitHub.ViewModels
         private void InitializeProperties()
         {
             Name = _release.Name ?? string.Empty;
-            TagName = _release.TagName;
+            TagName = _release.TagName ?? string.Empty;
             Body = _release.Body ?? string.Empty;
             IsDraft = _release.Draft;
             IsPrerelease = _release.Prerelease;
             AssetCount = _release.Assets?.Count ?? 0;
         }
+
+        #region Release Properties
+        /// <summary>
+        /// Gets the release version
+        /// </summary>
+        public string Version => _release.Version ?? string.Empty;
+        
+        /// <summary>
+        /// Gets the HTML URL for the release
+        /// </summary>
+        public string HtmlUrl => _release.HtmlUrl ?? string.Empty;
+        public long Id => _release.Id;
+        public string ReleaseName => _release.Name ?? string.Empty;
+        public string ReleaseTagName => _release.TagName;
+        public bool IsReleaseDraft => _release.Draft;
+        public bool IsReleasePrerelease => _release.Prerelease;
+        public DateTime PublishedAt => _release.PublishedAt ?? _release.CreatedAt;
+        public string? ReleaseBody => _release.Body;
+        public bool HasAssets => Assets.Count > 0;
+        #endregion
 
         #region Overridden Properties
         /// <summary>
@@ -99,7 +118,7 @@ namespace GenHub.Features.GitHub.ViewModels
         /// <summary>
         /// Gets the date for sorting
         /// </summary>
-        public override DateTime SortDate => _release.PublishedAt;
+        public override DateTime SortDate => _release.PublishedAt ?? _release.CreatedAt;
 
         /// <summary>
         /// Gets the description for the release
@@ -117,60 +136,8 @@ namespace GenHub.Features.GitHub.ViewModels
         public override bool IsExpandable => _release.Assets?.Any() ?? false;
         #endregion
 
-        #region Release Properties
         /// <summary>
-        /// Gets the release version
-        /// </summary>
-        public string Version => _release.Version ?? string.Empty;
-        
-        /// <summary>
-        /// Gets the HTML URL for the release
-        /// </summary>
-        public string HtmlUrl => _release.HtmlUrl ?? string.Empty;
-        
-        /// <summary>
-        /// Gets the release ID
-        /// </summary>
-        public long Id => _release.Id;
-        
-        /// <summary>
-        /// Gets the release name
-        /// </summary>
-        public string ReleaseName => _release.Name ?? string.Empty;
-        
-        /// <summary>
-        /// Gets the release tag name
-        /// </summary>
-        public string ReleaseTagName => _release.TagName;
-        
-        /// <summary>
-        /// Gets a value indicating whether this is a draft release
-        /// </summary>
-        public bool IsReleaseDraft => _release.Draft;
-        
-        /// <summary>
-        /// Gets a value indicating whether this is a prerelease
-        /// </summary>
-        public bool IsReleasePrerelease => _release.Prerelease;
-        
-        /// <summary>
-        /// Gets the publish date
-        /// </summary>
-        public DateTime PublishedAt => _release.PublishedAt;
-        
-        /// <summary>
-        /// Gets the release body/description
-        /// </summary>
-        public string? ReleaseBody => _release.Body;
-        
-        /// <summary>
-        /// Gets a value indicating whether this release has assets
-        /// </summary>
-        public bool HasAssets => Assets.Count > 0;
-        #endregion
-
-        /// <summary>
-        /// Loads the child items for this release (its assets)
+        /// Loads the assets for this release
         /// </summary>
         public override async Task LoadChildrenAsync(CancellationToken cancellationToken = default)
         {
@@ -179,39 +146,44 @@ namespace GenHub.Features.GitHub.ViewModels
                 _logger.LogDebug("Skipping LoadChildrenAsync - already loaded or loading for release {ReleaseId}", Id);
                 return;
             }
-                
+
             IsLoadingAssets = true;
             
             try
             {
-                _logger.LogDebug("Loading assets for release {ReleaseName} ({ReleaseId})", ReleaseName, Id);
+                _logger.LogDebug("Loading assets for release {ReleaseId}", Id);
                 
-                if (_release.Assets == null || !_release.Assets.Any())
+                var assetViewModels = new List<GitHubReleaseAssetViewModel>();
+                
+                if (_release.Assets != null)
                 {
-                    _logger.LogInformation("No assets found for release {ReleaseId}", Id);
-                    _assetsLoaded = true;
-                    return;
+                    foreach (var asset in _release.Assets)
+                    {
+                        try
+                        {
+                            var assetViewModel = new GitHubReleaseAssetViewModel(
+                                asset, this, _gitHubService, _logger);
+                            assetViewModels.Add(assetViewModel);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error creating asset view model for asset {AssetId}", asset.Id);
+                        }
+                    }
                 }
-                
-                // Convert the assets to view models
-                var assetViewModels = _release.Assets
-                    .Select(CreateAssetViewModel)
-                    .Where(vm => vm != null)
-                    .ToList();
-                
-                _logger.LogDebug("Created {Count} asset view models for release {ReleaseId}", assetViewModels.Count, Id);
-                
-                // Add to the observable collection on UI thread
+
                 await UpdateUIWithAssets(assetViewModels);
-                
+
                 _assetsLoaded = true;
-                SetLoadedState(true);
+                ChildrenLoaded = true;
                 
-                _logger.LogInformation("Successfully loaded {Count} assets for release {ReleaseId}", assetViewModels.Count, Id);
+                _logger.LogInformation("Successfully loaded {Count} assets for release {ReleaseId}", 
+                    assetViewModels.Count, Id);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error loading assets for release {ReleaseId}", Id);
+                await ResetAssetsOnError();
             }
             finally
             {
@@ -220,41 +192,24 @@ namespace GenHub.Features.GitHub.ViewModels
         }
 
         /// <summary>
-        /// Creates an asset view model with proper error handling
-        /// </summary>
-        private GitHubReleaseAssetViewModel? CreateAssetViewModel(GitHubReleaseAsset asset)
-        {
-            try
-            {
-                return new GitHubReleaseAssetViewModel(asset, this, _gitHubService, _logger);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error creating asset view model for {AssetName}", asset?.Name);
-                return null;
-            }
-        }
-
-        /// <summary>
         /// Updates the UI with asset view models
         /// </summary>
         private async Task UpdateUIWithAssets(List<GitHubReleaseAssetViewModel> assetViewModels)
         {
-            await Dispatcher.UIThread.InvokeAsync(() =>
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
             {
                 try
                 {
                     Assets.Clear();
-                    foreach (var asset in assetViewModels)
-                    {
-                        Assets.Add(asset);
-                    }
-                    
-                    // Also add to Children collection for IGitHubDisplayItem interface
                     Children.Clear();
+                    
                     foreach (var asset in assetViewModels)
                     {
-                        Children.Add(asset);
+                        if (asset != null)
+                        {
+                            Assets.Add(asset);
+                            Children.Add(asset);
+                        }
                     }
                     
                     OnPropertyChanged(nameof(HasAssets));
@@ -267,24 +222,74 @@ namespace GenHub.Features.GitHub.ViewModels
                 }
             });
         }
-        
+
         /// <summary>
-        /// Updates the icon key based on release state
+        /// Gets a value indicating whether this release can be installed
         /// </summary>
+        public override bool CanInstall => Assets.Any(a => a.CanDownload) && !string.IsNullOrEmpty(_release.TagName);
+
+        /// <summary>
+        /// Gets a value indicating whether this release can be downloaded
+        /// </summary>
+        public override bool CanDownload => Assets.Any(a => a.CanDownload);
+
+        /// <summary>
+        /// Command to install the release (downloads all assets)
+        /// </summary>
+        [RelayCommand]
+        private async Task InstallReleaseAsync()
+        {
+            _logger.LogInformation("Installing release {ReleaseName}", _release.Name);
+            
+            foreach (var asset in Assets.OfType<GitHubReleaseAssetViewModel>().Where(a => a.CanDownload))
+            {
+                // Call the download command directly
+                if (asset.DownloadAssetCommand?.CanExecute(null) == true)
+                {
+                    asset.DownloadAssetCommand.Execute(null);
+                }
+            }
+            
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Gets the install command
+        /// </summary>
+        public override ICommand? InstallCommand => InstallReleaseCommand;
+
         private void UpdateIconKey()
         {
-            if (IsDraft)
+            _iconKey = "ReleaseIcon";
+        }
+
+        private async Task RefreshAssetsAsync()
+        {
+            await LoadChildrenAsync();
+        }
+
+        /// <summary>
+        /// Resets the assets and UI state in case of an error
+        /// </summary>
+        private async Task ResetAssetsOnError()
+        {
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
             {
-                _iconKey = "ReleaseDraft";
-            }
-            else if (IsPrerelease)
-            {
-                _iconKey = "ReleasePrerelease";
-            }
-            else
-            {
-                _iconKey = "ReleaseStable";
-            }
+                try
+                {
+                    _logger.LogWarning("Resetting assets and UI state for release {ReleaseId} due to error", Id);
+                    
+                    Assets.Clear();
+                    Children.Clear();
+                    _assetCount = 0;
+                    OnPropertyChanged(nameof(AssetCount));
+                    OnPropertyChanged(nameof(HasAssets));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error resetting assets for release {ReleaseId}", Id);
+                }
+            });
         }
     }
 }

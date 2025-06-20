@@ -103,7 +103,7 @@ namespace GenHub.Infrastructure.Repositories
                 {
                     if (workflow.RepositoryInfo == null)
                     {
-                        workflow.RepositoryInfo = new GitHubRepoSettings
+                        workflow.RepositoryInfo = new GitHubRepository
                         {
                             RepoOwner = owner,
                             RepoName = name,
@@ -265,7 +265,7 @@ namespace GenHub.Infrastructure.Repositories
                 {
                     if (workflow.RepositoryInfo == null)
                     {
-                        workflow.RepositoryInfo = new GitHubRepoSettings
+                        workflow.RepositoryInfo = new GitHubRepository
                         {
                             RepoOwner = owner,
                             RepoName = name,
@@ -333,7 +333,7 @@ namespace GenHub.Infrastructure.Repositories
                 {
                     if (artifact.RepositoryInfo == null)
                     {
-                        artifact.RepositoryInfo = new GitHubRepoSettings
+                        artifact.RepositoryInfo = new GitHubRepository
                         {
                             RepoOwner = owner,
                             RepoName = name,
@@ -403,7 +403,7 @@ namespace GenHub.Infrastructure.Repositories
                 {
                     if (artifact.RepositoryInfo == null)
                     {
-                        artifact.RepositoryInfo = new GitHubRepoSettings
+                        artifact.RepositoryInfo = new GitHubRepository
                         {
                             RepoOwner = owner,
                             RepoName = name,
@@ -425,28 +425,28 @@ namespace GenHub.Infrastructure.Repositories
         /// <summary>
         /// Gets all configured repositories
         /// </summary>
-        public async Task<IEnumerable<GitHubRepoSettings>> GetRepositoriesAsync(CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<GitHubRepository>> GetRepositoriesAsync(CancellationToken cancellationToken = default)
         {
             try
             {
                 // Get repositories from shared settings
-                var repositories = await _cacheService.GetSharedSettingAsync<List<GitHubRepoSettings>>(
+                var repositories = await _cacheService.GetSharedSettingAsync<List<GitHubRepository>>(
                     REPOSITORIES_SETTING, 
                     cancellationToken);
 
-                return repositories ?? new List<GitHubRepoSettings>();
+                return repositories ?? new List<GitHubRepository>();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting repositories from shared settings");
-                return new List<GitHubRepoSettings>();
+                return new List<GitHubRepository>();
             }
         }
 
         /// <summary>
         /// Saves the list of repositories
         /// </summary>
-        public async Task SaveRepositoriesAsync(IEnumerable<GitHubRepoSettings> repositories, CancellationToken cancellationToken = default)
+        public async Task SaveRepositoriesAsync(IEnumerable<GitHubRepository> repositories, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -467,12 +467,12 @@ namespace GenHub.Infrastructure.Repositories
         /// <summary>
         /// Gets the currently selected repository
         /// </summary>
-        public async Task<GitHubRepoSettings?> GetCurrentRepositoryAsync(CancellationToken cancellationToken = default)
+        public async Task<GitHubRepository?> GetCurrentRepositoryAsync(CancellationToken cancellationToken = default)
         {
             try
             {
                 // Get current repository from shared settings
-                return await _cacheService.GetSharedSettingAsync<GitHubRepoSettings>(
+                return await _cacheService.GetSharedSettingAsync<GitHubRepository>(
                     CURRENT_REPOSITORY_SETTING, 
                     cancellationToken);
             }
@@ -486,7 +486,7 @@ namespace GenHub.Infrastructure.Repositories
         /// <summary>
         /// Saves the currently selected repository
         /// </summary>
-        public async Task SaveCurrentRepositoryAsync(GitHubRepoSettings repository, CancellationToken cancellationToken = default)
+        public async Task SaveCurrentRepositoryAsync(GitHubRepository repository, CancellationToken cancellationToken = default)
         {
             try
             {

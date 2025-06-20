@@ -27,7 +27,7 @@ namespace GenHub.Features.AppUpdate.Services
         private readonly IVersionComparator _versionComparator;
         private readonly ICacheService _cacheService;
         private readonly IUpdateInstaller _updateInstaller;
-        private readonly IGitHubReleaseReader _releaseReader;
+        private readonly IGitHubReleaseReader? _releaseReader;
 
         // Cache key for GitHub releases
         private const string RELEASES_CACHE_KEY = "github_releases";
@@ -355,9 +355,10 @@ namespace GenHub.Features.AppUpdate.Services
             }
 
             // Default: use publish date as fallback (in format YYYY.MM.DD)
-            if (release.PublishedAt != default)
+            if (release.PublishedAt != default && release.PublishedAt.HasValue)
             {
-                return $"{release.PublishedAt.Year}.{release.PublishedAt.Month}.{release.PublishedAt.Day}";
+                var publishDate = release.PublishedAt.Value;
+                return $"{publishDate.Year}.{publishDate.Month}.{publishDate.Day}";
             }
 
             // Ultimate fallback
@@ -496,7 +497,7 @@ namespace GenHub.Features.AppUpdate.Services
         /// <summary>
         /// Gets the repository settings used for update checking
         /// </summary>
-        public async Task<GitHubRepoSettings> GetRepositorySettingsAsync()
+        public async Task<GitHubRepository> GetRepositorySettingsAsync()
         {
             try
             {
@@ -508,7 +509,7 @@ namespace GenHub.Features.AppUpdate.Services
                     _logger.LogInformation("No custom update repository settings found, using default");
 
                     // Create default settings
-                    settings = new GitHubRepoSettings
+                    settings = new GitHubRepository
                     {
                         RepoOwner = "undead2146",
                         RepoName = "GenHub",
@@ -525,7 +526,7 @@ namespace GenHub.Features.AppUpdate.Services
             {
                 _logger.LogError(ex, "Error getting repository settings");
                 // Must return a non-null value to satisfy interface contract
-                return new GitHubRepoSettings
+                return new GitHubRepository
                 {
                     RepoOwner = "undead2146",
                     RepoName = "GenHub",
@@ -537,7 +538,7 @@ namespace GenHub.Features.AppUpdate.Services
         /// <summary>
         /// Saves the repository settings used for update checking
         /// </summary>
-        public async Task SaveRepositorySettingsAsync(GitHubRepoSettings settings)
+        public async Task SaveRepositorySettingsAsync(GitHubRepository settings)
         {
             try
             {
@@ -664,7 +665,7 @@ namespace GenHub.Features.AppUpdate.Services
         /// <summary>
         /// Gets a list of all saved repositories
         /// </summary>
-        public async Task<IEnumerable<GitHubRepoSettings>> GetSavedRepositoriesAsync(CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<GitHubRepository>> GetSavedRepositoriesAsync(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -674,14 +675,14 @@ namespace GenHub.Features.AppUpdate.Services
                 // If no repositories are found, return a list with just the default repository
                 if (repositories == null || !repositories.Any())
                 {
-                    var defaultSettings = new GitHubRepoSettings
+                    var defaultSettings = new GitHubRepository
                     {
                         RepoOwner = "undead2146",
                         RepoName = "GenHub",
                         DisplayName = "GenHub (Default)"
                     };
 
-                    return new List<GitHubRepoSettings> { defaultSettings };
+                    return new List<GitHubRepository> { defaultSettings };
                 }
 
                 return repositories;
@@ -691,21 +692,21 @@ namespace GenHub.Features.AppUpdate.Services
                 _logger.LogError(ex, "Error getting saved repositories");
 
                 // Return default repository as fallback
-                var defaultSettings = new GitHubRepoSettings
+                var defaultSettings = new GitHubRepository
                 {
                     RepoOwner = "undead2146",
                     RepoName = "GenHub",
                     DisplayName = "GenHub (Default)"
                 };
 
-                return new List<GitHubRepoSettings> { defaultSettings };
+                return new List<GitHubRepository> { defaultSettings };
             }
         }
 
         /// <summary>
         /// Saves a list of repositories
         /// </summary>
-        public async Task SaveRepositoriesAsync(IEnumerable<GitHubRepoSettings> repositories, CancellationToken cancellationToken = default)
+        public async Task SaveRepositoriesAsync(IEnumerable<GitHubRepository> repositories, CancellationToken cancellationToken = default)
         {
             try
             {

@@ -32,7 +32,7 @@ This directory contains interfaces that define contracts for services involved i
     *   **Purpose**: Defines the contract for a service that discovers potential game versions from various sources (e.g., detected installations via `IGameDetector`, available GitHub artifacts via GitHub services).
     *   **Key Methods**:
         *   `DiscoverLocalVersionsAsync()`: Discovers game versions from local installations.
-        *   `DiscoverRemoteVersionsAsync(GitHubRepoSettings repoSettings)`: Discovers game versions available from a remote source like GitHub.
+        *   `DiscoverRemoteVersionsAsync(GitHubRepository repoSettings)`: Discovers game versions available from a remote source like GitHub.
         *   `ProcessDiscoveredInstallationAsync(IGameInstallation detectedGame)`: Converts a raw `IGameInstallation` into a potential `GameVersion` model, possibly involving validation and metadata enrichment.
     *   **Usage**: Populates the list of available or known game versions that the user can then choose to manage or install.
 

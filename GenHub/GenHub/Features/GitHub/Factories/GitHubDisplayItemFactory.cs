@@ -267,9 +267,9 @@ namespace GenHub.Features.GitHub.Factories
             return copy;
         }
 
-        private GitHubRepoSettings? CreateDeepRepositoryCopy(GitHubRepoSettings? original)
+        private GitHubRepository? CreateDeepRepositoryCopy(GitHubRepository? original)
         {
-            return original == null ? null : new GitHubRepoSettings
+            return original == null ? null : new GitHubRepository
             {
                 RepoOwner = original.RepoOwner,
                 RepoName = original.RepoName,

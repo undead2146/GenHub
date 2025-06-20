@@ -17,7 +17,7 @@ using Microsoft.Extensions.Logging;
 namespace GenHub.Features.GitHub.ViewModels
 {
     /// <summary>
-    /// ViewModel for managing the main tree of GitHub items
+    /// ViewModel for managing the main tree of GitHub items with enhanced search capabilities
     /// </summary>
     public partial class GitHubItemsTreeViewModel : ObservableObject
     {
@@ -32,7 +32,7 @@ namespace GenHub.Features.GitHub.ViewModels
         private DateTime _lastRefreshTime = DateTime.MinValue;
         private readonly TimeSpan _minRefreshInterval = TimeSpan.FromSeconds(5);
 
-        #region Observable Properties
+        #region Observable Properties - Original Properties
         [ObservableProperty]
         private ObservableCollection<IGitHubDisplayItem> _gitHubItems = new();
 
@@ -68,15 +68,33 @@ namespace GenHub.Features.GitHub.ViewModels
 
         [ObservableProperty]
         private bool _searchByWorkflowNumber = false;
+        #endregion
+
+        #region Observable Properties - New Search Properties
+        [ObservableProperty]
+        private string _searchText = string.Empty;
+
+        [ObservableProperty]
+        private GitHubSearchCriteria _selectedSearchCriteria = GitHubSearchCriteria.All;
+
+        [ObservableProperty]
+        private bool _isSearchActive = false;
+
+        [ObservableProperty]
+        private int _searchResultCount = 0;
+        #endregion
 
         // Current repository and workflow references
-        private GitHubRepoSettings? _currentRepository;
+        private GitHubRepository? _currentRepository;
         private WorkflowDefinitionViewModel? _currentWorkflow;
         private DisplayMode _currentDisplayMode = DisplayMode.All;
         
         // Private backing fields
         private ObservableCollection<IGitHubDisplayItem> _items = new();
-        private object? _parentViewModel;
+        private GitHubManagerViewModel? _parentViewModel;
+
+        #region Events
+        public event EventHandler<IGitHubDisplayItem?>? ItemSelected;
         #endregion
 
         public GitHubItemsTreeViewModel(
@@ -89,31 +107,280 @@ namespace GenHub.Features.GitHub.ViewModels
             _gitHubService = gitHubService ?? throw new ArgumentNullException(nameof(gitHubService));
             _gitHubDataProvider = gitHubDataProvider ?? throw new ArgumentNullException(nameof(gitHubDataProvider));
             _displayItemFactory = displayItemFactory ?? throw new ArgumentNullException(nameof(displayItemFactory));
+
+            // Available search criteria for UI binding
+            SearchCriteriaOptions = Enum.GetValues<GitHubSearchCriteria>().ToList();
         }
 
+        #region Properties
         /// <summary>
-        /// Set the current repository context
+        /// Available search criteria options for UI binding
         /// </summary>
-        public void SetRepository(GitHubRepoSettings repository)
+        public List<GitHubSearchCriteria> SearchCriteriaOptions { get; }
+
+        /// <summary>
+        /// Gets whether search functionality is available
+        /// </summary>
+        public bool CanSearch => _currentRepository != null && !IsLoading;
+
+        /// <summary>
+        /// Gets the items to display in the tree
+        /// </summary>
+        public ObservableCollection<IGitHubDisplayItem> Items
         {
-            _currentRepository = repository;
+            get
+            {
+                _logger.LogTrace("Items getter called. Count: {Count}", _items?.Count ?? -1);
+                return _items;
+            }
+            private set
+            {
+                _logger.LogDebug("Setting Items collection. Old count: {OldCount}, New count: {NewCount}", 
+                    _items?.Count ?? -1, value?.Count ?? -1);
+                    
+                if (value != null && value.Any())
+                {
+                    for (int i = 0; i < Math.Min(3, value.Count); i++)
+                    {
+                        var item = value[i];
+                        _logger.LogDebug("New Item {Index}: Type={Type}, DisplayName='{DisplayName}'", 
+                            i, item?.GetType().Name, item?.DisplayName);
+                    }
+                }
+                
+                SetProperty(ref _items, value);
+                
+                // Monitor collection changes
+                if (_items != null)
+                {
+                    _items.CollectionChanged += (sender, args) =>
+                    {
+                        _logger.LogDebug("Items collection changed. Action: {Action}, NewItems: {NewCount}, OldItems: {OldCount}", 
+                            args.Action, args.NewItems?.Count ?? 0, args.OldItems?.Count ?? 0);
+                    };
+                }
+            }
         }
 
         /// <summary>
-        /// Set the current workflow context and display mode
+        /// Gets a value indicating whether there are items to display
+        /// </summary>
+        public bool HasItems => Items?.Count > 0;
+        #endregion
+
+        #region Context Management
+        /// <summary>
+        /// Sets the repository context for this tree view
+        /// </summary>
+        public void SetRepository(GitHubRepository repository)
+        {
+            _currentRepository = repository ?? throw new ArgumentNullException(nameof(repository));
+            _logger.LogInformation("Repository context set to: {Repository}", repository.DisplayName);
+            
+            // Clear search when repository changes
+            ClearSearch();
+        }
+
+        /// <summary>
+        /// Sets the workflow context and display mode
         /// </summary>
         public void SetWorkflowContext(WorkflowDefinitionViewModel? workflow, DisplayMode displayMode)
         {
             _currentWorkflow = workflow;
             _currentDisplayMode = displayMode;
+            
+            _logger.LogInformation("Workflow context set: Workflow='{WorkflowName}', Mode={DisplayMode}",
+                workflow?.Name ?? "All Items", displayMode);
+                
+            // Clear search when context changes
+            ClearSearch();
+        }
+        #endregion
+
+        #region Commands
+        /// <summary>
+        /// Command for performing search
+        /// </summary>
+        [RelayCommand]
+        public async Task SearchAsync()
+        {
+            if (string.IsNullOrWhiteSpace(SearchText) && string.IsNullOrWhiteSpace(SearchQuery))
+            {
+                await ClearSearchAsync();
+                return;
+            }
+
+            try
+            {
+                // Use existing ExecuteServerSearchAsync logic
+                await ExecuteServerSearchAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in SearchAsync");
+            }
         }
 
         /// <summary>
+        /// Command for clearing search
+        /// </summary>
+        [RelayCommand]
+        public async Task ClearSearchAsync()
+        {
+            try
+            {
+                SearchText = string.Empty;
+                SearchQuery = string.Empty;
+                IsSearchActive = false;
+                SearchResultCount = 0;
+                
+                // Reload content
+                await LoadContentAsync(clearExisting: true, forceRefresh: true);
+                
+                _logger.LogInformation("Search cleared, default content restored");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error clearing search");
+            }
+        }
+        #endregion
+
+        #region Enhanced Search Implementation
+        /// <summary>
+        /// Clears search without triggering reload (for context changes)
+        /// </summary>
+        private void ClearSearch()
+        {
+            SearchText = string.Empty;
+            IsSearchActive = false;
+            SearchResultCount = 0;
+        }
+        #endregion
+
+        #region Legacy Search Support
+        /// <summary>
+        /// Executes a search on the server (legacy method)
+        /// </summary>
+        [RelayCommand]
+        private async Task ExecuteServerSearchAsync()
+        {
+            if (string.IsNullOrWhiteSpace(SearchQuery) || IsLoading || _currentRepository == null)
+                return;
+
+            try
+            {
+                IsLoading = true;
+                StatusMessage = "Searching...";
+
+                // Cancel any existing search
+                _searchCts?.Cancel();
+                _searchCts = new CancellationTokenSource();
+
+                // Determine search criteria string
+                string criteriaString;
+                if (SearchByWorkflowNumber)
+                    criteriaString = "WorkflowNumber";
+                else if (SearchByCommitMessage)
+                    criteriaString = "CommitMessage";
+                else
+                    criteriaString = "All";
+
+                // Execute search with string criteria (legacy API)
+                var searchResults = await _gitHubDataProvider.SearchWorkflowsAsync(
+                    SearchQuery,
+                    criteriaString,
+                    _searchCts.Token);
+
+                if (searchResults != null && searchResults.Any())
+                {
+                    _logger.LogInformation("Legacy search found {Count} results", searchResults.Count());
+
+                    // Clear existing items
+                    GitHubItems.Clear();
+                    FilteredGitHubItems.Clear();
+                    Items.Clear();
+
+                    // Create display items for search results
+                    var displayItems = _displayItemFactory.CreateDisplayItemsFromWorkflows(searchResults, this);
+
+                    // Add to collections
+                    foreach (var item in displayItems)
+                    {
+                        GitHubItems.Add(item);
+                        FilteredGitHubItems.Add(item);
+                        Items.Add(item);
+                    }
+
+                    StatusMessage = $"Found {searchResults.Count()} results";
+                    ShowEmptyState = false;
+                }
+                else
+                {
+                    _logger.LogInformation("No legacy search results found");
+                    StatusMessage = "No results found";
+
+                    // Clear items and show empty state
+                    GitHubItems.Clear();
+                    FilteredGitHubItems.Clear();
+                    Items.Clear();
+                    ShowEmptyState = true;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("Legacy search was cancelled");
+                StatusMessage = "Search cancelled";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error executing legacy server search");
+                StatusMessage = $"Search error: {ex.Message}";
+            }
+            finally
+            {
+                IsLoading = false;
+            }
+        }
+
+        /// <summary>
+        /// Toggles search by workflow number
+        /// </summary>
+        [RelayCommand]
+        private void ToggleSearchByWorkflowNumber()
+        {
+            SearchByWorkflowNumber = true;
+            SearchByCommitMessage = false;
+        }
+
+        /// <summary>
+        /// Toggles search by commit message
+        /// </summary>
+        [RelayCommand]
+        private void ToggleSearchByCommitMessage()
+        {
+            SearchByWorkflowNumber = false;
+            SearchByCommitMessage = true;
+        }
+        #endregion
+
+        #region Content Loading (Original Implementation)
+        /// <summary>
         /// Load content based on current repository and workflow settings
         /// </summary>
-        public async Task LoadContentAsync(bool clearExisting = false)
+        public async Task LoadContentAsync(bool clearExisting = false, bool forceRefresh = false)
         {
-            if (_currentRepository == null) return;
+            if (_currentRepository == null)
+            {
+                _logger.LogWarning("Cannot load content without repository context");
+                return;
+            }
+
+            // If search is active, don't reload default content unless forced
+            if (IsSearchActive && !forceRefresh)
+            {
+                return;
+            }
             
             try
             {
@@ -130,6 +397,7 @@ namespace GenHub.Features.GitHub.ViewModels
                     {
                         GitHubItems.Clear();
                         FilteredGitHubItems.Clear();
+                        Items.Clear();
                     });
                 }
 
@@ -183,9 +451,6 @@ namespace GenHub.Features.GitHub.ViewModels
             }
         }
 
-        /// <summary>
-        /// Loads workflows from the API with pagination
-        /// </summary>
         private async Task LoadWorkflowsAsync(int page = 1)
         {
             if (_currentRepository == null)
@@ -193,56 +458,45 @@ namespace GenHub.Features.GitHub.ViewModels
 
             try
             {
-                // Use UI thread dispatcher for UI updates
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    StatusMessage = "Loading workflows...";
-                });
-
-                // Keep track of our current page
-                CurrentPage = page;
-
-                // Get workflows from the repo
-                var workflows = await _gitHubService.GetWorkflowRunsForRepositoryAsync(
-                    _currentRepository,
-                    page,
-                    15, // Smaller batch size for testing
-                    _loadingCts.Token);
-
-                _logger.LogInformation("Loaded {Count} workflows", workflows.Count());
-
-                // Create display items from workflows
-                var displayItems = _displayItemFactory.CreateDisplayItemsFromWorkflows(
-                    workflows,
-                    this); // Change from null to this to provide proper context
-
-                // Update UI on UI thread
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     if (page == 1)
                     {
-                        // First page - clear existing items
                         GitHubItems.Clear();
+                        FilteredGitHubItems.Clear();
+                        Items.Clear();
+                    }
+                });
+
+                CurrentPage = page;
+
+                var workflows = await _gitHubService.GetWorkflowRunsForRepositoryAsync(
+                    _currentRepository,
+                    page,
+                    15,
+                    _loadingCts.Token);
+
+                _logger.LogInformation("Loaded {Count} workflows", workflows.Count());
+
+                var displayItems = _displayItemFactory.CreateFromWorkflows(workflows, _parentViewModel);
+
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    if (page == 1)
+                    {
+                        GitHubItems.Clear();
+                        FilteredGitHubItems.Clear();
+                        Items.Clear();
                     }
 
-                    // Add new items
                     foreach (var item in displayItems)
                     {
                         GitHubItems.Add(item);
+                        FilteredGitHubItems.Add(item);
+                        Items.Add(item);
                     }
 
-                    // Update UI state
-                    HasMoreWorkflowsToLoad = workflows.Count() >= 15;
-                    ShowEmptyState = !GitHubItems.Any();
-
-                    // Apply filters to update the filtered view
-                    ApplyFilters(true);
-
-                    // Update artifact count
-                    ArtifactCount = CountArtifacts();
-
-                    // Update status
-                    StatusMessage = $"Loaded {workflows.Count()} workflows";
+                    OnPropertyChanged(nameof(HasItems));
                 });
             }
             catch (OperationCanceledException)
@@ -250,8 +504,7 @@ namespace GenHub.Features.GitHub.ViewModels
                 _logger.LogWarning("LoadWorkflowsAsync canceled");
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    StatusMessage = "Loading workflows canceled";
-                    ShowEmptyState = !GitHubItems.Any();
+                    StatusMessage = "Loading cancelled";
                 });
             }
             catch (Exception ex)
@@ -260,14 +513,10 @@ namespace GenHub.Features.GitHub.ViewModels
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     StatusMessage = $"Error: {ex.Message}";
-                    ShowEmptyState = !GitHubItems.Any();
                 });
             }
         }
 
-        /// <summary>
-        /// Loads releases from the GitHub API
-        /// </summary>
         private async Task LoadReleasesAsync(int page = 1)
         {
             if (_currentRepository == null || (_loadingCts.IsCancellationRequested))
@@ -277,83 +526,72 @@ namespace GenHub.Features.GitHub.ViewModels
 
             try
             {
-                // Don't set IsLoading=true here if we're loading as part of "All Items"
-                // This way we don't reset the IsLoading state set by the parent method
                 bool isStandaloneOperation = _currentDisplayMode == DisplayMode.Releases;
                 if (isStandaloneOperation)
                 {
-                    await Dispatcher.UIThread.InvokeAsync(() => {
-                        StatusMessage = "Loading releases...";
+                    await Dispatcher.UIThread.InvokeAsync(() => 
+                    {
+                        GitHubItems.Clear();
+                        FilteredGitHubItems.Clear();
+                        Items.Clear();
                     });
                 }
 
-                // When loading releases for "All Items", don't clear existing workflow items
                 if (page == 1 && _currentDisplayMode == DisplayMode.Releases)
                 {
-                    await Dispatcher.UIThread.InvokeAsync(() => {
-                        // Clear existing release items only when specifically in Releases mode
-                        var nonReleaseItems = GitHubItems.Where(i => !i.IsRelease).ToList();
+                    await Dispatcher.UIThread.InvokeAsync(() => 
+                    {
                         GitHubItems.Clear();
-
-                        // Re-add non-release items
-                        foreach (var item in nonReleaseItems)
-                        {
-                            GitHubItems.Add(item);
-                        }
+                        FilteredGitHubItems.Clear();
+                        Items.Clear();
                     });
                 }
 
-                // Get releases from data provider
                 var releases = await _gitHubDataProvider.GetReleasesForDisplayAsync(
                     _currentRepository,
                     page,
                     30,
-                    true, // Include prereleases
+                    true,
                     _loadingCts.Token);
 
                 await Dispatcher.UIThread.InvokeAsync(() => {
                     if (releases != null && releases.Any())
                     {
-                        _logger.LogInformation("Loaded {Count} releases", releases.Count());
-
-                        // Create display items for releases
                         foreach (var release in releases)
                         {
-                            var releaseViewModel = _displayItemFactory.CreateFromRelease(release);
-
-                            // Add the release to the display items
-                            GitHubItems.Add(releaseViewModel);
+                            // Create display items from releases using the factory
+                            var displayItem = _displayItemFactory.CreateFromRelease(release);
+                            GitHubItems.Add(displayItem);
+                            FilteredGitHubItems.Add(displayItem);
+                            Items.Add(displayItem);
                         }
+                        
+                        OnPropertyChanged(nameof(HasItems));
                     }
                     else
                     {
-                        _logger.LogInformation("No releases found");
+                        if (isStandaloneOperation)
+                        {
+                            ShowEmptyState = true;
+                        }
                     }
-
-                    // Apply filters
-                    ApplyFilters();
-
-                    // Update empty state
-                    ShowEmptyState = GitHubItems.Count == 0;
 
                     if (isStandaloneOperation)
                     {
-                        StatusMessage = "Ready";
+                        StatusMessage = $"Loaded {releases?.Count() ?? 0} releases";
                     }
                 });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error loading releases");
-                await Dispatcher.UIThread.InvokeAsync(() => {
-                    StatusMessage = $"Error: {ex.Message}";
+                await Dispatcher.UIThread.InvokeAsync(() => 
+                {
+                    StatusMessage = $"Error loading releases: {ex.Message}";
                 });
             }
         }
 
-        /// <summary>
-        /// Loads workflows for a specific path
-        /// </summary>
         private async Task LoadWorkflowsForPathAsync(string path, int page = 1)
         {
             if (_currentRepository == null || string.IsNullOrEmpty(path))
@@ -366,13 +604,13 @@ namespace GenHub.Features.GitHub.ViewModels
             {
                 _logger.LogInformation("Loading workflows for file: {Path}", path);
 
-                // Clear the current items before loading new ones
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     GitHubItems.Clear();
+                    FilteredGitHubItems.Clear();
+                    Items.Clear();
                 });
 
-                // Get workflows for the specific file path
                 var workflows = await _gitHubDataProvider.GetWorkflowsAsync(
                     _currentRepository,
                     path,
@@ -382,29 +620,19 @@ namespace GenHub.Features.GitHub.ViewModels
 
                 if (workflows != null && workflows.Any())
                 {
-                    // Create view models
                     var viewModels = workflows.Select(w => _displayItemFactory.CreateFromWorkflow(w)).ToList();
 
-                    // Add to UI collections on UI thread
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         foreach (var vm in viewModels)
                         {
                             GitHubItems.Add(vm);
+                            FilteredGitHubItems.Add(vm);
+                            Items.Add(vm);
                         }
-
-                        // Copy to filtered collection
-                        FilteredGitHubItems.Clear();
-                        foreach (var item in GitHubItems)
-                        {
-                            FilteredGitHubItems.Add(item);
-                        }
-
-                        ArtifactCount = CountArtifacts();
-                        HasMoreWorkflowsToLoad = workflows.Count() >= 30;
-                        CurrentPage = page;
-
-                        ShowEmptyState = !GitHubItems.Any();
+                        
+                        OnPropertyChanged(nameof(HasItems));
+                        StatusMessage = $"Loaded {viewModels.Count} workflows";
                     });
                 }
                 else
@@ -412,8 +640,7 @@ namespace GenHub.Features.GitHub.ViewModels
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         ShowEmptyState = true;
-                        ArtifactCount = 0;
-                        HasMoreWorkflowsToLoad = false;
+                        StatusMessage = "No workflows found";
                     });
                 }
             }
@@ -423,14 +650,12 @@ namespace GenHub.Features.GitHub.ViewModels
                 throw;
             }
         }
+        #endregion
 
-        /// <summary>
-        /// Refreshes the content
-        /// </summary>
+        // ...existing code for RefreshAsync, ApplyFilters, UpdateDisplayAsync, etc...
         [RelayCommand]
         public async Task RefreshAsync()
         {
-            // Only continue if sufficient time has passed since last refresh
             if (_isRefreshing || (DateTime.Now - _lastRefreshTime) < _minRefreshInterval)
             {
                 _logger.LogInformation("Skipping refresh due to recent activity or already refreshing");
@@ -439,19 +664,24 @@ namespace GenHub.Features.GitHub.ViewModels
 
             if (IsLoading) return;
 
+            // If search is active, re-run search instead of loading default content
+            if (IsSearchActive)
+            {
+                // Don't call SearchAsync() - let the existing search handling work
+                return;
+            }
+
             try
             {
                 _isRefreshing = true;
                 _lastRefreshTime = DateTime.Now;
 
-                // Load content with clear
-                await LoadContentAsync(true);
+                await LoadContentAsync(clearExisting: true, forceRefresh: true);
                 StatusMessage = "Refresh complete";
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error refreshing");
-                StatusMessage = $"Error: {ex.Message}";
             }
             finally
             {
@@ -459,29 +689,22 @@ namespace GenHub.Features.GitHub.ViewModels
             }
         }
 
-        /// <summary>
-        /// Applies filtering to the GitHub items
-        /// </summary>
         public void ApplyFilters(bool forceUpdate = false)
         {
             try
             {
                 FilteredGitHubItems.Clear();
 
-                // Get filtered items
                 IEnumerable<IGitHubDisplayItem> filteredItems = GitHubItems;
 
-                // Apply text filter if needed
                 if (!string.IsNullOrWhiteSpace(SearchQuery))
                 {
                     string query = SearchQuery.ToLowerInvariant();
                     filteredItems = filteredItems.Where(item =>
                     {
-                        // Search by display name
                         if (item.DisplayName.ToLowerInvariant().Contains(query))
                             return true;
 
-                        // Search by workflow-specific properties
                         if (item is GitHubWorkflowDisplayItemViewModel workflow)
                         {
                             return
@@ -490,7 +713,6 @@ namespace GenHub.Features.GitHub.ViewModels
                                 workflow.WorkflowNumber.ToString().Contains(query);
                         }
 
-                        // Search by release-specific properties
                         if (item is GitHubReleaseDisplayItemViewModel release)
                         {
                             return
@@ -502,10 +724,8 @@ namespace GenHub.Features.GitHub.ViewModels
                     });
                 }
 
-                // Sort items by date (newest first)
                 filteredItems = filteredItems.OrderByDescending(item => item.SortDate);
 
-                // Add filtered items to collection
                 foreach (var item in filteredItems)
                 {
                     FilteredGitHubItems.Add(item);
@@ -519,258 +739,6 @@ namespace GenHub.Features.GitHub.ViewModels
             }
         }
 
-        /// <summary>
-        /// Updates the filter when search query changes
-        /// </summary>
-        partial void OnSearchQueryChanged(string value)
-        {
-            // Debounce logic for search
-            try
-            {
-                if (_searchDebounceTokenSource != null)
-                {
-                    _searchDebounceTokenSource.Cancel();
-                    _searchDebounceTokenSource.Dispose();
-                }
-                
-                _searchDebounceTokenSource = new CancellationTokenSource();
-
-                // Immediately apply filter for instant feedback
-                ApplyFilters();
-
-                // Optionally trigger server search after delay for more complex queries
-                if (!string.IsNullOrWhiteSpace(value) && value.Length > 2)
-                {
-                    // Schedule server search after delay
-                    Task.Delay(500, _searchDebounceTokenSource.Token)
-                        .ContinueWith(t => 
-                        {
-                            if (!t.IsCanceled)
-                            {
-                                Dispatcher.UIThread.InvokeAsync(() => 
-                                {
-                                    // Only execute server search for significant queries
-                                    if (value.Length > 3) 
-                                    {
-                                        ExecuteServerSearchAsync().ConfigureAwait(false);
-                                    }
-                                });
-                            }
-                        }, TaskContinuationOptions.OnlyOnRanToCompletion);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Error in search handling");
-            }
-        }
-
-        /// <summary>
-        /// Executes a search on the server
-        /// </summary>
-        [RelayCommand]
-        private async Task ExecuteServerSearchAsync()
-        {
-            if (string.IsNullOrWhiteSpace(SearchQuery) || IsLoading || _currentRepository == null)
-                return;
-
-            try
-            {
-                IsLoading = true;
-                StatusMessage = "Searching...";
-
-                // Cancel any existing search
-                _searchCts?.Cancel();
-                _searchCts = new CancellationTokenSource();
-
-                // Determine search criteria string
-                string criteriaString;
-                if (SearchByWorkflowNumber)
-                    criteriaString = "WorkflowNumber";
-                else if (SearchByCommitMessage)
-                    criteriaString = "CommitMessage";
-                else
-                    criteriaString = "All";
-
-                // Execute search with string criteria
-                var searchResults = await _gitHubDataProvider.SearchWorkflowsAsync(
-                    SearchQuery,
-                    criteriaString,
-                    _searchCts.Token);
-
-                if (searchResults != null && searchResults.Any())
-                {
-                    _logger.LogInformation("Search found {Count} results", searchResults.Count());
-
-                    // Clear existing items
-                    GitHubItems.Clear();
-                    FilteredGitHubItems.Clear();
-
-                    // Create display items for search results
-                    var displayItems = _displayItemFactory.CreateDisplayItemsFromWorkflows(searchResults, null); // TODO: Fix the API
-
-                    // Add to collections
-                    foreach (var item in displayItems)
-                    {
-                        GitHubItems.Add(item);
-                        FilteredGitHubItems.Add(item);
-                    }
-
-                    StatusMessage = $"Found {searchResults.Count()} results";
-                    ShowEmptyState = false;
-                }
-                else
-                {
-                    _logger.LogInformation("No search results found");
-                    StatusMessage = "No results found";
-
-                    // Clear items and show empty state
-                    GitHubItems.Clear();
-                    FilteredGitHubItems.Clear();
-                    ShowEmptyState = true;
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                _logger.LogInformation("Search was cancelled");
-                StatusMessage = "Search cancelled";
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error executing server search");
-                StatusMessage = $"Search error: {ex.Message}";
-            }
-            finally
-            {
-                IsLoading = false;
-            }
-        }
-
-        /// <summary>
-        /// Toggles search by workflow number
-        /// </summary>
-        [RelayCommand]
-        private void ToggleSearchByWorkflowNumber()
-        {
-            SearchByWorkflowNumber = true;
-            SearchByCommitMessage = false;
-        }
-
-        /// <summary>
-        /// Toggles search by commit message
-        /// </summary>
-        [RelayCommand]
-        private void ToggleSearchByCommitMessage()
-        {
-            SearchByWorkflowNumber = false;
-            SearchByCommitMessage = true;
-        }
-
-        /// <summary>
-        /// Handles selection changes from the UI
-        /// </summary>
-        partial void OnSelectedGitHubItemChanged(IGitHubDisplayItem? oldValue, IGitHubDisplayItem? newValue)
-        {
-            try
-            {
-                if (newValue == null) return;
-                
-                // Preload children if expandable
-                if (newValue.IsExpandable)
-                {
-                    _ = newValue.LoadChildrenAsync();
-                }
-
-                // Notify listeners of the selection change
-                ItemSelected?.Invoke(this, newValue);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error in SelectedGitHubItemChanged");
-            }
-        }
-
-        /// <summary>
-        /// Counts the total number of artifacts in all items
-        /// </summary>
-        private int CountArtifacts()
-        {
-            int count = 0;
-            
-            try
-            {
-                foreach (var item in GitHubItems)
-                {
-                    if (item is GitHubWorkflowDisplayItemViewModel workflow)
-                    {
-                        count += workflow.ArtifactCount;
-                    }
-                    else if (item is GitHubReleaseDisplayItemViewModel release)
-                    {
-                        count += release.AssetCount;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error counting artifacts");
-            }
-            
-            return count;
-        }
-
-        /// <summary>
-        /// Event that fires when an item is selected
-        /// </summary>
-        public event EventHandler<IGitHubDisplayItem?>? ItemSelected;
-
-        /// <summary>
-        /// Gets the items to display in the tree
-        /// </summary>
-        public ObservableCollection<IGitHubDisplayItem> Items
-        {
-            get
-            {
-                _logger.LogTrace("Items getter called. Count: {Count}", _items?.Count ?? -1);
-                return _items;
-            }
-            private set
-            {
-                _logger.LogDebug("Setting Items collection. Old count: {OldCount}, New count: {NewCount}", 
-                    _items?.Count ?? -1, value?.Count ?? -1);
-                    
-                if (value != null && value.Any())
-                {
-                    for (int i = 0; i < Math.Min(3, value.Count); i++)
-                    {
-                        var item = value[i];
-                        _logger.LogDebug("New Item {Index}: Type={Type}, DisplayName='{DisplayName}'", 
-                            i, item?.GetType().Name, item?.DisplayName);
-                    }
-                }
-                
-                SetProperty(ref _items, value);
-                
-                // Monitor collection changes
-                if (_items != null)
-                {
-                    _items.CollectionChanged += (sender, args) =>
-                    {
-                        _logger.LogDebug("Items collection changed. Action: {Action}, NewItems: {NewCount}, OldItems: {OldCount}", 
-                            args.Action, args.NewItems?.Count ?? 0, args.OldItems?.Count ?? 0);
-                    };
-                }
-            }
-        }
-
-        /// <summary>
-        /// Gets a value indicating whether there are items to display
-        /// </summary>
-        public bool HasItems => Items?.Count > 0;
-
-        /// <summary>
-        /// Updates the display with workflows and releases
-        /// </summary>
         public async Task UpdateDisplayAsync(
             IEnumerable<GitHubWorkflow>? workflows = null,
             IEnumerable<GitHubRelease>? releases = null,
@@ -804,7 +772,6 @@ namespace GenHub.Features.GitHub.ViewModels
                     _logger.LogDebug("Created {Count} release display items", releaseItems.Count());
                 }
 
-                // Update on UI thread
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     try
@@ -829,11 +796,9 @@ namespace GenHub.Features.GitHub.ViewModels
                         _logger.LogDebug("Items collection updated. Old count: {OldCount}, New count: {NewCount}", 
                             oldCount, Items.Count);
                         
-                        // Force property change notifications
                         OnPropertyChanged(nameof(Items));
                         OnPropertyChanged(nameof(HasItems));
                         
-                        // Validate final state
                         if (!Items.Any() && displayItems.Any())
                         {
                             _logger.LogWarning("Items collection is empty after update despite having display items");
@@ -853,6 +818,122 @@ namespace GenHub.Features.GitHub.ViewModels
             {
                 IsLoading = false;
             }
+        }
+
+        partial void OnSearchQueryChanged(string value)
+        {
+            try
+            {
+                if (_searchDebounceTokenSource != null)
+                {
+                    _searchDebounceTokenSource.Cancel();
+                    _searchDebounceTokenSource.Dispose();
+                }
+                
+                _searchDebounceTokenSource = new CancellationTokenSource();
+
+                ApplyFilters();
+
+                if (!string.IsNullOrWhiteSpace(value) && value.Length > 2)
+                {
+                    Task.Delay(500, _searchDebounceTokenSource.Token)
+                        .ContinueWith(t => 
+                        {
+                            if (!t.IsCanceled)
+                            {
+                                Dispatcher.UIThread.InvokeAsync(() => 
+                                {
+                                    if (value.Length > 3) 
+                                    {
+                                        ExecuteServerSearchAsync().ConfigureAwait(false);
+                                    }
+                                });
+                            }
+                        }, TaskContinuationOptions.OnlyOnRanToCompletion);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error in search handling");
+            }
+        }
+
+        /// <summary>
+        /// Handles selection changes from the UI
+        /// </summary>
+        partial void OnSelectedGitHubItemChanged(IGitHubDisplayItem? oldValue, IGitHubDisplayItem? newValue)
+        {
+            try
+            {
+                if (newValue == null) return;
+                
+                _logger.LogDebug("Item selected: {DisplayName} (Type: {Type})", 
+                    newValue.DisplayName, newValue.GetType().Name);
+                
+                // Preload children if expandable and not already loaded
+                if (newValue.IsExpandable && !newValue.ChildrenLoaded)
+                {
+                    _ = newValue.LoadChildrenAsync();
+                }
+
+                // Notify parent viewmodel of selection change
+                ItemSelected?.Invoke(this, newValue);
+                
+                // Update the details view through the parent
+                if (_parentViewModel != null)
+                {
+                    // The parent will handle updating details and installation views
+                    _logger.LogDebug("Notifying parent of item selection");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling item selection");
+            }
+        }
+
+        /// <summary>
+        /// Command to select an item and raise the ItemSelected event
+        /// </summary>
+        [RelayCommand]
+        private void SelectItem(IGitHubDisplayItem item)
+        {
+            if (item != null)
+            {
+                SelectedGitHubItem = item;
+                _logger.LogDebug("Item selected via command: {DisplayName}", item.DisplayName);
+            }
+        }
+
+        /// <summary>
+        /// Sets the parent ViewModel for coordination
+        /// </summary>
+        public void SetParentViewModel(GitHubManagerViewModel parentViewModel)
+        {
+            _parentViewModel = parentViewModel ?? throw new ArgumentNullException(nameof(parentViewModel));
+            _logger.LogDebug("Parent ViewModel set");
+        }
+
+        /// <summary>
+        /// Gets the current workflow path for context-aware operations
+        /// </summary>
+        /// <returns>The workflow path or null for "All Items" mode</returns>
+        public string? GetCurrentWorkflowPath()
+        {
+            if (_currentDisplayMode == DisplayMode.All)
+                return null; // All Items mode
+                
+            return _currentWorkflow?.Path; // Specific workflow path or null
+        }
+
+        public void Dispose()
+        {
+            _loadingCts?.Cancel();
+            _loadingCts?.Dispose();
+            _searchCts?.Cancel();
+            _searchCts?.Dispose();
+            _searchDebounceTokenSource?.Cancel();
+            _searchDebounceTokenSource?.Dispose();
         }
     }
 }

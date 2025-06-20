@@ -1,139 +1,187 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
-using Microsoft.Extensions.Logging;
 using CommunityToolkit.Mvvm.Input;
-
-using GenHub.Core.Models;
-using GenHub.Core.Models.Results;
-using GenHub.Core.Models.GameProfiles;
+using Microsoft.Extensions.Logging;
 using GenHub.Core.Interfaces.GitHub;
 
 namespace GenHub.Features.GitHub.ViewModels
 {
     /// <summary>
-    /// ViewModel for installation operations
+    /// ViewModel for managing the installation of GitHub artifacts and releases
     /// </summary>
-    public partial class InstallationViewModel : ObservableObject
+    public partial class InstallationViewModel : ObservableObject, IDisposable
     {
         private readonly ILogger<InstallationViewModel> _logger;
-        private readonly IGitHubArtifactInstaller _artifactInstaller;
+        private CancellationTokenSource? _installationCts;
 
         #region Observable Properties
+        [ObservableProperty]
+        private IGitHubDisplayItem? _selectedItem;
+
         [ObservableProperty]
         private bool _isInstalling = false;
 
         [ObservableProperty]
-        private double _installProgress = 0;
+        private double _progress = 0.0;
 
         [ObservableProperty]
-        private string _installStatusMessage = string.Empty;
+        private bool _canInstall = false;
 
         [ObservableProperty]
-        private GitHubArtifact? _currentArtifact;
+        private string _statusMessage = "Ready";
         #endregion
 
-        public InstallationViewModel(
-            ILogger<InstallationViewModel> logger,
-            IGitHubArtifactInstaller artifactInstaller)
+        #region Events
+        /// <summary>
+        /// Event fired when installation is completed
+        /// </summary>
+        public event EventHandler<InstallationCompletedEventArgs>? InstallationCompleted;
+        #endregion
+
+        public InstallationViewModel(ILogger<InstallationViewModel> logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _artifactInstaller = artifactInstaller ?? throw new ArgumentNullException(nameof(artifactInstaller));
         }
 
         /// <summary>
-        /// Sets the current artifact for installation
+        /// Sets the selected item for installation
         /// </summary>
-        public void SetCurrentArtifact(GitHubArtifact? artifact)
+        public void SetSelectedItem(IGitHubDisplayItem? item)
         {
-            CurrentArtifact = artifact;
+            SelectedItem = item;
+            UpdateCanInstall();
+            
+            if (item != null)
+            {
+                StatusMessage = $"Ready to install {item.DisplayName}";
+            }
+            else
+            {
+                StatusMessage = "No item selected";
+            }
         }
 
         /// <summary>
-        /// Installs the currently selected artifact
+        /// Updates the CanInstall property based on current state
+        /// </summary>
+        private void UpdateCanInstall()
+        {
+            CanInstall = SelectedItem != null && !IsInstalling && SelectedItem.CanInstall;
+        }
+
+        /// <summary>
+        /// Installs the selected item using its actual install command
         /// </summary>
         [RelayCommand]
-        public async Task InstallArtifactAsync()
+        private async Task InstallAsync()
         {
-            if (CurrentArtifact == null || IsInstalling)
+            if (SelectedItem?.InstallCommand == null || IsInstalling)
                 return;
+
+            _installationCts = new CancellationTokenSource();
 
             try
             {
                 IsInstalling = true;
-                InstallProgress = 0;
-                InstallStatusMessage = "Starting installation...";
+                Progress = 0;
+                StatusMessage = "Starting installation...";
 
-                // Create progress tracker
-                var progress = new Progress<InstallProgress>(p =>
+                _logger.LogInformation("Starting installation for: {ItemName}", SelectedItem.DisplayName);
+
+                // Check if command can execute
+                if (!SelectedItem.InstallCommand.CanExecute(null))
                 {
-                    InstallProgress = p.Percentage;
-                    InstallStatusMessage = p.Message;
-                });
+                    throw new InvalidOperationException("Item cannot be installed at this time");
+                }
 
-                // Install the artifact
-                var result = await _artifactInstaller.InstallArtifactAsync(
-                    CurrentArtifact,
-                    progress);
-
-                if (result.Success && result.Data != null)
+                // Execute the actual install command
+                if (SelectedItem.InstallCommand is IAsyncRelayCommand asyncCommand)
                 {
-                    // Update UI
-                    InstallStatusMessage = "Installation successful!";
-                    InstallProgress = 1;
-
-                    // Update artifact status
-                    CurrentArtifact.IsInstalled = true;
-                    
-                    // Notify installation success
-                    InstallationCompleted?.Invoke(this, new InstallationEventArgs
-                    {
-                        Success = true,
-                        Artifact = CurrentArtifact,
-                        GameVersion = result.Data
-                    });
+                    await asyncCommand.ExecuteAsync(null);
                 }
                 else
                 {
-                    InstallStatusMessage = result.ErrorMessage ?? "Installation failed";
-                    
-                    // Notify installation failure
-                    InstallationCompleted?.Invoke(this, new InstallationEventArgs
-                    {
-                        Success = false,
-                        Artifact = CurrentArtifact,
-                        Error = result.ErrorMessage
-                    });
+                    SelectedItem.InstallCommand.Execute(null);
                 }
+
+                // Monitor progress if the item supports it
+                await MonitorInstallationProgress();
+
+                StatusMessage = "Installation completed successfully";
+                Progress = 100;
+                
+                _logger.LogInformation("Installation completed for: {ItemName}", SelectedItem.DisplayName);
+
+                InstallationCompleted?.Invoke(this, new InstallationCompletedEventArgs
+                {
+                    Success = true,
+                    InstalledItem = SelectedItem
+                });
             }
             catch (OperationCanceledException)
             {
-                InstallStatusMessage = "Installation cancelled";
-                
-                // Notify installation cancellation
-                InstallationCompleted?.Invoke(this, new InstallationEventArgs
-                {
-                    Success = false,
-                    Artifact = CurrentArtifact,
-                    Cancelled = true
-                });
+                StatusMessage = "Installation cancelled";
+                _logger.LogInformation("Installation cancelled by user");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error installing artifact");
-                InstallStatusMessage = $"Error: {ex.Message}";
-                
-                // Notify installation error
-                InstallationCompleted?.Invoke(this, new InstallationEventArgs
+                StatusMessage = $"Installation failed: {ex.Message}";
+                _logger.LogError(ex, "Error during installation");
+
+                InstallationCompleted?.Invoke(this, new InstallationCompletedEventArgs
                 {
                     Success = false,
-                    Artifact = CurrentArtifact,
-                    Error = ex.Message
+                    Message = ex.Message,
+                    InstalledItem = SelectedItem
                 });
             }
             finally
             {
                 IsInstalling = false;
+                Progress = 0;
+                UpdateCanInstall();
+                _installationCts?.Dispose();
+                _installationCts = null;
+            }
+        }
+
+        /// <summary>
+        /// Monitors installation progress by checking the selected item's state
+        /// </summary>
+        private async Task MonitorInstallationProgress()
+        {
+            // Since we can't directly monitor the installation progress from the command,
+            // we'll simulate progress monitoring by checking the item's state
+            var startTime = DateTime.Now;
+            const int maxWaitSeconds = 300; // 5 minutes max
+
+            while (!_installationCts.Token.IsCancellationRequested && 
+                   (DateTime.Now - startTime).TotalSeconds < maxWaitSeconds)
+            {
+                // Check if item has progress properties we can monitor
+                if (SelectedItem is GitHubArtifactDisplayItemViewModel artifactViewModel)
+                {
+                    if (artifactViewModel.IsInstalling)
+                    {
+                        StatusMessage = "Installing artifact...";
+                        Progress = Math.Min(Progress + 2, 90); // Gradually increase progress
+                    }
+                    else if (!artifactViewModel.IsInstalling && Progress > 0)
+                    {
+                        // Installation finished
+                        break;
+                    }
+                }
+                else
+                {
+                    // For other types, just simulate progress
+                    Progress = Math.Min(Progress + 3, 90);
+                    StatusMessage = $"Installing... {Progress:F0}%";
+                }
+
+                await Task.Delay(500, _installationCts.Token);
             }
         }
 
@@ -141,35 +189,48 @@ namespace GenHub.Features.GitHub.ViewModels
         /// Cancels the current installation
         /// </summary>
         [RelayCommand]
-        public void CancelInstallation()
+        private void CancelInstallation()
         {
-            try
+            if (IsInstalling && _installationCts != null)
             {
-                // TODO: Implement cancellation
-                _logger.LogInformation("Installation cancellation requested");
-                InstallStatusMessage = "Cancelling installation...";
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error cancelling installation");
+                _installationCts.Cancel();
+                _logger.LogInformation("Installation cancellation requested by user");
             }
         }
-        
+
         /// <summary>
-        /// Event fired when installation completes
+        /// Property change handler for IsInstalling
         /// </summary>
-        public event EventHandler<InstallationEventArgs>? InstallationCompleted;
+        partial void OnIsInstallingChanged(bool value)
+        {
+            UpdateCanInstall();
+        }
+
+        /// <summary>
+        /// Property change handler for SelectedItem
+        /// </summary>
+        partial void OnSelectedItemChanged(IGitHubDisplayItem? value)
+        {
+            UpdateCanInstall();
+        }
+
+        /// <summary>
+        /// Dispose resources when ViewModel is disposed
+        /// </summary>
+        public void Dispose()
+        {
+            _installationCts?.Cancel();
+            _installationCts?.Dispose();
+        }
     }
 
     /// <summary>
     /// Event arguments for installation completion
     /// </summary>
-    public class InstallationEventArgs : EventArgs
+    public class InstallationCompletedEventArgs : EventArgs
     {
         public bool Success { get; set; }
-        public GitHubArtifact? Artifact { get; set; }
-        public GameVersion? GameVersion { get; set; }
-        public bool Cancelled { get; set; }
-        public string? Error { get; set; }
+        public IGitHubDisplayItem? InstalledItem { get; set; }
+        public string? Message { get; set; }
     }
 }

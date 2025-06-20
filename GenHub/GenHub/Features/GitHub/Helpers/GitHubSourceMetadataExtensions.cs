@@ -50,7 +50,7 @@ namespace GenHub.Features.GitHub.Helpers
                 AssociatedReleaseAsset = asset,
                 ReleaseName = release.Name,
                 ReleaseTagName = release.TagName,
-                ReleaseIsPrerelease = release.IsPrerelease,
+                ReleaseIsPrerelease = release.Prerelease,
                 ReleasePublishedAt = release.PublishedAt
             };
 

@@ -16,9 +16,9 @@ This directory contains facade interfaces. A facade provides a simplified, highe
 *   **`IGitHubServiceFacade.cs`**:
     *   **Purpose**: Provides a simplified interface for common GitHub-related operations, potentially combining functionalities from `IGitHubApiClient`, `IGitHubArtifactService`, `IGitHubWorkflowRunService`, `IGitHubRepoService`, and `ITokenStorageService`.
     *   **Key Methods (Conceptual)**:
-        *   `FetchAndProcessGameArtifactsAsync(GitHubRepoSettings repoSettings, string workflowName)`: A high-level method to fetch workflow runs for a specific workflow, get their artifacts, parse build info, and return a list of potential game versions (e.g., as `GitHubArtifact` objects enriched with `BuildInfo`).
+        *   `FetchAndProcessGameArtifactsAsync(GitHubRepository repoSettings, string workflowName)`: A high-level method to fetch workflow runs for a specific workflow, get their artifacts, parse build info, and return a list of potential game versions (e.g., as `GitHubArtifact` objects enriched with `BuildInfo`).
         *   `DownloadAndPrepareArtifactAsync(GitHubArtifact artifact, string downloadPath, IProgress<InstallProgress> progress)`: Downloads a specific artifact and prepares it for installation, potentially returning the path to the downloaded file.
-        *   `GetRepositoryDetailsAsync(GitHubRepoSettings repoSettings)`: Fetches and returns comprehensive details about a repository, including recent workflows or releases relevant to game updates.
+        *   `GetRepositoryDetailsAsync(GitHubRepository repoSettings)`: Fetches and returns comprehensive details about a repository, including recent workflows or releases relevant to game updates.
         *   `SetGitHubToken(string token)` / `ClearGitHubToken()`: Simplified token management.
     *   **Usage**: Used by services like `IGameVersionDiscoveryService` (if it's discovering versions from GitHub) or UI components that display GitHub information, simplifying interactions with the GitHub subsystem.
 

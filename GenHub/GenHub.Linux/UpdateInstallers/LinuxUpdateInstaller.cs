@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Interfaces.AppUpdate;
+using GenHub.Core.Models.AppUpdate;
 using GenHub.Core.Models.GitHub;
 using Microsoft.Extensions.Logging;
 

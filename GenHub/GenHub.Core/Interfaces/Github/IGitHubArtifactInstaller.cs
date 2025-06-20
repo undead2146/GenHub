@@ -36,7 +36,7 @@ namespace GenHub.Core.Interfaces.GitHub
         Task<OperationResult<GameVersion>> InstallReleaseAssetAsync(
         string assetDownloadUrl, // URL to download the asset
         string assetName,        // Name of the asset (for naming the installed version)
-        GitHubRepoSettings repoSettings, // For context, creating install path
+        GitHubRepository repoSettings, // For context, creating install path
         // Potentially pass the full GitHubRelease and GitHubReleaseAsset models for more metadata
         IProgress<InstallProgress> progress,
         CancellationToken cancellationToken);

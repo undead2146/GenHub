@@ -72,9 +72,9 @@ The services are organized as follows:
 
 ### 6. `RepositoryServices/GitHubRepositoryManager.cs`
 *   **Interface**: `IGitHubRepositoryManager` (if defined, otherwise direct use)
-*   **Purpose**: Manages the `GitHubRepoSettings` (repository configurations) that the application uses to fetch data.
+*   **Purpose**: Manages the `GitHubRepository` (repository configurations) that the application uses to fetch data.
 *   **Responsibilities**:
-    *   Loading and saving the list of `GitHubRepoSettings` (e.g., from application configuration or a dedicated JSON file via `ICacheService` or `IJsonRepository`).
+    *   Loading and saving the list of `GitHubRepository` (e.g., from application configuration or a dedicated JSON file via `ICacheService` or `IJsonRepository`).
     *   Providing access to the list of configured repositories and the currently selected/default repository.
 
 ### 7. `WorkflowServices/GitHubWorkflowReader.cs`

@@ -48,8 +48,8 @@ namespace GenHub.Core.Models.Results
         /// <summary>
         /// Protected constructor for derived classes
         /// </summary>
-        protected InstallationResult(bool success, string? errorMessage = null, Exception? exception = null)
-            : base(success, errorMessage, exception)
+        protected InstallationResult(bool success, string? message = null, Exception? exception = null)
+            : base(success, message, exception)
         {
         }
 
@@ -78,11 +78,11 @@ namespace GenHub.Core.Models.Results
         /// Creates a failed installation result
         /// </summary>
         public static InstallationResult Failed(
-            string errorMessage, 
+            string message, 
             GitHubArtifact? artifact = null, 
             Exception? exception = null)
         {
-            return new InstallationResult(false, errorMessage, exception)
+            return new InstallationResult(false, message, exception)
             {
                 Artifact = artifact
             };
@@ -92,12 +92,12 @@ namespace GenHub.Core.Models.Results
         /// Creates a failed installation result with context
         /// </summary>
         public static InstallationResult FailedWithContext(
-            string errorMessage,
+            string message,
             GitHubArtifact artifact,
             string? installationPath = null,
             Exception? exception = null)
         {
-            return new InstallationResult(false, errorMessage, exception)
+            return new InstallationResult(false, message, exception)
             {
                 Artifact = artifact,
                 InstallationPath = installationPath

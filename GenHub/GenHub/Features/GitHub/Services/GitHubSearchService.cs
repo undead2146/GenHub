@@ -13,6 +13,8 @@ using Microsoft.Extensions.Logging;
 using GenHub.Core.Models;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Models.GitHub;
+using GenHub.Core.Models.Enums;
+
 namespace GenHub.Features.GitHub.Services
 {
     /// <summary>
@@ -49,7 +51,7 @@ namespace GenHub.Features.GitHub.Services
         /// <summary>
         /// Searches for workflow runs by pull request number in a specific repository
         /// </summary>
-        public async Task<IEnumerable<GitHubWorkflow>> SearchWorkflowsByPullRequestAsync(GitHubRepoSettings repository, int pullRequestNumber, CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<GitHubWorkflow>> SearchWorkflowsByPullRequestAsync(GitHubRepository repository, int pullRequestNumber, CancellationToken cancellationToken = default)
         {
             var path = $"repos/{repository.RepoOwner}/{repository.RepoName}/actions/runs?event=pull_request&per_page=100";
             Console.WriteLine($"Searching workflows by PR {pullRequestNumber} using path: {path}");
@@ -88,7 +90,7 @@ namespace GenHub.Features.GitHub.Services
         /// <summary>
         /// Searches workflow runs by text in commit messages, titles, etc.
         /// </summary>
-        public async Task<IEnumerable<GitHubWorkflow>> SearchWorkflowsByTextAsync(GitHubRepoSettings repository, string searchText, CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<GitHubWorkflow>> SearchWorkflowsByTextAsync(GitHubRepository repository, string searchText, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(searchText))
                 return Array.Empty<GitHubWorkflow>();
@@ -302,7 +304,7 @@ namespace GenHub.Features.GitHub.Services
         /// <summary>
         /// Parses a workflow run from a JsonElement
         /// </summary>
-        private GitHubWorkflow ParseWorkflowRunFromJson(JsonElement element, GitHubRepoSettings repository)
+        private GitHubWorkflow ParseWorkflowRunFromJson(JsonElement element, GitHubRepository repository)
         {
             try
             {
@@ -371,7 +373,7 @@ namespace GenHub.Features.GitHub.Services
         /// <summary>
         /// Converts GitHubWorkflowData to GitHubWorkflow
         /// </summary>
-        private GitHubWorkflow ConvertToWorkflow(GitHubWorkflowData workflowData, GitHubRepoSettings repository)
+        private GitHubWorkflow ConvertToWorkflow(GitHubWorkflowData workflowData, GitHubRepository repository)
         {
             return new GitHubWorkflow
             {
@@ -387,6 +389,118 @@ namespace GenHub.Features.GitHub.Services
                 EventType = workflowData.Event,
                 RepositoryInfo = repository
             };
+        }
+
+        /// <summary>
+        /// Context-aware search method that supports both "All Items" and specific workflow contexts
+        /// </summary>
+        public async Task<IEnumerable<GitHubWorkflow>> SearchWithContextAsync(
+            GitHubRepository repository,
+            string searchText,
+            GitHubSearchCriteria searchCriteria,
+            string? workflowPath = null,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                _logger.LogInformation("Context-aware search: text='{SearchText}', criteria='{SearchCriteria}', workflow='{WorkflowPath}', repo='{Repo}'",
+                    searchText, searchCriteria, workflowPath ?? "All Items", $"{repository.RepoOwner}/{repository.RepoName}");
+
+                if (string.IsNullOrWhiteSpace(searchText))
+                {
+                    _logger.LogDebug("Empty search text provided, returning empty results");
+                    return Enumerable.Empty<GitHubWorkflow>();
+                }
+
+                // Get base workflow collection based on context
+                IEnumerable<GitHubWorkflow> baseWorkflows;
+                if (string.IsNullOrEmpty(workflowPath))
+                {
+                    // All Items mode - get all workflows from repository
+                    _logger.LogDebug("Searching all workflows in repository");
+                    baseWorkflows = await _workflowService.GetWorkflowRunsForRepositoryAsync(
+                        repository, 1, 100, cancellationToken);
+                }
+                else
+                {
+                    // Specific workflow mode - filter to workflow file
+                    _logger.LogDebug("Searching workflows for specific file: {WorkflowPath}", workflowPath);
+                    var allWorkflows = await _workflowService.GetWorkflowRunsForRepositoryAsync(
+                        repository, 1, 100, cancellationToken);
+                    baseWorkflows = allWorkflows.Where(w => 
+                        !string.IsNullOrEmpty(w.WorkflowPath) && 
+                        w.WorkflowPath.EndsWith(workflowPath, StringComparison.OrdinalIgnoreCase));
+                }
+
+                // Apply search criteria filtering
+                var filteredWorkflows = ApplySearchCriteria(baseWorkflows, searchText, searchCriteria);
+
+                _logger.LogInformation("Context-aware search completed: {Count} results found", filteredWorkflows.Count());
+                return filteredWorkflows;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in context-aware search with text '{SearchText}' and criteria '{SearchCriteria}'",
+                    searchText, searchCriteria);
+                return Enumerable.Empty<GitHubWorkflow>();
+            }
+        }
+
+        /// <summary>
+        /// Applies search criteria filtering to workflow collection
+        /// </summary>
+        private IEnumerable<GitHubWorkflow> ApplySearchCriteria(
+            IEnumerable<GitHubWorkflow> workflows,
+            string searchText,
+            GitHubSearchCriteria searchCriteria)
+        {
+            try
+            {
+                switch (searchCriteria)
+                {
+                    case GitHubSearchCriteria.WorkflowNumber:
+                        if (int.TryParse(searchText, out int workflowNumber))
+                        {
+                            return workflows.Where(w => w.WorkflowNumber == workflowNumber);
+                        }
+                        break;
+
+                    case GitHubSearchCriteria.PullRequestNumber:
+                        if (int.TryParse(searchText, out int prNumber))
+                        {
+                            return workflows.Where(w => w.PullRequestNumber == prNumber);
+                        }
+                        break;
+
+                    case GitHubSearchCriteria.CommitMessage:
+                        return workflows.Where(w =>
+                            !string.IsNullOrEmpty(w.CommitMessage) &&
+                            w.CommitMessage.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+
+                    case GitHubSearchCriteria.All:
+                    default:
+                        // Multi-field search across name, commit message, commit SHA, PR title, workflow number, and PR number
+                        var lowerSearchText = searchText.ToLowerInvariant();
+                        return workflows.Where(w =>
+                            (!string.IsNullOrEmpty(w.Name) && w.Name.ToLowerInvariant().Contains(lowerSearchText)) ||
+                            (!string.IsNullOrEmpty(w.CommitMessage) && w.CommitMessage.ToLowerInvariant().Contains(lowerSearchText)) ||
+                            (!string.IsNullOrEmpty(w.CommitSha) && w.CommitSha.ToLowerInvariant().Contains(lowerSearchText)) ||
+                            (!string.IsNullOrEmpty(w.PullRequestTitle) && w.PullRequestTitle.ToLowerInvariant().Contains(lowerSearchText)) ||
+                            (w.WorkflowNumber.ToString().Contains(lowerSearchText)) ||
+                            (w.PullRequestNumber?.ToString().Contains(lowerSearchText) == true));
+                }
+
+                // If we reach here, the criteria or text format wasn't valid
+                _logger.LogDebug("Search criteria '{SearchCriteria}' with text '{SearchText}' produced no valid filter",
+                    searchCriteria, searchText);
+                return Enumerable.Empty<GitHubWorkflow>();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error applying search criteria '{SearchCriteria}' with text '{SearchText}'",
+                    searchCriteria, searchText);
+                return Enumerable.Empty<GitHubWorkflow>();
+            }
         }
 
         // Helper class to deserialize the API response

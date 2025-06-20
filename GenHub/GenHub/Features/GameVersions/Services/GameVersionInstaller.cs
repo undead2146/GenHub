@@ -541,7 +541,7 @@ namespace GenHub.Features.GameVersions.Services
                     SizeInBytes = asset.Size,
                     CreatedAt = asset.CreatedAt,
                     Expired = false,
-                    RepositoryInfo = new GitHubRepoSettings // Fix: Use GitHubRepoSettings instead of RepositoryInfo
+                    RepositoryInfo = new GitHubRepository // Fix: Use GitHubRepository instead of RepositoryInfo
                     {
                         // Fix: Access repository information correctly based on available properties
                         RepoOwner = release.Repository?.RepoOwner ?? "Unknown",
@@ -578,19 +578,10 @@ namespace GenHub.Features.GameVersions.Services
             // Use release tag and asset name for uniqueness, fallback to dates/IDs if names are generic
             string datePart = DateTime.Now.ToString("yyyyMMdd");
             
-            // If PublishedAt is DateTime?, use it if available
-            if (release.GetType().GetProperty("PublishedAt")?.PropertyType == typeof(DateTime?))
+            // Check if PublishedAt has a value and use it
+            if (release.PublishedAt.HasValue)
             {
-                var publishedAt = release.GetType().GetProperty("PublishedAt")?.GetValue(release) as DateTime?;
-                if (publishedAt.HasValue)
-                {
-                    datePart = publishedAt.Value.ToString("yyyyMMdd");
-                }
-            }
-            // If PublishedAt is regular DateTime, check if it's not default
-            else if (release.PublishedAt != default)
-            {
-                datePart = release.PublishedAt.ToString("yyyyMMdd");
+                datePart = release.PublishedAt.Value.ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture);
             }
 
             string releaseIdentifier = !string.IsNullOrEmpty(release.TagName) ?
@@ -842,7 +833,7 @@ namespace GenHub.Features.GameVersions.Services
                         installProgress,
                         cancellationToken);
 
-                    return result.Success ? OperationResult.Succeeded() : OperationResult.Failed(result.ErrorMessage ?? "Installation failed");
+                    return result.Success ? OperationResult.Succeeded() : OperationResult.Failed(result.Message ?? "Installation failed");
                 }
                 else if (!string.IsNullOrEmpty(version.InstallPath) && File.Exists(version.InstallPath) && 
                          Path.GetExtension(version.InstallPath).Equals(".zip", StringComparison.OrdinalIgnoreCase))
@@ -854,7 +845,7 @@ namespace GenHub.Features.GameVersions.Services
                         installProgress,
                         cancellationToken);
 
-                    return result.Success ? OperationResult.Succeeded() : OperationResult.Failed(result.ErrorMessage ?? "Installation failed");
+                    return result.Success ? OperationResult.Succeeded() : OperationResult.Failed(result.Message ?? "Installation failed");
                 }
                 else
                 {

@@ -69,7 +69,7 @@ namespace GenHub.Features.GitHub.Services
                         {
                             foreach (var release in filteredReleases)
                             {
-                                release.RepositoryInfo = new GitHubRepoSettings
+                                release.RepositoryInfo = new GitHubRepository
                                 {
                                     RepoOwner = owner,
                                     RepoName = repo,
@@ -111,7 +111,7 @@ namespace GenHub.Features.GitHub.Services
                         
                         if (release != null)
                         {
-                            release.RepositoryInfo = new GitHubRepoSettings
+                            release.RepositoryInfo = new GitHubRepository
                             {
                                 RepoOwner = owner,
                                 RepoName = repo,
@@ -186,7 +186,7 @@ namespace GenHub.Features.GitHub.Services
                         
                         if (release != null)
                         {
-                            release.RepositoryInfo = new GitHubRepoSettings
+                            release.RepositoryInfo = new GitHubRepository
                             {
                                 RepoOwner = owner,
                                 RepoName = repo,

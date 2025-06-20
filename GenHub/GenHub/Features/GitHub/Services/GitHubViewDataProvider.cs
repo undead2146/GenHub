@@ -37,7 +37,7 @@ namespace GenHub.Features.GitHub.Services
         /// Gets workflow files from a repository by extracting unique workflows
         /// </summary>
         public async Task<IEnumerable<GitHubWorkflow>> GetWorkflowFilesAsync(
-            GitHubRepoSettings repository,
+            GitHubRepository repository,
             CancellationToken cancellationToken = default)
         {
             try
@@ -71,7 +71,7 @@ namespace GenHub.Features.GitHub.Services
         /// Gets workflows from a repository with optional filtering
         /// </summary>
         public async Task<IEnumerable<GitHubWorkflow>> GetWorkflowsAsync(
-            GitHubRepoSettings repository,
+            GitHubRepository repository,
             string? workflowPath = null,
             int page = 1,
             int perPage = 30,
@@ -105,7 +105,7 @@ namespace GenHub.Features.GitHub.Services
         /// Gets releases for display
         /// </summary>
         public async Task<IEnumerable<GitHubRelease>> GetReleasesForDisplayAsync(
-            GitHubRepoSettings repository,
+            GitHubRepository repository,
             int page = 1,
             int perPage = 30,
             bool includePrereleases = true,

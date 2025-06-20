@@ -9,6 +9,7 @@ using GenHub.Core.Models.Results;
 using GenHub.Core.Models.GameProfiles;
 using Microsoft.Extensions.Logging;
 using GenHub.Core.Interfaces;
+using System.Windows.Input;
 
 namespace GenHub.Features.GitHub.ViewModels
 {
@@ -22,22 +23,10 @@ namespace GenHub.Features.GitHub.ViewModels
 
         #region Observable Properties
         [ObservableProperty]
-        private GitHubArtifactDisplayItemViewModel? _selectedArtifact;
-
-        [ObservableProperty]
-        private GitHubWorkflowDisplayItemViewModel? _selectedWorkflow;
-
-        [ObservableProperty]
-        private GitHubReleaseDisplayItemViewModel? _selectedRelease;
+        private IGitHubDisplayItem? _selectedItem;
 
         [ObservableProperty]
         private string _selectedArtifactSizeFormatted = string.Empty;
-
-        [ObservableProperty]
-        private GitHubWorkflowDisplayItemViewModel? _selectedWorkflowGroup;
-
-        [ObservableProperty]
-        private ObservableCollection<IGitHubDisplayItem> _workflowRunItems = new();
 
         [ObservableProperty]
         private bool _isInstalling = false;
@@ -50,31 +39,66 @@ namespace GenHub.Features.GitHub.ViewModels
 
         [ObservableProperty]
         private GitHubArtifact? _currentlyInstallingArtifact;
-
-        [ObservableProperty]
-        private IGitHubDisplayItem? _selectedItem;
         #endregion
 
-        #region Computed Properties
+        #region Computed Properties for UI Binding
         /// <summary>
-        /// Gets a value indicating whether any item is currently selected
+        /// Gets a value indicating whether an artifact is selected
         /// </summary>
-        public bool HasSelection => SelectedGitHubItem != null || SelectedArtifact != null;
+        public bool HasSelectedArtifact => SelectedItem is GitHubArtifactDisplayItemViewModel;
 
         /// <summary>
-        /// Gets a value indicating whether an artifact is currently selected
+        /// Gets the selected artifact (if any)
         /// </summary>
-        public bool HasSelectedArtifact => SelectedArtifact != null;
+        public GitHubArtifactDisplayItemViewModel? SelectedArtifact => 
+            SelectedItem as GitHubArtifactDisplayItemViewModel;
 
         /// <summary>
-        /// Gets a value indicating whether a release is currently selected
+        /// Gets a value indicating whether a workflow is selected
         /// </summary>
-        public bool HasSelectedRelease => SelectedGitHubItem is GitHubReleaseDisplayItemViewModel;
+        public bool HasSelectedWorkflow => SelectedItem is GitHubWorkflowDisplayItemViewModel;
 
         /// <summary>
-        /// Gets a value indicating whether a workflow is currently selected
+        /// Gets the selected workflow (if any)
         /// </summary>
-        public bool HasSelectedWorkflow => SelectedGitHubItem is GitHubWorkflowDisplayItemViewModel;
+        public GitHubWorkflowDisplayItemViewModel? SelectedWorkflow => 
+            SelectedItem as GitHubWorkflowDisplayItemViewModel;
+
+        /// <summary>
+        /// Gets a value indicating whether a release is selected
+        /// </summary>
+        public bool HasSelectedRelease => SelectedItem is GitHubReleaseDisplayItemViewModel;
+
+        /// <summary>
+        /// Gets the selected release (if any)
+        /// </summary>
+        public GitHubReleaseDisplayItemViewModel? SelectedRelease => 
+            SelectedItem as GitHubReleaseDisplayItemViewModel;
+
+        /// <summary>
+        /// Gets the workflow run items (artifacts) for the selected workflow
+        /// </summary>
+        public ObservableCollection<IGitHubDisplayItem> WorkflowRunItems { get; } = new();
+
+        /// <summary>
+        /// Gets a value indicating whether there are workflow run items
+        /// </summary>
+        public bool HasWorkflowRunItems => WorkflowRunItems.Count > 0;
+
+        /// <summary>
+        /// Gets a value indicating whether any item is selected
+        /// </summary>
+        public bool HasSelection => SelectedItem != null;
+        
+        /// <summary>
+        /// Gets the display name safely
+        /// </summary>
+        public string SafeDisplayName => SelectedItem?.DisplayName ?? string.Empty;
+
+        /// <summary>
+        /// Gets the description safely
+        /// </summary>
+        public string SafeDescription => SelectedItem?.Description ?? string.Empty;
         #endregion
 
         /// <summary>
@@ -91,43 +115,36 @@ namespace GenHub.Features.GitHub.ViewModels
         }
 
         /// <summary>
-        /// Sets the selected item and updates the details view accordingly
+        /// Sets the selected item and updates related properties
         /// </summary>
-        /// <param name="item">The item to select, or null to clear selection</param>
         public void SetSelectedItem(IGitHubDisplayItem? item)
         {
             try
             {
-                _logger.LogDebug("Setting selected item to {Type}", item?.GetType().Name ?? "null");
-                SelectedGitHubItem = item;
-
-                // Clear previous selections
-                SelectedArtifact = null;
-                SelectedWorkflowGroup = null;
-                SelectedRelease = null;
+                SelectedItem = item;
+                
+                // Clear workflow run items
                 WorkflowRunItems.Clear();
-
-                if (item == null) return;
-
-                // Handle different item types
-                switch (item)
+                
+                // Load workflow run items if it's a workflow
+                if (item is GitHubWorkflowDisplayItemViewModel workflow)
                 {
-                    case GitHubArtifactDisplayItemViewModel artifactViewModel:
-                        HandleArtifactSelection(artifactViewModel);
-                        break;
-                    case GitHubWorkflowDisplayItemViewModel workflow:
-                        HandleWorkflowSelection(workflow);
-                        break;
-                    case GitHubReleaseDisplayItemViewModel release:
-                        HandleReleaseSelection(release);
-                        break;
+                    LoadWorkflowRunItems(workflow);
                 }
-
-                // Notify property changes for computed properties
-                OnPropertyChanged(nameof(HasSelection));
+                
+                // Notify all property changes for safe binding
                 OnPropertyChanged(nameof(HasSelectedArtifact));
-                OnPropertyChanged(nameof(HasSelectedRelease));
+                OnPropertyChanged(nameof(SelectedArtifact));
                 OnPropertyChanged(nameof(HasSelectedWorkflow));
+                OnPropertyChanged(nameof(SelectedWorkflow));
+                OnPropertyChanged(nameof(HasSelectedRelease));
+                OnPropertyChanged(nameof(SelectedRelease));
+                OnPropertyChanged(nameof(HasWorkflowRunItems));
+                OnPropertyChanged(nameof(HasSelection));
+                OnPropertyChanged(nameof(SafeDisplayName));
+                OnPropertyChanged(nameof(SafeDescription));
+                
+                _logger.LogDebug("Selected item set: {ItemType}", item?.GetType().Name ?? "null");
             }
             catch (Exception ex)
             {
@@ -136,94 +153,33 @@ namespace GenHub.Features.GitHub.ViewModels
         }
 
         /// <summary>
-        /// Handles selection of an artifact item
+        /// Loads workflow run items (artifacts) for a workflow
         /// </summary>
-        private void HandleArtifactSelection(GitHubArtifactDisplayItemViewModel artifactViewModel)
-        {
-            SelectedArtifact = artifactViewModel;
-            SelectedArtifactSizeFormatted = FormatFileSize(artifactViewModel.SizeInBytes);
-            _logger.LogDebug("Selected artifact: {Name} ({Size})", artifactViewModel.Name, SelectedArtifactSizeFormatted);
-        }
-
-        /// <summary>
-        /// Handles selection of a workflow item
-        /// </summary>
-        private void HandleWorkflowSelection(GitHubWorkflowDisplayItemViewModel workflow)
-        {
-            SelectedWorkflowGroup = workflow;
-            _logger.LogDebug("Selected workflow: {Name}", workflow.DisplayName);
-
-            // Load artifacts asynchronously
-            _ = Task.Run(async () =>
-            {
-                await workflow.LoadChildrenAsync();
-                await UpdateWorkflowRunItemsFromWorkflowAsync(workflow);
-            });
-        }
-
-        /// <summary>
-        /// Handles selection of a release item
-        /// </summary>
-        private void HandleReleaseSelection(GitHubReleaseDisplayItemViewModel release)
-        {
-            SelectedRelease = release;
-            _logger.LogDebug("Selected release: {Name}", release.DisplayName);
-
-            // Load assets asynchronously
-            _ = Task.Run(async () =>
-            {
-                await release.LoadChildrenAsync();
-                await UpdateWorkflowRunItemsFromReleaseAsync(release);
-            });
-        }
-
-        /// <summary>
-        /// Updates the workflow run items collection with artifacts from the selected workflow
-        /// </summary>
-        private async Task UpdateWorkflowRunItemsFromWorkflowAsync(GitHubWorkflowDisplayItemViewModel workflow)
+        private async void LoadWorkflowRunItems(GitHubWorkflowDisplayItemViewModel workflow)
         {
             try
             {
-                // Allow time for async loading to complete
-                await Task.Delay(100);
+                _logger.LogDebug("Loading workflow run items for: {WorkflowName}", workflow.DisplayName);
                 
-                // Update collection on UI thread
-                WorkflowRunItems.Clear();
-                foreach (var item in workflow.Artifacts)
+                // Ensure children are loaded
+                if (!workflow.ChildrenLoaded)
                 {
-                    WorkflowRunItems.Add(item);
+                    await workflow.LoadChildrenAsync();
                 }
                 
-                _logger.LogDebug("Updated workflow items: {Count} artifacts", WorkflowRunItems.Count);
+                // Add children to workflow run items
+                foreach (var child in workflow.Children)
+                {
+                    WorkflowRunItems.Add(child);
+                }
+                
+                OnPropertyChanged(nameof(HasWorkflowRunItems));
+                
+                _logger.LogDebug("Loaded {Count} workflow run items", WorkflowRunItems.Count);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating workflow run items");
-            }
-        }
-
-        /// <summary>
-        /// Updates the workflow run items collection with assets from the selected release
-        /// </summary>
-        private async Task UpdateWorkflowRunItemsFromReleaseAsync(GitHubReleaseDisplayItemViewModel release)
-        {
-            try
-            {
-                // Allow time for async loading to complete
-                await Task.Delay(100);
-                
-                // Update collection on UI thread
-                WorkflowRunItems.Clear();
-                foreach (var asset in release.Assets)
-                {
-                    WorkflowRunItems.Add(asset);
-                }
-                
-                _logger.LogDebug("Updated release items: {Count} assets", WorkflowRunItems.Count);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating release assets");
+                _logger.LogError(ex, "Error loading workflow run items");
             }
         }
 
@@ -376,54 +332,47 @@ namespace GenHub.Features.GitHub.ViewModels
             _logger.LogDebug("SelectedItem changed. New value: {Type}, DisplayName: '{DisplayName}'", 
                 value?.GetType().Name, value?.DisplayName);
                 
-            // Clear previous selection
-            SelectedWorkflow = null;
-            SelectedArtifact = null;
-            SelectedRelease = null;
-            
             if (value == null)
             {
                 _logger.LogDebug("Selection cleared (null)");
                 return;
             }
             
-            // Set the appropriate property based on the item type
-            switch (value)
+            // Validate artifact data if it's an artifact
+            if (value is GitHubArtifactDisplayItemViewModel artifact)
             {
-                case GitHubWorkflowDisplayItemViewModel workflow:
-                    SelectedWorkflow = workflow;
-                    _logger.LogDebug("Set SelectedWorkflow: {DisplayName}", workflow.DisplayName);
-                    break;
-                    
-                case GitHubArtifactDisplayItemViewModel artifact:
-                    SelectedArtifact = artifact;
-                    _logger.LogDebug("Set SelectedArtifact: {DisplayName}, WorkflowNumber: {WorkflowNumber}, CreatedAt: {CreatedAt}", 
-                        artifact.DisplayName, artifact.WorkflowNumber, artifact.CreatedAt);
-                    
-                    // Validate artifact data
-                    if (artifact.Artifact == null)
-                    {
-                        _logger.LogError("SelectedArtifact has null Artifact property!");
-                    }
-                    else
-                    {
-                        _logger.LogTrace("Artifact validation - Name: '{Name}', WorkflowNumber: {WorkflowNumber}, BuildInfo: {BuildInfo}", 
-                            artifact.Artifact.Name, artifact.Artifact.WorkflowNumber, artifact.Artifact.BuildInfo?.GameVariant);
-                    }
-                    
-                    // Notify UI that artifact-related properties changed
-                    OnPropertyChanged(nameof(HasSelectedArtifact));
-                    OnPropertyChanged(nameof(HasSelection));
-                    break;
-                    
-                case GitHubReleaseDisplayItemViewModel release:
-                    SelectedRelease = release;
-                    _logger.LogDebug("Set SelectedRelease: {DisplayName}", release.DisplayName);
-                    break;
-                    
-                default:
-                    _logger.LogWarning("Unknown item type: {Type}", value.GetType().Name);
-                    break;
+                _logger.LogDebug("Set SelectedArtifact: {DisplayName}, WorkflowNumber: {WorkflowNumber}, CreatedAt: {CreatedAt}", 
+                    artifact.DisplayName, artifact.WorkflowNumber, artifact.CreatedAt);
+                
+                // Validate artifact data
+                if (artifact.Artifact == null)
+                {
+                    _logger.LogError("SelectedArtifact has null Artifact property!");
+                }
+                else
+                {
+                    _logger.LogTrace("Artifact validation - Name: '{Name}', WorkflowNumber: {WorkflowNumber}, BuildInfo: {BuildInfo}", 
+                        artifact.Artifact.Name, artifact.Artifact.WorkflowNumber, artifact.Artifact.BuildInfo?.GameVariant);
+                }
+            }
+            
+            // Notify UI that selection-related properties changed
+            OnPropertyChanged(nameof(HasSelectedArtifact));
+            OnPropertyChanged(nameof(HasSelectedWorkflow));
+            OnPropertyChanged(nameof(HasSelectedRelease));
+            OnPropertyChanged(nameof(HasSelection));
+        }
+
+        /// <summary>
+        /// Command to select an item from the workflow run items
+        /// </summary>
+        [RelayCommand]
+        private void SelectItem(IGitHubDisplayItem item)
+        {
+            if (item != null)
+            {
+                SetSelectedItem(item);
+                _logger.LogDebug("Selected item from workflow run items: {DisplayName}", item.DisplayName);
             }
         }
     }

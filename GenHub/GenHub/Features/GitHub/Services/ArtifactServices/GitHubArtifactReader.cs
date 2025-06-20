@@ -17,6 +17,7 @@ using GenHub.Core.Models.GameProfiles;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Models.SourceMetadata;
 using GenHub.Core.Interfaces.GitHub;
+using GenHub.Core.Models.GitHub.Exceptions;
 
 namespace GenHub.Features.GitHub.Services
 {
@@ -153,7 +154,7 @@ namespace GenHub.Features.GitHub.Services
         /// Get artifacts from a specific repository
         /// </summary>
         public async Task<IEnumerable<GitHubArtifact>> GetArtifactsForRepositoryAsync(
-            GitHubRepoSettings repoConfig,
+            GitHubRepository repoConfig,
             CancellationToken cancellationToken = default)
         {
             var runs = await _workflowService.GetWorkflowRunsForRepositoryAsync(repoConfig, cancellationToken: cancellationToken);
@@ -193,7 +194,7 @@ namespace GenHub.Features.GitHub.Services
         /// Download an artifact from a specific repository with comprehensive error handling
         /// </summary>
         public async Task<string> DownloadArtifactAsync(
-            GitHubRepoSettings repoConfig,
+            GitHubRepository repoConfig,
             long artifactId,
             string destinationFolder,
             IProgress<double>? progress = null,
@@ -340,7 +341,7 @@ namespace GenHub.Features.GitHub.Services
         /// <summary>
         /// Detects available game versions from GitHub artifacts in a specific repository
         /// </summary>
-        public async Task<IEnumerable<GameVersion>> GetDetectedVersionsAsync(GitHubRepoSettings repoConfig, CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<GameVersion>> GetDetectedVersionsAsync(GitHubRepository repoConfig, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -425,7 +426,7 @@ namespace GenHub.Features.GitHub.Services
             }
         }
 
-        private GitHubRepoSettings EnsureRepositoryInfo(GitHubWorkflow run)
+        private GitHubRepository EnsureRepositoryInfo(GitHubWorkflow run)
         {
             if (run.RepositoryInfo == null)
             {
@@ -434,7 +435,7 @@ namespace GenHub.Features.GitHub.Services
             }
 
             // Create defensive copy to prevent sharing
-            return new GitHubRepoSettings
+            return new GitHubRepository
             {
                 RepoOwner = run.RepositoryInfo.RepoOwner,
                 RepoName = run.RepositoryInfo.RepoName,
@@ -446,7 +447,7 @@ namespace GenHub.Features.GitHub.Services
         }
 
         private async Task<IEnumerable<GitHubArtifact>?> TryGetCachedArtifacts(
-            GitHubRepoSettings repo, 
+            GitHubRepository repo, 
             long runId, 
             CancellationToken cancellationToken)
         {
@@ -483,7 +484,7 @@ namespace GenHub.Features.GitHub.Services
         }
 
         private async Task<IEnumerable<GitHubArtifact>> FetchArtifactsFromApi(
-            GitHubRepoSettings repo,
+            GitHubRepository repo,
             GitHubWorkflow run,
             CancellationToken cancellationToken)
         {
@@ -518,7 +519,7 @@ namespace GenHub.Features.GitHub.Services
 
         private async Task<List<GitHubArtifact>> ProcessArtifacts(
             List<GitHubArtifact> artifacts,
-            GitHubRepoSettings repo,
+            GitHubRepository repo,
             GitHubWorkflow run,
             CancellationToken cancellationToken)
         {
@@ -549,13 +550,13 @@ namespace GenHub.Features.GitHub.Services
             return processedArtifacts;
         }
 
-        private void ProcessSingleArtifact(GitHubArtifact artifact, GitHubRepoSettings repo, GitHubWorkflow run)
+        private void ProcessSingleArtifact(GitHubArtifact artifact, GitHubRepository repo, GitHubWorkflow run)
         {
             _logger.LogDebug("Processing artifact: ID={Id}, Name='{Name}', Size={Size}", 
                 artifact.Id, artifact.Name, artifact.SizeInBytes);
 
             // Set repository info (defensive copy)
-            artifact.RepositoryInfo = new GitHubRepoSettings
+            artifact.RepositoryInfo = new GitHubRepository
             {
                 RepoOwner = repo.RepoOwner,
                 RepoName = repo.RepoName,
@@ -591,7 +592,7 @@ namespace GenHub.Features.GitHub.Services
             }
         }
 
-        private void ValidateDownloadParameters(GitHubRepoSettings repoConfig, long artifactId, string destinationFolder)
+        private void ValidateDownloadParameters(GitHubRepository repoConfig, long artifactId, string destinationFolder)
         {
             if (repoConfig == null)
             {
@@ -640,7 +641,7 @@ namespace GenHub.Features.GitHub.Services
         private async Task HandleErrorStatusCodes(
             HttpResponseMessage response, 
             long artifactId, 
-            GitHubRepoSettings repoConfig, 
+            GitHubRepository repoConfig, 
             bool hasAuth,
             CancellationToken cancellationToken)
         {
@@ -670,7 +671,7 @@ namespace GenHub.Features.GitHub.Services
         private async Task HandleForbiddenError(
             HttpResponseMessage response, 
             bool hasAuth, 
-            GitHubRepoSettings repoConfig,
+            GitHubRepository repoConfig,
             CancellationToken cancellationToken)
         {
             string errorContent = string.Empty;
@@ -877,8 +878,8 @@ namespace GenHub.Features.GitHub.Services
             }
             else
             {
-                _logger.LogError("Failed to install version: {ErrorMessage}", result.ErrorMessage);
-                throw new GitHubDownloadException($"Failed to install version: {result.ErrorMessage}");
+                _logger.LogError("Failed to install version: {ErrorMessage}", result.Message);
+                throw new GitHubDownloadException($"Failed to install version: {result.Message}");
             }
         }
 
@@ -969,7 +970,7 @@ namespace GenHub.Features.GitHub.Services
                 }
 
                 // Try to find the run in all repositories
-                var repositories = new List<GitHubRepoSettings> { _repoService.GetDefaultRepository() };
+                var repositories = new List<GitHubRepository> { _repoService.GetDefaultRepository() };
                 repositories.AddRange(_repoService.GetRepositories().Where(r =>
                     r.RepoOwner != repositories[0].RepoOwner ||
                     r.RepoName != repositories[0].RepoName));

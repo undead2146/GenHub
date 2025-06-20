@@ -103,13 +103,13 @@ namespace GenHub.Features.GitHub.Helpers
         }
 
         /// <summary>
-        /// Creates a deep copy of a GitHubRepoSettings instance
+        /// Creates a deep copy of a GitHubRepository instance
         /// </summary>
-        public static GitHubRepoSettings CreateCopy(this GitHubRepoSettings settings)
+        public static GitHubRepository CreateCopy(this GitHubRepository settings)
         {
             if (settings == null) return null;
             
-            return new GitHubRepoSettings
+            return new GitHubRepository
             {
                 RepoOwner = settings.RepoOwner,
                 RepoName = settings.RepoName,
