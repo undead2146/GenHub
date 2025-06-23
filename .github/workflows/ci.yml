@@ -193,11 +193,9 @@ jobs:
       - name: Run Tests
         run: |
           shopt -s globstar nullglob
-          for test_project in GenHub/GenHub.Tests/**/*.csproj; do
-            if [[ -f "$test_project" ]]; then
-              echo "Testing $test_project"
-              dotnet test "$test_project" -c Release --no-build
-            fi
+          for test_project in ${{ env.TEST_PROJECTS }}; do
+            echo "Testing $test_project"
+            dotnet test "$test_project" -c ${{ env.BUILD_CONFIGURATION }} --no-build --verbosity normal
           done
         
       - name: Upload Linux Artifact
