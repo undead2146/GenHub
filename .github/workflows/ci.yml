@@ -54,7 +54,7 @@ jobs:
             linux:
               - 'GenHub/GenHub.Linux/**'
             tests:
-              - 'Tests/**'
+              - 'GenHub/GenHub.Tests/**'
             any:
               - '**/*.cs'
               - '**/*.axaml'
