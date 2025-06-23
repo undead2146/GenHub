@@ -6,9 +6,9 @@ permissions:
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main , tests/core-windows-linux]
   pull_request:
-    branches: [ main ]
+    branches: [ main , tests/core-windows-linux]
   workflow_dispatch:
 
 concurrency:
