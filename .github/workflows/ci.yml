@@ -125,7 +125,7 @@ jobs:
           if ($testProjects) {
             foreach ($testProject in $testProjects) {
               Write-Host "Testing $($testProject.FullName)"
-              dotnet test $testProject.FullName -c $env:BUILD_CONFIGURATION /p:TreatWarningsAsErrors=false /p:RunAnalyzers=false
+              dotnet test $testProject.FullName -c $env:BUILD_CONFIGURATION /p:TreatWarningsAsErrors=false
             }
           } else {
             Write-Host "No test projects found."
@@ -192,7 +192,7 @@ jobs:
           for test_project in ${{ env.TEST_PROJECTS }}; do
             [[ "$test_project" == *Windows* ]] && continue
             echo "Testing $test_project"
-            dotnet test "$test_project" -c ${{ env.BUILD_CONFIGURATION }} --verbosity normal /p:TreatWarningsAsErrors=false /p:RunAnalyzers=false
+            dotnet test "$test_project" -c ${{ env.BUILD_CONFIGURATION }} --verbosity normal /p:TreatWarningsAsErrors=false 
           done
         
       - name: Upload Linux Artifact
