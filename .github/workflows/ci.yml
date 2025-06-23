@@ -191,11 +191,13 @@ jobs:
             -o "linux-publish"
       
       - name: Run Tests
-        id: tests
         run: |
           shopt -s globstar nullglob
-          for test_project in ${{ env.TEST_PROJECTS }}; do
-            dotnet test "$test_project" -c ${{ env.BUILD_CONFIGURATION }} --no-build
+          for test_project in GenHub/GenHub.Tests/**/*.csproj; do
+            if [[ -f "$test_project" ]]; then
+              echo "Testing $test_project"
+              dotnet test "$test_project" -c Release --no-build
+            fi
           done
         
       - name: Upload Linux Artifact
