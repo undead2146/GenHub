@@ -6,9 +6,9 @@ permissions:
 
 on:
   push:
-    branches: [ main , tests/core-windows-linux ]
+    branches: [ main , tests/core-windows-linux]
   pull_request:
-    branches: [ main , tests/core-windows-linux ]
+    branches: [ main , tests/core-windows-linux]
   workflow_dispatch:
 
 concurrency:
@@ -121,7 +121,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $testProjects = Get-ChildItem -Path $env:TEST_PROJECTS -Recurse -File
+          $testProjects = Get-ChildItem -Path "GenHub/GenHub.Tests" -Recurse -Filter *.csproj
           if ($testProjects) {
             foreach ($testProject in $testProjects) {
               Write-Host "Testing $($testProject.FullName)"
