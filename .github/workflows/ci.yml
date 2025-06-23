@@ -6,9 +6,9 @@ permissions:
 
 on:
   push:
-    branches: [ main , tests/core-windows-linux]
+    branches: [ main ]
   pull_request:
-    branches: [ main , tests/core-windows-linux]
+    branches: [ main ]
   workflow_dispatch:
 
 concurrency:
@@ -191,7 +191,7 @@ jobs:
           shopt -s globstar nullglob
           for test_project in ${{ env.TEST_PROJECTS }}; do
             echo "Testing $test_project"
-            dotnet test "$test_project" -c ${{ env.BUILD_CONFIGURATION }} --verbosity normal /p:TreatWarningsAsErrors=false
+            dotnet test "$test_project" -c ${{ env.BUILD_CONFIGURATION }} --verbosity normal /p:TreatWarningsAsErrors=false /p:RunAnalyzers=false
           done
         
       - name: Upload Linux Artifact
