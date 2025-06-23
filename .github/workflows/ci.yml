@@ -195,7 +195,7 @@ jobs:
           shopt -s globstar nullglob
           for test_project in ${{ env.TEST_PROJECTS }}; do
             echo "Testing $test_project"
-            dotnet test "$test_project" -c ${{ env.BUILD_CONFIGURATION }} --no-build --verbosity normal
+            dotnet test "$test_project" -c ${{ env.BUILD_CONFIGURATION }} --verbosity normal
           done
         
       - name: Upload Linux Artifact
