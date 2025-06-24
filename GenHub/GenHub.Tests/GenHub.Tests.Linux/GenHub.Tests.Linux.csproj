@@ -16,6 +16,11 @@
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\GenHub.Core\GenHub.Core.csproj" />
+    <ProjectReference Include="..\..\GenHub\GenHub.csproj" />
+    <ProjectReference Include="..\..\GenHub.Linux\GenHub.Linux.csproj" />
+  </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
