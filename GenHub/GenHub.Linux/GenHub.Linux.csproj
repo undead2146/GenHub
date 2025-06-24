@@ -1,8 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <!-- net9.0-linux doesn't exist for various reasons, so we have to use the generic net9.0 target framework -->
-        <TargetFramework>net9.0</TargetFramework>
+        <!-- net8.0-linux doesn't exist for various reasons, so we have to use the generic net8.0 target framework -->
+        <TargetFramework>net8.0</TargetFramework>
         <Nullable>enable</Nullable>
         <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
