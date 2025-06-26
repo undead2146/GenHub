@@ -13,8 +13,15 @@ using Xunit;
 
 namespace GenHub.Tests.Core.Features.GameVersions
 {
+    /// <summary>
+    /// Tests for <see cref="GameVersionDetectionOrchestrator"/>.
+    /// </summary>
     public class GameVersionDetectionOrchestratorTests
     {
+        /// <summary>
+        /// Verifies that a failed installation detection returns a failed result.
+        /// </summary>
+        /// <returns>A task representing the asynchronous operation.</returns>
         [Fact]
         public async Task DetectAllVersionsAsync_InstallationDetectionFails_ReturnsFailed()
         {
@@ -31,6 +38,10 @@ namespace GenHub.Tests.Core.Features.GameVersions
             Assert.Contains(result.Errors, e => e.Contains("install error"));
         }
 
+        /// <summary>
+        /// Verifies that version detection returns the expected versions when successful.
+        /// </summary>
+        /// <returns>A task representing the asynchronous operation.</returns>
         [Fact]
         public async Task DetectAllVersionsAsync_VersionDetectionSucceeds_ReturnsVersions()
         {

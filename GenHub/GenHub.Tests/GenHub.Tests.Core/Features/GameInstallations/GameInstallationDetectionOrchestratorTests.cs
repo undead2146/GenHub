@@ -12,8 +12,15 @@ using Xunit;
 
 namespace GenHub.Tests.Core.Features.GameInstallations
 {
+    /// <summary>
+    /// Tests for <see cref="GameInstallationDetectionOrchestrator"/>.
+    /// </summary>
     public class GameInstallationDetectionOrchestratorTests
     {
+        /// <summary>
+        /// Verifies that all detectors' results are combined when all succeed.
+        /// </summary>
+        /// <returns>A task representing the asynchronous operation.</returns>
         [Fact]
         public async Task DetectAllInstallationsAsync_AllDetectorsSucceed_CombinesItems()
         {
@@ -45,6 +52,10 @@ namespace GenHub.Tests.Core.Features.GameInstallations
             Assert.Contains(instB, result.Items);
         }
 
+        /// <summary>
+        /// Verifies that a failed detector returns a failed result.
+        /// </summary>
+        /// <returns>A task representing the asynchronous operation.</returns>
         [Fact]
         public async Task DetectAllInstallationsAsync_DetectorFails_ReturnsFailed()
         {
