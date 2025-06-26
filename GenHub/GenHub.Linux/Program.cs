@@ -1,8 +1,8 @@
 ﻿using System;
 using Avalonia;
-using GenHub.Core;
-using GenHub.Infrastructure.DependencyInjection;
-using GenHub.Services;
+using GenHub.Core.Interfaces.GameInstallations;
+using GenHub.Features.GameVersions;
+using GenHub.Linux.GameInstallations;
 using GenHub.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -31,10 +31,11 @@ public class Program
         var services = new ServiceCollection();
 
         // Linux-specific DI
-        services.AddSingleton<IGameDetector, LinuxGameDetector>();
+        services.AddSingleton<IGameInstallationDetector, LinuxInstallationDetector>();
 
-        // Register shared services
-        services.ConfigureApplicationServices();
+        // Core DI
+        services.AddSingleton<GameVersionDetectionOrchestrator>();
+        services.AddSingleton<MainViewModel>();
 
         var serviceProvider = services.BuildServiceProvider();
 
