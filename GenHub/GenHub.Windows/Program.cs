@@ -17,7 +17,7 @@ namespace GenHub.Windows;
 public class Program
 {
     private const string MutexName = "Global\\GenHub";
-    private const int SW_RESTORE = 9; // Windows API constant to restore a window
+    private const int SwRestore = 9; // Windows API constant to restore a window
     private static Mutex? mutex;
 
     /// <summary>
@@ -102,7 +102,7 @@ public class Program
 
         // Restore the window if minimized and bring it to the foreground
         var windowHandle = process.MainWindowHandle;
-        ShowWindow(windowHandle, SW_RESTORE);
+        ShowWindow(windowHandle, SwRestore);
         SetForegroundWindow(windowHandle);
     }
 }

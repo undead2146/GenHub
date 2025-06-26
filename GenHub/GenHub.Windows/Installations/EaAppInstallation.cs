@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using GenHub.Core;
+using GenHub.Core.Models;
 using Microsoft.Win32;
 
 namespace GenHub.Windows.Installations;
@@ -157,5 +158,24 @@ public class EaAppInstallation : IGameInstallation
         // This may or may not cause problems, e.g. when another user has steam installed but the current user
         // doesn't have access to it? - NH
         return Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\EA Games\Command and Conquer Generals Zero Hour");
+    }
+
+    /// <summary>
+    /// Converts this EaAppInstallation to a GameInstallation model.
+    /// </summary>
+    /// <returns>A new <see cref="GenHub.Core.Models.GameInstallation"/> instance representing this EA App installation.</returns>
+    public GenHub.Core.Models.GameInstallation ToGameInstallation()
+    {
+        return new GenHub.Core.Models.GameInstallation
+        {
+            Id = Guid.NewGuid().ToString(),
+            InstallationType = this.InstallationType,
+            InstallationPath = this.VanillaGamePath != string.Empty ? this.VanillaGamePath : this.ZeroHourGamePath,
+            HasGenerals = this.IsVanillaInstalled,
+            GeneralsPath = this.VanillaGamePath,
+            HasZeroHour = this.IsZeroHourInstalled,
+            ZeroHourPath = this.ZeroHourGamePath,
+            DetectedAt = DateTime.UtcNow,
+        };
     }
 }

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using GenHub.Core;
+using GenHub.Core.Models;
 using Microsoft.Win32;
 
 namespace GenHub.Windows.Installations;
@@ -46,15 +47,24 @@ public class SteamInstallation : IGameInstallation
     public void Fetch()
     {
         IsSteamInstalled = DoesSteamPathExist();
-        if(!IsSteamInstalled)
+        if (!IsSteamInstalled)
+        {
             return;
+        }
 
-        if(!TryGetSteamLibraries(out var libraryPaths))
+        if (!TryGetSteamLibraries(out var libraryPaths))
+        {
             return;
+        }
+
+        if (libraryPaths == null)
+        {
+            return;
+        }
 
         foreach (var lib in libraryPaths)
         {
-            if(string.IsNullOrEmpty(lib))
+            if (string.IsNullOrEmpty(lib))
                 continue;
 
             string gamePath;
@@ -91,6 +101,25 @@ public class SteamInstallation : IGameInstallation
     }
 
     /// <summary>
+    /// Converts this SteamInstallation to a GameInstallation model.
+    /// </summary>
+    /// <returns>A new <see cref="GameInstallation"/> instance representing this Steam installation.</returns>
+    public GameInstallation ToGameInstallation()
+    {
+        return new GameInstallation
+        {
+            Id = Guid.NewGuid().ToString(),
+            InstallationType = this.InstallationType,
+            InstallationPath = this.VanillaGamePath != string.Empty ? this.VanillaGamePath : this.ZeroHourGamePath,
+            HasGenerals = this.IsVanillaInstalled,
+            GeneralsPath = this.VanillaGamePath,
+            HasZeroHour = this.IsZeroHourInstalled,
+            ZeroHourPath = this.ZeroHourGamePath,
+            DetectedAt = DateTime.UtcNow,
+        };
+    }
+
+    /// <summary>
     /// Tries to fetch all steam library folders containing installed games.
     /// </summary>
     /// <param name="steamLibraryPaths">An array of full paths to the common directories for each valid library found.
@@ -99,7 +128,7 @@ public class SteamInstallation : IGameInstallation
     /// <remarks>
     /// This method reads the "libraryfolders.vdf" file from the main steam installation directory.
     /// </remarks>
-    private bool TryGetSteamLibraries(out string[]? steamLibraryPaths)
+    private bool TryGetSteamLibraries(out string[]? steamLibraryPaths) // StyleCop: ignore spacing after closing bracket for nullable array
     {
         steamLibraryPaths = null;
 
@@ -110,7 +139,7 @@ public class SteamInstallation : IGameInstallation
         // Find libraryfolders.vdf
         var libraryFile = Path.Combine(steamPath!, "steamapps", "libraryfolders.vdf");
 
-        if(!File.Exists(libraryFile))
+        if (!File.Exists(libraryFile))
             return false;
 
         List<string> results = [];
@@ -123,7 +152,7 @@ public class SteamInstallation : IGameInstallation
                 continue;
 
             var parts = line.Split('"');
-            if(parts.Length < 4)
+            if (parts.Length < 4)
                 continue;
 
             var dir = parts[3].Trim();
@@ -136,7 +165,9 @@ public class SteamInstallation : IGameInstallation
         }
 
         if (results.Count == 0)
+        {
             return false;
+        }
 
         steamLibraryPaths = results.ToArray();
 
