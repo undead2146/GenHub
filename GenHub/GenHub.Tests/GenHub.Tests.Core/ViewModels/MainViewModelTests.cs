@@ -54,7 +54,6 @@ public class MainViewModelTests
 
         // Act
         await vm.InitializeAsync();
-        await vm.InitializeAsync();
 
         // Assert
         Assert.NotNull(vm);

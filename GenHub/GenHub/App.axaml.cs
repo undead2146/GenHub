@@ -8,6 +8,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace GenHub;
 
+/// <summary>
+/// Main application class.
+/// </summary>
 public partial class App : Application
 {
     /// <inheritdoc/>
