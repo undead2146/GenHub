@@ -8,12 +8,12 @@ using Microsoft.Win32;
 namespace GenHub.Windows.GameInstallations;
 
 /// <summary>
-/// EA App installation detector and manager.
+/// EaApp installation detector and manager.
 /// </summary>
-public class EaAppInstallation(ILogger<EaAppInstallation>? logger = null) : IGameInstallation
+public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstallation
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="EaAppInstallation"/> class.
+    /// Initializes a new instance of the <see cref="EaAppInstallation"/> class, optionally fetching installation details.
     /// </summary>
     /// <param name="fetch">Value indicating whether <see cref="Fetch"/> should be called while instantiation.</param>
     /// <param name="logger">Optional logger instance.</param>
