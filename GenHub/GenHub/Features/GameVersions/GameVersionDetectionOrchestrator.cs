@@ -5,22 +5,23 @@ using System.Threading.Tasks;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameVersions;
 using GenHub.Core.Models;
+using GenHub.Core.Models.Results;
 
 namespace GenHub.Features.GameVersions
 {
     /// <summary>
     /// Orchestrates installation detection and version detection.
     /// </summary>
-    public class GameVersionDetectionService : IGameVersionDetectionService
+    public class GameVersionDetectionOrchestrator : IGameVersionDetectionOrchestrator
     {
-        private readonly IGameInstallationDetectionService _instService;
+        private readonly IGameInstallationDetectionOrchestrator _instOrchestrator;
         private readonly IGameVersionDetector _verDetector;
 
-        public GameVersionDetectionService(
-            IGameInstallationDetectionService instService,
+        public GameVersionDetectionOrchestrator(
+            IGameInstallationDetectionOrchestrator instOrchestrator,
             IGameVersionDetector verDetector)
         {
-            _instService = instService;
+            _instOrchestrator = instOrchestrator;
             _verDetector = verDetector;
         }
 
@@ -28,7 +29,7 @@ namespace GenHub.Features.GameVersions
             CancellationToken cancellationToken = default)
         {
             // 1) detect installations
-            var instRes = await _instService.DetectAllInstallationsAsync(cancellationToken);
+            var instRes = await _instOrchestrator.DetectAllInstallationsAsync(cancellationToken);
             if (!instRes.Success)
                 return DetectionResult<GameVersion>.Failed(
                     "Install detection errors: " + string.Join("; ", instRes.Errors));

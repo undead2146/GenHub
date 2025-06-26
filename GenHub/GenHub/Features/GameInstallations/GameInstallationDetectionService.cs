@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Models;
+using GenHub.Core.Models.Results;
 
 namespace GenHub.Features.GameInstallations
 {

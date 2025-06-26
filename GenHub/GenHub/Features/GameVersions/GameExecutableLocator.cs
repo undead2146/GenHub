@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Interfaces.GameVersions;
 using GenHub.Core.Models;
+using GenHub.Core.Models.Results;
 
 namespace GenHub.Features.GameVersions
 {
@@ -35,7 +36,7 @@ namespace GenHub.Features.GameVersions
                     {
                         versions.Add(new GameVersion
                         {
-                            Name = $"{inst.DisplayName} - {(exe.Contains("zh") ? "Zero Hour" : "Generals")}",
+                            Name = $"{inst.Id} - {(exe.Contains("zh") ? "Zero Hour" : "Generals")}",
                             ExecutablePath = path,
                             WorkingDirectory = dir,
                             GameType = exe.Contains("zh") ? "ZeroHour" : "Generals",
