@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using GenHub.Core;
 
 namespace GenHub.Linux;
@@ -12,6 +13,6 @@ public class LinuxGameDetector : IGameDetector
     /// <inheritdoc/>
     public void Detect()
     {
-        throw new System.NotImplementedException();
+        throw new NotImplementedException();
     }
 }

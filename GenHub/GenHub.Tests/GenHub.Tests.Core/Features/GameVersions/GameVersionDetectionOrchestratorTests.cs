@@ -21,7 +21,7 @@ namespace GenHub.Tests.Core.Features.GameVersions
         /// <summary>
         /// Verifies that a failed installation detection returns a failed result.
         /// </summary>
-        /// <returns>A task representing the asynchronous operation.</returns>
+        /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
         [Fact]
         public async Task DetectAllVersionsAsync_InstallationDetectionFails_ReturnsFailed()
         {
@@ -41,7 +41,7 @@ namespace GenHub.Tests.Core.Features.GameVersions
         /// <summary>
         /// Verifies that version detection returns the expected versions when successful.
         /// </summary>
-        /// <returns>A task representing the asynchronous operation.</returns>
+        /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
         [Fact]
         public async Task DetectAllVersionsAsync_VersionDetectionSucceeds_ReturnsVersions()
         {

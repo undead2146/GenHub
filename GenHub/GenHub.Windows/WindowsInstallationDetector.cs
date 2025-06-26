@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Models;
 using GenHub.Core.Models.Results;
+using GenHub.Windows.Installations;
 
 namespace GenHub.Windows
 {
@@ -40,12 +41,12 @@ namespace GenHub.Windows
             try
             {
                 // 1) Steam
-                var steam = new GenHub.Windows.Installations.SteamInstallation(fetch: true);
+                var steam = new SteamInstallation(fetch: true);
                 if (steam.IsSteamInstalled && (steam.IsVanillaInstalled || steam.IsZeroHourInstalled))
                     installs.Add(steam.ToGameInstallation());
 
                 // 2) EA App
-                var ea = new GenHub.Windows.Installations.EaAppInstallation(fetch: true);
+                var ea = new EaAppInstallation(fetch: true);
                 if (ea.IsEaAppInstalled && (ea.IsVanillaInstalled || ea.IsZeroHourInstalled))
                     installs.Add(ea.ToGameInstallation());
 
