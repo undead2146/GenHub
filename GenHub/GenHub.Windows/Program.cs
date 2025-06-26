@@ -4,10 +4,10 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Avalonia;
-using GenHub.Core;
-using GenHub.Infrastructure.DependencyInjection;
-using GenHub.Services;
+using GenHub.Core.Interfaces.GameInstallations;
+using GenHub.Features.GameVersions;
 using GenHub.ViewModels;
+using GenHub.Windows.GameInstallations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -54,6 +54,9 @@ public class Program
 
             // Register shared services
             services.ConfigureApplicationServices();
+
+            // Windows-specific DI
+            services.AddSingleton<IGameInstallationDetector, WindowsInstallationDetector>();
 
             var serviceProvider = services.BuildServiceProvider();
             AppLocator.Services = serviceProvider;
@@ -105,7 +108,7 @@ public class Program
         var process = Process.GetProcessesByName(Process.GetCurrentProcess().ProcessName).FirstOrDefault();
 
         // If no process is found, we can't restore it
-        if(process == null)
+        if (process == null)
             return;
 
         // Restore the window if minimized and bring it to the foreground
