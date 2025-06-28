@@ -18,4 +18,15 @@ public class MainViewModelTests
         // Act & Assert
         await vm.InitializeAsync();
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void SelectTabCommand_SetsSelectedTabIndex(int index)
+    {
+        var vm = new MainViewModel();
+        vm.SelectTabCommand.Execute(index);
+        Assert.Equal(index, vm.SelectedTabIndex);
+    }
 }
