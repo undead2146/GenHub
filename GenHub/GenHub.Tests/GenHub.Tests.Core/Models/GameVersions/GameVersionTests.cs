@@ -21,7 +21,8 @@ namespace GenHub.Tests.Core.Models
             Assert.Equal(string.Empty, version.Name);
             Assert.Equal(string.Empty, version.ExecutablePath);
             Assert.Equal(string.Empty, version.WorkingDirectory);
-            Assert.Equal(default(GameType), version.GameType);
+            Assert.Equal(string.Empty, version.GameType);
+            Assert.False(version.IsZeroHour);
             Assert.Null(version.BaseInstallationId);
             Assert.True((DateTime.UtcNow - version.CreatedAt).TotalSeconds < 5);
         }
