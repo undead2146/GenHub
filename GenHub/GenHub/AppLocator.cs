@@ -18,7 +18,8 @@ public static class AppLocator
     /// <summary>
     /// Gets a service from the provider or returns default.
     /// </summary>
-    public static T? GetServiceOrDefault<T>() where T : class
+    public static T? GetServiceOrDefault<T>()
+        where T : class
     {
         return Services?.GetService(typeof(T)) as T;
     }
