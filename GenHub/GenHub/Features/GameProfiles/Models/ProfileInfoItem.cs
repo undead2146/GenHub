@@ -1,4 +1,3 @@
-
 namespace GenHub.Features.GameProfiles.Models;
 
 /// <summary>

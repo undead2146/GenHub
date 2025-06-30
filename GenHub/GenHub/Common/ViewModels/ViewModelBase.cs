@@ -1,7 +1,3 @@
-// <copyright file="ViewModelBase.cs" company="GenHub">
-// Copyright (c) GenHub. All rights reserved.
-// </copyright>
-
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace GenHub.Common.ViewModels;
