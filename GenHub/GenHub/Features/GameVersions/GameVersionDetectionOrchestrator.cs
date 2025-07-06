@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Interfaces.GameInstallations;
@@ -51,8 +52,8 @@ namespace GenHub.Features.GameVersions
         public async Task<List<GameVersion>> GetDetectedVersionsAsync(
             CancellationToken cancellationToken = default)
         {
-            var vres = await DetectAllVersionsAsync(cancellationToken);
-            return vres.Success ? vres.Items : new List<GameVersion>();
+            var r = await DetectAllVersionsAsync(cancellationToken);
+            return r.Success ? r.Items.ToList() : new List<GameVersion>();
         }
     }
 }

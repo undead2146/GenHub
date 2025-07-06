@@ -1,3 +1,4 @@
+using GenHub.Features.GameVersions;
 using GenHub.Services;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,6 +17,8 @@ namespace GenHub.Infrastructure.DependencyInjection
         public static IServiceCollection AddGameDetectionService(this IServiceCollection services)
         {
             services.AddSingleton<GameDetectionService>();
+            services.AddSingleton<GameVersionDetectionOrchestrator>();
+
             return services;
         }
     }

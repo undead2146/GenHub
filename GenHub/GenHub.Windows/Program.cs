@@ -5,8 +5,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using Avalonia;
 using GenHub.Core.Interfaces.GameInstallations;
-using GenHub.Features.GameVersions;
-using GenHub.ViewModels;
+using GenHub.Infrastructure.DependencyInjection;
 using GenHub.Windows.GameInstallations;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -48,9 +47,8 @@ public class Program
         // Windows-specific DI
         services.AddSingleton<IGameInstallationDetector, WindowsInstallationDetector>();
 
-        // Core DI
-        services.AddSingleton<GameVersionDetectionOrchestrator>();
-        services.AddSingleton<MainViewModel>();
+        // Register shared services
+        services.ConfigureApplicationServices();
 
         var serviceProvider = services.BuildServiceProvider();
 
