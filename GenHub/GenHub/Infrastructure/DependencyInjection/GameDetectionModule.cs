@@ -1,6 +1,5 @@
 using GenHub.Features.GameInstallations;
 using GenHub.Features.GameVersions;
-using GenHub.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace GenHub.Infrastructure.DependencyInjection;
@@ -11,9 +10,10 @@ namespace GenHub.Infrastructure.DependencyInjection;
 public static class GameDetectionModule
 {
     /// <summary>
-    /// Registers the <see cref="GameDetectionService"/> as a singleton in the service collection.
+    /// Registers game detection orchestrators as singletons in the service collection.
+    /// Specifically, adds <see cref="GameVersionDetectionOrchestrator"/> and <see cref="GameInstallationDetectionOrchestrator"/>.
     /// </summary>
-    /// <param name="services">The service collection to add the service to.</param>
+    /// <param name="services">The service collection to add the orchestrators to.</param>
     /// <returns>The updated service collection.</returns>
     public static IServiceCollection AddGameDetectionService(this IServiceCollection services)
     {
