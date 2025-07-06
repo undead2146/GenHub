@@ -1,9 +1,8 @@
 ﻿using System;
 using Avalonia;
 using GenHub.Core.Interfaces.GameInstallations;
-using GenHub.Features.GameVersions;
+using GenHub.Infrastructure.DependencyInjection;
 using GenHub.Linux.GameInstallations;
-using GenHub.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
