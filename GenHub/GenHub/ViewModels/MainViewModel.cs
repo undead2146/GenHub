@@ -1,7 +1,10 @@
-﻿using System.Collections.ObjectModel;
+﻿using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Core.Interfaces.GameInstallations;
+using GenHub.Core.Models.GameInstallations;
 using GenHub.Features.GameInstallations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -15,6 +18,9 @@ public partial class MainViewModel : ViewModelBase
 {
     private readonly IGameInstallationDetectionOrchestrator _gameInstallationDetectionOrchestrator;
     private readonly ILogger<MainViewModel> _logger;
+
+    [ObservableProperty]
+    private List<GameInstallation> _installations = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainViewModel"/> class.
