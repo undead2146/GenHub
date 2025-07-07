@@ -1,10 +1,10 @@
-namespace GenHub.Tests.Windows.GameInstallations;
-
-using System;
 using System.Threading.Tasks;
-using GenHub.Core.Models.GameInstallations;
 using GenHub.Windows.GameInstallations;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+
+namespace GenHub.Tests.Windows.Gameinstallations;
 
 /// <summary>
 /// Unit tests for <see cref="WindowsInstallationDetector"/>.
@@ -17,19 +17,17 @@ public class WindowsInstallationDetectorTests
     [Fact]
     public void DetectorName_IsCorrect()
     {
-        var detector = new WindowsInstallationDetector();
-        Assert.Equal("Windows Retail Detector", detector.DetectorName);
+        var detector = new WindowsInstallationDetector(NullLogger<WindowsInstallationDetector>.Instance);
+        Assert.Equal("Windows Installation Detector", detector.DetectorName);
     }
 
     /// <summary>
     /// Verifies CanDetectOnCurrentPlatform returns a bool.
     /// </summary>
     [Fact]
-    public void CanDetectOnCurrentPlatform_IsTrueOnWindows()
+    public void CanDetectOnCurrentPlatform_IsBool()
     {
-        var detector = new WindowsInstallationDetector();
-
-        // This will only be true on Windows, so just assert it's a bool
+        var detector = new WindowsInstallationDetector(NullLogger<WindowsInstallationDetector>.Instance);
         Assert.IsType<bool>(detector.CanDetectOnCurrentPlatform);
     }
 
@@ -40,7 +38,7 @@ public class WindowsInstallationDetectorTests
     [Fact]
     public async Task DetectInstallationsAsync_ReturnsDetectionResult()
     {
-        var detector = new WindowsInstallationDetector();
+        var detector = new WindowsInstallationDetector(NullLogger<WindowsInstallationDetector>.Instance);
         var result = await detector.DetectInstallationsAsync();
         Assert.NotNull(result);
         Assert.True(result.Success || !result.Success); // Always true, just checks method runs

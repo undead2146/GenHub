@@ -2,13 +2,14 @@ using System;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using GenHub.Features.GameInstallations;
 using GenHub.ViewModels;
 using GenHub.Views;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace GenHub;
 
+/// <summary>
+/// Main application class.
+/// </summary>
 public partial class App : Application
 {
     /// <inheritdoc/>
@@ -22,14 +23,9 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var orchestrator = AppLocator.Services?.GetService<GameInstallationDetectionOrchestrator>()
-                                ?? new GameInstallationDetectionOrchestrator([]);
-            var viewModel = AppLocator.Services?.GetService<MainViewModel>()
-                            ?? new MainViewModel(orchestrator);
-
-            desktop.MainWindow = new MainWindow()
+            desktop.MainWindow = new MainWindow
             {
-                DataContext = viewModel,
+                DataContext = new MainViewModel(),
             };
         }
 

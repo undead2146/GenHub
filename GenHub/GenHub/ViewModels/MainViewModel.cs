@@ -1,52 +1,76 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using GenHub.Core.Models.GameInstallations;
-using GenHub.Features.GameInstallations;
-using System.Collections.Generic;
+﻿using System.Collections.ObjectModel;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.Input;
+using GenHub.Core.Interfaces.GameInstallations;
+using GenHub.Features.GameInstallations;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace GenHub.ViewModels;
 
 /// <summary>
-/// ViewModel for the main window of the application.
+/// Main view model for the application.
 /// </summary>
-public partial class MainViewModel
-    : ViewModelBase
+public partial class MainViewModel : ViewModelBase
 {
-    private readonly GameInstallationDetectionOrchestrator _installationOrchestrator;
-
-    [ObservableProperty]
-    private string? _vanillaGamePath;
-
-    [ObservableProperty]
-    private string? _zeroHourGamePath;
-
-    [ObservableProperty]
-    private List<GameInstallation> _installations = new();
+    private readonly IGameInstallationDetectionOrchestrator _gameInstallationDetectionOrchestrator;
+    private readonly ILogger<MainViewModel> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainViewModel"/> class.
     /// </summary>
-    /// <param name="installationOrchestrator">The orchestrator for installation detection.</param>
-    public MainViewModel(GameInstallationDetectionOrchestrator installationOrchestrator)
+    public MainViewModel()
     {
-        _installationOrchestrator = installationOrchestrator;
+        if (AppLocator.Services is null)
+        {
+            throw new System.InvalidOperationException("AppLocator.Services is not initialized");
+        }
+
+        var detectors = AppLocator.Services.GetServices<IGameInstallationDetector>();
+        var logger = AppLocator.Services.GetRequiredService<ILogger<GameInstallationDetectionOrchestrator>>();
+        _gameInstallationDetectionOrchestrator = new GameInstallationDetectionOrchestrator(detectors, logger);
+        _logger = AppLocator.Services.GetRequiredService<ILogger<MainViewModel>>();
+
+        GameInstallations = new ObservableCollection<string>();
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="MainViewModel"/> class for design-time only.
+    /// Gets the collection of detected game installations.
     /// </summary>
-    public MainViewModel()
-        : this(new GameInstallationDetectionOrchestrator([]))
-    {
-    }
+    public ObservableCollection<string> GameInstallations { get; }
 
+    /// <summary>
+    /// Scans for game installations.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [RelayCommand]
-    private async Task Detect()
+    public async Task ScanForGamesAsync()
     {
-        var detected = await _installationOrchestrator.GetDetectedInstallationsAsync();
-        Installations = detected;
-        VanillaGamePath = detected.Find(i => i.HasGenerals)?.GeneralsPath;
-        ZeroHourGamePath = detected.Find(i => i.HasZeroHour)?.ZeroHourPath;
+        _logger.LogInformation("Starting game installation scan");
+
+        try
+        {
+            GameInstallations.Clear();
+
+            var result = await _gameInstallationDetectionOrchestrator.DetectAllInstallationsAsync();
+
+            if (result.Success)
+            {
+                foreach (var installation in result.Items)
+                {
+                    GameInstallations.Add(installation.ToString());
+                }
+
+                _logger.LogInformation("Found {Count} game installations", result.Items.Count);
+            }
+            else
+            {
+                _logger.LogWarning("Game installation scan failed: {Errors}", string.Join("; ", result.Errors));
+            }
+        }
+        catch (System.Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred during game installation scan");
+        }
     }
 }

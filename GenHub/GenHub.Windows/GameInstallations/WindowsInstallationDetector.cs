@@ -9,18 +9,19 @@ using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.Results;
+using Microsoft.Extensions.Logging;
 
 namespace GenHub.Windows.GameInstallations;
 
 /// <summary>
-/// Example implementation of IGameInstallationDetector for Windows.
+/// Windows-specific game installation detector.
 /// </summary>
-public class WindowsInstallationDetector : IGameInstallationDetector
+public class WindowsInstallationDetector(ILogger<WindowsInstallationDetector> logger) : IGameInstallationDetector
 {
     /// <summary>
     /// Gets the human-readable name for logs/UI.
     /// </summary>
-    public string DetectorName => "Windows Retail Detector";
+    public string DetectorName => "Windows Installation Detector";
 
     /// <summary>
     /// Gets a value indicating whether this detector can run on the current OS/platform.
@@ -28,7 +29,7 @@ public class WindowsInstallationDetector : IGameInstallationDetector
     public bool CanDetectOnCurrentPlatform => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 
     /// <summary>
-    /// Scan for base platform installations and return them.
+    /// Scan for Windows platform installations and return them.
     /// </summary>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A <see cref="Task{DetectionResult{GameInstallation}}"/> representing the asynchronous operation.</returns>
@@ -38,28 +39,55 @@ public class WindowsInstallationDetector : IGameInstallationDetector
         var installs = new List<GameInstallation>();
         var errors = new List<string>();
 
+        logger.LogInformation("Starting Windows game installation detection");
+
         try
         {
-            // 1) Steam
-            var steam = new SteamInstallation(fetch: true);
-            if (steam.IsSteamInstalled && (steam.IsVanillaInstalled || steam.IsZeroHourInstalled))
-                installs.Add(steam.ToDomain());
+            // Check Steam installations
+            logger.LogDebug("Checking Steam installations");
+            var steam = new SteamInstallation(fetch: true, logger: logger as ILogger<SteamInstallation>);
+            if (steam.IsSteamInstalled && (steam.HasGenerals || steam.HasZeroHour))
+            {
+                installs.Add(steam.ToDomain(logger));
+                logger.LogInformation(
+                    "Detected Steam installation with {GeneralsCount} Generals and {ZeroHourCount} Zero Hour installations",
+                    steam.HasGenerals ? 1 : 0,
+                    steam.HasZeroHour ? 1 : 0);
+            }
+            else
+            {
+                logger.LogDebug("No valid Steam installation found");
+            }
 
-            // 2) EA App
-            var ea = new EaAppInstallation(fetch: true);
-            if (ea.IsEaAppInstalled && (ea.IsVanillaInstalled || ea.IsZeroHourInstalled))
-                installs.Add(ea.ToDomain());
+            // Check EA App installations
+            logger.LogDebug("Checking EA App installations");
+            var ea = new EaAppInstallation(fetch: true, logger: logger as ILogger<EaAppInstallation>);
+            if (ea.IsEaAppInstalled && (ea.HasGenerals || ea.HasZeroHour))
+            {
+                installs.Add(ea.ToDomain(logger));
+                logger.LogInformation(
+                    "Detected EA App installation with {GeneralsCount} Generals and {ZeroHourCount} Zero Hour installations",
+                    ea.HasGenerals ? 1 : 0,
+                    ea.HasZeroHour ? 1 : 0);
+            }
+            else
+            {
+                logger.LogDebug("No valid EA App installation found");
+            }
 
-            // 3) Origin, TFD… (similar)
+            logger.LogInformation("Windows installation detection completed with {ResultCount} installations found", installs.Count);
         }
         catch (Exception ex)
         {
             errors.Add(ex.Message);
+            logger.LogError(ex, "Error occurred during Windows installation detection");
         }
 
         sw.Stop();
-        return Task.FromResult(errors.Any()
+        var result = errors.Any()
             ? DetectionResult<GameInstallation>.Failed(string.Join("; ", errors))
-            : DetectionResult<GameInstallation>.Succeeded(installs, sw.Elapsed));
+            : DetectionResult<GameInstallation>.Succeeded(installs, sw.Elapsed);
+
+        return Task.FromResult(result);
     }
 }

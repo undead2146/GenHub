@@ -1,24 +1,40 @@
+using System.Collections.Generic;
+using GenHub.Core.Interfaces.GameInstallations;
+using GenHub.Core.Interfaces.GameVersions;
 using GenHub.Features.GameInstallations;
 using GenHub.Features.GameVersions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace GenHub.Infrastructure.DependencyInjection;
 
 /// <summary>
-/// Provides extension methods for registering game detection services.
+/// Dependency injection module for game detection services.
 /// </summary>
 public static class GameDetectionModule
 {
     /// <summary>
-    /// Registers game detection orchestrators as singletons in the service collection.
-    /// Specifically, adds <see cref="GameVersionDetectionOrchestrator"/> and <see cref="GameInstallationDetectionOrchestrator"/>.
+    /// Adds game detection services to the service collection.
     /// </summary>
-    /// <param name="services">The service collection to add the orchestrators to.</param>
+    /// <param name="services">The service collection.</param>
     /// <returns>The updated service collection.</returns>
     public static IServiceCollection AddGameDetectionService(this IServiceCollection services)
     {
-        services.AddSingleton<GameVersionDetectionOrchestrator>();
-        services.AddSingleton<GameInstallationDetectionOrchestrator>();
+        // Register orchestrators with logging
+        services.AddTransient<IGameInstallationDetectionOrchestrator>(provider =>
+        {
+            var detectors = provider.GetRequiredService<IEnumerable<IGameInstallationDetector>>();
+            var logger = provider.GetRequiredService<ILogger<GameInstallationDetectionOrchestrator>>();
+            return new GameInstallationDetectionOrchestrator(detectors, logger);
+        });
+
+        services.AddTransient<IGameVersionDetectionOrchestrator>(provider =>
+        {
+            var installationOrchestrator = provider.GetRequiredService<IGameInstallationDetectionOrchestrator>();
+            var detector = provider.GetRequiredService<IGameVersionDetector>();
+            var logger = provider.GetRequiredService<ILogger<GameVersionDetectionOrchestrator>>();
+            return new GameVersionDetectionOrchestrator(installationOrchestrator, detector, logger);
+        });
 
         return services;
     }
