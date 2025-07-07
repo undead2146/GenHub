@@ -25,7 +25,7 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var viewModel = AppLocator.Services?.GetRequiredService<MainViewModel>()
-                            ?? new MainViewModel();
+                            ?? throw new InvalidOperationException("MainViewModel not registered in DI container");
 
             desktop.MainWindow = new MainWindow()
             {

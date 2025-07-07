@@ -1,146 +1,195 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using GenHub.Core;
+using GenHub.Core.Interfaces.GameInstallations;
+using GenHub.Core.Models.Enums;
+using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 
 namespace GenHub.Windows.GameInstallations;
 
-/// <inheritdoc/>
-public class SteamInstallation : IGameInstallation
+/// <summary>
+/// Steam installation detector and manager.
+/// </summary>
+public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGameInstallation
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="SteamInstallation"/> class.
     /// </summary>
     /// <param name="fetch">Value indicating whether <see cref="Fetch"/> should be called while instantiation.</param>
-    public SteamInstallation(bool fetch)
+    /// <param name="logger">Optional logger instance.</param>
+    public SteamInstallation(bool fetch, ILogger<SteamInstallation>? logger = null)
+        : this(logger)
     {
         if (fetch)
+        {
             Fetch();
+        }
     }
 
     /// <inheritdoc/>
     public GameInstallationType InstallationType => GameInstallationType.Steam;
 
     /// <inheritdoc/>
-    public bool IsVanillaInstalled { get; private set; }
+    public string InstallationPath { get; private set; } = string.Empty;
 
     /// <inheritdoc/>
-    public string VanillaGamePath { get; private set; } = string.Empty;
+    public bool HasGenerals { get; private set; }
 
     /// <inheritdoc/>
-    public bool IsZeroHourInstalled { get; private set; }
+    public string GeneralsPath { get; private set; } = string.Empty;
 
     /// <inheritdoc/>
-    public string ZeroHourGamePath { get; private set; } = string.Empty;
+    public bool HasZeroHour { get; private set; }
+
+    /// <inheritdoc/>
+    public string ZeroHourPath { get; private set; } = string.Empty;
 
     /// <summary>
     /// Gets a value indicating whether Steam is installed successfully.
     /// </summary>
-    /// <remarks>
-    /// Steam specific.
-    /// </remarks>
     public bool IsSteamInstalled { get; private set; }
 
     /// <inheritdoc/>
     public void Fetch()
     {
-        IsSteamInstalled = DoesSteamPathExist();
-        if(!IsSteamInstalled)
-            return;
+        logger?.LogInformation("Starting Steam installation detection");
 
-        if(!TryGetSteamLibraries(out var libraryPaths))
-            return;
-
-        foreach (var lib in libraryPaths!)
+        try
         {
-            if(string.IsNullOrEmpty(lib))
-                continue;
-
-            string gamePath;
-
-            // Fetch generals
-            if (!IsVanillaInstalled)
+            IsSteamInstalled = DoesSteamPathExist();
+            if (!IsSteamInstalled)
             {
-                gamePath = Path.Combine(lib, "Command and Conquer Generals");
-                if (Directory.Exists(gamePath))
+                logger?.LogDebug("Steam installation not found");
+                return;
+            }
+
+            logger?.LogDebug("Steam installation found, searching for game libraries");
+
+            if (!TryGetSteamLibraries(out var libraryPaths))
+            {
+                logger?.LogWarning("No Steam libraries found");
+                return;
+            }
+
+            logger?.LogDebug("Found {LibraryCount} Steam libraries", libraryPaths!.Length);
+
+            foreach (var lib in libraryPaths!)
+            {
+                if (string.IsNullOrEmpty(lib))
+                    continue;
+
+                logger?.LogDebug("Checking Steam library: {LibraryPath}", lib);
+
+                // Fetch generals
+                if (!HasGenerals)
                 {
-                    // TODO: Add a more sophisticated check? E.g. check for generals.exe.
-                    // So that an empty folder doesn't cause a false positive
-                    IsVanillaInstalled = true;
-                    VanillaGamePath = gamePath;
+                    var generalsPath = Path.Combine(lib, "Command and Conquer Generals");
+                    if (Directory.Exists(generalsPath))
+                    {
+                        HasGenerals = true;
+                        GeneralsPath = generalsPath;
+                        InstallationPath = lib;
+                        logger?.LogInformation("Found Steam Generals installation: {GeneralsPath}", GeneralsPath);
+                    }
+                }
+
+                // Fetch zero hour
+                if (!HasZeroHour)
+                {
+                    var zeroHourPath = Path.Combine(lib, "Command & Conquer Generals - Zero Hour");
+                    if (Directory.Exists(zeroHourPath))
+                    {
+                        HasZeroHour = true;
+                        ZeroHourPath = zeroHourPath;
+                        if (string.IsNullOrEmpty(InstallationPath))
+                        {
+                            InstallationPath = lib;
+                        }
+
+                        logger?.LogInformation("Found Steam Zero Hour installation: {ZeroHourPath}", ZeroHourPath);
+                    }
                 }
             }
 
-            // Fetch zero hour
-            if (!IsZeroHourInstalled)
-            {
-                gamePath = Path.Combine(lib, "Command & Conquer Generals - Zero Hour");
-                {
-                    // TODO: Add a more sophisticated check? E.g. check for generals.exe.
-                    // So that an empty folder doesn't cause a false positive
-                    IsZeroHourInstalled = true;
-                    ZeroHourGamePath = gamePath;
-                }
-            }
+            logger?.LogInformation(
+                "Steam detection completed: Generals={HasGenerals}, ZeroHour={HasZeroHour}",
+                HasGenerals,
+                HasZeroHour);
         }
-
-        // Just for testing, will probably be removed or refactored with more sophisticated logging - NH
-        Console.WriteLine($"Steam: Is Vanilla installed? {IsVanillaInstalled} - If yes then it's here: {VanillaGamePath}");
-        Console.WriteLine($"Steam: Is Zero Hour installed? {IsZeroHourInstalled} - If yes then it's here: {ZeroHourGamePath}");
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Error occurred during Steam installation detection");
+        }
     }
 
     /// <summary>
     /// Tries to fetch all steam library folders containing installed games.
     /// </summary>
-    /// <param name="steamLibraryPaths">An array of full paths to the common directories for each valid library found.
-    /// This will be null if the method returns <c>false</c>.</param>
+    /// <param name="steamLibraryPaths">An array of full paths to the common directories for each valid library found.</param>
     /// <returns><c>true</c> if at least one steam library path was found.</returns>
-    /// <remarks>
-    /// This method reads the "libraryfolders.vdf" file from the main steam installation directory.
-    /// </remarks>
     private bool TryGetSteamLibraries(out string[]? steamLibraryPaths)
     {
         steamLibraryPaths = null;
 
-        // Try to get the steam path in order to fetch the libraryfolders.vdf
-        if (!TryGetSteamPath(out var steamPath))
-            return false;
-
-        // Find libraryfolders.vdf
-        var libraryFile = Path.Combine(steamPath!, "steamapps", "libraryfolders.vdf");
-
-        if(!File.Exists(libraryFile))
-            return false;
-
-        List<string> results = [];
-
-        // Read all the paths in the vdf and already make them usable.
-        // "C:\\Program Files (x86)\\Steam" to "C:\Program Files (x86)\Steam\steamapps\common"
-        foreach (var line in File.ReadAllLines(libraryFile))
+        try
         {
-            if (!line.Contains("\"path\""))
-                continue;
+            logger?.LogDebug(
+                "Attempting to get Steam library paths");
 
-            var parts = line.Split('"');
-            if(parts.Length < 4)
-                continue;
-
-            var dir = parts[3].Trim();
-
-            if (Directory.Exists(dir))
+            if (!TryGetSteamPath(out var steamPath))
             {
-                var path = Path.Combine(dir.Replace(@"\\", @"\"), "steamapps", "common");
-                results.Add(path);
+                logger?.LogDebug("Steam path not found");
+                return false;
             }
+
+            var libraryFile = Path.Combine(steamPath!, "steamapps", "libraryfolders.vdf");
+            logger?.LogDebug("Looking for library file: {LibraryFile}", libraryFile);
+
+            if (!File.Exists(libraryFile))
+            {
+                logger?.LogDebug("Steam library file not found: {LibraryFile}", libraryFile);
+                return false;
+            }
+
+            var results = new List<string>();
+
+            foreach (var line in File.ReadAllLines(libraryFile))
+            {
+                if (!line.Contains("\"path\""))
+                    continue;
+
+                var parts = line.Split('"');
+                if (parts.Length < 4)
+                    continue;
+
+                var dir = parts[3].Trim();
+
+                if (Directory.Exists(dir))
+                {
+                    var path = Path.Combine(dir.Replace(@"\\", @"\"), "steamapps", "common");
+                    results.Add(path);
+                    logger?.LogDebug("Found Steam library: {LibraryPath}", path);
+                }
+            }
+
+            if (results.Count == 0)
+            {
+                logger?.LogDebug("No valid Steam libraries found");
+                return false;
+            }
+
+            steamLibraryPaths = results.ToArray();
+            logger?.LogDebug(
+                "Successfully found {Count} Steam libraries",
+                steamLibraryPaths.Length);
+            return true;
         }
-
-        if (results.Count == 0)
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to get Steam library paths");
             return false;
-
-        steamLibraryPaths = results.ToArray();
-
-        return true;
+        }
     }
 
     /// <summary>
@@ -149,8 +198,18 @@ public class SteamInstallation : IGameInstallation
     /// <returns><c>true</c> if the steam registry key was found.</returns>
     private bool DoesSteamPathExist()
     {
-        using var key = GetSteamRegistryKey();
-        return key != null;
+        try
+        {
+            using var key = GetSteamRegistryKey();
+            var exists = key != null;
+            logger?.LogDebug("Steam registry key exists: {Exists}", exists);
+            return exists;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to check Steam registry key");
+            return false;
+        }
     }
 
     /// <summary>
@@ -162,23 +221,40 @@ public class SteamInstallation : IGameInstallation
     {
         path = string.Empty;
 
-        using var key = GetSteamRegistryKey();
-        if (key == null)
-            return false;
-
-        // Find the steam path in current user registry
-        path = key.GetValue("SteamPath") as string;
-
-        if (string.IsNullOrEmpty(path))
+        try
         {
-            // Find the steam path in local machine registry
-            // This may or may not cause problems, e.g. when another user has steam installed but the current user
-            // doesn't have access to it? - NH
-            path = key.GetValue("InstallPath") as string;
-            return !string.IsNullOrEmpty(path);
-        }
+            using var key = GetSteamRegistryKey();
+            if (key == null)
+            {
+                logger?.LogDebug("Steam registry key not found");
+                return false;
+            }
 
-        return true;
+            path = key.GetValue("SteamPath") as string;
+
+            if (string.IsNullOrEmpty(path))
+            {
+                path = key.GetValue("InstallPath") as string;
+                if (!string.IsNullOrEmpty(path))
+                {
+                    logger?.LogDebug("Steam path found via InstallPath: {SteamPath}", path);
+                    return true;
+                }
+            }
+            else
+            {
+                logger?.LogDebug("Steam path found via SteamPath: {SteamPath}", path);
+                return true;
+            }
+
+            logger?.LogDebug("Steam path not found in registry");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to get Steam path from registry");
+            return false;
+        }
     }
 
     /// <summary>
@@ -187,15 +263,33 @@ public class SteamInstallation : IGameInstallation
     /// <returns>A disposable <see cref="RegistryKey"/>.</returns>
     private RegistryKey? GetSteamRegistryKey()
     {
-        // Check current user
-        var key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Valve\Steam");
-        if (key != null)
-            return key;
+        try
+        {
+            // Check current user
+            var key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Valve\Steam");
+            if (key != null)
+            {
+                logger?.LogDebug("Found Steam registry key in CurrentUser");
+                return key;
+            }
 
-        // Check local machine if the current user doesn't have steam installed.
-        // This may or may not cause problems, e.g. when another user has steam installed but the current user
-        // doesn't have access to it? - NH
-        key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Valve\Steam");
-        return key;
+            // Check local machine
+            key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Valve\Steam");
+            if (key != null)
+            {
+                logger?.LogDebug("Found Steam registry key in LocalMachine");
+            }
+            else
+            {
+                logger?.LogDebug("Steam registry key not found in either CurrentUser or LocalMachine");
+            }
+
+            return key;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to get Steam registry key");
+            return null;
+        }
     }
 }

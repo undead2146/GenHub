@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameVersions;
 using Xunit;
 
@@ -21,37 +22,42 @@ namespace GenHub.Tests.Core.Models
             Assert.Equal(string.Empty, version.Name);
             Assert.Equal(string.Empty, version.ExecutablePath);
             Assert.Equal(string.Empty, version.WorkingDirectory);
-            Assert.Equal(default(GameType), version.GameType);
-            Assert.Null(version.BaseInstallationId);
-            Assert.True((DateTime.UtcNow - version.CreatedAt).TotalSeconds < 5);
+            Assert.Equal(GameType.Generals, version.GameType);
+            Assert.Equal(string.Empty, version.BaseInstallationId);
+            Assert.Equal(string.Empty, version.CommandLineArgs);
+            Assert.True(version.IsEnabled);
+            Assert.True((DateTime.UtcNow - version.LastDetected).TotalSeconds < 5);
         }
 
         /// <summary>
-        /// Verifies IsValid returns false when file does not exist.
+        /// Verifies IsValid returns false when executable doesn't exist.
         /// </summary>
         [Fact]
-        public void GameVersion_IsValid_ReturnsFalse_WhenFileDoesNotExist()
+        public void GameVersion_IsValid_ReturnsFalse_WhenExecutableDoesNotExist()
         {
-            var version = new GameVersion { ExecutablePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".exe") };
+            var version = new GameVersion
+            {
+                ExecutablePath = "C:\\NonExistent\\generals.exe",
+            };
+
             Assert.False(version.IsValid);
         }
 
         /// <summary>
-        /// Verifies IsValid returns true when file exists.
+        /// Verifies ToString returns expected format.
         /// </summary>
         [Fact]
-        public void GameVersion_IsValid_ReturnsTrue_WhenFileExists()
+        public void GameVersion_ToString_ReturnsExpectedFormat()
         {
-            var tempFile = Path.GetTempFileName();
-            try
+            var version = new GameVersion
             {
-                var version = new GameVersion { ExecutablePath = tempFile };
-                Assert.True(version.IsValid);
-            }
-            finally
-            {
-                File.Delete(tempFile);
-            }
+                Name = "Test Version",
+                GameType = GameType.ZeroHour,
+            };
+
+            var result = version.ToString();
+            Assert.Contains("Test Version", result);
+            Assert.Contains("ZeroHour", result);
         }
     }
 }

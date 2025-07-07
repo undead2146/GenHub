@@ -1,5 +1,7 @@
 using System.Threading.Tasks;
 using GenHub.Linux.GameInstallations;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace GenHub.Tests.Linux.Gameinstallations;
@@ -15,8 +17,8 @@ public class LinuxInstallationDetectorTests
     [Fact]
     public void DetectorName_IsCorrect()
     {
-        var detector = new LinuxInstallationDetector();
-        Assert.Equal("Linux Retail Detector", detector.DetectorName);
+        var detector = new LinuxInstallationDetector(NullLogger<LinuxInstallationDetector>.Instance);
+        Assert.Equal("Linux Installation Detector", detector.DetectorName);
     }
 
     /// <summary>
@@ -25,7 +27,7 @@ public class LinuxInstallationDetectorTests
     [Fact]
     public void CanDetectOnCurrentPlatform_IsBool()
     {
-        var detector = new LinuxInstallationDetector();
+        var detector = new LinuxInstallationDetector(NullLogger<LinuxInstallationDetector>.Instance);
         Assert.IsType<bool>(detector.CanDetectOnCurrentPlatform);
     }
 
@@ -36,7 +38,7 @@ public class LinuxInstallationDetectorTests
     [Fact]
     public async Task DetectInstallationsAsync_ReturnsDetectionResult()
     {
-        var detector = new LinuxInstallationDetector();
+        var detector = new LinuxInstallationDetector(NullLogger<LinuxInstallationDetector>.Instance);
         var result = await detector.DetectInstallationsAsync();
         Assert.NotNull(result);
         Assert.True(result.Success || !result.Success); // Always true, just checks method runs
