@@ -27,7 +27,7 @@ public class GameDetectionServiceTests
         Assert.True(service.IsVanillaInstalled);
         Assert.Equal("C:/Gen/Generals", service.VanillaGamePath);
         Assert.True(service.IsZeroHourInstalled);
-        Assert.Equal("C:/Gen/ZeroHour", service.ZerHourGamePath);
+        Assert.Equal("C:/Gen/ZeroHour", service.ZeroHourGamePath);
     }
 
     [Fact]
