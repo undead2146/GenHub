@@ -4,10 +4,9 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Avalonia;
-using GenHub.Core;
 using GenHub.Infrastructure.DependencyInjection;
-using GenHub.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace GenHub.Windows;
 
@@ -41,24 +40,28 @@ public class Program
             return;
         }
 
-        // Dependency injection
-        var services = new ServiceCollection();
+        using var bootstrapLoggerFactory = LoggingModule.CreateBootstrapLoggerFactory();
+        var bootstrapLogger = bootstrapLoggerFactory.CreateLogger<Program>();
 
-        // Windows-specific DI
-        services.AddSingleton<IGameDetector, WindowsGameDetector>();
+        try
+        {
+            bootstrapLogger.LogInformation("Starting GenHub Windows application");
 
-        // Core DI
-        services.AddSingleton<GameDetectionService>();
+            var services = new ServiceCollection();
 
-        // Register all shared ViewModels and services
-        SharedViewModelModule.AddSharedViewModelModule(services);
+            // Register shared services
+            services.ConfigureApplicationServices();
 
-        var serviceProvider = services.BuildServiceProvider();
+            var serviceProvider = services.BuildServiceProvider();
+            AppLocator.Services = serviceProvider;
 
-        // Set static service locator for bootstrapping. This is needed for avalonia to receive the service provider
-        AppLocator.Services = serviceProvider;
-
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        }
+        catch (Exception ex)
+        {
+            bootstrapLogger.LogCritical(ex, "Application terminated unexpectedly");
+            throw;
+        }
     }
 
     /// <summary>
@@ -81,9 +84,9 @@ public class Program
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     /// <summary>
-    /// Checks if another instance is already running by attempting to acquire a named <see cref="Mutex">.
+    /// Checks if another instance is already running by attempting to acquire a named <see cref="Mutex" />.
     /// </summary>
-    /// <returns>True if another instance already owns the <see cref="Mutex">.</returns>
+    /// <returns>True if another instance already owns the <see cref="Mutex" />.</returns>
     private static bool IsAnotherInstanceRunning()
     {
         mutex = new Mutex(true, MutexName, out bool createdNew);

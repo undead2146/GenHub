@@ -28,8 +28,13 @@ public class MainViewModelTests
             new DownloadsViewModel(),
             new SettingsViewModel());
 
-        // Act & Assert
-        await vm.InitializeAsync();
+        // Act
+        var task = vm.InitializeAsync();
+        await task;
+
+        // Assert
+        Assert.True(task.IsCompletedSuccessfully);
+        Assert.NotNull(vm);
     }
 
     /// <summary>
@@ -48,5 +53,37 @@ public class MainViewModelTests
             new SettingsViewModel());
         vm.SelectTabCommand.Execute(index);
         Assert.Equal(index, vm.SelectedTabIndex);
+    }
+
+    /// <summary>
+    /// Tests that <see cref="MainViewModel"/> can be instantiated successfully.
+    /// </summary>
+    [Fact]
+    public void Constructor_CreatesValidInstance()
+    {
+        // Act
+        var vm = new MainViewModel();
+
+        // Assert
+        Assert.NotNull(vm);
+        Assert.IsType<MainViewModel>(vm);
+    }
+
+    /// <summary>
+    /// Tests that multiple calls to <see cref="MainViewModel.InitializeAsync"/> are safe.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    [Fact]
+    public async Task InitializeAsync_MultipleCallsAreSafe()
+    {
+        // Arrange
+        var vm = new MainViewModel();
+
+        // Act
+        await vm.InitializeAsync();
+        await vm.InitializeAsync();
+
+        // Assert
+        Assert.NotNull(vm);
     }
 }

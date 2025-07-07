@@ -5,6 +5,7 @@ using GenHub.Core;
 using GenHub.Infrastructure.DependencyInjection;
 using GenHub.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace GenHub.Linux;
 
@@ -14,49 +15,61 @@ namespace GenHub.Linux;
 public class Program
 {
     /// <summary>
-    /// Main entry point for the application.
+    /// Main class for main entry point.
     /// </summary>
-    /// <param name="args">Program startup arguments.</param>
-    /// <remarks>
-    /// Initialization code. Don't use any Avalonia, third-party APIs or any
-    /// SynchronizationContext-reliant code before AppMain is called: things aren't initialized
-    /// yet and stuff might break.
-    /// </remarks>
-    [STAThread]
-    public static void Main(string[] args)
+    public class Program
     {
-        // TODO: Create lockfile to guarantee that only one instance is running on linux
+        /// <summary>
+        /// Main entry point for the application.
+        /// </summary>
+        /// <param name="args">Program startup arguments.</param>
+        /// <remarks>
+        /// Initialization code. Don't use any Avalonia, third-party APIs or any
+        /// SynchronizationContext-reliant code before AppMain is called: things aren't initialized
+        /// yet and stuff might break.
+        /// </remarks>
+        [STAThread]
+        public static void Main(string[] args)
+        {
+            // TODO: Create lockfile to guarantee that only one instance is running on linux
+            using var bootstrapLoggerFactory = LoggingModule.CreateBootstrapLoggerFactory();
+            var bootstrapLogger = bootstrapLoggerFactory.CreateLogger<Program>();
+            try
+            {
+                bootstrapLogger.LogInformation("Starting GenHub Linux application");
 
-        // Dependency injection
-        var services = new ServiceCollection();
+                var services = new ServiceCollection();
 
-        // Linux-specific DI
-        services.AddSingleton<IGameDetector, LinuxGameDetector>();
+                // Linux-specific DI
+                services.AddSingleton<IGameDetector, LinuxGameDetector>();
 
-        // Core DI
-        services.AddSingleton<GameDetectionService>();
+                // Register shared services
+                services.ConfigureApplicationServices();
 
-        // Register all shared ViewModels and services
-        SharedViewModelModule.AddSharedViewModelModule(services);
+                services.AddLoggingModule();
+                var serviceProvider = services.BuildServiceProvider();
+                AppLocator.Services = serviceProvider;
 
-        var serviceProvider = services.BuildServiceProvider();
+                BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            }
+            catch (Exception ex)
+            {
+                bootstrapLogger.LogCritical(ex, "Application terminated unexpectedly");
+                throw;
+            }
+        }
 
-        // Set static service locator for bootstrapping. This is needed for avalonia to receive the service provider
-        AppLocator.Services = serviceProvider;
-
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        /// <summary>
+        /// Avalonia configuration.
+        /// </summary>
+        /// <returns>The <see cref="AppBuilder"/>.</returns>
+        /// <remarks>
+        /// Don't remove; also used by visual designer.
+        /// </remarks>
+        public static AppBuilder BuildAvaloniaApp()
+            => AppBuilder.Configure<App>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace();
     }
-
-    /// <summary>
-    /// Avalonia configuration.
-    /// </summary>
-    /// <returns>The <see cref="AppBuilder"/>.</returns>
-    /// <remarks>
-    /// Don't remove; also used by visual designer.
-    /// </remarks>
-    public static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
-            .UsePlatformDetect()
-            .WithInterFont()
-            .LogToTrace();
 }
