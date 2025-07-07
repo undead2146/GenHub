@@ -9,6 +9,7 @@ using GenHub.Infrastructure.DependencyInjection;
 using GenHub.Services;
 using GenHub.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace GenHub.Windows;
 
@@ -42,21 +43,28 @@ public class Program
             return;
         }
 
-        // Dependency injection
-        var services = new ServiceCollection();
+        using var bootstrapLoggerFactory = LoggingModule.CreateBootstrapLoggerFactory();
+        var bootstrapLogger = bootstrapLoggerFactory.CreateLogger<Program>();
 
-        // Windows-specific DI
-        services.AddSingleton<IGameDetector, WindowsGameDetector>();
+        try
+        {
+            bootstrapLogger.LogInformation("Starting GenHub Windows application");
 
-        // Register shared services
-        services.ConfigureApplicationServices();
+            var services = new ServiceCollection();
 
-        var serviceProvider = services.BuildServiceProvider();
+            // Register shared services
+            services.ConfigureApplicationServices();
 
-        // Set static service locator for bootstrapping. This is needed for avalonia to receive the service provider
-        AppLocator.Services = serviceProvider;
+            var serviceProvider = services.BuildServiceProvider();
+            AppLocator.Services = serviceProvider;
 
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        }
+        catch (Exception ex)
+        {
+            bootstrapLogger.LogCritical(ex, "Application terminated unexpectedly");
+            throw;
+        }
     }
 
     /// <summary>
