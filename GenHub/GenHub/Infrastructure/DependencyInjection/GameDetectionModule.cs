@@ -2,24 +2,23 @@ using GenHub.Features.GameInstallations;
 using GenHub.Features.GameVersions;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace GenHub.Infrastructure.DependencyInjection
+namespace GenHub.Infrastructure.DependencyInjection;
+
+/// <summary>
+/// Provides extension methods for registering game detection services.
+/// </summary>
+public static class GameDetectionModule
 {
     /// <summary>
-    /// Provides extension methods for registering game detection services.
+    /// Registers the <see cref="GameDetectionService"/> as a singleton in the service collection.
     /// </summary>
-    public static class GameDetectionModule
+    /// <param name="services">The service collection to add the service to.</param>
+    /// <returns>The updated service collection.</returns>
+    public static IServiceCollection AddGameDetectionService(this IServiceCollection services)
     {
-        /// <summary>
-        /// Registers the <see cref="GameDetectionService"/> as a singleton in the service collection.
-        /// </summary>
-        /// <param name="services">The service collection to add the service to.</param>
-        /// <returns>The updated service collection.</returns>
-        public static IServiceCollection AddGameDetectionService(this IServiceCollection services)
-        {
-            services.AddSingleton<GameVersionDetectionOrchestrator>();
-            services.AddSingleton<GameInstallationDetectionOrchestrator>();
+        services.AddSingleton<GameVersionDetectionOrchestrator>();
+        services.AddSingleton<GameInstallationDetectionOrchestrator>();
 
-            return services;
-        }
+        return services;
     }
 }
