@@ -40,6 +40,16 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<string> GameInstallations { get; }
 
     /// <summary>
+    /// Performs asynchronous startup work.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public async Task InitializeAsync()
+    {
+        // Placeholder for future init logic
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
     /// Scans for game installations.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
