@@ -6,9 +6,9 @@ permissions:
 
 on:
   push:
-    branches: [ main]
+    branches: [ refactor/workflow]
   pull_request:
-    branches: [ main]
+    branches: [ refactor/workflow]
   workflow_dispatch:
 
 concurrency:
@@ -126,6 +126,9 @@ jobs:
             foreach ($testProject in $testProjects) {
               Write-Host "Testing $($testProject.FullName)"
               dotnet test $testProject.FullName -c $env:BUILD_CONFIGURATION
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Test failed for $($testProject.FullName)"
+                }
             }
           } else {
             Write-Host "No test projects found."
