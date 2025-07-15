@@ -18,6 +18,7 @@ public static class AppServices
         services.AddGameDetectionService();
         services.AddLoggingModule();
         services.AddSharedViewModelModule();
+        services.AddValidationServices();
         services.AddManifestServices();
 
         // Add more shared modules here as needed
