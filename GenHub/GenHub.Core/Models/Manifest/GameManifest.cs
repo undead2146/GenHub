@@ -57,6 +57,11 @@ public class GameManifest
     public List<ContentDependency> Dependencies { get; set; } = new();
 
     /// <summary>
+    /// Gets or sets the list of known addons for this game (manifest-driven, not hardcoded).
+    /// </summary>
+    public List<string> KnownAddons { get; set; } = new();
+
+    /// <summary>
     /// Gets or sets all files included in this content package.
     /// </summary>
     public List<ManifestFile> Files { get; set; } = new();
