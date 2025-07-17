@@ -1,12 +1,4 @@
-namespace GenHub.Tests.Linux.Features.AppUpdate;
-
-using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Net;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
 using FluentAssertions;
 using GenHub.Core.Models.AppUpdate;
 using GenHub.Core.Models.GitHub;
@@ -14,7 +6,8 @@ using GenHub.Linux.Features.AppUpdate;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Moq.Protected;
-using Xunit;
+
+namespace GenHub.Tests.Linux.Features.AppUpdate;
 
 /// <summary>
 /// Tests for <see cref="LinuxUpdateInstaller"/>.
