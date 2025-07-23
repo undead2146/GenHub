@@ -20,6 +20,8 @@ public static class AppServices
         services.AddGameDetectionService();
         services.AddLoggingModule();
         services.AddSharedViewModelModule();
+        services.AddAppUpdateModule();
+        services.AddDownloadServices();
         services.AddValidationServices();
         services.AddManifestServices();
         services.AddAppUpdateModule();

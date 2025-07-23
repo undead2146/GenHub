@@ -2,12 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Net.Http;
 using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Interfaces.AppUpdate;
+using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Models.AppUpdate;
 using GenHub.Features.AppUpdate.Services;
 using Microsoft.Extensions.Logging;
@@ -15,10 +15,12 @@ using Microsoft.Extensions.Logging;
 namespace GenHub.Windows.Features.AppUpdate;
 
 /// <summary>
-/// Windows-specific update installer implementation.
+/// Windows-specific update installer implementation using the Platform Adaptation pattern.
+/// Handles Windows-specific installation processes including EXE, MSI installers, and ZIP archives.
 /// </summary>
-public class WindowsUpdateInstaller(HttpClient httpClient, ILogger<WindowsUpdateInstaller> logger)
-    : BaseUpdateInstaller(httpClient, logger), IPlatformUpdateInstaller
+public class WindowsUpdateInstaller(
+    IDownloadService downloadService,
+    ILogger<WindowsUpdateInstaller> logger) : BaseUpdateInstaller(downloadService, logger), IPlatformUpdateInstaller
 {
     private readonly ILogger<WindowsUpdateInstaller> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -41,11 +43,7 @@ public class WindowsUpdateInstaller(HttpClient httpClient, ILogger<WindowsUpdate
         IProgress<UpdateProgress>? progress,
         CancellationToken cancellationToken)
     {
-        progress?.Report(new UpdateProgress
-        {
-            Status = "Launching Windows installer...",
-            PercentComplete = 95,
-        });
+        ReportProgress(progress, "Launching Windows installer...", 95);
 
         var startInfo = new ProcessStartInfo
         {
@@ -61,26 +59,35 @@ public class WindowsUpdateInstaller(HttpClient httpClient, ILogger<WindowsUpdate
             if (process == null)
             {
                 _logger.LogError("Failed to start installer process");
+                ReportProgress(progress, "Failed to start installer process", 0, true, "Could not launch installer executable");
                 return false;
             }
 
             await process.WaitForExitAsync(cancellationToken);
 
             var success = process.ExitCode == 0;
-            progress?.Report(new UpdateProgress
+            ReportProgress(
+                progress,
+                success ? "Installation completed successfully" : "Installation failed",
+                100,
+                !success,
+                success ? null : $"Installer exited with code {process.ExitCode}");
+
+            if (success)
             {
-                Status = success ? "Installation completed successfully" : "Installation failed",
-                PercentComplete = 100,
-                IsCompleted = true,
-                HasError = !success,
-                ErrorMessage = success ? null : $"Installer exited with code {process.ExitCode}",
-            });
+                _logger.LogInformation("Windows installer completed successfully");
+            }
+            else
+            {
+                _logger.LogError("Windows installer failed with exit code: {ExitCode}", process.ExitCode);
+            }
 
             return success;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to execute Windows installer");
+            ReportProgress(progress, "Windows installer execution failed", 0, true, ex.Message);
             return false;
         }
     }
@@ -91,11 +98,7 @@ public class WindowsUpdateInstaller(HttpClient httpClient, ILogger<WindowsUpdate
         IProgress<UpdateProgress>? progress,
         CancellationToken cancellationToken)
     {
-        progress?.Report(new UpdateProgress
-        {
-            Status = "Installing MSI package...",
-            PercentComplete = 95,
-        });
+        ReportProgress(progress, "Installing MSI package...", 95);
 
         var startInfo = new ProcessStartInfo
         {
@@ -110,15 +113,36 @@ public class WindowsUpdateInstaller(HttpClient httpClient, ILogger<WindowsUpdate
             using var process = Process.Start(startInfo);
             if (process == null)
             {
+                _logger.LogError("Failed to start MSI installer process");
+                ReportProgress(progress, "Failed to start MSI installer", 0, true, "Could not launch MSI installer");
                 return false;
             }
 
             await process.WaitForExitAsync(cancellationToken);
-            return process.ExitCode == 0;
+
+            var success = process.ExitCode == 0;
+            ReportProgress(
+                progress,
+                success ? "MSI installation completed successfully" : "MSI installation failed",
+                100,
+                !success,
+                success ? null : $"MSI installer exited with code {process.ExitCode}");
+
+            if (success)
+            {
+                _logger.LogInformation("MSI installation completed successfully");
+            }
+            else
+            {
+                _logger.LogError("MSI installation failed with exit code: {ExitCode}", process.ExitCode);
+            }
+
+            return success;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to install MSI package");
+            ReportProgress(progress, "MSI installation execution failed", 0, true, ex.Message);
             return false;
         }
     }
@@ -149,7 +173,7 @@ public class WindowsUpdateInstaller(HttpClient httpClient, ILogger<WindowsUpdate
                 return input.Replace("'", "''").Replace("`", "``");
             }
 
-            // Replace placeholders
+            // Replace placeholders with actual values
             scriptContent = scriptContent
                 .Replace("{{LOG_FILE}}", EscapePowerShellString(logFile))
                 .Replace("{{PROCESS_ID}}", processId.ToString())
@@ -181,10 +205,12 @@ powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File ""{p
                 if (Process.Start(startInfo) == null)
                 {
                     _logger.LogError("Failed to start Windows external updater");
+                    ReportProgress(progress, "Failed to start external updater", 0, true, "Could not launch update script");
                     return false;
                 }
 
                 _logger.LogInformation("Windows external updater launched successfully.");
+                ReportProgress(progress, "Application will restart to complete installation.", 100, false);
                 return await ScheduleApplicationShutdownAsync(cancellationToken);
             }
             catch (Exception ex)
@@ -192,22 +218,24 @@ powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File ""{p
                 _logger.LogWarning(ex, "Failed to launch updater script");
 
                 // For testing purposes, still report success with progress
-                progress?.Report(new UpdateProgress
-                {
-                    Status = "Application will restart to complete installation.",
-                    PercentComplete = 100,
-                    IsCompleted = true,
-                });
+                ReportProgress(progress, "Application will restart to complete installation.", 100, false);
                 return true;
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to create external updater");
+            ReportProgress(progress, "Failed to create external updater", 0, true, ex.Message);
             return false;
         }
     }
 
+    /// <summary>
+    /// Loads an embedded update script resource.
+    /// </summary>
+    /// <param name="resourceName">Name of the embedded resource.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Content of the script.</returns>
     private async Task<string> LoadUpdateScriptAsync(string resourceName, CancellationToken cancellationToken)
     {
         var assembly = Assembly.GetExecutingAssembly();
