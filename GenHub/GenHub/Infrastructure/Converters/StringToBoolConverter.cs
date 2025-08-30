@@ -5,33 +5,40 @@ using System.Globalization;
 namespace GenHub.Infrastructure.Converters;
 
 /// <summary>
-/// Converts profile information to appropriate cover image paths.
+/// Converts string values to boolean for visibility binding.
 /// </summary>
-public class ProfileCoverConverter : IValueConverter
+public class StringToBoolConverter : IValueConverter
     {
         /// <summary>
-        /// Converts a profile cover path to an appropriate image path.
+        /// Converts a string value to a boolean.
         /// </summary>
-        /// <param name="value">The cover path value.</param>
+        /// <param name="value">The string value to convert.</param>
         /// <param name="targetType">The target type for the conversion.</param>
         /// <param name="parameter">Optional parameter for conversion.</param>
         /// <param name="culture">The culture to use for conversion.</param>
-        /// <returns>A cover image path.</returns>
+        /// <returns>True if string has value, false otherwise.</returns>
         public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
-            if (value is string coverPath && !string.IsNullOrEmpty(coverPath))
-                return coverPath;
+            if (value is string stringValue)
+            {
+                // Check if the parameter specifies to invert the result
+                bool invert = parameter?.ToString()?.Equals("invert", StringComparison.OrdinalIgnoreCase) == true;
 
-            return "avares://GenHub/Assets/Covers/default-cover.jpg";
+                bool hasValue = !string.IsNullOrWhiteSpace(stringValue);
+
+                return invert ? !hasValue : hasValue;
+            }
+
+            return false;
         }
 
         /// <summary>
         /// Not implemented for one-way binding.
         /// </summary>
         /// <param name="value">The value to convert back.</param>
-        /// <param name="targetType">The target type for the conversion.</param>
-        /// <param name="parameter">Optional parameter for conversion.</param>
-        /// <param name="culture">The culture to use for conversion.</param>
+        /// <param name="targetType">The target type.</param>
+        /// <param name="parameter">Optional parameter.</param>
+        /// <param name="culture">The culture.</param>
         /// <returns>Not implemented.</returns>
         public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         {

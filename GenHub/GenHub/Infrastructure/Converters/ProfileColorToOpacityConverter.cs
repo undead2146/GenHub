@@ -3,7 +3,7 @@ using Avalonia.Data.Converters;
 using Avalonia.Media;
 using System.Globalization;
 
-namespace GenHub.GenHub.Infrastructure.Converters;
+namespace GenHub.Infrastructure.Converters;
 
 /// <summary>
 /// Converts a color to its opacity value (0.0 to 1.0) based on alpha channel.

@@ -2,7 +2,7 @@ using System;
 using Avalonia.Data.Converters;
 using System.Globalization;
 
-namespace GenHub.GenHub.Infrastructure.Converters;
+namespace GenHub.Infrastructure.Converters;
 
 /// <summary>
 /// Converts a value to true if not null or empty.
