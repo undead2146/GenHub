@@ -100,7 +100,11 @@ public class GitHubResolver(
             // Add files from GitHub assets
             foreach (var asset in release.Assets)
             {
-                await manifest.AddFileAsync(asset.Name, ManifestFileSourceType.Download, asset.BrowserDownloadUrl, isExecutable: GitHubInferenceHelper.IsExecutableFile(asset.Name));
+                await manifest.AddRemoteFileAsync(
+                    asset.Name,
+                    asset.BrowserDownloadUrl,
+                    ContentSourceType.RemoteDownload,
+                    isExecutable: GitHubInferenceHelper.IsExecutableFile(asset.Name));
             }
 
             return ContentOperationResult<ContentManifest>.CreateSuccess(manifest.Build());
