@@ -21,6 +21,17 @@ API and network related constants.
 - `GitHubDomain`: GitHub domain name (`"github.com"`)
 - `GitHubUrlRegexPattern`: GitHub URL regex pattern for parsing repository URLs (`@"^https://github\.com/(?<owner>[^/]+)/(?<repo>[^/]+)(?:/releases/tag/(?<tag>[^/]+))?"`)
 
+### UriConstants
+
+URI scheme constants for handling different types of URIs and paths.
+
+- `AvarUriScheme`: URI scheme for Avalonia embedded resources (`"avares://"`)
+- `HttpUriScheme`: HTTP URI scheme (`"http://"`)
+- `HttpsUriScheme`: HTTPS URI scheme (`"https://"`)
+- `GeneralsIconUri`: Icon URI for Generals game type (`"avares://GenHub/Assets/Icons/generals-icon.png"`)
+- `ZeroHourIconUri`: Icon URI for Zero Hour game type (`"avares://GenHub/Assets/Icons/zerohour-icon.png"`)
+- `DefaultIconUri`: Default icon URI for unknown game types (`"avares://GenHub/Assets/Icons/generalshub-icon.png"`)
+
 ### AppConstants
 
 Application-wide constants for GenHub.
@@ -85,6 +96,13 @@ Constants for unit conversions used throughout the application.
 - `BytesPerKilobyte`: Number of bytes in one kilobyte (1024)
 - `BytesPerMegabyte`: Number of bytes in one megabyte (1048576)
 - `BytesPerGigabyte`: Number of bytes in one gigabyte (1073741824)
+
+#### Color Conversion Constants
+
+- `LuminanceRedCoefficient`: Coefficient for red channel in luminance calculation (0.299)
+- `LuminanceGreenCoefficient`: Coefficient for green channel in luminance calculation (0.587)
+- `LuminanceBlueCoefficient`: Coefficient for blue channel in luminance calculation (0.114)
+- `BrightnessThreshold`: Threshold value for determining if a color is light or dark (0.5)
 
 ### DirectoryNames
 
@@ -177,6 +195,11 @@ UI-related constants for consistent user experience.
 
 - `DefaultWindowWidth`: Default main window width in pixels (1200)
 - `DefaultWindowHeight`: Default main window height in pixels (800)
+
+#### Status Colors
+
+- `StatusSuccessColor`: Color used to indicate success or positive status (`"#4CAF50"`)
+- `StatusErrorColor`: Color used to indicate error or negative status (`"#F44336"`)
 
 ### ValidationLimits
 
@@ -279,6 +302,13 @@ var window = new Window
     Width = UiConstants.DefaultWindowWidth,
     Height = UiConstants.DefaultWindowHeight
 };
+
+// Using status colors for consistent UI theming
+var successBrush = new SolidColorBrush(Color.Parse(UiConstants.StatusSuccessColor));
+var errorBrush = new SolidColorBrush(Color.Parse(UiConstants.StatusErrorColor));
+
+// Using in XAML data binding with BoolToStatusColorConverter
+// <TextBlock Text="Status" Foreground="{Binding IsActive, Converter={StaticResource BoolToStatusColorConverter}}" />
 ```
 
 ### Application Name Usage with AppConstants

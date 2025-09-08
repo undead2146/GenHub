@@ -7,11 +7,11 @@ public enum ContentType
 {
     // Foundation types (detected/installed)
 
-    /// <summary>EA/Steam/Origin installation.</summary>
-    BaseGame,
+    /// <summary>EA/Steam/Disk installation.</summary>
+    GameInstallation,
 
     /// <summary>Independent game executable.</summary>
-    StandaloneVersion,
+    GameClient,
 
     // Content types (built on foundation)
 
