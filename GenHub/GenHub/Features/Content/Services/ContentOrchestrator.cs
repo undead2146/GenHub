@@ -541,8 +541,15 @@ public class ContentOrchestrator : IContentOrchestrator
     public async Task<OperationResult<IEnumerable<ContentManifest>>> GetAcquiredContentAsync(
         CancellationToken cancellationToken = default)
     {
-        var manifests = await _manifestPool.GetAllManifestsAsync(cancellationToken);
-        return OperationResult<IEnumerable<ContentManifest>>.CreateSuccess(manifests);
+        var manifestsResult = await _manifestPool.GetAllManifestsAsync(cancellationToken);
+        if (manifestsResult.Success)
+        {
+            return OperationResult<IEnumerable<ContentManifest>>.CreateSuccess(manifestsResult.Data ?? Enumerable.Empty<ContentManifest>());
+        }
+        else
+        {
+            return OperationResult<IEnumerable<ContentManifest>>.CreateFailure(manifestsResult.Errors);
+        }
     }
 
     /// <summary>
