@@ -1,6 +1,6 @@
 using GenHub.Core.Interfaces.Workspace;
 using GenHub.Core.Models.Enums;
-using GenHub.Core.Models.GameVersions;
+using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Validation;
 using GenHub.Core.Models.Workspace;
@@ -284,7 +284,7 @@ public class WorkspaceValidatorTests : IDisposable
             },
             BaseInstallationPath = _sourceDir,
             WorkspaceRootPath = _workspaceDir,
-            GameVersion = new GameVersion { Id = "test-version" },
+            GameClient = new GameClient { Id = "test-version" },
             Strategy = WorkspaceStrategy.FullCopy,
         };
     }
