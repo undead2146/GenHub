@@ -56,11 +56,12 @@ public class ContentManifestBuilderTests
                 OperationResult<ManifestId>.CreateSuccess(ManifestId.Create("game-installation-id")));
 
         // Set up mock to return success for GeneratePublisherContentId
-        _manifestIdServiceMock.Setup(x => x.GeneratePublisherContentId(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
-            .Returns((string p, string c, int v) =>
+        _manifestIdServiceMock.Setup(x => x.GeneratePublisherContentId(It.IsAny<string>(), It.IsAny<ContentType>(), It.IsAny<string>(), It.IsAny<int>()))
+            .Returns((string p, ContentType ct, string c, int v) =>
             {
-                var generated = ManifestIdGenerator.GeneratePublisherContentId(p, c, v);
-                return OperationResult<ManifestId>.CreateSuccess(ManifestId.Create(generated));
+                var normalizedP = p.ToLower().Replace(" ", string.Empty);
+                var normalizedC = c.ToLower().Replace(" ", string.Empty);
+                return OperationResult<ManifestId>.CreateSuccess(ManifestId.Create($"1.{v}.{normalizedP}.mod.{normalizedC}"));
             });
 
         _builder = new ContentManifestBuilder(_loggerMock.Object, _hashProviderMock.Object, _manifestIdServiceMock.Object);
@@ -78,7 +79,7 @@ public class ContentManifestBuilderTests
             .Build();
 
         // Assert
-        Assert.Equal("1.1.test.publisher.test.name", result.Id);
+        Assert.Equal("1.1.testpublisher.mod.testname", result.Id);
         Assert.Equal("Test Name", result.Name);
         Assert.Equal("1", result.Version);
     }
@@ -130,7 +131,7 @@ public class ContentManifestBuilderTests
         var result = _builder
             .WithBasicInfo("Test Publisher", "Test Name", 1)
             .AddDependency(
-                id: ManifestId.Create("1.0.dep.publisher.content"),
+                id: ManifestId.Create("1.0.genhub.mod.dependency"),
                 name: "Dependency Name",
                 dependencyType: ContentType.GameInstallation,
                 installBehavior: DependencyInstallBehavior.AutoInstall,
@@ -138,20 +139,20 @@ public class ContentManifestBuilderTests
                 maxVersion: "2.0",
                 compatibleVersions: new List<string> { "1.1", "1.2" },
                 isExclusive: true,
-                conflictsWith: new List<ManifestId> { ManifestId.Create("1.0.conflict.publisher.content") })
+                conflictsWith: new List<ManifestId> { ManifestId.Create("1.0.genhub.mod.conflict") })
             .Build();
 
         // Assert
         Assert.Single(result.Dependencies);
         var dependency = result.Dependencies[0];
-        Assert.Equal(ManifestId.Create("1.0.dep.publisher.content"), dependency.Id);
+        Assert.Equal(ManifestId.Create("1.0.genhub.mod.dependency"), dependency.Id);
         Assert.Equal("Dependency Name", dependency.Name);
         Assert.Equal(ContentType.GameInstallation, dependency.DependencyType);
         Assert.Equal("1.0", dependency.MinVersion);
         Assert.Equal("2.0", dependency.MaxVersion);
         Assert.Equal(new List<string> { "1.1", "1.2" }, dependency.CompatibleVersions);
         Assert.True(dependency.IsExclusive);
-        Assert.Equal(new List<ManifestId> { ManifestId.Create("1.0.conflict.publisher.content") }, dependency.ConflictsWith);
+        Assert.Equal(new List<ManifestId> { ManifestId.Create("1.0.genhub.mod.conflict") }, dependency.ConflictsWith);
         Assert.Equal(DependencyInstallBehavior.AutoInstall, dependency.InstallBehavior);
     }
 
@@ -204,7 +205,7 @@ public class ContentManifestBuilderTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal("1.1.minimal.publisher.minimal.manifest", result.Id);
+        Assert.Equal("1.1.minimalpublisher.mod.minimalmanifest", result.Id);
         Assert.Equal("Minimal Manifest", result.Name);
         Assert.Equal("1", result.Version);
         Assert.NotNull(result.Dependencies);

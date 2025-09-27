@@ -18,7 +18,13 @@ public static class InstallationExtensions
     /// <returns>Domain model game installation.</returns>
     public static GameInstallation ToDomain(this IGameInstallation installation, ILogger? logger = null)
     {
-        logger?.LogDebug("Converting {InstallationType} installation to domain model", installation.InstallationType);
+        logger?.LogWarning("TODOMAIN CALLED - Converting {InstallationType} installation to domain model", installation.InstallationType);
+        logger?.LogWarning(
+            "TODOMAIN INPUT - HasGenerals={HasGenerals}, HasZeroHour={HasZeroHour}, GeneralsPath={GeneralsPath}, ZeroHourPath={ZeroHourPath}",
+            installation.HasGenerals,
+            installation.HasZeroHour,
+            installation.GeneralsPath,
+            installation.ZeroHourPath);
 
         var installationPath = installation.HasGenerals ? installation.GeneralsPath : installation.ZeroHourPath;
         if (string.IsNullOrEmpty(installationPath))
@@ -27,8 +33,21 @@ public static class InstallationExtensions
         }
 
         var gameInstallation = new GameInstallation(installationPath, installation.InstallationType, logger as ILogger<GameInstallation>);
+        gameInstallation.Id = installation.Id; // Preserve original ID
+        gameInstallation.SetPaths(installation.GeneralsPath, installation.ZeroHourPath);
+        gameInstallation.PopulateGameClients(installation.AvailableGameClients);
 
-        logger?.LogDebug("Successfully converted installation to domain model: {InstallationPath}", installationPath);
+        logger?.LogWarning(
+            "TODOMAIN OUTPUT - HasGenerals={HasGenerals}, HasZeroHour={HasZeroHour}, GeneralsPath={GeneralsPath}, ZeroHourPath={ZeroHourPath}",
+            gameInstallation.HasGenerals,
+            gameInstallation.HasZeroHour,
+            gameInstallation.GeneralsPath,
+            gameInstallation.ZeroHourPath);
+        logger?.LogDebug(
+            "Successfully converted installation to domain model: {InstallationPath}, HasGenerals={HasGenerals}, HasZeroHour={HasZeroHour}",
+            installationPath,
+            gameInstallation.HasGenerals,
+            gameInstallation.HasZeroHour);
         return gameInstallation;
     }
 

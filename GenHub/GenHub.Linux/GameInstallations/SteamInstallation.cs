@@ -31,6 +31,9 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
     public GameInstallationType InstallationType => GameInstallationType.Steam;
 
     /// <inheritdoc/>
+    public string Id { get; } = Guid.NewGuid().ToString();
+
+    /// <inheritdoc/>
     public string InstallationPath { get; private set; } = string.Empty;
 
     /// <inheritdoc/>
@@ -44,6 +47,9 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
 
     /// <inheritdoc/>
     public string ZeroHourPath { get; private set; } = string.Empty;
+
+    /// <inheritdoc/>
+    public List<GenHub.Core.Models.GameClients.GameClient> AvailableGameClients { get; } = new List<GenHub.Core.Models.GameClients.GameClient>();
 
     /// <summary>
     /// Gets a value indicating whether Steam is installed successfully.
@@ -79,7 +85,7 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
                 if (!HasGenerals)
                 {
                     var generalsPath = Path.Combine(libraryPath, "Command and Conquer Generals");
-                    if (Directory.Exists(generalsPath))
+                    if (Directory.Exists(generalsPath) && File.Exists(Path.Combine(generalsPath, "generals.exe")))
                     {
                         HasGenerals = true;
                         GeneralsPath = generalsPath;
@@ -92,7 +98,7 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
                 if (!HasZeroHour)
                 {
                     var zeroHourPath = Path.Combine(libraryPath, "Command & Conquer Generals - Zero Hour");
-                    if (Directory.Exists(zeroHourPath))
+                    if (Directory.Exists(zeroHourPath) && File.Exists(Path.Combine(zeroHourPath, "game.exe")))
                     {
                         HasZeroHour = true;
                         ZeroHourPath = zeroHourPath;
@@ -116,6 +122,38 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
             logger?.LogError(ex, "Error occurred during Steam installation detection on Linux");
             IsSteamInstalled = false;
         }
+    }
+
+    /// <inheritdoc/>
+    public void SetPaths(string? generalsPath, string? zeroHourPath)
+    {
+        if (!string.IsNullOrEmpty(generalsPath))
+        {
+            HasGenerals = Directory.Exists(generalsPath) && File.Exists(Path.Combine(generalsPath, "generals.exe"));
+            GeneralsPath = generalsPath;
+        }
+
+        if (!string.IsNullOrEmpty(zeroHourPath))
+        {
+            HasZeroHour = Directory.Exists(zeroHourPath) && File.Exists(Path.Combine(zeroHourPath, "game.exe"));
+            ZeroHourPath = zeroHourPath;
+        }
+
+        logger?.LogDebug("Set paths for Linux Steam: Generals={HasGenerals}, ZeroHour={HasZeroHour}", HasGenerals, HasZeroHour);
+    }
+
+    /// <inheritdoc/>
+    public void PopulateGameClients(IEnumerable<GenHub.Core.Models.GameClients.GameClient> clients)
+    {
+        AvailableGameClients.Clear();
+        AvailableGameClients.AddRange(clients.Where(c => c.InstallationId == Id));
+        if (AvailableGameClients.Count > 2)
+        {
+            logger?.LogWarning("More than 2 clients detected for Linux Steam installation {Id}; truncating to 2 clients", Id);
+            AvailableGameClients.RemoveRange(2, AvailableGameClients.Count - 2);
+        }
+
+        logger?.LogInformation("Populated {Count} clients for Linux Steam installation {Id}", AvailableGameClients.Count, Id);
     }
 
     /// <summary>

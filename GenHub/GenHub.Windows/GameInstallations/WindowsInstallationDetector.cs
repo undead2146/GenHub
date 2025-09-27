@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Interfaces.GameInstallations;
+using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.Results;
 using Microsoft.Extensions.Logging;
@@ -75,6 +77,11 @@ public class WindowsInstallationDetector(ILogger<WindowsInstallationDetector> lo
                 logger.LogDebug("No valid EA App installation found");
             }
 
+            // Check Retail installations
+            logger.LogDebug("Checking Retail installations");
+            var retailInstalls = DetectRetailInstallations();
+            installs.AddRange(retailInstalls);
+
             logger.LogInformation("Windows installation detection completed with {ResultCount} installations found", installs.Count);
         }
         catch (Exception ex)
@@ -89,5 +96,86 @@ public class WindowsInstallationDetector(ILogger<WindowsInstallationDetector> lo
             : DetectionResult<GameInstallation>.CreateSuccess(installs, sw.Elapsed);
 
         return Task.FromResult(result);
+    }
+
+    private List<GameInstallation> DetectRetailInstallations()
+    {
+        var retailInstalls = new List<GameInstallation>();
+        var possiblePaths = new[]
+        {
+            @"C:\Program Files\EA Games\Command & Conquer Generals",
+            @"C:\Program Files (x86)\EA Games\Command & Conquer Generals",
+            @"C:\Games\Command & Conquer Generals",
+            @"D:\Games\Command & Conquer Generals",
+            @"A:\Games\Command & Conquer Generals", // From log, A: drive
+        };
+
+        foreach (var basePath in possiblePaths)
+        {
+            if (Directory.Exists(basePath))
+            {
+                var generalsPath = Path.Combine(basePath, "Command and Conquer Generals");
+                var zeroHourPath = Path.Combine(basePath, "Command and Conquer Generals Zero Hour");
+
+                var hasGenerals = Directory.Exists(generalsPath);
+                var hasZeroHour = Directory.Exists(zeroHourPath);
+
+                if (hasGenerals || hasZeroHour)
+                {
+                    var installation = new GameInstallation(basePath, GameInstallationType.Retail, null);
+                    installation.SetPaths(hasGenerals ? generalsPath : null, hasZeroHour ? zeroHourPath : null);
+
+                    retailInstalls.Add(installation);
+                    logger.LogInformation("Detected Retail installation at {BasePath} with {GeneralsCount} Generals and {ZeroHourCount} Zero Hour", basePath, hasGenerals ? 1 : 0, hasZeroHour ? 1 : 0);
+                }
+            }
+        }
+
+        return retailInstalls;
+    }
+
+    private GameInstallation DetectSteamInstallation(string steamPath)
+    {
+        var hasGenerals = false;
+        var hasZeroHour = false;
+        var generalsPath = string.Empty;
+        var zeroHourPath = string.Empty;
+
+        // Check for Zero Hour
+        if (Directory.Exists(steamPath))
+        {
+            hasZeroHour = true;
+            zeroHourPath = steamPath;
+        }
+
+        // Check for Generals if ZeroHour found (common bundle)
+        if (hasZeroHour)
+        {
+            var possibleGeneralsPaths = new[]
+            {
+                Path.Combine(steamPath, "..", "Command and Conquer Generals"), // Parent of ZeroHour
+                Path.Combine(@"C:\Program Files (x86)\Steam\steamapps\common", "Command and Conquer Generals"), // Default Steam
+                Path.Combine(@"C:\Program Files\Steam\steamapps\common", "Command and Conquer Generals"), // 32-bit
+            };
+
+            foreach (var path in possibleGeneralsPaths)
+            {
+                if (Directory.Exists(path))
+                {
+                    hasGenerals = true;
+                    generalsPath = path;
+                    break;
+                }
+            }
+        }
+
+        if (hasGenerals || hasZeroHour)
+        {
+            var installation = new GameInstallation(steamPath, GameInstallationType.Steam, null);
+            installation.SetPaths(hasGenerals ? generalsPath : null, hasZeroHour ? zeroHourPath : null);
+            return installation;
+        }
+
+        return null!;
     }
 }

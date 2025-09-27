@@ -230,11 +230,21 @@
                 </Button>
 
                 <!-- Scan button -->
-                <Button Content="Scan"
-                    Command="{Binding ScanForGamesCommand}"
+                <Button Command="{Binding ScanForGamesCommand}"
                     Background="#333333"
                     Padding="16 8"
-                    CornerRadius="4" />
+                    CornerRadius="4" 
+                    IsEnabled="{Binding !IsScanning}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="Scan" IsVisible="{Binding !IsScanning}" />
+                        <TextBlock Text="Scanning..." IsVisible="{Binding IsScanning}" />
+                        <ProgressBar IsVisible="{Binding IsScanning}" 
+                                     IsIndeterminate="True" 
+                                     Width="60" 
+                                     Height="4" 
+                                     VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
             </StackPanel>
         </Grid>
 

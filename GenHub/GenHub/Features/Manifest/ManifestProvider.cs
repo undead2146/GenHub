@@ -186,9 +186,16 @@ public class ManifestProvider : IManifestProvider
     {
         // Prefer a deterministic manifest id for installations so tests and embedded resources can
         // reference stable ids instead of runtime GUIDs. Generate using ManifestIdGenerator.
-        var tempInstallForId = new GameInstallation(string.Empty, installation.InstallationType);
-        tempInstallForId.HasZeroHour = installation.HasZeroHour;
-        var versionForId = installation.AvailableVersions?.Count > 0 ? installation.AvailableVersions[0].Version : "1.0";
+        var tempInstallForId = new GameInstallation(installation.InstallationPath, installation.InstallationType, null);
+
+        // tempInstallForId.SetPaths(null, installation.HasZeroHour ? "dummy" : null); // Removed: unnecessary as ID generation doesn't rely on HasZeroHour
+        var versionForId = "1.0";
+        foreach (var v in installation.AvailableGameClients)
+        {
+            versionForId = v.Version;
+            break;
+        }
+
         var gameType = installation.HasZeroHour ? GameType.ZeroHour : GameType.Generals;
         var userVersion = int.TryParse(versionForId, out var parsedVersion) ? parsedVersion : 0;
         var deterministicId = ManifestIdGenerator.GenerateGameInstallationId(tempInstallForId, gameType, userVersion);

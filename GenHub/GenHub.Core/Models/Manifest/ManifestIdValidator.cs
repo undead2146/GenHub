@@ -1,6 +1,5 @@
 using System.Linq;
 using System.Text.RegularExpressions;
-using GenHub.Core.Models.Enums;
 
 namespace GenHub.Core.Models.Manifest;
 
@@ -10,17 +9,17 @@ namespace GenHub.Core.Models.Manifest;
 /// </summary>
 public static class ManifestIdValidator
 {
-    // Regex for publisher content IDs: schemaVersion.manifestVersion.publisher.content (4+ segments)
-    private static readonly Regex PublisherIdRegex =
-        new(@"^\d+(?:\.\d+)*\.[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    // Regex for installation/game client content: version.installType.gameType[-suffix] (4 segments)
+    private static readonly Regex InstallationContentRegex =
+        new(@"^\d+(?:\.\d+)*\.(steam|eaapp|thefirstdecade|cdiso|wine|retail|unknown)\.(generals|zerohour)(?:-[a-z]+)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    // Regex for publisher content: version.publisher.contentType.contentName[-suffix] (5+ segments)
+    private static readonly Regex PublisherContentRegex =
+        new(@"^\d+(?:\.\d+)*\.[a-z0-9]+(?:\.[a-z0-9]+)*\.(gameinstallation|gameclient|mod|patch|addon|mappack|languagepack|contentbundle|publisherreferral|contentreferral|mission|map|unknown)\.[a-z0-9-]+(?:-[a-z0-9]+)?(?:\.[a-z0-9-]+)*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     // Allow simple test-friendly ids like 'test-id' or 'simple.id' (alphanumeric with dashes, max 3 segments)
     private static readonly Regex SimpleIdRegex =
         new(@"^[a-zA-Z0-9\-]+(\.[a-zA-Z0-9\-]+){0,2}$", RegexOptions.Compiled);
-
-    // Regex for game installation IDs: schema.user.installationType.gameType
-    private static readonly Regex GameInstallationIdRegex =
-        new(@"^\d+(?:\.\d+)*\.(unknown|steam|eaapp|origin|thefirstdecade|rgmechanics|cdiso|wine|retail)\.(generals|zerohour)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>
     /// Throws an <see cref="ArgumentException"/> if the manifest ID is invalid.
@@ -49,31 +48,21 @@ public static class ManifestIdValidator
         }
 
         var segments = manifestId.Split('.');
-        if (segments.Length < 4)
+        if (segments.Length < 3)
         {
-            reason = $"Manifest ID '{manifestId}' is invalid. Must have at least 4 segments.";
+            reason = $"Manifest ID '{manifestId}' is invalid. Must have at least 3 segments.";
             return false;
         }
 
-        // Assuming InstallationType and GameType enums exist in GenHub.Core.Models.Enums
-        var validInstallationTypes = Enum.GetValues<GameInstallationType>().Select(e => e.ToString().ToLowerInvariant()).ToHashSet();
-        var validGameTypes = Enum.GetValues<GameType>().Select(e => e.ToString().ToLowerInvariant()).ToHashSet();
-
-        // Check if it matches game installation format: schemaVersion.manifestVersion.installation.game
-        if (GameInstallationIdRegex.IsMatch(manifestId))
+        // Check installation/game client format (4 segments: version.install.game[-suffix])
+        if (InstallationContentRegex.IsMatch(manifestId) && segments.Length == 4)
         {
             reason = string.Empty;
             return true;
         }
 
-        // Check if it's a valid publisher ID: schemaVersion.manifestVersion.publisher.content
-        // But reject if segments 2 or 3 are valid installation/game types (to avoid conflicts)
-        if (segments.Length >= 4 &&
-            !validInstallationTypes.Contains(segments[2].ToLowerInvariant()) &&
-            !validGameTypes.Contains(segments[2].ToLowerInvariant()) &&
-            !validInstallationTypes.Contains(segments[3].ToLowerInvariant()) &&
-            !validGameTypes.Contains(segments[3].ToLowerInvariant()) &&
-            PublisherIdRegex.IsMatch(manifestId))
+        // Check publisher content for mods/maps/etc. (4+ segments: version.publisher.contentType.contentName[-suffix])
+        if (PublisherContentRegex.IsMatch(manifestId) && segments.Length >= 4)
         {
             reason = string.Empty;
             return true;
@@ -87,7 +76,7 @@ public static class ManifestIdValidator
         }
 
         // For any other cases, reject them
-        reason = $"Manifest ID '{manifestId}' is invalid. Must follow either schemaVersion.manifestVersion.publisher.content or schemaVersion.manifestVersion.installation.game format.";
+        reason = $"Manifest ID '{manifestId}' is invalid. Must be 4 segments in format version.installType.gameType[-suffix] for installations/clients or version.publisher.contentType.contentName[-suffix] for publisher content (mods/maps).";
         return false;
     }
 }

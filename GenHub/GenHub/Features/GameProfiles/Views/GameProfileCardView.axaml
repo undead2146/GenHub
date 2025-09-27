@@ -13,10 +13,17 @@
         <conv:BoolToValueConverter x:Key="NotConverter" TrueValue="False" FalseValue="True" />
         <conv:ProfileColorToOpacityConverter x:Key="ProfileColorToOpacityConverter" />
         <conv:ColorBrightnessConverter x:Key="ColorBrightnessConverter" />
+        <conv:ColorToBrushConverter x:Key="ColorToBrushConverter" />
+        <conv:StringToBoolConverter x:Key="StringToBoolConverter" />
+        <conv:ContentTypeDisplayConverter x:Key="ContentTypeDisplayConverter" />
+        <conv:GameTypeDisplayConverter x:Key="GameTypeDisplayConverter" />
+        <conv:GameTypeShortDisplayConverter x:Key="GameTypeShortDisplayConverter" />
+        <conv:GameTypeToIconConverter x:Key="GameTypeToIconConverter" />
+        <conv:InstallationTypeDisplayConverter x:Key="InstallationTypeDisplayConverter" />
     </UserControl.Resources>    <UserControl.Styles>
         <!-- Profile card styles -->
         <Style Selector="Border.profile-card">
-            <Setter Property="Background" Value="{Binding ColorValue, FallbackValue=#2A2A2A}" />
+            <Setter Property="Background" Value="{Binding ColorValue, Converter={StaticResource ColorToBrushConverter}, FallbackValue=#2A2A2A}" />
             <Setter Property="CornerRadius" Value="8" />
             <Setter Property="Margin" Value="0 0 20 20" />
             <Setter Property="Width" Value="400" />
@@ -121,9 +128,7 @@
         <Grid RowDefinitions="60,*,40">
             <!-- Cover Image / Background -->
             <Image Grid.RowSpan="3"
-                Source="{Binding CoverImagePath, Converter={StaticResource ProfileCoverConverter}}"
-                Stretch="UniformToFill"
-                Opacity="0.5" />
+                Source="{Binding CoverImagePath, Converter={StaticResource StringToImageConverter}}" />
 
             <!-- Top section with icon and title - fixed height -->
             <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="16,16,16,0">
@@ -184,7 +189,7 @@
                         IsVisible="{Binding HasWorkflowInfo, FallbackValue=False}">
                         <!-- Workflow badge -->
                         <Border Classes="profile-badge"
-                            IsVisible="{Binding WorkflowNumber, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                            IsVisible="{Binding HasWorkflowInfo}">
                             <TextBlock Classes="badge-text"
                                 Foreground="{Binding ColorValue, Converter={StaticResource ContrastTextColorConverter}}">
                                 <Run Text="WORKFLOW #" />
@@ -194,7 +199,7 @@
 
                         <!-- PR badge -->
                         <Border Classes="profile-badge"
-                            IsVisible="{Binding PullRequestNumber, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                            IsVisible="{Binding HasWorkflowInfo}">
                             <TextBlock Classes="badge-text"
                                 Foreground="{Binding ColorValue, Converter={StaticResource ContrastTextColorConverter}}">
                                 <Run Text="PR #" />
@@ -215,7 +220,7 @@
 
                     <!-- Build info badges -->
                     <WrapPanel Orientation="Horizontal" Margin="0,0,0,4"
-                        IsVisible="{Binding BuildInfo, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        IsVisible="{Binding HasBuildInfo}">
                         <!-- Compiler badge -->
                         <Border Classes="profile-badge"
                             IsVisible="{Binding BuildInfo, Converter={StaticResource NullSafeConverter}, ConverterParameter=Compiler, FallbackValue=False}">
@@ -274,28 +279,28 @@
                         </TextBlock>
                     </Border>
 
-                    <!-- CommandLine badge - when CommandLineArguments is not empty -->
+                    <!-- Build info badge -->
                     <Border Classes="profile-badge"
-                        IsVisible="{Binding CommandLineArguments, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                        IsVisible="{Binding HasBuildInfo}"
                         HorizontalAlignment="Left">
                         <TextBlock Classes="badge-text"
                             Foreground="{Binding ColorValue, Converter={StaticResource ContrastTextColorConverter}}"
                             TextTrimming="CharacterEllipsis"
                             MaxLines="1">
-                            <Run Text="ARGS: " />
-                            <Run Text="{Binding CommandLineArguments, FallbackValue=''}" />
+                            <Run Text="BUILD: " />
+                            <Run Text="{Binding BuildInfo, FallbackValue=''}" />
                         </TextBlock>
                     </Border>
                 </StackPanel>
             </ScrollViewer>
 
             <!-- Bottom section with launch & action buttons - fixed height -->
-            <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto,Auto" Margin="16,0,16,16" VerticalAlignment="Bottom">
+            <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="16,0,16,16" VerticalAlignment="Bottom">
                 <!-- Launch button with profile color adaptation -->
                 <Button Grid.Column="0" 
                     Classes="profile-launch-button" 
                     Content="Launch" 
-                    Command="{Binding LaunchCommand}" 
+                    Command="{Binding $parent[ItemsControl].((vm:GameProfileLauncherViewModel)DataContext).LaunchProfileCommand}" 
                     CommandParameter="{Binding}" 
                     Background="{Binding ColorValue, Converter={StaticResource ProfileColorToOpacityConverter}, ConverterParameter=0.6}"
                     Foreground="{Binding ColorValue, Converter={StaticResource ContrastTextColorConverter}}"
@@ -303,8 +308,26 @@
                     IsEnabled="{Binding $parent[ItemsControl].((vm:GameProfileLauncherViewModel)DataContext).IsLaunching, Converter={StaticResource NotConverter}, FallbackValue=True}"
                     ToolTip.Tip="Launch this profile" />
 
-                <!-- Edit button -->
+                <!-- Prepare Workspace button -->
+                <Button Grid.Column="1" 
+                    Classes="action-button" 
+                    Content="Prep" 
+                    Command="{Binding $parent[ItemsControl].((vm:GameProfileLauncherViewModel)DataContext).PrepareWorkspaceCommand}" 
+                    CommandParameter="{Binding}" 
+                    Margin="4,0,0,0" 
+                    ToolTip.Tip="Prepare workspace for this profile" />
+
+                <!-- Stop button -->
                 <Button Grid.Column="2" 
+                    Classes="action-button" 
+                    Content="Stop" 
+                    Command="{Binding $parent[ItemsControl].((vm:GameProfileLauncherViewModel)DataContext).StopProfileCommand}" 
+                    CommandParameter="{Binding}" 
+                    Margin="4,0,0,0" 
+                    ToolTip.Tip="Stop this profile" />
+
+                <!-- Edit button -->
+                <Button Grid.Column="3" 
                     Classes="action-button" 
                     Name="EditButton"
                     Command="{Binding $parent[ItemsControl].((vm:GameProfileLauncherViewModel)DataContext).EditProfileCommand}"
@@ -317,7 +340,7 @@
                 </Button>
 
                 <!-- Delete button (only visible in edit mode) -->
-                <Button Grid.Column="3" 
+                <Button Grid.Column="4" 
                     Classes="delete-button"
                     Command="{Binding $parent[ItemsControl].((vm:GameProfileLauncherViewModel)DataContext).DeleteProfileCommand}"
                     CommandParameter="{Binding}"

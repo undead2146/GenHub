@@ -151,7 +151,7 @@ public class FileOperationsService(
     /// <param name="targetPath">The target path the link points to.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task representing the asynchronous symlink creation operation.</returns>
-    public async Task CreateSymlinkAsync(
+    public virtual async Task CreateSymlinkAsync(
         string linkPath,
         string targetPath,
         CancellationToken cancellationToken = default)
@@ -191,6 +191,20 @@ public class FileOperationsService(
                     {
                         // Fall back to copy if symlink creation requires elevation or Developer Mode
                         _logger.LogWarning(uaex, "Symlink creation not permitted on Windows. Falling back to file copy for {LinkPath}", linkPath);
+
+                        if (File.Exists(absoluteTargetPath))
+                        {
+                            File.Copy(absoluteTargetPath, linkPath, overwrite: true);
+                        }
+                        else
+                        {
+                            throw;
+                        }
+                    }
+                    catch (IOException ioex) when (OperatingSystem.IsWindows())
+                    {
+                        // Fall back to copy if symlink creation fails due to privilege issues
+                        _logger.LogWarning(ioex, "Symlink creation failed on Windows. Falling back to file copy for {LinkPath}", linkPath);
 
                         if (File.Exists(absoluteTargetPath))
                         {

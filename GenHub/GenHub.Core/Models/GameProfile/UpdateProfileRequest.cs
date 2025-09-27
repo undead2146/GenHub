@@ -61,4 +61,9 @@ public class UpdateProfileRequest
     /// Gets or sets the theme color.
     /// </summary>
     public string? ThemeColor { get; set; }
+
+    /// <summary>
+    /// Gets or sets the game installation ID.
+    /// </summary>
+    public string? GameInstallationId { get; set; }
 }

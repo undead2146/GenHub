@@ -6,6 +6,7 @@ using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Launching;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Interfaces.Storage;
 using GenHub.Core.Interfaces.Workspace;
 using GenHub.Infrastructure.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
@@ -253,6 +254,7 @@ namespace GenHub.Tests.Core.Infrastructure.DependencyInjection
             services.AddScoped(provider => new Mock<IContentOrchestrator>().Object);
             services.AddScoped(provider => new Mock<IWorkspaceManager>().Object);
             services.AddScoped(provider => new Mock<IGameProcessManager>().Object);
+            services.AddSingleton<ICasService>(new Mock<ICasService>().Object);
             services.AddSingleton<IGameLauncher>(new Mock<IGameLauncher>().Object);
             services.AddSingleton<ILaunchRegistry>(new Mock<ILaunchRegistry>().Object);
 

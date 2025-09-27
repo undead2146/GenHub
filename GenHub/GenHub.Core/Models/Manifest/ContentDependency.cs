@@ -9,7 +9,7 @@ namespace GenHub.Core.Models.Manifest;
 public class ContentDependency
 {
     /// <summary>Gets or sets the dependency ID.</summary>
-    public ManifestId Id { get; set; } = ManifestId.Create(ManifestConstants.DefaultContentDependencyId);  // Non-nullable; assigned in constructor
+    public ManifestId Id { get; set; } = ManifestId.Create(ManifestConstants.DefaultContentDependencyId);
 
     /// <summary>Gets or sets the dependency name.</summary>
     public string Name { get; set; } = string.Empty;

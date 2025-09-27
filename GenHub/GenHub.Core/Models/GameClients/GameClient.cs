@@ -70,6 +70,11 @@ public class GameClient
     /// <summary>Gets or sets the date and time when this version was last detected.</summary>
     public DateTime LastDetected { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// Gets or sets the installation ID that this game version is linked to.
+    /// </summary>
+    public string InstallationId { get; set; } = string.Empty;
+
     /// <inheritdoc/>
     public override string ToString() => $"{Name} ({GameType})";
 

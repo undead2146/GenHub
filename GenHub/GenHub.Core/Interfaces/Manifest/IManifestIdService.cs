@@ -1,4 +1,3 @@
-using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.Manifest;
@@ -17,11 +16,13 @@ public interface IManifestIdService
     /// Generates a manifest ID for publisher-provided content.
     /// </summary>
     /// <param name="publisherId">The publisher identifier.</param>
+    /// <param name="contentType">The type of content being identified.</param>
     /// <param name="contentName">The content name.</param>
     /// <param name="userVersion">User-specified version number (e.g., 1, 2, 20). Defaults to 0 for first version.</param>
     /// <returns>A result containing the generated manifest ID or an error.</returns>
     OperationResult<ManifestId> GeneratePublisherContentId(
         string publisherId,
+        ContentType contentType,
         string contentName,
         int userVersion = 0);
 

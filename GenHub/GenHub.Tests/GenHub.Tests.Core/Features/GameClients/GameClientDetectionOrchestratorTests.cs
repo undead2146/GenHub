@@ -69,7 +69,7 @@ public class GameClientDetectionOrchestratorTests
             },
         };
         var mockVer = new Mock<IGameClientDetector>();
-        mockVer.Setup(x => x.DetectClientsFromInstallationsAsync(
+        mockVer.Setup(x => x.DetectGameClientsFromInstallationsAsync(
                     installations, It.IsAny<CancellationToken>()))
                .ReturnsAsync(DetectionResult<GameClient>.CreateSuccess(
                     clients, TimeSpan.Zero));
@@ -117,7 +117,7 @@ public class GameClientDetectionOrchestratorTests
         };
 
         var clientResult = DetectionResult<GameClient>.CreateSuccess(clients, System.TimeSpan.FromSeconds(1));
-        mockClientDetector.Setup(x => x.DetectClientsFromInstallationsAsync(installations, default))
+        mockClientDetector.Setup(x => x.DetectGameClientsFromInstallationsAsync(installations, default))
             .ReturnsAsync(clientResult);
 
         var orchestrator = new GameClientDetectionOrchestrator(

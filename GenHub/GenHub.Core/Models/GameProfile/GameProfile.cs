@@ -104,4 +104,9 @@ public class GameProfile : IGameProfile
     /// Gets or sets the theme color.
     /// </summary>
     public string? ThemeColor { get; set; }
+
+    /// <summary>
+    /// Gets or sets the build information for the profile.
+    /// </summary>
+    public string BuildInfo { get; set; } = string.Empty;
 }

@@ -197,6 +197,44 @@ Constants related to manifest ID generation, validation, and file operations.
 ^(?:[a-zA-Z0-9\-]+\.)+[a-zA-Z0-9\-]+$
 ```
 
+### Manifest ID Generation Constants (Additional)
+
+- `GenHubPublisher`: `"genhub"` - System publisher for pipeline-generated content
+- `InstallationSuffix`: `"-installation"` - Suffix for GameInstallation manifests
+- `ClientSuffix`: `"-client"` - Suffix for GameClient manifests
+- `ContentSuffix`: `"-content"` - Suffix for general content (mods/maps)
+
+### Manifest Version Constants
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `GeneralsManifestVersion` | `8` | Version for Generals game installation manifests (XML doc: /// <summary>Version for Generals game installation manifests.</summary>) |
+| `ZeroHourManifestVersion` | `4` | Version for Zero Hour game installation manifests (XML doc: /// <summary>Version for Zero Hour game installation manifests.</summary>) |
+
+#### Usage Examples for Manifest Constants
+
+```csharp
+using GenHub.Core.Constants;
+
+// Generate installation ID
+var installId = $"{ManifestConstants.DefaultManifestSchemaVersion}.1.steam.zerohour{ManifestConstants.InstallationSuffix}";
+// "1.1.steam.zerohour-installation"
+
+// Generate client ID
+var clientId = $"{ManifestConstants.DefaultManifestSchemaVersion}.1.steam.zerohour{ManifestConstants.ClientSuffix}";
+// "1.1.steam.zerohour-client"
+
+// Generate mod ID
+var modId = $"{ManifestConstants.DefaultManifestSchemaVersion}.1.{ManifestConstants.GenHubPublisher}.rising-sun-mod";
+// "1.1.gen hub.rising-sun-mod"
+
+// Use manifest versions in manifest generation
+var generalsVersion = ManifestConstants.GeneralsManifestVersion; // 8
+var zeroHourVersion = ManifestConstants.ZeroHourManifestVersion; // 4
+
+// Example: await manifestService.CreateGameInstallationManifestAsync(path, GameType.Generals, type, generalsVersion);
+```
+
 ---
 
 ## IoConstants Class
@@ -332,6 +370,9 @@ using GenHub.Core.Constants;
 // Generate publisher content ID
 var publisherId = $"{ManifestConstants.PublisherContentIdPrefix}.{contentName}.{ManifestConstants.DefaultManifestSchemaVersion}";
 
+// Generate publisher content ID using constants
+var publisherId = $"{ManifestConstants.GenHubPublisher}.{contentName}{ManifestConstants.ContentSuffix}.{ManifestConstants.DefaultManifestSchemaVersion}";
+
 // Validate manifest ID length
 if (manifestId.Length < ManifestConstants.MinManifestIdLength ||
     manifestId.Length > ManifestConstants.MaxManifestIdLength)
@@ -370,6 +411,7 @@ var downloadConfig = new DownloadConfiguration
     MaxRetryAttempts = DownloadDefaults.MaxRetryAttempts
 };
 ```
+
 ### CAS Operations
 
 ```csharp
@@ -389,8 +431,6 @@ while (retryCount < StorageConstants.MaxRetries)
 }
 ```
 
----
-
 ### UI Constants Example
 
 ```csharp
@@ -408,17 +448,15 @@ var errorBrush = new SolidColorBrush(Color.Parse(UiConstants.StatusErrorColor));
 // <TextBlock Text="Status" Foreground="{Binding IsActive, Converter={StaticResource BoolToStatusColorConverter}}" />
 ```
 
----
-
 ### Application Name Usage with AppConstants
 
 ```csharp
-// Using AppConstants.AppName for consistent application naming
+// Using AppConstants.ApplicationName for consistent application naming
 var appDataPath = Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-    AppConstants.AppName);
+    AppConstants.ApplicationName);
 
-var userAgent = $"{AppConstants.AppName}/{AppConstants.AppVersion}";
+var userAgent = $"{AppConstants.ApplicationName}/{AppConstants.Version}";
 // Result: "GenHub/1.0" (same as ApiConstants.DefaultUserAgent)
 ```
 

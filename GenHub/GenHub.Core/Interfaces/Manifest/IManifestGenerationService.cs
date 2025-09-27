@@ -39,15 +39,18 @@ public interface IManifestGenerationService
         params ContentDependency[] dependencies);
 
     /// <summary>
-    /// Creates a manifest builder for a standalone game version.
+    /// Creates a manifest builder for a game client.
     /// </summary>
-    /// <param name="gameDirectory">Path to the standalone game directory.</param>
-    /// <param name="publisherId">The publisher identifier used to generate the manifest id.</param>
-    /// <param name="gameName">Game version display name.</param>
-    /// <param name="manifestVersion">Manifest version (e.g., 1, 2, 20). Defaults to 0 for first version.</param>
-    /// <param name="executablePath">Path to the main executable.</param>
+    /// <param name="installationPath">Path to the game client installation.</param>
+    /// <param name="gameType">The game type (Generals, ZeroHour).</param>
+    /// <param name="clientName">The name of the game client.</param>
+    /// <param name="clientVersion">The version of the game client.</param>
     /// <returns>A <see cref="Task"/> that returns a configured manifest builder.</returns>
-    Task<IContentManifestBuilder> CreateGameClientManifestAsync(string gameDirectory, string publisherId, string gameName, int manifestVersion = 0, string executablePath = "");
+    Task<IContentManifestBuilder> CreateGameClientManifestAsync(
+        string installationPath,
+        GameType gameType,
+        string clientName,
+        string clientVersion);
 
     /// <summary>
     /// Saves a manifest to a file.

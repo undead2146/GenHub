@@ -6,17 +6,20 @@ namespace GenHub.Core.Models.GameProfile;
 public class CreateProfileRequest
 {
     /// <summary>Gets or sets the profile name.</summary>
-    required public string Name { get; set; }
+    public string? Name { get; set; }
 
     /// <summary>Gets or sets the profile description.</summary>
     public string? Description { get; set; }
 
     /// <summary>Gets or sets the game installation ID.</summary>
-    required public string GameInstallationId { get; set; }
+    public string? GameInstallationId { get; set; }
 
-    /// <summary>Gets or sets the game client ID.</summary>
-    required public string GameClientId { get; set; }
+    /// <summary>Gets or sets the game version ID.</summary>
+    public string? GameClientId { get; set; }
 
     /// <summary>Gets or sets the preferred workspace strategy.</summary>
-    public WorkspaceStrategy PreferredStrategy { get; set; } = WorkspaceStrategy.HybridCopySymlink;
+    public WorkspaceStrategy PreferredStrategy { get; set; }
+
+    /// <summary>Gets or sets the list of enabled content IDs.</summary>
+    public List<string>? EnabledContentIds { get; set; }
 }

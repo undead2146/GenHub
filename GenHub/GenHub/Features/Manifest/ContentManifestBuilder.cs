@@ -24,6 +24,11 @@ public class ContentManifestBuilder(
     private readonly IFileHashProvider _hashProvider = hashProvider;
     private readonly IManifestIdService _manifestIdService = manifestIdService;
 
+    // Temporary storage for ID generation
+    private string? _publisherId;
+    private string? _contentName;
+    private int? _manifestVersion;
+
     /// <summary>
     /// Sets the basic information for the manifest for game installations (used internally by GenHub).
     /// This overload is specifically for generating manifests for EA/Steam game installations.
@@ -36,7 +41,7 @@ public class ContentManifestBuilder(
     {
         // Build a temporary GameInstallation to generate the ID
         var tempInstallation = new GameInstallation(string.Empty, installType);
-        tempInstallation.HasZeroHour = gameType == GameType.ZeroHour;
+        tempInstallation.SetPaths(null, gameType == GameType.ZeroHour ? "dummy" : null);
 
         // Use ManifestIdService for consistent ID generation with ResultBase pattern
         var idResult = _manifestIdService.GenerateGameInstallationId(tempInstallation, gameType, manifestVersion);
@@ -80,35 +85,36 @@ public class ContentManifestBuilder(
     /// <returns>The builder instance.</returns>
     public IContentManifestBuilder WithBasicInfo(string publisherId, string contentName, int manifestVersion)
     {
-        // Always generate the canonical ID from publisher name, content name, and version.
-        var idResult = _manifestIdService.GeneratePublisherContentId(publisherId, contentName, manifestVersion);
-        if (idResult.Success)
-        {
-            _manifest.Id = idResult.Data;
-        }
-        else
-        {
-            _logger.LogWarning("Failed to generate publisher content manifest ID: {Error}. Using fallback.", idResult.FirstError);
-
-            // Fallback to direct generation if service fails
-            _manifest.Id = ManifestId.Create(
-                ManifestIdGenerator.GeneratePublisherContentId(publisherId, contentName, manifestVersion));
-        }
+        // Store basic info for ID generation when ContentType is set
+        _publisherId = publisherId;
+        _contentName = contentName;
+        _manifestVersion = manifestVersion;
 
         _manifest.Name = contentName;
         _manifest.Version = manifestVersion.ToString();
+        _manifest.ContentType = ContentType.Mod;
 
         _logger.LogDebug(
-            "Set basic info for publisher content: ID={Id}, Name={Name}, ManifestVersion={ManifestVersion}, Publisher={Publisher}",
-            _manifest.Id,
+            "Set basic info for publisher content: Name={Name}, ManifestVersion={ManifestVersion}, Publisher={Publisher}",
             _manifest.Name,
             _manifest.Version,
             publisherId);
 
-        // Ensure the generated ID conforms to the project's validation rules.
-        ManifestIdValidator.EnsureValid(_manifest.Id);
-
         return this;
+    }
+
+    /// <summary>
+    /// Sets the basic information for the manifest with publisher info.
+    /// </summary>
+    /// <param name="publisher">Publisher information.</param>
+    /// <param name="contentName">Content display name.</param>
+    /// <param name="manifestVersion">Manifest version.</param>
+    /// <returns>The builder instance.</returns>
+    public IContentManifestBuilder WithBasicInfo(PublisherInfo publisher, string contentName, int manifestVersion)
+    {
+        // Use publisher name as publisher ID
+        return WithBasicInfo(publisher.Name, contentName, manifestVersion)
+            .WithPublisher(publisher.Name, publisher.Website ?? string.Empty, publisher.SupportUrl ?? string.Empty, publisher.ContactEmail ?? string.Empty);
     }
 
     /// <summary>
@@ -121,6 +127,30 @@ public class ContentManifestBuilder(
     {
         _manifest.ContentType = contentType;
         _manifest.TargetGame = targetGame;
+
+        // Generate ID now that we have all required information
+        if (_publisherId != null && _contentName != null && _manifestVersion.HasValue)
+        {
+            var idResult = _manifestIdService.GeneratePublisherContentId(_publisherId, contentType, _contentName, _manifestVersion.Value);
+            if (idResult.Success)
+            {
+                _manifest.Id = idResult.Data;
+            }
+            else
+            {
+                _logger.LogWarning("Failed to generate publisher content manifest ID: {Error}. Using fallback.", idResult.FirstError);
+
+                // Fallback to direct generation if service fails
+                _manifest.Id = ManifestId.Create(
+                    ManifestIdGenerator.GeneratePublisherContentId(_publisherId, contentType, _contentName, _manifestVersion.Value));
+            }
+
+            // Ensure the generated ID conforms to the project's validation rules.
+            ManifestIdValidator.EnsureValid(_manifest.Id);
+
+            _logger.LogDebug("Generated ID for publisher content: {Id}", _manifest.Id);
+        }
+
         _logger.LogDebug("Set content type: {ContentType}, Target game: {TargetGame}", contentType, targetGame);
         return this;
     }
@@ -273,6 +303,7 @@ public class ContentManifestBuilder(
             return this;
         }
 
+        _logger.LogDebug("Adding files from directory: {Directory}", sourceDirectory);
         var searchPattern = fileFilter == "*" ? "*.*" : fileFilter;
         var files = Directory.EnumerateFiles(sourceDirectory, searchPattern, SearchOption.AllDirectories);
 
@@ -577,6 +608,29 @@ public class ContentManifestBuilder(
     /// <returns>The built manifest.</returns>
     public ContentManifest Build()
     {
+        // Ensure ID is generated if not already done
+        if (string.IsNullOrEmpty(_manifest.Id.Value) && _publisherId != null && _contentName != null && _manifestVersion.HasValue)
+        {
+            var idResult = _manifestIdService.GeneratePublisherContentId(_publisherId, _manifest.ContentType, _contentName, _manifestVersion.Value);
+            if (idResult.Success)
+            {
+                _manifest.Id = idResult.Data;
+            }
+            else
+            {
+                _logger.LogWarning("Failed to generate publisher content manifest ID: {Error}. Using fallback.", idResult.FirstError);
+
+                // Fallback to direct generation if service fails
+                _manifest.Id = ManifestId.Create(
+                    ManifestIdGenerator.GeneratePublisherContentId(_publisherId, _manifest.ContentType, _contentName, _manifestVersion.Value));
+            }
+
+            // Ensure the generated ID conforms to the project's validation rules.
+            ManifestIdValidator.EnsureValid(_manifest.Id);
+
+            _logger.LogDebug("Generated ID during build: {Id}", _manifest.Id);
+        }
+
         _logger.LogInformation(
             "Built manifest for '{ContentName}' with {FileCount} files and {DependencyCount} dependencies",
             _manifest.Name,

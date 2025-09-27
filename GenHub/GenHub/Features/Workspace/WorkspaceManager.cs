@@ -47,8 +47,45 @@ public class WorkspaceManager(
     {
         _logger.LogInformation("Preparing workspace for configuration {Id} using strategy {Strategy}", configuration.Id, configuration.Strategy);
 
-        var strategy = _strategies.FirstOrDefault(s => s.CanHandle(configuration)) ?? throw new InvalidOperationException($"No strategy available for workspace configuration {configuration.Id} with strategy {configuration.Strategy}");
+        // Pre-validate configuration before proceeding (only if required fields are present)
+        if (!string.IsNullOrWhiteSpace(configuration.Id) &&
+            !string.IsNullOrWhiteSpace(configuration.BaseInstallationPath) &&
+            !string.IsNullOrWhiteSpace(configuration.WorkspaceRootPath))
+        {
+            var configValidation = await _workspaceValidator.ValidateConfigurationAsync(configuration, cancellationToken);
+            if (!configValidation.Success || configValidation.Issues.Any(i => i.Severity == ValidationSeverity.Error))
+            {
+                var errorMessages = configValidation.Issues
+                    .Where(i => i.Severity == ValidationSeverity.Error)
+                    .Select(i => i.Message);
+                return OperationResult<WorkspaceInfo>.CreateFailure(string.Join(", ", errorMessages));
+            }
+        }
+
+        var strategy = _strategies.FirstOrDefault(s => s.CanHandle(configuration));
+        if (strategy == null)
+        {
+            throw new InvalidOperationException($"No strategy available for workspace configuration {configuration.Id} with strategy {configuration.Strategy}");
+        }
+
         _logger.LogDebug("Using strategy {Strategy} for workspace {Id}", strategy.Name, configuration.Id);
+
+        // Pre-validate prerequisites for the selected strategy
+        var prereqValidation = await _workspaceValidator.ValidatePrerequisitesAsync(strategy, configuration, cancellationToken);
+        if (!prereqValidation.Success || prereqValidation.Issues.Any(i => i.Severity == ValidationSeverity.Error))
+        {
+            var errorMessages = prereqValidation.Issues
+                .Where(i => i.Severity == ValidationSeverity.Error)
+                .Select(i => i.Message);
+            return OperationResult<WorkspaceInfo>.CreateFailure(string.Join(", ", errorMessages));
+        }
+
+        // Log warnings but don't fail
+        var warnings = prereqValidation.Issues.Where(i => i.Severity == ValidationSeverity.Warning);
+        foreach (var warning in warnings)
+        {
+            _logger.LogWarning("Workspace prerequisite warning: {Message}", warning.Message);
+        }
 
         // Clean up existing workspace if force recreate is requested
         if (configuration.ForceRecreate)

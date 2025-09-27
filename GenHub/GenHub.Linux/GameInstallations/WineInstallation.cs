@@ -31,6 +31,9 @@ public class WineInstallation(ILogger<WineInstallation>? logger = null) : IGameI
     public GameInstallationType InstallationType => GameInstallationType.Wine;
 
     /// <inheritdoc/>
+    public string Id { get; } = Guid.NewGuid().ToString();
+
+    /// <inheritdoc/>
     public string InstallationPath { get; private set; } = string.Empty;
 
     /// <inheritdoc/>
@@ -44,6 +47,9 @@ public class WineInstallation(ILogger<WineInstallation>? logger = null) : IGameI
 
     /// <inheritdoc/>
     public string ZeroHourPath { get; private set; } = string.Empty;
+
+    /// <inheritdoc/>
+    public List<GenHub.Core.Models.GameClients.GameClient> AvailableGameClients { get; } = new List<GenHub.Core.Models.GameClients.GameClient>();
 
     /// <summary>
     /// Gets a value indicating whether Wine is installed successfully.
@@ -99,7 +105,7 @@ public class WineInstallation(ILogger<WineInstallation>? logger = null) : IGameI
                     if (!HasZeroHour)
                     {
                         var zeroHourPath = Path.Combine(basePath, "Command and Conquer Generals Zero Hour");
-                        if (Directory.Exists(zeroHourPath) && IsValidGameInstallation(zeroHourPath, "generals.exe"))
+                        if (Directory.Exists(zeroHourPath) && IsValidGameInstallation(zeroHourPath, "game.exe"))
                         {
                             HasZeroHour = true;
                             ZeroHourPath = zeroHourPath;
@@ -124,6 +130,38 @@ public class WineInstallation(ILogger<WineInstallation>? logger = null) : IGameI
             logger?.LogError(ex, "Error occurred during Wine installation detection on Linux");
             IsWineInstalled = false;
         }
+    }
+
+    /// <inheritdoc/>
+    public void SetPaths(string? generalsPath, string? zeroHourPath)
+    {
+        if (!string.IsNullOrEmpty(generalsPath))
+        {
+            HasGenerals = Directory.Exists(generalsPath) && File.Exists(Path.Combine(generalsPath, "generals.exe"));
+            GeneralsPath = generalsPath;
+        }
+
+        if (!string.IsNullOrEmpty(zeroHourPath))
+        {
+            HasZeroHour = Directory.Exists(zeroHourPath) && File.Exists(Path.Combine(zeroHourPath, "game.exe"));
+            ZeroHourPath = zeroHourPath;
+        }
+
+        logger?.LogDebug("Set paths for Wine: Generals={HasGenerals}, ZeroHour={HasZeroHour}", HasGenerals, HasZeroHour);
+    }
+
+    /// <inheritdoc/>
+    public void PopulateGameClients(IEnumerable<GenHub.Core.Models.GameClients.GameClient> clients)
+    {
+        AvailableGameClients.Clear();
+        AvailableGameClients.AddRange(clients.Where(c => c.InstallationId == Id));
+        if (AvailableGameClients.Count > 2)
+        {
+            logger?.LogWarning("More than 2 clients detected for Wine installation {Id}; truncating to 2 clients", Id);
+            AvailableGameClients.RemoveRange(2, AvailableGameClients.Count - 2);
+        }
+
+        logger?.LogInformation("Populated {Count} clients for Wine installation {Id}", AvailableGameClients.Count, Id);
     }
 
     /// <summary>

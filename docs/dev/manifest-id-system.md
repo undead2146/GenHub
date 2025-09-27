@@ -30,23 +30,32 @@ Seamless integration into `ContentManifestBuilder`, `ManifestGenerationService`,
 
 ## ID Formats
 
-### Publisher Content IDs
+### Game Installations (Primary focus for game profiles)
 
-**Format**: `schemaVersion.userVersion.publisher.content`  
-**Example**: `1.0.ea.generals.mod`  
-**Use Case**: Content created by publishers (mods, patches, addons)
+**Format**: `schemaVersion.userVersion.platform.gameType-suffix`
 
-### Base Game IDs
+**Examples**:
+- Steam ZeroHour Installation: `1.0.steam.zerohour-installation`
+- EA App Generals Client: `1.0.eaapp.generals-client`
+- Retail Generals: `1.0.retail.generals-installation`
 
-**Format**: `schemaVersion.userVersion.installationType.gameType`  
-**Example**: `1.0.steam.generals`, `1.0.origin.zerohour`  
-**Use Case**: Base game installations detected on the system
+**Publisher Attribution**: Platform name from GameInstallationType enum (lowercase).
+
+### Content Manifests
+
+**Format**: `schemaVersion.userVersion.publisher.contentName`
+
+**Examples**:
+- GenHub Mod: `1.0.genhub.custom-mod`
+- Simple Test: `1.0.test.simple-content`
+
+**Publisher Attribution**: Defaults to "genhub" for system-generated content.
 
 ### Simple IDs
 
-**Format**: Alphanumeric with dashes and dots  
-**Example**: `test-id`, `simple.id`  
-**Use Case**: Test scenarios and simple identifiers
+**Format**: Alphanumeric with dashes and dots
+**Example**: `test-mod`, `simple.id`
+**Use Case**: Testing/simple scenarios.
 
 ## API Reference
 
@@ -55,14 +64,14 @@ Seamless integration into `ContentManifestBuilder`, `ManifestGenerationService`,
 ```csharp
 public static class ManifestIdGenerator
 {
-    // Generate publisher content ID
+    // Generate content ID with publisher
     public static string GeneratePublisherContentId(
         string publisherId,
         string contentName,
         int userVersion = 0);
 
-    // Generate base game ID
-    public static string GenerateBaseGameId(
+    // Generate game installation ID
+    public static string GenerateGameInstallationId(
         GameInstallation installation,
         GameType gameType,
         int userVersion = 0);
@@ -74,20 +83,20 @@ public static class ManifestIdGenerator
 ```csharp
 public class ManifestIdService : IManifestIdService
 {
-    // Generate publisher content ID with ResultBase pattern
-    ContentOperationResult<ManifestId> GeneratePublisherContentId(
+    // Generate content ID with OperationResult pattern
+    OperationResult<ManifestId> GeneratePublisherContentId(
         string publisherId,
         string contentName,
         int userVersion = 0);
 
-    // Generate base game ID with ResultBase pattern
-    ContentOperationResult<ManifestId> GenerateBaseGameId(
+    // Generate game installation ID with OperationResult pattern
+    OperationResult<ManifestId> GenerateGameInstallationId(
         GameInstallation installation,
         GameType gameType,
         int userVersion = 0);
 
     // Validate and create ManifestId
-    ContentOperationResult<ManifestId> ValidateAndCreateManifestId(string manifestIdString);
+    OperationResult<ManifestId> ValidateAndCreateManifestId(string manifestIdString);
 }
 ```
 
@@ -118,115 +127,75 @@ public readonly struct ManifestId : IEquatable<ManifestId>
 
 ## Usage Examples
 
-### Generating Publisher Content IDs
+### Game Installation IDs (Primary for game profiles)
 
 ```csharp
-// Using ManifestIdService (recommended)
-var idResult = _manifestIdService.GeneratePublisherContentId("EA", "Generals Mod", 0);
-if (idResult.Success)
-{
-    ManifestId id = idResult.Data; // 1.0.ea.generals.mod
-    Console.WriteLine(id); // Implicit conversion to string
-}
-else
-{
-    Console.WriteLine($"Failed: {idResult.ErrorMessage}");
-}
-
-// Using ManifestIdGenerator directly
-string idString = ManifestIdGenerator.GeneratePublisherContentId("EA", "Generals Mod", 0);
-ManifestId id = ManifestId.Create(idString);
-```
-
-### Generating Base Game IDs
-
-```csharp
+// Generate ID for detected game installation
 var installation = new GameInstallation("C:\\Games\\Generals", GameInstallationType.Steam);
 var gameType = GameType.Generals;
 
 // Using service
-var idResult = _manifestIdService.GenerateBaseGameId(installation, gameType, 0);
+var idResult = _manifestIdService.GenerateGameInstallationId(installation, gameType, 0);
 if (idResult.Success)
 {
-    ManifestId id = idResult.Data; // 1.0.steam.generals
+    ManifestId id = idResult.Data; // 1.0.steam.generals-installation
 }
 
 // Using generator directly
-string idString = ManifestIdGenerator.GenerateBaseGameId(installation, gameType, 0);
+string idString = ManifestIdGenerator.GenerateGameInstallationId(installation, gameType, 0);
 ```
 
-### Validating IDs
+### Content IDs
 
 ```csharp
-// Using service
-var validation = _manifestIdService.ValidateAndCreateManifestId("1.0.steam.generals");
+// Generate ID for content with publisher
+var idResult = _manifestIdService.GeneratePublisherContentId("genhub", "custom-profile", 0);
+if (idResult.Success)
+{
+    ManifestId id = idResult.Data; // 1.0.genhub.custom-profile
+}
+```
+
+### Validation
+
+```csharp
+// Validate existing ID
+var validation = _manifestIdService.ValidateAndCreateManifestId("1.0.steam.generals-installation");
 if (validation.Success)
 {
     ManifestId id = validation.Data;
 }
-
-// Using struct directly
-try
-{
-    ManifestId id = ManifestId.Create("1.0.steam.generals");
-}
-catch (ArgumentException ex)
-{
-    Console.WriteLine($"Invalid ID: {ex.Message}");
-}
-```
-
-### Creating Manifests with Builder
-
-```csharp
-var builder = new ContentManifestBuilder(_logger, _hashProvider, _manifestIdService)
-    .WithBasicInfo("EA", "Generals Mod", 0)
-    .WithContentType(ContentType.Mod, GameType.Generals)
-    .WithPublisher("EA Games", "https://ea.com", "support@ea.com");
-
-ContentManifest manifest = builder.Build();
-// manifest.Id will be properly generated and validated
 ```
 
 ## Validation Rules
 
-### Publisher Content Validation
+### Game Installation IDs
 
-- Must contain at least 4 segments separated by dots
-- Format: `schemaVersion.userVersion.publisher.content`
-- Each segment can contain alphanumeric characters and dashes
-- No dots within segments (dots are separators only)
-- Case-insensitive for comparison but preserves original casing
+- Format: `schemaVersion.userVersion.platform.gameType-suffix`
+- Platform: Must be valid GameInstallationType (steam, eaapp, retail, etc.)
+- GameType: Must be valid (generals, zerohour)
+- Suffix: "-installation" or "-client"
 
-### Base Game Validation
+### Content IDs
 
-- Must follow `schemaVersion.userVersion.installationType.gameType` format
-- Installation types: `steam`, `eaapp`, `origin`, `thefirstdecade`, `rgmechanics`, `cdiso`, `wine`, `retail`, `unknown`
-- Game types: `generals`, `zerohour`
-- Schema version is automatically extracted from constants
-- User version defaults to 0 if not specified
+- Format: `schemaVersion.userVersion.publisher.contentName`
+- Publisher: Alphanumeric with dashes/underscores
+- ContentName: Alphanumeric with dashes/underscores
+- Minimum 4 segments
 
-### Simple ID Validation
+### Simple IDs
 
 - Alphanumeric characters with dashes and dots
 - Used for tests and simple scenarios
-- More permissive validation for flexibility
 
 ## Error Handling
 
-The system uses the **ResultBase pattern** for robust error handling:
+Uses **ResultBase pattern** for robust error handling:
 
 ```csharp
-// Success case
-var result = _manifestIdService.GeneratePublisherContentId("EA", "Mod", 0);
-if (result.Success)
+var result = _manifestIdService.GeneratePublisherContentId("invalid", "content", 0);
+if (!result.Success)
 {
-    ManifestId id = result.Data;
-    // Use the ID
-}
-else
-{
-    // Handle error
     _logger.LogError($"ID generation failed: {result.ErrorMessage}");
 }
 ```
@@ -235,53 +204,29 @@ else
 
 ### ContentManifestBuilder
 
-- Automatically generates and validates IDs when `WithBasicInfo` is called
-- Uses `ManifestIdService` for consistent ID generation
-- Provides fallback mechanisms if service fails
+- Automatically generates and validates IDs
+- Uses ManifestIdService for consistency
 
 ### ManifestGenerationService
 
-- Uses `ManifestIdService` for all manifest creation operations
-- Ensures deterministic ID generation across all manifest types
+- Uses ManifestIdService for all manifest creation
+- Ensures deterministic ID generation
 
 ### ManifestProvider
 
-- Validates manifest IDs during loading and processing
-- Uses `IManifestIdService` for ID operations
+- Validates manifest IDs during loading
+- Uses IManifestIdService for operations
 
 ## Testing
 
-The system includes comprehensive test coverage:
-
-- **ManifestIdGeneratorTests**: 51 tests covering all generation scenarios
-- **ManifestIdServiceTests**: 20+ tests for service layer validation
-- **ManifestIdTests**: Tests for struct functionality and validation
-- **Integration tests**: End-to-end testing with ContentManifestBuilder
+Comprehensive test coverage in ManifestIdGeneratorTests.cs and related test files.
 
 ### Running Tests
 
 ```bash
-# Run all manifest ID tests
 dotnet test --filter "ManifestId"
-
-# Run specific test classes
-dotnet test --filter "ManifestIdGeneratorTests"
-dotnet test --filter "ManifestIdServiceTests"
-dotnet test --filter "ManifestIdTests"
 ```
 
 ## Cross-Platform Determinism
 
-The system ensures identical ID generation across all platforms:
-
-- **Normalization**: Converts to lowercase, removes special characters
-- **Safe Characters**: Only alphanumeric, dots, and dashes allowed
-- **Consistent Ordering**: Deterministic segment processing
-- **Filesystem Safety**: Generated IDs are safe for use as filenames
-
-## Future Enhancements
-
-- **Custom ID Formats**: Support for extended validation rules
-- **Migration Tools**: Utilities for updating existing content to new ID format
-- **Performance Monitoring**: Metrics for ID generation performance
-- **Extended Validation**: Additional security and compliance checks
+Ensures identical ID generation across all platforms through normalization and consistent processing.

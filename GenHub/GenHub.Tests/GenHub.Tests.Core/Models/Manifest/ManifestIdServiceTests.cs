@@ -4,6 +4,7 @@ using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
 using Xunit;
+using ContentType = GenHub.Core.Models.Enums.ContentType;
 
 namespace GenHub.Tests.Core.Models.Manifest;
 
@@ -33,34 +34,34 @@ public class ManifestIdServiceTests
         var contentName = "test-content";
 
         // Act
-        var result = _service.GeneratePublisherContentId(publisherId, contentName);
+        var result = _service.GeneratePublisherContentId(publisherId, ContentType.Mod, contentName, 0);
 
         // Assert
         Assert.True(result.Success);
-        Assert.Equal("1.0.test.publisher.test.content", result.Data.Value);
+        Assert.Equal("1.0.test.publisher.mod.test.content", result.Data.Value);
         Assert.Null(result.FirstError);
     }
 
     /// <summary>
-    /// Tests failure when generating publisher content ID with invalid inputs.
+    /// Tests that GeneratePublisherContentId handles invalid inputs gracefully with fallbacks.
     /// </summary>
     /// <param name="publisherId">Invalid publisher ID.</param>
     /// <param name="contentName">Invalid content name.</param>
-    /// <param name="expectedError">Expected error message.</param>
+    /// <param name="expectedId">Expected manifest ID with fallbacks.</param>
     [Theory]
-    [InlineData("", "content", "Publisher ID cannot be empty")]
-    [InlineData(" ", "content", "Publisher ID cannot be empty")]
-    [InlineData("publisher", "", "Content name cannot be empty")]
-    [InlineData("publisher", " ", "Content name cannot be empty")]
-    public void GeneratePublisherContentId_WithInvalidInputs_ReturnsFailure(string publisherId, string contentName, string expectedError)
+    [InlineData("", "content", "1.0.unknown.mod.content")]
+    [InlineData(" ", "content", "1.0.unknown.mod.content")]
+    [InlineData("publisher", "", "1.0.publisher.mod.unknown")]
+    [InlineData("publisher", " ", "1.0.publisher.mod.unknown")]
+    public void GeneratePublisherContentId_WithInvalidInputs_ReturnsSuccessWithFallbacks(string publisherId, string contentName, string expectedId)
     {
         // Act
-        var result = _service.GeneratePublisherContentId(publisherId, contentName, 0);
+        var result = _service.GeneratePublisherContentId(publisherId, ContentType.Mod, contentName, 0);
 
         // Assert
-        Assert.False(result.Success);
-        Assert.Null(result.Data.Value);
-        Assert.Contains(expectedError, result.FirstError);
+        Assert.True(result.Success);
+        Assert.Equal(expectedId, result.Data.Value);
+        Assert.Null(result.FirstError);
     }
 
     /// <summary>
@@ -78,7 +79,7 @@ public class ManifestIdServiceTests
 
         // Assert
         Assert.True(result.Success);
-        Assert.Equal("1.0.steam.generals", result.Data.Value);
+        Assert.Equal("1.0.steam.generals-installation", result.Data.Value);
         Assert.Null(result.FirstError);
     }
 
@@ -104,7 +105,7 @@ public class ManifestIdServiceTests
     public void ValidateAndCreateManifestId_WithValidId_ReturnsSuccess()
     {
         // Arrange
-        var validId = "1.0.test.publisher.test.content";
+        var validId = "1.0.genhub.mod.test.content";
 
         // Act
         var result = _service.ValidateAndCreateManifestId(validId);
@@ -147,7 +148,7 @@ public class ManifestIdServiceTests
         // (This is difficult to test without more complex setup, but we verify the pattern exists)
 
         // Act - Call a method that should handle exceptions
-        var result = _service.GeneratePublisherContentId("test", "content", 0);
+        var result = _service.GeneratePublisherContentId("test", ContentType.Mod, "content", 0);
 
         // Assert - Should either succeed or fail gracefully
         Assert.NotNull(result);
@@ -163,7 +164,7 @@ public class ManifestIdServiceTests
     public void AllMethods_ReturnProperResultBaseImplementations()
     {
         // Test GeneratePublisherContentId
-        var result1 = _service.GeneratePublisherContentId("test", "content", 0);
+        var result1 = _service.GeneratePublisherContentId("test", ContentType.Mod, "content", 0);
         Assert.IsAssignableFrom<ResultBase>(result1);
 
         // Test GenerateGameInstallationId
@@ -172,7 +173,7 @@ public class ManifestIdServiceTests
         Assert.IsAssignableFrom<ResultBase>(result2);
 
         // Test ValidateAndCreateManifestId
-        var result3 = _service.ValidateAndCreateManifestId("1.0.test.publisher.test.content");
+        var result3 = _service.ValidateAndCreateManifestId("1.0.genhub.mod.test.content");
         Assert.IsAssignableFrom<ResultBase>(result3);
     }
 
@@ -183,13 +184,19 @@ public class ManifestIdServiceTests
     public void SuccessAndFailureStates_AreMutuallyExclusive()
     {
         // Test success case
-        var successResult = _service.GeneratePublisherContentId("test", "content", 0);
+        var successResult = _service.GeneratePublisherContentId("test", ContentType.Mod, "content", 0);
         Assert.True(successResult.Success);
         Assert.NotNull(successResult.Data.Value);
         Assert.Null(successResult.FirstError);
 
-        // Test failure case
-        var failureResult = _service.GeneratePublisherContentId(string.Empty, "content", 0);
+        // Test success case with invalid inputs (should still succeed with fallbacks)
+        var fallbackResult = _service.GeneratePublisherContentId(string.Empty, ContentType.Mod, string.Empty, 0);
+        Assert.True(fallbackResult.Success);
+        Assert.NotNull(fallbackResult.Data.Value);
+        Assert.Null(fallbackResult.FirstError);
+
+        // Test failure case (null installation)
+        var failureResult = _service.GenerateGameInstallationId(null!, GameType.Generals, 0);
         Assert.False(failureResult.Success);
         Assert.Null(failureResult.Data.Value);
         Assert.NotNull(failureResult.FirstError);

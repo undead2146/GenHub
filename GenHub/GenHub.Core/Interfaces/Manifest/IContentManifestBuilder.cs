@@ -29,6 +29,15 @@ public interface IContentManifestBuilder
     IContentManifestBuilder WithBasicInfo(string publisherId, string contentName, int manifestVersion);
 
     /// <summary>
+    /// Sets basic content information with publisher info.
+    /// </summary>
+    /// <param name="publisher">Publisher information.</param>
+    /// <param name="contentName">Content display name.</param>
+    /// <param name="manifestVersion">Manifest version.</param>
+    /// <returns>The builder instance for chaining.</returns>
+    IContentManifestBuilder WithBasicInfo(PublisherInfo publisher, string contentName, int manifestVersion);
+
+    /// <summary>
     /// Sets the content type and target game.
     /// </summary>
     /// <param name="contentType">The type of content (GameInstallation, Mod, Addon, etc.).</param>

@@ -47,7 +47,7 @@ public class ModDBContentProvider : BaseContentProvider
             ?? throw new InvalidOperationException("ModDB resolver not found");
 
         _httpDeliverer = deliverers?.FirstOrDefault(d =>
-            string.Equals(d.SourceName, "HTTP", StringComparison.OrdinalIgnoreCase))
+            d.SourceName?.Contains("HTTP", StringComparison.OrdinalIgnoreCase) == true)
             ?? throw new InvalidOperationException("HTTP deliverer not found");
     }
 

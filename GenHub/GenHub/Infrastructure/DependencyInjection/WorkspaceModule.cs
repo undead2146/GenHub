@@ -25,6 +25,7 @@ public static class WorkspaceModule
         // Register workspace validator
         services.AddScoped<IWorkspaceValidator, WorkspaceValidator>();
         services.AddScoped<IFileOperationsService, FileOperationsService>();
+        services.AddScoped<FileOperationsService>();
 
         // Strategy implementations
         services.AddScoped<IWorkspaceStrategy, FullCopyStrategy>();

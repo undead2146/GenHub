@@ -42,7 +42,7 @@ public class CNCLabsContentProvider : BaseContentProvider
             ?? throw new ArgumentException("CNC Labs discoverer not found", nameof(discoverers));
         _cncLabsResolver = resolvers.FirstOrDefault(r => r.ResolverId?.Equals("CNCLabsMap", StringComparison.OrdinalIgnoreCase) == true)
             ?? throw new ArgumentException("CNC Labs resolver not found", nameof(resolvers));
-        _httpDeliverer = deliverers.FirstOrDefault(d => d.SourceName?.Equals("HTTP", StringComparison.OrdinalIgnoreCase) == true)
+        _httpDeliverer = deliverers.FirstOrDefault(d => d.SourceName?.Equals("HTTP Content Deliverer", StringComparison.OrdinalIgnoreCase) == true)
             ?? throw new ArgumentException("HTTP deliverer not found", nameof(deliverers));
     }
 

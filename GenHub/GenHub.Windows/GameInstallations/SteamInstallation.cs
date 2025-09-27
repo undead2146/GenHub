@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.GameClients;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 
@@ -31,6 +33,9 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
     public GameInstallationType InstallationType => GameInstallationType.Steam;
 
     /// <inheritdoc/>
+    public string Id { get; } = Guid.NewGuid().ToString();
+
+    /// <inheritdoc/>
     public string InstallationPath { get; private set; } = string.Empty;
 
     /// <inheritdoc/>
@@ -49,6 +54,9 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
     /// Gets a value indicating whether Steam is installed successfully.
     /// </summary>
     public bool IsSteamInstalled { get; private set; }
+
+    /// <inheritdoc/>
+    public List<GameClient> AvailableGameClients { get; } = new List<GameClient>();
 
     /// <inheritdoc/>
     public void Fetch()
@@ -81,16 +89,30 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
 
                 logger?.LogDebug("Checking Steam library: {LibraryPath}", lib);
 
-                // Fetch generals
+                // Check for Generals (if not already set)
                 if (!HasGenerals)
                 {
-                    var generalsPath = Path.Combine(lib, "Command and Conquer Generals");
-                    if (Directory.Exists(generalsPath))
+                    var possibleGeneralsPaths = new[]
                     {
-                        HasGenerals = true;
-                        GeneralsPath = generalsPath;
-                        InstallationPath = lib;
-                        logger?.LogInformation("Found Steam Generals installation: {GeneralsPath}", GeneralsPath);
+                        Path.Combine(lib, "Command and Conquer Generals"), // Same dir
+                        Path.Combine(lib, "..", "Command and Conquer Generals"), // Parent dir
+                        Path.Combine(@"C:\Program Files (x86)\Steam\steamapps\common", "Command and Conquer Generals"), // Default Steam
+                        Path.Combine(@"C:\Program Files\Steam\steamapps\common", "Command and Conquer Generals"), // 32-bit Steam
+                    };
+
+                    foreach (var path in possibleGeneralsPaths)
+                    {
+                        if (Directory.Exists(path) && File.Exists(Path.Combine(path, "generals.exe")))
+                        {
+                            HasGenerals = true;
+                            GeneralsPath = path;
+                            if (string.IsNullOrEmpty(InstallationPath))
+                            {
+                                InstallationPath = lib;
+                            }
+                            logger?.LogInformation("Found Steam Generals installation: {GeneralsPath}", GeneralsPath);
+                            break;
+                        }
                     }
                 }
 
@@ -98,7 +120,7 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
                 if (!HasZeroHour)
                 {
                     var zeroHourPath = Path.Combine(lib, "Command & Conquer Generals - Zero Hour");
-                    if (Directory.Exists(zeroHourPath))
+                    if (Directory.Exists(zeroHourPath) && File.Exists(Path.Combine(zeroHourPath, "game.exe")))
                     {
                         HasZeroHour = true;
                         ZeroHourPath = zeroHourPath;
@@ -121,6 +143,38 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
         {
             logger?.LogError(ex, "Error occurred during Steam installation detection");
         }
+    }
+
+    /// <inheritdoc/>
+    public void SetPaths(string? generalsPath, string? zeroHourPath)
+    {
+        if (!string.IsNullOrEmpty(generalsPath))
+        {
+            HasGenerals = Directory.Exists(generalsPath) && File.Exists(Path.Combine(generalsPath, "generals.exe"));
+            GeneralsPath = generalsPath;
+        }
+
+        if (!string.IsNullOrEmpty(zeroHourPath))
+        {
+            HasZeroHour = Directory.Exists(zeroHourPath) && File.Exists(Path.Combine(zeroHourPath, "game.exe"));
+            ZeroHourPath = zeroHourPath;
+        }
+
+        logger?.LogDebug("Set paths for Steam: Generals={HasGenerals}, ZeroHour={HasZeroHour}", HasGenerals, HasZeroHour);
+    }
+
+    /// <inheritdoc/>
+    public void PopulateGameClients(IEnumerable<GameClient> clients)
+    {
+        AvailableGameClients.Clear();
+        AvailableGameClients.AddRange(clients.Where(c => c.InstallationId == Id));
+        if (AvailableGameClients.Count > 2)
+        {
+            logger?.LogWarning("More than 2 clients detected for Steam installation {Id}; truncating to 2 clients", Id);
+            AvailableGameClients.RemoveRange(2, AvailableGameClients.Count - 2);
+        }
+
+        logger?.LogInformation("Populated {Count} clients for Steam installation {Id}", AvailableGameClients.Count, Id);
     }
 
     /// <summary>

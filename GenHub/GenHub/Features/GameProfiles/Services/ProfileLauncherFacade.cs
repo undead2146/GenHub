@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Interfaces.Common;
@@ -8,7 +10,9 @@ using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Launching;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Interfaces.Storage;
 using GenHub.Core.Interfaces.Workspace;
+using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Launching;
 using GenHub.Core.Models.Manifest;
@@ -31,6 +35,7 @@ public class ProfileLauncherFacade(
     IGameInstallationService installationService,
     IConfigurationProviderService config,
     IDependencyResolver dependencyResolver,
+    ICasService casService,
     ILogger<ProfileLauncherFacade> logger) : IProfileLauncherFacade
 {
     private readonly IGameProfileManager _profileManager = profileManager ?? throw new ArgumentNullException(nameof(profileManager));
@@ -41,6 +46,7 @@ public class ProfileLauncherFacade(
     private readonly IGameInstallationService _installationService = installationService ?? throw new ArgumentNullException(nameof(installationService));
     private readonly IConfigurationProviderService _config = config ?? throw new ArgumentNullException(nameof(config));
     private readonly IDependencyResolver _dependencyResolver = dependencyResolver ?? throw new ArgumentNullException(nameof(dependencyResolver));
+    private readonly ICasService _casService = casService ?? throw new ArgumentNullException(nameof(casService));
     private readonly ILogger<ProfileLauncherFacade> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <inheritdoc/>
@@ -59,11 +65,47 @@ public class ProfileLauncherFacade(
 
             var profile = profileResult.Data!;
 
+            // Try to resolve or rebind the installation if it's stale
+            var resolvedInstallation = await ResolveOrRebindInstallationAsync(profile, cancellationToken);
+            if (resolvedInstallation == null)
+            {
+                return ProfileOperationResult<GameLaunchInfo>.CreateFailure("Could not resolve game installation for profile");
+            }
+
+            // Update the profile with the resolved installation if it changed
+            if (resolvedInstallation.Id != profile.GameInstallationId)
+            {
+                var updateRequest = new UpdateProfileRequest
+                {
+                    GameInstallationId = resolvedInstallation.Id,
+                };
+                var updateResult = await _profileManager.UpdateProfileAsync(profileId, updateRequest, cancellationToken);
+                if (updateResult.Success)
+                {
+                    profile.GameInstallationId = resolvedInstallation.Id;
+                    _logger.LogInformation("Rebound profile {ProfileId} to installation {InstallationId}", profileId, resolvedInstallation.Id);
+                }
+            }
+
             // Validate the profile before launching
             var validationResult = await ValidateLaunchAsync(profileId, cancellationToken);
             if (validationResult.Failed)
             {
                 return ProfileOperationResult<GameLaunchInfo>.CreateFailure(string.Join(", ", validationResult.Errors));
+            }
+
+            // Admin check for symlink strategies
+            var isAdmin = false;
+            if (OperatingSystem.IsWindows())
+            {
+                isAdmin = new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
+            }
+
+            var originalStrategy = profile.WorkspaceStrategy;
+            if (!isAdmin && (originalStrategy == WorkspaceStrategy.HybridCopySymlink || originalStrategy == WorkspaceStrategy.SymlinkOnly))
+            {
+                _logger.LogWarning("User not admin; falling back to FullCopy strategy for profile {ProfileId}", profileId);
+                profile.WorkspaceStrategy = WorkspaceStrategy.FullCopy;
             }
 
             // Launch the game using the profile object
@@ -75,6 +117,13 @@ public class ProfileLauncherFacade(
 
             var launchInfo = launchResult.Data!;
             _logger.LogInformation("Successfully launched profile {ProfileId} with process ID {ProcessId}", profileId, launchInfo.ProcessInfo.ProcessId);
+
+            // Restore original strategy if changed
+            if (profile.WorkspaceStrategy != originalStrategy)
+            {
+                profile.WorkspaceStrategy = originalStrategy;
+                await _profileManager.UpdateProfileAsync(profileId, new UpdateProfileRequest { PreferredStrategy = originalStrategy }, cancellationToken);
+            }
 
             return ProfileOperationResult<GameLaunchInfo>.CreateSuccess(launchInfo);
         }
@@ -161,6 +210,18 @@ public class ProfileLauncherFacade(
             {
                 _logger.LogWarning("Profile {ProfileId} launch validation failed: {Errors}", profile.Id, string.Join(", ", errors));
                 return ProfileOperationResult<bool>.CreateFailure(string.Join(", ", errors));
+            }
+
+            // CAS preflight check
+            try
+            {
+                var casStats = await _casService.GetStatsAsync(cancellationToken);
+                _logger.LogDebug("CAS preflight check passed for profile {ProfileId}: {TotalObjects} objects, {TotalSize} bytes", profile.Id, casStats.ObjectCount, casStats.TotalSize);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "CAS preflight check failed for profile {ProfileId}", profile.Id);
+                return ProfileOperationResult<bool>.CreateFailure("CAS system is not available");
             }
 
             _logger.LogDebug("Profile {ProfileId} launch validation successful", profile.Id);
@@ -294,6 +355,86 @@ public class ProfileLauncherFacade(
         {
             _logger.LogError(ex, "Failed to prepare workspace for profile {ProfileId}", profileId);
             return ProfileOperationResult<WorkspaceInfo>.CreateFailure($"Failed to prepare workspace: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<ProfileOperationResult<bool>> DeleteProfileAsync(string profileId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Deleting profile {ProfileId}", profileId);
+
+            if (string.IsNullOrWhiteSpace(profileId))
+            {
+                return ProfileOperationResult<bool>.CreateFailure("Profile ID cannot be empty");
+            }
+
+            var deleteResult = await _profileManager.DeleteProfileAsync(profileId, cancellationToken);
+            if (deleteResult.Success)
+            {
+                _logger.LogInformation("Successfully deleted profile {ProfileId}", profileId);
+                return ProfileOperationResult<bool>.CreateSuccess(true);
+            }
+            else
+            {
+                _logger.LogError("Failed to delete profile {ProfileId}: {Errors}", profileId, string.Join(", ", deleteResult.Errors));
+                return ProfileOperationResult<bool>.CreateFailure(string.Join(", ", deleteResult.Errors));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An unexpected error occurred while deleting profile {ProfileId}.", profileId);
+            return ProfileOperationResult<bool>.CreateFailure("An unexpected error occurred.");
+        }
+    }
+
+    /// <summary>
+    /// Resolves the installation for a profile, rebinding to a current installation if the original is stale.
+    /// </summary>
+    /// <param name="profile">The game profile.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The resolved game installation, or null if not found.</returns>
+    private async Task<Core.Models.GameInstallations.GameInstallation?> ResolveOrRebindInstallationAsync(GameProfile profile, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // First try to get the installation by the stored ID
+            var installationResult = await _installationService.GetInstallationAsync(profile.GameInstallationId, cancellationToken);
+            if (installationResult.Success && installationResult.Data != null)
+            {
+                return installationResult.Data;
+            }
+
+            // If that failed, try to find a current installation that matches the game type
+            _logger.LogWarning("Profile {ProfileId} references stale installation ID {InstallationId}, attempting to rebind", profile.Id, profile.GameInstallationId);
+
+            var allInstallationsResult = await _installationService.GetAllInstallationsAsync(cancellationToken);
+            if (allInstallationsResult.Success && allInstallationsResult.Data != null)
+            {
+                var matchingInstallation = allInstallationsResult.Data
+                    .FirstOrDefault(inst =>
+                        (profile.GameClient.GameType == Core.Models.Enums.GameType.Generals && inst.HasGenerals) ||
+                        (profile.GameClient.GameType == Core.Models.Enums.GameType.ZeroHour && inst.HasZeroHour));
+
+                if (matchingInstallation != null)
+                {
+                    _logger.LogInformation(
+                        "Rebound profile {ProfileId} from stale installation {OldId} to current installation {NewId}",
+                        profile.Id,
+                        profile.GameInstallationId,
+                        matchingInstallation.Id);
+                    return matchingInstallation;
+                }
+            }
+
+            _logger.LogError("Could not resolve or rebind installation for profile {ProfileId}", profile.Id);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resolving installation for profile {ProfileId}", profile.Id);
+            return null;
         }
     }
 }
