@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameVersions;
 
@@ -11,8 +12,8 @@ namespace GenHub.Core.Models.Manifest;
 /// </summary>
 public class ContentManifest
 {
-    /// <summary>Gets or sets the manifest format version for backward compatibility.</summary>
-    public string ManifestVersion { get; set; } = "1.0";
+    /// <summary>Gets or sets the manifest format version.</summary>
+    public string ManifestVersion { get; set; } = ManifestConstants.DefaultManifestVersion;
 
     /// <summary>Gets or sets the unique identifier for this content package.</summary>
     public ManifestId Id { get; set; } = ManifestId.Create("1.0.test.content");

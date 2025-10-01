@@ -11,6 +11,11 @@ public static class ManifestConstants
     public const int DefaultManifestFormatVersion = 1;
 
     /// <summary>
+    /// Default manifest format version as string.
+    /// </summary>
+    public const string DefaultManifestVersion = "1.0";
+
+    /// <summary>
     /// Prefix for publisher content IDs.
     /// </summary>
     public const string PublisherContentIdPrefix = "publisher";
@@ -74,4 +79,9 @@ public static class ManifestConstants
     /// Maximum concurrent manifest operations.
     /// </summary>
     public const int MaxConcurrentManifestOperations = 10;
+
+    /// <summary>
+    /// Default ID string for content dependencies (fallback for model instantiation).
+    /// </summary>
+    public const string DefaultContentDependencyId = "1.0.test.dependency.content";
 }
