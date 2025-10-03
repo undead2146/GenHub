@@ -2,9 +2,9 @@ using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.GameProfile;
-using GenHub.Core.Models.GameVersions;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
 using GenHub.Features.GameProfiles.Services;
@@ -37,22 +37,22 @@ public class GameProfileManagerTests
     }
 
     /// <summary>
-    /// Should return success when installation and version exist.
+    /// Should return success when installation and client exist.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task CreateProfileAsync_Should_ReturnSuccess_When_InstallationAndVersionExist()
+    public async Task CreateProfileAsync_Should_ReturnSuccess_When_InstallationAndClientExist()
     {
         // Arrange
-        var versionId = Guid.NewGuid().ToString();
-        var installation = CreateTestInstallation(versionId);
-        var request = new CreateProfileRequest { Name = "New Profile", GameInstallationId = installation.Id, GameVersionId = versionId };
+        var clientId = Guid.NewGuid().ToString();
+        var installation = CreateTestInstallation(clientId);
+        var request = new CreateProfileRequest { Name = "New Profile", GameInstallationId = installation.Id, GameClientId = clientId };
         var profile = new GameProfile
         {
             Id = Guid.NewGuid().ToString(),
             Name = request.Name,
             GameInstallationId = installation.Id,
-            GameVersion = installation.AvailableVersions.First(),
+            GameClient = installation.AvailableClients.First(),
         };
 
         _installationServiceMock.Setup(x => x.GetInstallationAsync(installation.Id, default))
@@ -76,7 +76,7 @@ public class GameProfileManagerTests
     public async Task CreateProfileAsync_Should_ReturnFailure_When_InstallationNotFound()
     {
         // Arrange
-        var request = new CreateProfileRequest { Name = "New Profile", GameInstallationId = "bad-id", GameVersionId = "v1" };
+        var request = new CreateProfileRequest { Name = "New Profile", GameInstallationId = "bad-id", GameClientId = "v1" };
         _installationServiceMock.Setup(x => x.GetInstallationAsync("bad-id", default))
             .ReturnsAsync(OperationResult<GameInstallation>.CreateFailure("Not found"));
 
@@ -89,19 +89,19 @@ public class GameProfileManagerTests
     }
 
     /// <summary>
-    /// Should return failure when version not found in installation.
+    /// Should return failure when client not found in installation.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task CreateProfileAsync_Should_ReturnFailure_When_VersionNotFoundInInstallation()
+    public async Task CreateProfileAsync_Should_ReturnFailure_When_ClientNotFoundInInstallation()
     {
         // Arrange
-        var installation = CreateTestInstallation("version-1");
+        var installation = CreateTestInstallation("client-1");
         var request = new CreateProfileRequest
         {
             Name = "New Profile",
             GameInstallationId = installation.Id,
-            GameVersionId = "non-existent-version",
+            GameClientId = "non-existent-client",
         };
 
         _installationServiceMock.Setup(x => x.GetInstallationAsync(installation.Id, default))
@@ -112,7 +112,7 @@ public class GameProfileManagerTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Contains("Game version not found", result.FirstError);
+        Assert.Contains("Game client not found", result.FirstError);
     }
 
     /// <summary>
@@ -123,13 +123,13 @@ public class GameProfileManagerTests
     public async Task CreateProfileAsync_Should_ReturnFailure_When_RepositorySaveFails()
     {
         // Arrange
-        var versionId = Guid.NewGuid().ToString();
-        var installation = CreateTestInstallation(versionId);
+        var clientId = Guid.NewGuid().ToString();
+        var installation = CreateTestInstallation(clientId);
         var request = new CreateProfileRequest
         {
             Name = "New Profile",
             GameInstallationId = installation.Id,
-            GameVersionId = versionId,
+            GameClientId = clientId,
         };
 
         _installationServiceMock.Setup(x => x.GetInstallationAsync(installation.Id, default))
@@ -159,7 +159,7 @@ public class GameProfileManagerTests
             Id = profileId,
             Name = "Old Name",
             GameInstallationId = "install-1",
-            GameVersion = new GameVersion { Id = "version-1", Version = "1.0" },
+            GameClient = new GameClient { Id = "client-1", Version = "1.0" },
         };
         var request = new UpdateProfileRequest { Name = "New Name" };
 
@@ -212,7 +212,7 @@ public class GameProfileManagerTests
             Id = profileId,
             Name = "Test Profile",
             GameInstallationId = "install-1",
-            GameVersion = new GameVersion { Id = "version-1", Version = "1.0" },
+            GameClient = new GameClient { Id = "client-1", Version = "1.0" },
         };
 
         _profileRepositoryMock.Setup(x => x.LoadProfileAsync(profileId, default))
@@ -236,7 +236,7 @@ public class GameProfileManagerTests
     public async Task GetAvailableContentAsync_Should_ReturnFilteredManifests()
     {
         // Arrange
-        var gameVersion = new GameVersion { GameType = GameType.Generals };
+        var gameClient = new GameClient { GameType = GameType.Generals };
         var manifests = new List<ContentManifest>
             {
                 new() { Name = "Map Pack 1", TargetGame = GameType.Generals },
@@ -247,7 +247,7 @@ public class GameProfileManagerTests
             .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess(manifests));
 
         // Act
-        var result = await _profileManager.GetAvailableContentAsync(gameVersion);
+        var result = await _profileManager.GetAvailableContentAsync(gameClient);
 
         // Assert
         Assert.True(result.Success);
@@ -263,12 +263,12 @@ public class GameProfileManagerTests
     public async Task GetAvailableContentAsync_Should_ReturnFailure_When_ManifestPoolFails()
     {
         // Arrange
-        var gameVersion = new GameVersion { GameType = GameType.Generals };
+        var gameClient = new GameClient { GameType = GameType.Generals };
         _manifestPoolMock.Setup(x => x.GetAllManifestsAsync(default))
             .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateFailure("Manifest pool error"));
 
         // Act
-        var result = await _profileManager.GetAvailableContentAsync(gameVersion);
+        var result = await _profileManager.GetAvailableContentAsync(gameClient);
 
         // Assert
         Assert.False(result.Success);
@@ -283,7 +283,7 @@ public class GameProfileManagerTests
     public async Task GetAvailableContentAsync_Should_ReturnEmptyList_When_NoCompatibleContent()
     {
         // Arrange
-        var gameVersion = new GameVersion { GameType = GameType.Generals };
+        var gameClient = new GameClient { GameType = GameType.Generals };
         var manifests = new List<ContentManifest>
             {
                 new() { Name = "ZH Mod 1", TargetGame = GameType.ZeroHour },
@@ -293,7 +293,7 @@ public class GameProfileManagerTests
             .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess(manifests));
 
         // Act
-        var result = await _profileManager.GetAvailableContentAsync(gameVersion);
+        var result = await _profileManager.GetAvailableContentAsync(gameClient);
 
         // Assert
         Assert.True(result.Success);
@@ -310,9 +310,9 @@ public class GameProfileManagerTests
         // Arrange
         var profiles = new List<GameProfile>
             {
-                new() { Id = "1", Name = "Profile 1", GameInstallationId = "install-1", GameVersion = new GameVersion { Id = "version-1" } },
-                new() { Id = "2", Name = "Profile 2", GameInstallationId = "install-2", GameVersion = new GameVersion { Id = "version-2" } },
-                new() { Id = "3", Name = "Profile 3", GameInstallationId = "install-3", GameVersion = new GameVersion { Id = "version-3" } },
+                new() { Id = "1", Name = "Profile 1", GameInstallationId = "install-1", GameClient = new GameClient { Id = "client-1" } },
+                new() { Id = "2", Name = "Profile 2", GameInstallationId = "install-2", GameClient = new GameClient { Id = "client-2" } },
+                new() { Id = "3", Name = "Profile 3", GameInstallationId = "install-3", GameClient = new GameClient { Id = "client-3" } },
             };
 
         _profileRepositoryMock.Setup(x => x.LoadAllProfilesAsync(default))
@@ -334,13 +334,13 @@ public class GameProfileManagerTests
     public async Task CreateProfileAsync_Should_ValidateProfile_BeforeCreation()
     {
         // Arrange
-        var versionId = Guid.NewGuid().ToString();
-        var installation = CreateTestInstallation(versionId);
+        var clientId = Guid.NewGuid().ToString();
+        var installation = CreateTestInstallation(clientId);
         var request = new CreateProfileRequest
         {
             Name = string.Empty, // Invalid empty name
             GameInstallationId = installation.Id,
-            GameVersionId = versionId,
+            GameClientId = clientId,
         };
 
         _installationServiceMock.Setup(x => x.GetInstallationAsync(installation.Id, default))
@@ -368,7 +368,7 @@ public class GameProfileManagerTests
             Id = profileId,
             Name = "Test Profile",
             GameInstallationId = "install-1",
-            GameVersion = new GameVersion { Id = "version-1", Version = "1.0" },
+            GameClient = new GameClient { Id = "client-1", Version = "1.0" },
             EnabledContentIds = new List<string> { "content1" },
         };
         var request = new UpdateProfileRequest
@@ -390,14 +390,14 @@ public class GameProfileManagerTests
     }
 
     /// <summary>
-    /// Creates a test installation with a specific version.
+    /// Creates a test installation with a specific client.
     /// </summary>
-    private GameInstallation CreateTestInstallation(string versionId)
+    private GameInstallation CreateTestInstallation(string clientId)
     {
         return new GameInstallation("C:\\Games\\TestGame", GameInstallationType.Steam, new Mock<ILogger<GameInstallation>>().Object)
         {
             Id = Guid.NewGuid().ToString(),
-            AvailableVersions = new List<GameVersion> { new GameVersion { Id = versionId, Version = "1.0" }, },
+            AvailableClients = new List<GameClient> { new GameClient { Id = clientId, Version = "1.0" }, },
         };
     }
 }

@@ -1,37 +1,37 @@
 using System;
 using GenHub.Core.Models.Enums;
 
-namespace GenHub.Core.Models.GameVersions;
+namespace GenHub.Core.Models.GameClients;
 
 /// <summary>
 /// Represents a specific version of a game, mod, or patch.
 /// </summary>
-public class GameVersion
+public class GameClient
 {
-    /// <summary>Gets or sets the display name for this game version.</summary>
+    /// <summary>Gets or sets the display name for this game client.</summary>
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the unique identifier for this game version.</summary>
+    /// <summary>Gets or sets the unique identifier for this game client.</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
-    /// <summary>Gets or sets the executable path for this game version (for test compatibility).</summary>
+    /// <summary>Gets or sets the executable path for this game client (for test compatibility).</summary>
     public string ExecutablePath { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the working directory for this game version (for test compatibility).</summary>
+    /// <summary>Gets or sets the working directory for this game client (for test compatibility).</summary>
     public string WorkingDirectory { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the base installation ID for this game version (for test compatibility).
+    /// Gets or sets the base installation ID for this game client (for test compatibility).
     /// </summary>
     public string? BaseInstallationId { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the creation timestamp for this game version (for test compatibility).
+    /// Gets or sets the creation timestamp for this game client (for test compatibility).
     /// </summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
-    /// Gets a value indicating whether the game version is valid (for test compatibility).
+    /// Gets a value indicating whether the game client is valid (for test compatibility).
     /// </summary>
     public bool IsValid
     {
@@ -76,7 +76,7 @@ public class GameVersion
     /// <inheritdoc/>
     public override bool Equals(object? obj)
     {
-        if (obj is GameVersion other)
+        if (obj is GameClient other)
         {
             return string.Equals(Id, other.Id, StringComparison.OrdinalIgnoreCase);
         }
