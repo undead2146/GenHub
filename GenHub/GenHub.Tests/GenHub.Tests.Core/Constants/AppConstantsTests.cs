@@ -1,6 +1,5 @@
 using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
-using Xunit;
 
 namespace GenHub.Tests.Core.Constants;
 
@@ -131,6 +130,43 @@ public class AppConstantsTests
         {
             // Default theme name should match the string representation of default theme
             Assert.Equal(AppConstants.DefaultThemeName, AppConstants.DefaultTheme.ToString());
+        });
+    }
+
+    /// <summary>
+    /// Tests that GameClientHashRegistry correctly identifies known versions.
+    /// </summary>
+    [Fact]
+    public void GameClientHashRegistry_GetVersionFromHash_ShouldIdentifyKnownVersions()
+    {
+        // Arrange & Act & Assert
+        Assert.Multiple(() =>
+        {
+            // Test Generals 1.08
+            Assert.Equal("1.08", GameClientHashRegistry.GetVersionFromHash(GameClientHashRegistry.Generals108Hash, GameType.Generals));
+
+            // Test Zero Hour 1.04
+            Assert.Equal("1.04", GameClientHashRegistry.GetVersionFromHash(GameClientHashRegistry.ZeroHour104Hash, GameType.ZeroHour));
+
+            // Test Zero Hour 1.05 - the new correct hash
+            Assert.Equal("1.05", GameClientHashRegistry.GetVersionFromHash(GameClientHashRegistry.ZeroHour105Hash, GameType.ZeroHour));
+
+            // Test unknown hash
+            Assert.Equal("Unknown", GameClientHashRegistry.GetVersionFromHash("unknownhash", GameType.Generals));
+
+            // Test all known hashes are recognized
+            Assert.True(GameClientHashRegistry.IsKnownHash(GameClientHashRegistry.Generals108Hash));
+            Assert.True(GameClientHashRegistry.IsKnownHash(GameClientHashRegistry.ZeroHour104Hash));
+
+            Assert.True(GameClientHashRegistry.IsKnownHash(GameClientHashRegistry.ZeroHour105Hash));
+
+            // Additional hash checks can be added here
+            Assert.False(GameClientHashRegistry.IsKnownHash("unknownhash"));
+
+            // Test that executable names array is populated
+            Assert.NotEmpty(GameClientHashRegistry.PossibleExecutableNames);
+            Assert.Contains("generals.exe", GameClientHashRegistry.PossibleExecutableNames);
+            Assert.Contains("Game.dat.bak", GameClientHashRegistry.PossibleExecutableNames);
         });
     }
 }

@@ -59,7 +59,7 @@ public class GameSettingsViewModelTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     [Fact]
-    public async Task InitializeForProfileAsync_Should_LoadFromOptionsIni_WhenNoProfileSettings()
+    public async Task InitializeForProfileAsync_Should_LoadFromIniOptions_WhenNoProfileSettings()
     {
         // Arrange
         var profile = new GameProfile

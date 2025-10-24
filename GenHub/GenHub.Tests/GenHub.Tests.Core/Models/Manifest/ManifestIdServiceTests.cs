@@ -4,6 +4,7 @@ using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
 using Xunit;
+using ContentType = GenHub.Core.Models.Enums.ContentType;
 
 namespace GenHub.Tests.Core.Models.Manifest;
 
@@ -42,25 +43,25 @@ public class ManifestIdServiceTests
     }
 
     /// <summary>
-    /// Tests failure when generating publisher content ID with invalid inputs.
+    /// Tests that GeneratePublisherContentId handles invalid inputs gracefully with fallbacks.
     /// </summary>
     /// <param name="publisherId">Invalid publisher ID.</param>
     /// <param name="contentName">Invalid content name.</param>
-    /// <param name="expectedError">Expected error message.</param>
+    /// <param name="expectedId">Expected manifest ID with fallbacks.</param>
     [Theory]
-    [InlineData("", "content", "Publisher ID cannot be empty")]
-    [InlineData(" ", "content", "Publisher ID cannot be empty")]
-    [InlineData("publisher", "", "Content name cannot be empty")]
-    [InlineData("publisher", " ", "Content name cannot be empty")]
-    public void GeneratePublisherContentId_WithInvalidInputs_ReturnsFailure(string publisherId, string contentName, string expectedError)
+    [InlineData("", "content", "1.0.unknown.mod.content")]
+    [InlineData(" ", "content", "1.0.unknown.mod.content")]
+    [InlineData("publisher", "", "1.0.publisher.mod.unknown")]
+    [InlineData("publisher", " ", "1.0.publisher.mod.unknown")]
+    public void GeneratePublisherContentId_WithInvalidInputs_ReturnsSuccessWithFallbacks(string publisherId, string contentName, string expectedId)
     {
         // Act
         var result = _service.GeneratePublisherContentId(publisherId, GenHub.Core.Models.Enums.ContentType.Mod, contentName, 0);
 
         // Assert
-        Assert.False(result.Success);
-        Assert.Null(result.Data.Value);
-        Assert.Contains(expectedError, result.FirstError);
+        Assert.True(result.Success);
+        Assert.Equal(expectedId, result.Data.Value);
+        Assert.Null(result.FirstError);
     }
 
     /// <summary>
@@ -78,7 +79,7 @@ public class ManifestIdServiceTests
 
         // Assert
         Assert.True(result.Success);
-        Assert.Equal("1.0.steam.generals", result.Data.Value);
+        Assert.Equal("1.0.steam.gameinstallation.generals", result.Data.Value);
         Assert.Null(result.FirstError);
     }
 
