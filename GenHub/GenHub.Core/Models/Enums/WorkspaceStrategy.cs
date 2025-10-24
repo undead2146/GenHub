@@ -24,14 +24,4 @@ public enum WorkspaceStrategy
     /// Hard link strategy - creates hard links where possible, copies otherwise. Space-efficient, requires same volume.
     /// </summary>
     HardLink,
-
-    /// <summary>
-    /// A strategy that creates symbolic links for all files, intended for game installation manifests.
-    /// </summary>
-    FullSymlink,
-
-    /// <summary>
-    /// Content addressable strategy.
-    /// </summary>
-    ContentAddressable,
 }

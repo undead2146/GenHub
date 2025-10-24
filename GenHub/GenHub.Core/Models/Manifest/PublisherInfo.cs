@@ -3,8 +3,7 @@ using GenHub.Core.Constants;
 namespace GenHub.Core.Models.Manifest;
 
 /// <summary>
-/// Publisher information for content attribution, support, and dynamic update/discovery mechanisms.
-/// Publishers are discovered dynamically via IContentProvider implementations, not hardcoded.
+/// Publisher information for content attribution and support.
 /// </summary>
 /// <remarks>
 /// Publishers can be:
@@ -30,7 +29,7 @@ public class PublisherInfo
     /// For game installations, use <see cref="InstallationSourceConstants.FromInstallationType"/>
     /// to map GameInstallationType to a source string.
     /// </remarks>
-    public string PublisherType { get; set; } = "Unknown";
+    public string PublisherType { get; set; } = PublisherTypeConstants.Unknown;
 
     /// <summary>
     /// Gets or sets the publisher website.

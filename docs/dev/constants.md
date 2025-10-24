@@ -204,27 +204,34 @@ Constants related to manifest ID generation, validation, and file operations.
 
 | Constant | Description |
 |----------|-------------|
-| `PublisherIdRegexPattern` | Regex for publisher content IDs |
-| `GameInstallationIdRegexPattern` | Regex for game installation IDs |
-| `SimpleIdRegexPattern` | Regex for simple IDs |
+| `PublisherContentRegexPattern` | Regex for validating 5-segment publisher content IDs (schemaVersion.userVersion.publisher.contentType.contentName) |
+| `SimpleIdRegexPattern` | Regex for validating simple test-friendly IDs (up to 4 segments, alphanumeric with dashes) |
 
-**Publisher Content ID Pattern:**
-
-```regex
-^\d+(?:\.\d+)*\.[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)*$
-```
-
-**Game Installation ID Pattern:**
+**Publisher Content Regex Pattern (5-segment format):**
 
 ```regex
-^\d+(?:\.\d+)*\.(unknown|steam|eaapp|origin|thefirstdecade|rgmechanics|cdiso|wine|retail)\.(generals|zerohour)$
+^\d+\.\d+\.[a-z0-9]+\.(gameinstallation|gameclient|mod|patch|addon|mappack|languagepack|contentbundle|publisherreferral|contentreferral|mission|map|unknown)\.[a-z0-9-]+$
 ```
 
-**Simple ID Pattern:**
+**Simple ID Regex Pattern (test-friendly format):**
 
 ```regex
-^[a-zA-Z0-9\-\.]+$
+^[a-zA-Z0-9\-]+(\.[a-zA-Z0-9\-]+){0,3}$
 ```
+
+**Pattern Explanations:**
+
+- **Publisher Content Pattern**: Validates the standard 5-segment format used for all content in GenHub
+  - Segment 1: Schema version (digits only)
+  - Segment 2: User version (digits only)
+  - Segment 3: Publisher (lowercase alphanumeric)
+  - Segment 4: Content type (enumerated values like gameinstallation, mod, etc.)
+  - Segment 5: Content name (lowercase alphanumeric with dashes)
+
+- **Simple ID Pattern**: Allows simpler IDs for testing (up to 4 segments total)
+  - Alphanumeric characters and dashes only
+  - Up to 4 segments separated by dots
+  - Used as fallback for test scenarios
 
 ### Dependency Defaults
 

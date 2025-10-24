@@ -44,7 +44,7 @@ public static class ManifestIdGenerator
     /// Format: manifestVersion.userVersion.installationType.gameType[-suffix].
     /// Note: If userVersion contains dots (e.g., "1.08"), they are removed for schema compliance (becomes "108").
     /// </summary>
-    /// <param name="installation">The game installation used to derive the installation segment.</param>
+    /// <param name="installation">The game installation used to derive the publisher (installation type).</param>
     /// <param name="gameType">The specific game type (Generals or ZeroHour) for the manifest ID.</param>
     /// <param name="userVersion">User-specified version (e.g., "1.08", "1.04", or integer like 0, 1, 2). If null, defaults to 0.</param>
     /// <param name="suffix">Optional suffix for content type (e.g., '-installation', '-client'). Defaults to '-installation'.</param>
@@ -70,6 +70,7 @@ public static class ManifestIdGenerator
     /// </summary>
     /// <param name="version">Version as string, integer, or null (defaults to "0").</param>
     /// <returns>Normalized version string without dots.</returns>
+    /// <exception cref="ArgumentException">Thrown when the version is not numeric or contains only numbers and dots, or when the version is negative.</exception>
     private static string NormalizeVersionString(object? version)
     {
         if (version == null)
@@ -96,8 +97,12 @@ public static class ManifestIdGenerator
     }
 
     /// <summary>
-    /// Normalizes a string to lowercase alphanumeric with dots as separators.
+    /// Normalizes the input string by converting it to lowercase, trimming whitespace, replacing non-alphanumeric characters (except dots) with dots, removing leading/trailing dots, and collapsing multiple consecutive dots into single dots.
     /// </summary>
+    /// <param name="input">The input string to normalize.</param>
+    /// <returns>The normalized string.</returns>
+    /// <exception cref="ArgumentException">Thrown when the input is null, empty, or consists only of whitespace.</exception>
+    /// <exception cref="ArgumentException">Thrown when the normalization process results in an empty string.</exception>
     private static string Normalize(string input)
     {
         if (string.IsNullOrWhiteSpace(input))
