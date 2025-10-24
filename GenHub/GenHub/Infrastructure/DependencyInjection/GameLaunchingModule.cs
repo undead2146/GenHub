@@ -1,6 +1,7 @@
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.Launching;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Storage;
@@ -23,7 +24,12 @@ public static class GameLaunchingModule
     /// <returns>The service collection for method chaining.</returns>
     public static IServiceCollection AddLaunchingServices(this IServiceCollection services)
     {
-        services.AddSingleton<ILaunchRegistry, LaunchRegistry>();
+        services.AddSingleton<ILaunchRegistry>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<LaunchRegistry>>();
+            var workspaceManager = sp.GetRequiredService<IWorkspaceManager>();
+            return new LaunchRegistry(logger, workspaceManager);
+        });
         services.AddScoped<IGameLauncher>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<GameLauncher>>();
@@ -33,10 +39,10 @@ public static class GameLaunchingModule
             var manifestPool = sp.GetRequiredService<IContentManifestPool>();
             var launchRegistry = sp.GetRequiredService<ILaunchRegistry>();
             var gameInstallationService = sp.GetRequiredService<IGameInstallationService>();
-            var manifestProvider = sp.GetRequiredService<IManifestProvider>();
             var casService = sp.GetRequiredService<ICasService>();
             var config = sp.GetRequiredService<IConfigurationProviderService>();
-            return new GameLauncher(logger, profileManager, workspaceManager, processManager, manifestPool, launchRegistry, gameInstallationService, manifestProvider, casService, config);
+            var gameSettingsService = sp.GetRequiredService<IGameSettingsService>();
+            return new GameLauncher(logger, profileManager, workspaceManager, processManager, manifestPool, launchRegistry, gameInstallationService, casService, config, gameSettingsService);
         });
         return services;
     }
