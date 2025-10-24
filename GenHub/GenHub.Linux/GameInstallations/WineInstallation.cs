@@ -29,10 +29,11 @@ public class WineInstallation(ILogger<WineInstallation>? logger = null) : IGameI
     }
 
     /// <inheritdoc/>
-    public string Id => "Wine";
+    public GameInstallationType InstallationType => GameInstallationType.Wine;
 
     /// <inheritdoc/>
-    public GameInstallationType InstallationType => GameInstallationType.Wine;
+    /// <remarks>Set after InstallationPath is determined during Fetch().</remarks>
+    public string Id { get; private set; } = string.Empty;
 
     /// <inheritdoc/>
     public string InstallationPath { get; private set; } = string.Empty;
@@ -128,7 +129,7 @@ public class WineInstallation(ILogger<WineInstallation>? logger = null) : IGameI
                     if (!HasZeroHour)
                     {
                         var zeroHourPath = Path.Combine(basePath, "Command and Conquer Generals Zero Hour");
-                        if (Directory.Exists(zeroHourPath) && IsValidGameInstallation(zeroHourPath, "generals.exe"))
+                        if (Directory.Exists(zeroHourPath) && IsValidGameInstallation(zeroHourPath, "game.exe"))
                         {
                             HasZeroHour = true;
                             ZeroHourPath = zeroHourPath;

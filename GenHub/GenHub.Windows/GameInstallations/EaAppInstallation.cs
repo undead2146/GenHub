@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
@@ -29,10 +30,11 @@ public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstal
     }
 
     /// <inheritdoc/>
-    public string Id => "EaApp";
+    public GameInstallationType InstallationType => GameInstallationType.EaApp;
 
     /// <inheritdoc/>
-    public GameInstallationType InstallationType => GameInstallationType.EaApp;
+    /// <remarks>Set after InstallationPath is determined during Fetch().</remarks>
+    public string Id { get; private set; } = string.Empty;
 
     /// <inheritdoc/>
     public string InstallationPath { get; private set; } = string.Empty;
@@ -108,7 +110,7 @@ public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstal
             if (!HasGenerals)
             {
                 var gamePath = Path.Combine(generalsPath!, "Command and Conquer Generals");
-                if (Directory.Exists(gamePath))
+                if (Directory.Exists(gamePath) && File.Exists(Path.Combine(gamePath, GameClientConstants.GeneralsExecutable)))
                 {
                     HasGenerals = true;
                     GeneralsPath = gamePath;
@@ -122,10 +124,21 @@ public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstal
                 var gamePath = Path.Combine(generalsPath!, "Command and Conquer Generals Zero Hour");
                 if (Directory.Exists(gamePath))
                 {
-                    HasZeroHour = true;
-                    ZeroHourPath = gamePath;
-                    logger?.LogInformation("Found EA App Zero Hour installation: {ZeroHourPath}", ZeroHourPath);
+                    var hasZeroHourExe = File.Exists(Path.Combine(gamePath, GameClientConstants.ZeroHourExecutable));
+                    if (hasZeroHourExe)
+                    {
+                        HasZeroHour = true;
+                        ZeroHourPath = gamePath;
+                        logger?.LogInformation("Found EA App Zero Hour installation: {ZeroHourPath}", ZeroHourPath);
+                    }
                 }
+            }
+
+            // Generate installation ID
+            if (!string.IsNullOrEmpty(InstallationPath))
+            {
+                Id = Guid.NewGuid().ToString();
+                logger?.LogDebug("Generated EA App installation ID: {InstallationId}", Id);
             }
 
             logger?.LogInformation(
