@@ -75,6 +75,7 @@ public class FileOperationsService(
             }
             catch (IOException ex) when (ex.Message.Contains("being used by another process"))
             {
+                // Re-throw with a more helpful message
                 throw new IOException(
                     $"Cannot delete directory '{directoryPath}' because files are being used by another process. " +
                     "Please ensure all applications using files in this directory are closed before deleting.",
