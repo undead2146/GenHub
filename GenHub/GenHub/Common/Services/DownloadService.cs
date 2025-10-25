@@ -109,12 +109,12 @@ public class DownloadService(
                         errorMessage += $": {lastException.Message}";
                     }
 
-                    return DownloadResult.CreateFailed(errorMessage);
+                    return DownloadResult.CreateFailure(errorMessage);
                 }
             }
         }
 
-        return DownloadResult.CreateFailed($"Download failed after {configuration.MaxRetryAttempts} attempts (unexpected error)");
+        return DownloadResult.CreateFailure($"Download failed after {configuration.MaxRetryAttempts} attempts (unexpected error)");
     }
 
     private async Task<DownloadResult> PerformDownloadAsync(
@@ -180,7 +180,7 @@ public class DownloadService(
                     logger.LogWarning("Failed to delete corrupted file: {FilePath}", configuration.DestinationPath);
                 }
 
-                return DownloadResult.CreateFailed($"Hash verification failed. Expected: {configuration.ExpectedHash}, Actual: {actualHash}", downloadedBytes, stopwatch.Elapsed);
+                return DownloadResult.CreateFailure($"Hash verification failed. Expected: {configuration.ExpectedHash}, Actual: {actualHash}", downloadedBytes, stopwatch.Elapsed);
             }
         }
 

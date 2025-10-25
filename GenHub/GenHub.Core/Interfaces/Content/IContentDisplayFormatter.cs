@@ -1,3 +1,4 @@
+using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
@@ -18,7 +19,7 @@ public interface IContentDisplayFormatter
     /// <param name="manifest">The content manifest.</param>
     /// <param name="isEnabled">Whether the content is currently enabled.</param>
     /// <returns>A ContentDisplayItem ready for UI binding.</returns>
-    ContentDisplayItem CreateDisplayItem(ContentManifest manifest, bool isEnabled = false);
+    Models.Content.ContentDisplayItem CreateDisplayItem(ContentManifest manifest, bool isEnabled = false);
 
     /// <summary>
     /// Creates a display item from a game installation and game client.
@@ -28,7 +29,7 @@ public interface IContentDisplayFormatter
     /// <param name="manifestId">The manifest ID for the installation.</param>
     /// <param name="isEnabled">Whether the content is enabled.</param>
     /// <returns>A ContentDisplayItem ready for UI binding.</returns>
-    ContentDisplayItem CreateDisplayItemFromInstallation(
+    Models.Content.ContentDisplayItem CreateDisplayItemFromInstallation(
         GameInstallation installation,
         GameClient gameClient,
         ManifestId manifestId,

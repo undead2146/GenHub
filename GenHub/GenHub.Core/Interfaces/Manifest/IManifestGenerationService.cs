@@ -133,4 +133,28 @@ public interface IManifestGenerationService
         string targetPublisherId = "",
         string referralUrl = "",
         string description = "");
+
+    /// <summary>
+    /// Creates a manifest builder for GitHub-hosted content.
+    /// </summary>
+    /// <param name="contentDirectory">Path to the extracted content directory.</param>
+    /// <param name="owner">The GitHub repository owner.</param>
+    /// <param name="repo">The GitHub repository name.</param>
+    /// <param name="identifier">The content identifier (release tag or artifact name).</param>
+    /// <param name="contentName">Display name for the content.</param>
+    /// <param name="manifestVersion">Manifest version (e.g., 1, 2, 20). Defaults to 0 for first version.</param>
+    /// <param name="contentType">Type of content (Mod, Patch, Addon, etc).</param>
+    /// <param name="targetGame">Target game type.</param>
+    /// <param name="dependencies">Dependencies for this content.</param>
+    /// <returns>A <see cref="Task"/> that returns a configured manifest builder.</returns>
+    Task<IContentManifestBuilder> CreateGitHubContentManifestAsync(
+        string contentDirectory,
+        string owner,
+        string repo,
+        string identifier,
+        string contentName,
+        int manifestVersion = 0,
+        ContentType contentType = ContentType.Mod,
+        GameType targetGame = GameType.Generals,
+        params ContentDependency[] dependencies);
 }

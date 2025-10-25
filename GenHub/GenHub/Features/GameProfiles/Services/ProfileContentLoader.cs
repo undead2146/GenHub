@@ -4,6 +4,7 @@ using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
@@ -49,9 +50,9 @@ public class ProfileContentLoader : IProfileContentLoader
     }
 
     /// <inheritdoc/>
-    public async Task<ObservableCollection<ContentDisplayItem>> LoadAvailableGameInstallationsAsync()
+    public async Task<ObservableCollection<GenHub.Core.Models.Content.ContentDisplayItem>> LoadAvailableGameInstallationsAsync()
     {
-        var result = new ObservableCollection<ContentDisplayItem>();
+        var result = new ObservableCollection<GenHub.Core.Models.Content.ContentDisplayItem>();
 
         try
         {
@@ -76,9 +77,7 @@ public class ProfileContentLoader : IProfileContentLoader
                     var gameType = gameClient.GameType;
                     var version = gameClient.Version;
 
-                    var manifestVersion = gameType == GameType.ZeroHour
-                        ? ManifestConstants.ZeroHourManifestVersion
-                        : ManifestConstants.GeneralsManifestVersion;
+                    var manifestVersion = ManifestConstants.DefaultManifestFormatVersion;
 
                     // Generate manifest ID for GameInstallation content
                     var installationManifestId = ManifestId.Create(
@@ -88,17 +87,19 @@ public class ProfileContentLoader : IProfileContentLoader
                     var publisherName = _displayFormatter.GetPublisherFromInstallationType(installation.InstallationType);
                     var displayName = _displayFormatter.BuildDisplayName(gameType, normalizedVersion);
 
-                    var item = new ContentDisplayItem
+                    var item = new GenHub.Core.Models.Content.ContentDisplayItem
                     {
+                        Id = installationManifestId.Value,
                         ManifestId = installationManifestId.Value,
-                        SourceId = installation.Id,
-                        GameClientId = gameClient.Id,
                         DisplayName = displayName,
+                        Description = $"{publisherName} - {installation.InstallationType} - {gameType}",
+                        Version = normalizedVersion,
                         ContentType = ContentType.GameInstallation,
                         GameType = gameType,
                         InstallationType = installation.InstallationType,
                         Publisher = publisherName,
-                        Version = normalizedVersion,
+                        SourceId = installation.Id,
+                        GameClientId = gameClient.Id,
                         IsEnabled = false,
                     };
                     result.Add(item);
@@ -127,12 +128,12 @@ public class ProfileContentLoader : IProfileContentLoader
     }
 
     /// <inheritdoc/>
-    public async Task<ObservableCollection<ContentDisplayItem>> LoadAvailableContentAsync(
+    public async Task<ObservableCollection<GenHub.Core.Models.Content.ContentDisplayItem>> LoadAvailableContentAsync(
         ContentType contentType,
-        ObservableCollection<ContentDisplayItem> availableGameInstallations,
+        ObservableCollection<GenHub.Core.Models.Content.ContentDisplayItem> availableGameInstallations,
         IEnumerable<string> enabledContentIds)
     {
-        var result = new ObservableCollection<ContentDisplayItem>();
+        var result = new ObservableCollection<GenHub.Core.Models.Content.ContentDisplayItem>();
         var enabledSet = new HashSet<string>(enabledContentIds);
 
         try
@@ -142,17 +143,19 @@ public class ProfileContentLoader : IProfileContentLoader
             {
                 foreach (var installationItem in availableGameInstallations)
                 {
-                    var item = new ContentDisplayItem
+                    var item = new GenHub.Core.Models.Content.ContentDisplayItem
                     {
+                        Id = installationItem.Id,
                         ManifestId = installationItem.ManifestId,
                         DisplayName = installationItem.DisplayName,
+                        Description = installationItem.Description,
+                        Version = installationItem.Version,
                         ContentType = installationItem.ContentType,
                         GameType = installationItem.GameType,
                         InstallationType = installationItem.InstallationType,
                         Publisher = installationItem.Publisher,
                         SourceId = installationItem.SourceId,
                         GameClientId = installationItem.GameClientId,
-                        Version = installationItem.Version,
                         IsEnabled = enabledSet.Contains(installationItem.ManifestId),
                     };
                     result.Add(item);
@@ -226,6 +229,7 @@ public class ProfileContentLoader : IProfileContentLoader
 
                         var gameClientItem = new ContentDisplayItem
                         {
+                            Id = manifest.Id.Value,
                             ManifestId = manifest.Id.Value,
                             DisplayName = displayName,
                             Version = clientNormalizedVersion,
@@ -254,8 +258,9 @@ public class ProfileContentLoader : IProfileContentLoader
 
                 // Generic item creation for other content types or fallback cases
                 var normalizedVersion = _displayFormatter.NormalizeVersion(manifest.Version);
-                var item = new ContentDisplayItem
+                var item = new GenHub.Core.Models.Content.ContentDisplayItem
                 {
+                    Id = manifest.Id.Value,
                     ManifestId = manifest.Id.Value,
                     DisplayName = displayName,
                     Version = normalizedVersion,
@@ -263,6 +268,8 @@ public class ProfileContentLoader : IProfileContentLoader
                     GameType = manifest.TargetGame,
                     InstallationType = installationType,
                     Publisher = publisher,
+                    SourceId = string.Empty,
+                    GameClientId = string.Empty,
                     IsEnabled = enabledSet.Contains(manifest.Id.Value),
                 };
                 result.Add(item);
@@ -279,9 +286,9 @@ public class ProfileContentLoader : IProfileContentLoader
     }
 
     /// <inheritdoc/>
-    public async Task<ObservableCollection<ContentDisplayItem>> LoadEnabledContentForProfileAsync(GameProfile profile)
+    public async Task<ObservableCollection<GenHub.Core.Models.Content.ContentDisplayItem>> LoadEnabledContentForProfileAsync(GameProfile profile)
     {
-        var result = new ObservableCollection<ContentDisplayItem>();
+        var result = new ObservableCollection<GenHub.Core.Models.Content.ContentDisplayItem>();
 
         try
         {
@@ -419,18 +426,19 @@ public class ProfileContentLoader : IProfileContentLoader
                             sourceId = clientInstallation.Id;
                             gameClientId = matchingClient.Id;
 
-                            var gameClientItem = new ContentDisplayItem
+                            var gameClientItem = new GenHub.Core.Models.Content.ContentDisplayItem
                             {
+                                Id = manifest.Id.Value,
                                 ManifestId = manifest.Id.Value,
                                 DisplayName = displayName,
+                                Version = normalizedVersion,
                                 ContentType = manifest.ContentType,
                                 GameType = gameType,
                                 InstallationType = installationType,
                                 Publisher = publisher,
-                                Version = normalizedVersion,
-                                IsEnabled = true,
                                 SourceId = sourceId,
                                 GameClientId = gameClientId,
+                                IsEnabled = true,
                             };
                             result.Add(gameClientItem);
                             _logger.LogDebug(
@@ -481,18 +489,19 @@ public class ProfileContentLoader : IProfileContentLoader
                 }
 
                 // Create generic content item for non-GameClient types
-                var item = new ContentDisplayItem
+                var item = new GenHub.Core.Models.Content.ContentDisplayItem
                 {
+                    Id = manifest.Id.Value,
                     ManifestId = manifest.Id.Value,
                     DisplayName = displayName,
+                    Version = _displayFormatter.NormalizeVersion(manifest.Version),
                     ContentType = manifest.ContentType,
                     GameType = gameType,
                     InstallationType = installationType,
                     Publisher = publisher,
-                    Version = _displayFormatter.NormalizeVersion(manifest.Version),
-                    IsEnabled = true,
                     SourceId = sourceId ?? string.Empty,
                     GameClientId = gameClientId ?? string.Empty,
+                    IsEnabled = true,
                 };
                 result.Add(item);
             }

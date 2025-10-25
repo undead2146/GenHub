@@ -446,6 +446,15 @@
             <TextBox Text="{Binding GitHubDiscoveryRepositoriesText}" AcceptsReturn="True" Height="80" Watermark="e.g. some-author/some-mod" />
             <TextBlock Text="Specify GitHub repositories to scan for releases. One owner/repo per line." Classes="setting-description" />
           </StackPanel>
+          
+          <!-- GitHub Manager Button -->
+          <StackPanel Spacing="8">
+            <Button Content="Open GitHub Manager"
+                    Command="{Binding OpenGitHubManagerCommand}"
+                    Classes="primary-button"
+                    HorizontalAlignment="Left" />
+            <TextBlock Text="Browse and manage GitHub repositories, releases, and artifacts" Classes="setting-description" />
+          </StackPanel>
         </StackPanel>
       </Border>
 

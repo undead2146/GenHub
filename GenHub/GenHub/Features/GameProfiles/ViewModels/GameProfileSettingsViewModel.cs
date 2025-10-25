@@ -9,6 +9,7 @@ using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
@@ -471,8 +472,9 @@ public partial class GameProfileSettingsViewModel
             var coreAvailableInstallations = new List<Core.Models.GameProfile.ContentDisplayItem>();
             foreach (var vmItem in AvailableGameInstallations)
             {
-                coreAvailableInstallations.Add(new Core.Models.GameProfile.ContentDisplayItem
+                coreAvailableInstallations.Add(new Core.Models.Content.ContentDisplayItem
                 {
+                    Id = vmItem.ManifestId.Value,
                     ManifestId = vmItem.ManifestId.Value,
                     DisplayName = vmItem.DisplayName,
                     ContentType = vmItem.ContentType,
@@ -844,8 +846,7 @@ public partial class GameProfileSettingsViewModel
                         var gameClientManifestId = ManifestIdGenerator.GenerateGameInstallationId(
                             installationForClient.Data,
                             SelectedGameInstallation.GameType,
-                            0,
-                            "-client");
+                            0);
 
                         if (!enabledContentIds.Contains(gameClientManifestId))
                         {
@@ -1140,7 +1141,7 @@ public partial class GameProfileSettingsViewModel
     /// </summary>
     /// <param name="coreItem">The core content display item.</param>
     /// <returns>A ViewModel content display item.</returns>
-    private ContentDisplayItem ConvertToViewModelContentDisplayItem(Core.Models.GameProfile.ContentDisplayItem coreItem)
+    private ContentDisplayItem ConvertToViewModelContentDisplayItem(Core.Models.Content.ContentDisplayItem coreItem)
     {
         return new ContentDisplayItem
         {
@@ -1163,7 +1164,7 @@ public partial class GameProfileSettingsViewModel
     /// <param name="coreItems">The core content display items.</param>
     /// <returns>An observable collection of ViewModel content display items.</returns>
     private ObservableCollection<ContentDisplayItem> ConvertToViewModelContentDisplayItems(
-        IEnumerable<Core.Models.GameProfile.ContentDisplayItem> coreItems)
+        IEnumerable<Core.Models.Content.ContentDisplayItem> coreItems)
     {
         var result = new ObservableCollection<ContentDisplayItem>();
         foreach (var coreItem in coreItems)

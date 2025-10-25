@@ -1,3 +1,4 @@
+using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
 using System.Collections.Generic;
@@ -22,7 +23,7 @@ public interface IProfileContentLoader
     /// Creates entries for each available GameClient within each installation.
     /// </summary>
     /// <returns>A collection of content display items representing available game installations.</returns>
-    Task<ObservableCollection<ContentDisplayItem>> LoadAvailableGameInstallationsAsync();
+    Task<ObservableCollection<Models.Content.ContentDisplayItem>> LoadAvailableGameInstallationsAsync();
 
     /// <summary>
     /// Loads available content filtered by the specified content type.
@@ -31,9 +32,9 @@ public interface IProfileContentLoader
     /// <param name="availableGameInstallations">Pre-loaded game installations for GameClient resolution.</param>
     /// <param name="enabledContentIds">List of already-enabled content IDs to mark items as enabled.</param>
     /// <returns>A collection of content display items for the specified type.</returns>
-    Task<ObservableCollection<ContentDisplayItem>> LoadAvailableContentAsync(
+    Task<ObservableCollection<Models.Content.ContentDisplayItem>> LoadAvailableContentAsync(
         ContentType contentType,
-        ObservableCollection<ContentDisplayItem> availableGameInstallations,
+        ObservableCollection<Models.Content.ContentDisplayItem> availableGameInstallations,
         IEnumerable<string> enabledContentIds);
 
     /// <summary>
@@ -41,5 +42,5 @@ public interface IProfileContentLoader
     /// </summary>
     /// <param name="profile">The game profile containing enabled content IDs.</param>
     /// <returns>A collection of content display items representing enabled content.</returns>
-    Task<ObservableCollection<ContentDisplayItem>> LoadEnabledContentForProfileAsync(GameProfile profile);
+    Task<ObservableCollection<Models.Content.ContentDisplayItem>> LoadEnabledContentForProfileAsync(GameProfile profile);
 }

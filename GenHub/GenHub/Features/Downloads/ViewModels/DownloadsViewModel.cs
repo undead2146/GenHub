@@ -1,15 +1,19 @@
+using System;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using System.Threading.Tasks;
-using System.Windows.Input;
 using GenHub.Common.ViewModels;
+using GenHub.Features.GitHub.ViewModels;
+using GenHub.Features.GitHub.Views;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Downloads.ViewModels;
 
 /// <summary>
 /// ViewModel for the Downloads tab.
 /// </summary>
-public partial class DownloadsViewModel : ViewModelBase
+public partial class DownloadsViewModel(IServiceProvider serviceProvider, ILogger<DownloadsViewModel> logger) : ViewModelBase
 {
     [ObservableProperty]
     private string _title = "Downloads";
@@ -18,24 +22,33 @@ public partial class DownloadsViewModel : ViewModelBase
     private string _description = "Manage your downloads and installations";
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DownloadsViewModel"/> class.
-    /// </summary>
-    public DownloadsViewModel()
-    {
-    }
-
-    /// <summary>
     /// Performs asynchronous initialization for the Downloads tab.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public virtual Task InitializeAsync()
+    public virtual async Task InitializeAsync()
     {
-        return Task.CompletedTask;
+        await Task.CompletedTask;
     }
 
     [RelayCommand]
-    private void OpenGitHubBuilds()
+    private async Task OpenGitHubBuilds()
     {
-        // TODO: Implement navigation to GitHub builds page
+        try
+        {
+            logger.LogDebug("Opening GitHub manager window from Downloads");
+
+            var gitHubManagerViewModel = serviceProvider.GetRequiredService<GitHubManagerViewModel>();
+            var window = new GitHubManagerWindow
+            {
+                DataContext = gitHubManagerViewModel,
+            };
+            window.Show();
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to open GitHub manager from Downloads");
+        }
     }
 }

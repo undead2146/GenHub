@@ -6,6 +6,9 @@ using CommunityToolkit.Mvvm.Input;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Models.Enums;
+using GenHub.Features.GitHub.ViewModels;
+using GenHub.Features.GitHub.Views;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -24,6 +27,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
 {
     private readonly IUserSettingsService _userSettingsService;
     private readonly ILogger<SettingsViewModel> _logger;
+    private readonly IServiceProvider _serviceProvider;
     private readonly Timer _memoryUpdateTimer;
     private bool _isViewVisible = false;
     private bool _disposed = false;
@@ -115,10 +119,12 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     /// Initializes a new instance of the <see cref="SettingsViewModel"/> class.
     /// </summary>
     /// <param name="userSettingsService">The configuration service.</param>
+    /// <param name="serviceProvider">The service provider for dependency injection.</param>
     /// <param name="logger">The logger.</param>
-    public SettingsViewModel(IUserSettingsService userSettingsService, ILogger<SettingsViewModel> logger)
+    public SettingsViewModel(IUserSettingsService userSettingsService, IServiceProvider serviceProvider, ILogger<SettingsViewModel> logger)
     {
         _userSettingsService = userSettingsService;
+        _serviceProvider = serviceProvider;
         _logger = logger;
         LoadSettings();
 
@@ -564,6 +570,36 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error occurred while browsing for CAS root path");
+        }
+    }
+
+    [RelayCommand]
+    private async Task OpenGitHubManager()
+    {
+        try
+        {
+            _logger.LogDebug("Opening GitHub manager window");
+
+            var gitHubManagerViewModel = _serviceProvider.GetRequiredService<GitHubManagerViewModel>();
+            var window = new GitHubManagerWindow
+            {
+                DataContext = gitHubManagerViewModel,
+            };
+
+            var lifetime = Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
+            var mainWindow = lifetime?.MainWindow;
+            if (mainWindow != null)
+            {
+                await window.ShowDialog(mainWindow);
+            }
+            else
+            {
+                window.Show();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open GitHub manager window");
         }
     }
 

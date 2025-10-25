@@ -25,9 +25,7 @@ public static class AppUpdateModule
     {
         services.AddSingleton<IAppVersionService, AppVersionService>();
         services.AddSingleton<IVersionComparator, SemVerComparator>();
-        services.AddSingleton<IGitHubApiClient, OctokitGitHubApiClient>();
         services.AddSingleton<IAppUpdateService, AppUpdateService>();
-        services.AddSingleton<IGitHubClient>(new GitHubClient(new ProductHeaderValue(AppConstants.AppName)));
 
         // Register UpdateInstaller factory and platform-specific implementations
         services.AddSingleton<UpdateInstallerFactory>();

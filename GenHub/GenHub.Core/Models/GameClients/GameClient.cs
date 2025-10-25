@@ -1,5 +1,6 @@
 using System;
 using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.SourceMetadata;
 
 namespace GenHub.Core.Models.GameClients;
 
@@ -19,11 +20,6 @@ public class GameClient
 
     /// <summary>Gets or sets the working directory for this game client (for test compatibility).</summary>
     public string WorkingDirectory { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Gets or sets the base installation ID for this game client (for test compatibility).
-    /// </summary>
-    public string? InstallationId { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the creation timestamp for this game client (for test compatibility).
@@ -69,6 +65,21 @@ public class GameClient
 
     /// <summary>Gets or sets the date and time when this version was last detected.</summary>
     public DateTime LastDetected { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Gets or sets the installation ID that this game version is linked to.
+    /// </summary>
+    public string InstallationId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the GitHub metadata.
+    /// </summary>
+    public GitHubSourceMetadata? GitHubMetadata { get; set; }
+
+    /// <summary>
+    /// Gets or sets the build date.
+    /// </summary>
+    public DateTime BuildDate { get; set; }
 
     /// <inheritdoc/>
     public override string ToString() => $"{Name} ({GameType})";

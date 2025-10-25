@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Security;
 using System.Threading.Tasks;
 using FluentAssertions;
 using GenHub.Features.GitHub.Services;
@@ -22,7 +23,7 @@ public class OctokitGitHubApiClientTests
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task GetLatestReleaseAsync_ReturnsNullOnNotFound()
+    public async Task GetLatestReleaseAsync_ReturnsNullWhenNotFound()
     {
         // Arrange
         var releasesClientMock = new Mock<Octokit.IReleasesClient>();
@@ -38,7 +39,7 @@ public class OctokitGitHubApiClientTests
         var gitHubClientMock = new Mock<Octokit.IGitHubClient>();
         gitHubClientMock.SetupGet(x => x.Repository).Returns(repositoriesClientMock.Object);
 
-        var api = new OctokitGitHubApiClient(gitHubClientMock.Object, Mock.Of<ILogger<OctokitGitHubApiClient>>());
+        var api = new OctokitGitHubApiClient(gitHubClientMock.Object, Mock.Of<IHttpClientFactory>(), Mock.Of<ILogger<OctokitGitHubApiClient>>());
 
         // Act
         var result = await api.GetLatestReleaseAsync("owner", "repo");
@@ -68,7 +69,7 @@ public class OctokitGitHubApiClientTests
         var gitHubClientMock = new Mock<Octokit.IGitHubClient>();
         gitHubClientMock.SetupGet(x => x.Repository).Returns(repositoriesClientMock.Object);
 
-        var api = new OctokitGitHubApiClient(gitHubClientMock.Object, Mock.Of<ILogger<OctokitGitHubApiClient>>());
+        var api = new OctokitGitHubApiClient(gitHubClientMock.Object, Mock.Of<IHttpClientFactory>(), Mock.Of<ILogger<OctokitGitHubApiClient>>());
 
         // Act
         var result = await api.GetReleasesAsync("owner", "repo");
@@ -85,10 +86,15 @@ public class OctokitGitHubApiClientTests
     {
         // Arrange
         var concreteClient = new GitHubClient(new ProductHeaderValue("test"));
-        var api = new OctokitGitHubApiClient(concreteClient, Mock.Of<ILogger<OctokitGitHubApiClient>>());
+        var api = new OctokitGitHubApiClient(concreteClient, Mock.Of<IHttpClientFactory>(), Mock.Of<ILogger<OctokitGitHubApiClient>>());
+        var secureToken = new SecureString();
+        foreach (char c in "test-token")
+        {
+            secureToken.AppendChar(c);
+        }
 
         // Act & Assert
-        api.SetAuthenticationToken("test-token");
+        api.SetAuthenticationToken(secureToken);
         concreteClient.Credentials.Should().NotBeNull();
     }
 
@@ -100,9 +106,14 @@ public class OctokitGitHubApiClientTests
     {
         // Arrange
         var mockClient = new Mock<Octokit.IGitHubClient>();
-        var api = new OctokitGitHubApiClient(mockClient.Object, Mock.Of<ILogger<OctokitGitHubApiClient>>());
+        var api = new OctokitGitHubApiClient(mockClient.Object, Mock.Of<IHttpClientFactory>(), Mock.Of<ILogger<OctokitGitHubApiClient>>());
+        var secureToken = new SecureString();
+        foreach (char c in "test-token")
+        {
+            secureToken.AppendChar(c);
+        }
 
         // Act & Assert
-        Assert.Throws<InvalidOperationException>(() => api.SetAuthenticationToken("test-token"));
+        Assert.Throws<InvalidOperationException>(() => api.SetAuthenticationToken(secureToken));
     }
 }

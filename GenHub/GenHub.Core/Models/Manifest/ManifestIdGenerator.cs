@@ -97,7 +97,35 @@ public static class ManifestIdGenerator
     }
 
     /// <summary>
-    /// Normalizes the input string by converting it to lowercase, trimming whitespace, replacing non-alphanumeric characters (except dots) with dots, removing leading/trailing dots, and collapsing multiple consecutive dots into single dots.
+    /// Generates a manifest ID for GitHub-hosted content.
+    /// Format: schemaVersion.userVersion.github.owner.repo.identifier.
+    /// </summary>
+    /// <param name="owner">The GitHub repository owner.</param>
+    /// <param name="repo">The GitHub repository name.</param>
+    /// <param name="identifier">The content identifier (release tag or artifact name).</param>
+    /// <param name="userVersion">User-specified version number (e.g., 1, 2, 20). Defaults to 0 for first version.</param>
+    /// <returns>A normalized manifest identifier in the form 'schemaVersion.userVersion.github.owner.repo.identifier'.</returns>
+    public static string GenerateGitHubContentId(string owner, string repo, string identifier, int userVersion = 0)
+    {
+        if (string.IsNullOrWhiteSpace(owner))
+            throw new ArgumentException("Owner cannot be empty", nameof(owner));
+        if (string.IsNullOrWhiteSpace(repo))
+            throw new ArgumentException("Repository name cannot be empty", nameof(repo));
+        if (string.IsNullOrWhiteSpace(identifier))
+            throw new ArgumentException("Identifier cannot be empty", nameof(identifier));
+        if (userVersion < 0)
+            throw new ArgumentException("User version cannot be negative", nameof(userVersion));
+
+        var safeOwner = Normalize(owner);
+        var safeRepo = Normalize(repo);
+        var safeIdentifier = Normalize(identifier);
+        var fullVersion = $"{ManifestConstants.DefaultManifestFormatVersion}.{userVersion}";
+
+        return $"{fullVersion}.github.{safeOwner}.{safeRepo}.{safeIdentifier}";
+    }
+
+    /// <summary>
+    /// Normalizes a string to lowercase alphanumeric with dots as separators.
     /// </summary>
     /// <param name="input">The input string to normalize.</param>
     /// <returns>The normalized string.</returns>

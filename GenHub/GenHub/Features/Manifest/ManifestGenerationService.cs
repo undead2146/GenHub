@@ -483,6 +483,90 @@ public class ManifestGenerationService(
     }
 
     /// <summary>
+    /// Creates a manifest builder for GitHub-hosted content.
+    /// </summary>
+    /// <param name="contentDirectory">Path to the extracted content directory.</param>
+    /// <param name="owner">The GitHub repository owner.</param>
+    /// <param name="repo">The GitHub repository name.</param>
+    /// <param name="identifier">The content identifier (release tag or artifact name).</param>
+    /// <param name="contentName">Display name for the content.</param>
+    /// <param name="manifestVersion">Manifest version (e.g., 1, 2, 20). Defaults to 0 for first version.</param>
+    /// <param name="contentType">Type of content (Mod, Patch, Addon, etc).</param>
+    /// <param name="targetGame">Target game type.</param>
+    /// <param name="dependencies">Dependencies for this content.</param>
+    /// <returns>A <see cref="Task"/> that returns a configured manifest builder.</returns>
+    public async Task<IContentManifestBuilder> CreateGitHubContentManifestAsync(
+        string contentDirectory,
+        string owner,
+        string repo,
+        string identifier,
+        string contentName,
+        int manifestVersion = 0,
+        ContentType contentType = ContentType.Mod,
+        GameType targetGame = GameType.Generals,
+        params ContentDependency[] dependencies)
+    {
+        try
+        {
+            _logger.LogDebug(
+                "Creating GitHub {ContentType} manifest for {ContentName} from {Owner}/{Repo}#{Identifier}",
+                contentType,
+                contentName,
+                owner,
+                repo,
+                identifier);
+
+            // Create a deterministic publisher ID from GitHub repo info
+            var publisherId = $"github-{owner.ToLowerInvariant()}";
+
+            var builderLogger = NullLogger<ContentManifestBuilder>.Instance;
+            var builder = new ContentManifestBuilder(builderLogger, _hashProvider, _manifestIdService)
+                .WithBasicInfo(publisherId, contentName, manifestVersion)
+                .WithContentType(contentType, targetGame);
+
+            // Add GitHub-specific metadata
+            var metadata = $"GitHub: https://github.com/{owner}/{repo}";
+            if (!string.IsNullOrEmpty(identifier))
+            {
+                metadata += $" (Release: {identifier})";
+            }
+            builder.WithMetadata(metadata, tags: ["github", owner.ToLowerInvariant(), repo.ToLowerInvariant()]);
+
+            // Add dependencies
+            // Add dependencies
+            foreach (var dependency in dependencies)
+            {
+                builder.AddDependency(
+                    dependency.Id,
+                    dependency.Name,
+                    dependency.DependencyType,
+                    dependency.InstallBehavior);
+            }
+
+            // Add all files from the content directory
+            await AddContentDirectoryFilesAsync(builder, contentDirectory);
+
+            _logger.LogInformation(
+                "Created GitHub content manifest for {ContentName} from {Owner}/{Repo}",
+                contentName,
+                owner,
+                repo);
+
+            return builder;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Error creating GitHub content manifest for {ContentName} from {Owner}/{Repo}",
+                contentName,
+                owner,
+                repo);
+            throw;
+        }
+    }
+
+    /// <summary>
     /// Determines if a directory should be skipped during manifest generation.
     /// </summary>
     /// <param name="directoryName">The directory name to check.</param>
@@ -841,6 +925,40 @@ public class ManifestGenerationService(
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error adding client files to manifest");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Adds all files from a content directory to the manifest builder.
+    /// </summary>
+    /// <param name="builder">The manifest builder.</param>
+    /// <param name="contentDirectory">The content directory path.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    private async Task AddContentDirectoryFilesAsync(IContentManifestBuilder builder, string contentDirectory)
+    {
+        try
+        {
+            if (!Directory.Exists(contentDirectory))
+            {
+                _logger.LogWarning("Content directory does not exist: {ContentDirectory}", contentDirectory);
+                return;
+            }
+
+            // Reset file counter for this manifest generation
+            _fileCount = 0;
+            _lastReportedCount = 0;
+
+            _logger.LogDebug("Adding content files from directory: {ContentDirectory}", contentDirectory);
+
+            // Add all files recursively from the content directory
+            await AddDirectoryFilesRecursivelyAsync(builder, contentDirectory, contentDirectory);
+
+            _logger.LogInformation("Added {FileCount} files from content directory to manifest", _fileCount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding content directory files from {ContentDirectory}", contentDirectory);
             throw;
         }
     }

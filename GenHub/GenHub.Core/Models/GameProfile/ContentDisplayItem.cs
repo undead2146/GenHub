@@ -12,7 +12,7 @@ namespace GenHub.Core.Models.GameProfile;
 /// It abstracts the complexity of <see cref="ContentManifest"/> and provides
 /// user-friendly display properties with status information.
 /// </remarks>
-public class ContentDisplayItem
+public class ProfileContentDisplayItem
 {
     /// <summary>
     /// Gets or sets the manifest ID for this content.

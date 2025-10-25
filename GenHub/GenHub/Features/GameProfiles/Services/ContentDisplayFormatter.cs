@@ -1,11 +1,14 @@
 using GenHub.Core.Constants;
 using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Interfaces.Content;
+using GenHub.Core.Interfaces.GameClients;
+using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
+using GenHub.Features.GameClients;
 using System;
 
 namespace GenHub.Features.GameProfiles.Services;
@@ -16,6 +19,8 @@ namespace GenHub.Features.GameProfiles.Services;
 /// </summary>
 public sealed class ContentDisplayFormatter : IContentDisplayFormatter
 {
+    private readonly IGameClientHashRegistry _hashRegistry;
+
     private const string SteamPublisher = "Steam";
     private const string EaAppPublisher = "EA App";
     private const string FirstDecadePublisher = "The First Decade";
@@ -35,16 +40,26 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
     private const string CommunityPatchIdentifier = "CommunityPatch";
     private const string VersionPrefix = "v";
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ContentDisplayFormatter"/> class.
+    /// </summary>
+    /// <param name="hashRegistry">The game client hash registry for version detection.</param>
+    public ContentDisplayFormatter(IGameClientHashRegistry hashRegistry)
+    {
+        _hashRegistry = hashRegistry ?? throw new ArgumentNullException(nameof(hashRegistry));
+    }
+
     /// <inheritdoc/>
-    public ContentDisplayItem CreateDisplayItem(ContentManifest manifest, bool isEnabled = false)
+    public GenHub.Core.Models.Content.ContentDisplayItem CreateDisplayItem(ContentManifest manifest, bool isEnabled = false)
     {
         var publisher = GetPublisherFromManifest(manifest);
         var installationType = GetInstallationTypeFromManifest(manifest);
         var normalizedVersion = NormalizeVersion(manifest.Version);
         var displayName = BuildDisplayName(manifest.TargetGame, normalizedVersion, manifest.Name);
 
-        return new ContentDisplayItem
+        return new GenHub.Core.Models.Content.ContentDisplayItem
         {
+            Id = manifest.Id.Value,
             ManifestId = manifest.Id.Value,
             DisplayName = displayName,
             ContentType = manifest.ContentType,
@@ -53,11 +68,12 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
             Publisher = publisher,
             Version = normalizedVersion,
             IsEnabled = isEnabled,
+            Manifest = manifest,
         };
     }
 
     /// <inheritdoc/>
-    public ContentDisplayItem CreateDisplayItemFromInstallation(
+    public GenHub.Core.Models.Content.ContentDisplayItem CreateDisplayItemFromInstallation(
         GameInstallation installation,
         GameClient gameClient,
         ManifestId manifestId,
@@ -67,8 +83,9 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
         var normalizedVersion = NormalizeVersion(gameClient.Version);
         var displayName = BuildDisplayName(gameClient.GameType, normalizedVersion);
 
-        return new ContentDisplayItem
+        return new GenHub.Core.Models.Content.ContentDisplayItem
         {
+            Id = manifestId.Value,
             ManifestId = manifestId.Value,
             DisplayName = displayName,
             ContentType = ContentType.GameInstallation,
@@ -90,7 +107,7 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
             return string.Empty;
         }
 
-        var (detectedGameType, hashVersion) = GameClientHashRegistry.GetGameInfoFromHash(version);
+        var (detectedGameType, hashVersion) = _hashRegistry.GetGameInfoFromHash(version);
         if (detectedGameType != GameType.Unknown && !string.IsNullOrEmpty(hashVersion))
         {
             return hashVersion;

@@ -139,7 +139,7 @@ public class UpdateInstallerTests : IDisposable
                 It.IsAny<DownloadConfiguration>(),
                 It.IsAny<IProgress<DownloadProgress>>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(DownloadResult.CreateFailed("Download failed"));
+            .ReturnsAsync(DownloadResult.CreateFailure("Download failed"));
 
         using var installer = new TestUpdateInstaller(_mockDownloadService.Object, _mockLogger.Object);
 
