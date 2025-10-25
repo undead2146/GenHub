@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>GenHub.Plugins.GeneralsOnline</AssemblyName>
+    <RootNamespace>GenHub.Plugins.GeneralsOnline</RootNamespace>
+    <Version>1.0.0</Version>
+    <Authors>GenHub Community</Authors>
+    <Description>Content provider plugin for Generals Online multiplayer service</Description>
+  </PropertyGroup>
+
+    <ItemGroup>
+    <ProjectReference Include="..\..\..\GenHub.Core\GenHub.Core.csproj" />
+    <ProjectReference Include="..\..\GenHub.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="HtmlAgilityPack" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+</Project>

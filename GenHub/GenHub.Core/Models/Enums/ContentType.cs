@@ -2,6 +2,7 @@ namespace GenHub.Core.Models.Enums;
 
 /// <summary>
 /// Defines the type of content in a manifest.
+/// Covers official installations, community mods, UI enhancements, and utility content.
 /// </summary>
 public enum ContentType
 {

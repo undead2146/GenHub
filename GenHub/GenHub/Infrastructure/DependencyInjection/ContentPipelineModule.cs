@@ -10,6 +10,7 @@ using GenHub.Features.Content.Services.ContentProviders;
 using GenHub.Features.Content.Services.ContentResolvers;
 using GenHub.Features.GitHub.Services;
 using GenHub.Features.Manifest;
+using GenHub.Plugins.GeneralsOnline;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace GenHub.Infrastructure.DependencyInjection;
@@ -54,17 +55,26 @@ public static class ContentPipelineModule
         // TODO: Implement ModDB discoverer and resolver
         // services.AddTransient<IContentProvider, ModDBContentProvider>();
         services.AddTransient<IContentProvider, LocalFileSystemContentProvider>();
+        
+        // Register Generals Online provider
+        services.AddTransient<IContentProvider, GeneralsOnlineProvider>();
 
         // Register content discoverers
         services.AddTransient<IContentDiscoverer, GitHubDiscoverer>();
         services.AddTransient<IContentDiscoverer, GitHubReleasesDiscoverer>();
         services.AddTransient<IContentDiscoverer, CNCLabsMapDiscoverer>();
         services.AddTransient<IContentDiscoverer, FileSystemDiscoverer>();
+        
+        // Register Generals Online discoverer
+        services.AddTransient<IContentDiscoverer, GeneralsOnlineDiscoverer>();
 
         // Register content resolvers
         services.AddTransient<IContentResolver, GitHubResolver>();
         services.AddTransient<IContentResolver, CNCLabsMapResolver>();
         services.AddTransient<IContentResolver, LocalManifestResolver>();
+        
+        // Register Generals Online resolver
+        services.AddTransient<IContentResolver, GeneralsOnlineResolver>();
 
         // Register content deliverers
         services.AddTransient<IContentDeliverer, HttpContentDeliverer>();
