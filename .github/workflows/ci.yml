@@ -23,7 +23,7 @@ env:
   WINDOWS_PROJECT: 'GenHub/GenHub.Windows/GenHub.Windows.csproj'
   LINUX_PROJECT: 'GenHub/GenHub.Linux/GenHub.Linux.csproj'
   TEST_PROJECTS: 'GenHub/GenHub.Tests/**/*.csproj'
-  
+
 jobs:
   detect-changes:
     name: Detect File Changes
@@ -126,14 +126,110 @@ jobs:
             foreach ($testProject in $testProjects) {
               Write-Host "Testing $($testProject.FullName)"
               dotnet test $testProject.FullName -c $env:BUILD_CONFIGURATION
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Test failed for $($testProject.FullName)"
-                }
+              if ($LASTEXITCODE -ne 0) {
+                throw "Test failed for $($testProject.FullName)"
+              }
             }
           } else {
             Write-Host "No test projects found."
           }
+      
+      - name: Run Application
+        if: success()
+        env:
+          DOTNET_EnableCrashDumps: 1  # Enable .NET dumps for artifacts (if crash occurs)
+        shell: pwsh
+        run: |
+          Write-Host "Running Windows application to check for runtime exceptions"
+
+          # Target specific executable patterns (adjust based on your publish output)
+          $possibleExes = @(
+            "GenHub.Windows.exe",
+            "GenHub.exe"
+          )
+
+          $exePath = $null
+          foreach ($exeName in $possibleExes) {
+            $candidate = Get-ChildItem -Path "win-publish" -Filter $exeName -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($candidate) {
+              $exePath = $candidate.FullName
+              break
+            }
+          }
+
+          # Fallback to first non-helper .exe
+          if (-not $exePath) {
+            $exePath = Get-ChildItem -Path "win-publish" -Recurse -Filter "*.exe" | 
+                       Where-Object { $_.Name -notin @("createdump.exe", "apphost.exe", "dotnet.exe") } | 
+                       Select-Object -First 1
+            if ($exePath) { $exePath = $exePath.FullName }
+          }
+
+          if ($exePath) {
+            Write-Host "Found target executable: $exePath"
+            
+            # Temp files for separate redirects (avoids "same redirect" error)
+            $publishDir = "win-publish"
+            $stdoutFile = Join-Path $publishDir "stdout.log"
+            $stderrFile = Join-Path $publishDir "stderr.log"
+
+            try {
+              # Launch with SEPARATE redirects, wait for completion
+              $process = Start-Process -FilePath $exePath -ArgumentList "--ci-test-mode" -Wait -NoNewWindow -PassThru -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
+              $exitCode = $process.ExitCode
+              Write-Host "App exited with code: $exitCode"
+
+              # Read and display output
+              $fullOutput = ""
+              if (Test-Path $stdoutFile) {
+                $stdout = Get-Content $stdoutFile -Raw
+                Write-Host "=== Full App Output (Exit Code: $exitCode) ==="
+                Write-Host $stdout
+                $fullOutput += $stdout
+              }
+              if (Test-Path $stderrFile) {
+                $stderrSize = (Get-Item $stderrFile -ErrorAction SilentlyContinue).Length
+                if ($stderrSize -gt 0) {
+                  $stderr = Get-Content $stderrFile -Raw
+                  if ($stderr) { 
+                    Write-Host "STDERR:"
+                    Write-Host $stderr
+                    $fullOutput += "`n" + $stderr
+                  }
+                }
+              } else {
+                if (-not $fullOutput) { Write-Host "(No output captured - instant exit)" }
+              }
+
+              # Fail if non-zero exit or exceptions in output
+              if ($exitCode -ne 0 -or $fullOutput -match "Exception|Error|Failed|Unhandled|Aborted|crit") {
+                Write-Error "Runtime exception detected or non-zero exit code: $exitCode"
+                # Decode .NET exception code for clarity
+                if ($exitCode -eq -532462766) {
+                  Write-Host "👉 This is a .NET unhandled exception (0xE0434352) - check stack trace above for details (e.g., DI failure)."
+                }
+                exit 1
+              }
+
+              Write-Host "✅ SUCCESS: Windows check completed normally (no exceptions)"
+              exit 0
+            }
+            catch {
+              Write-Error "Error launching Windows application: $($_.Exception.Message)"
+              exit 1
+            }
+            finally {
+              # Cleanup logs
+              if (Test-Path $stdoutFile) { Remove-Item $stdoutFile -Force -ErrorAction SilentlyContinue }
+              if (Test-Path $stderrFile) { Remove-Item $stderrFile -Force -ErrorAction SilentlyContinue }
+            }
+          } else {
+            Write-Error "No suitable executable found in win-publish. Available exes: $(Get-ChildItem -Path 'win-publish' -Recurse -Filter '*.exe' | ForEach-Object { $_.Name })"
+            exit 1
+          }
+      
       - name: Upload Windows Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: genhub-windows
@@ -154,11 +250,6 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-          
-      - name: Install Linux Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libx11-dev
           
       - name: Cache NuGet Packages
         uses: actions/cache@v3
@@ -192,13 +283,115 @@ jobs:
       - name: Run Tests
         run: |
           shopt -s globstar nullglob
-          for test_project in ${{ env.TEST_PROJECTS }}; do
+          echo "Starting Linux test runs..."
+          test_count=0
+          for test_project in GenHub/GenHub.Tests/**/*.csproj; do
             [[ "$test_project" == *Windows* ]] && continue
-            echo "Testing $test_project"
-            dotnet test "$test_project" -c ${{ env.BUILD_CONFIGURATION }} --verbosity normal
+            test_count=$((test_count + 1))
+            echo "=== Testing Project $test_count: $test_project ==="
+            if ! dotnet test "$test_project" -c ${{ env.BUILD_CONFIGURATION }} --verbosity minimal; then
+              echo "❌ FAILED: Tests in $test_project failed. Stopping test run."
+              exit 1
+            fi
+            echo "✅ Passed: $test_project"
           done
+          if [ $test_count -eq 0 ]; then
+            echo "No Linux test projects found."
+          else
+            echo "All $test_count Linux test projects passed."
+          fi
+        
+      - name: Run Application
+        if: success()
+        env:
+          DOTNET_EnableCrashDumps: 1  # Encourage .NET to generate dumps on crash (for debugging)
+          CI: true  # Trigger headless mode in app
+          DISPLAY: ""  # Ensure no display for detection
+        run: |
+          echo "Running Linux application to check for runtime exceptions"
+          
+          # Target specific executable (adjust based on publish output)
+          possible_exes=("GenHub.Linux" "GenHub" "GenHub.exe")
+          exe_path=""
+
+          for exe_name in "${possible_exes[@]}"; do
+            candidate=$(find linux-publish -type f -executable -name "$exe_name" -not -path "*/createdump*" -not -path "*/apphost*" 2>/dev/null | head -n 1)
+            if [ -n "$candidate" ]; then
+              exe_path="$candidate"
+              break
+            fi
+          done
+
+          # Fallback to first non-helper executable
+          if [ -z "$exe_path" ]; then
+            exe_path=$(find linux-publish -type f -executable -name "GenHub*" -not -path "*/createdump*" -not -path "*/apphost*" 2>/dev/null | head -n 1)
+          fi
+
+          if [ -z "$exe_path" ]; then
+            echo "No suitable executable found. Available candidates:"
+            find linux-publish -type f -executable -name "*GenHub*" 2>/dev/null || echo "No candidates found"
+            exit 1
+          fi
+
+          echo "Found target executable: $exe_path"
+          
+          # Temp files for redirects
+          stdout_file=$(mktemp --suffix=.stdout)
+          stderr_file=$(mktemp --suffix=.stderr)
+
+          # Run with timeout (built-in bash command on Ubuntu), separate redirects, and --ci-test-mode
+          # App MUST handle --ci-test-mode or CI env to skip UI/X11 and exit cleanly (e.g., after basic checks)
+          timeout 30 "$exe_path" --ci-test-mode > "$stdout_file" 2> "$stderr_file"
+          exit_code=$?
+
+          echo "App exited with code: $exit_code"
+
+          # Always read output, even if aborted
+          full_output=""
+          if [ -s "$stdout_file" ]; then
+            echo "=== Full App Output (Exit Code: $exit_code) ==="
+            cat "$stdout_file"
+            full_output=$(cat "$stdout_file")
+          else
+            echo "=== Full App Output (Exit Code: $exit_code) ==="
+            echo "(No stdout captured)"
+            full_output=""
+          fi
+
+          if [ -s "$stderr_file" ]; then
+            echo "STDERR:"
+            cat "$stderr_file"
+            if [ -z "$full_output" ]; then full_output=""; fi
+            full_output+="`n$(cat "$stderr_file")"
+          fi
+
+          echo "==============================================="
+
+          # Fail if non-zero exit, timeout (124), or exceptions in output
+          # Common codes: 124=timeout, 134=SIGABRT (unhandled exc), 139=SEGV
+          if [ $exit_code -ne 0 ] || [[ "$full_output" =~ Exception\|Error\|Failed\|Unhandled\|Aborted\|crit\|XOpenDisplay\|core\ dumped ]]; then
+            if [ $exit_code -eq 124 ]; then
+              echo "❌ TIMEOUT: Did not complete within 30s"
+            elif [ $exit_code -eq 134 ]; then
+              echo "❌ CRASH: Unhandled exception (SIGABRT) - likely DI failure or abort."
+            elif [ $exit_code -eq 139 ]; then
+              echo "❌ CRASH: Segmentation fault"
+            else
+              echo "❌ FAILURE: Exit code $exit_code"
+            fi
+            if [[ "$full_output" =~ Exception\|Unhandled\|crit ]]; then
+              echo "   👉 Detected unhandled exception or critical error!"
+            fi
+            rm "$stdout_file" "$stderr_file"
+            exit 1
+          fi
+
+          echo "✅ SUCCESS: Linux check completed normally (no exceptions)"
+          rm "$stdout_file" "$stderr_file"
+          exit 0
         
       - name: Upload Linux Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: genhub-linux
@@ -217,7 +410,15 @@ jobs:
       - name: Generate Summary
         run: |
           echo "### 🚀 GenHub Build Results" >> $GITHUB_STEP_SUMMARY
-          echo "| Platform | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
-          echo "| Windows | ${{ needs.build-windows.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Linux | ${{ needs.build-linux.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Platform | Overall Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|----------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Windows  | ${{ needs.build-windows.result == 'success' && '✅ Passed (Build + Tests + Runtime)' || (needs.build-windows.result == 'skipped' && '⚪ Skipped') || (needs.build-windows.result == 'cancelled' && '⏸️ Cancelled') || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Linux    | ${{ needs.build-linux.result == 'success' && '✅ Passed (Build + Tests + Runtime)' || (needs.build-linux.result == 'skipped' && '⚪ Skipped') || (needs.build-linux.result == 'cancelled' && '⏸️ Cancelled') || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Notes:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Runtime check launches the published app with --ci-test-mode for 30s max." >> $GITHUB_STEP_SUMMARY
+          echo "- App must parse --ci-test-mode (or CI env) to skip UI/X11 and run basic checks/exit cleanly." >> $GITHUB_STEP_SUMMARY
+          echo "- No external tools used: Relies on built-in timeout and env detection." >> $GITHUB_STEP_SUMMARY
+          echo "- Fails on non-zero exit or keywords like 'Exception', 'crit', 'XOpenDisplay'. Exit 134 = SIGABRT (unhandled exception)." >> $GITHUB_STEP_SUMMARY
+          echo "- Current crash (both platforms): ArgumentException in CNCLabsContentProvider - register 'HTTP deliverer' (IEnumerable<IContentDeliverer>) in DI." >> $GITHUB_STEP_SUMMARY
