@@ -6,9 +6,9 @@ permissions:
 
 on:
   push:
-    branches: [ main]
+    branches: [ main ]
   pull_request:
-    branches: [ main]
+    branches: [ main ]
   workflow_dispatch:
 
 concurrency:
@@ -23,7 +23,7 @@ env:
   WINDOWS_PROJECT: 'GenHub/GenHub.Windows/GenHub.Windows.csproj'
   LINUX_PROJECT: 'GenHub/GenHub.Linux/GenHub.Linux.csproj'
   TEST_PROJECTS: 'GenHub/GenHub.Tests/**/*.csproj'
-  
+
 jobs:
   detect-changes:
     name: Detect File Changes
@@ -96,44 +96,70 @@ jobs:
       - name: Build Projects
         shell: pwsh
         run: |
-          # Build projects in the correct order (core dependencies first)
-          Write-Host "Building Core project"
           dotnet build "${{ env.CORE_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }}
-          
-          Write-Host "Building UI project"  
           dotnet build "${{ env.UI_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }}
-          
-          Write-Host "Building Windows project"
           dotnet build "${{ env.WINDOWS_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }}
       
       - name: Publish Windows App
         shell: pwsh
         run: |
-          Write-Host "Publishing Windows application"
-          dotnet publish "${{ env.WINDOWS_PROJECT }}" `
-            -c ${{ env.BUILD_CONFIGURATION }} `
-            -r win-x64 `
-            --self-contained true `
-            -o "win-publish"
+          dotnet publish "${{ env.WINDOWS_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }} -r win-x64 --self-contained true -o "win-publish"
       
       - name: Run Tests
-        id: tests
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
           $testProjects = Get-ChildItem -Path "GenHub/GenHub.Tests" -Recurse -Filter *.csproj | Where-Object { $_.Name -notlike '*Linux*' }
           if ($testProjects) {
             foreach ($testProject in $testProjects) {
-              Write-Host "Testing $($testProject.FullName)"
-              dotnet test $testProject.FullName -c $env:BUILD_CONFIGURATION
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Test failed for $($testProject.FullName)"
-                }
+              dotnet test $testProject.FullName -c ${{ env.BUILD_CONFIGURATION }}
+              if ($LASTEXITCODE -ne 0) { exit 1 }
             }
-          } else {
-            Write-Host "No test projects found."
           }
+      
+      - name: Run Application
+        if: success()
+        shell: pwsh
+        run: |
+          $exePath = "win-publish\GenHub.Windows.exe"
+          if (Test-Path $exePath) {
+            $stdoutFile = "stdout.log"
+            $stderrFile = "stderr.log"
+            
+            # Launch detached, no wait
+            Start-Process -FilePath $exePath -ArgumentList "--ci-test-mode" -WindowStyle Hidden -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
+            
+            # Smoke test: Run 10s, then kill and check logs
+            Start-Sleep 10
+            taskkill /f /im GenHub.Windows.exe /t > $null 2>&1
+            
+            Start-Sleep 2  # Wait for kill
+            
+            $fullOutput = ""
+            if (Test-Path $stdoutFile) {
+              $stdout = Get-Content $stdoutFile -Raw
+              $fullOutput += $stdout
+              Write-Host "STDOUT: $stdout"
+            }
+            if (Test-Path $stderrFile) {
+              $stderr = Get-Content $stderrFile -Raw
+              $fullOutput += $stderr
+              Write-Host "STDERR: $stderr"
+            }
+            
+            # Pass if no error keywords (ignores hang, focuses on init errors)
+            if ($fullOutput -match "Exception|Error|Failed|Unhandled|Aborted|crit") {
+              Write-Error "Runtime error in short run output"
+              exit 1
+            }
+            
+            Write-Host "Success - no runtime errors in init"
+          } else {
+            Write-Error "Executable missing"
+            exit 1
+          }
+      
       - name: Upload Windows Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: genhub-windows
@@ -155,11 +181,6 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
           
-      - name: Install Linux Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libx11-dev
-          
       - name: Cache NuGet Packages
         uses: actions/cache@v3
         with:
@@ -170,54 +191,17 @@ jobs:
       
       - name: Build Projects
         run: |
-          # Build projects, which will also restore dependencies
-          echo "Building Core project"
           dotnet build "${{ env.CORE_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }}
-          
-          echo "Building UI project"
           dotnet build "${{ env.UI_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }}
-          
-          echo "Building Linux project"  
           dotnet build "${{ env.LINUX_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }}
       
       - name: Publish Linux App
         run: |
-          echo "Publishing Linux application"
-          dotnet publish "${{ env.LINUX_PROJECT }}" \
-            -c ${{ env.BUILD_CONFIGURATION }} \
-            -r linux-x64 \
-            --self-contained true \
-            -o "linux-publish"
+          dotnet publish "${{ env.LINUX_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }} -r linux-x64 --self-contained true -o "linux-publish"
       
       - name: Run Tests
         run: |
           shopt -s globstar nullglob
-          for test_project in ${{ env.TEST_PROJECTS }}; do
-            [[ "$test_project" == *Windows* ]] && continue
-            echo "Testing $test_project"
-            dotnet test "$test_project" -c ${{ env.BUILD_CONFIGURATION }} --verbosity normal
-          done
-        
-      - name: Upload Linux Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: genhub-linux
-          path: linux-publish
-          if-no-files-found: error
-
-  summary:
-    name: Build Summary
-    needs: [build-windows, build-linux]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Generate Summary
-        run: |
-          echo "### 🚀 GenHub Build Results" >> $GITHUB_STEP_SUMMARY
-          echo "| Platform | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
-          echo "| Windows | ${{ needs.build-windows.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Linux | ${{ needs.build-linux.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          test_count=0
+          for test_project in GenHub/GenHub.Tests/**/*.csproj; do
+            [[ "$test
