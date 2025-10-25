@@ -136,22 +136,13 @@ jobs:
       - name: Run Application
         if: success()
         env:
-          DOTNET_EnableCrashDumps: 1
+          CI: true
         shell: pwsh
         run: |
           Write-Host "Running Windows application to check for runtime exceptions"
 
-          $exePath = Get-ChildItem -Path "win-publish" -Filter "GenHub.Windows.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($exePath) {
-            $exePath = $exePath.FullName
-          } else {
-            $exePath = Get-ChildItem -Path "win-publish" -Recurse -Filter "*.exe" | 
-                       Where-Object { $_.Name -notin @("createdump.exe", "apphost.exe", "dotnet.exe") } | 
-                       Select-Object -First 1
-            if ($exePath) { $exePath = $exePath.FullName }
-          }
-
-          if ($exePath) {
+          $exePath = "win-publish\GenHub.Windows.exe"
+          if (Test-Path $exePath) {
             Write-Host "Found target executable: $exePath"
             
             $publishDir = "win-publish"
@@ -159,10 +150,24 @@ jobs:
             $stderrFile = Join-Path $publishDir "stderr.log"
 
             try {
-              $process = Start-Process -FilePath $exePath -ArgumentList "--ci-test-mode" -Wait -NoNewWindow -PassThru -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
-              $exitCode = $process.ExitCode
-              Write-Host "App exited with code: $exitCode"
+              Write-Host "Launching app with PID capture..."
+              $process = Start-Process -FilePath $exePath -ArgumentList "--ci-test-mode" -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
+              Write-Host "Process started (PID: $($process.Id))"
+              Write-Host "Waiting for exit (30s timeout)..."
 
+              $timeoutMs = 30000
+              $waited = $process.WaitForExit($timeoutMs)
+              if ($waited) {
+                $exitCode = $process.ExitCode
+                Write-Host "App exited naturally with code: $exitCode"
+              } else {
+                Write-Warning "App did not exit in 30s; killing PID $($process.Id)"
+                Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+                $exitCode = -1
+                Start-Sleep 2  # Give time for kill
+              }
+
+              Write-Host "Reading output files..."
               $fullOutput = ""
               if (Test-Path $stdoutFile) {
                 $stdout = Get-Content $stdoutFile -Raw
@@ -174,15 +179,12 @@ jobs:
                 $stderrSize = (Get-Item $stderrFile -ErrorAction SilentlyContinue).Length
                 if ($stderrSize -gt 0) {
                   $stderr = Get-Content $stderrFile -Raw
-                  if ($stderr) { 
-                    Write-Host "STDERR:"
-                    Write-Host $stderr
-                    $fullOutput += "`n" + $stderr
-                  }
+                  Write-Host "STDERR:"
+                  Write-Host $stderr
+                  $fullOutput += "`n" + $stderr
                 }
-              } else {
-                if (-not $fullOutput) { Write-Host "(No output captured - instant exit)" }
               }
+              if (-not $fullOutput) { Write-Host "(No output captured)" }
 
               if ($exitCode -ne 0 -or $fullOutput -match "Exception|Error|Failed|Unhandled|Aborted|crit") {
                 Write-Error "Runtime exception detected or non-zero exit code: $exitCode"
@@ -201,7 +203,7 @@ jobs:
               if (Test-Path $stderrFile) { Remove-Item $stderrFile -Force -ErrorAction SilentlyContinue }
             }
           } else {
-            Write-Error "No suitable executable found in win-publish. Available exes: $(Get-ChildItem -Path 'win-publish' -Recurse -Filter '*.exe' | ForEach-Object { $_.Name })"
+            Write-Error "Executable not found: $exePath"
             exit 1
           }
       
@@ -280,72 +282,70 @@ jobs:
       - name: Run Application
         if: success()
         env:
-          DOTNET_EnableCrashDumps: 1
           CI: true
           DISPLAY: ""
+          AVALONIA_LOG_LEVEL: Error  # Suppress non-critical logs
         run: |
           echo "Running Linux application to check for runtime exceptions"
           
-          exe_path=$(find linux-publish -type f -executable -name "GenHub.Linux" -not -path "*/createdump*" -not -path "*/apphost*" 2>/dev/null | head -n 1)
-          if [ -z "$exe_path" ]; then
-            exe_path=$(find linux-publish -type f -executable -name "GenHub*" -not -path "*/createdump*" -not -path "*/apphost*" 2>/dev/null | head -n 1)
-          fi
+          exe_path="linux-publish/GenHub.Linux"
 
-          if [ -z "$exe_path" ]; then
-            echo "No suitable executable found. Available candidates:"
-            find linux-publish -type f -executable -name "*GenHub*" 2>/dev/null || echo "No candidates found"
-            exit 1
-          fi
+          if [ -f "$exe_path" ]; then
+            echo "Found target executable: $exe_path"
+            
+            stdout_file=$(mktemp --suffix=.stdout)
+            stderr_file=$(mktemp --suffix=.stderr)
 
-          echo "Found target executable: $exe_path"
-          
-          stdout_file=$(mktemp --suffix=.stdout)
-          stderr_file=$(mktemp --suffix=.stderr)
+            echo "Launching app (30s timeout)..."
+            timeout 30 "$exe_path" --ci-test-mode > "$stdout_file" 2> "$stderr_file"
+            exit_code=$?
 
-          timeout 30 "$exe_path" --ci-test-mode > "$stdout_file" 2> "$stderr_file"
-          exit_code=$?
+            echo "App exited with code: $exit_code"
+            echo "Reading output..."
 
-          echo "App exited with code: $exit_code"
-
-          full_output=""
-          if [ -s "$stdout_file" ]; then
-            echo "=== Full App Output (Exit Code: $exit_code) ==="
-            cat "$stdout_file"
-            full_output=$(cat "$stdout_file")
-          else
-            echo "=== Full App Output (Exit Code: $exit_code) ==="
-            echo "(No stdout captured)"
             full_output=""
-          fi
-
-          if [ -s "$stderr_file" ]; then
-            echo "STDERR:"
-            cat "$stderr_file"
-            full_output+="`n$(cat "$stderr_file")"
-          fi
-
-          echo "==============================================="
-
-          if [ $exit_code -ne 0 ] || [[ "$full_output" =~ Exception|Error|Failed|Unhandled|Aborted|crit|XOpenDisplay|core\ dumped ]]; then
-            if [ $exit_code -eq 124 ]; then
-              echo "❌ TIMEOUT: Did not complete within 30s"
-            elif [ $exit_code -eq 134 ]; then
-              echo "❌ CRASH: Unhandled exception (SIGABRT) - likely DI failure or abort."
-            elif [ $exit_code -eq 139 ]; then
-              echo "❌ CRASH: Segmentation fault"
+            if [ -s "$stdout_file" ]; then
+              echo "=== Full App Output (Exit Code: $exit_code) ==="
+              cat "$stdout_file"
+              full_output=$(cat "$stdout_file")
             else
-              echo "❌ FAILURE: Exit code $exit_code"
+              echo "=== Full App Output (Exit Code: $exit_code) ==="
+              echo "(No stdout captured)"
+              full_output=""
             fi
-            if [[ "$full_output" =~ Exception|Unhandled|crit ]]; then
-              echo "   👉 Detected unhandled exception or critical error!"
-            fi
-            rm "$stdout_file" "$stderr_file"
-            exit 1
-          fi
 
-          echo "✅ SUCCESS: Linux check completed normally (no exceptions)"
-          rm "$stdout_file" "$stderr_file"
-          exit 0
+            if [ -s "$stderr_file" ]; then
+              echo "STDERR:"
+              cat "$stderr_file"
+              full_output+="`n$(cat "$stderr_file")"
+            fi
+
+            echo "==============================================="
+
+            if [ $exit_code -ne 0 ] || [[ "$full_output" =~ Exception|Error|Failed|Unhandled|Aborted|crit|XOpenDisplay|core\ dumped ]]; then
+              if [ $exit_code -eq 124 ]; then
+                echo "❌ TIMEOUT: Did not complete within 30s"
+              elif [ $exit_code -eq 134 ]; then
+                echo "❌ CRASH: Unhandled exception (SIGABRT)"
+              elif [ $exit_code -eq 139 ]; then
+                echo "❌ CRASH: Segmentation fault"
+              else
+                echo "❌ FAILURE: Exit code $exit_code"
+              fi
+              if [[ "$full_output" =~ Exception|Unhandled|crit ]]; then
+                echo "   👉 Detected unhandled exception or critical error!"
+              fi
+              rm "$stdout_file" "$stderr_file"
+              exit 1
+            fi
+
+            echo "✅ SUCCESS: Linux check completed normally (no exceptions)"
+            rm "$stdout_file" "$stderr_file"
+            exit 0
+          } else {
+            echo "Executable not found: $exe_path"
+            exit 1
+          }
         
       - name: Upload Linux Artifact
         if: success()
@@ -375,6 +375,5 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Notes:**" >> $GITHUB_STEP_SUMMARY
           echo "- Runtime check launches the published app with --ci-test-mode for 30s max." >> $GITHUB_STEP_SUMMARY
-          echo "- App must parse --ci-test-mode (or CI env) to skip UI/X11 and run basic checks/exit cleanly." >> $GITHUB_STEP_SUMMARY
-          echo "- No external tools used: Relies on built-in timeout and env detection." >> $GITHUB_STEP_SUMMARY
-          echo "- Fails on non-zero exit or keywords like 'Exception', 'crit', 'XOpenDisplay'. Exit 134 = SIGABRT (unhandled exception)." >> $GITHUB_STEP_SUMMARY
+          echo "- App must parse --ci-test-mode (or CI env) to skip UI and run basic checks/exit cleanly." >> $GITHUB_STEP_SUMMARY
+          echo "- Fails on non-zero exit or keywords like 'Exception', 'crit'. Timeout forces kill if hung." >> $GITHUB_STEP_SUMMARY
