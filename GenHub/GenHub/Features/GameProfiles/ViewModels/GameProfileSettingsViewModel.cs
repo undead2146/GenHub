@@ -10,7 +10,7 @@ using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Models.Enums;
-using GenHub.Core.Models.GameProfile;
+using GenHub.Core.Models.GameProfiles;
 using GenHub.Core.Models.Manifest;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
