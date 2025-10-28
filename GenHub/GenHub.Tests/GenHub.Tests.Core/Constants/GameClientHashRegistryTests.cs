@@ -79,8 +79,8 @@ public class GameClientHashRegistryTests
         Assert.Contains("generals.exe", names);
         Assert.Contains("generalsv.exe", names);
         Assert.Contains("generalszh.exe", names);
-        Assert.Contains("generalsonlinezh_30.exe", names);
-        Assert.Contains("generalsonlinezh_60.exe", names);
+        Assert.Contains("GeneralsOnlineZH_30.exe", names);
+        Assert.Contains("GeneralsOnlineZH_60.exe", names);
     }
 
     /// <summary>
