@@ -66,8 +66,10 @@ Configuration key constants for `appsettings.json` and environment variables.
 
 ### Workspace Configuration
 
-- `WorkspaceDefaultPath`: `"GenHub:Workspace:DefaultPath"`
-- `WorkspaceDefaultStrategy`: `"GenHub:Workspace:DefaultStrategy"`
+- `WorkspaceDefaultPath`: `"GenHub:Workspace:DefaultPath"` - Default path for workspace creation
+- `WorkspaceDefaultStrategy`: `"GenHub:Workspace:DefaultStrategy"` - Default workspace strategy (SymlinkOnly)
+
+**Note**: The default workspace strategy is **SymlinkOnly** (enum value 0), which creates symbolic links to minimize disk usage. This requires administrator rights on Windows.
 
 ### Cache Configuration
 
@@ -190,7 +192,7 @@ Constants related to manifest ID generation, validation, and file operations.
 | `MaxManifestIdLength` | `256` | Maximum length for manifest IDs |
 | `MinManifestIdLength` | `3` | Minimum length for manifest IDs |
 | `MaxManifestSegments` | `5` | Maximum number of segments in manifest ID |
-| `MinManifestSegments` | `1` | Minimum number of segments in manifest ID |
+| `MinManifestSegments` | `5` | Minimum number of segments in manifest ID (changed from 1 to enforce strict 5-segment format) |
 
 ### Manifest Timeouts and Operations
 
@@ -204,27 +206,24 @@ Constants related to manifest ID generation, validation, and file operations.
 
 | Constant | Description |
 |----------|-------------|
-| `PublisherIdRegexPattern` | Regex for publisher content IDs |
-| `GameInstallationIdRegexPattern` | Regex for game installation IDs |
-| `SimpleIdRegexPattern` | Regex for simple IDs |
+| `PublisherContentRegexPattern` | Regex for validating 5-segment publisher content IDs (schemaVersion.userVersion.publisher.contentType.contentName) |
 
-**Publisher Content ID Pattern:**
+**Publisher Content Regex Pattern (5-segment format):**
 
 ```regex
-^\d+(?:\.\d+)*\.[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)*$
+^\d+\.\d+\.[a-z0-9]+\.(gameinstallation|gameclient|mod|patch|addon|mappack|languagepack|contentbundle|publisherreferral|contentreferral|mission|map|unknown)\.[a-z0-9-]+$
 ```
 
-**Game Installation ID Pattern:**
+**Pattern Explanation:**
 
-```regex
-^\d+(?:\.\d+)*\.(unknown|steam|eaapp|origin|thefirstdecade|rgmechanics|cdiso|wine|retail)\.(generals|zerohour)$
-```
+- **Publisher Content Pattern**: Validates the standard 5-segment format used for ALL content in GenHub
+  - Segment 1: Schema version (digits only)
+  - Segment 2: User version (digits only)
+  - Segment 3: Publisher (lowercase alphanumeric)
+  - Segment 4: Content type (enumerated values like gameinstallation, mod, etc.)
+  - Segment 5: Content name (lowercase alphanumeric with dashes)
 
-**Simple ID Pattern:**
-
-```regex
-^[a-zA-Z0-9\-\.]+$
-```
+**Note**: The SimpleIdRegex pattern has been removed. All manifest IDs must now use the strict 5-segment format. The `MinManifestSegments` constant is now set to 5 (previously 1).
 
 ### Dependency Defaults
 
@@ -469,13 +468,14 @@ Constants related to game client detection and management.
 
 ### GeneralsOnline Client Detection
 
+**Note**: Only 30Hz and 60Hz variants are detected. The default GeneralsOnline executable is not included in the detection list.
+
 | Constant | Value | Description |
 |----------|-------|-------------|
 | `GeneralsOnline30HzExecutable` | `"generalsonlinezh_30.exe"` | GeneralsOnline 30Hz client executable name |
 | `GeneralsOnline60HzExecutable` | `"generalsonlinezh_60.exe"` | GeneralsOnline 60Hz client executable name |
 | `GeneralsOnline30HzDisplayName` | `"GeneralsOnline 30Hz"` | Display name for GeneralsOnline 30Hz variant |
 | `GeneralsOnline60HzDisplayName` | `"GeneralsOnline 60Hz"` | Display name for GeneralsOnline 60Hz variant |
-| `GeneralsOnlineDefaultDisplayName` | `"GeneralsOnline 30Hz"` | Default display name for GeneralsOnline variants |
 
 ### Dependency Names
 
