@@ -183,7 +183,7 @@ public class GameInstallation : IGameInstallation
                 }
                 else
                 {
-                    _logger?.LogWarning("Zero Hour directory found at {ZeroHourPath} but game.exe missing", zeroHourPath);
+                    _logger?.LogWarning("Zero Hour directory found at {ZeroHourPath} but generals.exe missing", zeroHourPath);
                 }
             }
 
