@@ -1,4 +1,5 @@
 using GenHub.Core.Constants;
+using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
@@ -193,8 +194,9 @@ public class ManifestProvider : IManifestProvider
 
         var gameType = installation.HasZeroHour ? GameType.ZeroHour : GameType.Generals;
 
-        // Use schema version 0 for generated installation manifests (tests expect 1.0.* pattern)
-        var manifestVersion = 0;
+        var manifestVersion = gameType == GameType.ZeroHour
+            ? ManifestConstants.ZeroHourManifestVersion
+            : ManifestConstants.GeneralsManifestVersion;
 
         var deterministicId = ManifestIdGenerator.GenerateGameInstallationId(tempInstallForId, gameType, manifestVersion);
 
@@ -243,17 +245,7 @@ public class ManifestProvider : IManifestProvider
                 ? (!string.IsNullOrEmpty(installation.ZeroHourPath) ? installation.ZeroHourPath : installation.InstallationPath)
                 : (!string.IsNullOrEmpty(installation.GeneralsPath) ? installation.GeneralsPath : installation.InstallationPath);
 
-            // Get user-friendly publisher name matching InstallationTypeDisplayConverter
-            var publisherName = installation.InstallationType switch
-            {
-                GameInstallationType.Steam => "Steam",
-                GameInstallationType.EaApp => "EA App",
-                GameInstallationType.TheFirstDecade => "The First Decade",
-                GameInstallationType.Wine => "Wine/Proton",
-                GameInstallationType.CDISO => "CD-ROM",
-                GameInstallationType.Retail => "Retail Installation",
-                _ => installation.InstallationType.ToString()
-            };
+            var publisherName = installation.InstallationType.GetDisplayName();
 
             var builder = _manifestBuilder
                 .WithBasicInfo(installation.InstallationType, manifestGameType, manifestVersion)

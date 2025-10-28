@@ -362,13 +362,15 @@ public class ManifestGenerationService(
     /// <param name="clientName">The name of the game client.</param>
     /// <param name="clientVersion">The version of the game client.</param>
     /// <param name="executablePath">The full path to the game executable.</param>
+    /// <param name="installationType">The installation type (EaApp, Steam, Retail).</param>
     /// <returns>A <see cref="Task"/> that returns a configured manifest builder.</returns>
     public async Task<IContentManifestBuilder> CreateGameClientManifestAsync(
         string installationPath,
         GameType gameType,
         string clientName,
         string clientVersion,
-        string executablePath)
+        string executablePath,
+        GameInstallationType installationType)
     {
         try
         {
@@ -387,19 +389,16 @@ public class ManifestGenerationService(
 
             var builderLogger = NullLogger<ContentManifestBuilder>.Instance;
 
-            // Determine publisher name using user-friendly display format matching InstallationTypeDisplayConverter
-            var publisherName = clientName.ToLowerInvariant().Contains("steam") ? "Steam" :
-                                clientName.ToLowerInvariant().Contains("ea") ? "EA App" :
-                                "Retail Installation";
-            var publisher = new PublisherInfo { Name = publisherName };
-            var contentName = gameType.ToString().ToLowerInvariant() + "-client";
+            var publisherId = PublisherTypeConstants.FromInstallationType(installationType);
+            var contentName = $"{gameType.ToString().ToLowerInvariant()}client";
+            var manifestVersion = 1;
             var builder = new ContentManifestBuilder(builderLogger, _hashProvider, _manifestIdService)
-                .WithBasicInfo(publisher, contentName, 1)
+                .WithBasicInfo(publisherId, contentName, manifestVersion)
                 .WithContentType(ContentType.GameClient, gameType);
 
             await AddClientFilesToManifest(builder, installationPath, gameType, executablePath);
 
-            _logger.LogInformation("Created GameClient manifest for {ClientName} (Publisher: {PublisherName})", clientName, publisher.Name);
+            _logger.LogInformation("Created GameClient manifest for {ClientName} (Publisher: {PublisherId})", clientName, publisherId);
 
             return builder;
         }
@@ -453,8 +452,8 @@ public class ManifestGenerationService(
             };
 
             // Create unique manifest name based on executable to distinguish variants (30Hz, 60Hz, standard)
-            var executableFileName = Path.GetFileNameWithoutExtension(executablePath).ToLowerInvariant();
-            var contentName = $"{gameType.ToString().ToLowerInvariant()}-{executableFileName}";
+            var executableFileName = Path.GetFileNameWithoutExtension(executablePath).ToLowerInvariant().Replace("_", string.Empty).Replace(".", string.Empty);
+            var contentName = executableFileName;
             var builder = new ContentManifestBuilder(builderLogger, _hashProvider, _manifestIdService)
                 .WithBasicInfo(publisher, contentName, 1)
                 .WithContentType(ContentType.GameClient, gameType)

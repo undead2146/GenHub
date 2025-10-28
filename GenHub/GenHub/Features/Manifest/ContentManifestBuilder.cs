@@ -112,9 +112,10 @@ public class ContentManifestBuilder(
     /// <returns>The builder instance.</returns>
     public IContentManifestBuilder WithBasicInfo(PublisherInfo publisher, string contentName, int manifestVersion)
     {
-        // Use publisher name as publisher ID
-        return WithBasicInfo(publisher.Name, contentName, manifestVersion)
-            .WithPublisher(publisher.Name, publisher.Website ?? string.Empty, publisher.SupportUrl ?? string.Empty, publisher.ContactEmail ?? string.Empty);
+        // Use publisher type as publisher ID if available, otherwise use name
+        var publisherId = !string.IsNullOrEmpty(publisher.PublisherType) ? publisher.PublisherType : publisher.Name;
+        return WithBasicInfo(publisherId, contentName, manifestVersion)
+            .WithPublisher(publisher.Name, publisher.Website ?? string.Empty, publisher.SupportUrl ?? string.Empty, publisher.ContactEmail ?? string.Empty, publisher.PublisherType);
     }
 
     /// <summary>
