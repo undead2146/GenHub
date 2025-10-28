@@ -13,7 +13,7 @@ public static class GameClientConstants
     public const string GeneralsExecutable = "generals.exe";
 
     /// <summary>Zero Hour executable filename.</summary>
-    public const string ZeroHourExecutable = "game.exe";
+    public const string ZeroHourExecutable = "generals.exe";
 
     // ===== SuperHackers Client Detection =====
 
@@ -26,22 +26,16 @@ public static class GameClientConstants
     // ===== GeneralsOnline Client Detection =====
 
     /// <summary>GeneralsOnline 30Hz client executable name.</summary>
-    public const string GeneralsOnline30HzExecutable = "generalsonlinezh_30.exe";
+    public const string GeneralsOnline30HzExecutable = "GeneralsOnlineZH_30.exe";
 
     /// <summary>GeneralsOnline 60Hz client executable name.</summary>
-    public const string GeneralsOnline60HzExecutable = "generalsonlinezh_60.exe";
-
-    /// <summary>GeneralsOnline default client executable name.</summary>
-    public const string GeneralsOnlineDefaultExecutable = "generalsonlinezh.exe";
+    public const string GeneralsOnline60HzExecutable = "GeneralsOnlineZH_60.exe";
 
     /// <summary>Display name for GeneralsOnline 30Hz variant.</summary>
     public const string GeneralsOnline30HzDisplayName = "GeneralsOnline 30Hz";
 
     /// <summary>Display name for GeneralsOnline 60Hz variant.</summary>
     public const string GeneralsOnline60HzDisplayName = "GeneralsOnline 60Hz";
-
-    /// <summary>Default display name for GeneralsOnline variants.</summary>
-    public const string GeneralsOnlineDefaultDisplayName = "GeneralsOnline 30Hz";
 
     // ===== Dependency Names =====
 
@@ -103,13 +97,13 @@ public static class GameClientConstants
     };
 
     /// <summary>
-    /// Executable names for GeneralsOnline clients that should be detected.
+    /// List of GeneralsOnline executable names to detect.
+    /// Only includes 30Hz and 60Hz variants as these are the primary clients.
     /// GeneralsOnline provides auto-updated clients for Command &amp; Conquer Generals and Zero Hour.
     /// </summary>
     public static readonly IReadOnlyList<string> GeneralsOnlineExecutableNames = new[]
     {
         GeneralsOnline30HzExecutable,
         GeneralsOnline60HzExecutable,
-        GeneralsOnlineDefaultExecutable,
     };
 }
