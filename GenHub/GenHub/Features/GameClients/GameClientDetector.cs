@@ -52,7 +52,7 @@ public class GameClientDetector(
                 {
                     var generalsVersion = new GameClient
                     {
-                        Name = $"{inst.InstallationType} Generals {version}",
+                        Name = $"Generals {version}",
                         Id = string.Empty, // Set later by manifest
                         Version = version,
                         ExecutablePath = actualExePath,
@@ -81,7 +81,7 @@ public class GameClientDetector(
                 {
                     var zeroHourVersion = new GameClient
                     {
-                        Name = $"{inst.InstallationType} Zero Hour {version}",
+                        Name = $"Zero Hour {version}",
                         Id = string.Empty,
                         Version = version,
                         ExecutablePath = actualExePath,
@@ -258,8 +258,9 @@ public class GameClientDetector(
             }
 
             // Generate GameClient manifest with executable included
+            var installationType = installation?.InstallationType ?? GameInstallationType.Retail;
             var builder = await _manifestGenerationService.CreateGameClientManifestAsync(
-                clientPath, gameType, gameClient.Name, gameClient.Version, gameClient.ExecutablePath);
+                clientPath, gameType, gameClient.Name, gameClient.Version, gameClient.ExecutablePath, installationType);
 
             var manifest = builder.Build();
             manifest.ContentType = ContentType.GameClient;
@@ -287,6 +288,22 @@ public class GameClientDetector(
             {
                 gameClient.Id = manifest.Id.ToString();
                 _logger.LogDebug("Generated GameClient manifest ID {Id} for {VersionName}", gameClient.Id, gameClient.Name);
+
+                // If version is "Unknown", try to extract it from the manifest ID
+                if (gameClient.Version == "Unknown")
+                {
+                    var extractedVersion = ExtractVersionFromManifestId(manifest.Id.ToString());
+                    if (!string.IsNullOrEmpty(extractedVersion) && extractedVersion != "0")
+                    {
+                        gameClient.Version = extractedVersion;
+                        gameClient.Name = $"{gameType.ToString()} {extractedVersion}";
+                        _logger.LogInformation(
+                            "Updated GameClient version from manifest ID: {OldName} → {NewName} (Version: {Version})",
+                            $"{gameType.ToString()} Unknown",
+                            gameClient.Name,
+                            extractedVersion);
+                    }
+                }
             }
             else
             {
@@ -410,12 +427,21 @@ public class GameClientDetector(
             try
             {
                 // Determine the variant name from the executable
-                var variantName = executableName.ToLowerInvariant() switch
+                var variantName = executableName switch
                 {
                     GameClientConstants.GeneralsOnline30HzExecutable => GameClientConstants.GeneralsOnline30HzDisplayName,
                     GameClientConstants.GeneralsOnline60HzExecutable => GameClientConstants.GeneralsOnline60HzDisplayName,
-                    _ => GameClientConstants.GeneralsOnlineDefaultDisplayName,
+                    _ => null, // Skip unknown variants
                 };
+
+                // Skip if variant is not recognized
+                if (variantName == null)
+                {
+                    _logger.LogDebug(
+                        "Skipping unrecognized GeneralsOnline executable: {ExecutableName}",
+                        executableName);
+                    continue;
+                }
 
                 _logger.LogInformation(
                     "Detected GeneralsOnline client: {VariantName} at {ExecutablePath}",
@@ -429,7 +455,7 @@ public class GameClientDetector(
                 {
                     Name = displayName,
                     Id = string.Empty, // Will be set by manifest generation
-                    Version = "Automatically added",
+                    Version = "Auto-Updated", // GeneralsOnline clients auto-update themselves
                     ExecutablePath = executablePath,
                     GameType = gameType,
                     InstallationId = installation.Id,
@@ -522,17 +548,15 @@ public class GameClientDetector(
                 ? ManifestConstants.ZeroHourManifestVersion
                 : ManifestConstants.GeneralsManifestVersion;
 
-            // Generate deterministic ID for GeneralsOnline client
-            // Use publisher-based content ID format: version.publisher.contentType.contentName
-            // This allows multiple GeneralsOnline variants (30Hz, 60Hz)
+            // Generate deterministic ID for GeneralsOnline client using installation ID
+            // This ensures each GeneralsOnline variant is unique per installation
+            // Format: version.installationType.gameType-client-variant
             var executableName = Path.GetFileNameWithoutExtension(gameClient.ExecutablePath).ToLowerInvariant();
+            var safeExecutableName = executableName.Replace("_", string.Empty).Replace(".", string.Empty);
 
-            // Replace underscores with dashes for manifest ID format compliance
-            var safeExecutableName = executableName.Replace("_", "-");
-            var clientIdResult = ManifestIdGenerator.GeneratePublisherContentId(
-                PublisherTypeConstants.GeneralsOnline,
-                ContentType.GameClient,
-                $"{gameType.ToString().ToLowerInvariant()}-{safeExecutableName}");
+            // Use installation-based ID with variant suffix to ensure uniqueness
+            var baseClientId = ManifestIdGenerator.GenerateGameInstallationId(installation, gameType, manifestVersion, "-client");
+            var clientIdResult = $"{baseClientId}-{safeExecutableName}";
             manifest.Id = ManifestId.Create(clientIdResult);
 
             // Add to pool
@@ -553,5 +577,51 @@ public class GameClientDetector(
             _logger.LogError(ex, "Failed to generate manifest for GeneralsOnline client {ClientName}", gameClient.Name);
             gameClient.Id = Guid.NewGuid().ToString(); // Fallback
         }
+    }
+
+    /// <summary>
+    /// Extracts the version number from a manifest ID.
+    /// Manifest ID format: schemaVersion.userVersion.publisher.contentType.contentName[-suffix].
+    /// Example: "1.104.steam.zerohour-client" → "1.04" (104 denormalized back to "1.04").
+    /// </summary>
+    /// <param name="manifestId">The manifest ID string.</param>
+    /// <returns>The extracted and denormalized version string (e.g., "1.04"), or null if extraction fails.</returns>
+    private string? ExtractVersionFromManifestId(string manifestId)
+    {
+        if (string.IsNullOrEmpty(manifestId))
+            return null;
+
+        // Split by dots to get components
+        var parts = manifestId.Split('.');
+        if (parts.Length < 3)
+            return null;
+
+        // Second part (index 1) is the normalized version number
+        var normalizedVersion = parts[1];
+
+        // Denormalize: convert "104" back to "1.04", "108" to "1.08", etc.
+        if (!int.TryParse(normalizedVersion, out int versionNum) || versionNum == 0)
+            return null;
+
+        // Handle 3-digit versions like 104 → "1.04", 108 → "1.08"
+        // and 2-digit versions like 8 → "0.08"
+        string denormalized;
+        if (versionNum >= 100)
+        {
+            var str = versionNum.ToString();
+            var major = str[0].ToString();
+            var minor = str.Substring(1);
+            denormalized = $"{major}.{minor}";
+        }
+        else if (versionNum >= 10)
+        {
+            denormalized = $"0.{versionNum}";
+        }
+        else
+        {
+            denormalized = $"0.0{versionNum}";
+        }
+
+        return denormalized;
     }
 }

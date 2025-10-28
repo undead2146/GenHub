@@ -20,6 +20,17 @@ public class GameClientHashRegistry : IGameClientHashRegistry
     private const string ZeroHour104Hash = "f37a4929f8d697104e99c2bcf46f8d833122c943afcd87fd077df641d344495b";
     private const string ZeroHour105Hash = "420fba1dbdc4c14e2418c2b0d3010b9fac6f314eafa1f3a101805b8d98883ea1";
 
+    // Public static access to hashes for testing
+
+    /// <summary>Gets the hash for Generals 1.08.</summary>
+    public static string Generals108HashPublic => Generals108Hash;
+
+    /// <summary>Gets the hash for Zero Hour 1.04.</summary>
+    public static string ZeroHour104HashPublic => ZeroHour104Hash;
+
+    /// <summary>Gets the hash for Zero Hour 1.05.</summary>
+    public static string ZeroHour105HashPublic => ZeroHour105Hash;
+
     private readonly ConcurrentDictionary<string, GameClientInfo> _knownHashes;
     private readonly List<string> _possibleExecutableNames;
 
@@ -40,6 +51,19 @@ public class GameClientHashRegistry : IGameClientHashRegistry
         };
 
         InitializeCoreHashes();
+    }
+
+    /// <summary>
+    /// Gets game type and version from a hash using the default registry instance.
+    /// This is a static convenience method for cases where dependency injection is not available.
+    /// </summary>
+    /// <param name="hash">The hash to look up.</param>
+    /// <returns>A tuple containing the game type and version.</returns>
+    public static (GameType GameType, string Version) GetGameInfoFromHashStatic(string hash)
+    {
+        // Create a temporary instance for static access
+        var registry = new GameClientHashRegistry();
+        return registry.GetGameInfoFromHash(hash);
     }
 
     /// <inheritdoc/>
