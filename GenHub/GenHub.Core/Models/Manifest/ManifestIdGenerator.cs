@@ -41,14 +41,14 @@ public static class ManifestIdGenerator
 
     /// <summary>
     /// Generates a manifest ID for a game installation.
-    /// Format: manifestVersion.userVersion.installationType.gameType[-suffix].
+    /// Format: schemaVersion.userVersion.publisher.contentType.contentName.
     /// Note: If userVersion contains dots (e.g., "1.08"), they are removed for schema compliance (becomes "108").
     /// </summary>
-    /// <param name="installation">The game installation used to derive the installation segment.</param>
+    /// <param name="installation">The game installation used to derive the publisher (installation type).</param>
     /// <param name="gameType">The specific game type (Generals or ZeroHour) for the manifest ID.</param>
     /// <param name="userVersion">User-specified version (e.g., "1.08", "1.04", or integer like 0, 1, 2). If null, defaults to 0.</param>
-    /// <param name="suffix">Optional suffix for content type (e.g., '-installation', '-client'). Defaults to '-installation'.</param>
-    /// <returns>A normalized manifest identifier in the form 'manifestVersion.userVersion.installationType.gameType[suffix]'.</returns>
+    /// <param name="suffix">Optional suffix for content type (e.g., '-client'). If empty, defaults to 'gameinstallation'.</param>
+    /// <returns>A normalized manifest identifier in the form 'schemaVersion.userVersion.publisher.contentType.contentName'.</returns>
     public static string GenerateGameInstallationId(GameInstallation installation, GameType gameType, object? userVersion, string suffix = "")
     {
         if (installation == null)
@@ -61,30 +61,53 @@ public static class ManifestIdGenerator
         var gameTypeString = gameType == GameType.ZeroHour ? "zerohour" : "generals";
         var fullVersion = $"{ManifestConstants.DefaultManifestFormatVersion}.{normalizedUserVersion}";
 
-        return $"{fullVersion}.{installType}.{gameTypeString}{suffix}";
+        // Determine content type based on suffix
+        var contentType = suffix switch
+        {
+            "-client" => "gameclient",
+            _ => "gameinstallation"
+        };
+
+        return $"{fullVersion}.{installType}.{contentType}.{gameTypeString}";
     }
 
     /// <summary>
     /// Normalizes a version value to a string without dots.
-    /// Examples: "1.08" → "108", "1.04" → "104", 5 → "5", "2.0" → "20", null → "0".
+    /// Examples: "1.08" → "108", "1.04" → "104", "1.8" → "108", 5 → "5", "2.0" → "200", null → "0".
+    /// Note: Minor versions are always padded to 2 digits for consistency.
     /// </summary>
     /// <param name="version">Version as string, integer, or null (defaults to "0").</param>
     /// <returns>Normalized version string without dots.</returns>
+    /// <exception cref="ArgumentException">Thrown when the version is not numeric or contains only numbers and dots, or when the version is negative.</exception>
     private static string NormalizeVersionString(object? version)
     {
         if (version == null)
             return "0";
 
-        string versionStr = version.ToString() ?? "0";
+        string versionStr = version.ToString()?.Trim() ?? string.Empty;
+
+        // Handle empty or whitespace
+        if (string.IsNullOrWhiteSpace(versionStr))
+            return "0";
 
         // Handle dotted versions like "1.08" or "2.0"
         if (versionStr.Contains('.'))
         {
             var parts = versionStr.Split('.');
-            if (parts.Length != 2 || !int.TryParse(parts[0], out int major) || !int.TryParse(parts[1], out int minor))
-                throw new ArgumentException($"Version must be in format 'major.minor': {version}", nameof(version));
 
-            // Preserve semantic meaning: "1.08" → "108", "1.8" → "108", "2.0" → "200"
+            // Validate we have exactly 2 parts
+            if (parts.Length != 2)
+                throw new ArgumentException($"Version must be in format 'major.minor' or a single number: {version}", nameof(version));
+
+            // Validate both parts are numeric and non-negative
+            if (!int.TryParse(parts[0], out int major) || major < 0)
+                throw new ArgumentException($"Major version must be a non-negative integer: {version}", nameof(version));
+
+            if (!int.TryParse(parts[1], out int minor) || minor < 0)
+                throw new ArgumentException($"Minor version must be a non-negative integer: {version}", nameof(version));
+
+            // Preserve semantic meaning with consistent 2-digit padding:
+            // "1.08" → "108", "1.8" → "108", "2.0" → "200", "1.04" → "104"
             return $"{major}{minor.ToString().PadLeft(2, '0')}";
         }
 
@@ -96,8 +119,12 @@ public static class ManifestIdGenerator
     }
 
     /// <summary>
-    /// Normalizes a string to lowercase alphanumeric with dots as separators.
+    /// Normalizes the input string by converting it to lowercase, trimming whitespace, replacing non-alphanumeric characters (except dots) with dots, removing leading/trailing dots, and collapsing multiple consecutive dots into single dots.
     /// </summary>
+    /// <param name="input">The input string to normalize.</param>
+    /// <returns>The normalized string.</returns>
+    /// <exception cref="ArgumentException">Thrown when the input is null, empty, or consists only of whitespace.</exception>
+    /// <exception cref="ArgumentException">Thrown when the normalization process results in an empty string.</exception>
     private static string Normalize(string input)
     {
         if (string.IsNullOrWhiteSpace(input))
