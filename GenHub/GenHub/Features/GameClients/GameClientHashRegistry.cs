@@ -20,6 +20,11 @@ public class GameClientHashRegistry : IGameClientHashRegistry
     private const string ZeroHour104Hash = "f37a4929f8d697104e99c2bcf46f8d833122c943afcd87fd077df641d344495b";
     private const string ZeroHour105Hash = "420fba1dbdc4c14e2418c2b0d3010b9fac6f314eafa1f3a101805b8d98883ea1";
 
+    // GeneralsOnline Hash Constants - Community multiplayer client hashes
+    private const string GeneralsOnline30HzHash = "0ac6e3edd51bbca4029a4ddb93b93d44e81ce0d7e8959a64dbec9f6e63c6af9f";
+    private const string GeneralsOnline60HzHash = "86750784801942f548d6edcfd95088fbc1eb2d7859b8cedc84d48955336803a2";
+    private const string GeneralsOnlineLauncherHash = "f3e2aa28c319c23af2d739a72eb265040c15c077c2667c29b3ff920e1f53a9ab";
+
     // Public static access to hashes for testing
 
     /// <summary>Gets the hash for Generals 1.08.</summary>
@@ -162,8 +167,37 @@ public class GameClientHashRegistry : IGameClientHashRegistry
     /// </summary>
     private void InitializeCoreHashes()
     {
+        // Official EA/Steam releases
         _knownHashes.TryAdd(Generals108Hash, new GameClientInfo(GameType.Generals, "1.08", "EA/Steam", "Official Generals 1.08 executable", true));
         _knownHashes.TryAdd(ZeroHour104Hash, new GameClientInfo(GameType.ZeroHour, "1.04", "EA/Steam", "Official Zero Hour 1.04 executable", true));
         _knownHashes.TryAdd(ZeroHour105Hash, new GameClientInfo(GameType.ZeroHour, "1.05", "Community", "Community-patched Zero Hour 1.05 executable", false));
+
+        // GeneralsOnline multiplayer client (version 101525_QFE5)
+        _knownHashes.TryAdd(
+            GeneralsOnline30HzHash,
+            new GameClientInfo(
+                GameType.ZeroHour,
+                "101525_QFE5",
+                "GeneralsOnline",
+                "GeneralsOnline 30Hz multiplayer client",
+                false));
+
+        _knownHashes.TryAdd(
+            GeneralsOnline60HzHash,
+            new GameClientInfo(
+                GameType.ZeroHour,
+                "101525_QFE5",
+                "GeneralsOnline",
+                "GeneralsOnline 60Hz multiplayer client",
+                false));
+
+        _knownHashes.TryAdd(
+            GeneralsOnlineLauncherHash,
+            new GameClientInfo(
+                GameType.ZeroHour,
+                "101525_QFE5",
+                "GeneralsOnline",
+                "GeneralsOnline launcher/updater",
+                false));
     }
 }

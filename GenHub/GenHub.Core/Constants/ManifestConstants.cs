@@ -64,7 +64,7 @@ public static class ManifestConstants
     /// <summary>
     /// Default ID string for content dependencies (fallback for model instantiation).
     /// </summary>
-    public const string DefaultContentDependencyId = "1.0.genhub.unknown.defaultdependency";
+    public const string DefaultContentDependencyId = "1.0.genhub.mod.defaultdependency";
 
     /// <summary>
     /// Version string for Generals game installation manifests.

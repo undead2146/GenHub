@@ -30,43 +30,12 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
 {
     private readonly IGameInstallationService? _gameInstallationService;
     private readonly IGameProfileManager? _gameProfileManager;
+    private readonly IContentManifestPool? _contentManifestPool;
     private readonly IConfigurationProviderService? _configurationProvider;
     private readonly IProfileContentLoader? _profileContentLoader;
     private readonly IContentDisplayFormatter? _contentDisplayFormatter;
     private readonly ILogger<GameProfileSettingsViewModel> _logger;
     private readonly ILogger<GameSettingsViewModel>? _gameSettingsLogger;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="GameProfileSettingsViewModel"/> class.
-    /// </summary>
-    /// <param name="gameInstallationService">The game installation service.</param>
-    /// <param name="gameProfileManager">The game profile manager.</param>
-    /// <param name="gameSettingsService">The game settings service.</param>
-    /// <param name="configurationProvider">The configuration provider service.</param>
-    /// <param name="profileContentLoader">The profile content loader.</param>
-    /// <param name="contentDisplayFormatter">The content display formatter.</param>
-    /// <param name="logger">The logger for GameProfileSettingsViewModel.</param>
-    /// <param name="gameSettingsLogger">The logger for GameSettingsViewModel.</param>
-    public GameProfileSettingsViewModel(
-        IGameInstallationService? gameInstallationService,
-        IGameProfileManager? gameProfileManager,
-        IGameSettingsService? gameSettingsService,
-        IConfigurationProviderService? configurationProvider,
-        IProfileContentLoader? profileContentLoader,
-        IContentDisplayFormatter? contentDisplayFormatter,
-        ILogger<GameProfileSettingsViewModel>? logger,
-        ILogger<GameSettingsViewModel>? gameSettingsLogger)
-    {
-        _gameInstallationService = gameInstallationService;
-        _gameProfileManager = gameProfileManager;
-        _configurationProvider = configurationProvider;
-        _profileContentLoader = profileContentLoader;
-        _contentDisplayFormatter = contentDisplayFormatter;
-        _logger = logger ?? NullLogger<GameProfileSettingsViewModel>.Instance;
-        _gameSettingsLogger = gameSettingsLogger;
-
-        GameSettingsViewModel = new GameSettingsViewModel(gameSettingsService ?? throw new ArgumentNullException(nameof(gameSettingsService)), gameSettingsLogger ?? NullLogger<GameSettingsViewModel>.Instance);
-    }
 
     [ObservableProperty]
     private string _name = string.Empty;
@@ -112,6 +81,12 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _commandLineArguments = string.Empty;
+
+    [ObservableProperty]
+    private ObservableCollection<ProfileInfoItem> _availableCovers = new();
+
+    [ObservableProperty]
+    private ProfileInfoItem? _selectedCover;
 
     [ObservableProperty]
     private ObservableCollection<ProfileInfoItem> _availableGameClients = new();
@@ -230,6 +205,27 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     /// </summary>
     public GameSettingsViewModel GameSettingsViewModel { get; }
 
+    public GameProfileSettingsViewModel(
+        IGameInstallationService? gameInstallationService,
+        IGameProfileManager? gameProfileManager,
+        IContentManifestPool? contentManifestPool,
+        IGameSettingsService? gameSettingsService,
+        IConfigurationProviderService? configurationProvider,
+        IProfileContentLoader? profileContentLoader,
+        IContentDisplayFormatter? contentDisplayFormatter,
+        ILogger<GameProfileSettingsViewModel>? logger,
+        ILogger<GameSettingsViewModel>? gameSettingsLogger)
+    {
+        _gameInstallationService = gameInstallationService;
+        _gameProfileManager = gameProfileManager;
+        _contentManifestPool = contentManifestPool;
+        _configurationProvider = configurationProvider;
+        _profileContentLoader = profileContentLoader;
+        _contentDisplayFormatter = contentDisplayFormatter;
+        _logger = logger ?? NullLogger<GameProfileSettingsViewModel>.Instance;
+        _gameSettingsLogger = gameSettingsLogger;
+        GameSettingsViewModel = new GameSettingsViewModel(gameSettingsService!, _gameSettingsLogger!);
+    }
     /// <summary>
     /// Initializes the view model for creating a new profile.
     /// </summary>
@@ -464,7 +460,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             var enabledContentIds = EnabledContent.Select(e => e.ManifestId.Value).ToList();
 
             // Convert AvailableGameInstallations to Core items for the service
-            var coreAvailableInstallations = new List<Core.Models.GameProfile.ContentDisplayItem>();
+            var coreAvailableInstallations = new ObservableCollection<Core.Models.GameProfile.ContentDisplayItem>();
             foreach (var vmItem in AvailableGameInstallations)
             {
                 coreAvailableInstallations.Add(new Core.Models.GameProfile.ContentDisplayItem
@@ -831,24 +827,18 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             if (string.IsNullOrEmpty(_currentProfileId))
             {
                 // Create new profile
-                // Auto-enable GameClient if needed for launch validation
-                if (_gameInstallationService != null)
+                // Auto-enable GameClient ONLY if no GameClient content is already enabled
+                var hasGameClientEnabled = EnabledContent.Any(c => c.IsEnabled && c.ContentType == ContentType.GameClient);
+                if (!hasGameClientEnabled &&
+                    !string.IsNullOrEmpty(SelectedGameInstallation.GameClientId) &&
+                    !enabledContentIds.Contains(SelectedGameInstallation.GameClientId))
                 {
-                    var installationForClient = await _gameInstallationService.GetInstallationAsync(SelectedGameInstallation.SourceId!);
-                    if (installationForClient.Success && installationForClient.Data != null)
-                    {
-                        var gameClientManifestId = ManifestIdGenerator.GenerateGameInstallationId(
-                            installationForClient.Data,
-                            SelectedGameInstallation.GameType,
-                            0,
-                            "-client");
-
-                        if (!enabledContentIds.Contains(gameClientManifestId))
-                        {
-                            enabledContentIds.Add(gameClientManifestId);
-                            _logger.LogInformation("Auto-enabled GameClient content: {GameClientId}", gameClientManifestId);
-                        }
-                    }
+                    enabledContentIds.Add(SelectedGameInstallation.GameClientId);
+                    _logger.LogInformation("Auto-enabled default GameClient content: {GameClientId}", SelectedGameInstallation.GameClientId);
+                }
+                else if (hasGameClientEnabled)
+                {
+                    _logger.LogInformation("Skipping auto-enable GameClient - user has already selected a GameClient");
                 }
 
                 var createRequest = new CreateProfileRequest
