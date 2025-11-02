@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.GameClients;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Linux.GameInstallations;
@@ -28,6 +29,9 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
     }
 
     /// <inheritdoc/>
+    public string Id => "Steam";
+
+    /// <inheritdoc/>
     public GameInstallationType InstallationType => GameInstallationType.Steam;
 
     /// <inheritdoc/>
@@ -45,6 +49,9 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
     /// <inheritdoc/>
     public string ZeroHourPath { get; private set; } = string.Empty;
 
+    /// <inheritdoc/>
+    public List<GameClient> AvailableGameClients { get; } = new();
+
     /// <summary>
     /// Gets a value indicating whether Steam is installed successfully.
     /// </summary>
@@ -54,6 +61,28 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
     /// Shows how is Steam installed.
     /// </summary>
     public LinuxPackageInstallationType PackageInstallationType { get; private set; }
+
+    /// <inheritdoc/>
+    public void SetPaths(string? generalsPath, string? zeroHourPath)
+    {
+        if (!string.IsNullOrEmpty(generalsPath))
+        {
+            HasGenerals = true;
+            GeneralsPath = generalsPath;
+        }
+
+        if (!string.IsNullOrEmpty(zeroHourPath))
+        {
+            HasZeroHour = true;
+            ZeroHourPath = zeroHourPath;
+        }
+    }
+
+    /// <inheritdoc/>
+    public void PopulateGameClients(IEnumerable<GameClient> clients)
+    {
+        AvailableGameClients.AddRange(clients);
+    }
 
     /// <inheritdoc/>
     public void Fetch()
