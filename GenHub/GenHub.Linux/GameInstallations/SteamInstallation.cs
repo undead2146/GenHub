@@ -5,6 +5,7 @@ using System.Linq;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
+using GenHub.Core.Constants;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Linux.GameInstallations;
@@ -113,7 +114,7 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
                 if (!HasGenerals)
                 {
                     var generalsPath = Path.Combine(libraryPath, "Command and Conquer Generals");
-                    if (Directory.Exists(generalsPath) && File.Exists(Path.Combine(generalsPath, "generals.exe")))
+                    if (Directory.Exists(generalsPath) && File.Exists(Path.Combine(generalsPath, GameClientConstants.GeneralsExecutable)))
                     {
                         HasGenerals = true;
                         GeneralsPath = generalsPath;
@@ -126,7 +127,7 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
                 if (!HasZeroHour)
                 {
                     var zeroHourPath = Path.Combine(libraryPath, "Command & Conquer Generals - Zero Hour");
-                    if (Directory.Exists(zeroHourPath) && File.Exists(Path.Combine(zeroHourPath, "generals.exe")))
+                    if (Directory.Exists(zeroHourPath) && File.Exists(Path.Combine(zeroHourPath, GameClientConstants.ZeroHourExecutable)))
                     {
                         HasZeroHour = true;
                         ZeroHourPath = zeroHourPath;
