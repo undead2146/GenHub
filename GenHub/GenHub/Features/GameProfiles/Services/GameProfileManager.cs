@@ -64,7 +64,7 @@ public class GameProfileManager(
 
             var profile = new GameProfile
             {
-                Name = request.Name ?? string.Empty,
+                Name = request.Name,
                 Description = request.Description ?? string.Empty,
                 GameInstallationId = gameInstallation.Id,
                 GameClient = gameClient,
