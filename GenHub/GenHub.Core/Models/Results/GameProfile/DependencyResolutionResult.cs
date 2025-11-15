@@ -68,7 +68,7 @@ public class DependencyResolutionResult : ResultBase
         IReadOnlyList<string> missingContentIds,
         TimeSpan elapsed = default)
     {
-        return new DependencyResolutionResult(true, resolvedContentIds, resolvedManifests, missingContentIds, null, null, elapsed);
+        return new DependencyResolutionResult(true, resolvedContentIds, resolvedManifests, missingContentIds, Array.Empty<string>(), null, elapsed);
     }
 
     /// <summary>
@@ -98,7 +98,7 @@ public class DependencyResolutionResult : ResultBase
     /// <returns>A failed <see cref="DependencyResolutionResult"/>.</returns>
     public static DependencyResolutionResult CreateFailure(string error, TimeSpan elapsed = default)
     {
-        return new DependencyResolutionResult(false, Array.Empty<string>(), Array.Empty<ContentManifest>(), Array.Empty<string>(), null, new[] { error }, elapsed);
+        return new DependencyResolutionResult(false, Array.Empty<string>(), Array.Empty<ContentManifest>(), Array.Empty<string>(), Array.Empty<string>(), new[] { error }, elapsed);
     }
 
     /// <summary>
@@ -113,6 +113,6 @@ public class DependencyResolutionResult : ResultBase
         if (!errors.Any())
             throw new ArgumentException("Errors collection cannot be empty.", nameof(errors));
 
-        return new DependencyResolutionResult(false, Array.Empty<string>(), Array.Empty<ContentManifest>(), Array.Empty<string>(), null, errors, elapsed);
+        return new DependencyResolutionResult(false, Array.Empty<string>(), Array.Empty<ContentManifest>(), Array.Empty<string>(), Array.Empty<string>(), errors, elapsed);
     }
 }
