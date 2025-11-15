@@ -19,14 +19,14 @@ public interface IProfileContentLoader
 {
     /// <summary>
     /// Loads available game installations from detected installations.
-    /// Creates ONE entry per unique game type in each installation (groups multiple clients of same type).
+    /// Creates one entry per unique game type in each installation (groups multiple clients of same type).
     /// </summary>
     /// <returns>A collection of content display items representing available game installations.</returns>
     Task<ObservableCollection<ContentDisplayItem>> LoadAvailableGameInstallationsAsync();
 
     /// <summary>
-    /// Loads ALL available game clients from detected installations.
-    /// Creates one entry for EACH game client, including GeneralsOnline variants and third-party clients.
+    /// Loads all available game clients from detected installations.
+    /// Creates one entry for each game client, including GeneralsOnline variants and third-party clients.
     /// Use this for populating executable/game client filters.
     /// </summary>
     /// <returns>A collection of content display items representing all available game clients.</returns>
