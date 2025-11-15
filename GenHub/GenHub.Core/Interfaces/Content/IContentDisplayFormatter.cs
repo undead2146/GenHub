@@ -79,6 +79,19 @@ public interface IContentDisplayFormatter
     /// </summary>
     /// <param name="version">The version string to normalize.</param>
     /// <returns>The normalized version string.</returns>
+    /// <example>
+    /// <code>
+    /// NormalizeVersion("v1.08")     // "1.08"
+    /// NormalizeVersion("1.08")      // "1.08"
+    /// NormalizeVersion(null)        // ""
+    /// NormalizeVersion("")          // ""
+    /// NormalizeVersion("Unknown")   // ""
+    /// </code>
+    /// </example>
+    /// <remarks>
+    /// Returns an empty string if the version is null, empty, whitespace, "Unknown", or "Auto-Updated".
+    /// This ensures consistent display behavior and prevents null reference exceptions.
+    /// </remarks>
     string NormalizeVersion(string? version);
 
     /// <summary>
