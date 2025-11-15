@@ -80,6 +80,27 @@ public static class GameSettingsConstants
     }
 
     /// <summary>
+    /// Gamma correction constants.
+    /// </summary>
+    public static class Gamma
+    {
+        /// <summary>
+        /// Minimum gamma correction value.
+        /// </summary>
+        public const int Min = 0;
+
+        /// <summary>
+        /// Maximum gamma correction value.
+        /// </summary>
+        public const int Max = 100;
+
+        /// <summary>
+        /// Default gamma correction value (neutral).
+        /// </summary>
+        public const int Default = 50;
+    }
+
+    /// <summary>
     /// Game-specific folder names in Documents directory.
     /// </summary>
     public static class FolderNames

@@ -29,6 +29,6 @@ public class VideoSettings
     /// <summary>Gets or sets a value indicating whether extra animations are enabled.</summary>
     public bool ExtraAnimations { get; set; } = true;
 
-    /// <summary>Gets or sets the gamma correction value (50-150 range).</summary>
-    public int Gamma { get; set; } = 100;
+    /// <summary>Gets or sets the gamma correction value (0-100 range). Maps to in-game gamma setting.</summary>
+    public int Gamma { get; set; } = 50;
 }

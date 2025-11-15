@@ -136,7 +136,7 @@ AntiAliasing=2
 UseShadowVolumes=yes
 UseShadowDecals=yes
 ExtraAnimations=yes
-Gamma=120
+Gamma=60
 ";
 
         var tempFile = Path.GetTempFileName();
@@ -173,7 +173,7 @@ Gamma=120
             Assert.True(options.Video.UseShadowVolumes);
             Assert.True(options.Video.UseShadowDecals);
             Assert.True(options.Video.ExtraAnimations);
-            Assert.Equal(120, options.Video.Gamma);
+            Assert.Equal(60, options.Video.Gamma);
         }
         finally
         {
@@ -273,7 +273,7 @@ MissingBracket
                 UseShadowVolumes = true,
                 UseShadowDecals = true,
                 ExtraAnimations = true,
-                Gamma = 120,
+                Gamma = 60,
             },
         };
 

@@ -113,7 +113,8 @@ public class UpdateProfileRequest
     public bool? VideoBuildingAnimations { get; set; }
 
     /// <summary>
-    /// Gets or sets the gamma correction value for this profile.
+    /// Gets or sets the gamma correction value for this profile (0-100).
+    /// This maps directly to the in-game gamma setting range.
     /// </summary>
     public int? VideoGamma { get; set; }
 

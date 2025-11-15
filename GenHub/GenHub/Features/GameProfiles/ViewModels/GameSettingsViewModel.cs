@@ -135,7 +135,7 @@ public partial class GameSettingsViewModel : ViewModelBase
     private bool _buildingAnimations = true;
 
     [ObservableProperty]
-    private int _gamma = 100;
+    private int _gamma = 50;
 
     [ObservableProperty]
     private ObservableCollection<string> _resolutionPresets = new(ResolutionPresetsProvider.StandardResolutions);

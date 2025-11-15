@@ -123,8 +123,8 @@
                         <TextBlock Grid.Column="0" Text="Gamma" FontWeight="Medium" VerticalAlignment="Center" Margin="0,0,12,0" />
                         <Slider Grid.Column="1" 
                                 Value="{Binding Gamma}"
-                                Minimum="50"
-                                Maximum="150"
+                                Minimum="0"
+                                Maximum="100"
                                 TickFrequency="10"
                                 IsSnapToTickEnabled="True"
                                 VerticalAlignment="Center" />

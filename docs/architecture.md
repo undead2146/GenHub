@@ -103,7 +103,7 @@ The GameClient model has been enhanced to support launch configuration with Laun
   - Workspace configuration: WorkspaceStrategy, CustomExecutablePath, WorkingDirectory, ActiveWorkspaceId
   - Launch configuration: CommandLineArguments (string), LaunchOptions (Dictionary), EnvironmentVariables (Dictionary)
   - UI state: ThemeColor, IconPath, BuildInfo
-  - Game settings: Video properties (ResolutionWidth/Height, Windowed, TextureQuality, Shadows, ParticleEffects, ExtraAnimations, BuildingAnimations, Gamma)
+  - Game settings: Video properties (ResolutionWidth/Height, Windowed, TextureQuality, Shadows, ParticleEffects, ExtraAnimations, BuildingAnimations, Gamma [0-100])
   - Audio settings: Audio volumes (SoundVolume, ThreeDSoundVolume, SpeechVolume, MusicVolume), AudioEnabled, NumSounds
   - Timestamps: CreatedAt, LastPlayedAt
 - **CreateProfileRequest**: Data transfer object for profile creation with GameInstallationId, GameClientId, PreferredStrategy, EnabledContentIds, CommandLineArguments, and UI properties
@@ -808,7 +808,7 @@ GameProfile objects seamlessly integrate with the workspace system:
   - Content: EnabledContentIds (list of manifest IDs for enabled content)
   - Workspace: WorkspaceStrategy (HybridCopySymlink default), CustomExecutablePath, WorkingDirectory, ActiveWorkspaceId
   - Launch: CommandLineArguments (string), LaunchOptions (Dictionary), EnvironmentVariables (Dictionary)
-  - Video settings: ResolutionWidth, ResolutionHeight, Windowed, TextureQuality, Shadows, ParticleEffects, ExtraAnimations, BuildingAnimations, Gamma
+  - Video settings: ResolutionWidth, ResolutionHeight, Windowed, TextureQuality, Shadows, ParticleEffects, ExtraAnimations, BuildingAnimations, Gamma (0-100 range, maps to in-game gamma setting)
   - Audio settings: SoundVolume, ThreeDSoundVolume, SpeechVolume, MusicVolume, AudioEnabled, NumSounds
   - UI: ThemeColor, IconPath, BuildInfo
   - Timestamps: CreatedAt, LastPlayedAt

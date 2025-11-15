@@ -51,7 +51,7 @@ public class GameSettingsViewModelTests
         Assert.True(_viewModel.ParticleEffects);
         Assert.True(_viewModel.ExtraAnimations);
         Assert.True(_viewModel.BuildingAnimations);
-        Assert.Equal(100, _viewModel.Gamma);
+        Assert.Equal(50, _viewModel.Gamma);
     }
 
     /// <summary>
@@ -88,7 +88,7 @@ public class GameSettingsViewModelTests
                 TextureReduction = 0,
                 UseShadowVolumes = false,
                 ExtraAnimations = false,
-                Gamma = 110,
+                Gamma = 75,
             },
         };
 
@@ -111,7 +111,7 @@ public class GameSettingsViewModelTests
         Assert.Equal(2, _viewModel.TextureQuality); // 2 - 0 = 2 (high quality)
         Assert.False(_viewModel.Shadows);
         Assert.False(_viewModel.ExtraAnimations);
-        Assert.Equal(110, _viewModel.Gamma);
+        Assert.Equal(75, _viewModel.Gamma);
         Assert.Equal("Loaded default settings from Options.ini. Save the profile to persist these settings.", _viewModel.StatusMessage);
     }
 
@@ -133,7 +133,7 @@ public class GameSettingsViewModelTests
             VideoWindowed = true,
             VideoTextureQuality = 1,
             VideoShadows = false,
-            VideoGamma = 120,
+            VideoGamma = 80,
             AudioSoundVolume = 75,
             AudioEnabled = false,
         };
@@ -148,7 +148,7 @@ public class GameSettingsViewModelTests
         Assert.True(_viewModel.Windowed);
         Assert.Equal(1, _viewModel.TextureQuality);
         Assert.False(_viewModel.Shadows);
-        Assert.Equal(120, _viewModel.Gamma);
+        Assert.Equal(80, _viewModel.Gamma);
         Assert.Equal(75, _viewModel.SoundVolume);
         Assert.False(_viewModel.AudioEnabled);
         Assert.Contains("Loaded profile settings", _viewModel.StatusMessage);
@@ -166,7 +166,7 @@ public class GameSettingsViewModelTests
         _viewModel.Windowed = true;
         _viewModel.TextureQuality = 0;
         _viewModel.Shadows = false;
-        _viewModel.Gamma = 110;
+        _viewModel.Gamma = 65;
         _viewModel.SoundVolume = 80;
         _viewModel.AudioEnabled = false;
 
@@ -179,7 +179,7 @@ public class GameSettingsViewModelTests
         Assert.True(request.VideoWindowed);
         Assert.Equal(0, request.VideoTextureQuality);
         Assert.False(request.VideoShadows);
-        Assert.Equal(110, request.VideoGamma);
+        Assert.Equal(65, request.VideoGamma);
         Assert.Equal(80, request.AudioSoundVolume);
         Assert.False(request.AudioEnabled);
     }
@@ -236,7 +236,7 @@ public class GameSettingsViewModelTests
             VideoParticleEffects = hasParticleEffects ? true : null,
             VideoExtraAnimations = hasExtraAnimations ? false : null,
             VideoBuildingAnimations = hasBuildingAnimations ? true : null,
-            VideoGamma = hasGamma ? 100 : null,
+            VideoGamma = hasGamma ? 50 : null,
             AudioSoundVolume = hasSoundVolume ? 70 : null,
             AudioThreeDSoundVolume = hasThreeDSoundVolume ? 70 : null,
             AudioSpeechVolume = hasSpeechVolume ? 70 : null,
