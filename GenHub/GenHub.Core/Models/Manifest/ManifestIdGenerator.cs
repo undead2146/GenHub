@@ -8,18 +8,32 @@ namespace GenHub.Core.Models.Manifest;
 
 /// <summary>
 /// Utility for generating deterministic, human-readable manifest IDs.
+/// All manifest IDs follow a strict 5-segment format: schemaVersion.userVersion.publisher.contentType.contentName
+/// This structure ensures:
+/// - Consistent parsing and validation across the system
+/// - Hierarchical organization for efficient querying and indexing
+/// - Unique identification across publishers and content types
+/// - Schema versioning support for future format evolution
+/// - Human-readable format for debugging and logging
+/// Examples: "1.0.ea.gameinstallation.generals", "1.108.steam.mod.communitymaps"
 /// </summary>
 public static class ManifestIdGenerator
 {
     /// <summary>
     /// Generates a manifest ID for publisher-provided content.
-    /// Format: schemaVersion.manifestVersion.publisher.contentType.contentName.
+    /// Format: schemaVersion.userVersion.publisher.contentType.contentName (exactly 5 segments).
+    /// This 5-segment structure enables:
+    /// - Schema versioning (first segment) for future format changes
+    /// - User versioning (second segment) for content version tracking
+    /// - Publisher identification (third segment) for content attribution
+    /// - Content type categorization (fourth segment) for filtering and organization
+    /// - Content naming (fifth segment) for human-readable identification
     /// </summary>
-    /// <param name="publisherId">Publisher identifier used as the first segment (e.g., 'cnclabs', 'moddb-westwood').</param>
-    /// <param name="contentType">The type of content being identified.</param>
-    /// <param name="contentName">Human readable content name used as the second segment.</param>
-    /// <param name="userVersion">User-specified version number (e.g., 1, 2, 20). Defaults to 0 for first version.</param>
-    /// <returns>A normalized manifest identifier in the form 'schemaVersion.manifestVersion.publisher.contentType.contentName'.</returns>
+    /// <param name="publisherId">Publisher identifier used as the third segment (e.g., 'cnclabs', 'moddb-westwood').</param>
+    /// <param name="contentType">The type of content being identified (fourth segment).</param>
+    /// <param name="contentName">Human readable content name used as the fifth segment.</param>
+    /// <param name="userVersion">User-specified version number for the second segment (e.g., 1, 2, 20). Defaults to 0 for first version.</param>
+    /// <returns>A normalized manifest identifier in the form 'schemaVersion.userVersion.publisher.contentType.contentName'.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="publisherId"/> or <paramref name="contentName"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="publisherId"/> or <paramref name="contentName"/> is empty or whitespace, or when <paramref name="userVersion"/> is negative.</exception>
     public static string GeneratePublisherContentId(string publisherId, ContentType contentType, string contentName, int userVersion = 0)
@@ -42,11 +56,17 @@ public static class ManifestIdGenerator
 
     /// <summary>
     /// Generates a manifest ID for a game installation.
-    /// Format: schemaVersion.userVersion.publisher.contentType.contentName.
+    /// Format: schemaVersion.userVersion.publisher.contentType.contentName (exactly 5 segments).
+    /// This 5-segment structure enables:
+    /// - Schema versioning (first segment) for future format changes
+    /// - User versioning (second segment) for installation version tracking
+    /// - Publisher identification (third segment) based on installation type
+    /// - Content type categorization (fourth segment, always "gameinstallation")
+    /// - Content naming (fifth segment) based on game type
     /// </summary>
     /// <param name="installation">The game installation used to derive the publisher (installation type).</param>
     /// <param name="gameType">The specific game type (Generals or ZeroHour) for the manifest ID.</param>
-    /// <param name="userVersion">User-specified version (e.g., "1.08", "1.04", or integer like 0, 1, 2). If null, defaults to 0.</param>
+    /// <param name="userVersion">User-specified version for the second segment (e.g., "1.08", "1.04", or integer like 0, 1, 2). If null, defaults to 0.</param>
     /// <returns>A normalized manifest identifier in the form 'schemaVersion.userVersion.publisher.contentType.contentName'.</returns>
     public static string GenerateGameInstallationId(GameInstallation installation, GameType gameType, object? userVersion)
     {

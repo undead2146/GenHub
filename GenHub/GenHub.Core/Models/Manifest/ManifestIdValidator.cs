@@ -8,6 +8,13 @@ namespace GenHub.Core.Models.Manifest;
 /// Provides validation for manifest IDs to ensure they follow the deterministic,
 /// human-readable 5-segment scheme required by GenHub.
 /// All content uses format: schemaVersion.userVersion.publisher.contentType.contentName.
+/// The 5-segment requirement ensures:
+/// - Consistent parsing and validation across the system
+/// - Hierarchical organization for efficient querying
+/// - Unique identification across publishers and content types
+/// - Schema versioning support for future format evolution
+/// - Human-readable format for debugging and logging
+/// Examples: "1.0.ea.gameinstallation.generals", "1.108.steam.mod.communitymaps"
 /// </summary>
 public static class ManifestIdValidator
 {
@@ -45,7 +52,13 @@ public static class ManifestIdValidator
 
     /// <summary>
     /// Validates whether the given manifest ID is valid according to GenHub rules.
-    /// All content must use 5-segment format: schemaVersion.userVersion.publisher.contentType.contentName.
+    /// All content must use exactly 5-segment format: schemaVersion.userVersion.publisher.contentType.contentName.
+    /// The 5-segment requirement provides:
+    /// - Schema versioning (first segment) for future compatibility
+    /// - User versioning (second segment) for content version tracking
+    /// - Publisher identification (third segment) for attribution and trust
+    /// - Content type categorization (fourth segment) for filtering and organization
+    /// - Content naming (fifth segment) for human-readable identification
     /// </summary>
     /// <param name="manifestId">Manifest identifier to validate.</param>
     /// <param name="reason">If invalid, contains a human-readable reason.</param>
@@ -63,7 +76,7 @@ public static class ManifestIdValidator
         // All content must use 5-segment format
         if (segments.Length != 5)
         {
-            reason = $"Manifest ID '{manifestId}' is invalid. Must be exactly 5 segments in format: schemaVersion.userVersion.publisher.contentType.contentName (e.g., '1.108.steam.gameinstallation.generals')";
+            reason = $"Manifest ID '{manifestId}' is invalid. Must be exactly 5 segments in format: schemaVersion.userVersion.publisher.contentType.contentName (e.g., '1.108.steam.gameinstallation.generals'). The 5-segment structure ensures consistent parsing, hierarchical organization, and unique identification across publishers and content types.";
             return false;
         }
 

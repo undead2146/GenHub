@@ -42,12 +42,30 @@ public static class ManifestConstants
 
     /// <summary>
     /// Minimum number of segments in manifest ID (must be exactly 5).
+    /// Format: schemaVersion.userVersion.publisher.contentType.contentName
+    /// Examples:
+    /// - 1.0.ea.gameinstallation.generals
+    /// - 1.108.steam.mod.communitymaps
+    /// - 1.104.origin.patch.officialpatch
+    /// This 5-segment structure ensures:
+    /// - Consistent parsing and validation across the system
+    /// - Hierarchical organization: schema versioning → user versioning → publisher → content type → content name
+    /// - Unique identification across publishers and content types
+    /// - Schema versioning support for future format changes
+    /// - Efficient indexing and querying capabilities
     /// </summary>
     public const int MinManifestSegments = 5;
 
     /// <summary>
     /// Regex pattern for validating 5-segment publisher content IDs (schemaVersion.userVersion.publisher.contentType.contentName).
-    /// All manifest IDs must match this format.
+    /// All manifest IDs must match this format to ensure consistent identification and categorization.
+    /// Format breakdown:
+    /// - schemaVersion: Numeric schema version (e.g., "1")
+    /// - userVersion: User-specified version without dots (e.g., "108" for v1.08, "0" for default)
+    /// - publisher: Publisher identifier (e.g., "ea", "steam", "cnclabs")
+    /// - contentType: Content type enum value (e.g., "gameinstallation", "mod", "patch")
+    /// - contentName: Content identifier (e.g., "generals", "zerohour", "communitymaps")
+    /// Examples: "1.0.ea.gameinstallation.generals", "1.108.steam.mod.communitymaps"
     /// </summary>
     public const string PublisherContentRegexPattern = @"^\d+\.\d+\.[a-z0-9]+\.(gameinstallation|gameclient|mod|patch|addon|mappack|languagepack|contentbundle|publisherreferral|contentreferral|mission|map|unknown)\.[a-z0-9-]+$";
 
@@ -79,4 +97,24 @@ public static class ManifestConstants
     /// Note: When used in manifest IDs, dots are removed to create "104" for schema compliance.
     /// </summary>
     public const string ZeroHourManifestVersion = "1.04";
+
+    /// <summary>
+    /// Canonical full display name for Command &amp; Conquer: Generals.
+    /// </summary>
+    public const string GeneralsFullName = "Command & Conquer: Generals";
+
+    /// <summary>
+    /// Canonical short display name for Command &amp; Conquer: Generals.
+    /// </summary>
+    public const string GeneralsShortName = "Generals";
+
+    /// <summary>
+    /// Canonical short display name for Command &amp; Conquer: Generals Zero Hour.
+    /// </summary>
+    public const string ZeroHourShortName = "Zero Hour";
+
+    /// <summary>
+    /// Canonical full display name for Command &amp; Conquer: Generals Zero Hour.
+    /// </summary>
+    public const string ZeroHourFullName = "Command & Conquer: Generals Zero Hour";
 }
