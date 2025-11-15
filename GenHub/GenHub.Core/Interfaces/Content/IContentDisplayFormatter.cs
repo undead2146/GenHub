@@ -55,6 +55,16 @@ public interface IContentDisplayFormatter
     /// <param name="gameType">The game type.</param>
     /// <param name="useShortName">Whether to use a short name (e.g., 'Zero Hour' vs full title).</param>
     /// <returns>A user-friendly display name.</returns>
+    /// <remarks>
+    /// Uses canonical display names defined in <see cref="GenHub.Core.Constants.ManifestConstants"/> for consistency.
+    /// <para>Examples:</para>
+    /// <list type="bullet">
+    /// <item><description>GetGameTypeDisplayName(GameType.Generals, false) returns "Command &amp; Conquer: Generals"</description></item>
+    /// <item><description>GetGameTypeDisplayName(GameType.Generals, true) returns "Generals"</description></item>
+    /// <item><description>GetGameTypeDisplayName(GameType.ZeroHour, false) returns "Command &amp; Conquer: Generals Zero Hour"</description></item>
+    /// <item><description>GetGameTypeDisplayName(GameType.ZeroHour, true) returns "Zero Hour"</description></item>
+    /// </list>
+    /// </remarks>
     string GetGameTypeDisplayName(GameType gameType, bool useShortName = false);
 
     /// <summary>
