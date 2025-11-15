@@ -199,6 +199,7 @@ public class ManifestProvider : IManifestProvider
             ? ManifestConstants.ZeroHourManifestVersion
             : ManifestConstants.GeneralsManifestVersion;
 
+        int manifestVersionInt = int.TryParse(manifestVersion, out var v) ? v : 0;
         var deterministicId = ManifestIdGenerator.GenerateGameInstallationId(tempInstallForId, gameType, manifestVersion);
 
         // Try CAS using deterministic id

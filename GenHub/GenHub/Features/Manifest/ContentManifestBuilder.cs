@@ -48,7 +48,8 @@ public class ContentManifestBuilder(
         tempInstallation.SetPaths(null, gameType == GameType.ZeroHour ? "dummy" : null);
 
         // Use ManifestIdService for consistent ID generation with ResultBase pattern
-        var idResult = _manifestIdService.GenerateGameInstallationId(tempInstallation, gameType, manifestVersion);
+        int manifestVersionInt = int.TryParse(manifestVersion, out var v) ? v : 0;
+        var idResult = _manifestIdService.GenerateGameInstallationId(tempInstallation, gameType, manifestVersionInt);
         if (idResult.Success)
         {
             _manifest.Id = idResult.Data;
@@ -59,7 +60,7 @@ public class ContentManifestBuilder(
 
             // Fallback to direct generation if service fails
             _manifest.Id = ManifestId.Create(
-                ManifestIdGenerator.GenerateGameInstallationId(tempInstallation, gameType, manifestVersion));
+                ManifestIdGenerator.GenerateGameInstallationId(tempInstallation, gameType, manifestVersionInt));
         }
 
         _manifest.Name = gameType.ToString().ToLowerInvariant();

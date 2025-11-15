@@ -86,9 +86,11 @@ public class ProfileContentLoader(
                         ? ManifestConstants.ZeroHourManifestVersion
                         : ManifestConstants.GeneralsManifestVersion;
 
+                    int manifestVersionInt = int.TryParse(manifestVersion, out var v) ? v : 0;
+
                     // Generate manifest ID for GameInstallation content
                     var installationManifestId = ManifestId.Create(
-                        ManifestIdGenerator.GenerateGameInstallationId(installation, gameType, manifestVersion));
+                        ManifestIdGenerator.GenerateGameInstallationId(installation, gameType, manifestVersionInt));
 
                     // Use game client version if available and valid, otherwise use manifest version
                     var clientVersion = baseClient.Version;

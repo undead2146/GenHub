@@ -407,21 +407,22 @@ public partial class GameProfileLauncherViewModel(
 
             // Use the detected version from the game client for the GameInstallation manifest ID
             // Convert "Unknown" and "Auto-Updated" to 0 to avoid normalization errors in ManifestIdGenerator
-            object manifestVersion;
+            int manifestVersionInt;
             if (string.IsNullOrEmpty(gameClient.Version) ||
                 gameClient.Version.Equals("Unknown", StringComparison.OrdinalIgnoreCase) ||
                 gameClient.Version.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase))
             {
-                manifestVersion = 0; // Use 0 for unknown or auto-updated versions
+                manifestVersionInt = 0; // Use 0 for unknown or auto-updated versions
             }
             else
             {
-                manifestVersion = gameClient.Version; // Use the detected version string
+                // Try to parse version as int, default to 0 if not parseable
+                manifestVersionInt = int.TryParse(gameClient.Version, out var parsed) ? parsed : 0;
             }
 
             // Generate the GameInstallation manifest ID for this specific game type
             // This must match what ManifestProvider generates
-            var installationManifestId = ManifestIdGenerator.GenerateGameInstallationId(installation, gameClient.GameType, manifestVersion);
+            var installationManifestId = ManifestIdGenerator.GenerateGameInstallationId(installation, gameClient.GameType, manifestVersionInt);
 
             // Create enabled content list: GameInstallation manifest + GameClient manifest
             var enabledContentIds = new List<string>

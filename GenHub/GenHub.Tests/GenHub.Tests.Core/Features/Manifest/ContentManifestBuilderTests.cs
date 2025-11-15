@@ -50,10 +50,6 @@ public class ContentManifestBuilderTests
         _manifestIdServiceMock.Setup(x => x.ValidateAndCreateManifestId(It.IsAny<string>()))
             .Returns((string id) => OperationResult<ManifestId>.CreateSuccess(ManifestId.Create(id)));
 
-        _manifestIdServiceMock.Setup(x => x.GenerateGameInstallationId(It.IsAny<GameInstallation>(), It.IsAny<GameType>(), It.IsAny<string?>()))
-            .Returns((GameInstallation gi, GameType gt, string? v) =>
-                OperationResult<ManifestId>.CreateSuccess(ManifestId.Create("game-installation-id")));
-
         _manifestIdServiceMock.Setup(x => x.GenerateGameInstallationId(It.IsAny<GameInstallation>(), It.IsAny<GameType>(), It.IsAny<int>()))
             .Returns((GameInstallation gi, GameType gt, int v) =>
                 OperationResult<ManifestId>.CreateSuccess(ManifestId.Create("game-installation-id")));

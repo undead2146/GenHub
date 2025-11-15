@@ -220,7 +220,7 @@ public class GameInstallationService(
                 // Get the detected version from the GeneralsClient if available, otherwise use the constant
                 // Convert "Unknown" to 0 to avoid normalization errors in ManifestIdGenerator
                 var detectedVersion = installation.GeneralsClient?.Version;
-                object generalsVersionForId;
+                int generalsVersionForId;
                 string generalsVersionForManifest;
 
                 if (string.IsNullOrEmpty(detectedVersion) || detectedVersion.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
@@ -230,7 +230,7 @@ public class GameInstallationService(
                 }
                 else
                 {
-                    generalsVersionForId = detectedVersion; // Use the detected version string (e.g., "1.08")
+                    generalsVersionForId = ParseVersionStringToInt(detectedVersion);
                     generalsVersionForManifest = detectedVersion;
                 }
 
@@ -271,7 +271,7 @@ public class GameInstallationService(
                 // Get the detected version from the ZeroHourClient if available, otherwise use the constant
                 // Convert "Unknown" to 0 to avoid normalization errors in ManifestIdGenerator
                 var detectedVersion = installation.ZeroHourClient?.Version;
-                object zeroHourVersionForId;
+                int zeroHourVersionForId;
                 string zeroHourVersionForManifest;
 
                 if (string.IsNullOrEmpty(detectedVersion) || detectedVersion.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
@@ -281,7 +281,7 @@ public class GameInstallationService(
                 }
                 else
                 {
-                    zeroHourVersionForId = detectedVersion; // Use the detected version string (e.g., "1.04")
+                    zeroHourVersionForId = ParseVersionStringToInt(detectedVersion);
                     zeroHourVersionForManifest = detectedVersion;
                 }
 
@@ -317,5 +317,32 @@ public class GameInstallationService(
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Parses a version string into an integer for manifest ID generation.
+    /// Examples: "1.08" -> 108, "1.04" -> 104, "2.0" -> 200, "5" -> 5, null -> 0.
+    /// </summary>
+    /// <param name="version">The version string to parse.</param>
+    /// <returns>The parsed integer version.</returns>
+    private static int ParseVersionStringToInt(string? version)
+    {
+        if (string.IsNullOrWhiteSpace(version))
+            return 0;
+
+        if (version.Contains('.'))
+        {
+            var parts = version.Split('.');
+            if (parts.Length == 2 && int.TryParse(parts[0], out int major) && int.TryParse(parts[1], out int minor))
+            {
+                return major * 100 + minor;
+            }
+        }
+        else if (int.TryParse(version, out int parsed))
+        {
+            return parsed;
+        }
+
+        return 0;
     }
 }
