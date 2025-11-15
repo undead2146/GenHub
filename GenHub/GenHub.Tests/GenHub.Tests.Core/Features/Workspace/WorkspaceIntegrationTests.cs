@@ -307,7 +307,6 @@ public class WorkspaceIntegrationTests : IDisposable
         var testFiles = new[]
         {
             "generals.exe",
-            "generals.exe",
             "data/textures/texture1.tga",
             "data/audio/sound1.wav",
             "mods/mod1/mod.ini",
