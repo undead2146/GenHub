@@ -43,6 +43,33 @@ public class GameLauncher(
 {
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _profileLaunchLocks = new();
 
+    /// <inheritdoc/>
+    public async Task<IDisposable> AcquireProfileLockAsync(string profileId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(profileId);
+        var semaphore = _profileLaunchLocks.GetOrAdd(profileId, _ => new SemaphoreSlim(1, 1));
+        await semaphore.WaitAsync(cancellationToken);
+        return new SemaphoreReleaser(semaphore);
+    }
+
+    /// <summary>
+    /// Helper class to release semaphore when disposed.
+    /// </summary>
+    private sealed class SemaphoreReleaser(SemaphoreSlim semaphore) : IDisposable
+    {
+        private readonly SemaphoreSlim _semaphore = semaphore;
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (!_disposed)
+            {
+                _semaphore.Release();
+                _disposed = true;
+            }
+        }
+    }
+
     /// <summary>
     /// Launches a game using the provided configuration.
     /// </summary>
@@ -234,6 +261,20 @@ public class GameLauncher(
 
             // Proceed with launch
             var launchId = Guid.NewGuid().ToString();
+
+            // Register placeholder launch entry before starting to prevent deletion during launch
+            // This ensures DeleteProfileAsync will see an active launch and block deletion
+            var placeholderLaunchInfo = new GameLaunchInfo
+            {
+                LaunchId = launchId,
+                ProfileId = profile.Id,
+                WorkspaceId = string.Empty, // Will be set later when workspace is ready
+                ProcessInfo = new GameProcessInfo { ProcessId = -1 }, // Placeholder PID
+                LaunchedAt = DateTime.UtcNow,
+            };
+            await launchRegistry.RegisterLaunchAsync(placeholderLaunchInfo);
+            logger.LogDebug("Registered placeholder launch {LaunchId} for profile {ProfileId} to prevent deletion during launch", launchId, profile.Id);
+
             return await LaunchProfileAsync(profile, progress, cancellationToken, launchId);
         }
         finally
@@ -741,7 +782,8 @@ public class GameLauncher(
             var processInfo = processResult.Data;
             logger.LogInformation("[GameLauncher] Process started successfully - PID: {ProcessId}", processInfo.ProcessId);
 
-            // Create launch info and register
+            // Update the placeholder launch entry with real process info
+            // (The placeholder was registered earlier to prevent deletion during launch)
             var launchInfo = new GameLaunchInfo
             {
                 LaunchId = launchId,
@@ -751,7 +793,7 @@ public class GameLauncher(
                 LaunchedAt = DateTime.UtcNow,
             };
 
-            logger.LogDebug("[GameLauncher] Registering launch in registry");
+            logger.LogDebug("[GameLauncher] Updating launch registry with real process info");
             await launchRegistry.RegisterLaunchAsync(launchInfo);
 
             // Report completion
@@ -762,11 +804,16 @@ public class GameLauncher(
         }
         catch (OperationCanceledException)
         {
+            // Clean up placeholder if launch was cancelled
+            logger.LogWarning("Launch cancelled for profile {ProfileId}, cleaning up placeholder entry", profile.Id);
+            await launchRegistry.UnregisterLaunchAsync(launchId);
             throw new TaskCanceledException();
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to launch profile {ProfileId}", profile.Id);
+            // Clean up placeholder if launch failed
+            logger.LogError(ex, "Failed to launch profile {ProfileId}, cleaning up placeholder entry", profile.Id);
+            await launchRegistry.UnregisterLaunchAsync(launchId);
             return LaunchOperationResult<GameLaunchInfo>.CreateFailure($"Launch failed: {ex.Message}", launchId, profile.Id);
         }
     }

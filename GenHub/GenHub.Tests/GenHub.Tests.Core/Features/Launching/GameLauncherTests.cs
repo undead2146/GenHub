@@ -120,7 +120,9 @@ public class GameLauncherTests
         Assert.True(result.Success);
         Assert.NotNull(result.Data);
         Assert.Equal(processInfo.ProcessId, result.Data.ProcessInfo.ProcessId);
-        _launchRegistryMock.Verify(x => x.RegisterLaunchAsync(It.Is<GameLaunchInfo>(i => i.ProfileId == profile.Id)), Times.Once);
+
+        // Verify RegisterLaunchAsync called twice: once for placeholder, once for final update
+        _launchRegistryMock.Verify(x => x.RegisterLaunchAsync(It.Is<GameLaunchInfo>(i => i.ProfileId == profile.Id)), Times.Exactly(2));
     }
 
     /// <summary>

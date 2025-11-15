@@ -79,7 +79,10 @@ public class LaunchRegistry(ILogger<LaunchRegistry> logger, IWorkspaceManager? w
     {
         // Clean up stale launches before returning
         CleanupStaleLaunches();
-        return Task.FromResult(_activeLaunches.Values.AsEnumerable());
+
+        // Only return launches that haven't been terminated
+        // This prevents race conditions where a launch is being terminated but still in the registry
+        return Task.FromResult(_activeLaunches.Values.Where(l => !l.TerminatedAt.HasValue).AsEnumerable());
     }
 
     /// <summary>
