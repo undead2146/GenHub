@@ -18,7 +18,7 @@ public class CreateProfileRequest
     public string? GameClientId { get; set; }
 
     /// <summary>Gets or sets the preferred workspace strategy.</summary>
-    public WorkspaceStrategy PreferredStrategy { get; set; }
+    public WorkspaceStrategy PreferredStrategy { get; set; } = WorkspaceStrategy.SymlinkOnly;
 
     /// <summary>Gets or sets the list of enabled content IDs.</summary>
     public List<string>? EnabledContentIds { get; set; }
