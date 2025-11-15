@@ -132,14 +132,14 @@ public class GameProfile : IGameProfile
     public bool? VideoWindowed { get; set; }
 
     /// <summary>
-    /// Gets or sets the texture quality for this profile (0=low, 1=medium, 2=high).
+    /// Gets or sets the texture quality for this profile.
     /// </summary>
-    public int? VideoTextureQuality { get; set; }
+    public TextureQuality? VideoTextureQuality { get; set; }
 
     /// <summary>
-    /// Gets or sets whether shadows are enabled for this profile.
+    /// Gets or sets whether video shadows are enabled for this profile.
     /// </summary>
-    public bool? VideoShadows { get; set; }
+    public bool? EnableVideoShadows { get; set; }
 
     /// <summary>
     /// Gets or sets whether particle effects are enabled for this profile.

@@ -337,7 +337,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                     VideoResolutionHeight = gameSettings.VideoResolutionHeight,
                     VideoWindowed = gameSettings.VideoWindowed,
                     VideoTextureQuality = gameSettings.VideoTextureQuality,
-                    VideoShadows = gameSettings.VideoShadows,
+                    EnableVideoShadows = gameSettings.EnableVideoShadows,
                     VideoParticleEffects = gameSettings.VideoParticleEffects,
                     VideoExtraAnimations = gameSettings.VideoExtraAnimations,
                     VideoBuildingAnimations = gameSettings.VideoBuildingAnimations,
@@ -420,7 +420,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                profile.VideoResolutionHeight.HasValue ||
                profile.VideoWindowed.HasValue ||
                profile.VideoTextureQuality.HasValue ||
-               profile.VideoShadows.HasValue ||
+               profile.EnableVideoShadows.HasValue ||
                profile.VideoParticleEffects.HasValue ||
                profile.VideoExtraAnimations.HasValue ||
                profile.VideoBuildingAnimations.HasValue ||
@@ -882,7 +882,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                     VideoResolutionHeight = gameSettings.VideoResolutionHeight,
                     VideoWindowed = gameSettings.VideoWindowed,
                     VideoTextureQuality = gameSettings.VideoTextureQuality,
-                    VideoShadows = gameSettings.VideoShadows,
+                    EnableVideoShadows = gameSettings.EnableVideoShadows,
                     VideoParticleEffects = gameSettings.VideoParticleEffects,
                     VideoExtraAnimations = gameSettings.VideoExtraAnimations,
                     VideoBuildingAnimations = gameSettings.VideoBuildingAnimations,

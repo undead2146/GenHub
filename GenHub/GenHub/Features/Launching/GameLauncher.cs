@@ -446,7 +446,7 @@ public class GameLauncher(
                profile.VideoResolutionHeight.HasValue ||
                profile.VideoWindowed.HasValue ||
                profile.VideoTextureQuality.HasValue ||
-               profile.VideoShadows.HasValue ||
+               profile.EnableVideoShadows.HasValue ||
                profile.VideoParticleEffects.HasValue ||
                profile.VideoExtraAnimations.HasValue ||
                profile.VideoBuildingAnimations.HasValue ||
@@ -479,13 +479,13 @@ public class GameLauncher(
         if (profile.VideoTextureQuality.HasValue)
         {
             // Map TextureQuality (0-2) to TextureReduction (0-3, inverted)
-            options.Video.TextureReduction = 2 - profile.VideoTextureQuality.Value;
+            options.Video.TextureReduction = 2 - (int)profile.VideoTextureQuality.Value;
         }
 
-        if (profile.VideoShadows.HasValue)
+        if (profile.EnableVideoShadows.HasValue)
         {
-            options.Video.UseShadowVolumes = profile.VideoShadows.Value;
-            options.Video.UseShadowDecals = profile.VideoShadows.Value;
+            options.Video.UseShadowVolumes = profile.EnableVideoShadows.Value;
+            options.Video.UseShadowDecals = profile.EnableVideoShadows.Value;
         }
 
         if (profile.VideoExtraAnimations.HasValue)

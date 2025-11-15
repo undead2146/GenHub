@@ -20,7 +20,7 @@ namespace GenHub.Features.GameProfiles.ViewModels;
 /// </summary>
 public partial class GameSettingsViewModel : ViewModelBase
 {
-    private const int MaxTextureQuality = GameSettingsConstants.TextureQuality.MaxQuality; // Will be 3 when SH version supports 'very high' texture quality (see TheSuperHackers/GeneralsGameCode#1629)
+    private const TextureQuality MaxTextureQuality = TextureQuality.High; // Will be VeryHigh when SH version supports 'very high' texture quality (see TheSuperHackers/GeneralsGameCode#1629)
     private const int TextureReductionOffset = GameSettingsConstants.TextureQuality.ReductionOffset;
 
     // Resolution validation constants
@@ -48,7 +48,7 @@ public partial class GameSettingsViewModel : ViewModelBase
                profile.VideoResolutionHeight.HasValue ||
                profile.VideoWindowed.HasValue ||
                profile.VideoTextureQuality.HasValue ||
-               profile.VideoShadows.HasValue ||
+               profile.EnableVideoShadows.HasValue ||
                profile.VideoParticleEffects.HasValue ||
                profile.VideoExtraAnimations.HasValue ||
                profile.VideoBuildingAnimations.HasValue ||
@@ -120,7 +120,7 @@ public partial class GameSettingsViewModel : ViewModelBase
     private bool _windowed;
 
     [ObservableProperty]
-    private int _textureQuality = 2;
+    private TextureQuality _textureQuality = TextureQuality.High;
 
     [ObservableProperty]
     private bool _shadows = true;
@@ -205,7 +205,7 @@ public partial class GameSettingsViewModel : ViewModelBase
             VideoResolutionHeight = ResolutionHeight,
             VideoWindowed = Windowed,
             VideoTextureQuality = TextureQuality,
-            VideoShadows = Shadows,
+            EnableVideoShadows = Shadows,
             VideoParticleEffects = ParticleEffects,
             VideoExtraAnimations = ExtraAnimations,
             VideoBuildingAnimations = BuildingAnimations,
@@ -309,7 +309,7 @@ public partial class GameSettingsViewModel : ViewModelBase
         if (profile.VideoResolutionHeight.HasValue) ResolutionHeight = profile.VideoResolutionHeight.Value;
         if (profile.VideoWindowed.HasValue) Windowed = profile.VideoWindowed.Value;
         if (profile.VideoTextureQuality.HasValue) TextureQuality = profile.VideoTextureQuality.Value;
-        if (profile.VideoShadows.HasValue) Shadows = profile.VideoShadows.Value;
+        if (profile.EnableVideoShadows.HasValue) Shadows = profile.EnableVideoShadows.Value;
         if (profile.VideoParticleEffects.HasValue) ParticleEffects = profile.VideoParticleEffects.Value;
         if (profile.VideoExtraAnimations.HasValue) ExtraAnimations = profile.VideoExtraAnimations.Value;
         if (profile.VideoBuildingAnimations.HasValue) BuildingAnimations = profile.VideoBuildingAnimations.Value;
@@ -479,8 +479,8 @@ public partial class GameSettingsViewModel : ViewModelBase
         ResolutionHeight = options.Video.ResolutionHeight;
         Windowed = options.Video.Windowed;
 
-        // Map TextureReduction (0-3, inverted) to TextureQuality (0-2)
-        TextureQuality = Math.Clamp(TextureReductionOffset - options.Video.TextureReduction, 0, MaxTextureQuality);
+        // Map TextureReduction (0-3, inverted) to TextureQuality
+        TextureQuality = (TextureQuality)Math.Clamp(TextureReductionOffset - options.Video.TextureReduction, 0, (int)TextureQuality.High);
         Shadows = options.Video.UseShadowVolumes;
 
         // ParticleEffects doesn't exist in Options.ini, keep default
@@ -513,8 +513,8 @@ public partial class GameSettingsViewModel : ViewModelBase
         options.Video.ResolutionHeight = ResolutionHeight;
         options.Video.Windowed = Windowed;
 
-        // Map TextureQuality (0-2) to TextureReduction (0-3, inverted)
-        options.Video.TextureReduction = TextureReductionOffset - TextureQuality;
+        // Map TextureQuality to TextureReduction (0-3, inverted)
+        options.Video.TextureReduction = TextureReductionOffset - (int)TextureQuality;
         options.Video.UseShadowVolumes = Shadows;
         options.Video.UseShadowDecals = Shadows; // Enable decals when shadows are on
 

@@ -46,7 +46,7 @@ public class GameSettingsViewModelTests
         Assert.Equal(800, _viewModel.ResolutionWidth);
         Assert.Equal(600, _viewModel.ResolutionHeight);
         Assert.False(_viewModel.Windowed);
-        Assert.Equal(2, _viewModel.TextureQuality);
+        Assert.Equal(TextureQuality.High, _viewModel.TextureQuality);
         Assert.True(_viewModel.Shadows);
         Assert.True(_viewModel.ParticleEffects);
         Assert.True(_viewModel.ExtraAnimations);
@@ -108,7 +108,7 @@ public class GameSettingsViewModelTests
         Assert.Equal(1920, _viewModel.ResolutionWidth);
         Assert.Equal(1080, _viewModel.ResolutionHeight);
         Assert.True(_viewModel.Windowed);
-        Assert.Equal(2, _viewModel.TextureQuality); // 2 - 0 = 2 (high quality)
+        Assert.Equal(TextureQuality.High, _viewModel.TextureQuality); // 2 - 0 = 2 (high quality)
         Assert.False(_viewModel.Shadows);
         Assert.False(_viewModel.ExtraAnimations);
         Assert.Equal(75, _viewModel.Gamma);
@@ -131,8 +131,8 @@ public class GameSettingsViewModelTests
             VideoResolutionWidth = 2560,
             VideoResolutionHeight = 1440,
             VideoWindowed = true,
-            VideoTextureQuality = 1,
-            VideoShadows = false,
+            VideoTextureQuality = TextureQuality.Medium,
+            EnableVideoShadows = false,
             VideoGamma = 80,
             AudioSoundVolume = 75,
             AudioEnabled = false,
@@ -146,7 +146,7 @@ public class GameSettingsViewModelTests
         Assert.Equal(2560, _viewModel.ResolutionWidth);
         Assert.Equal(1440, _viewModel.ResolutionHeight);
         Assert.True(_viewModel.Windowed);
-        Assert.Equal(1, _viewModel.TextureQuality);
+        Assert.Equal(TextureQuality.Medium, _viewModel.TextureQuality);
         Assert.False(_viewModel.Shadows);
         Assert.Equal(80, _viewModel.Gamma);
         Assert.Equal(75, _viewModel.SoundVolume);
@@ -164,7 +164,7 @@ public class GameSettingsViewModelTests
         _viewModel.ResolutionWidth = 1920;
         _viewModel.ResolutionHeight = 1080;
         _viewModel.Windowed = true;
-        _viewModel.TextureQuality = 0;
+        _viewModel.TextureQuality = TextureQuality.Low;
         _viewModel.Shadows = false;
         _viewModel.Gamma = 65;
         _viewModel.SoundVolume = 80;
@@ -177,8 +177,8 @@ public class GameSettingsViewModelTests
         Assert.Equal(1920, request.VideoResolutionWidth);
         Assert.Equal(1080, request.VideoResolutionHeight);
         Assert.True(request.VideoWindowed);
-        Assert.Equal(0, request.VideoTextureQuality);
-        Assert.False(request.VideoShadows);
+        Assert.Equal(TextureQuality.Low, request.VideoTextureQuality);
+        Assert.False(request.EnableVideoShadows);
         Assert.Equal(65, request.VideoGamma);
         Assert.Equal(80, request.AudioSoundVolume);
         Assert.False(request.AudioEnabled);
@@ -231,8 +231,8 @@ public class GameSettingsViewModelTests
             VideoResolutionWidth = hasVideoWidth ? 1920 : null,
             VideoResolutionHeight = hasVideoHeight ? 1080 : null,
             VideoWindowed = hasWindowed ? true : null,
-            VideoTextureQuality = hasTextureQuality ? 1 : null,
-            VideoShadows = hasShadows ? false : null,
+            VideoTextureQuality = hasTextureQuality ? TextureQuality.Medium : null,
+            EnableVideoShadows = hasShadows ? false : null,
             VideoParticleEffects = hasParticleEffects ? true : null,
             VideoExtraAnimations = hasExtraAnimations ? false : null,
             VideoBuildingAnimations = hasBuildingAnimations ? true : null,

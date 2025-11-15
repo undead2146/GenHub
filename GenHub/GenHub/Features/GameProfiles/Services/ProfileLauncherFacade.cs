@@ -690,7 +690,7 @@ public class ProfileLauncherFacade(
                profile.VideoResolutionHeight.HasValue ||
                profile.VideoWindowed.HasValue ||
                profile.VideoTextureQuality.HasValue ||
-               profile.VideoShadows.HasValue ||
+               profile.EnableVideoShadows.HasValue ||
                profile.VideoParticleEffects.HasValue ||
                profile.VideoExtraAnimations.HasValue ||
                profile.VideoBuildingAnimations.HasValue ||
@@ -729,14 +729,14 @@ public class ProfileLauncherFacade(
         // TextureReduction: 0=no reduction (high), 1=some reduction, 2=more reduction, 3=max reduction (low)
         if (profile.VideoTextureQuality.HasValue)
         {
-            options.Video.TextureReduction = 2 - profile.VideoTextureQuality.Value; // Invert: 2->0, 1->1, 0->2
+            options.Video.TextureReduction = 2 - (int)profile.VideoTextureQuality.Value; // Invert: 2->0, 1->1, 0->2
         }
 
-        // VideoShadows maps to UseShadowVolumes (shadows are primarily volume-based in this engine)
-        if (profile.VideoShadows.HasValue)
+        // EnableVideoShadows maps to UseShadowVolumes (shadows are primarily volume-based in this engine)
+        if (profile.EnableVideoShadows.HasValue)
         {
-            options.Video.UseShadowVolumes = profile.VideoShadows.Value;
-            options.Video.UseShadowDecals = profile.VideoShadows.Value; // Enable decals when shadows are on
+            options.Video.UseShadowVolumes = profile.EnableVideoShadows.Value;
+            options.Video.UseShadowDecals = profile.EnableVideoShadows.Value; // Enable decals when shadows are on
         }
 
         // ParticleEffects doesn't have a direct Options.ini equivalent, skip for now

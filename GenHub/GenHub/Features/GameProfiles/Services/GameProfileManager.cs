@@ -149,8 +149,8 @@ public class GameProfileManager(
                 profile.VideoWindowed = request.VideoWindowed;
             if (request.VideoTextureQuality.HasValue)
                 profile.VideoTextureQuality = request.VideoTextureQuality;
-            if (request.VideoShadows.HasValue)
-                profile.VideoShadows = request.VideoShadows;
+            if (request.EnableVideoShadows.HasValue)
+                profile.EnableVideoShadows = request.EnableVideoShadows;
             if (request.VideoParticleEffects.HasValue)
                 profile.VideoParticleEffects = request.VideoParticleEffects;
             if (request.VideoExtraAnimations.HasValue)
