@@ -1,4 +1,5 @@
 using GenHub.Core.Constants;
+using GenHub.Core.Extensions.Enums;
 using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Models.Enums;
@@ -17,22 +18,6 @@ namespace GenHub.Features.GameProfiles.Services;
 /// </summary>
 public sealed class ContentDisplayFormatter : IContentDisplayFormatter
 {
-    private const string SteamPublisher = "Steam";
-    private const string EaAppPublisher = "EA App";
-    private const string FirstDecadePublisher = "The First Decade";
-    private const string WinePublisher = "Wine/Proton";
-    private const string CdRomPublisher = "CD-ROM";
-    private const string RetailPublisher = "Retail Installation";
-    private const string GeneralsOnlinePublisher = "GeneralsOnline";
-    private const string SuperHackersPublisher = "TheSuperHackers";
-    private const string CncLabsPublisher = "CNClabs";
-    private const string UnknownPublisher = "Unknown";
-
-    private const string GeneralsShortName = "Generals";
-    private const string ZeroHourShortName = "Zero Hour";
-    private const string GeneralsFullName = "Command & Conquer: Generals";
-    private const string ZeroHourFullName = "Command & Conquer: Generals Zero Hour";
-
     private const string CommunityPatchIdentifier = "CommunityPatch";
     private const string VersionPrefix = "v";
 
@@ -190,16 +175,16 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
         {
             return gameType switch
             {
-                GameType.ZeroHour => ZeroHourShortName,
-                GameType.Generals => GeneralsShortName,
+                GameType.ZeroHour => GameClientName.ZeroHour.GetShortName(),
+                GameType.Generals => GameClientName.Generals.GetShortName(),
                 _ => gameType.ToString(),
             };
         }
 
         return gameType switch
         {
-            GameType.Generals => GeneralsFullName,
-            GameType.ZeroHour => ZeroHourFullName,
+            GameType.Generals => GameClientName.Generals.GetFullName(),
+            GameType.ZeroHour => GameClientName.ZeroHour.GetFullName(),
             _ => gameType.ToString(),
         };
     }
@@ -228,13 +213,13 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
     {
         return installationType switch
         {
-            GameInstallationType.Steam => SteamPublisher,
-            GameInstallationType.EaApp => EaAppPublisher,
-            GameInstallationType.TheFirstDecade => FirstDecadePublisher,
-            GameInstallationType.Wine => WinePublisher,
-            GameInstallationType.CDISO => CdRomPublisher,
-            GameInstallationType.Retail => RetailPublisher,
-            _ => UnknownPublisher,
+            GameInstallationType.Steam => Publisher.Steam.GetDisplayName(),
+            GameInstallationType.EaApp => Publisher.EaApp.GetDisplayName(),
+            GameInstallationType.TheFirstDecade => Publisher.TheFirstDecade.GetDisplayName(),
+            GameInstallationType.Wine => Publisher.Wine.GetDisplayName(),
+            GameInstallationType.CDISO => Publisher.CdRom.GetDisplayName(),
+            GameInstallationType.Retail => Publisher.Retail.GetDisplayName(),
+            _ => Publisher.Unknown.GetDisplayName(),
         };
     }
 
@@ -258,11 +243,11 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
         // Priority 3: Parse publisher from manifest name as fallback
         var lowerName = manifest.Name.ToLowerInvariant();
 
-        if (lowerName.Contains("steam")) return SteamPublisher;
-        if (lowerName.Contains("ea") || lowerName.Contains("origin")) return EaAppPublisher;
-        if (lowerName.Contains("generalsonline")) return GeneralsOnlinePublisher;
-        if (lowerName.Contains("thesuperhackers") || lowerName.Contains("superhacker")) return SuperHackersPublisher;
-        if (lowerName.Contains("cnclabs")) return CncLabsPublisher;
+        if (lowerName.Contains("steam")) return Publisher.Steam.GetDisplayName();
+        if (lowerName.Contains("ea") || lowerName.Contains("origin")) return Publisher.EaApp.GetDisplayName();
+        if (lowerName.Contains("generalsonline")) return Publisher.GeneralsOnline.GetDisplayName();
+        if (lowerName.Contains("thesuperhackers") || lowerName.Contains("superhacker")) return Publisher.SuperHackers.GetDisplayName();
+        if (lowerName.Contains("cnclabs")) return Publisher.CncLabs.GetDisplayName();
 
         // Priority 4: Default to installation type display name (handles Retail and Unknown)
         return installationType.GetDisplayName();
@@ -283,7 +268,6 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
 
     private static bool IsCommunityVersion(string version)
     {
-        return version.Contains(GeneralsOnlinePublisher, StringComparison.OrdinalIgnoreCase) ||
-               version.Contains(CommunityPatchIdentifier, StringComparison.OrdinalIgnoreCase);
+        return version.Contains(CommunityPatchIdentifier, StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -519,7 +519,64 @@ Constants related to game client detection and management.
 
 ---
 
-## InstallationSourceConstants Class
+## GameClientName Enum
+
+Enum for game client display names used in UI formatting and content display.
+
+### Enum Values
+
+| Value      | Description                          |
+| ---------- | ------------------------------------ |
+| `Generals` | Command &amp; Conquer: Generals       |
+| `ZeroHour` | Command &amp; Conquer: Generals Zero Hour |
+
+### Extension Methods
+
+The `GameClientNameExtensions` class provides display name methods:
+
+#### `GetShortName()`
+
+Returns abbreviated display names for compact UI display.
+
+- `GameClientName.Generals.GetShortName()` → `"Generals"`
+- `GameClientName.ZeroHour.GetShortName()` → `"Zero Hour"`
+
+#### `GetFullName()`
+
+Returns full game titles for detailed display.
+
+- `GameClientName.Generals.GetFullName()` → `"Command &amp; Conquer: Generals"`
+- `GameClientName.ZeroHour.GetFullName()` → `"Command &amp; Conquer: Generals Zero Hour"`
+
+### Usage in ContentDisplayFormatter
+
+The enum is used in `ContentDisplayFormatter.GetGameTypeDisplayName()` to provide consistent game naming across the UI:
+
+```csharp
+public string GetGameTypeDisplayName(GameType gameType, bool useShortName = false)
+{
+    if (useShortName)
+    {
+        return gameType switch
+        {
+            GameType.ZeroHour => GameClientName.ZeroHour.GetShortName(),
+            GameType.Generals => GameClientName.Generals.GetShortName(),
+            _ => gameType.ToString(),
+        };
+    }
+
+    return gameType switch
+    {
+        GameType.Generals => GameClientName.Generals.GetFullName(),
+        GameType.ZeroHour => GameClientName.ZeroHour.GetFullName(),
+        _ => gameType.ToString(),
+    };
+}
+```
+
+This ensures type-safe game name handling and prevents typos in display strings.
+
+---
 
 Installation source type identifiers for game installations. These constants represent WHERE the game was installed from (Steam, EA App, Retail, etc.).
 
