@@ -65,7 +65,14 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
         _logger = logger ?? NullLogger<GameProfileSettingsViewModel>.Instance;
         _gameSettingsLogger = gameSettingsLogger;
 
-        GameSettingsViewModel = new GameSettingsViewModel(gameSettingsService ?? throw new ArgumentNullException(nameof(gameSettingsService)), gameSettingsLogger ?? NullLogger<GameSettingsViewModel>.Instance);
+        if (gameSettingsService != null)
+        {
+            GameSettingsViewModel = new GameSettingsViewModel(gameSettingsService, gameSettingsLogger ?? NullLogger<GameSettingsViewModel>.Instance);
+        }
+        else
+        {
+            GameSettingsViewModel = null!;
+        }
     }
 
     [ObservableProperty]
@@ -262,7 +269,10 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             }
 
             // Initialize game settings with defaults for new profile
-            await GameSettingsViewModel.InitializeForProfileAsync(null, null);
+            if (GameSettingsViewModel != null)
+            {
+                await GameSettingsViewModel.InitializeForProfileAsync(null, null);
+            }
 
             StatusMessage = $"Found {AvailableGameInstallations.Count} installations and {AvailableContent.Count} content items";
             _logger.LogInformation(
@@ -324,10 +334,13 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             CommandLineArguments = profile.CommandLineArguments ?? string.Empty;
 
             // Load game settings for this profile
-            await GameSettingsViewModel.InitializeForProfileAsync(profileId, profile);
+            if (GameSettingsViewModel != null)
+            {
+                await GameSettingsViewModel.InitializeForProfileAsync(profileId, profile);
+            }
 
             // If the profile has no custom game settings, save the defaults from Options.ini
-            if (!HasProfileSettings(profile))
+            if (GameSettingsViewModel != null && !HasProfileSettings(profile))
             {
                 _logger.LogInformation("Profile {ProfileId} has no custom settings, saving defaults from Options.ini", profileId);
                 var gameSettings = GameSettingsViewModel.GetProfileSettings();
@@ -861,7 +874,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             else
             {
                 // Update existing profile
-                var gameSettings = GameSettingsViewModel.GetProfileSettings();
+                var gameSettings = GameSettingsViewModel?.GetProfileSettings();
 
                 var updateRequest = new UpdateProfileRequest
                 {
@@ -878,21 +891,21 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                     CommandLineArguments = CommandLineArguments,
 
                     // Add game settings
-                    VideoResolutionWidth = gameSettings.VideoResolutionWidth,
-                    VideoResolutionHeight = gameSettings.VideoResolutionHeight,
-                    VideoWindowed = gameSettings.VideoWindowed,
-                    VideoTextureQuality = gameSettings.VideoTextureQuality,
-                    EnableVideoShadows = gameSettings.EnableVideoShadows,
-                    VideoParticleEffects = gameSettings.VideoParticleEffects,
-                    VideoExtraAnimations = gameSettings.VideoExtraAnimations,
-                    VideoBuildingAnimations = gameSettings.VideoBuildingAnimations,
-                    VideoGamma = gameSettings.VideoGamma,
-                    AudioSoundVolume = gameSettings.AudioSoundVolume,
-                    AudioThreeDSoundVolume = gameSettings.AudioThreeDSoundVolume,
-                    AudioSpeechVolume = gameSettings.AudioSpeechVolume,
-                    AudioMusicVolume = gameSettings.AudioMusicVolume,
-                    AudioEnabled = gameSettings.AudioEnabled,
-                    AudioNumSounds = gameSettings.AudioNumSounds,
+                    VideoResolutionWidth = gameSettings?.VideoResolutionWidth,
+                    VideoResolutionHeight = gameSettings?.VideoResolutionHeight,
+                    VideoWindowed = gameSettings?.VideoWindowed,
+                    VideoTextureQuality = gameSettings?.VideoTextureQuality,
+                    EnableVideoShadows = gameSettings?.EnableVideoShadows,
+                    VideoParticleEffects = gameSettings?.VideoParticleEffects,
+                    VideoExtraAnimations = gameSettings?.VideoExtraAnimations,
+                    VideoBuildingAnimations = gameSettings?.VideoBuildingAnimations,
+                    VideoGamma = gameSettings?.VideoGamma,
+                    AudioSoundVolume = gameSettings?.AudioSoundVolume,
+                    AudioThreeDSoundVolume = gameSettings?.AudioThreeDSoundVolume,
+                    AudioSpeechVolume = gameSettings?.AudioSpeechVolume,
+                    AudioMusicVolume = gameSettings?.AudioMusicVolume,
+                    AudioEnabled = gameSettings?.AudioEnabled,
+                    AudioNumSounds = gameSettings?.AudioNumSounds,
                 };
 
                 var result = await _gameProfileManager.UpdateProfileAsync(_currentProfileId, updateRequest);
