@@ -70,6 +70,9 @@ public class UserSettings : ICloneable
     /// <summary>Gets or sets the list of GitHub repositories for discovery.</summary>
     public List<string>? GitHubDiscoveryRepositories { get; set; }
 
+    /// <summary>Gets or sets the list of installed tool plugin assembly paths.</summary>
+    public List<string>? InstalledToolAssemblyPaths { get; set; }
+
     /// <summary>Gets or sets the set of property names explicitly set by the user, allowing distinction between user intent and C# defaults.</summary>
     public HashSet<string> ExplicitlySetProperties { get; set; } = new();
 
@@ -120,6 +123,7 @@ public class UserSettings : ICloneable
             ContentStoragePath = ContentStoragePath,
             ContentDirectories = ContentDirectories != null ? new List<string>(ContentDirectories) : null,
             GitHubDiscoveryRepositories = GitHubDiscoveryRepositories != null ? new List<string>(GitHubDiscoveryRepositories) : null,
+            InstalledToolAssemblyPaths = InstalledToolAssemblyPaths != null ? new List<string>(InstalledToolAssemblyPaths) : null,
             ExplicitlySetProperties = new HashSet<string>(ExplicitlySetProperties),
             CasConfiguration = (CasConfiguration?)CasConfiguration?.Clone() ?? new CasConfiguration(),
         };
