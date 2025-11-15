@@ -29,19 +29,22 @@ public static class ManifestIdGenerator
     /// - Content type categorization (fourth segment) for filtering and organization
     /// - Content naming (fifth segment) for human-readable identification
     /// </summary>
-    /// <param name="publisherId">Publisher identifier used as the third segment (e.g., 'cnclabs', 'moddb-westwood').</param>
-    /// <param name="contentType">The type of content being identified (fourth segment).</param>
-    /// <param name="contentName">Human readable content name used as the fifth segment.</param>
-    /// <param name="userVersion">User-specified version number for the second segment (e.g., 1, 2, 20). Defaults to 0 for first version.</param>
-    /// <returns>A normalized manifest identifier in the form 'schemaVersion.userVersion.publisher.contentType.contentName'.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="publisherId"/> or <paramref name="contentName"/> is null.</exception>
+    /// <param name="publisherId">Publisher identifier used as the first segment (e.g., 'cnclabs', 'moddb-westwood').</param>
+    /// <param name="contentType">The type of content being identified.</param>
+    /// <param name="contentName">Human readable content name used as the second segment.</param>
+    /// <param name="userVersion">User-specified version number (e.g., 1, 2, 20). Defaults to 0 for first version.</param>
+    /// <returns>A normalized manifest identifier in the form 'schemaVersion.manifestVersion.publisher.contentType.contentName'.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="publisherId"/> or <paramref name="contentName"/> is empty or whitespace, or when <paramref name="userVersion"/> is negative.</exception>
-    public static string GeneratePublisherContentId(string publisherId, ContentType contentType, string contentName, int userVersion = 0)
+    public static string GeneratePublisherContentId(
+        string publisherId,
+        ContentType contentType,
+        string contentName,
+        int userVersion = 0)
     {
-        if (publisherId == null)
-            throw new ArgumentNullException(nameof(publisherId));
-        if (contentName == null)
-            throw new ArgumentNullException(nameof(contentName));
+        if (string.IsNullOrWhiteSpace(publisherId))
+            throw new ArgumentException("Publisher ID cannot be empty", nameof(publisherId));
+        if (string.IsNullOrWhiteSpace(contentName))
+            throw new ArgumentException("Content name cannot be empty", nameof(contentName));
         if (userVersion < 0)
             throw new ArgumentException("User version cannot be negative", nameof(userVersion));
 
@@ -50,8 +53,7 @@ public static class ManifestIdGenerator
         var safeName = Normalize(contentName);
         var fullVersion = $"{ManifestConstants.DefaultManifestFormatVersion}.{userVersion}";
 
-        var contentPart = safeName;
-        return $"{fullVersion}.{safePublisher}.{contentTypeString}.{contentPart}";
+        return $"{fullVersion}.{safePublisher}.{contentTypeString}.{safeName}";
     }
 
     /// <summary>

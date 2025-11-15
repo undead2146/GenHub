@@ -476,7 +476,7 @@ public class ManifestIdGeneratorTests
     /// Tests that GeneratePublisherContentId with null publisher throws ArgumentNullException.
     /// </summary>
     [Fact]
-    public void GeneratePublisherContentId_WithNullPublisher_ThrowsArgumentNullException()
+    public void GeneratePublisherContentId_WithNullPublisher_ThrowsArgumentException()
     {
         // Arrange
         string? publisherId = null;
@@ -484,7 +484,7 @@ public class ManifestIdGeneratorTests
         var contentName = "test";
 
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => ManifestIdGenerator.GeneratePublisherContentId(publisherId!, contentType, contentName, 0));
+        Assert.Throws<ArgumentException>(() => ManifestIdGenerator.GeneratePublisherContentId(publisherId!, contentType, contentName, 0));
     }
 
     /// <summary>
