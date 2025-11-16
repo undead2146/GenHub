@@ -319,7 +319,7 @@ public class FileOperationsServiceTests : IDisposable
     /// Tests that CreateSymlinkAsync with allowFallback=false throws exception on failure.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact(Skip = "Requires platform without symlink support or insufficient permissions")]
+    [Fact]
     public async Task CreateSymlinkAsync_WithAllowFallbackFalse_ThrowsOnFailure()
     {
         // This test would need to be run on a system without symlink permissions
