@@ -249,6 +249,9 @@ public class ManifestIdTests
     [InlineData("1.0.steam.generals")] // Only 4 segments
     [InlineData("1.0")] // Only 2 segments
     [InlineData("simple-id")] // Only 1 segment
+    [InlineData("1.0.test")] // 3 segments
+    [InlineData("1.0.CncLabs.mod.content.extra")] // 6 segments
+    [InlineData("1.0.publisher.content.type.name.extra")] // 7 segments
     public void Create_WithInvalidGameInstallationIds_ThrowsArgumentException(string invalidGameInstallationId)
     {
         // Act & Assert
