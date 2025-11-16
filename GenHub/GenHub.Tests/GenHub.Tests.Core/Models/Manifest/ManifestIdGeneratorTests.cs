@@ -424,7 +424,6 @@ public class ManifestIdGeneratorTests
         // Assert
         Assert.Equal(expected, result);
 
-        // Note: This ID has 7 segments and won't pass strict 5-segment validation
     }
 
     /// <summary>
