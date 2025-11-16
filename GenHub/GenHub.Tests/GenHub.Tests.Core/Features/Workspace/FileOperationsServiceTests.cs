@@ -316,27 +316,6 @@ public class FileOperationsServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Tests that CreateSymlinkAsync with allowFallback=false throws exception on failure.
-    /// </summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact(Skip = "Requires platform without symlink support or insufficient permissions")]
-    public async Task CreateSymlinkAsync_WithAllowFallbackFalse_ThrowsOnFailure()
-    {
-        // This test would need to be run on a system without symlink permissions
-        // or we would need to mock the file system operations.
-        // Skipping for now as it requires specific environment conditions.
-        var src = Path.Combine(_tempDir, "source.txt");
-        var link = Path.Combine(_tempDir, "link.txt");
-        await File.WriteAllTextAsync(src, "test content");
-
-        // On systems without symlink support, this should throw
-        await Assert.ThrowsAnyAsync<Exception>(async () =>
-        {
-            await _service.CreateSymlinkAsync(link, src, allowFallback: false);
-        });
-    }
-
-    /// <summary>
     /// Tests that CreateSymlinkAsync with allowFallback=true creates copy on failure.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
