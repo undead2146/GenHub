@@ -411,7 +411,7 @@ public class GameClientDetector(
         var fallbackVersion = "Unknown";
         if (installation?.InstallationType.ToIdentifierString() == "steam")
         {
-            fallbackVersion = "1.04";
+            fallbackVersion = gameType == GameType.Generals ? GameClientConstants.LatestSteamGeneralsVersion : GameClientConstants.LatestSteamZeroHourVersion;
         }
 
         _logger.LogInformation(

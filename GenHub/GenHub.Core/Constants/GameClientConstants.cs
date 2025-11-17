@@ -73,6 +73,14 @@ public static class GameClientConstants
     /// <summary>Version string used for unknown/unrecognized clients.</summary>
     public const string UnknownVersion = "Unknown";
 
+    // ===== Steam Latest Versions =====
+
+    /// <summary>Latest Steam version for Command &amp; Conquer Generals.</summary>
+    public const string LatestSteamGeneralsVersion = "1.09";
+
+    /// <summary>Latest Steam version for Command &amp; Conquer Generals Zero Hour.</summary>
+    public const string LatestSteamZeroHourVersion = "1.05";
+
     // ===== Required DLLs =====
 
     /// <summary>
