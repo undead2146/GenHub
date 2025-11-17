@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using GenHub.Core.Constants;
+using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
@@ -245,7 +246,7 @@ public class WineInstallation(ILogger<WineInstallation>? logger = null) : IGameI
         try
         {
             var executablePath = Path.Combine(installationPath, executableName);
-            var hasExecutable = File.Exists(executablePath) || File.Exists($"{executablePath}.exe");
+            var hasExecutable = executablePath.FileExistsCaseInsensitive() || $"{executablePath}.exe".FileExistsCaseInsensitive();
 
             if (hasExecutable)
             {

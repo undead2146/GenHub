@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using GenHub.Core.Constants;
+using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
@@ -126,7 +127,7 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
                         };
                         foreach (var exe in possibleExes)
                         {
-                            if (File.Exists(Path.Combine(generalsPath, exe)))
+                            if (Path.Combine(generalsPath, exe).FileExistsCaseInsensitive())
                             {
                                 HasGenerals = true;
                                 GeneralsPath = generalsPath;
@@ -157,7 +158,8 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
                     {
                         if (Directory.Exists(zhPath))
                         {
-                            // Check for various possible Zero Hour executable names using constants (case-insensitive on Windows)
+                            // Check for various possible Zero Hour executable names using constants
+                            // Case-insensitive file matching provided by FileExistsCaseInsensitive extension method
                             var possibleExes = new[]
                             {
                                 GameClientConstants.ZeroHourExecutable,
@@ -165,7 +167,7 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
                             };
                             foreach (var exe in possibleExes)
                             {
-                                if (File.Exists(Path.Combine(zhPath, exe)))
+                                if (Path.Combine(zhPath, exe).FileExistsCaseInsensitive())
                                 {
                                     HasZeroHour = true;
                                     ZeroHourPath = zhPath;

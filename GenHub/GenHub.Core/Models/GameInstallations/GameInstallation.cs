@@ -1,4 +1,5 @@
 using GenHub.Core.Constants;
+using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
@@ -158,7 +159,7 @@ public class GameInstallation : IGameInstallation
             if (Directory.Exists(generalsPath))
             {
                 var generalsExe = Path.Combine(generalsPath, GameClientConstants.GeneralsExecutable);
-                if (File.Exists(generalsExe))
+                if (generalsExe.FileExistsCaseInsensitive())
                 {
                     HasGenerals = true;
                     GeneralsPath = generalsPath;
@@ -175,7 +176,7 @@ public class GameInstallation : IGameInstallation
             if (Directory.Exists(zeroHourPath))
             {
                 var zeroHourExe = Path.Combine(zeroHourPath, GameClientConstants.ZeroHourExecutable);
-                if (File.Exists(zeroHourExe))
+                if (zeroHourExe.FileExistsCaseInsensitive())
                 {
                     HasZeroHour = true;
                     ZeroHourPath = zeroHourPath;
@@ -222,6 +223,6 @@ public class GameInstallation : IGameInstallation
     private bool HasValidExecutable(string path)
     {
         var possibleExes = new[] { GameClientConstants.GeneralsExecutable, GameClientConstants.ZeroHourExecutable };
-        return possibleExes.Any(exe => File.Exists(Path.Combine(path, exe)));
+        return possibleExes.Any(exe => Path.Combine(path, exe).FileExistsCaseInsensitive());
     }
 }

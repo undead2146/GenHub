@@ -2,10 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using GenHub.Core.Constants;
+using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
-using GenHub.Core.Constants;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Linux.GameInstallations;
@@ -114,7 +115,7 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
                 if (!HasGenerals)
                 {
                     var generalsPath = Path.Combine(libraryPath, GameClientConstants.GeneralsDirectoryName);
-                    if (Directory.Exists(generalsPath) && File.Exists(Path.Combine(generalsPath, GameClientConstants.GeneralsExecutable)))
+                    if (Directory.Exists(generalsPath) && Path.Combine(generalsPath, GameClientConstants.GeneralsExecutable).FileExistsCaseInsensitive())
                     {
                         HasGenerals = true;
                         GeneralsPath = generalsPath;
@@ -136,7 +137,7 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
 
                     foreach (var zeroHourPath in possibleZeroHourPaths)
                     {
-                        if (Directory.Exists(zeroHourPath) && File.Exists(Path.Combine(zeroHourPath, GameClientConstants.ZeroHourExecutable)))
+                        if (Directory.Exists(zeroHourPath) && Path.Combine(zeroHourPath, GameClientConstants.ZeroHourExecutable).FileExistsCaseInsensitive())
                         {
                             HasZeroHour = true;
                             ZeroHourPath = zeroHourPath;

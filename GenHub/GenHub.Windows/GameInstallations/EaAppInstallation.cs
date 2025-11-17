@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using GenHub.Core.Constants;
+using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
@@ -174,6 +175,7 @@ public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstal
 
     /// <summary>
     /// Checks if any of the specified executables exist in the given directory.
+    /// Uses case-insensitive file matching for cross-platform compatibility.
     /// </summary>
     /// <param name="directory">The directory to check.</param>
     /// <param name="executableNames">The list of executable names to look for.</param>
@@ -182,7 +184,7 @@ public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstal
     {
         foreach (var exe in executableNames)
         {
-            if (File.Exists(Path.Combine(directory, exe)))
+            if (Path.Combine(directory, exe).FileExistsCaseInsensitive())
             {
                 return true;
             }
