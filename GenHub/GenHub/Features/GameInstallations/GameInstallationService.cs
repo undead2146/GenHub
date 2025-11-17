@@ -153,6 +153,86 @@ public class GameInstallationService(
     }
 
     /// <summary>
+    /// Generates and pools a content manifest for a specific game type within an installation.
+    /// </summary>
+    /// <param name="installation">The game installation.</param>
+    /// <param name="gameType">The type of game (Generals or ZeroHour).</param>
+    /// <param name="gamePath">The path to the game directory.</param>
+    /// <param name="gameClient">The detected game client, if available.</param>
+    /// <param name="defaultManifestVersion">The default manifest version if detection fails.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    private async Task GenerateAndPoolManifestForGameTypeAsync(
+        GameInstallation installation,
+        GameType gameType,
+        string gamePath,
+        GameClient? gameClient,
+        string defaultManifestVersion,
+        CancellationToken cancellationToken)
+    {
+        var detectedVersion = gameClient?.Version;
+        int versionForId;
+        string versionForManifest;
+
+        if (string.IsNullOrEmpty(detectedVersion) ||
+            detectedVersion.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            versionForId = 0;
+            versionForManifest = defaultManifestVersion;
+        }
+        else
+        {
+            versionForId = ParseVersionStringToInt(detectedVersion);
+            versionForManifest = detectedVersion;
+        }
+
+        var idResult = ManifestIdGenerator.GenerateGameInstallationId(
+            installation, gameType, versionForId);
+        var manifestId = ManifestId.Create(idResult);
+
+        var existingManifest = await _contentManifestPool!.GetManifestAsync(
+            manifestId, cancellationToken);
+
+        if (existingManifest.Success && existingManifest.Data != null)
+        {
+            _logger.LogDebug(
+                "Manifest {Id} already exists in pool, skipping generation",
+                manifestId);
+            return;
+        }
+
+        var manifestBuilder = await _manifestGenerationService!
+            .CreateGameInstallationManifestAsync(
+                gamePath,
+                gameType,
+                installation.InstallationType,
+                versionForManifest);
+
+        var manifest = manifestBuilder.Build();
+        manifest.ContentType = ContentType.GameInstallation;
+        manifest.Id = manifestId;
+
+        var addResult = await _contentManifestPool!.AddManifestAsync(
+            manifest, gamePath);
+
+        if (addResult.Success)
+        {
+            _logger.LogDebug(
+                "Pooled GameInstallation manifest {Id} for {InstallationId} ({GameType})",
+                manifest.Id,
+                installation.Id,
+                gameType);
+        }
+        else
+        {
+            _logger.LogWarning(
+                "Failed to pool {GameType} GameInstallation manifest for {InstallationId}: {Errors}",
+                gameType,
+                installation.Id,
+                string.Join(", ", addResult.Errors));
+        }
+    }
+
+    /// <summary>
     /// Attempts to initialize the installation cache if not already initialized.
     /// </summary>
     /// <param name="cancellationToken">A cancellation token.</param>
@@ -241,104 +321,24 @@ public class GameInstallationService(
 
             if (installation.HasGenerals && !string.IsNullOrEmpty(installation.GeneralsPath) && Directory.Exists(installation.GeneralsPath))
             {
-                // Get the detected version from the GeneralsClient if available, otherwise use the constant
-                // Convert "Unknown" to 0 to avoid normalization errors in ManifestIdGenerator
-                var detectedVersion = installation.GeneralsClient?.Version;
-                int generalsVersionForId;
-                string generalsVersionForManifest;
-
-                if (string.IsNullOrEmpty(detectedVersion) || detectedVersion.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
-                {
-                    generalsVersionForId = 0; // Use 0 for unknown versions in manifest ID
-                    generalsVersionForManifest = ManifestConstants.GeneralsManifestVersion; // Use default for manifest metadata
-                }
-                else
-                {
-                    generalsVersionForId = ParseVersionStringToInt(detectedVersion);
-                    generalsVersionForManifest = detectedVersion;
-                }
-
-                var generalsIdResult = ManifestIdGenerator.GenerateGameInstallationId(installation, GameType.Generals, generalsVersionForId);
-                var generalsManifestId = ManifestId.Create(generalsIdResult);
-
-                var existingManifest = await _contentManifestPool.GetManifestAsync(generalsManifestId, cancellationToken);
-                if (existingManifest.Success && existingManifest.Data != null)
-                {
-                    _logger.LogDebug("Manifest {Id} already exists in pool, skipping generation", generalsManifestId);
-                }
-                else
-                {
-                    var generalsManifestBuilder = await _manifestGenerationService.CreateGameInstallationManifestAsync(
-                        installation.GeneralsPath,
-                        GameType.Generals,
-                        installation.InstallationType,
-                        generalsVersionForManifest);
-
-                    var generalsManifest = generalsManifestBuilder.Build();
-                    generalsManifest.ContentType = ContentType.GameInstallation;
-                    generalsManifest.Id = generalsManifestId;
-
-                    var addResult = await _contentManifestPool.AddManifestAsync(generalsManifest, installation.GeneralsPath);
-                    if (addResult.Success)
-                    {
-                        _logger.LogDebug("Pooled GameInstallation manifest {Id} for {InstallationId} (Generals)", generalsManifest.Id, installation.Id);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Failed to pool Generals GameInstallation manifest for {InstallationId}: {Errors}", installation.Id, string.Join(", ", addResult.Errors));
-                    }
-                }
+                await GenerateAndPoolManifestForGameTypeAsync(
+                    installation,
+                    GameType.Generals,
+                    installation.GeneralsPath,
+                    installation.GeneralsClient,
+                    ManifestConstants.GeneralsManifestVersion,
+                    cancellationToken);
             }
 
             if (installation.HasZeroHour && !string.IsNullOrEmpty(installation.ZeroHourPath) && Directory.Exists(installation.ZeroHourPath))
             {
-                // Get the detected version from the ZeroHourClient if available, otherwise use the constant
-                // Convert "Unknown" to 0 to avoid normalization errors in ManifestIdGenerator
-                var detectedVersion = installation.ZeroHourClient?.Version;
-                int zeroHourVersionForId;
-                string zeroHourVersionForManifest;
-
-                if (string.IsNullOrEmpty(detectedVersion) || detectedVersion.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
-                {
-                    zeroHourVersionForId = 0; // Use 0 for unknown versions in manifest ID
-                    zeroHourVersionForManifest = ManifestConstants.ZeroHourManifestVersion; // Use default for manifest metadata
-                }
-                else
-                {
-                    zeroHourVersionForId = ParseVersionStringToInt(detectedVersion);
-                    zeroHourVersionForManifest = detectedVersion;
-                }
-
-                var zeroHourIdResult = ManifestIdGenerator.GenerateGameInstallationId(installation, GameType.ZeroHour, zeroHourVersionForId);
-                var zeroHourManifestId = ManifestId.Create(zeroHourIdResult);
-
-                var existingManifest = await _contentManifestPool.GetManifestAsync(zeroHourManifestId, cancellationToken);
-                if (existingManifest.Success && existingManifest.Data != null)
-                {
-                    _logger.LogDebug("Manifest {Id} already exists in pool, skipping generation", zeroHourManifestId);
-                }
-                else
-                {
-                    var zeroHourManifestBuilder = await _manifestGenerationService.CreateGameInstallationManifestAsync(
-                        installation.ZeroHourPath,
-                        GameType.ZeroHour,
-                        installation.InstallationType,
-                        zeroHourVersionForManifest);
-
-                    var zeroHourManifest = zeroHourManifestBuilder.Build();
-                    zeroHourManifest.ContentType = ContentType.GameInstallation;
-                    zeroHourManifest.Id = zeroHourManifestId;
-
-                    var addResult = await _contentManifestPool.AddManifestAsync(zeroHourManifest, installation.ZeroHourPath);
-                    if (addResult.Success)
-                    {
-                        _logger.LogDebug("Pooled GameInstallation manifest {Id} for {InstallationId} (Zero Hour)", zeroHourManifest.Id, installation.Id);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Failed to pool Zero Hour GameInstallation manifest for {InstallationId}: {Errors}", installation.Id, string.Join(", ", addResult.Errors));
-                    }
-                }
+                await GenerateAndPoolManifestForGameTypeAsync(
+                    installation,
+                    GameType.ZeroHour,
+                    installation.ZeroHourPath,
+                    installation.ZeroHourClient,
+                    ManifestConstants.ZeroHourManifestVersion,
+                    cancellationToken);
             }
         }
     }
