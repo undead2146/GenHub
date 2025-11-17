@@ -417,14 +417,6 @@ public class ContentStorageService : IContentStorageService
 
         var updatedFiles = new List<ManifestFile>();
 
-        // Additional safety check for invalid drives
-        if (IsInvalidOrRemovableDrive(sourceDirectory))
-        {
-            _logger.LogWarning("Source directory {SourceDirectory} is on an invalid or removable drive, skipping file enumeration", sourceDirectory);
-            manifest.Files.Clear();
-            return manifest;
-        }
-
         // Safe enumeration of files from source directory with comprehensive error handling
         try
         {
