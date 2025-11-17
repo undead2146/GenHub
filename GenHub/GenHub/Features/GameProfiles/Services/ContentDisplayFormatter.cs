@@ -2,6 +2,7 @@ using GenHub.Core.Constants;
 using GenHub.Core.Extensions.Enums;
 using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Interfaces.Content;
+using GenHub.Core.Interfaces.GameClients;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
@@ -20,6 +21,17 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
 {
     private const string CommunityPatchIdentifier = "CommunityPatch";
     private const string VersionPrefix = "v";
+
+    private readonly IGameClientHashRegistry _hashRegistry;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ContentDisplayFormatter"/> class.
+    /// </summary>
+    /// <param name="hashRegistry">The game client hash registry.</param>
+    public ContentDisplayFormatter(IGameClientHashRegistry hashRegistry)
+    {
+        _hashRegistry = hashRegistry;
+    }
 
     /// <inheritdoc/>
     public ContentDisplayItem CreateDisplayItem(ContentManifest manifest, bool isEnabled = false)
@@ -98,7 +110,7 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
         }
 
         // Try to resolve hash-based versions (e.g., from GameClientHashRegistry)
-        var (detectedGameType, hashVersion) = GameClientHashRegistry.GetGameInfoFromHashStatic(trimmedVersion);
+        var (detectedGameType, hashVersion) = _hashRegistry.GetGameInfoFromHash(trimmedVersion);
         if (detectedGameType != GameType.Unknown && !string.IsNullOrEmpty(hashVersion))
         {
             return hashVersion;

@@ -1,8 +1,10 @@
+using GenHub.Core.Interfaces.GameClients;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.Manifest;
 using GenHub.Features.GameProfiles.Services;
+using Moq;
 using Xunit;
 
 using ContentType = GenHub.Core.Models.Enums.ContentType;
@@ -15,13 +17,16 @@ namespace GenHub.Tests.Core.Features.GameProfiles.Services;
 public class ContentDisplayFormatterTests
 {
     private readonly ContentDisplayFormatter _formatter;
+    private readonly Mock<IGameClientHashRegistry> _hashRegistryMock;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ContentDisplayFormatterTests"/> class.
     /// </summary>
     public ContentDisplayFormatterTests()
     {
-        _formatter = new ContentDisplayFormatter();
+        _hashRegistryMock = new Mock<IGameClientHashRegistry>();
+        _hashRegistryMock.Setup(x => x.GetGameInfoFromHash(It.IsAny<string>())).Returns((GameType.Unknown, "Unknown"));
+        _formatter = new ContentDisplayFormatter(_hashRegistryMock.Object);
     }
 
     /// <summary>

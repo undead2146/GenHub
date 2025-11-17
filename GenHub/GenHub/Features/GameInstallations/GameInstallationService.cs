@@ -118,14 +118,38 @@ public class GameInstallationService(
     /// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
     protected virtual void Dispose(bool disposing)
     {
-        if (!_disposed)
+        if (!_disposed && disposing)
         {
-            if (disposing)
+            _cacheLock?.Dispose();
+            _disposed = true;
+        }
+    }
+
+    /// <summary>
+    /// Parses a version string into an integer for manifest ID generation.
+    /// Examples: "1.08" -> 108, "1.04" -> 104, "2.0" -> 200, "5" -> 5, null -> 0.
+    /// </summary>
+    /// <param name="version">The version string to parse.</param>
+    /// <returns>The parsed integer version.</returns>
+    private static int ParseVersionStringToInt(string? version)
+    {
+        if (string.IsNullOrWhiteSpace(version))
+            return 0;
+
+        if (version.Contains('.'))
+        {
+            var parts = version.Split('.');
+            if (parts.Length == 2 && int.TryParse(parts[0], out int major) && int.TryParse(parts[1], out int minor))
             {
-                _cacheLock?.Dispose();
-                _disposed = true;
+                return (major * 100) + minor;
             }
         }
+        else if (int.TryParse(version, out int parsed))
+        {
+            return parsed;
+        }
+
+        return 0;
     }
 
     /// <summary>
@@ -317,32 +341,5 @@ public class GameInstallationService(
                 }
             }
         }
-    }
-
-    /// <summary>
-    /// Parses a version string into an integer for manifest ID generation.
-    /// Examples: "1.08" -> 108, "1.04" -> 104, "2.0" -> 200, "5" -> 5, null -> 0.
-    /// </summary>
-    /// <param name="version">The version string to parse.</param>
-    /// <returns>The parsed integer version.</returns>
-    private static int ParseVersionStringToInt(string? version)
-    {
-        if (string.IsNullOrWhiteSpace(version))
-            return 0;
-
-        if (version.Contains('.'))
-        {
-            var parts = version.Split('.');
-            if (parts.Length == 2 && int.TryParse(parts[0], out int major) && int.TryParse(parts[1], out int minor))
-            {
-                return major * 100 + minor;
-            }
-        }
-        else if (int.TryParse(version, out int parsed))
-        {
-            return parsed;
-        }
-
-        return 0;
     }
 }

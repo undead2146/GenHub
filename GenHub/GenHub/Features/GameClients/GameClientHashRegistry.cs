@@ -53,19 +53,6 @@ public class GameClientHashRegistry : IGameClientHashRegistry
         InitializeCoreHashes();
     }
 
-    /// <summary>
-    /// Gets game type and version from a hash using the default registry instance.
-    /// This is a static convenience method for cases where dependency injection is not available.
-    /// </summary>
-    /// <param name="hash">The hash to look up.</param>
-    /// <returns>A tuple containing the game type and version.</returns>
-    public static (GameType GameType, string Version) GetGameInfoFromHashStatic(string hash)
-    {
-        // Create a temporary instance for static access
-        var registry = new GameClientHashRegistry();
-        return registry.GetGameInfoFromHash(hash);
-    }
-
     /// <inheritdoc/>
     public bool TryGetInfo(string hash, out GameClientInfo? info)
     {
