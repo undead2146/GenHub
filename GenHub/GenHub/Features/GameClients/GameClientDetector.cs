@@ -34,37 +34,6 @@ public class GameClientDetector(
     private readonly IGameClientHashRegistry _hashRegistry = hashRegistry;
     private readonly ILogger<GameClientDetector> _logger = logger;
 
-    /// <summary>
-    /// Converts a version string to normalized integer format.
-    /// Examples: "1.04" → 104, "1.08" → 108, "Unknown" → 0.
-    /// </summary>
-    /// <param name="version">The version string to convert.</param>
-    /// <returns>The normalized version as an integer.</returns>
-    private static int ConvertVersionToNormalized(string version)
-    {
-        if (string.IsNullOrWhiteSpace(version) || version.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
-            return 0;
-
-        // Handle dotted versions like "1.04" or "1.08"
-        if (version.Contains('.'))
-        {
-            var parts = version.Split('.');
-            if (parts.Length == 2 &&
-                int.TryParse(parts[0], out int major) &&
-                int.TryParse(parts[1], out int minor))
-            {
-                // Convert "1.04" to 104, "1.08" to 108
-                return (major * 100) + minor;
-            }
-        }
-
-        // Try parsing as direct integer
-        if (int.TryParse(version, out int result))
-            return result;
-
-        return 0;
-    }
-
     /// <inheritdoc/>
     public async Task<DetectionResult<GameClient>> DetectGameClientsFromInstallationsAsync(
         IEnumerable<GameInstallation> installations,
@@ -192,6 +161,37 @@ public class GameClientDetector(
     }
 
     /// <summary>
+    /// Converts a version string to normalized integer format.
+    /// Examples: "1.04" → 104, "1.08" → 108, "Unknown" → 0.
+    /// </summary>
+    /// <param name="version">The version string to convert.</param>
+    /// <returns>The normalized version as an integer.</returns>
+    private static int ConvertVersionToNormalized(string version)
+    {
+        if (string.IsNullOrWhiteSpace(version) || version.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+            return 0;
+
+        // Handle dotted versions like "1.04" or "1.08"
+        if (version.Contains('.'))
+        {
+            var parts = version.Split('.');
+            if (parts.Length == 2 &&
+                int.TryParse(parts[0], out int major) &&
+                int.TryParse(parts[1], out int minor))
+            {
+                // Convert "1.04" to 104, "1.08" to 108
+                return (major * 100) + minor;
+            }
+        }
+
+        // Try parsing as direct integer
+        if (int.TryParse(version, out int result))
+            return result;
+
+        return 0;
+    }
+
+    /// <summary>
     /// Detects a game client from a specific executable file using hash analysis.
     /// </summary>
     /// <param name="executablePath">The path to the executable file.</param>
@@ -298,10 +298,9 @@ public class GameClientDetector(
                 // Use publisher-based ID generation for GameClient with correct content type
                 var publisherId = installation.InstallationType.ToIdentifierString();
                 var contentName = gameType == GameType.ZeroHour ? "zerohour" : "generals";
-                
+
                 // Convert version string to normalized integer format (e.g., "1.04" → 104, "1.08" → 108)
                 int normalizedVersion = ConvertVersionToNormalized(gameClient.Version);
-                
                 var clientIdResult = ManifestIdGenerator.GeneratePublisherContentId(publisherId, ContentType.GameClient, contentName, userVersion: normalizedVersion);
                 manifest.Id = ManifestId.Create(clientIdResult);
             }
@@ -414,6 +413,7 @@ public class GameClientDetector(
         {
             fallbackVersion = "1.04";
         }
+
         _logger.LogInformation(
             "No recognized executable found for {GameType} in {InstallationPath}, using default {ExecutableName} with version {Version}",
             gameType,
