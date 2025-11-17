@@ -1,4 +1,5 @@
 using GenHub.Core.Constants;
+using GenHub.Core.Extensions;
 using GenHub.Core.Extensions.Enums;
 using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Interfaces.Content;
@@ -204,20 +205,7 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
     /// <inheritdoc/>
     public string GetContentTypeDisplayName(ContentType contentType)
     {
-        return contentType switch
-        {
-            ContentType.GameInstallation => "Game Installation",
-            ContentType.GameClient => "Game Client",
-            ContentType.Mod => "Modification",
-            ContentType.Patch => "Patch",
-            ContentType.Addon => "Add-on",
-            ContentType.MapPack => "Map Pack",
-            ContentType.Map => "Map",
-            ContentType.Mission => "Mission",
-            ContentType.LanguagePack => "Language Pack",
-            ContentType.ContentBundle => "Content Bundle",
-            _ => contentType.ToString(),
-        };
+        return contentType.GetDisplayName();
     }
 
     /// <inheritdoc/>

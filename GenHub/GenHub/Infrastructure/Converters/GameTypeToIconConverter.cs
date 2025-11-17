@@ -1,5 +1,6 @@
 using Avalonia.Data.Converters;
 using GenHub.Core.Constants;
+using GenHub.Core.Extensions;
 using GenHub.Core.Models.Enums;
 using System;
 using System.Globalization;
@@ -79,20 +80,7 @@ public class ContentTypeDisplayConverter : IValueConverter
     {
         if (value is ContentType contentType)
         {
-            return contentType switch
-            {
-                ContentType.GameInstallation => "Game Installation",
-                ContentType.GameClient => "Game Client",
-                ContentType.Mod => "Modification",
-                ContentType.Patch => "Patch",
-                ContentType.Addon => "Add-on",
-                ContentType.MapPack => "Map Pack",
-                ContentType.LanguagePack => "Language Pack",
-                ContentType.ContentBundle => "Content Bundle",
-                ContentType.PublisherReferral => "Publisher Referral",
-                ContentType.ContentReferral => "Content Referral",
-                _ => contentType.ToString()
-            };
+            return contentType.GetDisplayName();
         }
 
         return value?.ToString() ?? string.Empty;
