@@ -347,7 +347,7 @@ public class GameProcessManager(
                 catch (InvalidOperationException)
                 {
                     // Process access denied or already exited
-                    _logger.LogInformation("Process {ProcessId} is no longer accessible - already exited", processId);
+                    _logger.LogInformation("Process {ProcessId} is no longer accessible - access denied or already exited", processId);
                     return OperationResult<bool>.CreateSuccess(true);
                 }
             }
