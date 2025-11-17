@@ -20,8 +20,25 @@ public static class GameClientConstants
     /// <summary>SuperHackers Generals executable filename.</summary>
     public const string SuperHackersGeneralsExecutable = "generalsv.exe";
 
-    /// <summary>SuperHackers Zero Hour executable filename.</summary>
+    /// <summary>Super Hackers Zero Hour executable filename.</summary>
     public const string SuperHackersZeroHourExecutable = "generalszh.exe";
+
+    // ===== Game Directory Names =====
+
+    /// <summary>Standard Generals installation directory name.</summary>
+    public const string GeneralsDirectoryName = "Command and Conquer Generals";
+
+    /// <summary>Standard Zero Hour installation directory name.</summary>
+    public const string ZeroHourDirectoryName = "Command and Conquer Generals Zero Hour";
+
+    /// <summary>Zero Hour directory name with ampersand and hyphen (Steam standard).</summary>
+    public const string ZeroHourDirectoryNameAmpersandHyphen = "Command & Conquer Generals - Zero Hour";
+
+    /// <summary>Zero Hour directory name with colon variant.</summary>
+    public const string ZeroHourDirectoryNameColonVariant = "Command & Conquer: Generals - Zero Hour";
+
+    /// <summary>Zero Hour directory name abbreviated form.</summary>
+    public const string ZeroHourDirectoryNameAbbreviated = "C&C Generals Zero Hour";
 
     // ===== GeneralsOnline Client Detection =====
 

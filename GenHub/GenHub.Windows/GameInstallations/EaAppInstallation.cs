@@ -108,7 +108,7 @@ public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstal
             // Check for Generals
             if (!HasGenerals)
             {
-                var gamePath = Path.Combine(generalsPath!, "Command and Conquer Generals");
+                var gamePath = Path.Combine(generalsPath!, GameClientConstants.GeneralsDirectoryName);
                 if (Directory.Exists(gamePath))
                 {
                     // Check for any common Generals executable (generals.exe, generalsv.exe, etc.)
@@ -151,7 +151,7 @@ public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstal
                 else
                 {
                     // Otherwise, check for Zero Hour as a subdirectory
-                    var gamePath = Path.Combine(generalsPath!, "Command and Conquer Generals Zero Hour");
+                    var gamePath = Path.Combine(generalsPath!, GameClientConstants.ZeroHourDirectoryName);
                     if (Directory.Exists(gamePath) && HasAnyExecutable(gamePath, zeroHourExecutables))
                     {
                         HasZeroHour = true;

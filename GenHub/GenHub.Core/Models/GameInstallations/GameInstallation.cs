@@ -171,7 +171,7 @@ public class GameInstallation : IGameInstallation
             }
 
             // Check for Zero Hour installation
-            var zeroHourPath = Path.Combine(InstallationPath, "Command and Conquer Generals Zero Hour");
+            var zeroHourPath = Path.Combine(InstallationPath, GameClientConstants.ZeroHourDirectoryName);
             if (Directory.Exists(zeroHourPath))
             {
                 var zeroHourExe = Path.Combine(zeroHourPath, GameClientConstants.ZeroHourExecutable);

@@ -466,6 +466,16 @@ Constants related to game client detection and management.
 | `SuperHackersGeneralsExecutable` | `"generalsV.exe"`  | SuperHackers Generals executable filename  |
 | `SuperHackersZeroHourExecutable` | `"generalsZH.exe"` | SuperHackers Zero Hour executable filename |
 
+### Game Directory Names
+
+| Constant                           | Value                                      | Description                                    |
+| ---------------------------------- | ------------------------------------------ | ---------------------------------------------- |
+| `GeneralsDirectoryName`            | `"Command and Conquer Generals"`           | Standard Generals installation directory name  |
+| `ZeroHourDirectoryName`            | `"Command and Conquer Generals Zero Hour"` | Standard Zero Hour installation directory name |
+| `ZeroHourDirectoryNameAmpersandHyphen` | `"Command & Conquer Generals - Zero Hour"` | Zero Hour directory name with ampersand and hyphen (Steam standard) |
+| `ZeroHourDirectoryNameColonVariant` | `"Command & Conquer: Generals - Zero Hour"` | Zero Hour directory name with colon variant    |
+| `ZeroHourDirectoryNameAbbreviated` | `"C&C Generals Zero Hour"`                 | Zero Hour directory name abbreviated form      |
+
 ### GeneralsOnline Client Detection
 
 | Constant                           | Value                       | Description                                      |

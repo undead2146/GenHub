@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Constants;
 using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Models.Enums;
@@ -117,8 +118,8 @@ public class WindowsInstallationDetector(ILogger<WindowsInstallationDetector> lo
         {
             if (Directory.Exists(basePath))
             {
-                var generalsPath = Path.Combine(basePath, "Command and Conquer Generals");
-                var zeroHourPath = Path.Combine(basePath, "Command and Conquer Generals Zero Hour");
+                var generalsPath = Path.Combine(basePath, GameClientConstants.GeneralsDirectoryName);
+                var zeroHourPath = Path.Combine(basePath, GameClientConstants.ZeroHourDirectoryName);
 
                 var hasGenerals = Directory.Exists(generalsPath);
                 var hasZeroHour = Directory.Exists(zeroHourPath);

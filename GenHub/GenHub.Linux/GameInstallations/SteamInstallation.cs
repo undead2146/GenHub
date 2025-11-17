@@ -113,7 +113,7 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
                 // Check for Generals
                 if (!HasGenerals)
                 {
-                    var generalsPath = Path.Combine(libraryPath, "Command and Conquer Generals");
+                    var generalsPath = Path.Combine(libraryPath, GameClientConstants.GeneralsDirectoryName);
                     if (Directory.Exists(generalsPath) && File.Exists(Path.Combine(generalsPath, GameClientConstants.GeneralsExecutable)))
                     {
                         HasGenerals = true;
@@ -126,17 +126,28 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
                 // Check for Zero Hour
                 if (!HasZeroHour)
                 {
-                    var zeroHourPath = Path.Combine(libraryPath, "Command & Conquer Generals - Zero Hour");
-                    if (Directory.Exists(zeroHourPath) && File.Exists(Path.Combine(zeroHourPath, GameClientConstants.ZeroHourExecutable)))
+                    var possibleZeroHourPaths = new[]
                     {
-                        HasZeroHour = true;
-                        ZeroHourPath = zeroHourPath;
-                        if (string.IsNullOrEmpty(InstallationPath))
-                        {
-                            InstallationPath = libraryPath;
-                        }
+                        Path.Combine(libraryPath, GameClientConstants.ZeroHourDirectoryNameAmpersandHyphen), // Standard Steam naming (& with -)
+                        Path.Combine(libraryPath, GameClientConstants.ZeroHourDirectoryName), // Alternative naming (and without -)
+                        Path.Combine(libraryPath, GameClientConstants.ZeroHourDirectoryNameColonVariant), // Colon variant
+                        Path.Combine(libraryPath, GameClientConstants.ZeroHourDirectoryNameAbbreviated), // Abbreviated form
+                    };
 
-                        logger?.LogInformation("Found Steam Zero Hour installation: {ZeroHourPath}", ZeroHourPath);
+                    foreach (var zeroHourPath in possibleZeroHourPaths)
+                    {
+                        if (Directory.Exists(zeroHourPath) && File.Exists(Path.Combine(zeroHourPath, GameClientConstants.ZeroHourExecutable)))
+                        {
+                            HasZeroHour = true;
+                            ZeroHourPath = zeroHourPath;
+                            if (string.IsNullOrEmpty(InstallationPath))
+                            {
+                                InstallationPath = libraryPath;
+                            }
+
+                            logger?.LogInformation("Found Steam Zero Hour installation: {ZeroHourPath}", ZeroHourPath);
+                            break;
+                        }
                     }
                 }
             }

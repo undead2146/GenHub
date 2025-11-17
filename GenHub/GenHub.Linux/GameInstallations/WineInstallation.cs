@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
@@ -114,7 +115,7 @@ public class WineInstallation(ILogger<WineInstallation>? logger = null) : IGameI
                     // Check for Generals
                     if (!HasGenerals)
                     {
-                        var generalsPath = Path.Combine(basePath, "Command and Conquer Generals");
+                        var generalsPath = Path.Combine(basePath, GameClientConstants.GeneralsDirectoryName);
                         if (Directory.Exists(generalsPath) && IsValidGameInstallation(generalsPath, "generals.exe"))
                         {
                             HasGenerals = true;
@@ -127,7 +128,7 @@ public class WineInstallation(ILogger<WineInstallation>? logger = null) : IGameI
                     // Check for Zero Hour
                     if (!HasZeroHour)
                     {
-                        var zeroHourPath = Path.Combine(basePath, "Command and Conquer Generals Zero Hour");
+                        var zeroHourPath = Path.Combine(basePath, GameClientConstants.ZeroHourDirectoryName);
                         if (Directory.Exists(zeroHourPath) && IsValidGameInstallation(zeroHourPath, "generals.exe"))
                         {
                             HasZeroHour = true;

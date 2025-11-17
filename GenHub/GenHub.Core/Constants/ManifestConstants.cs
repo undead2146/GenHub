@@ -52,7 +52,7 @@ public static class ManifestConstants
     /// - Hierarchical organization: schema versioning → user versioning → publisher → content type → content name
     /// - Unique identification across publishers and content types
     /// - Schema versioning support for future format changes
-    /// - Efficient indexing and querying capabilities
+    /// - Efficient indexing and querying capabilities.
     /// </summary>
     public const int MinManifestSegments = 5;
 
@@ -65,7 +65,7 @@ public static class ManifestConstants
     /// - publisher: Publisher identifier (e.g., "ea", "steam", "cnclabs")
     /// - contentType: Content type enum value (e.g., "gameinstallation", "mod", "patch")
     /// - contentName: Content identifier (e.g., "generals", "zerohour", "communitymaps")
-    /// Examples: "1.0.ea.gameinstallation.generals", "1.108.steam.mod.communitymaps"
+    /// Examples: "1.0.ea.gameinstallation.generals", "1.108.steam.mod.communitymaps".
     /// </summary>
     public const string PublisherContentRegexPattern = @"^\d+\.\d+\.[a-z0-9]+\.(gameinstallation|gameclient|mod|patch|addon|mappack|languagepack|contentbundle|publisherreferral|contentreferral|mission|map|unknown)\.[a-z0-9-]+$";
 

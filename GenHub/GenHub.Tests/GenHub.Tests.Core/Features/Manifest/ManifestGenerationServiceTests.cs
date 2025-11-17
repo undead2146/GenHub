@@ -69,10 +69,8 @@ public class ManifestGenerationServiceTests : IDisposable
     public async Task CreateGameClientManifestAsync_IncludesExecutableWithHash()
     {
         // Arrange
-        var clientPath = Path.Combine(_tempDirectory, "TestClient");
-        Directory.CreateDirectory(clientPath);
-        var executablePath = Path.Combine(clientPath, "generals.exe");
-        await File.WriteAllTextAsync(executablePath, "dummy exe content");
+        await File.WriteAllTextAsync(Path.Combine(_tempDirectory, "generals.exe"), "dummy exe content");
+        var (clientPath, executablePath) = await PrepareDummyExeAsync();
 
         // Act
         var builder = await _service.CreateGameClientManifestAsync(
@@ -95,9 +93,7 @@ public class ManifestGenerationServiceTests : IDisposable
     public async Task CreateGameClientManifestAsync_IncludesExecutableWithCorrectSize()
     {
         // Arrange
-        var clientPath = Path.Combine(_tempDirectory, "TestClient");
-        Directory.CreateDirectory(clientPath);
-        var executablePath = Path.Combine(clientPath, "game.dat");
+        var (clientPath, executablePath) = await PrepareDummyExeAsync();
         var testContent = "This is test content for size calculation";
         await File.WriteAllTextAsync(executablePath, testContent);
         var expectedSize = new FileInfo(executablePath).Length;
@@ -108,7 +104,7 @@ public class ManifestGenerationServiceTests : IDisposable
         var manifest = builder.Build();
 
         // Assert
-        var executableFile = manifest.Files.FirstOrDefault(f => f.RelativePath.EndsWith("game.dat"));
+        var executableFile = manifest.Files.FirstOrDefault(f => f.RelativePath.EndsWith("generals.exe"));
         Assert.NotNull(executableFile);
         Assert.Equal(expectedSize, executableFile.Size);
     }
@@ -139,10 +135,7 @@ public class ManifestGenerationServiceTests : IDisposable
     public async Task CreateGameClientManifestAsync_IncludesRequiredDllsWhenPresent()
     {
         // Arrange
-        var clientPath = Path.Combine(_tempDirectory, "TestClient");
-        Directory.CreateDirectory(clientPath);
-        var executablePath = Path.Combine(clientPath, "generals.exe");
-        await File.WriteAllTextAsync(executablePath, "dummy exe");
+        var (clientPath, executablePath) = await PrepareDummyExeAsync();
 
         // Create required DLLs
         await File.WriteAllTextAsync(Path.Combine(clientPath, "steam_api.dll"), "dll content");
@@ -166,10 +159,7 @@ public class ManifestGenerationServiceTests : IDisposable
     public async Task CreateGameClientManifestAsync_IncludesConfigFilesWhenPresent()
     {
         // Arrange
-        var clientPath = Path.Combine(_tempDirectory, "TestClient");
-        Directory.CreateDirectory(clientPath);
-        var executablePath = Path.Combine(clientPath, "generals.exe");
-        await File.WriteAllTextAsync(executablePath, "dummy exe");
+        var (clientPath, executablePath) = await PrepareDummyExeAsync();
 
         // Create config files
         await File.WriteAllTextAsync(Path.Combine(clientPath, "options.ini"), "config content");
@@ -193,10 +183,7 @@ public class ManifestGenerationServiceTests : IDisposable
     public async Task CreateGameClientManifestAsync_ManifestContainsMultipleFiles()
     {
         // Arrange
-        var clientPath = Path.Combine(_tempDirectory, "TestClient");
-        Directory.CreateDirectory(clientPath);
-        var executablePath = Path.Combine(clientPath, "generals.exe");
-        await File.WriteAllTextAsync(executablePath, "dummy exe");
+        var (clientPath, executablePath) = await PrepareDummyExeAsync();
 
         // Create DLLs and config files
         await File.WriteAllTextAsync(Path.Combine(clientPath, "steam_api.dll"), "dll");
@@ -218,5 +205,18 @@ public class ManifestGenerationServiceTests : IDisposable
     public void Dispose()
     {
         FileOperationsService.DeleteDirectoryIfExists(_tempDirectory);
+    }
+
+    /// <summary>
+    /// Prepares a dummy executable file for testing.
+    /// </summary>
+    /// <returns>A tuple containing the client path and executable path.</returns>
+    private async Task<(string clientPath, string executablePath)> PrepareDummyExeAsync()
+    {
+        var clientPath = Path.Combine(_tempDirectory, "TestClient");
+        Directory.CreateDirectory(clientPath);
+        var executablePath = Path.Combine(clientPath, "generals.exe");
+        await File.WriteAllTextAsync(executablePath, "dummy exe");
+        return (clientPath, executablePath);
     }
 }

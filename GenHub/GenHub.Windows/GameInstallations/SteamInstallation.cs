@@ -115,7 +115,7 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
                 // Fetch generals
                 if (!HasGenerals)
                 {
-                    var generalsPath = Path.Combine(lib, "Command and Conquer Generals");
+                    var generalsPath = Path.Combine(lib, GameClientConstants.GeneralsDirectoryName);
 
                     if (Directory.Exists(generalsPath))
                     {
@@ -147,8 +147,10 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
                 {
                     var possibleZeroHourPaths = new[]
                     {
-                        Path.Combine(lib, "Command & Conquer Generals - Zero Hour"), // Standard Steam naming
-                        Path.Combine(lib, "Command and Conquer Generals Zero Hour"), // Alternative naming
+                        Path.Combine(lib, GameClientConstants.ZeroHourDirectoryNameAmpersandHyphen), // Standard Steam naming (& with -)
+                        Path.Combine(lib, GameClientConstants.ZeroHourDirectoryName), // Alternative naming (and without -)
+                        Path.Combine(lib, GameClientConstants.ZeroHourDirectoryNameColonVariant), // Colon variant
+                        Path.Combine(lib, GameClientConstants.ZeroHourDirectoryNameAbbreviated), // Abbreviated form
                     };
 
                     foreach (var zhPath in possibleZeroHourPaths)

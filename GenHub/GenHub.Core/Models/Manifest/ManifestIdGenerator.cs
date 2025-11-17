@@ -15,7 +15,7 @@ namespace GenHub.Core.Models.Manifest;
 /// - Unique identification across publishers and content types
 /// - Schema versioning support for future format evolution
 /// - Human-readable format for debugging and logging
-/// Examples: "1.0.ea.gameinstallation.generals", "1.108.steam.mod.communitymaps"
+/// Examples: "1.0.ea.gameinstallation.generals", "1.108.steam.mod.communitymaps".
 /// </summary>
 public static class ManifestIdGenerator
 {
@@ -27,7 +27,7 @@ public static class ManifestIdGenerator
     /// - User versioning (second segment) for content version tracking
     /// - Publisher identification (third segment) for content attribution
     /// - Content type categorization (fourth segment) for filtering and organization
-    /// - Content naming (fifth segment) for human-readable identification
+    /// - Content naming (fifth segment) for human-readable identification.
     /// </summary>
     /// <param name="publisherId">Publisher identifier used as the first segment (e.g., 'cnclabs', 'moddb-westwood').</param>
     /// <param name="contentType">The type of content being identified.</param>
@@ -64,7 +64,7 @@ public static class ManifestIdGenerator
     /// - User versioning (second segment) for installation version tracking
     /// - Publisher identification (third segment) based on installation type
     /// - Content type categorization (fourth segment, always "gameinstallation")
-    /// - Content naming (fifth segment) based on game type
+    /// - Content naming (fifth segment) based on game type.
     /// </summary>
     /// <param name="installation">The game installation used to derive the publisher (installation type).</param>
     /// <param name="gameType">The specific game type (Generals or ZeroHour) for the manifest ID.</param>
@@ -98,7 +98,7 @@ public static class ManifestIdGenerator
     /// - User versioning (second segment) for installation version tracking
     /// - Publisher identification (third segment) based on installation type
     /// - Content type categorization (fourth segment, always "gameinstallation")
-    /// - Content naming (fifth segment) based on game type
+    /// - Content naming (fifth segment) based on game type.
     /// </summary>
     /// <param name="installation">The game installation used to derive the publisher (installation type).</param>
     /// <param name="gameType">The specific game type (Generals or ZeroHour) for the manifest ID.</param>
