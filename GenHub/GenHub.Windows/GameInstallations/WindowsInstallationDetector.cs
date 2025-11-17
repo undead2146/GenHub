@@ -109,9 +109,6 @@ public class WindowsInstallationDetector(ILogger<WindowsInstallationDetector> lo
         {
             @"C:\Program Files\EA Games\Command & Conquer Generals",
             @"C:\Program Files (x86)\EA Games\Command & Conquer Generals",
-            @"C:\Games\Command & Conquer Generals",
-            @"D:\Games\Command & Conquer Generals",
-            @"A:\Games\Command & Conquer Generals",
         };
 
         foreach (var basePath in possiblePaths)
