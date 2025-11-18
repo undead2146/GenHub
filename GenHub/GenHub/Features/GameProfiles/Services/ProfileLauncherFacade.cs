@@ -703,87 +703,109 @@ public class ProfileLauncherFacade(
                profile.AudioNumSounds.HasValue;
     }
 
-    /// <summary>
-    /// Applies profile settings to an IniOptions object.
-    /// </summary>
-    private static void ApplyProfileSettingsToOptions(GameProfile profile, IniOptions options)
+   /// <summary>
+/// Applies profile settings to an IniOptions object with validation.
+/// </summary>
+private void ApplyProfileSettingsToOptions(GameProfile profile, IniOptions options)
+{
+    // Video settings with validation
+    if (profile.VideoResolutionWidth.HasValue)
     {
-        // Video settings
-        if (profile.VideoResolutionWidth.HasValue)
-        {
+        if (profile.VideoResolutionWidth.Value >= 640 && profile.VideoResolutionWidth.Value <= 7680)
             options.Video.ResolutionWidth = profile.VideoResolutionWidth.Value;
-        }
-
-        if (profile.VideoResolutionHeight.HasValue)
-        {
-            options.Video.ResolutionHeight = profile.VideoResolutionHeight.Value;
-        }
-
-        if (profile.VideoWindowed.HasValue)
-        {
-            options.Video.Windowed = profile.VideoWindowed.Value;
-        }
-
-        // Map VideoTextureQuality (0-2) to TextureReduction (0-3, inverted: 0=high, 3=low)
-        // VideoTextureQuality: 0=low, 1=medium, 2=high
-        // TextureReduction: 0=no reduction (high), 1=some reduction, 2=more reduction, 3=max reduction (low)
-        if (profile.VideoTextureQuality.HasValue)
-        {
-            options.Video.TextureReduction = 2 - (int)profile.VideoTextureQuality.Value; // Invert: 2->0, 1->1, 0->2
-        }
-
-        // EnableVideoShadows maps to UseShadowVolumes (shadows are primarily volume-based in this engine)
-        if (profile.EnableVideoShadows.HasValue)
-        {
-            options.Video.UseShadowVolumes = profile.EnableVideoShadows.Value;
-            options.Video.UseShadowDecals = profile.EnableVideoShadows.Value; // Enable decals when shadows are on
-        }
-
-        // ParticleEffects doesn't have a direct Options.ini equivalent, skip for now
-
-        // ExtraAnimations maps directly
-        if (profile.VideoExtraAnimations.HasValue)
-        {
-            options.Video.ExtraAnimations = profile.VideoExtraAnimations.Value;
-        }
-
-        // BuildingAnimations doesn't have a direct Options.ini equivalent, skip for now
-        if (profile.VideoGamma.HasValue)
-        {
-            options.Video.Gamma = profile.VideoGamma.Value;
-        }
-
-        // Audio settings - map from friendly names to Options.ini names
-        if (profile.AudioSoundVolume.HasValue)
-        {
-            options.Audio.SFXVolume = profile.AudioSoundVolume.Value;
-        }
-
-        if (profile.AudioThreeDSoundVolume.HasValue)
-        {
-            options.Audio.SFX3DVolume = profile.AudioThreeDSoundVolume.Value;
-        }
-
-        if (profile.AudioSpeechVolume.HasValue)
-        {
-            options.Audio.VoiceVolume = profile.AudioSpeechVolume.Value;
-        }
-
-        if (profile.AudioMusicVolume.HasValue)
-        {
-            options.Audio.MusicVolume = profile.AudioMusicVolume.Value;
-        }
-
-        if (profile.AudioEnabled.HasValue)
-        {
-            options.Audio.AudioEnabled = profile.AudioEnabled.Value;
-        }
-
-        if (profile.AudioNumSounds.HasValue)
-        {
-            options.Audio.NumSounds = profile.AudioNumSounds.Value;
-        }
+        else
+            _logger.LogWarning("Invalid VideoResolutionWidth {Width} for profile {ProfileId}, must be 640-7680", 
+                profile.VideoResolutionWidth.Value, profile.Id);
     }
+
+    if (profile.VideoResolutionHeight.HasValue)
+    {
+        if (profile.VideoResolutionHeight.Value >= 480 && profile.VideoResolutionHeight.Value <= 4320)
+            options.Video.ResolutionHeight = profile.VideoResolutionHeight.Value;
+        else
+            _logger.LogWarning("Invalid VideoResolutionHeight {Height} for profile {ProfileId}, must be 480-4320", 
+                profile.VideoResolutionHeight.Value, profile.Id);
+    }
+
+    if (profile.VideoWindowed.HasValue)
+        options.Video.Windowed = profile.VideoWindowed.Value;
+
+    if (profile.VideoTextureQuality.HasValue)
+    {
+        if (profile.VideoTextureQuality.Value >= TextureQuality.Low && profile.VideoTextureQuality.Value <= TextureQuality.High)
+            options.Video.TextureReduction = 2 - (int)profile.VideoTextureQuality.Value;
+        else
+            _logger.LogWarning("Invalid VideoTextureQuality {Quality} for profile {ProfileId}, must be 0-2", 
+                profile.VideoTextureQuality.Value, profile.Id);
+    }
+
+    if (profile.EnableVideoShadows.HasValue)
+    {
+        options.Video.UseShadowVolumes = profile.EnableVideoShadows.Value;
+        options.Video.UseShadowDecals = profile.EnableVideoShadows.Value;
+    }
+
+    if (profile.VideoExtraAnimations.HasValue)
+        options.Video.ExtraAnimations = profile.VideoExtraAnimations.Value;
+
+    if (profile.VideoGamma.HasValue)
+    {
+        if (profile.VideoGamma.Value >= 50 && profile.VideoGamma.Value <= 150)
+            options.Video.Gamma = profile.VideoGamma.Value;
+        else
+            _logger.LogWarning("Invalid VideoGamma {Gamma} for profile {ProfileId}, must be 50-150", 
+                profile.VideoGamma.Value, profile.Id);
+    }
+
+    // Audio settings with validation
+    if (profile.AudioSoundVolume.HasValue)
+    {
+        if (profile.AudioSoundVolume.Value >= 0 && profile.AudioSoundVolume.Value <= 100)
+            options.Audio.SFXVolume = profile.AudioSoundVolume.Value;
+        else
+            _logger.LogWarning("Invalid AudioSoundVolume {Volume} for profile {ProfileId}, must be 0-100", 
+                profile.AudioSoundVolume.Value, profile.Id);
+    }
+
+    if (profile.AudioThreeDSoundVolume.HasValue)
+    {
+        if (profile.AudioThreeDSoundVolume.Value >= 0 && profile.AudioThreeDSoundVolume.Value <= 100)
+            options.Audio.SFX3DVolume = profile.AudioThreeDSoundVolume.Value;
+        else
+            _logger.LogWarning("Invalid AudioThreeDSoundVolume {Volume} for profile {ProfileId}, must be 0-100", 
+                profile.AudioThreeDSoundVolume.Value, profile.Id);
+    }
+
+    if (profile.AudioSpeechVolume.HasValue)
+    {
+        if (profile.AudioSpeechVolume.Value >= 0 && profile.AudioSpeechVolume.Value <= 100)
+            options.Audio.VoiceVolume = profile.AudioSpeechVolume.Value;
+        else
+            _logger.LogWarning("Invalid AudioSpeechVolume {Volume} for profile {ProfileId}, must be 0-100", 
+                profile.AudioSpeechVolume.Value, profile.Id);
+    }
+
+    if (profile.AudioMusicVolume.HasValue)
+    {
+        if (profile.AudioMusicVolume.Value >= 0 && profile.AudioMusicVolume.Value <= 100)
+            options.Audio.MusicVolume = profile.AudioMusicVolume.Value;
+        else
+            _logger.LogWarning("Invalid AudioMusicVolume {Volume} for profile {ProfileId}, must be 0-100", 
+                profile.AudioMusicVolume.Value, profile.Id);
+    }
+
+    if (profile.AudioEnabled.HasValue)
+        options.Audio.AudioEnabled = profile.AudioEnabled.Value;
+
+    if (profile.AudioNumSounds.HasValue)
+    {
+        if (profile.AudioNumSounds.Value >= 2 && profile.AudioNumSounds.Value <= 32)
+            options.Audio.NumSounds = profile.AudioNumSounds.Value;
+        else
+            _logger.LogWarning("Invalid AudioNumSounds {NumSounds} for profile {ProfileId}, must be 2-32", 
+                profile.AudioNumSounds.Value, profile.Id);
+    }
+}
 
     /// <summary>
     /// Validates dependencies between manifests to ensure compatibility.
