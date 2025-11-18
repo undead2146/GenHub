@@ -126,7 +126,7 @@ public class ProfileLauncherFacade(
 
             // NOTE: Options.ini application moved to GameLauncher.LaunchProfileAsync() (before process start)
             // This eliminates duplicate writes and race conditions that caused black screens
-            // See: GameLauncher.cs Line 638 - ApplyProfileSettingsToIniOptionsAsync()
+            // See: GameLauncher.ApplyProfileSettingsToIniOptionsAsync()
             _logger.LogDebug("[Launch] Step 4: Options.ini will be applied by GameLauncher (delegated)");
 
             var effectiveStrategy = profile.WorkspaceStrategy;
