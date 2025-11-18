@@ -130,6 +130,8 @@ public partial class GameSettingsViewModel : ViewModelBase
     public async Task InitializeForProfileAsync(string? profileId, Core.Models.GameProfile.GameProfile? profile = null, CancellationToken cancellationToken = default)
     {
         _initializationDepth++;
+        IsLoading = true;  // Provide UI feedback for loading state
+        
         try
         {
             _currentProfileId = profileId;
@@ -167,6 +169,7 @@ public partial class GameSettingsViewModel : ViewModelBase
         finally
         {
             _initializationDepth--;
+            IsLoading = false;  // Clear UI loading feedback
         }
     }
 

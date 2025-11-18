@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Extensions;
 using GenHub.Core.Interfaces.Workspace;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
@@ -107,10 +108,8 @@ public sealed class SymlinkOnlyStrategy(
             // Deduplicate files by RelativePath - multiple manifests may contain the same file
             // (e.g., GameClient and GameInstallation both contain the executable)
             // Group by path and take the first occurrence to avoid parallel creation conflicts
-            var manifestFiles = configuration.Manifests
-                .SelectMany(m => m.Files.Select(f => new { Manifest = m, File = f }))
-                .GroupBy(item => item.File.RelativePath, StringComparer.OrdinalIgnoreCase)
-                .Select(group => group.First())
+            var manifestFiles = configuration.GetAllUniqueFiles()
+                .Select(f => new { Manifest = configuration.Manifests.First(m => m.Files.Contains(f)), File = f })
                 .ToList();
 
             await Parallel.ForEachAsync(
