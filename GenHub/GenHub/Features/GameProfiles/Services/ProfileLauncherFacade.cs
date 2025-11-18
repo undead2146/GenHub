@@ -86,11 +86,17 @@ public class ProfileLauncherFacade(
 
             // Try to resolve or rebind the installation if it's stale
             _logger.LogDebug("[Launch] Step 2: Resolving game installation ID: {InstallationId}", profile.GameInstallationId);
-            var resolvedInstallation = await ResolveOrRebindInstallationAsync(profile, cancellationToken);
+            var resolvedInstallationResult = await ResolveOrRebindInstallationAsync(profile, cancellationToken);
+            if (resolvedInstallationResult.Failed)
+            {
+                _logger.LogError("[Launch] Installation resolution failed: {Error}", resolvedInstallationResult.FirstError);
+                return ProfileOperationResult<GameLaunchInfo>.CreateFailure(resolvedInstallationResult.FirstError ?? "Could not resolve game installation for profile");
+            }
+
+            var resolvedInstallation = resolvedInstallationResult.Data;
             if (resolvedInstallation == null)
             {
-                _logger.LogError("[Launch] Installation resolution failed for ID: {InstallationId}", profile.GameInstallationId);
-                return ProfileOperationResult<GameLaunchInfo>.CreateFailure("Could not resolve game installation for profile");
+                return ProfileOperationResult<GameLaunchInfo>.CreateFailure("Resolved installation data is null");
             }
 
             _logger.LogDebug(
@@ -381,10 +387,16 @@ public class ProfileLauncherFacade(
             var profile = profileResult.Data!;
 
             // Try to resolve or rebind the installation if it's stale
-            var resolvedInstallation = await ResolveOrRebindInstallationAsync(profile, cancellationToken);
+            var resolvedInstallationResult = await ResolveOrRebindInstallationAsync(profile, cancellationToken);
+            if (resolvedInstallationResult.Failed)
+            {
+                return ProfileOperationResult<WorkspaceInfo>.CreateFailure(resolvedInstallationResult.FirstError ?? "Could not resolve game installation for profile");
+            }
+
+            var resolvedInstallation = resolvedInstallationResult.Data;
             if (resolvedInstallation == null)
             {
-                return ProfileOperationResult<WorkspaceInfo>.CreateFailure("Could not resolve game installation for profile");
+                return ProfileOperationResult<WorkspaceInfo>.CreateFailure("Resolved installation data is null");
             }
 
             // Update the profile with the resolved installation if it changed
@@ -1091,8 +1103,8 @@ public class ProfileLauncherFacade(
     /// </summary>
     /// <param name="profile">The game profile.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The resolved game installation, or null if not found.</returns>
-    private async Task<Core.Models.GameInstallations.GameInstallation?> ResolveOrRebindInstallationAsync(GameProfile profile, CancellationToken cancellationToken)
+    /// <returns>The resolved game installation, or failure result if not found.</returns>
+    private async Task<OperationResult<Core.Models.GameInstallations.GameInstallation>> ResolveOrRebindInstallationAsync(GameProfile profile, CancellationToken cancellationToken)
     {
         try
         {
@@ -1100,7 +1112,7 @@ public class ProfileLauncherFacade(
             var installationResult = await _installationService.GetInstallationAsync(profile.GameInstallationId, cancellationToken);
             if (installationResult.Success && installationResult.Data != null)
             {
-                return installationResult.Data;
+                return OperationResult<Core.Models.GameInstallations.GameInstallation>.CreateSuccess(installationResult.Data);
             }
 
             // If that failed, try to find a current installation that matches the game type and installation path
@@ -1125,7 +1137,7 @@ public class ProfileLauncherFacade(
                         profile.GameInstallationId,
                         matchingInstallation.Id,
                         profile.GameClient.WorkingDirectory);
-                    return matchingInstallation;
+                    return OperationResult<Core.Models.GameInstallations.GameInstallation>.CreateSuccess(matchingInstallation);
                 }
                 else if (exactPathMatches.Count > 1)
                 {
@@ -1135,7 +1147,7 @@ public class ProfileLauncherFacade(
                         profile.Id,
                         exactPathMatches.Count,
                         profile.GameClient.WorkingDirectory);
-                    return exactPathMatches.First();
+                    return OperationResult<Core.Models.GameInstallations.GameInstallation>.CreateSuccess(exactPathMatches.First());
                 }
 
                 // Fallback: Match by game type only (less specific, only if single match)
@@ -1153,31 +1165,38 @@ public class ProfileLauncherFacade(
                         profile.Id,
                         profile.GameInstallationId,
                         matchingInstallation.Id);
-                    return matchingInstallation;
+                    return OperationResult<Core.Models.GameInstallations.GameInstallation>.CreateSuccess(matchingInstallation);
                 }
                 else if (gameTypeMatches.Count > 1)
                 {
                     // Multiple matching installations found - this is dangerous!
                     // Different installations may have different patches/mods.
                     // Require explicit user confirmation for rebinding.
+                    var message =
+                        $"Found {gameTypeMatches.Count} installations for {profile.GameClient.GameType}. " +
+                        $"Please edit the profile to manually select the correct installation to avoid conflicts.";
+
                     _logger.LogError(
                         "Profile {ProfileId} installation {OldId} not found. " +
-                        "Found {Count} alternative installations by game type. " +
-                        "Automatic rebinding disabled for safety - user must edit profile to select installation.",
+                        "Found {Count} alternative installations - requiring manual selection.",
                         profile.Id,
                         profile.GameInstallationId,
                         gameTypeMatches.Count);
-                    return null;
+
+                    return OperationResult<Core.Models.GameInstallations.GameInstallation>.CreateFailure(message);
                 }
             }
 
             _logger.LogError("Could not resolve or rebind installation for profile {ProfileId}", profile.Id);
-            return null;
+            return OperationResult<Core.Models.GameInstallations.GameInstallation>.CreateFailure(
+                $"No valid installation found for {profile.GameClient.GameType}. " +
+                $"Please verify your game installation and update the profile settings.");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error resolving installation for profile {ProfileId}", profile.Id);
-            return null;
+            return OperationResult<Core.Models.GameInstallations.GameInstallation>.CreateFailure(
+                $"Failed to resolve game installation: {ex.Message}");
         }
     }
 
