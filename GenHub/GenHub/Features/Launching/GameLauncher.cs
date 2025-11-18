@@ -438,8 +438,6 @@ public class GameLauncher(
         return true;
     }
 
-
-
     private async Task<LaunchOperationResult<GameLaunchInfo>> LaunchProfileAsync(GameProfile profile, IProgress<LaunchProgress>? progress, CancellationToken cancellationToken, string launchId)
     {
         try

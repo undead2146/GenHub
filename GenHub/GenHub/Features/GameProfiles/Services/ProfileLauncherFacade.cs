@@ -695,8 +695,6 @@ public class ProfileLauncherFacade(
         return parts.Any() ? $"({string.Join(" and ", parts)})" : string.Empty;
     }
 
-
-
     /// <summary>
     /// Validates dependencies between manifests to ensure compatibility.
     /// </summary>

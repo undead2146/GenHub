@@ -422,15 +422,6 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Checks if a profile has any custom game settings defined.
-    /// <summary>
-    /// Gets the default workspace strategy from configuration.
-    /// </summary>
-    private WorkspaceStrategy GetDefaultWorkspaceStrategy()
-    {
-        return _configurationProvider?.GetDefaultWorkspaceStrategy() ?? WorkspaceStrategy.SymlinkOnly;
-    }
-
     /// <summary>
     /// Populates game settings into an UpdateProfileRequest.
     /// </summary>
@@ -458,6 +449,14 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
         request.AudioMusicVolume = gameSettings.AudioMusicVolume;
         request.AudioEnabled = gameSettings.AudioEnabled;
         request.AudioNumSounds = gameSettings.AudioNumSounds;
+    }
+
+    /// <summary>
+    /// Gets the default workspace strategy from configuration.
+    /// </summary>
+    private WorkspaceStrategy GetDefaultWorkspaceStrategy()
+    {
+        return _configurationProvider?.GetDefaultWorkspaceStrategy() ?? WorkspaceStrategy.SymlinkOnly;
     }
 
     /// <summary>
