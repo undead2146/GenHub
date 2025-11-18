@@ -29,8 +29,6 @@ public class GameProfileLauncherViewModelTests
             null,
             null,
             null,
-            null,
-            null,
             NullLogger<GameProfileLauncherViewModel>.Instance);
 
         Assert.NotNull(vm);
@@ -72,8 +70,6 @@ public class GameProfileLauncherViewModelTests
             null,
             null,
             null,
-            null,
-            null,
             NullLogger<GameProfileLauncherViewModel>.Instance);
 
         await vm.InitializeAsync();
@@ -101,8 +97,6 @@ public class GameProfileLauncherViewModelTests
 
         var vm = new GameProfileLauncherViewModel(
             installationService.Object,
-            null,
-            null,
             null,
             null,
             null,
@@ -138,8 +132,6 @@ public class GameProfileLauncherViewModelTests
             null,
             null,
             null,
-            null,
-            null,
             NullLogger<GameProfileLauncherViewModel>.Instance);
 
         await vm.ScanForGamesCommand.ExecuteAsync(null);
@@ -160,8 +152,6 @@ public class GameProfileLauncherViewModelTests
 
         var vm = new GameProfileLauncherViewModel(
             installationService.Object,
-            null,
-            null,
             null,
             null,
             null,

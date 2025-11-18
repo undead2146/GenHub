@@ -400,7 +400,6 @@ public partial class GameProfileItemViewModel : ViewModelBase
         return gameType switch
         {
             GameType.Generals => GameClientConstants.GeneralsFullName,
-            GameType.ZeroHour => GameClientConstants.ZeroHourFullName,
             _ => GameClientConstants.ZeroHourFullName // Default to Zero Hour as it's the most commonly played
         };
     }
