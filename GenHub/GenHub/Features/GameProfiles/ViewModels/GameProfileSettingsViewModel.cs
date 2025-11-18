@@ -81,8 +81,25 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string _colorValue = "#1976D2";
 
-    [ObservableProperty]
+    // Remove [ObservableProperty] for SelectedContentType to implement custom setter
     private ContentType _selectedContentType = ContentType.GameInstallation;
+
+    /// <summary>
+    /// Gets or sets the selected content type for filtering available content.
+    /// </summary>
+    public ContentType SelectedContentType
+    {
+        get => _selectedContentType;
+        set
+        {
+            if (SetProperty(ref _selectedContentType, value))
+            {
+                // Property updates immediately - UI shows selection right away
+                // Then fire async load in background
+                _ = OnContentTypeChangedAsync();
+            }
+        }
+    }
 
     [ObservableProperty]
     private ObservableCollection<ContentDisplayItem> _availableContent = new();
@@ -442,7 +459,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     /// <param name="gameSettings">The game settings to apply, or null to skip.</param>
     private static void PopulateGameSettings(
         UpdateProfileRequest request,
-        ProfileSettings? gameSettings)
+        UpdateProfileRequest? gameSettings)
     {
         if (gameSettings == null)
             return;
@@ -1052,10 +1069,9 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     /// <summary>
     /// Called when the selected content type changes.
     /// </summary>
-    partial void OnSelectedContentTypeChanged(ContentType value)
+    private async Task OnContentTypeChangedAsync()
     {
-        // Reload content when content type changes
-        _ = LoadAvailableContentAsync();
+        await LoadAvailableContentAsync();
     }
 
     /// <summary>
