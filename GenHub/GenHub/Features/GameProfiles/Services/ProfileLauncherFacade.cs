@@ -353,7 +353,7 @@ public class ProfileLauncherFacade(
             // Workspace is only cleaned up when:
             // 1. Profile is deleted
             // 2. Content changes require workspace refresh
-            // 3. User manually cleans up old workspaces (future feature)
+            // TODO: Add feature for manual workspace cleanup
             _logger.LogInformation("Successfully stopped profile {ProfileId}", profileId);
             return ProfileOperationResult<bool>.CreateSuccess(true);
         }
