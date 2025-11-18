@@ -81,7 +81,8 @@ public partial class GameProfileLauncherViewModel(
     public IRelayCommand CreateShortcutCommand { get; } = new RelayCommand(() => { });
 
     /// <summary>
-    /// Performs asynchronous initialization for the Downloads tab.
+    /// Performs asynchronous initialization for the GameProfileLauncherViewModel.
+    /// Loads all game profiles and subscribes to process exit events.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     public virtual async Task InitializeAsync()
@@ -116,7 +117,7 @@ public partial class GameProfileLauncherViewModel(
                     // Use profile's IconPath if available, otherwise fall back to generalshub icon
                     var iconPath = !string.IsNullOrEmpty(profile.IconPath)
                         ? $"avares://GenHub/{profile.IconPath}"
-                        : "avares://GenHub/Assets/Icons/generalshub-icon.png";
+                        : Core.Constants.UriConstants.DefaultIconUri;
 
                     var item = new GameProfileItemViewModel(
                         profile.Id,
@@ -164,16 +165,16 @@ public partial class GameProfileLauncherViewModel(
     /// <returns>The relative icon path.</returns>
     private static string GetIconPathForGame(GameType gameType, GameInstallationType installationType)
     {
-        var gameIcon = gameType == GameType.Generals ? "generals-icon.png" : "zerohour-icon.png";
+        var gameIcon = gameType == GameType.Generals ? Core.Constants.UriConstants.GeneralsIconFilename : Core.Constants.UriConstants.ZeroHourIconFilename;
         var platformIcon = installationType switch
         {
-            GameInstallationType.Steam => "steam-icon.png",
-            GameInstallationType.EaApp => "eaapp-icon.png",
-            _ => "genhub-icon.png"
+            GameInstallationType.Steam => Core.Constants.UriConstants.SteamIconFilename,
+            GameInstallationType.EaApp => Core.Constants.UriConstants.EaAppIconFilename,
+            _ => Core.Constants.UriConstants.GenHubIconFilename
         };
 
         // For now, return the game-specific icon - could be enhanced to combine with platform icon
-        return $"Assets/Icons/{gameIcon}";
+        return $"{Core.Constants.UriConstants.IconsBasePath}/{gameIcon}";
     }
 
     /// <summary>
@@ -217,7 +218,7 @@ public partial class GameProfileLauncherViewModel(
                     // Update the profile data
                     var iconPath = !string.IsNullOrEmpty(profile.IconPath)
                         ? $"avares://GenHub/{profile.IconPath}"
-                        : "avares://GenHub/Assets/Icons/generalshub-icon.png";
+                        : Core.Constants.UriConstants.DefaultIconUri;
 
                     var newItem = new GameProfileItemViewModel(
                         profile.Id,
