@@ -1,14 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Common.ViewModels;
-using GenHub.Core.Constants;
-using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GameSettings;
-using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.GameProfiles;
@@ -1092,13 +1089,5 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     /// <returns>An observable collection of ViewModel content display items.</returns>
     private ObservableCollection<ContentDisplayItem> ConvertToViewModelContentDisplayItems(
         IEnumerable<Core.Models.GameProfile.ContentDisplayItem> coreItems)
-    {
-        var result = new ObservableCollection<ContentDisplayItem>();
-        foreach (var coreItem in coreItems)
-        {
-            result.Add(ConvertToViewModelContentDisplayItem(coreItem));
-        }
-
-        return result;
-    }
+        => new(coreItems.Select(ConvertToViewModelContentDisplayItem));
 }
