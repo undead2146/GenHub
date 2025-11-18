@@ -1,3 +1,4 @@
+using GenHub.Core.Extensions;
 using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
@@ -246,7 +247,7 @@ public class GameSettingsViewModelTests
         };
 
         // Act
-        var hasSettings = GameSettingsViewModel.HasCustomProfileSettings(profile);
+        var hasSettings = profile.HasCustomSettings();
 
         // Assert
         Assert.Equal(expected, hasSettings);

@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Constants;
+using GenHub.Core.Extensions;
 using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameSettings;
@@ -36,30 +37,6 @@ public partial class GameSettingsViewModel : ViewModelBase
     // NumSounds validation constants
     private const int MinNumSounds = GameSettingsConstants.Audio.MinNumSounds;
     private const int MaxNumSounds = GameSettingsConstants.Audio.MaxNumSounds;
-
-    /// <summary>
-    /// Checks if a profile has any custom settings defined.
-    /// </summary>
-    /// <param name="profile">The game profile.</param>
-    /// <returns>True if the profile has custom settings, false otherwise.</returns>
-    public static bool HasCustomProfileSettings(Core.Models.GameProfile.GameProfile profile)
-    {
-        return profile.VideoResolutionWidth.HasValue ||
-               profile.VideoResolutionHeight.HasValue ||
-               profile.VideoWindowed.HasValue ||
-               profile.VideoTextureQuality.HasValue ||
-               profile.EnableVideoShadows.HasValue ||
-               profile.VideoParticleEffects.HasValue ||
-               profile.VideoExtraAnimations.HasValue ||
-               profile.VideoBuildingAnimations.HasValue ||
-               profile.VideoGamma.HasValue ||
-               profile.AudioSoundVolume.HasValue ||
-               profile.AudioThreeDSoundVolume.HasValue ||
-               profile.AudioSpeechVolume.HasValue ||
-               profile.AudioMusicVolume.HasValue ||
-               profile.AudioEnabled.HasValue ||
-               profile.AudioNumSounds.HasValue;
-    }
 
     private readonly IGameSettingsService? _gameSettingsService;
     private readonly ILogger<GameSettingsViewModel> _logger;
@@ -174,7 +151,7 @@ public partial class GameSettingsViewModel : ViewModelBase
             }
 
             // If profile has settings, load them
-            if (profile != null && HasCustomProfileSettings(profile))
+            if (profile != null && profile.HasCustomSettings())
             {
                 LoadSettingsFromProfile(profile);
             }

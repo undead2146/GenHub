@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Common.ViewModels;
+using GenHub.Core.Extensions;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameInstallations;
@@ -354,7 +355,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             }
 
             // If the profile has no custom game settings, save the defaults from Options.ini
-            if (GameSettingsViewModel != null && !HasProfileSettings(profile))
+            if (GameSettingsViewModel != null && !profile.HasCustomSettings())
             {
                 _logger.LogInformation("Profile {ProfileId} has no custom settings, saving defaults from Options.ini", profileId);
                 var gameSettings = GameSettingsViewModel.GetProfileSettings();
@@ -422,28 +423,6 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
 
     /// <summary>
     /// Checks if a profile has any custom game settings defined.
-    /// </summary>
-    /// <param name="profile">The game profile.</param>
-    /// <returns>True if the profile has custom settings, false otherwise.</returns>
-    private static bool HasProfileSettings(GameProfile profile)
-    {
-        return profile.VideoResolutionWidth.HasValue ||
-               profile.VideoResolutionHeight.HasValue ||
-               profile.VideoWindowed.HasValue ||
-               profile.VideoTextureQuality.HasValue ||
-               profile.EnableVideoShadows.HasValue ||
-               profile.VideoParticleEffects.HasValue ||
-               profile.VideoExtraAnimations.HasValue ||
-               profile.VideoBuildingAnimations.HasValue ||
-               profile.VideoGamma.HasValue ||
-               profile.AudioSoundVolume.HasValue ||
-               profile.AudioThreeDSoundVolume.HasValue ||
-               profile.AudioSpeechVolume.HasValue ||
-               profile.AudioMusicVolume.HasValue ||
-               profile.AudioEnabled.HasValue ||
-               profile.AudioNumSounds.HasValue;
-    }
-
     /// <summary>
     /// Gets the default workspace strategy from configuration.
     /// </summary>

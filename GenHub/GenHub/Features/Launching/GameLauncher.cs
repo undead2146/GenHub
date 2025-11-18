@@ -6,6 +6,9 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Constants;
+using GenHub.Core.Extensions;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
@@ -435,84 +438,7 @@ public class GameLauncher(
         return true;
     }
 
-    /// <summary>
-    /// Checks if a profile has any custom settings defined.
-    /// </summary>
-    /// <param name="profile">The game profile.</param>
-    /// <returns>True if the profile has custom settings, false otherwise.</returns>
-    private static bool HasProfileSettings(GameProfile profile)
-    {
-        return profile.VideoResolutionWidth.HasValue ||
-               profile.VideoResolutionHeight.HasValue ||
-               profile.VideoWindowed.HasValue ||
-               profile.VideoTextureQuality.HasValue ||
-               profile.EnableVideoShadows.HasValue ||
-               profile.VideoParticleEffects.HasValue ||
-               profile.VideoExtraAnimations.HasValue ||
-               profile.VideoBuildingAnimations.HasValue ||
-               profile.VideoGamma.HasValue ||
-               profile.AudioSoundVolume.HasValue ||
-               profile.AudioThreeDSoundVolume.HasValue ||
-               profile.AudioSpeechVolume.HasValue ||
-               profile.AudioMusicVolume.HasValue ||
-               profile.AudioEnabled.HasValue ||
-               profile.AudioNumSounds.HasValue;
-    }
 
-    /// <summary>
-    /// Applies the settings from a game profile to an IniOptions object.
-    /// </summary>
-    /// <param name="profile">The game profile containing the settings.</param>
-    /// <param name="options">The IniOptions object to apply settings to.</param>
-    private static void ApplyProfileSettingsToOptions(GameProfile profile, IniOptions options)
-    {
-        // Apply video settings if they exist
-        if (profile.VideoResolutionWidth.HasValue)
-            options.Video.ResolutionWidth = profile.VideoResolutionWidth.Value;
-
-        if (profile.VideoResolutionHeight.HasValue)
-            options.Video.ResolutionHeight = profile.VideoResolutionHeight.Value;
-
-        if (profile.VideoWindowed.HasValue)
-            options.Video.Windowed = profile.VideoWindowed.Value;
-
-        if (profile.VideoTextureQuality.HasValue)
-        {
-            // Map TextureQuality (0-2) to TextureReduction (0-3, inverted)
-            options.Video.TextureReduction = 2 - (int)profile.VideoTextureQuality.Value;
-        }
-
-        if (profile.EnableVideoShadows.HasValue)
-        {
-            options.Video.UseShadowVolumes = profile.EnableVideoShadows.Value;
-            options.Video.UseShadowDecals = profile.EnableVideoShadows.Value;
-        }
-
-        if (profile.VideoExtraAnimations.HasValue)
-            options.Video.ExtraAnimations = profile.VideoExtraAnimations.Value;
-
-        if (profile.VideoGamma.HasValue)
-            options.Video.Gamma = profile.VideoGamma.Value;
-
-        // Apply audio settings if they exist
-        if (profile.AudioSoundVolume.HasValue)
-            options.Audio.SFXVolume = profile.AudioSoundVolume.Value;
-
-        if (profile.AudioThreeDSoundVolume.HasValue)
-            options.Audio.SFX3DVolume = profile.AudioThreeDSoundVolume.Value;
-
-        if (profile.AudioSpeechVolume.HasValue)
-            options.Audio.VoiceVolume = profile.AudioSpeechVolume.Value;
-
-        if (profile.AudioMusicVolume.HasValue)
-            options.Audio.MusicVolume = profile.AudioMusicVolume.Value;
-
-        if (profile.AudioEnabled.HasValue)
-            options.Audio.AudioEnabled = profile.AudioEnabled.Value;
-
-        if (profile.AudioNumSounds.HasValue)
-            options.Audio.NumSounds = profile.AudioNumSounds.Value;
-    }
 
     private async Task<LaunchOperationResult<GameLaunchInfo>> LaunchProfileAsync(GameProfile profile, IProgress<LaunchProgress>? progress, CancellationToken cancellationToken, string launchId)
     {
@@ -838,7 +764,7 @@ public class GameLauncher(
             }
 
             // Check if the profile has any custom settings defined
-            if (!HasProfileSettings(profile))
+            if (!profile.HasCustomSettings())
             {
                 logger.LogInformation("Profile {ProfileId} has no custom settings, skipping Options.ini write", profile.Id);
                 return;
@@ -853,7 +779,7 @@ public class GameLauncher(
                 : new IniOptions();
 
             // Apply profile settings to the options object
-            ApplyProfileSettingsToOptions(profile, options);
+            GameSettingsMapper.ApplyToOptions(profile, options);
 
             // Save the updated Options.ini
             var saveResult = await gameSettingsService.SaveOptionsAsync(gameType, options);
