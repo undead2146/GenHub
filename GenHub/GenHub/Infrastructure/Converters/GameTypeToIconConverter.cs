@@ -125,8 +125,8 @@ public class GameTypeDisplayConverter : IValueConverter
         {
             return gameType switch
             {
-                GameType.Generals => "Command & Conquer: Generals",
-                GameType.ZeroHour => "Command & Conquer: Generals Zero Hour",
+                GameType.Generals => GameClientConstants.GeneralsFullName,
+                GameType.ZeroHour => GameClientConstants.ZeroHourFullName,
                 _ => gameType.ToString()
             };
         }

@@ -399,9 +399,9 @@ public partial class GameProfileItemViewModel : ViewModelBase
     {
         return gameType switch
         {
-            GameType.Generals => "Command & Conquer: Generals",
-            GameType.ZeroHour => "Command & Conquer: Zero Hour",
-            _ => "Command & Conquer Game"
+            GameType.Generals => GameClientConstants.GeneralsFullName,
+            GameType.ZeroHour => GameClientConstants.ZeroHourFullName,
+            _ => GameClientConstants.ZeroHourFullName // Default to Zero Hour as it's the most commonly played
         };
     }
 

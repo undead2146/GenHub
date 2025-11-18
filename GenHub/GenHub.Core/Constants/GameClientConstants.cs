@@ -81,6 +81,28 @@ public static class GameClientConstants
     /// <summary>Latest Steam version for Command &amp; Conquer Generals Zero Hour.</summary>
     public const string LatestSteamZeroHourVersion = "1.05";
 
+    // ===== Game Display Names =====
+
+    /// <summary>
+    /// Canonical full display name for Command &amp; Conquer: Generals.
+    /// </summary>
+    public const string GeneralsFullName = "Command & Conquer: Generals";
+
+    /// <summary>
+    /// Canonical short display name for Command &amp; Conquer: Generals.
+    /// </summary>
+    public const string GeneralsShortName = "Generals";
+
+    /// <summary>
+    /// Canonical full display name for Command &amp; Conquer: Generals Zero Hour.
+    /// </summary>
+    public const string ZeroHourFullName = "Command & Conquer: Generals Zero Hour";
+
+    /// <summary>
+    /// Canonical short display name for Command &amp; Conquer: Generals Zero Hour.
+    /// </summary>
+    public const string ZeroHourShortName = "Zero Hour";
+
     // ===== Required DLLs =====
 
     /// <summary>

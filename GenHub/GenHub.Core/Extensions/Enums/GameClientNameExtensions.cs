@@ -17,8 +17,8 @@ public static class GameClientNameExtensions
     {
         return gameName switch
         {
-            GameClientName.Generals => ManifestConstants.GeneralsShortName,
-            GameClientName.ZeroHour => ManifestConstants.ZeroHourShortName,
+            GameClientName.Generals => GameClientConstants.GeneralsShortName,
+            GameClientName.ZeroHour => GameClientConstants.ZeroHourShortName,
             _ => gameName.ToString(),
         };
     }
@@ -32,8 +32,8 @@ public static class GameClientNameExtensions
     {
         return gameName switch
         {
-            GameClientName.Generals => ManifestConstants.GeneralsFullName,
-            GameClientName.ZeroHour => ManifestConstants.ZeroHourFullName,
+            GameClientName.Generals => GameClientConstants.GeneralsFullName,
+            GameClientName.ZeroHour => GameClientConstants.ZeroHourFullName,
             _ => gameName.ToString(),
         };
     }

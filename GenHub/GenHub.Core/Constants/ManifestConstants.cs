@@ -97,24 +97,4 @@ public static class ManifestConstants
     /// Note: When used in manifest IDs, dots are removed to create "104" for schema compliance.
     /// </summary>
     public const string ZeroHourManifestVersion = "1.04";
-
-    /// <summary>
-    /// Canonical full display name for Command &amp; Conquer: Generals.
-    /// </summary>
-    public const string GeneralsFullName = "Command & Conquer: Generals";
-
-    /// <summary>
-    /// Canonical short display name for Command &amp; Conquer: Generals.
-    /// </summary>
-    public const string GeneralsShortName = "Generals";
-
-    /// <summary>
-    /// Canonical short display name for Command &amp; Conquer: Generals Zero Hour.
-    /// </summary>
-    public const string ZeroHourShortName = "Zero Hour";
-
-    /// <summary>
-    /// Canonical full display name for Command &amp; Conquer: Generals Zero Hour.
-    /// </summary>
-    public const string ZeroHourFullName = "Command & Conquer: Generals Zero Hour";
 }
