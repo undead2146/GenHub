@@ -341,24 +341,8 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             {
                 _logger.LogInformation("Profile {ProfileId} has no custom settings, saving defaults from Options.ini", profileId);
                 var gameSettings = GameSettingsViewModel.GetProfileSettings();
-                var updateRequest = new UpdateProfileRequest
-                {
-                    VideoResolutionWidth = gameSettings.VideoResolutionWidth,
-                    VideoResolutionHeight = gameSettings.VideoResolutionHeight,
-                    VideoWindowed = gameSettings.VideoWindowed,
-                    VideoTextureQuality = gameSettings.VideoTextureQuality,
-                    EnableVideoShadows = gameSettings.EnableVideoShadows,
-                    VideoParticleEffects = gameSettings.VideoParticleEffects,
-                    VideoExtraAnimations = gameSettings.VideoExtraAnimations,
-                    VideoBuildingAnimations = gameSettings.VideoBuildingAnimations,
-                    VideoGamma = gameSettings.VideoGamma,
-                    AudioSoundVolume = gameSettings.AudioSoundVolume,
-                    AudioThreeDSoundVolume = gameSettings.AudioThreeDSoundVolume,
-                    AudioSpeechVolume = gameSettings.AudioSpeechVolume,
-                    AudioMusicVolume = gameSettings.AudioMusicVolume,
-                    AudioEnabled = gameSettings.AudioEnabled,
-                    AudioNumSounds = gameSettings.AudioNumSounds,
-                };
+                var updateRequest = new UpdateProfileRequest();
+                PopulateGameSettings(updateRequest, gameSettings);
 
                 var updateResult = await _gameProfileManager.UpdateProfileAsync(profileId, updateRequest);
                 if (updateResult.Success)
@@ -449,6 +433,35 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     private WorkspaceStrategy GetDefaultWorkspaceStrategy()
     {
         return _configurationProvider?.GetDefaultWorkspaceStrategy() ?? WorkspaceStrategy.SymlinkOnly;
+    }
+
+    /// <summary>
+    /// Populates game settings into an UpdateProfileRequest.
+    /// </summary>
+    /// <param name="request">The update request to populate.</param>
+    /// <param name="gameSettings">The game settings to apply, or null to skip.</param>
+    private static void PopulateGameSettings(
+        UpdateProfileRequest request,
+        ProfileSettings? gameSettings)
+    {
+        if (gameSettings == null)
+            return;
+
+        request.VideoResolutionWidth = gameSettings.VideoResolutionWidth;
+        request.VideoResolutionHeight = gameSettings.VideoResolutionHeight;
+        request.VideoWindowed = gameSettings.VideoWindowed;
+        request.VideoTextureQuality = gameSettings.VideoTextureQuality;
+        request.EnableVideoShadows = gameSettings.EnableVideoShadows;
+        request.VideoParticleEffects = gameSettings.VideoParticleEffects;
+        request.VideoExtraAnimations = gameSettings.VideoExtraAnimations;
+        request.VideoBuildingAnimations = gameSettings.VideoBuildingAnimations;
+        request.VideoGamma = gameSettings.VideoGamma;
+        request.AudioSoundVolume = gameSettings.AudioSoundVolume;
+        request.AudioThreeDSoundVolume = gameSettings.AudioThreeDSoundVolume;
+        request.AudioSpeechVolume = gameSettings.AudioSpeechVolume;
+        request.AudioMusicVolume = gameSettings.AudioMusicVolume;
+        request.AudioEnabled = gameSettings.AudioEnabled;
+        request.AudioNumSounds = gameSettings.AudioNumSounds;
     }
 
     /// <summary>
@@ -886,24 +899,9 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                         : null,
                     EnabledContentIds = enabledContentIds,
                     CommandLineArguments = CommandLineArguments,
-
-                    // Add game settings
-                    VideoResolutionWidth = gameSettings?.VideoResolutionWidth,
-                    VideoResolutionHeight = gameSettings?.VideoResolutionHeight,
-                    VideoWindowed = gameSettings?.VideoWindowed,
-                    VideoTextureQuality = gameSettings?.VideoTextureQuality,
-                    EnableVideoShadows = gameSettings?.EnableVideoShadows,
-                    VideoParticleEffects = gameSettings?.VideoParticleEffects,
-                    VideoExtraAnimations = gameSettings?.VideoExtraAnimations,
-                    VideoBuildingAnimations = gameSettings?.VideoBuildingAnimations,
-                    VideoGamma = gameSettings?.VideoGamma,
-                    AudioSoundVolume = gameSettings?.AudioSoundVolume,
-                    AudioThreeDSoundVolume = gameSettings?.AudioThreeDSoundVolume,
-                    AudioSpeechVolume = gameSettings?.AudioSpeechVolume,
-                    AudioMusicVolume = gameSettings?.AudioMusicVolume,
-                    AudioEnabled = gameSettings?.AudioEnabled,
-                    AudioNumSounds = gameSettings?.AudioNumSounds,
                 };
+
+                PopulateGameSettings(updateRequest, gameSettings);
 
                 var result = await _gameProfileManager.UpdateProfileAsync(_currentProfileId, updateRequest);
                 if (result.Success)
