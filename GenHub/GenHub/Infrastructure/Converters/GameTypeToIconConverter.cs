@@ -173,8 +173,8 @@ public class GameTypeShortDisplayConverter : IValueConverter
         {
             return gameType switch
             {
-                GameType.Generals => "Generals",
-                GameType.ZeroHour => "Zero Hour",
+                GameType.Generals => GameClientConstants.GeneralsShortName,
+                GameType.ZeroHour => GameClientConstants.ZeroHourShortName,
                 _ => gameType.ToString()
             };
         }
@@ -221,13 +221,13 @@ public class InstallationTypeDisplayConverter : IValueConverter
         {
             return installationType switch
             {
-                GameInstallationType.EaApp => "EA App",
-                GameInstallationType.Steam => "Steam",
-                GameInstallationType.TheFirstDecade => "The First Decade",
-                GameInstallationType.CDISO => "CD-ROM",
-                GameInstallationType.Wine => "Wine/Proton",
-                GameInstallationType.Retail => "Retail Installation",
-                GameInstallationType.Unknown => "Unknown",
+                GameInstallationType.EaApp => PublisherInfoConstants.EaApp.Name,
+                GameInstallationType.Steam => PublisherInfoConstants.Steam.Name,
+                GameInstallationType.TheFirstDecade => PublisherInfoConstants.TheFirstDecade.Name,
+                GameInstallationType.CDISO => PublisherInfoConstants.CdIso.Name,
+                GameInstallationType.Wine => PublisherInfoConstants.Wine.Name,
+                GameInstallationType.Retail => PublisherInfoConstants.Retail.Name,
+                GameInstallationType.Unknown => PublisherInfoConstants.Retail.Name, // Default to retail for unknown
                 _ => installationType.ToString()
             };
         }
