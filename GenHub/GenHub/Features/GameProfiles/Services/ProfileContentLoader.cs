@@ -82,24 +82,39 @@ public class ProfileContentLoader(
                     if (baseClient == null)
                         continue;
 
-                    var manifestVersion = gameType == GameType.ZeroHour
-                        ? ManifestConstants.ZeroHourManifestVersion
-                        : ManifestConstants.GeneralsManifestVersion;
+                    // Use game client version if available and valid, otherwise use manifest version constants
+                    var clientVersion = baseClient.Version;
+                    string manifestVersionString;
+                    int manifestVersionInt;
 
-                    int manifestVersionInt = int.TryParse(manifestVersion, out var v) ? v : 0;
+                    if (!string.IsNullOrEmpty(clientVersion) &&
+                        !clientVersion.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Use actual client version for manifest ID generation
+                        var versionNormalized = clientVersion.Replace(".", string.Empty);
+                        manifestVersionInt = int.TryParse(versionNormalized, out var v) ? v : 0;
+                        manifestVersionString = manifestVersionInt.ToString();
+                    }
+                    else
+                    {
+                        // Fallback to manifest version constants
+                        manifestVersionString = gameType == GameType.ZeroHour
+                            ? ManifestConstants.ZeroHourManifestVersion
+                            : ManifestConstants.GeneralsManifestVersion;
+                        manifestVersionInt = int.TryParse(manifestVersionString, out var v) ? v : 0;
+                    }
 
-                    // Generate manifest ID for GameInstallation content
+                    // Generate manifest ID for GameInstallation content using the correct version
                     var installationManifestId = ManifestId.Create(
                         ManifestIdGenerator.GenerateGameInstallationId(installation, gameType, manifestVersionInt));
 
                     // Use game client version if available and valid, otherwise use manifest version
-                    var clientVersion = baseClient.Version;
                     string normalizedVersion;
                     if (string.IsNullOrEmpty(clientVersion) ||
                         clientVersion.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase))
                     {
-                        // Fallback to manifest version for installations without official clients
-                        normalizedVersion = _displayFormatter.NormalizeVersion(manifestVersion.ToString());
+                        // Fallback to manifest version string for display
+                        normalizedVersion = _displayFormatter.NormalizeVersion(manifestVersionString);
                     }
                     else
                     {

@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Common.ViewModels;
+using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
@@ -394,17 +395,31 @@ public partial class GameProfileLauncherViewModel(
             var preferredStrategy = configService?.GetDefaultWorkspaceStrategy() ?? WorkspaceStrategy.SymlinkOnly;
 
             // Use the detected version from the game client for the GameInstallation manifest ID
-            // Convert "Unknown" and "Auto-Updated" to 0 to avoid normalization errors in ManifestIdGenerator
+            // This must match the version used in ProfileContentLoader and ManifestGenerationService
             int manifestVersionInt;
             if (string.IsNullOrEmpty(gameClient.Version) ||
                 gameClient.Version.Equals("Unknown", StringComparison.OrdinalIgnoreCase) ||
-                gameClient.Version.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase))
+                gameClient.Version.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase) ||
+                gameClient.Version.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase))
             {
-                manifestVersionInt = 0; // Use 0 for unknown or auto-updated versions
+                // For unknown/auto versions, use manifest constants as fallback
+                var fallbackVersion = gameClient.GameType == GameType.ZeroHour
+                    ? ManifestConstants.ZeroHourManifestVersion
+                    : ManifestConstants.GeneralsManifestVersion;
+
+                // Normalize the fallback version (remove dots): "1.04" → 104, "1.08" → 108
+                var normalizedFallback = fallbackVersion.Replace(".", string.Empty);
+                manifestVersionInt = int.TryParse(normalizedFallback, out var v) ? v : 0;
+            }
+            else if (gameClient.Version.Contains("."))
+            {
+                // Normalize dotted version ("1.04" → 104, "1.08" → 108)
+                var normalized = gameClient.Version.Replace(".", string.Empty);
+                manifestVersionInt = int.TryParse(normalized, out var v) ? v : 0;
             }
             else
             {
-                // Try to parse version as int, default to 0 if not parseable
+                // Try to parse version as int directly
                 manifestVersionInt = int.TryParse(gameClient.Version, out var parsed) ? parsed : 0;
             }
 

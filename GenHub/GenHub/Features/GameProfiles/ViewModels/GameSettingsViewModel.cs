@@ -131,7 +131,7 @@ public partial class GameSettingsViewModel : ViewModelBase
     {
         _initializationDepth++;
         IsLoading = true;  // Provide UI feedback for loading state
-        
+
         try
         {
             _currentProfileId = profileId;

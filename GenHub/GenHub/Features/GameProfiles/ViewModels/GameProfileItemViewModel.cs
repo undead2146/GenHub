@@ -250,9 +250,12 @@ public partial class GameProfileItemViewModel : ViewModelBase
                 // Fallback: use GameClient.Version directly if we couldn't extract from manifest
                 if (string.IsNullOrEmpty(_gameVersion) && !string.IsNullOrEmpty(gameProfile.GameClient.Version))
                 {
-                    // Normalize version to handle "Automatically added" case
+                    // Normalize version to handle Unknown, Auto-Updated, and Automatically added cases
                     var version = gameProfile.GameClient.Version;
-                    if (version.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase))
+                    if (version.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase) ||
+                        version.Equals("Unknown", StringComparison.OrdinalIgnoreCase) ||
+                        version.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase) ||
+                        version.Contains("Automatically", StringComparison.OrdinalIgnoreCase))
                     {
                         GameVersion = string.Empty;
                     }
@@ -273,13 +276,15 @@ public partial class GameProfileItemViewModel : ViewModelBase
                 // Generate user-friendly description with game type and version information as fallback
                 var gameTypeName = GetFriendlyGameTypeName(profile.GameClient?.GameType);
 
-                // Don't add "v" prefix for "Automatically added" versions (GeneralsOnline)
+                // Don't show version if it's Unknown, Auto-Updated, or Automatically added
                 var versionInfo = string.Empty;
-                if (!string.IsNullOrEmpty(_gameVersion))
+                if (!string.IsNullOrEmpty(_gameVersion) &&
+                    !_gameVersion.Equals("Unknown", StringComparison.OrdinalIgnoreCase) &&
+                    !_gameVersion.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase) &&
+                    !_gameVersion.Equals("Automatically added", StringComparison.OrdinalIgnoreCase) &&
+                    !_gameVersion.Contains("Automatically", StringComparison.OrdinalIgnoreCase))
                 {
-                    versionInfo = _gameVersion.Equals("Automatically added", StringComparison.OrdinalIgnoreCase)
-                        ? _gameVersion
-                        : $"v{_gameVersion}";
+                    versionInfo = $"v{_gameVersion}";
                 }
 
                 var publisherInfo = !string.IsNullOrEmpty(_publisher) ? $" • {_publisher}" : string.Empty;

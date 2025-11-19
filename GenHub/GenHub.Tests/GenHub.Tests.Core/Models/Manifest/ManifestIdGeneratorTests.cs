@@ -372,7 +372,7 @@ public class ManifestIdGeneratorTests
     {
         // Arrange
         var publisherId = "cnclabs";
-        var contentType = ContentType.Mod;
+        var contentType = GenHub.Core.Models.Enums.ContentType.Mod;
         var contentName = "urban-chaos";
         var expected = "1.0.cnclabs.mod.urbanchaos";
 
@@ -393,7 +393,7 @@ public class ManifestIdGeneratorTests
     {
         // Arrange
         var publisherId = "moddb-westwood";
-        var contentType = ContentType.Mod;
+        var contentType = GenHub.Core.Models.Enums.ContentType.Mod;
         var contentName = "balance-patch";
         var expected = "1.1.moddbwestwood.mod.balancepatch";
 
@@ -414,7 +414,7 @@ public class ManifestIdGeneratorTests
     {
         // Arrange
         var publisherId = "undead2146/genhub-mod"; // Simulates owner/repo input
-        var contentType = ContentType.Mod;
+        var contentType = GenHub.Core.Models.Enums.ContentType.Mod;
         var contentName = "custom-mod";
         var expected = "1.0.undead2146genhubmod.mod.custommod"; // Normalized: slashes to dots
 
@@ -423,7 +423,6 @@ public class ManifestIdGeneratorTests
 
         // Assert
         Assert.Equal(expected, result);
-
     }
 
     /// <summary>
@@ -434,7 +433,7 @@ public class ManifestIdGeneratorTests
     {
         // Arrange
         var publisherId = string.Empty;
-        var contentType = ContentType.Mod;
+        var contentType = GenHub.Core.Models.Enums.ContentType.Mod;
         var contentName = "test-mod";
 
         // Act & Assert
@@ -449,7 +448,7 @@ public class ManifestIdGeneratorTests
     {
         // Arrange
         var publisherId = "cnclabs";
-        var contentType = ContentType.Mod;
+        var contentType = GenHub.Core.Models.Enums.ContentType.Mod;
         var contentName = string.Empty;
 
         // Act & Assert
@@ -464,7 +463,7 @@ public class ManifestIdGeneratorTests
     {
         // Arrange
         var publisherId = "cnclabs";
-        var contentType = ContentType.Mod;
+        var contentType = GenHub.Core.Models.Enums.ContentType.Mod;
         var contentName = "test";
 
         // Act & Assert
@@ -479,7 +478,7 @@ public class ManifestIdGeneratorTests
     {
         // Arrange
         string? publisherId = null;
-        var contentType = ContentType.Mod;
+        var contentType = GenHub.Core.Models.Enums.ContentType.Mod;
         var contentName = "test";
 
         // Act & Assert

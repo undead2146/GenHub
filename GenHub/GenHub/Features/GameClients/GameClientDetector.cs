@@ -393,10 +393,6 @@ public class GameClientDetector(
         var defaultExecutableName = gameType == GameType.Generals ? GameClientConstants.GeneralsExecutable : GameClientConstants.ZeroHourExecutable;
         var defaultPath = Path.Combine(installationPath, defaultExecutableName);
         var fallbackVersion = "Unknown";
-        if (installation?.InstallationType.ToIdentifierString() == "steam")
-        {
-            fallbackVersion = gameType == GameType.Generals ? GameClientConstants.LatestSteamGeneralsVersion : GameClientConstants.LatestSteamZeroHourVersion;
-        }
 
         _logger.LogInformation(
             "No recognized executable found for {GameType} in {InstallationPath}, using default {ExecutableName} with version {Version}",

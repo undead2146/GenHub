@@ -84,7 +84,6 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
     /// <inheritdoc/>
     public string NormalizeVersion(string? version)
     {
-        // Handle null, empty, or whitespace versions
         if (string.IsNullOrWhiteSpace(version))
         {
             return string.Empty;
@@ -92,25 +91,16 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
 
         var trimmedVersion = version.Trim();
 
-        // Handle Unknown versions - return empty string to avoid showing "vUnknown"
-        if (trimmedVersion.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+        // Return empty for special case versions
+        if (trimmedVersion.Equals("Unknown", StringComparison.OrdinalIgnoreCase) ||
+            trimmedVersion.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase) ||
+            trimmedVersion.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase) ||
+            trimmedVersion.Contains("Automatically", StringComparison.OrdinalIgnoreCase))
         {
             return string.Empty;
         }
 
-        // Handle Auto-Updated versions (GeneralsOnline) - return empty string
-        if (trimmedVersion.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase))
-        {
-            return string.Empty;
-        }
-
-        // Handle auto-detected GeneralsOnline clients - return empty string to avoid showing "vAutomatically added"
-        if (trimmedVersion.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase))
-        {
-            return string.Empty;
-        }
-
-        // Try to resolve hash-based versions (e.g., from GameClientHashRegistry)
+        // Try to resolve hash-based versions
         var (detectedGameType, hashVersion) = _hashRegistry.GetGameInfoFromHash(trimmedVersion);
         if (detectedGameType != GameType.Unknown && !string.IsNullOrEmpty(hashVersion))
         {

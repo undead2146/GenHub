@@ -422,7 +422,6 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// <summary>
     /// Populates game settings into an UpdateProfileRequest.
     /// </summary>
     /// <param name="request">The update request to populate.</param>
