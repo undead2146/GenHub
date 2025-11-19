@@ -181,7 +181,7 @@ public class WorkspaceIntegrationTests : IDisposable
         // Create WorkspaceReconciler
         var workspaceReconciler = new WorkspaceReconciler(mockReconcilerLogger);
 
-        var manager = new WorkspaceManager([strategy], mockConfigProvider.Object, mockLogger, casReferenceTracker, mockWorkspaceValidator.Object, workspaceReconciler);
+        var manager = new WorkspaceManager([strategy], mockConfigProvider.Object, mockLogger, casReferenceTracker, mockWorkspaceValidator.Object);
 
         var config = CreateTestConfiguration(WorkspaceStrategy.FullCopy);
 

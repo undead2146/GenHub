@@ -1,4 +1,3 @@
-using Avalonia.Controls;
 using GenHub.Infrastructure.Converters;
 using System.Globalization;
 

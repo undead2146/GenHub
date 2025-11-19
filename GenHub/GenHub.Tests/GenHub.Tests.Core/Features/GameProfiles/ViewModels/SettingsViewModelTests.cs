@@ -4,7 +4,6 @@ using GenHub.Core.Models.Enums;
 using GenHub.Features.Settings.ViewModels;
 using Microsoft.Extensions.Logging;
 using Moq;
-using Xunit;
 
 namespace GenHub.Tests.Core.ViewModels;
 

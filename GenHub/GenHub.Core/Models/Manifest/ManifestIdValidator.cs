@@ -14,7 +14,7 @@ namespace GenHub.Core.Models.Manifest;
 /// - Unique identification across publishers and content types
 /// - Schema versioning support for future format evolution
 /// - Human-readable format for debugging and logging
-/// Examples: "1.0.ea.gameinstallation.generals", "1.108.steam.mod.communitymaps"
+/// Examples: "1.0.ea.gameinstallation.generals", "1.108.steam.mod.communitymaps".
 /// </summary>
 public static class ManifestIdValidator
 {
@@ -58,7 +58,7 @@ public static class ManifestIdValidator
     /// - User versioning (second segment) for content version tracking
     /// - Publisher identification (third segment) for attribution and trust
     /// - Content type categorization (fourth segment) for filtering and organization
-    /// - Content naming (fifth segment) for human-readable identification
+    /// - Content naming (fifth segment) for human-readable identification.
     /// </summary>
     /// <param name="manifestId">Manifest identifier to validate.</param>
     /// <param name="reason">If invalid, contains a human-readable reason.</param>

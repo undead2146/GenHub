@@ -1,8 +1,6 @@
-using GenHub;
 using GenHub.Core.Interfaces.Common;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
-using Xunit;
 
 namespace GenHub.Tests.Core.App;
 

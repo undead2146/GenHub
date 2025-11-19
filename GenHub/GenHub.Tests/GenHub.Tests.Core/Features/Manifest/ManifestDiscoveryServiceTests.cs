@@ -4,7 +4,6 @@ using GenHub.Core.Models.Manifest;
 using GenHub.Features.Manifest;
 using Microsoft.Extensions.Logging;
 using Moq;
-using Xunit;
 using ContentType = GenHub.Core.Models.Enums.ContentType;
 
 namespace GenHub.Tests.Features.Manifest;

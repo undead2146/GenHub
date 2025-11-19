@@ -56,7 +56,7 @@ public class DependencyResolutionResultTests
         var manifests = new[]
         {
             new ContentManifest { Id = "1.108.test.gameinstallation.testcontent1" },
-            new ContentManifest { Id = "1.108.test.gameinstallation.testcontent2" }
+            new ContentManifest { Id = "1.108.test.gameinstallation.testcontent2" },
         };
         var missingIds = new[] { "missing1" };
         var elapsed = TimeSpan.FromMilliseconds(123);

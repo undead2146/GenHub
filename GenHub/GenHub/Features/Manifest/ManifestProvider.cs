@@ -1,5 +1,11 @@
 using GenHub.Core.Constants;
 using GenHub.Core.Extensions.GameInstallations;
+using System;
+using System.IO;
+using System.Reflection;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
@@ -8,12 +14,6 @@ using GenHub.Core.Models.Manifest;
 using GenHub.Infrastructure.Exceptions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using System;
-using System.IO;
-using System.Reflection;
-using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace GenHub.Features.Manifest;
 
@@ -21,35 +21,18 @@ namespace GenHub.Features.Manifest;
 /// Provides ContentManifest instances by retrieving them from CAS, embedded resources,
 /// or generating them dynamically.
 /// </summary>
-public class ManifestProvider : IManifestProvider
+public class ManifestProvider(ILogger<ManifestProvider> logger, IContentManifestPool manifestPool, IManifestIdService? manifestIdService = null, IContentManifestBuilder? manifestBuilder = null, ManifestProviderOptions? options = null) : IManifestProvider
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
     };
 
-    private readonly ILogger<ManifestProvider> _logger;
-    private readonly IContentManifestPool _manifestPool;
-    private readonly IManifestIdService _manifestIdService;
-    private readonly IContentManifestBuilder _manifestBuilder;
-    private readonly ManifestProviderOptions _options;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ManifestProvider"/> class using an <see cref="IContentManifestPool"/>.
-    /// </summary>
-    /// <param name="logger">Logger instance used for diagnostic messages.</param>
-    /// <param name="manifestPool">Pool used to store and retrieve manifests.</param>
-    /// <param name="manifestIdService">The manifest ID service.</param>
-    /// <param name="manifestBuilder">The content manifest builder.</param>
-    /// <param name="options">Optional provider behaviour options.</param>
-    public ManifestProvider(ILogger<ManifestProvider> logger, IContentManifestPool manifestPool, IManifestIdService? manifestIdService = null, IContentManifestBuilder? manifestBuilder = null, ManifestProviderOptions? options = null)
-    {
-        _logger = logger ?? NullLogger<ManifestProvider>.Instance;
-        _manifestPool = manifestPool ?? throw new ArgumentNullException(nameof(manifestPool));
-        _manifestIdService = manifestIdService ?? throw new ArgumentNullException(nameof(manifestIdService));
-        _manifestBuilder = manifestBuilder ?? throw new ArgumentNullException(nameof(manifestBuilder));
-        _options = options ?? new ManifestProviderOptions();
-    }
+    private readonly ILogger<ManifestProvider> logger = logger ?? NullLogger<ManifestProvider>.Instance;
+    private readonly IContentManifestPool manifestPool = manifestPool ?? throw new ArgumentNullException(nameof(manifestPool));
+    private readonly IManifestIdService manifestIdService = manifestIdService ?? throw new ArgumentNullException(nameof(manifestIdService));
+    private readonly IContentManifestBuilder manifestBuilder = manifestBuilder ?? throw new ArgumentNullException(nameof(manifestBuilder));
+    private readonly ManifestProviderOptions options = options ?? new ManifestProviderOptions();
 
     /// <summary>
     /// Gets or generates a manifest for the specified <see cref="GameClient"/>.
@@ -63,7 +46,7 @@ public class ManifestProvider : IManifestProvider
         try
         {
             var tryId = ManifestId.Create(gameClient.Id);
-            var casResult = await _manifestPool.GetManifestAsync(tryId, cancellationToken);
+            var casResult = await manifestPool.GetManifestAsync(tryId, cancellationToken);
             if (casResult.Success && casResult.Data != null)
             {
                 // Validate cached manifest security and ensure the manifest id matches the requested id
@@ -110,31 +93,31 @@ public class ManifestProvider : IManifestProvider
                         embeddedSourceDir = null;
                     }
 
-                    var addResult = await _manifestPool.AddManifestAsync(manifest, embeddedSourceDir ?? string.Empty, cancellationToken);
+                    var addResult = await manifestPool.AddManifestAsync(manifest, embeddedSourceDir ?? string.Empty, cancellationToken);
                     if (addResult?.Success == true)
                     {
                         return manifest;
                     }
 
-                    _logger.LogWarning("Embedded manifest {Id} parsed but failed to add to pool: {Errors}", manifest.Id, string.Join(", ", addResult?.Errors ?? Array.Empty<string>()));
+                    logger.LogWarning("Embedded manifest {Id} parsed but failed to add to pool: {Errors}", manifest.Id, string.Join(", ", addResult?.Errors ?? Array.Empty<string>()));
 
                     return manifest;
                 }
             }
             catch (JsonException ex)
             {
-                _logger.LogError(ex, "Failed to parse embedded manifest {ManifestName}", manifestName);
+                logger.LogError(ex, "Failed to parse embedded manifest {ManifestName}", manifestName);
                 throw new ManifestValidationException(gameClient.Id, $"JSON parsing failed: {ex.Message}", ex);
             }
         }
 
         // 3. Generate fallback manifest (optional)
-        if (_options.GenerateFallbackManifests)
+        if (options.GenerateFallbackManifests)
         {
-            _logger.LogInformation("Generating fallback manifest for GameClient {Id}", gameClient.Id);
+            logger.LogInformation("Generating fallback manifest for GameClient {Id}", gameClient.Id);
 
             var gameVersionInt = int.TryParse(gameClient.Version, out var parsedVersion) ? parsedVersion : 0;
-            var generated = _manifestBuilder
+            var generated = manifestBuilder
                 .WithBasicInfo("EA Games", gameClient.Name ?? "Unknown", gameVersionInt)
                 .WithContentType(ContentType.GameClient, gameClient.GameType)
                 .WithPublisher("EA Games", "https://www.ea.com")
@@ -168,10 +151,10 @@ public class ManifestProvider : IManifestProvider
                 gameDir = null;
             }
 
-            var addRes = await _manifestPool.AddManifestAsync(generated, gameDir ?? string.Empty, cancellationToken);
+            var addRes = await manifestPool.AddManifestAsync(generated, gameDir ?? string.Empty, cancellationToken);
             if (addRes?.Success != true)
             {
-                _logger.LogWarning("Failed to add generated manifest {Id} to pool: {Errors}", generated.Id, string.Join(", ", addRes?.Errors ?? Array.Empty<string>()));
+                logger.LogWarning("Failed to add generated manifest {Id} to pool: {Errors}", generated.Id, string.Join(", ", addRes?.Errors ?? Array.Empty<string>()));
             }
 
             return generated;
@@ -203,7 +186,7 @@ public class ManifestProvider : IManifestProvider
         var deterministicId = ManifestIdGenerator.GenerateGameInstallationId(tempInstallForId, gameType, manifestVersion);
 
         // Try CAS using deterministic id
-        var casResult = await _manifestPool.GetManifestAsync(ManifestId.Create(deterministicId), cancellationToken);
+        var casResult = await manifestPool.GetManifestAsync(ManifestId.Create(deterministicId), cancellationToken);
         if (casResult.Success && casResult.Data != null)
         {
             // Validate cached manifest; expect the deterministic id
@@ -223,23 +206,23 @@ public class ManifestProvider : IManifestProvider
                 if (manifest != null)
                 {
                     // For embedded installation manifests, provide the installation path as source when available.
-                    var addRes = await _manifestPool.AddManifestAsync(manifest, installation.InstallationPath ?? string.Empty, cancellationToken);
+                    var addRes = await manifestPool.AddManifestAsync(manifest, installation.InstallationPath ?? string.Empty, cancellationToken);
                     if (addRes?.Success != true)
-                        _logger.LogWarning("Failed to add embedded installation manifest {Id} to pool: {Errors}", manifest.Id, string.Join(", ", addRes?.Errors ?? Array.Empty<string>()));
+                        logger.LogWarning("Failed to add embedded installation manifest {Id} to pool: {Errors}", manifest.Id, string.Join(", ", addRes?.Errors ?? Array.Empty<string>()));
                     return manifest;
                 }
             }
             catch (JsonException ex)
             {
-                _logger.LogError(ex, "Failed to parse embedded manifest {ManifestName}", manifestName);
+                logger.LogError(ex, "Failed to parse embedded manifest {ManifestName}", manifestName);
                 throw new ManifestValidationException(deterministicId, $"JSON parsing failed: {ex.Message}", ex);
             }
         }
 
         // 3. Generate fallback (optional)
-        if (_options.GenerateFallbackManifests)
+        if (options.GenerateFallbackManifests)
         {
-            _logger.LogInformation("Generating fallback manifest for installation {Id}", installation.Id);
+            logger.LogInformation("Generating fallback manifest for installation {Id}", installation.Id);
 
             // Determine the correct source path based on the game type
             var manifestGameType = installation.HasZeroHour ? GameType.ZeroHour : GameType.Generals;
@@ -249,7 +232,7 @@ public class ManifestProvider : IManifestProvider
 
             var publisherName = installation.InstallationType.GetDisplayName();
 
-            var builder = _manifestBuilder
+            var builder = manifestBuilder
                 .WithBasicInfo(installation.InstallationType, manifestGameType, manifestVersion)
                 .WithContentType(ContentType.GameInstallation, manifestGameType)
                 .WithPublisher(publisherName, string.Empty)
@@ -279,10 +262,10 @@ public class ManifestProvider : IManifestProvider
 
             // Validate ID before adding to pool
             ManifestIdValidator.EnsureValid(generated.Id.Value);
-            var addRes2 = await _manifestPool.AddManifestAsync(generated, sourcePath ?? string.Empty, cancellationToken);
+            var addRes2 = await manifestPool.AddManifestAsync(generated, sourcePath ?? string.Empty, cancellationToken);
             if (addRes2?.Success != true)
             {
-                _logger.LogWarning("Failed to add generated installation manifest {Id} to pool: {Errors}", generated.Id, string.Join(", ", addRes2?.Errors ?? Array.Empty<string>()));
+                logger.LogWarning("Failed to add generated installation manifest {Id} to pool: {Errors}", generated.Id, string.Join(", ", addRes2?.Errors ?? Array.Empty<string>()));
             }
 
             return generated;
