@@ -1,12 +1,12 @@
 using GenHub.Core.Models.Enums;
 
-namespace GenHub.Core.Models.Content;
-
 /// <summary>
 /// Represents a query for searching content across providers.
 /// </summary>
 public class ContentSearchQuery
 {
+    private string? _language;
+
     /// <summary>
     /// Gets or sets the primary search term.
     /// </summary>
@@ -76,4 +76,45 @@ public class ContentSearchQuery
     /// Gets or sets sort value.
     /// </summary>
     public string Sort { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the optional language filter used by CSV content pipeline.
+    /// </summary>
+    /// <remarks>
+    /// Accepts case-insensitive input and is normalized to uppercase to match CSV schema values.
+    /// Values: "All", "EN", "DE", "FR", "ES", "IT", "KO", "PL", "PT-BR", "ZH-CN", "ZH-TW".
+    /// </remarks>
+    public string? Language
+    {
+        get => _language;
+        set => _language = NormalizeLanguage(value);
+    }
+
+    private static readonly Dictionary<string, string> LanguageMap =
+    new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["EN"] = "EN",
+        ["DE"] = "DE",
+        ["FR"] = "FR",
+        ["PL"] = "PL",
+        ["ES"] = "ES",
+        ["IT"] = "IT",
+        ["KO"] = "KO",
+        ["BR"] = "BR",
+        ["CN"] = "CN",
+        ["ZH"] = "CN",
+        ["ZH-CN"] = "CN",
+    };
+
+    private static string? NormalizeLanguage(string? language)
+    {
+        // set default to "ALL" if not specified
+        // supported languages Brazilian Chinese English French German Italian Korean Polish Spanish
+        if (string.IsNullOrWhiteSpace(language))
+            return "ALL";
+
+        var key = language.Trim().ToUpperInvariant();
+
+        return LanguageMap.TryGetValue(key, out var normalized) ? normalized : "ALL";
+    }
 }
