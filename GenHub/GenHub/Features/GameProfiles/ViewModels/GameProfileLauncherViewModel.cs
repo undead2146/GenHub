@@ -471,7 +471,7 @@ public partial class GameProfileLauncherViewModel(
     /// </summary>
     /// <param name="profile">The game profile to launch.</param>
     [RelayCommand]
-    private async Task LaunchProfile(GameProfileItemViewModel profile)
+    private async Task LaunchProfileAsync(GameProfileItemViewModel profile)
     {
         // Try without blocking
         if (!await _launchSemaphore.WaitAsync(0))

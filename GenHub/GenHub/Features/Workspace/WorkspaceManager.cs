@@ -92,7 +92,7 @@ public class WorkspaceManager(
 
                         // Perform basic validation before reusing workspace
                         // Ensure workspace is not corrupted or incomplete
-                        if (!await ValidateWorkspaceBasicsAsync(workspace, configuration))
+                        if (!ValidateWorkspaceBasics(workspace, configuration))
                         {
                             logger.LogWarning(
                                 "[Workspace] Workspace {Id} validation failed, will recreate",
@@ -339,7 +339,7 @@ public class WorkspaceManager(
     /// <param name="workspace">The workspace to validate.</param>
     /// <param name="configuration">The current workspace configuration.</param>
     /// <returns>True if workspace passes basic validation, false otherwise.</returns>
-    private async Task<bool> ValidateWorkspaceBasicsAsync(WorkspaceInfo workspace, WorkspaceConfiguration configuration)
+    private bool ValidateWorkspaceBasics(WorkspaceInfo workspace, WorkspaceConfiguration configuration)
     {
         try
         {
