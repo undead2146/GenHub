@@ -8,6 +8,8 @@ using GenHub.Features.Content.Services.ContentDeliverers;
 using GenHub.Features.Content.Services.ContentDiscoverers;
 using GenHub.Features.Content.Services.ContentProviders;
 using GenHub.Features.Content.Services.ContentResolvers;
+using GenHub.Features.Content.Services.GeneralsOnline;
+using GenHub.Features.Content.Services.Publishers;
 using GenHub.Features.GitHub.Services;
 using GenHub.Features.Manifest;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +28,24 @@ public static class ContentPipelineModule
     /// <returns>The updated service collection.</returns>
     public static IServiceCollection AddContentPipelineServices(this IServiceCollection services)
     {
+        // Register core services
+        AddCoreServices(services);
+
+        // Register content pipelines
+        AddGitHubPipeline(services);
+        AddGeneralsOnlinePipeline(services);
+        AddCNCLabsPipeline(services);
+        AddLocalFileSystemPipeline(services);
+        AddSharedComponents(services);
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers core services required by all pipelines.
+    /// </summary>
+    private static void AddCoreServices(IServiceCollection services)
+    {
         // Register core hash provider
         var hashProvider = new Sha256HashProvider();
         services.AddSingleton<IFileHashProvider>(hashProvider);
@@ -33,6 +53,9 @@ public static class ContentPipelineModule
 
         // Register memory cache
         services.AddMemoryCache();
+
+        // Register HTTP client factory for content providers
+        services.AddHttpClient();
 
         // Register core storage and manifest services
         services.AddSingleton<IContentStorageService, ContentStorageService>();
@@ -46,30 +69,90 @@ public static class ContentPipelineModule
 
         // Register GitHub API client
         services.AddSingleton<IGitHubApiClient, OctokitGitHubApiClient>();
+    }
 
-        // Register concrete content providers only
+    /// <summary>
+    /// Registers GitHub content pipeline services.
+    /// </summary>
+    private static void AddGitHubPipeline(IServiceCollection services)
+    {
+        // Register GitHub content provider
         services.AddTransient<IContentProvider, GitHubContentProvider>();
-        services.AddTransient<IContentProvider, CNCLabsContentProvider>();
 
-        // TODO: Implement ModDB discoverer and resolver
-        // services.AddTransient<IContentProvider, ModDBContentProvider>();
-        services.AddTransient<IContentProvider, LocalFileSystemContentProvider>();
-
-        // Register content discoverers
+        // Register GitHub discoverers
         services.AddTransient<IContentDiscoverer, GitHubDiscoverer>();
         services.AddTransient<IContentDiscoverer, GitHubReleasesDiscoverer>();
+
+        // Register GitHub resolver
+        services.AddTransient<IContentResolver, GitHubResolver>();
+    }
+
+    /// <summary>
+    /// Registers Generals Online content pipeline services.
+    /// </summary>
+    private static void AddGeneralsOnlinePipeline(IServiceCollection services)
+    {
+        // Register Generals Online provider
+        services.AddTransient<IContentProvider, GeneralsOnlineProvider>();
+
+        // Register Generals Online discoverer
+        services.AddTransient<IContentDiscoverer, GeneralsOnlineDiscoverer>();
+
+        // Register Generals Online resolver
+        services.AddTransient<IContentResolver, GeneralsOnlineResolver>();
+
+        // Register Generals Online deliverer
+        services.AddTransient<IContentDeliverer, GeneralsOnlineDeliverer>();
+
+        // Register Generals Online manifest factory
+        services.AddTransient<GeneralsOnlineManifestFactory>();
+
+        // Register Generals Online update service
+        services.AddSingleton<GeneralsOnlineUpdateService>();
+    }
+
+    /// <summary>
+    /// Registers CNCLabs content pipeline services.
+    /// </summary>
+    private static void AddCNCLabsPipeline(IServiceCollection services)
+    {
+        // Register CNCLabs content provider
+        services.AddTransient<IContentProvider, CNCLabsContentProvider>();
+
+        // Register CNCLabs discoverer
         services.AddTransient<IContentDiscoverer, CNCLabsMapDiscoverer>();
+
+        // Register CNCLabs resolver
+        services.AddTransient<IContentResolver, CNCLabsMapResolver>();
+    }
+
+    /// <summary>
+    /// Registers Local File System content pipeline services.
+    /// </summary>
+    private static void AddLocalFileSystemPipeline(IServiceCollection services)
+    {
+        // Register Local File System content provider
+        services.AddTransient<IContentProvider, LocalFileSystemContentProvider>();
+
+        // Register File System discoverer
         services.AddTransient<IContentDiscoverer, FileSystemDiscoverer>();
 
-        // Register content resolvers
-        services.AddTransient<IContentResolver, GitHubResolver>();
-        services.AddTransient<IContentResolver, CNCLabsMapResolver>();
+        // Register Local Manifest resolver
         services.AddTransient<IContentResolver, LocalManifestResolver>();
 
-        // Register content deliverers
-        services.AddTransient<IContentDeliverer, HttpContentDeliverer>();
+        // Register File System deliverer
         services.AddTransient<IContentDeliverer, FileSystemDeliverer>();
+    }
 
-        return services;
+    /// <summary>
+    /// Registers shared components used across multiple pipelines.
+    /// </summary>
+    private static void AddSharedComponents(IServiceCollection services)
+    {
+        // Register shared deliverers
+        services.AddTransient<IContentDeliverer, HttpContentDeliverer>();
+
+        // Register publisher manifest factory resolver
+        services.AddTransient<PublisherManifestFactoryResolver>();
     }
 }
