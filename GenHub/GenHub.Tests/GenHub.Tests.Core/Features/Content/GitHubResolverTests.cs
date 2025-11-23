@@ -74,7 +74,7 @@ public class GitHubResolverTests
             .Returns(manifestBuilder.Object);
         manifestBuilder.Setup(m => m.WithContentType(It.IsAny<ContentType>(), It.IsAny<GameType>()))
             .Returns(manifestBuilder.Object);
-        manifestBuilder.Setup(m => m.WithPublisher(It.IsAny<string>(), string.Empty, string.Empty, string.Empty, string.Empty))
+        manifestBuilder.Setup(m => m.WithPublisher(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
             .Returns(manifestBuilder.Object);
         manifestBuilder.Setup(m => m.WithMetadata(It.IsAny<string>(), It.IsAny<List<string>?>(), It.IsAny<string>(), It.IsAny<List<string>?>(), It.IsAny<string>()))
             .Returns(manifestBuilder.Object);
