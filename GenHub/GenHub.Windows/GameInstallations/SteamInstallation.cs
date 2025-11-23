@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using GenHub.Core.Constants;
+using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
@@ -113,30 +116,73 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
                 // Fetch generals
                 if (!HasGenerals)
                 {
-                    var generalsPath = Path.Combine(lib, "Command and Conquer Generals");
+                    var generalsPath = Path.Combine(lib, GameClientConstants.GeneralsDirectoryName);
+
                     if (Directory.Exists(generalsPath))
                     {
-                        HasGenerals = true;
-                        GeneralsPath = generalsPath;
-                        InstallationPath = lib;
-                        logger?.LogInformation("Found Steam Generals installation: {GeneralsPath}", GeneralsPath);
+                        var possibleExes = new[]
+                        {
+                            GameClientConstants.GeneralsExecutable,
+                            GameClientConstants.SuperHackersGeneralsExecutable,
+                        };
+                        foreach (var exe in possibleExes)
+                        {
+                            if (Path.Combine(generalsPath, exe).FileExistsCaseInsensitive())
+                            {
+                                HasGenerals = true;
+                                GeneralsPath = generalsPath;
+                                if (string.IsNullOrEmpty(InstallationPath))
+                                {
+                                    InstallationPath = lib;
+                                }
+
+                                logger?.LogInformation("Found Steam Generals installation: {GeneralsPath} with executable {Executable}", GeneralsPath, exe);
+                                break;
+                            }
+                        }
                     }
                 }
 
                 // Fetch zero hour
                 if (!HasZeroHour)
                 {
-                    var zeroHourPath = Path.Combine(lib, "Command & Conquer Generals - Zero Hour");
-                    if (Directory.Exists(zeroHourPath))
+                    var possibleZeroHourPaths = new[]
                     {
-                        HasZeroHour = true;
-                        ZeroHourPath = zeroHourPath;
-                        if (string.IsNullOrEmpty(InstallationPath))
-                        {
-                            InstallationPath = lib;
-                        }
+                        Path.Combine(lib, GameClientConstants.ZeroHourDirectoryNameAmpersandHyphen), // Standard Steam naming (& with -)
+                        Path.Combine(lib, GameClientConstants.ZeroHourDirectoryName), // Alternative naming (and without -)
+                        Path.Combine(lib, GameClientConstants.ZeroHourDirectoryNameColonVariant), // Colon variant
+                        Path.Combine(lib, GameClientConstants.ZeroHourDirectoryNameAbbreviated), // Abbreviated form
+                    };
 
-                        logger?.LogInformation("Found Steam Zero Hour installation: {ZeroHourPath}", ZeroHourPath);
+                    foreach (var zhPath in possibleZeroHourPaths)
+                    {
+                        if (Directory.Exists(zhPath))
+                        {
+                            // Check for various possible Zero Hour executable names using constants
+                            // Case-insensitive file matching provided by FileExistsCaseInsensitive extension method
+                            var possibleExes = new[]
+                            {
+                                GameClientConstants.ZeroHourExecutable,
+                                GameClientConstants.SuperHackersZeroHourExecutable,
+                            };
+                            foreach (var exe in possibleExes)
+                            {
+                                if (Path.Combine(zhPath, exe).FileExistsCaseInsensitive())
+                                {
+                                    HasZeroHour = true;
+                                    ZeroHourPath = zhPath;
+                                    if (string.IsNullOrEmpty(InstallationPath))
+                                    {
+                                        InstallationPath = lib;
+                                    }
+
+                                    logger?.LogInformation("Found Steam Zero Hour installation: {ZeroHourPath} with executable {Executable}", ZeroHourPath, exe);
+                                    break;
+                                }
+                            }
+
+                            if (HasZeroHour) break;
+                        }
                     }
                 }
             }

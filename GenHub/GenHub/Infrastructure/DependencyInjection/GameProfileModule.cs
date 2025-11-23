@@ -1,9 +1,12 @@
 using System;
 using System.IO;
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Features.GameProfiles.Infrastructure;
 using GenHub.Features.GameProfiles.Services;
+using GenHub.Features.GameSettings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -33,6 +36,9 @@ public static class GameProfileModule
         services.AddScoped<IProfileLauncherFacade, ProfileLauncherFacade>();
         services.AddScoped<IProfileEditorFacade, ProfileEditorFacade>();
         services.AddScoped<IDependencyResolver, DependencyResolver>();
+        services.AddSingleton<IGameSettingsService, GameSettingsService>();
+        services.AddSingleton<IContentDisplayFormatter, ContentDisplayFormatter>();
+        services.AddScoped<IProfileContentLoader, ProfileContentLoader>();
 
         return services;
     }

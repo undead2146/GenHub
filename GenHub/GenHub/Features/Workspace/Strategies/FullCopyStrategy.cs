@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Extensions;
 using GenHub.Core.Interfaces.Workspace;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
@@ -95,70 +96,110 @@ public sealed class FullCopyStrategy(
             // Create workspace directory
             Directory.CreateDirectory(workspacePath);
 
-            var allFiles = configuration.Manifests.SelectMany(m => m.Files ?? Enumerable.Empty<ManifestFile>()).ToList();
+            var allFiles = configuration.GetAllUniqueFiles().ToList();
             var totalFiles = allFiles.Count;
             var processedFiles = 0;
             long totalBytesProcessed = 0;
 
-            Logger.LogDebug("Processing {TotalFiles} files", totalFiles);
+            Logger.LogDebug("Processing {TotalFiles} files in parallel", totalFiles);
             ReportProgress(progress, 0, totalFiles, "Initializing", string.Empty);
 
-            // Process each manifest and its files to maintain manifest context for source path resolution
-            foreach (var manifest in configuration.Manifests)
+            int degreeOfParallelism;
+            try
             {
-                foreach (var file in manifest.Files ?? Enumerable.Empty<ManifestFile>())
+                var driveInfo = new DriveInfo(Path.GetPathRoot(workspacePath) ?? "C:\\");
+                degreeOfParallelism = driveInfo.DriveType == DriveType.Fixed
+                    ? Math.Min(Environment.ProcessorCount, 4) // HDD - limited parallelism
+                    : Environment.ProcessorCount * 2;         // SSD - higher parallelism safe
+                Logger.LogDebug(
+                    "[Workspace] Using {DegreeOfParallelism} degree of parallelism for {DriveType} drive",
+                    degreeOfParallelism,
+                    driveInfo.DriveType);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "[Workspace] Failed to detect drive type, using default parallelism");
+                degreeOfParallelism = Environment.ProcessorCount * 2;
+            }
+
+            // Group files by destination path to handle conflicts
+            var filesByDestination = configuration.Manifests
+                .SelectMany(m => (m.Files ?? Enumerable.Empty<ManifestFile>()).Select(f => new { Manifest = m, File = f }))
+                .GroupBy(item => item.File.RelativePath, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            await Parallel.ForEachAsync(
+                filesByDestination,
+                new ParallelOptions
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
+                    MaxDegreeOfParallelism = degreeOfParallelism,
+                    CancellationToken = cancellationToken,
+                },
+                async (fileGroup, ct) =>
+                {
+                    // For each destination path, process files in priority order (lowest to highest)
+                    // Priority: GameInstallation (0) < GameClient (1) < Mod (2)
+                    // This ensures higher priority content overwrites lower priority
+                    var orderedFiles = fileGroup
+                        .OrderBy(item => item.Manifest.ContentType)
+                        .ToList();
 
-                    var destinationPath = Path.Combine(workspacePath, file.RelativePath);
-
-                    try
+                    // Process all versions of this file in priority order
+                    // The last one (highest priority) will be the final version
+                    foreach (var item in orderedFiles)
                     {
-                        // Handle different source types
-                        if (file.SourceType == ContentSourceType.ContentAddressable && !string.IsNullOrEmpty(file.Hash))
-                        {
-                            // Use CAS content
-                            await CreateCasLinkAsync(file.Hash, destinationPath, cancellationToken);
-                        }
-                        else
-                        {
-                            // Resolve source path supporting multi-source installations
-                            var sourcePath = ResolveSourcePath(file, manifest, configuration);
+                        var destinationPath = Path.Combine(workspacePath, item.File.RelativePath);
 
-                            if (!ValidateSourceFile(sourcePath, file.RelativePath))
+                        try
+                        {
+                            // Handle different source types
+                            if (item.File.SourceType == ContentSourceType.ContentAddressable && !string.IsNullOrEmpty(item.File.Hash))
                             {
-                                continue;
+                                // Use CAS content
+                                await CreateCasLinkAsync(item.File.Hash, destinationPath, ct);
                             }
-
-                            await FileOperations.CopyFileAsync(sourcePath, destinationPath, cancellationToken);
-
-                            // Verify file integrity if hash is provided
-                            if (!string.IsNullOrEmpty(file.Hash))
+                            else
                             {
-                                var hashValid = await FileOperations.VerifyFileHashAsync(destinationPath, file.Hash, cancellationToken);
-                                if (!hashValid)
+                                // Resolve source path supporting multi-source installations
+                                var sourcePath = ResolveSourcePath(item.File, item.Manifest, configuration);
+
+                                if (!ValidateSourceFile(sourcePath, item.File.RelativePath))
                                 {
-                                    Logger.LogWarning("Hash verification failed for file: {RelativePath}", file.RelativePath);
+                                    continue;
+                                }
+
+                                await FileOperations.CopyFileAsync(sourcePath, destinationPath, ct);
+
+                                // Verify file integrity if hash is provided
+                                if (!string.IsNullOrEmpty(item.File.Hash))
+                                {
+                                    var hashValid = await FileOperations.VerifyFileHashAsync(destinationPath, item.File.Hash, ct);
+                                    if (!hashValid)
+                                    {
+                                        Logger.LogWarning("Hash verification failed for file: {RelativePath}", item.File.RelativePath);
+                                    }
                                 }
                             }
                         }
-
-                        totalBytesProcessed += file.Size;
+                        catch (Exception ex)
+                        {
+                            Logger.LogError(
+                                ex,
+                                "Failed to copy file {RelativePath} to {DestinationPath}",
+                                item.File.RelativePath,
+                                destinationPath);
+                            throw new InvalidOperationException($"Failed to copy file {item.File.RelativePath}: {ex.Message}", ex);
+                        }
                     }
-                    catch (Exception ex)
+
+                    // Only count the file group once for progress reporting
+                    Interlocked.Add(ref totalBytesProcessed, orderedFiles.First().File.Size);
+                    var current = Interlocked.Increment(ref processedFiles);
+                    if (current % 50 == 0 || current == totalFiles)
                     {
-                        Logger.LogError(
-                            ex,
-                            "Failed to copy file {RelativePath} to {DestinationPath}",
-                            file.RelativePath,
-                            destinationPath);
-                        throw new InvalidOperationException($"Failed to copy file {file.RelativePath}: {ex.Message}", ex);
+                        ReportProgress(progress, current, totalFiles, "Copying files", orderedFiles.First().File.RelativePath);
                     }
-
-                    processedFiles++;
-                    ReportProgress(progress, processedFiles, totalFiles, "Copying", file.RelativePath);
-                }
-            }
+                });
 
             UpdateWorkspaceInfo(workspaceInfo, processedFiles, totalBytesProcessed, configuration);
             workspaceInfo.IsPrepared = true;

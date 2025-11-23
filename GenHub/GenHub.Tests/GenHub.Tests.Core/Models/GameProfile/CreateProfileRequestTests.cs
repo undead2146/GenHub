@@ -26,7 +26,7 @@ public class CreateProfileRequestTests
         Assert.Equal("Test Profile", request.Name);
         Assert.Equal("install-1", request.GameInstallationId);
         Assert.Equal("client-1", request.GameClientId);
-        Assert.Equal(WorkspaceStrategy.HybridCopySymlink, request.PreferredStrategy);
+        Assert.Equal(WorkspaceStrategy.SymlinkOnly, request.PreferredStrategy);
     }
 
     /// <summary>

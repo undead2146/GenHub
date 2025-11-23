@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Extensions;
 using GenHub.Core.Interfaces.Workspace;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
@@ -89,7 +90,9 @@ public sealed class HybridCopySymlinkStrategy(IFileOperationsService fileOperati
 
             // Create workspace directory
             Directory.CreateDirectory(workspacePath);
-            var allFiles = configuration.Manifests.SelectMany(m => m.Files ?? Enumerable.Empty<ManifestFile>()).ToList();
+
+            // Deduplicate files by RelativePath - multiple manifests may contain the same file
+            var allFiles = configuration.GetAllUniqueFiles().ToList();
             var totalFiles = allFiles.Count;
             var processedFiles = 0;
             long totalBytesProcessed = 0;

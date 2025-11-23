@@ -49,4 +49,13 @@ public interface IGameLauncher
     /// <param name="cancellationToken">A cancellation token to observe while waiting for the task to complete.</param>
     /// <returns>A <see cref="LaunchOperationResult{GameProcessInfo}"/> containing the process information.</returns>
     Task<LaunchOperationResult<GameProcessInfo>> GetGameProcessInfoAsync(string launchId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Acquires the profile-specific launch lock to synchronize operations.
+    /// This ensures deletion waits for any in-progress launch to register.
+    /// </summary>
+    /// <param name="profileId">The profile ID to acquire the lock for.</param>
+    /// <param name="cancellationToken">A cancellation token to observe while waiting for the task to complete.</param>
+    /// <returns>A disposable that releases the lock when disposed.</returns>
+    Task<IDisposable> AcquireProfileLockAsync(string profileId, CancellationToken cancellationToken = default);
 }

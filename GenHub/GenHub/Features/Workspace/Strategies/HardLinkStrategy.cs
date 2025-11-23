@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Extensions;
 using GenHub.Core.Interfaces.Workspace;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
@@ -43,7 +44,8 @@ public sealed class HardLinkStrategy(IFileOperationsService fileOperations, ILog
     /// <inheritdoc/>
     public override long EstimateDiskUsage(WorkspaceConfiguration configuration)
     {
-        var allFiles = configuration.Manifests.SelectMany(m => m.Files ?? Enumerable.Empty<ManifestFile>()).ToList();
+        // Deduplicate files for accurate estimation
+        var allFiles = configuration.GetAllUniqueFiles().ToList();
 
         // Check if source and destination are on the same volume
         var sourceRoot = Path.GetPathRoot(configuration.BaseInstallationPath);
@@ -54,8 +56,8 @@ public sealed class HardLinkStrategy(IFileOperationsService fileOperations, ILog
             // Same volume: hard links use minimal space
             // Even empty workspaces need some directory overhead
             return Math.Max(LinkOverheadBytes, allFiles.Count * LinkOverheadBytes);
-        }
-        else
+    }
+    else
         {
             // Different volumes: will fall back to copying
             return allFiles.Sum(f => f.Size);
@@ -90,7 +92,8 @@ public sealed class HardLinkStrategy(IFileOperationsService fileOperations, ILog
             // Create workspace directory
             Directory.CreateDirectory(workspacePath);
 
-            var allFiles = configuration.Manifests.SelectMany(m => m.Files ?? Enumerable.Empty<ManifestFile>()).ToList();
+            // Deduplicate files by RelativePath - multiple manifests may contain the same file
+            var allFiles = configuration.GetAllUniqueFiles().ToList();
             var totalFiles = allFiles.Count;
             var processedFiles = 0;
             long totalBytesProcessed = 0;

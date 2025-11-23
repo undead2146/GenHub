@@ -1,3 +1,4 @@
+using GenHub.Core.Extensions;
 using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
@@ -44,12 +45,12 @@ public class GameSettingsViewModelTests
         Assert.Equal(800, _viewModel.ResolutionWidth);
         Assert.Equal(600, _viewModel.ResolutionHeight);
         Assert.False(_viewModel.Windowed);
-        Assert.Equal(2, _viewModel.TextureQuality);
+        Assert.Equal(TextureQuality.High, _viewModel.TextureQuality);
         Assert.True(_viewModel.Shadows);
         Assert.True(_viewModel.ParticleEffects);
         Assert.True(_viewModel.ExtraAnimations);
         Assert.True(_viewModel.BuildingAnimations);
-        Assert.Equal(100, _viewModel.Gamma);
+        Assert.Equal(50, _viewModel.Gamma);
     }
 
     /// <summary>
@@ -57,7 +58,7 @@ public class GameSettingsViewModelTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     [Fact]
-    public async Task InitializeForProfileAsync_Should_LoadFromOptionsIni_WhenNoProfileSettings()
+    public async Task InitializeForProfileAsync_Should_LoadFromIniOptions_WhenNoProfileSettings()
     {
         // Arrange
         var profile = new GameProfile
@@ -86,7 +87,7 @@ public class GameSettingsViewModelTests
                 TextureReduction = 0,
                 UseShadowVolumes = false,
                 ExtraAnimations = false,
-                Gamma = 110,
+                Gamma = 75,
             },
         };
 
@@ -106,10 +107,10 @@ public class GameSettingsViewModelTests
         Assert.Equal(1920, _viewModel.ResolutionWidth);
         Assert.Equal(1080, _viewModel.ResolutionHeight);
         Assert.True(_viewModel.Windowed);
-        Assert.Equal(2, _viewModel.TextureQuality); // 2 - 0 = 2 (high quality)
+        Assert.Equal(TextureQuality.High, _viewModel.TextureQuality); // 2 - 0 = 2 (high quality)
         Assert.False(_viewModel.Shadows);
         Assert.False(_viewModel.ExtraAnimations);
-        Assert.Equal(110, _viewModel.Gamma);
+        Assert.Equal(75, _viewModel.Gamma);
         Assert.Equal("Loaded default settings from Options.ini. Save the profile to persist these settings.", _viewModel.StatusMessage);
     }
 
@@ -129,9 +130,9 @@ public class GameSettingsViewModelTests
             VideoResolutionWidth = 2560,
             VideoResolutionHeight = 1440,
             VideoWindowed = true,
-            VideoTextureQuality = 1,
-            VideoShadows = false,
-            VideoGamma = 120,
+            VideoTextureQuality = TextureQuality.Medium,
+            EnableVideoShadows = false,
+            VideoGamma = 80,
             AudioSoundVolume = 75,
             AudioEnabled = false,
         };
@@ -144,9 +145,9 @@ public class GameSettingsViewModelTests
         Assert.Equal(2560, _viewModel.ResolutionWidth);
         Assert.Equal(1440, _viewModel.ResolutionHeight);
         Assert.True(_viewModel.Windowed);
-        Assert.Equal(1, _viewModel.TextureQuality);
+        Assert.Equal(TextureQuality.Medium, _viewModel.TextureQuality);
         Assert.False(_viewModel.Shadows);
-        Assert.Equal(120, _viewModel.Gamma);
+        Assert.Equal(80, _viewModel.Gamma);
         Assert.Equal(75, _viewModel.SoundVolume);
         Assert.False(_viewModel.AudioEnabled);
         Assert.Contains("Loaded profile settings", _viewModel.StatusMessage);
@@ -162,9 +163,9 @@ public class GameSettingsViewModelTests
         _viewModel.ResolutionWidth = 1920;
         _viewModel.ResolutionHeight = 1080;
         _viewModel.Windowed = true;
-        _viewModel.TextureQuality = 0;
+        _viewModel.TextureQuality = TextureQuality.Low;
         _viewModel.Shadows = false;
-        _viewModel.Gamma = 110;
+        _viewModel.Gamma = 65;
         _viewModel.SoundVolume = 80;
         _viewModel.AudioEnabled = false;
 
@@ -175,9 +176,9 @@ public class GameSettingsViewModelTests
         Assert.Equal(1920, request.VideoResolutionWidth);
         Assert.Equal(1080, request.VideoResolutionHeight);
         Assert.True(request.VideoWindowed);
-        Assert.Equal(0, request.VideoTextureQuality);
-        Assert.False(request.VideoShadows);
-        Assert.Equal(110, request.VideoGamma);
+        Assert.Equal(TextureQuality.Low, request.VideoTextureQuality);
+        Assert.False(request.EnableVideoShadows);
+        Assert.Equal(65, request.VideoGamma);
         Assert.Equal(80, request.AudioSoundVolume);
         Assert.False(request.AudioEnabled);
     }
@@ -229,12 +230,12 @@ public class GameSettingsViewModelTests
             VideoResolutionWidth = hasVideoWidth ? 1920 : null,
             VideoResolutionHeight = hasVideoHeight ? 1080 : null,
             VideoWindowed = hasWindowed ? true : null,
-            VideoTextureQuality = hasTextureQuality ? 1 : null,
-            VideoShadows = hasShadows ? false : null,
+            VideoTextureQuality = hasTextureQuality ? TextureQuality.Medium : null,
+            EnableVideoShadows = hasShadows ? false : null,
             VideoParticleEffects = hasParticleEffects ? true : null,
             VideoExtraAnimations = hasExtraAnimations ? false : null,
             VideoBuildingAnimations = hasBuildingAnimations ? true : null,
-            VideoGamma = hasGamma ? 100 : null,
+            VideoGamma = hasGamma ? 50 : null,
             AudioSoundVolume = hasSoundVolume ? 70 : null,
             AudioThreeDSoundVolume = hasThreeDSoundVolume ? 70 : null,
             AudioSpeechVolume = hasSpeechVolume ? 70 : null,
@@ -244,7 +245,7 @@ public class GameSettingsViewModelTests
         };
 
         // Act
-        var hasSettings = GameSettingsViewModel.HasCustomProfileSettings(profile);
+        var hasSettings = profile.HasCustomSettings();
 
         // Assert
         Assert.Equal(expected, hasSettings);
@@ -347,7 +348,7 @@ public class GameSettingsViewModelTests
 
         _viewModel.SelectedGameType = GameType.Generals; // Set before initialization
 
-        // Act - Start initialization and complete
+        // Act - Start initialization
         await _viewModel.InitializeForProfileAsync("test", profile);
 
         // Assert - Should have loaded from profile during initialization, not from Options.ini

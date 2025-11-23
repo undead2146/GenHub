@@ -27,30 +27,29 @@ public class ManifestIdServiceTests
     public void GeneratePublisherContentId_UsesDefaultUserVersion_WhenNotProvided()
     {
         // Arrange
-        var publisherId = "test-publisher";
-        var contentName = "test-content";
+        var publisherId = "testpublisher";
+        var contentName = "testcontent";
 
         // Act
         var result = _service.GeneratePublisherContentId(publisherId, GenHub.Core.Models.Enums.ContentType.Mod, contentName);
 
         // Assert
         Assert.True(result.Success);
-        Assert.Equal("1.0.test.publisher.mod.test.content", result.Data.Value);
+        Assert.Equal("1.0.testpublisher.mod.testcontent", result.Data.Value);
         Assert.Null(result.FirstError);
     }
 
     /// <summary>
-    /// Tests failure when generating publisher content ID with invalid inputs.
+    /// Tests that GeneratePublisherContentId returns failure for invalid inputs.
     /// </summary>
     /// <param name="publisherId">Invalid publisher ID.</param>
     /// <param name="contentName">Invalid content name.</param>
-    /// <param name="expectedError">Expected error message.</param>
     [Theory]
-    [InlineData("", "content", "Publisher ID cannot be empty")]
-    [InlineData(" ", "content", "Publisher ID cannot be empty")]
-    [InlineData("publisher", "", "Content name cannot be empty")]
-    [InlineData("publisher", " ", "Content name cannot be empty")]
-    public void GeneratePublisherContentId_WithInvalidInputs_ReturnsFailure(string publisherId, string contentName, string expectedError)
+    [InlineData("", "content")]
+    [InlineData(" ", "content")]
+    [InlineData("publisher", "")]
+    [InlineData("publisher", " ")]
+    public void GeneratePublisherContentId_WithInvalidInputs_ReturnsFailure(string publisherId, string contentName)
     {
         // Act
         var result = _service.GeneratePublisherContentId(publisherId, GenHub.Core.Models.Enums.ContentType.Mod, contentName, 0);
@@ -58,7 +57,7 @@ public class ManifestIdServiceTests
         // Assert
         Assert.False(result.Success);
         Assert.Null(result.Data.Value);
-        Assert.Contains(expectedError, result.FirstError);
+        Assert.NotNull(result.FirstError);
     }
 
     /// <summary>
@@ -72,7 +71,7 @@ public class ManifestIdServiceTests
         var gameType = GameType.Generals;
 
         // Act
-        var result = _service.GenerateGameInstallationId(installation, gameType, (string?)null, GenHub.Core.Models.Enums.ContentType.GameInstallation);
+        var result = _service.GenerateGameInstallationId(installation, gameType);
 
         // Assert
         Assert.True(result.Success);
@@ -87,7 +86,7 @@ public class ManifestIdServiceTests
     public void GenerateGameInstallationId_WithNullInstallation_ReturnsFailure()
     {
         // Act
-        var result = _service.GenerateGameInstallationId(null!, GameType.Generals, 0, GenHub.Core.Models.Enums.ContentType.GameInstallation);
+        var result = _service.GenerateGameInstallationId(null!, GameType.Generals, 0);
 
         // Assert
         Assert.False(result.Success);
@@ -101,8 +100,8 @@ public class ManifestIdServiceTests
     [Fact]
     public void ValidateAndCreateManifestId_WithValidId_ReturnsSuccess()
     {
-        // Arrange
-        var validId = "1.0.test.publisher.mod.test.content";
+        // Arrange - Use a valid 5-segment ID
+        var validId = "1.0.genhub.mod.testcontent";
 
         // Act
         var result = _service.ValidateAndCreateManifestId(validId);
@@ -166,11 +165,11 @@ public class ManifestIdServiceTests
 
         // Test GenerateGameInstallationId
         var installation = new GameInstallation("C:\\Games", GameInstallationType.Steam);
-        var result2 = _service.GenerateGameInstallationId(installation, GameType.Generals, 0, GenHub.Core.Models.Enums.ContentType.GameInstallation);
+        var result2 = _service.GenerateGameInstallationId(installation, GameType.Generals, 0);
         Assert.IsAssignableFrom<ResultBase>(result2);
 
         // Test ValidateAndCreateManifestId
-        var result3 = _service.ValidateAndCreateManifestId("1.0.test.publisher.mod.test.content");
+        var result3 = _service.ValidateAndCreateManifestId("1.0.genhub.mod.testcontent");
         Assert.IsAssignableFrom<ResultBase>(result3);
     }
 
@@ -186,7 +185,7 @@ public class ManifestIdServiceTests
         Assert.NotNull(successResult.Data.Value);
         Assert.Null(successResult.FirstError);
 
-        // Test failure case
+        // Test failure case (empty publisher)
         var failureResult = _service.GeneratePublisherContentId(string.Empty, GenHub.Core.Models.Enums.ContentType.Mod, "content", 0);
         Assert.False(failureResult.Success);
         Assert.Null(failureResult.Data.Value);

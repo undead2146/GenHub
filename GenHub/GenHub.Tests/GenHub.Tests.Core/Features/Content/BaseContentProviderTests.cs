@@ -28,7 +28,7 @@ public class BaseContentProviderTests
         var resolverMock = new Mock<IContentResolver>();
         var delivererMock = new Mock<IContentDeliverer>();
 
-        var manifest = new ContentManifest { Id = "1.0.test.publisher.content", Name = "Test" };
+        var manifest = new ContentManifest { Id = "1.0.genhub.mod.content", Name = "Test" };
         var validationResult = new ValidationResult(manifest.Id, new List<ValidationIssue>());
 
         validatorMock.Setup(v => v.ValidateManifestAsync(manifest, It.IsAny<CancellationToken>()))
@@ -65,7 +65,7 @@ public class BaseContentProviderTests
         var resolverMock = new Mock<IContentResolver>();
         var delivererMock = new Mock<IContentDeliverer>();
 
-        var manifest = new ContentManifest { Id = "1.0.test.publisher.content", Name = "Test" };
+        var manifest = new ContentManifest { Id = "1.0.genhub.mod.content", Name = "Test" };
         var validationResult = new ValidationResult(manifest.Id, new List<ValidationIssue>());
 
         validatorMock.Setup(v => v.ValidateManifestAsync(manifest, It.IsAny<CancellationToken>())).ReturnsAsync(validationResult);
@@ -108,7 +108,7 @@ public class BaseContentProviderTests
         var resolverMock = new Mock<IContentResolver>();
         var delivererMock = new Mock<IContentDeliverer>();
 
-        var manifest = new ContentManifest { Id = "1.0.test.publisher.content", Name = "Test" };
+        var manifest = new ContentManifest { Id = "1.0.genhub.mod.content", Name = "Test" };
         var validationIssues = new List<ValidationIssue>
         {
             new ValidationIssue("Test error", ValidationSeverity.Error),

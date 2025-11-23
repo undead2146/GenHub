@@ -38,15 +38,14 @@ public class ManifestIdService : IManifestIdService
     public OperationResult<ManifestId> GenerateGameInstallationId(
         GameInstallation installation,
         GameType gameType,
-        object? userVersion,
-        ContentType contentType)
+        string? userVersion)
     {
         if (installation == null)
             return OperationResult<ManifestId>.CreateFailure("Installation cannot be null");
 
         try
         {
-            var id = ManifestIdGenerator.GenerateGameInstallationId(installation, gameType, userVersion, contentType);
+            var id = ManifestIdGenerator.GenerateGameInstallationId(installation, gameType, userVersion);
             var manifestId = ManifestId.Create(id);
             return OperationResult<ManifestId>.CreateSuccess(manifestId);
         }
@@ -60,10 +59,23 @@ public class ManifestIdService : IManifestIdService
     public OperationResult<ManifestId> GenerateGameInstallationId(
         GameInstallation installation,
         GameType gameType,
-        int userVersion,
-        ContentType contentType)
+        int userVersion = 0)
     {
-        return GenerateGameInstallationId(installation, gameType, (object)userVersion, contentType);
+        if (installation == null)
+            return OperationResult<ManifestId>.CreateFailure("Installation cannot be null");
+        if (userVersion < 0)
+            return OperationResult<ManifestId>.CreateFailure("User version cannot be negative");
+
+        try
+        {
+            var id = ManifestIdGenerator.GenerateGameInstallationId(installation, gameType, userVersion);
+            var manifestId = ManifestId.Create(id);
+            return OperationResult<ManifestId>.CreateSuccess(manifestId);
+        }
+        catch (Exception ex)
+        {
+            return OperationResult<ManifestId>.CreateFailure($"Failed to generate game installation ID: {ex.Message}");
+        }
     }
 
     /// <inheritdoc/>

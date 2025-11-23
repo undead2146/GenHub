@@ -11,6 +11,53 @@ namespace GenHub.Core.Extensions.GameInstallations;
 public static class InstallationExtensions
 {
     /// <summary>
+    /// Checks if a file exists in a case-insensitive manner, compatible across platforms.
+    /// On Windows (NTFS), this leverages filesystem case-insensitivity.
+    /// On Linux/macOS (case-sensitive filesystems), performs explicit case-insensitive search.
+    /// </summary>
+    /// <param name="filePath">The full file path to check.</param>
+    /// <returns>True if the file exists (case-insensitive match).</returns>
+    public static bool FileExistsCaseInsensitive(this string filePath)
+    {
+        if (string.IsNullOrEmpty(filePath))
+        {
+            return false;
+        }
+
+        // First try direct filesystem check (efficient on Windows NTFS)
+        if (File.Exists(filePath))
+        {
+            return true;
+        }
+
+        // Fallback: explicit case-insensitive search for case-sensitive filesystems
+        try
+        {
+            var directory = Path.GetDirectoryName(filePath);
+            var fileName = Path.GetFileName(filePath);
+
+            if (string.IsNullOrEmpty(directory) || string.IsNullOrEmpty(fileName))
+            {
+                return false;
+            }
+
+            var directoryInfo = new DirectoryInfo(directory);
+            if (!directoryInfo.Exists)
+            {
+                return false;
+            }
+
+            var files = directoryInfo.GetFiles();
+            return files.Any(f => string.Equals(f.Name, fileName, StringComparison.OrdinalIgnoreCase));
+        }
+        catch
+        {
+            // If directory enumeration fails, fall back to false
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Converts a platform-specific installation to the domain model.
     /// </summary>
     /// <param name="installation">The platform installation.</param>
@@ -43,6 +90,7 @@ public static class InstallationExtensions
 
     /// <summary>
     /// Gets a human-readable display name for the installation type.
+    /// Returns user-friendly names matching InstallationTypeDisplayConverter for UI consistency.
     /// </summary>
     /// <param name="installationType">The installation type.</param>
     /// <returns>Display name.</returns>
@@ -52,10 +100,12 @@ public static class InstallationExtensions
         {
             GameInstallationType.Steam => "Steam",
             GameInstallationType.EaApp => "EA App",
-            GameInstallationType.Wine => "Wine/Proton",
+            GameInstallationType.TheFirstDecade => "The First Decade",
             GameInstallationType.CDISO => "CD/ISO",
+            GameInstallationType.Wine => "Wine/Proton",
             GameInstallationType.Retail => "Retail",
-            _ => "Unknown"
+            GameInstallationType.Unknown => "Unknown",
+            _ => installationType.ToString()
         };
     }
 

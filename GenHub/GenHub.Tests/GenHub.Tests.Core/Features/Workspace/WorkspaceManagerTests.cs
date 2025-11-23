@@ -18,10 +18,8 @@ public class WorkspaceManagerTests : IDisposable
     private readonly Mock<IConfigurationProviderService> _mockConfigProvider;
     private readonly Mock<ILogger<WorkspaceManager>> _mockLogger;
     private readonly Mock<IWorkspaceValidator> _mockWorkspaceValidator;
-    private readonly Mock<ILogger<WorkspaceReconciler>> _mockReconcilerLogger;
     private readonly IWorkspaceStrategy[] _strategies;
     private readonly CasReferenceTracker _casReferenceTracker;
-    private readonly WorkspaceReconciler _workspaceReconciler;
     private readonly WorkspaceManager _manager;
 
     /// <summary>
@@ -34,8 +32,7 @@ public class WorkspaceManagerTests : IDisposable
 
         _mockLogger = new Mock<ILogger<WorkspaceManager>>();
         _mockWorkspaceValidator = new Mock<IWorkspaceValidator>();
-        _mockReconcilerLogger = new Mock<ILogger<WorkspaceReconciler>>();
-        _strategies = System.Array.Empty<IWorkspaceStrategy>();
+        _strategies = Array.Empty<IWorkspaceStrategy>();
 
         // Create CasReferenceTracker with required dependencies
         var mockCasConfig = new Mock<Microsoft.Extensions.Options.IOptions<CasConfiguration>>();
@@ -43,10 +40,7 @@ public class WorkspaceManagerTests : IDisposable
         var mockCasLogger = new Mock<ILogger<CasReferenceTracker>>();
         _casReferenceTracker = new CasReferenceTracker(mockCasConfig.Object, mockCasLogger.Object);
 
-        // Create WorkspaceReconciler
-        _workspaceReconciler = new WorkspaceReconciler(_mockReconcilerLogger.Object);
-
-        _manager = new WorkspaceManager(_strategies, _mockConfigProvider.Object, _mockLogger.Object, _casReferenceTracker, _mockWorkspaceValidator.Object, _workspaceReconciler);
+        _manager = new WorkspaceManager(_strategies, _mockConfigProvider.Object, _mockLogger.Object, _casReferenceTracker, _mockWorkspaceValidator.Object);
     }
 
     /// <summary>
@@ -60,7 +54,7 @@ public class WorkspaceManagerTests : IDisposable
         {
             Strategy = (WorkspaceStrategy)999,
         };
-        await Assert.ThrowsAsync<System.InvalidOperationException>(() => _manager.PrepareWorkspaceAsync(config));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _manager.PrepareWorkspaceAsync(config));
     }
 
     /// <summary>

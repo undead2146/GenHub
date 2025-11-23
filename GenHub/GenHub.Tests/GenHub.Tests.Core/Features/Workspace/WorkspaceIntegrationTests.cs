@@ -181,7 +181,7 @@ public class WorkspaceIntegrationTests : IDisposable
         // Create WorkspaceReconciler
         var workspaceReconciler = new WorkspaceReconciler(mockReconcilerLogger);
 
-        var manager = new WorkspaceManager([strategy], mockConfigProvider.Object, mockLogger, casReferenceTracker, mockWorkspaceValidator.Object, workspaceReconciler);
+        var manager = new WorkspaceManager([strategy], mockConfigProvider.Object, mockLogger, casReferenceTracker, mockWorkspaceValidator.Object);
 
         var config = CreateTestConfiguration(WorkspaceStrategy.FullCopy);
 
@@ -259,7 +259,7 @@ public class WorkspaceIntegrationTests : IDisposable
         var testFiles = new[]
         {
             "generals.exe",
-            "game.exe",
+            "generals.exe",
             "data/textures/texture1.tga",
             "data/audio/sound1.wav",
             "mods/mod1/mod.ini",
@@ -307,7 +307,6 @@ public class WorkspaceIntegrationTests : IDisposable
         var testFiles = new[]
         {
             "generals.exe",
-            "game.exe",
             "data/textures/texture1.tga",
             "data/audio/sound1.wav",
             "mods/mod1/mod.ini",
@@ -316,7 +315,7 @@ public class WorkspaceIntegrationTests : IDisposable
         foreach (var file in testFiles)
         {
             var fullPath = Path.Combine(_tempGameInstall, file);
-            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath) !);
             await File.WriteAllTextAsync(fullPath, $"Test content for {file}");
         }
     }

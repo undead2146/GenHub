@@ -47,9 +47,9 @@ public class ManifestDiscoveryServiceTests
         // Arrange
         var manifests = new Dictionary<string, ContentManifest>
         {
-            ["1.0.base1.installation.game"] = new() { Id = "1.0.base1.installation.game", ContentType = ContentType.GameInstallation },
-            ["1.0.mod1.publisher.content"] = new() { Id = "1.0.mod1.publisher.content", ContentType = ContentType.Mod },
-            ["1.0.base2.installation.game"] = new() { Id = "1.0.base2.installation.game", ContentType = ContentType.GameInstallation },
+            ["1.0.steam.gameinstallation.generals"] = new() { Id = "1.0.steam.gameinstallation.generals", ContentType = ContentType.GameInstallation },
+            ["1.0.genhub.mod.mod1content"] = new() { Id = "1.0.genhub.mod.mod1content", ContentType = ContentType.Mod },
+            ["1.0.eaapp.gameinstallation.generals"] = new() { Id = "1.0.eaapp.gameinstallation.generals", ContentType = ContentType.GameInstallation },
         };
 
         // Act
@@ -70,9 +70,9 @@ public class ManifestDiscoveryServiceTests
         // Arrange
         var manifests = new Dictionary<string, ContentManifest>
         {
-            ["1.0.generals1.installation.game"] = new() { Id = "1.0.generals1.installation.game", TargetGame = GameType.Generals },
-            ["1.0.zerohour1.installation.game"] = new() { Id = "1.0.zerohour1.installation.game", TargetGame = GameType.ZeroHour },
-            ["1.0.generals2.installation.game"] = new() { Id = "1.0.generals2.installation.game", TargetGame = GameType.Generals },
+            ["1.0.steam.gameinstallation.generals"] = new() { Id = "1.0.steam.gameinstallation.generals", TargetGame = GameType.Generals },
+            ["1.0.eaapp.gameinstallation.zerohour"] = new() { Id = "1.0.eaapp.gameinstallation.zerohour", TargetGame = GameType.ZeroHour },
+            ["1.0.retail.gameinstallation.generals"] = new() { Id = "1.0.retail.gameinstallation.generals", TargetGame = GameType.Generals },
         };
 
         // Act
@@ -93,10 +93,10 @@ public class ManifestDiscoveryServiceTests
         // Arrange
         var manifest = new ContentManifest
         {
-            Id = ManifestId.Create("1.0.test.publisher.content"),
+            Id = ManifestId.Create("1.0.genhub.mod.content"),
             Dependencies = new List<ContentDependency>
             {
-                new() { Id = ManifestId.Create("1.0.missing.publisher.content"), InstallBehavior = DependencyInstallBehavior.RequireExisting },
+                new() { Id = ManifestId.Create("1.0.genhub.mod.missing"), InstallBehavior = DependencyInstallBehavior.RequireExisting },
             },
         };
         var availableManifests = new Dictionary<string, ContentManifest>();
@@ -117,16 +117,16 @@ public class ManifestDiscoveryServiceTests
         // Arrange
         var manifest = new ContentManifest
         {
-            Id = ManifestId.Create("1.0.test.publisher.content"),
+            Id = ManifestId.Create("1.0.genhub.mod.content"),
             Dependencies = new List<ContentDependency>
             {
-                new() { Id = ManifestId.Create("1.0.dep1.publisher.content"), InstallBehavior = DependencyInstallBehavior.RequireExisting },
-                new() { Id = ManifestId.Create("1.0.dep2.publisher.content"), InstallBehavior = DependencyInstallBehavior.Suggest },
+                new() { Id = ManifestId.Create("1.0.genhub.mod.dep1"), InstallBehavior = DependencyInstallBehavior.RequireExisting },
+                new() { Id = ManifestId.Create("1.0.genhub.mod.dep2"), InstallBehavior = DependencyInstallBehavior.Suggest },
             },
         };
         var availableManifests = new Dictionary<string, ContentManifest>
         {
-            ["1.0.dep1.publisher.content"] = new() { Id = ManifestId.Create("1.0.dep1.publisher.content"), Version = "1.0" },
+            ["1.0.genhub.mod.dep1"] = new() { Id = ManifestId.Create("1.0.genhub.mod.dep1"), Version = "1.0" },
         };
 
         // Act
@@ -145,7 +145,7 @@ public class ManifestDiscoveryServiceTests
         // Arrange
         var manifest = new ContentManifest
         {
-            Id = ManifestId.Create("1.0.test.publisher.content"),
+            Id = ManifestId.Create("1.0.genhub.mod.content"),
             Dependencies = new List<ContentDependency>(),
         };
         var availableManifests = new Dictionary<string, ContentManifest>();

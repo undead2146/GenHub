@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
+using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameClients;
 using GenHub.Core.Interfaces.Manifest;
@@ -47,12 +48,12 @@ public class GameClientDetector(
             if (inst.HasGenerals && !string.IsNullOrEmpty(inst.GeneralsPath) && Directory.Exists(inst.GeneralsPath))
             {
                 // First, detect the standard installation client (priority over GeneralsOnline for auto-selection)
-                var (version, actualExePath) = await DetectVersionFromInstallationAsync(inst.GeneralsPath, GameType.Generals, cancellationToken);
+                var (version, actualExePath) = await DetectVersionFromInstallationAsync(inst.GeneralsPath, GameType.Generals, inst, cancellationToken);
                 if (File.Exists(actualExePath))
                 {
                     var generalsVersion = new GameClient
                     {
-                        Name = $"{inst.InstallationType} Generals {version}",
+                        Name = $"Generals {version}",
                         Id = string.Empty, // Set later by manifest
                         Version = version,
                         ExecutablePath = actualExePath,
@@ -68,20 +69,18 @@ public class GameClientDetector(
                     _logger.LogWarning("Skipping Generals game client for {InstallationId}: no valid executable found at {ExePath}", inst.Id, actualExePath);
                 }
 
-                // Then check for GeneralsOnline clients in the installation directory
                 var generalsOnlineClients = await DetectGeneralsOnlineClientsAsync(inst, GameType.Generals, cancellationToken);
                 gameClients.AddRange(generalsOnlineClients);
             }
 
             if (inst.HasZeroHour && !string.IsNullOrEmpty(inst.ZeroHourPath) && Directory.Exists(inst.ZeroHourPath))
             {
-                // First, detect the standard installation client (priority over GeneralsOnline for auto-selection)
-                var (version, actualExePath) = await DetectVersionFromInstallationAsync(inst.ZeroHourPath, GameType.ZeroHour, cancellationToken);
+                var (version, actualExePath) = await DetectVersionFromInstallationAsync(inst.ZeroHourPath, GameType.ZeroHour, inst, cancellationToken);
                 if (File.Exists(actualExePath))
                 {
                     var zeroHourVersion = new GameClient
                     {
-                        Name = $"{inst.InstallationType} Zero Hour {version}",
+                        Name = $"Zero Hour {version}",
                         Id = string.Empty,
                         Version = version,
                         ExecutablePath = actualExePath,
@@ -159,6 +158,37 @@ public class GameClientDetector(
     {
         var isValid = !string.IsNullOrEmpty(gameClient.ExecutablePath) && File.Exists(gameClient.ExecutablePath);
         return Task.FromResult(isValid);
+    }
+
+    /// <summary>
+    /// Converts a version string to normalized integer format.
+    /// Examples: "1.04" → 104, "1.08" → 108, "Unknown" → 0.
+    /// </summary>
+    /// <param name="version">The version string to convert.</param>
+    /// <returns>The normalized version as an integer.</returns>
+    private static int ConvertVersionToNormalized(string version)
+    {
+        if (string.IsNullOrWhiteSpace(version) || version.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+            return 0;
+
+        // Handle dotted versions like "1.04" or "1.08"
+        if (version.Contains('.'))
+        {
+            var parts = version.Split('.');
+            if (parts.Length == 2 &&
+                int.TryParse(parts[0], out int major) &&
+                int.TryParse(parts[1], out int minor))
+            {
+                // Convert "1.04" to 104, "1.08" to 108
+                return (major * 100) + minor;
+            }
+        }
+
+        // Try parsing as direct integer
+        if (int.TryParse(version, out int result))
+            return result;
+
+        return 0;
     }
 
     /// <summary>
@@ -262,14 +292,16 @@ public class GameClientDetector(
             var manifest = builder.Build();
             manifest.ContentType = ContentType.GameClient;
 
-            var manifestVersion = gameType == GameType.ZeroHour
-                ? ManifestConstants.ZeroHourManifestVersion
-                : ManifestConstants.GeneralsManifestVersion;
-
             // Use ManifestIdGenerator for deterministic client ID generation
             if (installation != null)
             {
-                var clientIdResult = ManifestIdGenerator.GenerateGameInstallationId(installation, gameType, manifestVersion, ContentType.GameClient);
+                // Use publisher-based ID generation for GameClient with correct content type
+                var publisherId = installation.InstallationType.ToIdentifierString();
+                var contentName = gameType == GameType.ZeroHour ? "zerohour" : "generals";
+
+                // Convert version string to normalized integer format (e.g., "1.04" → 104, "1.08" → 108)
+                int normalizedVersion = ConvertVersionToNormalized(gameClient.Version);
+                var clientIdResult = ManifestIdGenerator.GeneratePublisherContentId(publisherId, ContentType.GameClient, contentName, userVersion: normalizedVersion);
                 manifest.Id = ManifestId.Create(clientIdResult);
             }
             else
@@ -305,9 +337,10 @@ public class GameClientDetector(
     /// </summary>
     /// <param name="installationPath">The installation directory path.</param>
     /// <param name="gameType">The type of game (Generals or ZeroHour).</param>
+    /// <param name="installation">The game installation.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A tuple containing the detected version string and the actual executable path found, or ("Unknown", original path) if not recognized.</returns>
-    private async Task<(string version, string executablePath)> DetectVersionFromInstallationAsync(string installationPath, GameType gameType, CancellationToken cancellationToken)
+    private async Task<(string version, string executablePath)> DetectVersionFromInstallationAsync(string installationPath, GameType gameType, GameInstallation? installation, CancellationToken cancellationToken)
     {
         // Use the possible executable names from the registry
         foreach (var executableName in _hashRegistry.PossibleExecutableNames)
@@ -359,12 +392,15 @@ public class GameClientDetector(
         // If no recognized executable found, fall back to standard executable name for the game type
         var defaultExecutableName = gameType == GameType.Generals ? GameClientConstants.GeneralsExecutable : GameClientConstants.ZeroHourExecutable;
         var defaultPath = Path.Combine(installationPath, defaultExecutableName);
+        var fallbackVersion = "Unknown";
+
         _logger.LogInformation(
-            "No recognized executable found for {GameType} in {InstallationPath}, using default {ExecutableName}",
+            "No recognized executable found for {GameType} in {InstallationPath}, using default {ExecutableName} with version {Version}",
             gameType,
             installationPath,
-            defaultExecutableName);
-        return ("Unknown", defaultPath);
+            defaultExecutableName,
+            fallbackVersion);
+        return (fallbackVersion, defaultPath);
     }
 
     /// <summary>
@@ -394,6 +430,9 @@ public class GameClientDetector(
             return detectedClients;
         }
 
+        // GeneralsOnline clients auto-update, so we use a fixed version string
+        const string generalsOnlineVersion = "Auto-Updated";
+
         var generalsOnlineExecutables = GameClientConstants.GeneralsOnlineExecutableNames;
 
         foreach (var executableName in generalsOnlineExecutables)
@@ -408,12 +447,21 @@ public class GameClientDetector(
             try
             {
                 // Determine the variant name from the executable
-                var variantName = executableName.ToLowerInvariant() switch
+                var variantName = executableName switch
                 {
                     GameClientConstants.GeneralsOnline30HzExecutable => GameClientConstants.GeneralsOnline30HzDisplayName,
                     GameClientConstants.GeneralsOnline60HzExecutable => GameClientConstants.GeneralsOnline60HzDisplayName,
-                    _ => GameClientConstants.GeneralsOnlineDefaultDisplayName,
+                    _ => null, // Skip unknown variants
                 };
+
+                // Skip if variant is not recognized
+                if (variantName == null)
+                {
+                    _logger.LogDebug(
+                        "Skipping unrecognized GeneralsOnline executable: {ExecutableName}",
+                        executableName);
+                    continue;
+                }
 
                 _logger.LogInformation(
                     "Detected GeneralsOnline client: {VariantName} at {ExecutablePath}",
@@ -427,7 +475,7 @@ public class GameClientDetector(
                 {
                     Name = displayName,
                     Id = string.Empty, // Will be set by manifest generation
-                    Version = "Automatically added",
+                    Version = generalsOnlineVersion,
                     ExecutablePath = executablePath,
                     GameType = gameType,
                     InstallationId = installation.Id,
@@ -525,12 +573,18 @@ public class GameClientDetector(
             // This allows multiple GeneralsOnline variants (30Hz, 60Hz)
             var executableName = Path.GetFileNameWithoutExtension(gameClient.ExecutablePath).ToLowerInvariant();
 
-            // Replace underscores with dashes for manifest ID format compliance
-            var safeExecutableName = executableName.Replace("_", "-");
+            // Extract the variant (30hz or 60hz) from executable name
+            // generalsonlinezh_30 → 30hz, generalsonlinezh_60 → 60hz
+            string variantSuffix = executableName.Contains("30") ? "30hz" :
+                                   executableName.Contains("60") ? "60hz" :
+                                   "standard";
+
+            // GeneralsOnline always uses version 0 since it auto-updates
             var clientIdResult = ManifestIdGenerator.GeneratePublisherContentId(
                 PublisherTypeConstants.GeneralsOnline,
                 ContentType.GameClient,
-                $"{gameType.ToString().ToLowerInvariant()}-{safeExecutableName}");
+                $"{gameType.ToString().ToLowerInvariant()}{variantSuffix}",
+                userVersion: 0);
             manifest.Id = ManifestId.Create(clientIdResult);
 
             // Add to pool

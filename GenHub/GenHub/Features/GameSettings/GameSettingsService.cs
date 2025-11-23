@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Models.Enums;
@@ -16,6 +17,13 @@ namespace GenHub.Features.GameSettings;
 /// </summary>
 public class GameSettingsService : IGameSettingsService
 {
+    /// <summary>
+    /// Static semaphore to serialize Options.ini writes across all game launches.
+    /// This prevents race conditions when multiple profiles launch concurrently
+    /// and attempt to write settings to the same Options.ini file.
+    /// </summary>
+    private static readonly SemaphoreSlim _optionsIniWriteSemaphore = new(1, 1);
+
     private readonly ILogger<GameSettingsService> _logger;
     private readonly IGamePathProvider _pathProvider;
 
@@ -80,6 +88,8 @@ public class GameSettingsService : IGameSettingsService
     {
         using var scope = _logger.BeginScope(new Dictionary<string, object> { ["GameType"] = gameType, ["Section"] = "OptionsIni" });
 
+        // Acquire semaphore to serialize Options.ini writes
+        await _optionsIniWriteSemaphore.WaitAsync();
         try
         {
             var filePath = GetOptionsFilePath(gameType);
@@ -106,6 +116,11 @@ public class GameSettingsService : IGameSettingsService
         {
             _logger.LogError(ex, "Failed to save Options.ini for {GameType}", gameType);
             return OperationResult<bool>.CreateFailure($"Failed to save options: {ex.Message}");
+        }
+        finally
+        {
+            // Always release the semaphore
+            _optionsIniWriteSemaphore.Release();
         }
     }
 

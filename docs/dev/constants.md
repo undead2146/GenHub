@@ -66,8 +66,10 @@ Configuration key constants for `appsettings.json` and environment variables.
 
 ### Workspace Configuration
 
-- `WorkspaceDefaultPath`: `"GenHub:Workspace:DefaultPath"`
-- `WorkspaceDefaultStrategy`: `"GenHub:Workspace:DefaultStrategy"`
+- `WorkspaceDefaultPath`: `"GenHub:Workspace:DefaultPath"` - Default path for workspace creation
+- `WorkspaceDefaultStrategy`: `"GenHub:Workspace:DefaultStrategy"` - Default workspace strategy (SymlinkOnly)
+
+**Note**: The default workspace strategy is **SymlinkOnly** (enum value 0), which creates symbolic links to minimize disk usage. This requires administrator rights on Windows.
 
 ### Cache Configuration
 
@@ -190,7 +192,6 @@ Constants related to manifest ID generation, validation, and file operations.
 | `MaxManifestIdLength` | `256` | Maximum length for manifest IDs           |
 | `MinManifestIdLength` | `3`   | Minimum length for manifest IDs           |
 | `MaxManifestSegments` | `5`   | Maximum number of segments in manifest ID |
-| `MinManifestSegments` | `1`   | Minimum number of segments in manifest ID |
 
 ### Manifest Timeouts and Operations
 
@@ -204,27 +205,25 @@ Constants related to manifest ID generation, validation, and file operations.
 
 | Constant                         | Description                     |
 | -------------------------------- | ------------------------------- |
-| `PublisherIdRegexPattern`        | Regex for publisher content IDs |
-| `GameInstallationIdRegexPattern` | Regex for game installation IDs |
-| `SimpleIdRegexPattern`           | Regex for simple IDs            |
+| `PublisherContentRegexPattern`   | Regex for validating 5-segment publisher content IDs (schemaVersion.userVersion.publisher.contentType.contentName) |
 
-**Publisher Content ID Pattern:**
 
-```regex
-^\d+(?:\.\d+)*\.[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)*$
-```
-
-**Game Installation ID Pattern:**
+**Publisher Content Regex Pattern (5-segment format):**
 
 ```regex
-^\d+(?:\.\d+)*\.(unknown|steam|eaapp|origin|thefirstdecade|rgmechanics|cdiso|wine|retail)\.(generals|zerohour)$
+^\d+\.\d+\.[a-z0-9]+\.(gameinstallation|gameclient|mod|patch|addon|mappack|languagepack|contentbundle|publisherreferral|contentreferral|mission|map|unknown)\.[a-z0-9-]+$
 ```
 
-**Simple ID Pattern:**
+**Pattern Explanation:**
 
-```regex
-^[a-zA-Z0-9\-\.]+$
-```
+- **Publisher Content Pattern**: Validates the standard 5-segment format used for ALL content in GenHub
+  - Segment 1: Schema version (digits only)
+  - Segment 2: User version (digits only)
+  - Segment 3: Publisher (lowercase alphanumeric)
+  - Segment 4: Content type (enumerated values like gameinstallation, mod, etc.)
+  - Segment 5: Content name (lowercase alphanumeric with dashes)
+
+**Note**: The SimpleIdRegex pattern has been removed. All manifest IDs must now use the strict 5-segment format. The `MinManifestSegments` constant is now set to 5 (previously 1).
 
 ### Dependency Defaults
 
@@ -467,6 +466,16 @@ Constants related to game client detection and management.
 | `SuperHackersGeneralsExecutable` | `"generalsV.exe"`  | SuperHackers Generals executable filename  |
 | `SuperHackersZeroHourExecutable` | `"generalsZH.exe"` | SuperHackers Zero Hour executable filename |
 
+### Game Directory Names
+
+| Constant                           | Value                                      | Description                                    |
+| ---------------------------------- | ------------------------------------------ | ---------------------------------------------- |
+| `GeneralsDirectoryName`            | `"Command and Conquer Generals"`           | Standard Generals installation directory name  |
+| `ZeroHourDirectoryName`            | `"Command and Conquer Generals Zero Hour"` | Standard Zero Hour installation directory name |
+| `ZeroHourDirectoryNameAmpersandHyphen` | `"Command & Conquer Generals - Zero Hour"` | Zero Hour directory name with ampersand and hyphen (Steam standard) |
+| `ZeroHourDirectoryNameColonVariant` | `"Command & Conquer: Generals - Zero Hour"` | Zero Hour directory name with colon variant    |
+| `ZeroHourDirectoryNameAbbreviated` | `"C&C Generals Zero Hour"`                 | Zero Hour directory name abbreviated form      |
+
 ### GeneralsOnline Client Detection
 
 | Constant                           | Value                       | Description                                      |
@@ -520,7 +529,64 @@ Constants related to game client detection and management.
 
 ---
 
-## InstallationSourceConstants Class
+## GameClientName Enum
+
+Enum for game client display names used in UI formatting and content display.
+
+### Enum Values
+
+| Value      | Description                          |
+| ---------- | ------------------------------------ |
+| `Generals` | Command &amp; Conquer: Generals       |
+| `ZeroHour` | Command &amp; Conquer: Generals Zero Hour |
+
+### Extension Methods
+
+The `GameClientNameExtensions` class provides display name methods:
+
+#### `GetShortName()`
+
+Returns abbreviated display names for compact UI display.
+
+- `GameClientName.Generals.GetShortName()` → `"Generals"`
+- `GameClientName.ZeroHour.GetShortName()` → `"Zero Hour"`
+
+#### `GetFullName()`
+
+Returns full game titles for detailed display.
+
+- `GameClientName.Generals.GetFullName()` → `"Command &amp; Conquer: Generals"`
+- `GameClientName.ZeroHour.GetFullName()` → `"Command &amp; Conquer: Generals Zero Hour"`
+
+### Usage in ContentDisplayFormatter
+
+The enum is used in `ContentDisplayFormatter.GetGameTypeDisplayName()` to provide consistent game naming across the UI:
+
+```csharp
+public string GetGameTypeDisplayName(GameType gameType, bool useShortName = false)
+{
+    if (useShortName)
+    {
+        return gameType switch
+        {
+            GameType.ZeroHour => GameClientName.ZeroHour.GetShortName(),
+            GameType.Generals => GameClientName.Generals.GetShortName(),
+            _ => gameType.ToString(),
+        };
+    }
+
+    return gameType switch
+    {
+        GameType.Generals => GameClientName.Generals.GetFullName(),
+        GameType.ZeroHour => GameClientName.ZeroHour.GetFullName(),
+        _ => gameType.ToString(),
+    };
+}
+```
+
+This ensures type-safe game name handling and prevents typos in display strings.
+
+---
 
 Installation source type identifiers for game installations. These constants represent WHERE the game was installed from (Steam, EA App, Retail, etc.).
 

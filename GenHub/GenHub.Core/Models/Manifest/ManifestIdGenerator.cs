@@ -8,21 +8,38 @@ namespace GenHub.Core.Models.Manifest;
 
 /// <summary>
 /// Utility for generating deterministic, human-readable manifest IDs.
+/// All manifest IDs follow a strict 5-segment format: schemaVersion.userVersion.publisher.contentType.contentName
+/// This structure ensures:
+/// - Consistent parsing and validation across the system
+/// - Hierarchical organization for efficient querying and indexing
+/// - Unique identification across publishers and content types
+/// - Schema versioning support for future format evolution
+/// - Human-readable format for debugging and logging
+/// Examples: "1.0.ea.gameinstallation.generals", "1.108.steam.mod.communitymaps".
 /// </summary>
 public static class ManifestIdGenerator
 {
     /// <summary>
     /// Generates a manifest ID for publisher-provided content.
-    /// Format: schemaVersion.manifestVersion.publisher.contentType.contentName.
+    /// Format: schemaVersion.userVersion.publisher.contentType.contentName (exactly 5 segments).
+    /// This 5-segment structure enables:
+    /// - Schema versioning (first segment) for future format changes
+    /// - User versioning (second segment) for content version tracking
+    /// - Publisher identification (third segment) for content attribution
+    /// - Content type categorization (fourth segment) for filtering and organization
+    /// - Content naming (fifth segment) for human-readable identification.
     /// </summary>
     /// <param name="publisherId">Publisher identifier used as the first segment (e.g., 'cnclabs', 'moddb-westwood').</param>
     /// <param name="contentType">The type of content being identified.</param>
     /// <param name="contentName">Human readable content name used as the second segment.</param>
     /// <param name="userVersion">User-specified version number (e.g., 1, 2, 20). Defaults to 0 for first version.</param>
     /// <returns>A normalized manifest identifier in the form 'schemaVersion.manifestVersion.publisher.contentType.contentName'.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="publisherId"/> or <paramref name="contentName"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="publisherId"/> or <paramref name="contentName"/> is empty or whitespace, or when <paramref name="userVersion"/> is negative.</exception>
-    public static string GeneratePublisherContentId(string publisherId, ContentType contentType, string contentName, int userVersion = 0)
+    public static string GeneratePublisherContentId(
+        string publisherId,
+        ContentType contentType,
+        string contentName,
+        int userVersion = 0)
     {
         if (string.IsNullOrWhiteSpace(publisherId))
             throw new ArgumentException("Publisher ID cannot be empty", nameof(publisherId));
@@ -36,76 +53,113 @@ public static class ManifestIdGenerator
         var safeName = Normalize(contentName);
         var fullVersion = $"{ManifestConstants.DefaultManifestFormatVersion}.{userVersion}";
 
-        var contentPart = safeName;
-        return $"{fullVersion}.{safePublisher}.{contentTypeString}.{contentPart}";
+        return $"{fullVersion}.{safePublisher}.{contentTypeString}.{safeName}";
     }
 
     /// <summary>
     /// Generates a manifest ID for a game installation.
-    /// Format: schemaVersion.userVersion.publisher.contentType.contentName.
+    /// Format: schemaVersion.userVersion.publisher.contentType.contentName (exactly 5 segments).
+    /// This 5-segment structure enables:
+    /// - Schema versioning (first segment) for future format changes
+    /// - User versioning (second segment) for installation version tracking
+    /// - Publisher identification (third segment) based on installation type
+    /// - Content type categorization (fourth segment, always "gameinstallation")
+    /// - Content naming (fifth segment) based on game type.
     /// </summary>
     /// <param name="installation">The game installation used to derive the publisher (installation type).</param>
     /// <param name="gameType">The specific game type (Generals or ZeroHour) for the manifest ID.</param>
     /// <param name="userVersion">User-specified version (e.g., "1.08", "1.04", or integer like 0, 1, 2). If null, defaults to 0.</param>
-    /// <param name="contentType">The content type (GameInstallation or GameClient).</param>
     /// <returns>A normalized manifest identifier in the form 'schemaVersion.userVersion.publisher.contentType.contentName'.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="installation"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when version format is invalid.</exception>
-    public static string GenerateGameInstallationId(GameInstallation installation, GameType gameType, object? userVersion, ContentType contentType)
+    public static string GenerateGameInstallationId(GameInstallation installation, GameType gameType, string? userVersion)
     {
         if (installation == null)
             throw new ArgumentNullException(nameof(installation));
 
-        var normalizedUserVersion = NormalizeVersionString(userVersion);
+        // Normalize user version - remove dots and convert to string
+        string normalizedUserVersion = NormalizeVersionString(userVersion);
 
         var installType = installation.InstallationType.ToIdentifierString();
         var gameTypeString = gameType == GameType.ZeroHour ? "zerohour" : "generals";
         var fullVersion = $"{ManifestConstants.DefaultManifestFormatVersion}.{normalizedUserVersion}";
 
-        // Get content type string from enum
-        var contentTypeString = GetContentTypeString(contentType);
+        // Game installations always use "gameinstallation" as content type
+        var contentType = "gameinstallation";
 
-        return $"{fullVersion}.{installType}.{contentTypeString}.{gameTypeString}";
+        return $"{fullVersion}.{installType}.{contentType}.{gameTypeString}";
     }
 
     /// <summary>
-    /// Generates a manifest ID for a game installation with integer version.
-    /// Format: schemaVersion.userVersion.publisher.contentType.contentName.
+    /// Generates a manifest ID for a game installation.
+    /// Format: schemaVersion.userVersion.publisher.contentType.contentName (exactly 5 segments).
+    /// This 5-segment structure enables:
+    /// - Schema versioning (first segment) for future format changes
+    /// - User versioning (second segment) for installation version tracking
+    /// - Publisher identification (third segment) based on installation type
+    /// - Content type categorization (fourth segment, always "gameinstallation")
+    /// - Content naming (fifth segment) based on game type.
     /// </summary>
     /// <param name="installation">The game installation used to derive the publisher (installation type).</param>
     /// <param name="gameType">The specific game type (Generals or ZeroHour) for the manifest ID.</param>
-    /// <param name="userVersion">User-specified version (e.g., 0, 1, 2).</param>
-    /// <param name="contentType">The content type (GameInstallation or GameClient).</param>
+    /// <param name="userVersion">User-specified version number (e.g., 0, 1, 2). Defaults to 0 for first version.</param>
     /// <returns>A normalized manifest identifier in the form 'schemaVersion.userVersion.publisher.contentType.contentName'.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="installation"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="userVersion"/> is negative.</exception>
-    public static string GenerateGameInstallationId(GameInstallation installation, GameType gameType, int userVersion, ContentType contentType)
+    public static string GenerateGameInstallationId(GameInstallation installation, GameType gameType, int userVersion = 0)
     {
+        if (installation == null)
+            throw new ArgumentNullException(nameof(installation));
         if (userVersion < 0)
             throw new ArgumentException("User version cannot be negative", nameof(userVersion));
 
-        return GenerateGameInstallationId(installation, gameType, (object)userVersion, contentType);
+        var installType = installation.InstallationType.ToIdentifierString();
+        var gameTypeString = gameType == GameType.ZeroHour ? "zerohour" : "generals";
+        var fullVersion = $"{ManifestConstants.DefaultManifestFormatVersion}.{userVersion}";
+
+        // Game installations always use "gameinstallation" as content type
+        var contentType = "gameinstallation";
+
+        return $"{fullVersion}.{installType}.{contentType}.{gameTypeString}";
     }
 
     /// <summary>
     /// Normalizes a version value to a string without dots.
-    /// Examples: "1.08" → "108", "1.04" → "104", 5 → "5", "2.0" → "20", null → "0".
+    /// Examples: "1.08" → "108", "1.04" → "104", "1.8" → "108", 5 → "5", "2.0" → "200", null → "0".
+    /// Note: Minor versions are always padded to 2 digits for consistency.
     /// </summary>
     /// <param name="version">Version as string or null (defaults to "0").</param>
     /// <returns>Normalized version string without dots.</returns>
-    private static string NormalizeVersionString(object? version)
+    /// <exception cref="ArgumentException">Thrown when the version is not numeric or contains only numbers and dots, or when the version is negative.</exception>
+    private static string NormalizeVersionString(string? version)
     {
-        string? versionStr = version?.ToString();
-        if (string.IsNullOrEmpty(versionStr))
+        if (version == null)
+            return "0";
+
+        string versionStr = version.Trim();
+
+        // Handle empty or whitespace
+        if (string.IsNullOrWhiteSpace(versionStr))
             return "0";
 
         // Handle dotted versions like "1.08" or "2.0"
         if (versionStr.Contains('.'))
         {
             var parts = versionStr.Split('.');
-            if (parts.Length != 2 || !int.TryParse(parts[0], out int major) || !int.TryParse(parts[1], out int minor))
-                throw new ArgumentException($"Version must be in format 'major.minor': {version}", nameof(version));
 
-            // Preserve semantic meaning: "1.08" → "108", "1.8" → "108", "2.0" → "200"
+            // Validate we have exactly 2 parts
+            if (parts.Length != 2)
+                throw new ArgumentException($"Version must be in format 'major.minor' or a single number: {version}", nameof(version));
+
+            // Validate both parts are numeric and non-negative
+            if (!int.TryParse(parts[0], out int major) || major < 0)
+                throw new ArgumentException($"Major version must be a non-negative integer: {version}", nameof(version));
+
+            if (!int.TryParse(parts[1], out int minor) || minor < 0)
+                throw new ArgumentException($"Minor version must be a non-negative integer: {version}", nameof(version));
+
+            // Preserve semantic meaning with consistent 2-digit padding:
+            // "1.08" → "108", "1.8" → "108", "2.0" → "200", "1.04" → "104"
             return $"{major}{minor.ToString().PadLeft(2, '0')}";
         }
 
@@ -117,8 +171,12 @@ public static class ManifestIdGenerator
     }
 
     /// <summary>
-    /// Normalizes a string to lowercase alphanumeric with dots as separators.
+    /// Normalizes the input string by converting it to lowercase, trimming whitespace, and removing all non-alphanumeric characters.
     /// </summary>
+    /// <param name="input">The input string to normalize.</param>
+    /// <returns>The normalized string.</returns>
+    /// <exception cref="ArgumentException">Thrown when the input is null, empty, or consists only of whitespace.</exception>
+    /// <exception cref="ArgumentException">Thrown when the normalization process results in an empty string.</exception>
     private static string Normalize(string input)
     {
         if (string.IsNullOrWhiteSpace(input))
@@ -126,16 +184,10 @@ public static class ManifestIdGenerator
 
         var lower = input.ToLowerInvariant().Trim();
 
-        // Replace non-alphanumeric characters (except dots) with dots
-        var normalized = Regex.Replace(lower, "[^a-zA-Z0-9.]", ".");
+        // Remove all non-alphanumeric characters
+        var normalized = Regex.Replace(lower, "[^a-zA-Z0-9]", string.Empty);
 
-        // Remove leading/trailing dots
-        normalized = normalized.Trim('.');
-
-        // Replace multiple consecutive dots with single dots
-        normalized = Regex.Replace(normalized, "\\.+", ".");
-
-        return string.IsNullOrEmpty(normalized) ? "unknown" : normalized;
+        return string.IsNullOrEmpty(normalized) ? throw new ArgumentException("Input results in empty string after normalization", nameof(input)) : normalized;
     }
 
     /// <summary>

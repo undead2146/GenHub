@@ -26,11 +26,6 @@ public static class ManifestConstants
     public const string BaseGameIdPrefix = "gameinstallation";
 
     /// <summary>
-    /// Prefix for simple test IDs.
-    /// </summary>
-    public const string SimpleIdPrefix = "simple";
-
-    /// <summary>
     /// Maximum length for manifest IDs.
     /// </summary>
     public const int MaxManifestIdLength = 256;
@@ -46,29 +41,33 @@ public static class ManifestConstants
     public const int MaxManifestSegments = 5;
 
     /// <summary>
-    /// Minimum number of segments in manifest ID.
+    /// Minimum number of segments in manifest ID (must be exactly 5).
+    /// Format: schemaVersion.userVersion.publisher.contentType.contentName
+    /// Examples:
+    /// - 1.0.ea.gameinstallation.generals
+    /// - 1.108.steam.mod.communitymaps
+    /// - 1.104.origin.patch.officialpatch
+    /// This 5-segment structure ensures:
+    /// - Consistent parsing and validation across the system
+    /// - Hierarchical organization: schema versioning → user versioning → publisher → content type → content name
+    /// - Unique identification across publishers and content types
+    /// - Schema versioning support for future format changes
+    /// - Efficient indexing and querying capabilities.
     /// </summary>
-    public const int MinManifestSegments = 1;
+    public const int MinManifestSegments = 5;
 
     /// <summary>
-    /// Regex pattern for publisher content IDs.
+    /// Regex pattern for validating 5-segment publisher content IDs (schemaVersion.userVersion.publisher.contentType.contentName).
+    /// All manifest IDs must match this format to ensure consistent identification and categorization.
+    /// Format breakdown:
+    /// - schemaVersion: Numeric schema version (e.g., "1")
+    /// - userVersion: User-specified version without dots (e.g., "108" for v1.08, "0" for default)
+    /// - publisher: Publisher identifier (e.g., "ea", "steam", "cnclabs")
+    /// - contentType: Content type enum value (e.g., "gameinstallation", "mod", "patch")
+    /// - contentName: Content identifier (e.g., "generals", "zerohour", "communitymaps")
+    /// Examples: "1.0.ea.gameinstallation.generals", "1.108.steam.mod.communitymaps".
     /// </summary>
-    public const string PublisherIdRegexPattern = @"^\d+(?:\.\d+)*\.[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)*$";
-
-    /// <summary>
-    /// Regex pattern for game installation IDs.
-    /// </summary>
-    public const string GameInstallationIdRegexPattern = @"^\d+(?:\.\d+)*\.(unknown|steam|eaapp|origin|thefirstdecade|rgmechanics|cdiso|wine|retail)\.(generals|zerohour)$";
-
-    /// <summary>
-    /// Regex pattern for simple IDs.
-    /// </summary>
-    public const string SimpleIdRegexPattern = @"^[a-zA-Z0-9\-\.]+$";
-
-    /// <summary>
-    /// Timeout for manifest ID generation operations in milliseconds.
-    /// </summary>
-    public const int ManifestIdGenerationTimeoutMs = 5000;
+    public const string PublisherContentRegexPattern = @"^\d+\.\d+\.[a-z0-9]+\.(gameinstallation|gameclient|mod|patch|addon|mappack|languagepack|contentbundle|publisherreferral|contentreferral|mission|map|unknown)\.[a-z0-9-]+$";
 
     /// <summary>
     /// Timeout for manifest validation operations in milliseconds.

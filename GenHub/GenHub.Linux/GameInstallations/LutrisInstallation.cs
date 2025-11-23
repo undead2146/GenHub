@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
@@ -95,7 +96,7 @@ public class LutrisInstallation(ILogger<LutrisInstallation>? logger = null) : IG
                     !TryLutrisHasZH(entry.Key, out var directory)) continue;
                 var homeDir = Path.Combine(
                     directory,
-                    "drive_c/Program Files/EA Games/Command and Conquer Generals Zero Hour/");
+                    $"drive_c/Program Files/EA Games/{GameClientConstants.ZeroHourDirectoryName}/");
 
                 // Check if EA app and Generals/ZH are installed
                 if (Directory.Exists(homeDir))
@@ -103,16 +104,16 @@ public class LutrisInstallation(ILogger<LutrisInstallation>? logger = null) : IG
                     InstallationPath = homeDir;
                     LutrisVersion = version;
                     PackageInstallationType = entry.Value;
-                    if (Directory.Exists(Path.Combine(homeDir, "Command and Conquer Generals Zero Hour")))
+                    if (Directory.Exists(Path.Combine(homeDir, GameClientConstants.ZeroHourDirectoryName)))
                     {
                         HasZeroHour = true;
-                        ZeroHourPath = Path.Combine(homeDir, "Command and Conquer Generals Zero Hour");
+                        ZeroHourPath = Path.Combine(homeDir, GameClientConstants.ZeroHourDirectoryName);
                     }
 
-                    if (Directory.Exists(Path.Combine(homeDir, "Command and Conquer Generals")))
+                    if (Directory.Exists(Path.Combine(homeDir, GameClientConstants.GeneralsDirectoryName)))
                     {
                         HasGenerals = true;
-                        GeneralsPath = Path.Combine(homeDir, "Command and Conquer Generals");
+                        GeneralsPath = Path.Combine(homeDir, GameClientConstants.GeneralsDirectoryName);
                     }
 
                     break;

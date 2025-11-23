@@ -44,7 +44,7 @@ public class GameProcessManagerTests
     }
 
     /// <summary>
-    /// Tests that TerminateProcessAsync with non-existent process ID returns failure.
+    /// Tests that TerminateProcessAsync with non-existent process ID returns success (idempotent).
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
@@ -53,9 +53,8 @@ public class GameProcessManagerTests
         // Act
         var result = await _processManager.TerminateProcessAsync(99999);
 
-        // Assert
-        Assert.False(result.Success);
-        Assert.Contains("Process not found", result.FirstError);
+        // Assert - Terminating a non-existent process is considered successful (idempotent)
+        Assert.True(result.Success);
     }
 
     /// <summary>
@@ -166,12 +165,12 @@ public class GameProcessManagerTests
         if (OperatingSystem.IsWindows())
         {
             tempExe = Path.GetTempFileName() + ".bat";
-            scriptContent = "@echo off\ntimeout /t 5 >nul\n";
+            scriptContent = "@echo off\nping -n 6 127.0.0.1 >nul\n";
         }
         else
         {
             tempExe = Path.GetTempFileName() + ".sh";
-            scriptContent = "#!/bin/bash\nsleep 5\n";
+            scriptContent = "#!/bin/bash\nping -c 5 127.0.0.1 > /dev/null\n";
         }
 
         await File.WriteAllTextAsync(tempExe, scriptContent);
@@ -229,12 +228,12 @@ public class GameProcessManagerTests
         if (OperatingSystem.IsWindows())
         {
             tempExe = Path.GetTempFileName() + ".bat";
-            scriptContent = "@echo off\ntimeout /t 5 >nul\n";
+            scriptContent = "@echo off\nping -n 6 127.0.0.1 >nul\n";
         }
         else
         {
             tempExe = Path.GetTempFileName() + ".sh";
-            scriptContent = "#!/bin/bash\nsleep 5\n";
+            scriptContent = "#!/bin/bash\nping -c 5 127.0.0.1 > /dev/null\n";
         }
 
         await File.WriteAllTextAsync(tempExe, scriptContent);
@@ -297,12 +296,12 @@ public class GameProcessManagerTests
         if (OperatingSystem.IsWindows())
         {
             tempExe = Path.GetTempFileName() + ".bat";
-            scriptContent = "@echo off\ntimeout /t 5 >nul\n";
+            scriptContent = "@echo off\nping -n 6 127.0.0.1 >nul\n";
         }
         else
         {
             tempExe = Path.GetTempFileName() + ".sh";
-            scriptContent = "#!/bin/bash\nsleep 5\n";
+            scriptContent = "#!/bin/bash\nping -c 5 127.0.0.1 > /dev/null\n";
         }
 
         await File.WriteAllTextAsync(tempExe, scriptContent);

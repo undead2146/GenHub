@@ -9,6 +9,17 @@ It follows a layered architecture to ensure **platform abstraction**, **consiste
 
 ---
 
+## Game Directory Constants
+
+When referencing standard game installation directories, use the constants provided in `GameClientConstants`:
+
+- `GameClientConstants.GeneralsDirectoryName` → `"Command and Conquer Generals"`
+- `GameClientConstants.ZeroHourDirectoryName` → `"Command and Conquer Generals Zero Hour"`
+
+This ensures consistency across all installation detectors and makes future updates easier.
+
+---
+
 ## Architecture Layers
 
 ### 1. GameInstallationService

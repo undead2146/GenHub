@@ -32,13 +32,11 @@ public interface IManifestIdService
     /// <param name="installation">The game installation used to derive the installation segment.</param>
     /// <param name="gameType">The specific game type for the manifest ID.</param>
     /// <param name="userVersion">User-specified version (e.g., "1.08", "1.04", or integer like 0, 1, 2). If null, defaults to 0.</param>
-    /// <param name="contentType">The content type (GameInstallation or GameClient).</param>
     /// <returns>A result containing the generated manifest ID or an error.</returns>
     OperationResult<ManifestId> GenerateGameInstallationId(
         GameInstallation installation,
         GameType gameType,
-        object? userVersion,
-        ContentType contentType);
+        string? userVersion);
 
     /// <summary>
     /// Generates a manifest ID for a game installation with integer version.
@@ -46,13 +44,11 @@ public interface IManifestIdService
     /// <param name="installation">The game installation used to derive the installation segment.</param>
     /// <param name="gameType">The specific game type for the manifest ID.</param>
     /// <param name="userVersion">User-specified version (e.g., 1, 2, 20). Defaults to 0.</param>
-    /// <param name="contentType">The content type (GameInstallation or GameClient).</param>
     /// <returns>A result containing the generated manifest ID or an error.</returns>
     OperationResult<ManifestId> GenerateGameInstallationId(
         GameInstallation installation,
         GameType gameType,
-        int userVersion,
-        ContentType contentType);
+        int userVersion = 0);
 
     /// <summary>
     /// Validates a manifest ID string and returns a strongly-typed ManifestId if valid.

@@ -34,4 +34,36 @@ public static class UriConstants
     /// Default icon URI for unknown game types.
     /// </summary>
     public const string DefaultIconUri = "avares://GenHub/Assets/Icons/generalshub-icon.png";
+
+    // Icon Path Constants
+
+    /// <summary>
+    /// Base path for icon assets.
+    /// </summary>
+    public const string IconsBasePath = "Assets/Icons";
+
+    /// <summary>
+    /// Filename for Generals icon.
+    /// </summary>
+    public const string GeneralsIconFilename = "generals-icon.png";
+
+    /// <summary>
+    /// Filename for Zero Hour icon.
+    /// </summary>
+    public const string ZeroHourIconFilename = "zerohour-icon.png";
+
+    /// <summary>
+    /// Filename for GenHub default icon.
+    /// </summary>
+    public const string GenHubIconFilename = "generalshub-icon.png";
+
+    /// <summary>
+    /// Filename for Steam platform icon.
+    /// </summary>
+    public const string SteamIconFilename = "steam-icon.png";
+
+    /// <summary>
+    /// Filename for EA App platform icon.
+    /// </summary>
+    public const string EaAppIconFilename = "eaapp-icon.png";
 }

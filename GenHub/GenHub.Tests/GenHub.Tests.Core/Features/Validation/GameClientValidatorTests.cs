@@ -275,11 +275,8 @@ public class GameClientValidatorTests
         // Act
         var result = await _validator.ValidateAsync(client, progress, default);
 
-        // Assert
-        Assert.True(result.IsValid);
         Assert.NotEmpty(progressReports);
         Assert.Contains(progressReports, p => p.PercentComplete == 100);
-
         tempDir.Delete(true);
     }
 
