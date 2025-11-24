@@ -230,7 +230,7 @@ public class FileOperationsServiceTests : IDisposable
             It.IsAny<DownloadConfiguration>(),
             It.IsAny<IProgress<DownloadProgress>>(),
             It.IsAny<CancellationToken>()))
-            .ReturnsAsync(DownloadResult.CreateFailed("Failed"));
+            .ReturnsAsync(DownloadResult.CreateFailure("Failed"));
 
         var loggerMock = new Mock<ILogger<FileOperationsService>>();
         var fileOps = new FileOperationsService(loggerMock.Object, downloadServiceMock.Object, _casService.Object);
