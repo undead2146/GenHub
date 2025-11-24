@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 namespace GenHub.Features.Content.Services.GeneralsOnline;
 
 /// <summary>
-/// Discovers Generals Online releases by querying the CDN API or falling back to mock data.
+/// Discovers Generals Online releases by querying the CDN API.
 /// Supports both manifest.json API and latest.txt polling for release discovery.
 /// </summary>
 public class GeneralsOnlineDiscoverer : IContentDiscoverer
@@ -27,13 +27,13 @@ public class GeneralsOnlineDiscoverer : IContentDiscoverer
     /// Initializes a new instance of the <see cref="GeneralsOnlineDiscoverer"/> class.
     /// </summary>
     /// <param name="logger">The logger for diagnostic information.</param>
-    public GeneralsOnlineDiscoverer(ILogger<GeneralsOnlineDiscoverer> logger)
+    /// <param name="httpClientFactory">Factory for creating HTTP clients.</param>
+    public GeneralsOnlineDiscoverer(
+        ILogger<GeneralsOnlineDiscoverer> logger,
+        IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
-        _httpClient = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(30),
-        };
+        _httpClient = httpClientFactory.CreateClient(GeneralsOnlineConstants.PublisherType);
     }
 
     /// <inheritdoc />
@@ -59,8 +59,8 @@ public class GeneralsOnlineDiscoverer : IContentDiscoverer
     }
 
     /// <summary>
-    /// Discovers Generals Online releases from CDN API or mock data.
-    /// Tries manifest.json first, then latest.txt, then falls back to mock release.
+    /// Discovers Generals Online releases from CDN API.
+    /// Tries manifest.json first, then latest.txt. Returns error if CDN is unreachable.
     /// </summary>
     /// <param name="query">The search query.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -74,7 +74,7 @@ public class GeneralsOnlineDiscoverer : IContentDiscoverer
         try
         {
             // Try to get release from API
-            var (release, cdnAvailable) = await TryGetReleaseFromApiAsync(cancellationToken);
+            var (cdnAvailable, release) = await TryGetReleaseFromApiAsync(cancellationToken);
 
             // If CDN is unreachable, return failure
             if (!cdnAvailable)
@@ -117,8 +117,8 @@ public class GeneralsOnlineDiscoverer : IContentDiscoverer
     /// <summary>
     /// Attempts to get release information from the Generals Online CDN API.
     /// </summary>
-    /// <returns>Tuple of (release, cdnAvailable). Release is null if none found, cdnAvailable is false if CDN is unreachable.</returns>
-    private async Task<(GeneralsOnlineRelease? release, bool cdnAvailable)> TryGetReleaseFromApiAsync(
+    /// <returns>Tuple of (cdnAvailable, release). cdnAvailable is false if CDN is unreachable, release is null if none found.</returns>
+    private async Task<(bool cdnAvailable, GeneralsOnlineRelease? release)> TryGetReleaseFromApiAsync(
         CancellationToken cancellationToken)
     {
         try
@@ -138,7 +138,7 @@ public class GeneralsOnlineDiscoverer : IContentDiscoverer
                 if (apiResponse != null && !string.IsNullOrEmpty(apiResponse.Version))
                 {
                     _logger.LogInformation("Retrieved release from manifest.json API: {Version}", apiResponse.Version);
-                    return (CreateReleaseFromApiResponse(apiResponse), true);
+                    return (true, CreateReleaseFromApiResponse(apiResponse));
                 }
             }
 
@@ -155,25 +155,25 @@ public class GeneralsOnlineDiscoverer : IContentDiscoverer
                 if (!string.IsNullOrEmpty(version))
                 {
                     _logger.LogInformation("Retrieved version from latest.txt: {Version}", version);
-                    return (CreateReleaseFromVersion(version), true);
+                    return (true, CreateReleaseFromVersion(version));
                 }
             }
 
             // CDN responded but had no valid data (unlikely)
             _logger.LogDebug("CDN responded but contains no release data");
-            return (null, true);
+            return (true, null);
         }
         catch (HttpRequestException ex)
         {
             // Network error - CDN is unreachable
             _logger.LogWarning(ex, "Generals Online CDN is unreachable");
-            return (null, false);
+            return (false, null);
         }
         catch (Exception ex)
         {
             // Other errors (parsing, etc.) - treat as CDN issue
             _logger.LogWarning(ex, "Failed to query Generals Online CDN");
-            return (null, false);
+            return (false, null);
         }
     }
 
@@ -184,7 +184,7 @@ public class GeneralsOnlineDiscoverer : IContentDiscoverer
     /// <returns>A fully populated GeneralsOnlineRelease.</returns>
     private GeneralsOnlineRelease CreateReleaseFromApiResponse(GeneralsOnlineApiResponse apiResponse)
     {
-        var versionDate = ParseVersionDate(apiResponse.Version);
+        var versionDate = ParseVersionDate(apiResponse.Version) ?? DateTime.Now;
 
         return new GeneralsOnlineRelease
         {
@@ -205,7 +205,7 @@ public class GeneralsOnlineDiscoverer : IContentDiscoverer
     /// <returns>A GeneralsOnlineRelease with constructed URLs.</returns>
     private GeneralsOnlineRelease CreateReleaseFromVersion(string version)
     {
-        var versionDate = ParseVersionDate(version);
+        var versionDate = ParseVersionDate(version) ?? DateTime.Now;
 
         return new GeneralsOnlineRelease
         {
@@ -213,7 +213,7 @@ public class GeneralsOnlineDiscoverer : IContentDiscoverer
             VersionDate = versionDate,
             ReleaseDate = versionDate,
             PortableUrl = $"{GeneralsOnlineConstants.ReleasesUrl}/GeneralsOnline_portable_{version}{GeneralsOnlineConstants.PortableExtension}",
-            PortableSize = GeneralsOnlineConstants.DefaultPortableSize,
+            PortableSize = null, // Size unknown when using latest.txt fallback
             Changelog = $"Generals Online {version}",
         };
     }
@@ -222,21 +222,24 @@ public class GeneralsOnlineDiscoverer : IContentDiscoverer
     /// Parses a version string (MMDDYY_QFE#) to extract the date.
     /// </summary>
     /// <param name="version">The version string.</param>
-    /// <returns>The parsed date, or current date if parsing fails.</returns>
-    private DateTime ParseVersionDate(string version)
+    /// <returns>The parsed date, or null if parsing fails.</returns>
+    private DateTime? ParseVersionDate(string version)
     {
         try
         {
-            var parts = version.Split('_');
+            // Split on underscore to separate date from QFE portion
+            var parts = version.Split(new[] { GeneralsOnlineConstants.QfeSeparator }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (parts.Length < 1)
             {
-                return DateTime.Now;
+                _logger.LogWarning("Failed to parse version date from: {Version} - invalid format", version);
+                return null;
             }
 
             var datePart = parts[0];
             if (datePart.Length != 6)
             {
-                return DateTime.Now;
+                _logger.LogWarning("Failed to parse version date from: {Version} - invalid date length", version);
+                return null;
             }
 
             var month = int.Parse(datePart.Substring(0, 2));
@@ -245,9 +248,10 @@ public class GeneralsOnlineDiscoverer : IContentDiscoverer
 
             return new DateTime(year, month, day);
         }
-        catch
+        catch (Exception ex)
         {
-            return DateTime.Now;
+            _logger.LogWarning(ex, "Failed to parse version date from: {Version}", version);
+            return null;
         }
     }
 
@@ -265,7 +269,7 @@ public class GeneralsOnlineDiscoverer : IContentDiscoverer
             AuthorName = GeneralsOnlineConstants.PublisherName,
             IconUrl = GeneralsOnlineConstants.IconUrl,
             LastUpdated = release.ReleaseDate,
-            DownloadSize = release.PortableSize,
+            DownloadSize = release.PortableSize ?? 0,
             RequiresResolution = true,
             ResolverId = GeneralsOnlineConstants.ResolverId,
             SourceUrl = GeneralsOnlineConstants.DownloadPageUrl,

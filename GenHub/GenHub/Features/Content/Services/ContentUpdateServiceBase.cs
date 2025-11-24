@@ -1,4 +1,5 @@
 using GenHub.Core.Interfaces.Content;
+using GenHub.Core.Models.Results.Content;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
@@ -24,23 +25,18 @@ public abstract class ContentUpdateServiceBase(ILogger<ContentUpdateServiceBase>
     protected abstract TimeSpan UpdateCheckInterval { get; }
 
     /// <inheritdoc />
-    public Task<(bool UpdateAvailable, string? LatestVersion, string? CurrentVersion)> CheckForUpdatesAsync(
-        CancellationToken cancellationToken = default)
-    {
-        return CheckForUpdatesImplAsync(cancellationToken);
-    }
-
-    /// <summary>
-    /// Checks for available content updates (implementation-specific).
-    /// </summary>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A tuple containing update availability, latest version, and current version.</returns>
-    protected abstract Task<(bool UpdateAvailable, string? LatestVersion, string? CurrentVersion)> CheckForUpdatesImplAsync(CancellationToken cancellationToken);
+    /// <remarks>
+    /// Checks for available content updates.
+    /// </remarks>
+    public abstract Task<ContentUpdateCheckResult> CheckForUpdatesAsync(CancellationToken cancellationToken);
 
     /// <summary>
     /// Executes the background service that periodically checks for updates.
     /// </summary>
-    /// <param name="stoppingToken">Cancellation token for stopping the service.</param>
+    /// <param name="stoppingToken">
+    /// Cancellation token for stopping the service (provided by BackgroundService base class).
+    /// Named 'stoppingToken' to match .NET framework convention for hosted services.
+    /// </param>
     /// <returns>A task representing the background execution.</returns>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -55,22 +51,22 @@ public abstract class ContentUpdateServiceBase(ILogger<ContentUpdateServiceBase>
             {
                 logger.LogDebug("[{ServiceName}] Starting update check", ServiceName);
 
-                var (updateAvailable, latestVersion, currentVersion) = await CheckForUpdatesImplAsync(stoppingToken);
+                var result = await CheckForUpdatesAsync(stoppingToken);
 
-                if (updateAvailable)
+                if (result.IsUpdateAvailable)
                 {
                     logger.LogInformation(
                         "[{ServiceName}] Update available: {LatestVersion} (current: {CurrentVersion})",
                         ServiceName,
-                        latestVersion ?? "unknown",
-                        currentVersion ?? "none");
+                        result.LatestVersion ?? "unknown",
+                        result.CurrentVersion ?? "none");
                 }
                 else
                 {
                     logger.LogDebug(
                         "[{ServiceName}] No updates available. Current version: {CurrentVersion}",
                         ServiceName,
-                        currentVersion ?? "none");
+                        result.CurrentVersion ?? "none");
                 }
             }
             catch (OperationCanceledException)

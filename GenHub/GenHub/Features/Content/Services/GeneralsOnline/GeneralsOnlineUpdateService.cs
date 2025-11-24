@@ -1,5 +1,6 @@
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Models.Results.Content;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Linq;
@@ -24,14 +25,16 @@ public class GeneralsOnlineUpdateService : ContentUpdateServiceBase
     /// </summary>
     /// <param name="logger">The logger for diagnostic information.</param>
     /// <param name="manifestPool">The content manifest pool.</param>
+    /// <param name="httpClientFactory">Factory for creating HTTP clients.</param>
     public GeneralsOnlineUpdateService(
         ILogger<GeneralsOnlineUpdateService> logger,
-        IContentManifestPool manifestPool)
+        IContentManifestPool manifestPool,
+        IHttpClientFactory httpClientFactory)
         : base(logger)
     {
         _logger = logger;
         _manifestPool = manifestPool;
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        _httpClient = httpClientFactory.CreateClient(GeneralsOnlineConstants.PublisherType);
     }
 
     /// <inheritdoc />
@@ -49,8 +52,8 @@ public class GeneralsOnlineUpdateService : ContentUpdateServiceBase
         TimeSpan.FromHours(GeneralsOnlineConstants.UpdateCheckIntervalHours);
 
     /// <inheritdoc />
-    protected override async Task<(bool UpdateAvailable, string? LatestVersion, string? CurrentVersion)>
-        CheckForUpdatesImplAsync(CancellationToken cancellationToken)
+    public override async Task<ContentUpdateCheckResult>
+        CheckForUpdatesAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Checking for Generals Online updates");
 
@@ -65,12 +68,23 @@ public class GeneralsOnlineUpdateService : ContentUpdateServiceBase
             if (string.IsNullOrEmpty(latestVersion))
             {
                 _logger.LogWarning("Could not retrieve latest version from CDN");
-                return (false, null, currentVersion);
+                return ContentUpdateCheckResult.CreateFailure(
+                    "Could not retrieve latest version from CDN",
+                    currentVersion);
             }
 
             var updateAvailable = IsNewerVersion(latestVersion, currentVersion);
 
-            return (updateAvailable, latestVersion, currentVersion);
+            if (updateAvailable)
+            {
+                return ContentUpdateCheckResult.CreateUpdateAvailable(
+                    latestVersion: latestVersion,
+                    currentVersion: currentVersion);
+            }
+
+            return ContentUpdateCheckResult.CreateNoUpdateAvailable(
+                currentVersion: currentVersion,
+                latestVersion: latestVersion);
         }
         catch (Exception ex)
         {

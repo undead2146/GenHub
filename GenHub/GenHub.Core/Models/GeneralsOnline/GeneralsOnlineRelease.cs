@@ -1,3 +1,5 @@
+using GenHub.Core.Constants;
+
 namespace GenHub.Core.Models.GeneralsOnline;
 
 /// <summary>
@@ -30,9 +32,9 @@ public class GeneralsOnlineRelease
 
     /// <summary>
     /// Gets size of portable ZIP in bytes.
-    /// NOTE: Currently a placeholder constant until manifest.json API is available.
+    /// Null when size is unknown (e.g., from latest.txt API).
     /// </summary>
-    public long PortableSize { get; init; }
+    public long? PortableSize { get; init; }
 
     /// <summary>
     /// Gets release changelog/notes.

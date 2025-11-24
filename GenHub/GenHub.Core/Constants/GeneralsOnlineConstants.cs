@@ -60,13 +60,6 @@ public static class GeneralsOnlineConstants
     /// <summary>File extension for portable downloads.</summary>
     public const string PortableExtension = ".zip";
 
-    // ===== Default File Sizes =====
-
-    /// <summary>
-    /// Default portable ZIP file size (38MB) - placeholder until actual size is known.
-    /// </summary>
-    public const long DefaultPortableSize = 38_000_000;
-
     // ===== Update Intervals =====
 
     /// <summary>Hours between update checks.</summary>

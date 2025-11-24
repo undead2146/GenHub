@@ -77,9 +77,11 @@ public class GeneralsOnlineManifestFactory(ILogger<GeneralsOnlineManifestFactory
 
     /// <summary>
     /// Parses a Generals Online version string to extract a numeric user version for manifest IDs.
-    /// Converts versions like "101525_QFE5" to a numeric value like 1015255.
+    /// Converts versions like "111825_QFE2" (Nov 18, 2025) to a numeric value like 1118252.
+    /// NOTE: Format is dictated by Generals Online CDN API (MMDDYY_QFE#), not our choice.
+    /// This method converts it to a sortable numeric format.
     /// </summary>
-    /// <param name="version">The version string (e.g., "101525_QFE5").</param>
+    /// <param name="version">The version string (e.g., "111825_QFE2").</param>
     /// <returns>A numeric version suitable for manifest IDs.</returns>
     private static int ParseVersionForManifestId(string version)
     {
@@ -122,7 +124,7 @@ public class GeneralsOnlineManifestFactory(ILogger<GeneralsOnlineManifestFactory
             VersionDate = DateTime.Now,
             ReleaseDate = manifest.Metadata?.ReleaseDate ?? DateTime.Now,
             PortableUrl = zipFile?.DownloadUrl ?? string.Empty,
-            PortableSize = zipFile?.Size ?? GeneralsOnlineConstants.DefaultPortableSize,
+            PortableSize = zipFile?.Size, // Use actual file size, null if unknown
             Changelog = manifest.Metadata?.ChangelogUrl,
         };
     }
@@ -282,7 +284,7 @@ public class GeneralsOnlineManifestFactory(ILogger<GeneralsOnlineManifestFactory
                 {
                     RelativePath = Path.GetFileName(release.PortableUrl),
                     DownloadUrl = release.PortableUrl,
-                    Size = release.PortableSize,
+                    Size = release.PortableSize ?? 0, // Use 0 when size is unknown
                     SourceType = ContentSourceType.RemoteDownload,
                     Hash = string.Empty,
                 },

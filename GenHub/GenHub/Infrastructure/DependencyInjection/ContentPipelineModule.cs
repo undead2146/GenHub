@@ -1,4 +1,5 @@
 using GenHub.Common.Services;
+using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GitHub;
@@ -13,6 +14,7 @@ using GenHub.Features.Content.Services.Publishers;
 using GenHub.Features.GitHub.Services;
 using GenHub.Features.Manifest;
 using Microsoft.Extensions.DependencyInjection;
+using System;
 
 namespace GenHub.Infrastructure.DependencyInjection;
 
@@ -56,6 +58,12 @@ public static class ContentPipelineModule
 
         // Register HTTP client factory for content providers
         services.AddHttpClient();
+
+        // Register named HTTP client for Generals Online
+        services.AddHttpClient(GeneralsOnlineConstants.PublisherType, static httpClient =>
+        {
+            httpClient.Timeout = TimeSpan.FromSeconds(30);
+        });
 
         // Register core storage and manifest services
         services.AddSingleton<IContentStorageService, ContentStorageService>();

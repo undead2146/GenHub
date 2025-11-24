@@ -1,7 +1,9 @@
 namespace GenHub.Core.Interfaces.Content;
 
+using GenHub.Core.Models.Results.Content;
+
 /// <summary>
-/// Interface for content update checking services.
+/// Defines the contract for content update checking services.
 /// </summary>
 public interface IContentUpdateService
 {
@@ -9,6 +11,6 @@ public interface IContentUpdateService
     /// Checks for available content updates.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A tuple containing update availability, latest version, and current version.</returns>
-    Task<(bool UpdateAvailable, string? LatestVersion, string? CurrentVersion)> CheckForUpdatesAsync(CancellationToken cancellationToken = default);
+    /// <returns>A result containing update availability information.</returns>
+    Task<ContentUpdateCheckResult> CheckForUpdatesAsync(CancellationToken cancellationToken = default);
 }

@@ -38,30 +38,35 @@ public class GeneralsOnlineProvider(
     public override bool IsEnabled => true;
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Capabilities:
+    /// - RequiresDiscovery: Provider queries CDN API to find available releases
+    /// - SupportsPackageAcquisition: Provider can download and install content packages.
+    /// </remarks>
     public override ContentSourceCapabilities Capabilities =>
         ContentSourceCapabilities.RequiresDiscovery |
         ContentSourceCapabilities.SupportsPackageAcquisition;
 
     /// <inheritdoc />
     protected override IContentDiscoverer Discoverer =>
-        discoverers.FirstOrDefault(d =>
+        discoverers.First(d =>
             d.SourceName.Equals(
                 GeneralsOnlineConstants.DiscovererSourceName,
-                StringComparison.OrdinalIgnoreCase))!;
+                StringComparison.OrdinalIgnoreCase));
 
     /// <inheritdoc />
     protected override IContentResolver Resolver =>
-        resolvers.FirstOrDefault(r =>
+        resolvers.First(r =>
             r.ResolverId.Equals(
                 GeneralsOnlineConstants.ResolverId,
-                StringComparison.OrdinalIgnoreCase))!;
+                StringComparison.OrdinalIgnoreCase));
 
     /// <inheritdoc />
     protected override IContentDeliverer Deliverer =>
-        deliverers.FirstOrDefault(d =>
+        deliverers.First(d =>
             d.SourceName.Equals(
                 GeneralsOnlineConstants.DelivererSourceName,
-                StringComparison.OrdinalIgnoreCase))!;
+                StringComparison.OrdinalIgnoreCase));
 
     /// <inheritdoc />
     public override async Task<OperationResult<ContentManifest>> GetValidatedContentAsync(
@@ -147,6 +152,10 @@ public class GeneralsOnlineProvider(
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// This is the internal implementation called by the base class's public PrepareContentAsync method.
+    /// The base class handles common validation and error handling, then delegates to this method.
+    /// </remarks>
     protected override async Task<OperationResult<ContentManifest>> PrepareContentInternalAsync(
         ContentManifest manifest,
         string workingDirectory,
