@@ -46,7 +46,6 @@ public class GitHubContentProviderTests
             .ReturnsAsync(new ValidationResult("test", new List<ValidationIssue>()));
 
         _provider = new GitHubContentProvider(
-            _gitHubApiClientMock.Object,
             new[] { _discovererMock.Object },
             new[] { _resolverMock.Object },
             new[] { _delivererMock.Object },

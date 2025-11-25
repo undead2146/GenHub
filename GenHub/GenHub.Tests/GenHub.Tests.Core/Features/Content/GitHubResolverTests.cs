@@ -1,3 +1,4 @@
+using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Models.Enums;
@@ -45,9 +46,9 @@ public class GitHubResolverTests
             Id = "github.test.mod.v1",
             ResolverId = "GitHubRelease",
         };
-        discoveredItem.ResolverMetadata["owner"] = "test-owner";
-        discoveredItem.ResolverMetadata["repo"] = "test-repo";
-        discoveredItem.ResolverMetadata["tag"] = "v1.0";
+        discoveredItem.ResolverMetadata[GitHubConstants.OwnerMetadataKey] = "test-owner";
+        discoveredItem.ResolverMetadata[GitHubConstants.RepoMetadataKey] = "test-repo";
+        discoveredItem.ResolverMetadata[GitHubConstants.TagMetadataKey] = "v1.0";
 
         var releaseAsset = new GitHubReleaseAsset
         {
