@@ -3,6 +3,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Interfaces.Storage;
 using GenHub.Core.Interfaces.Workspace;
 using GenHub.Core.Models.Common;
 using GenHub.Features.Workspace;
@@ -13,48 +14,79 @@ namespace GenHub.Windows.Features.Workspace;
 /// <summary>
 /// Windows-specific implementation of <see cref="IFileOperationsService"/> for file operations.
 /// </summary>
-/// <param name="baseService">The base file operations service.</param>
-/// <param name="logger">The logger instance.</param>
-public class WindowsFileOperationsService(FileOperationsService baseService, ILogger<WindowsFileOperationsService> logger) : IFileOperationsService
+public class WindowsFileOperationsService(
+    FileOperationsService baseService,
+    ICasService casService,
+    ILogger<WindowsFileOperationsService> logger) : IFileOperationsService
 {
-    private readonly FileOperationsService _baseService = baseService ?? throw new ArgumentNullException(nameof(baseService));
-    private readonly ILogger<WindowsFileOperationsService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
     /// <inheritdoc/>
     public Task CopyFileAsync(string sourcePath, string destinationPath, CancellationToken cancellationToken = default)
-        => _baseService.CopyFileAsync(sourcePath, destinationPath, cancellationToken);
+        => baseService.CopyFileAsync(sourcePath, destinationPath, cancellationToken);
 
     /// <inheritdoc/>
     public Task CreateSymlinkAsync(string linkPath, string targetPath, bool allowFallback = true, CancellationToken cancellationToken = default)
-        => _baseService.CreateSymlinkAsync(linkPath, targetPath, allowFallback, cancellationToken);
+        => baseService.CreateSymlinkAsync(linkPath, targetPath, allowFallback, cancellationToken);
 
     /// <inheritdoc/>
     public Task<bool> VerifyFileHashAsync(string filePath, string expectedHash, CancellationToken cancellationToken = default)
-        => _baseService.VerifyFileHashAsync(filePath, expectedHash, cancellationToken);
+        => baseService.VerifyFileHashAsync(filePath, expectedHash, cancellationToken);
 
     /// <inheritdoc/>
     public Task DownloadFileAsync(string url, string destinationPath, IProgress<DownloadProgress>? progress = null, CancellationToken cancellationToken = default)
-        => _baseService.DownloadFileAsync(url, destinationPath, progress, cancellationToken);
+        => baseService.DownloadFileAsync(url, destinationPath, progress, cancellationToken);
 
     /// <inheritdoc/>
     public Task ApplyPatchAsync(string targetPath, string patchPath, CancellationToken cancellationToken = default)
-        => _baseService.ApplyPatchAsync(targetPath, patchPath, cancellationToken);
+        => baseService.ApplyPatchAsync(targetPath, patchPath, cancellationToken);
 
     /// <inheritdoc/>
     public Task<string?> StoreInCasAsync(string sourcePath, string? expectedHash = null, CancellationToken cancellationToken = default)
-        => _baseService.StoreInCasAsync(sourcePath, expectedHash, cancellationToken);
+        => baseService.StoreInCasAsync(sourcePath, expectedHash, cancellationToken);
 
     /// <inheritdoc/>
     public Task<bool> CopyFromCasAsync(string hash, string destinationPath, CancellationToken cancellationToken = default)
-        => _baseService.CopyFromCasAsync(hash, destinationPath, cancellationToken);
+        => baseService.CopyFromCasAsync(hash, destinationPath, cancellationToken);
 
     /// <inheritdoc/>
-    public Task<bool> LinkFromCasAsync(string hash, string destinationPath, bool useHardLink = false, CancellationToken cancellationToken = default)
-        => _baseService.LinkFromCasAsync(hash, destinationPath, useHardLink, cancellationToken);
+    public async Task<bool> LinkFromCasAsync(
+        string hash,
+        string destinationPath,
+        bool useHardLink = false,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var pathResult = await casService.GetContentPathAsync(hash, cancellationToken).ConfigureAwait(false);
+            if (!pathResult.Success || pathResult.Data == null)
+            {
+                logger.LogError("CAS content not found for hash {Hash}: {Error}", hash, pathResult.FirstError);
+                return false;
+            }
+
+            FileOperationsService.EnsureDirectoryExists(destinationPath);
+
+            if (useHardLink)
+            {
+                await CreateHardLinkAsync(destinationPath, pathResult.Data, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await CreateSymlinkAsync(destinationPath, pathResult.Data, useHardLink ? false : true, cancellationToken).ConfigureAwait(false);
+            }
+
+            logger.LogDebug("Created {LinkType} from CAS hash {Hash} to {DestinationPath}", useHardLink ? "hard link" : "symlink", hash, destinationPath);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to create {LinkType} from CAS hash {Hash} to {DestinationPath}", useHardLink ? "hard link" : "symlink", hash, destinationPath);
+            return false;
+        }
+    }
 
     /// <inheritdoc/>
     public Task<Stream?> OpenCasContentAsync(string hash, CancellationToken cancellationToken = default)
-        => _baseService.OpenCasContentAsync(hash, cancellationToken);
+        => baseService.OpenCasContentAsync(hash, cancellationToken);
 
     /// <inheritdoc/>
     public async Task CreateHardLinkAsync(
@@ -83,14 +115,14 @@ public class WindowsFileOperationsService(FileOperationsService baseService, ILo
                 },
                 cancellationToken);
 
-            _logger.LogDebug(
+            logger.LogDebug(
                 "Created hard link from {Link} to {Target}",
                 linkPath,
                 targetPath);
         }
         catch (Exception ex)
         {
-            _logger.LogError(
+            logger.LogError(
                 ex,
                 "Failed to create hard link from {Link} to {Target}",
                 linkPath,
