@@ -13,6 +13,7 @@ using GenHub.Core.Models.GameProfile;
 using GenHub.Features.AppUpdate.Views;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.ViewModels;
+using GenHub.Features.Notifications.ViewModels;
 using GenHub.Features.Settings.ViewModels;
 using GenHub.Features.Tools.ViewModels;
 using Microsoft.Extensions.Logging;
@@ -40,6 +41,7 @@ public partial class MainViewModel : ObservableObject
     /// <param name="downloadsViewModel">Downloads view model.</param>
     /// <param name="toolsViewModel">Tools view model.</param>
     /// <param name="settingsViewModel">Settings view model.</param>
+    /// <param name="notificationManager">Notification manager view model.</param>
     /// <param name="gameInstallationDetectionOrchestrator">Game installation orchestrator.</param>
     /// <param name="configurationProvider">Configuration provider service.</param>
     /// <param name="userSettingsService">User settings service for persistence operations.</param>
@@ -50,6 +52,7 @@ public partial class MainViewModel : ObservableObject
         DownloadsViewModel downloadsViewModel,
         ToolsViewModel toolsViewModel,
         SettingsViewModel settingsViewModel,
+        NotificationManagerViewModel notificationManager,
         IGameInstallationDetectionOrchestrator gameInstallationDetectionOrchestrator,
         IConfigurationProviderService configurationProvider,
         IUserSettingsService userSettingsService,
@@ -60,6 +63,7 @@ public partial class MainViewModel : ObservableObject
         DownloadsViewModel = downloadsViewModel;
         ToolsViewModel = toolsViewModel;
         SettingsViewModel = settingsViewModel;
+        NotificationManager = notificationManager;
         _gameInstallationDetectionOrchestrator = gameInstallationDetectionOrchestrator;
         _configurationProvider = configurationProvider;
         _userSettingsService = userSettingsService;
@@ -105,6 +109,11 @@ public partial class MainViewModel : ObservableObject
     /// Gets the settings view model.
     /// </summary>
     public SettingsViewModel SettingsViewModel { get; }
+
+    /// <summary>
+    /// Gets the notification manager view model.
+    /// </summary>
+    public NotificationManagerViewModel NotificationManager { get; }
 
     /// <summary>
     /// Gets the collection of detected game installations.
