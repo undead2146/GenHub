@@ -12,7 +12,7 @@ namespace GenHub.Features.Notifications.ViewModels;
 /// <summary>
 /// Centralized ViewModel for managing all notification toasts.
 /// </summary>
-public sealed class NotificationManagerViewModel : ViewModelBase, IDisposable
+public class NotificationManagerViewModel : ViewModelBase, IDisposable
 {
     private readonly INotificationService _notificationService;
     private readonly ILogger<NotificationManagerViewModel> _logger;

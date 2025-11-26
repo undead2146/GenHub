@@ -16,7 +16,7 @@ namespace GenHub.Features.Notifications.ViewModels;
 /// <summary>
 /// ViewModel for a single notification toast item.
 /// </summary>
-public sealed partial class NotificationItemViewModel : ViewModelBase, IDisposable
+public partial class NotificationItemViewModel : ViewModelBase, IDisposable
 {
     private readonly ILogger<NotificationItemViewModel> _logger;
     private readonly Action<Guid> _onDismissCallback;

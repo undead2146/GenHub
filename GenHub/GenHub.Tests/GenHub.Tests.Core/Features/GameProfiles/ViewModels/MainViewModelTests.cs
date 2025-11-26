@@ -1,3 +1,7 @@
+using System;
+using System.Reactive;
+using System.Reactive.Linq;
+using System.Threading.Tasks;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
@@ -6,6 +10,7 @@ using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Tools;
 using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.Notifications;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.ViewModels;
 using GenHub.Features.Notifications.ViewModels;
@@ -13,6 +18,7 @@ using GenHub.Features.Settings.ViewModels;
 using GenHub.Features.Tools.ViewModels;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Xunit;
 
 namespace GenHub.Tests.Core.ViewModels;
 
@@ -34,7 +40,7 @@ public class MainViewModelTests
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockLogger = new Mock<ILogger<MainViewModel>>();
-        var mockNotificationService = new Mock<INotificationService>();
+        var mockNotificationService = CreateNotificationServiceMock();
         var mockNotificationManager = new Mock<NotificationManagerViewModel>(
             mockNotificationService.Object,
             Mock.Of<ILogger<NotificationManagerViewModel>>(),
@@ -75,7 +81,7 @@ public class MainViewModelTests
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockLogger = new Mock<ILogger<MainViewModel>>();
-        var mockNotificationService = new Mock<INotificationService>();
+        var mockNotificationService = CreateNotificationServiceMock();
         var mockNotificationManager = new Mock<NotificationManagerViewModel>(
             mockNotificationService.Object,
             Mock.Of<ILogger<NotificationManagerViewModel>>(),
@@ -109,7 +115,7 @@ public class MainViewModelTests
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockLogger = new Mock<ILogger<MainViewModel>>();
-        var mockNotificationService = new Mock<INotificationService>();
+        var mockNotificationService = CreateNotificationServiceMock();
         var mockNotificationManager = new Mock<NotificationManagerViewModel>(
             mockNotificationService.Object,
             Mock.Of<ILogger<NotificationManagerViewModel>>(),
@@ -145,7 +151,7 @@ public class MainViewModelTests
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockLogger = new Mock<ILogger<MainViewModel>>();
-        var mockNotificationService = new Mock<INotificationService>();
+        var mockNotificationService = CreateNotificationServiceMock();
         var mockNotificationManager = new Mock<NotificationManagerViewModel>(
             mockNotificationService.Object,
             Mock.Of<ILogger<NotificationManagerViewModel>>(),
@@ -185,7 +191,7 @@ public class MainViewModelTests
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockLogger = new Mock<ILogger<MainViewModel>>();
-        var mockNotificationService = new Mock<INotificationService>();
+        var mockNotificationService = CreateNotificationServiceMock();
         var mockNotificationManager = new Mock<NotificationManagerViewModel>(
             mockNotificationService.Object,
             Mock.Of<ILogger<NotificationManagerViewModel>>(),
@@ -251,5 +257,14 @@ public class MainViewModelTests
         // Minimal defaults used by MainViewModel
         mock.Setup(x => x.GetLastSelectedTab()).Returns(NavigationTab.GameProfiles);
         return mock.Object;
+    }
+
+    private static Mock<INotificationService> CreateNotificationServiceMock()
+    {
+        var mock = new Mock<INotificationService>();
+        mock.Setup(x => x.Notifications).Returns(Observable.Empty<NotificationMessage>());
+        mock.Setup(x => x.DismissRequests).Returns(Observable.Empty<Guid>());
+        mock.Setup(x => x.DismissAllRequests).Returns(Observable.Empty<bool>());
+        return mock;
     }
 }
