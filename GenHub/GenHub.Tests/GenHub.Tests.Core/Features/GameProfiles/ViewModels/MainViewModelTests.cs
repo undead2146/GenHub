@@ -2,11 +2,13 @@ using GenHub.Common.ViewModels;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Tools;
 using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.ViewModels;
+using GenHub.Features.Notifications.ViewModels;
 using GenHub.Features.Settings.ViewModels;
 using GenHub.Features.Tools.ViewModels;
 using Microsoft.Extensions.Logging;
@@ -32,13 +34,19 @@ public class MainViewModelTests
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockLogger = new Mock<ILogger<MainViewModel>>();
+        var mockNotificationService = new Mock<INotificationService>();
+        var mockNotificationManager = new Mock<NotificationManagerViewModel>(
+            mockNotificationService.Object,
+            Mock.Of<ILogger<NotificationManagerViewModel>>(),
+            Mock.Of<ILogger<NotificationItemViewModel>>());
 
         // Act
         var vm = new MainViewModel(
             new GameProfileLauncherViewModel(),
-            new DownloadsViewModel(),
+            new DownloadsViewModel(mockNotificationService.Object),
             toolsVm,
             settingsVm,
+            mockNotificationManager.Object,
             mockOrchestrator.Object,
             configProvider,
             userSettingsMock.Object,
@@ -67,18 +75,22 @@ public class MainViewModelTests
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockLogger = new Mock<ILogger<MainViewModel>>();
-
+        var mockNotificationService = new Mock<INotificationService>();
+        var mockNotificationManager = new Mock<NotificationManagerViewModel>(
+            mockNotificationService.Object,
+            Mock.Of<ILogger<NotificationManagerViewModel>>(),
+            Mock.Of<ILogger<NotificationItemViewModel>>());
         var vm = new MainViewModel(
             new GameProfileLauncherViewModel(),
-            new DownloadsViewModel(),
+            new DownloadsViewModel(mockNotificationService.Object),
             toolsVm,
             settingsVm,
+            mockNotificationManager.Object,
             mockOrchestrator.Object,
             configProvider,
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
             mockLogger.Object);
-
         vm.SelectTabCommand.Execute(tab);
         Assert.Equal(tab, vm.SelectedTab);
     }
@@ -97,11 +109,17 @@ public class MainViewModelTests
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockLogger = new Mock<ILogger<MainViewModel>>();
+        var mockNotificationService = new Mock<INotificationService>();
+        var mockNotificationManager = new Mock<NotificationManagerViewModel>(
+            mockNotificationService.Object,
+            Mock.Of<ILogger<NotificationManagerViewModel>>(),
+            Mock.Of<ILogger<NotificationItemViewModel>>());
         var viewModel = new MainViewModel(
             new GameProfileLauncherViewModel(),
-            new DownloadsViewModel(),
+            new DownloadsViewModel(mockNotificationService.Object),
             toolsVm,
             settingsVm,
+            mockNotificationManager.Object,
             mockOrchestrator.Object,
             configProvider,
             userSettingsMock.Object,
@@ -127,11 +145,17 @@ public class MainViewModelTests
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockLogger = new Mock<ILogger<MainViewModel>>();
+        var mockNotificationService = new Mock<INotificationService>();
+        var mockNotificationManager = new Mock<NotificationManagerViewModel>(
+            mockNotificationService.Object,
+            Mock.Of<ILogger<NotificationManagerViewModel>>(),
+            Mock.Of<ILogger<NotificationItemViewModel>>());
         var vm = new MainViewModel(
             new GameProfileLauncherViewModel(),
-            new DownloadsViewModel(),
+            new DownloadsViewModel(mockNotificationService.Object),
             toolsVm,
             settingsVm,
+            mockNotificationManager.Object,
             mockOrchestrator.Object,
             configProvider,
             userSettingsMock.Object,
@@ -161,22 +185,25 @@ public class MainViewModelTests
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockLogger = new Mock<ILogger<MainViewModel>>();
+        var mockNotificationService = new Mock<INotificationService>();
+        var mockNotificationManager = new Mock<NotificationManagerViewModel>(
+            mockNotificationService.Object,
+            Mock.Of<ILogger<NotificationManagerViewModel>>(),
+            Mock.Of<ILogger<NotificationItemViewModel>>());
         var vm = new MainViewModel(
             new GameProfileLauncherViewModel(),
-            new DownloadsViewModel(),
+            new DownloadsViewModel(mockNotificationService.Object),
             toolsVm,
             settingsVm,
+            mockNotificationManager.Object,
             mockOrchestrator.Object,
             configProvider,
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
             mockLogger.Object);
-
         vm.SelectTabCommand.Execute(tab);
-
         var currentViewModel = vm.CurrentTabViewModel;
         Assert.NotNull(currentViewModel);
-
         switch (tab)
         {
             case NavigationTab.GameProfiles:
@@ -193,8 +220,6 @@ public class MainViewModelTests
                 break;
         }
     }
-
-    // Helpers must be placed after public members to satisfy StyleCop ordering rules.
 
     /// <summary>
     /// Creates a default ToolsViewModel with mocked services for reuse.
