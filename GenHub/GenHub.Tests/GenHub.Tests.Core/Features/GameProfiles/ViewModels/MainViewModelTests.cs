@@ -39,6 +39,7 @@ public class MainViewModelTests
         var toolsVm = CreateToolsVm();
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
+        var mockVelopackUpdateManager = new Mock<IVelopackUpdateManager>();
         var mockLogger = new Mock<ILogger<MainViewModel>>();
         var mockNotificationService = CreateNotificationServiceMock();
         var mockNotificationManager = new Mock<NotificationManagerViewModel>(
@@ -57,6 +58,7 @@ public class MainViewModelTests
             configProvider,
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
+            mockVelopackUpdateManager.Object,
             mockLogger.Object);
 
         // Assert
@@ -80,6 +82,7 @@ public class MainViewModelTests
         var toolsVm = CreateToolsVm();
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
+        var mockVelopackUpdateManager = new Mock<IVelopackUpdateManager>();
         var mockLogger = new Mock<ILogger<MainViewModel>>();
         var mockNotificationService = CreateNotificationServiceMock();
         var mockNotificationManager = new Mock<NotificationManagerViewModel>(
@@ -96,6 +99,7 @@ public class MainViewModelTests
             configProvider,
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
+            mockVelopackUpdateManager.Object,
             mockLogger.Object);
         vm.SelectTabCommand.Execute(tab);
         Assert.Equal(tab, vm.SelectedTab);
@@ -114,6 +118,7 @@ public class MainViewModelTests
         var toolsVm = CreateToolsVm();
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
+        var mockVelopackUpdateManager = new Mock<IVelopackUpdateManager>();
         var mockLogger = new Mock<ILogger<MainViewModel>>();
         var mockNotificationService = CreateNotificationServiceMock();
         var mockNotificationManager = new Mock<NotificationManagerViewModel>(
@@ -130,6 +135,7 @@ public class MainViewModelTests
             configProvider,
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
+            mockVelopackUpdateManager.Object,
             mockLogger.Object);
 
         // Act & Assert
@@ -150,6 +156,9 @@ public class MainViewModelTests
         var toolsVm = CreateToolsVm();
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
+        var mockVelopackUpdateManager = new Mock<IVelopackUpdateManager>();
+        mockVelopackUpdateManager.Setup(x => x.CheckForUpdatesAsync(It.IsAny<System.Threading.CancellationToken>()))
+            .ReturnsAsync((Velopack.UpdateInfo?)null);
         var mockLogger = new Mock<ILogger<MainViewModel>>();
         var mockNotificationService = CreateNotificationServiceMock();
         var mockNotificationManager = new Mock<NotificationManagerViewModel>(
@@ -166,6 +175,7 @@ public class MainViewModelTests
             configProvider,
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
+            mockVelopackUpdateManager.Object,
             mockLogger.Object);
 
         // Act & Assert
@@ -190,6 +200,7 @@ public class MainViewModelTests
         var toolsVm = CreateToolsVm();
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
+        var mockVelopackUpdateManager = new Mock<IVelopackUpdateManager>();
         var mockLogger = new Mock<ILogger<MainViewModel>>();
         var mockNotificationService = CreateNotificationServiceMock();
         var mockNotificationManager = new Mock<NotificationManagerViewModel>(
@@ -206,6 +217,7 @@ public class MainViewModelTests
             configProvider,
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
+            mockVelopackUpdateManager.Object,
             mockLogger.Object);
         vm.SelectTabCommand.Execute(tab);
         var currentViewModel = vm.CurrentTabViewModel;
