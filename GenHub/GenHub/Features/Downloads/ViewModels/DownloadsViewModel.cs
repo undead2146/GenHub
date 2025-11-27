@@ -230,7 +230,6 @@ public partial class DownloadsViewModel(
                 if (latest != null)
                 {
                     card.LatestVersion = latest.Version;
-
                     card.DownloadSize = latest.DownloadSize;
                     card.ReleaseDate = latest.LastUpdated;
                 }

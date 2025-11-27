@@ -24,7 +24,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 
-namespace GenHub.Tests.Core.ViewModels;
+namespace GenHub.Tests.Core.Features.GameProfiles.ViewModels;
 
 /// <summary>
 /// Contains unit tests for the <see cref="MainViewModel"/> class.
@@ -286,10 +286,15 @@ public class MainViewModelTests
         var mockServiceProvider = new Mock<IServiceProvider>();
         var mockLogger = new Mock<ILogger<DownloadsViewModel>>();
         var mockNotificationService = new Mock<INotificationService>();
+        var mockGitHubApiClient = new Mock<IGitHubApiClient>();
+        var mockLoggerGitHubDiscoverer = new Mock<ILogger<GitHubTopicsDiscoverer>>();
+        var mockMemoryCache = new Mock<IMemoryCache>();
+
         var mockGitHubDiscoverer = new Mock<GitHubTopicsDiscoverer>(
-            It.IsAny<IGitHubApiClient>(),
-            It.IsAny<ILogger<GitHubTopicsDiscoverer>>(),
-            It.IsAny<IMemoryCache>());
+            mockGitHubApiClient.Object,
+            mockLoggerGitHubDiscoverer.Object,
+            mockMemoryCache.Object);
+
         return new DownloadsViewModel(mockServiceProvider.Object, mockLogger.Object, mockNotificationService.Object, mockGitHubDiscoverer.Object);
     }
 
