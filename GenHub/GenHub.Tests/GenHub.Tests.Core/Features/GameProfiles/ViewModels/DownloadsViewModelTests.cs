@@ -14,7 +14,12 @@ public class DownloadsViewModelTests
     [Fact]
     public async Task InitializeAsync_CompletesSuccessfully()
     {
-        var vm = new DownloadsViewModel();
+        var serviceProviderMock = new Mock<IServiceProvider>();
+        var loggerMock = new Mock<ILogger<DownloadsViewModel>>();
+
+        var contentOrchestratorMock = new Mock<GenHub.Core.Interfaces.Content.IContentOrchestrator>();
+        var manifestPoolMock = new Mock<IContentManifestPool>();
+        var vm = new DownloadsViewModel(serviceProviderMock.Object, loggerMock.Object);
         await vm.InitializeAsync();
     }
 }
