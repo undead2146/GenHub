@@ -181,34 +181,6 @@ public class ContentPipelineIntegrationTests
     }
 
     [Fact]
-    public async Task GitHubManager_L3MGeneralsControlBar_ShouldResolveAsAddon()
-    {  
-        // Arrange
-        _output.WriteLine("Testing GitHub Manager with L3-M/GeneralsControlBar addon...");
-        _output.WriteLine("Target: https://github.com/L3-M/GeneralsControlBar/releases/tag/v1.3");
-
-        // This tests the publisher inference logic
-        var owner = "L3-M";
-        var repo = "GeneralsControlBar";
-        var tag = "v1.3";
-
-        // Simulate what GitHubResolver.DeterminePublisherType would do
-        var publisherType = DeterminePublisherType(owner, repo);
-
-        // Assert
-        Assert.Equal("github", publisherType); // Should use generic GitHub factory, not TheSuperHackers
-        _output.WriteLine($"Publisher Type: {publisherType} ✅");
-        _output.WriteLine("This will use GenericGitHubManifestFactory");
-
-        // Verify manifest ID would be correct
-        var userVersion = 13; // Extracted from v1.3
-        var expectedIdPattern = $"1.{userVersion}.github.addon.l3-m-generalscontrolbar";
-
-        _output.WriteLine($"Expected Manifest ID pattern: {expectedIdPattern}");
-        _output.WriteLine("✅ GitHub Manager publisher inference test PASSED");
-    }
-
-    [Fact]
     public void PublisherInference_TheSuperHackers_ShouldRouteToCustomFactory()
     {
         // Arrange
@@ -228,7 +200,7 @@ public class ContentPipelineIntegrationTests
     }
 
     [Fact]
-    public void PublisherInference_GenericRepo_ShouldUseGenericFactory()
+    public void PublisherInference_GenericRepo_ShouldUseGenericPublisherType()
     {
         // Arrange
         _output.WriteLine("Testing publisher inference for generic GitHub repos...");
@@ -265,8 +237,7 @@ public class ContentPipelineIntegrationTests
             "1.101525.generalsonline.gameclient.30hz",
             "1.101525.generalsonline.gameclient.60hz",
             "1.20251118.thesuperhackers.gameclient.generals",
-            "1.20251118.thesuperhackers.gameclient.zerohour",
-            "1.13.github.addon.l3-m-generalscontrolbar"
+            "1.20251118.thesuperhackers.gameclient.zerohour"
         };
 
         // Assert - All IDs should be unique

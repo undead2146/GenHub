@@ -244,6 +244,13 @@ public class GitHubContentDeliverer(
                     logger.LogInformation(
                         "Successfully stored manifest {ManifestId} to pool",
                         manifest.Id);
+
+                    // Update file source types to ContentAddressable since files are now in CAS
+                    // This ensures validation checks CAS instead of filesystem paths
+                    foreach (var file in manifest.Files)
+                    {
+                        file.SourceType = ContentSourceType.ContentAddressable;
+                    }
                 }
             }
 
