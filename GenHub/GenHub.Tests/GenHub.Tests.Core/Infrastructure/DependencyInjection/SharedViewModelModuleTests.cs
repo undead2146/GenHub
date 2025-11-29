@@ -110,6 +110,7 @@ public class SharedViewModelModuleTests
         services.AddGameProfileServices();
         services.AddLaunchingServices();
         services.AddToolsServices();
+        services.AddGeneralsOnlineServices();
         services.AddSharedViewModelModule();
 
         // Register IManifestIdService
