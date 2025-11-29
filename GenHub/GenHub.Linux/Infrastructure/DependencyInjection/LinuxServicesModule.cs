@@ -4,6 +4,7 @@ using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Linux.Features.AppUpdate;
 using GenHub.Linux.GameInstallations;
+using GenHub.Linux.Infrastructure.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace GenHub.Linux.Infrastructure.DependencyInjection;
@@ -34,6 +35,7 @@ public static class LinuxServicesModule
         // Register Linux-specific services
         services.AddSingleton<IPlatformUpdateInstaller, LinuxUpdateInstaller>();
         services.AddSingleton<IGameInstallationDetector, LinuxInstallationDetector>();
+        services.AddSingleton<IExternalLinkService, LinuxExternalLinkService>();
 
         return services;
     }

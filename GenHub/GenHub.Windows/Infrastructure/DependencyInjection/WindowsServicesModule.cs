@@ -10,6 +10,7 @@ using GenHub.Windows.Features.AppUpdate;
 using GenHub.Windows.Features.GitHub.Services;
 using GenHub.Windows.Features.Workspace;
 using GenHub.Windows.GameInstallations;
+using GenHub.Windows.Infrastructure.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -41,6 +42,7 @@ public static class WindowsServicesModule
         services.AddSingleton<IPlatformUpdateInstaller, WindowsUpdateInstaller>();
         services.AddSingleton<IGameInstallationDetector, WindowsInstallationDetector>();
         services.AddSingleton<IGitHubTokenStorage, WindowsGitHubTokenStorage>();
+        services.AddSingleton<IExternalLinkService, WindowsExternalLinkService>();
 
         // Register WindowsFileOperationsService with factory to avoid circular dependency
         services.AddScoped<IFileOperationsService>(serviceProvider =>
