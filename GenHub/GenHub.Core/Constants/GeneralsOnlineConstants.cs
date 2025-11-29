@@ -47,6 +47,9 @@ public static class GeneralsOnlineConstants
     /// <summary>Content icon URL.</summary>
     public const string IconUrl = "https://www.playgenerals.online/logo.png";
 
+    /// <summary>Publisher icon color.</summary>
+    public const string IconColor = "#4CAF50";
+
     // ===== Version Parsing =====
 
     /// <summary>Format for parsing version dates (DDMMYY).</summary>
@@ -78,6 +81,18 @@ public static class GeneralsOnlineConstants
 
     /// <summary>Manifest name suffix for 60Hz variant.</summary>
     public const string Variant60HzSuffix = "60hz";
+
+    /// <summary>Manifest name suffix for QuickMatch MapPack.</summary>
+    public const string QuickMatchMapPackSuffix = "quickmatch-maps";
+
+    /// <summary>Display name for QuickMatch MapPack.</summary>
+    public const string QuickMatchMapPackDisplayName = "GeneralsOnline QuickMatch Maps";
+
+    /// <summary>Description for QuickMatch MapPack.</summary>
+    public const string QuickMatchMapPackDescription = "Official map pack required for GeneralsOnline QuickMatch multiplayer. Contains competitively balanced maps.";
+
+    /// <summary>Subdirectory within the portable ZIP containing maps.</summary>
+    public const string MapsSubdirectory = "Maps";
 
     // ===== Component Identifiers =====
 

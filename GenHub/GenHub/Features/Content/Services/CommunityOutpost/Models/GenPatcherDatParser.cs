@@ -39,22 +39,34 @@ public class GenPatcherDatParser
     public static List<string> GetOrderedDownloadUrls(GenPatcherContentItem item)
     {
         var urls = new List<string>();
+        var addedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Add legi.cc mirrors first
-        urls.AddRange(item.Mirrors
-            .Where(m => m.Name.Contains("legi", StringComparison.OrdinalIgnoreCase))
-            .Select(m => m.Url));
+        foreach (var mirror in item.Mirrors.Where(m => m.Name.Contains("legi", StringComparison.OrdinalIgnoreCase)))
+        {
+            if (addedUrls.Add(mirror.Url))
+            {
+                urls.Add(mirror.Url);
+            }
+        }
 
         // Add gentool.net mirrors second
-        urls.AddRange(item.Mirrors
-            .Where(m => m.Name.Contains("gentool", StringComparison.OrdinalIgnoreCase) &&
-                       !urls.Contains(m.Url))
-            .Select(m => m.Url));
+        foreach (var mirror in item.Mirrors.Where(m => m.Name.Contains("gentool", StringComparison.OrdinalIgnoreCase)))
+        {
+            if (addedUrls.Add(mirror.Url))
+            {
+                urls.Add(mirror.Url);
+            }
+        }
 
         // Add remaining mirrors
-        urls.AddRange(item.Mirrors
-            .Where(m => !urls.Contains(m.Url))
-            .Select(m => m.Url));
+        foreach (var mirror in item.Mirrors)
+        {
+            if (addedUrls.Add(mirror.Url))
+            {
+                urls.Add(mirror.Url);
+            }
+        }
 
         return urls;
     }

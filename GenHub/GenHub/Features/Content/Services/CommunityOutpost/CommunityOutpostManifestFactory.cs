@@ -148,30 +148,51 @@ public class CommunityOutpostManifestFactory(
     }
 
     /// <summary>
-    /// Gets the install target from manifest metadata tags.
+    /// Determines the install target for a specific file based on its path and content type.
     /// </summary>
-    private static ContentInstallTarget GetInstallTargetFromManifest(ContentManifest manifest)
+    private static ContentInstallTarget DetermineFileInstallTarget(
+        string relativePath,
+        ContentInstallTarget defaultTarget,
+        ContentType contentType)
     {
-        var installTargetTag = manifest.Metadata?.Tags?
-            .FirstOrDefault(t => t.StartsWith("installTarget:", StringComparison.OrdinalIgnoreCase));
+        // Normalize path separators
+        var normalizedPath = relativePath.Replace('\\', '/').ToLowerInvariant();
 
-        if (!string.IsNullOrEmpty(installTargetTag))
+        // Map files (.map extension or in Maps folder) always go to UserMapsDirectory
+        if (normalizedPath.EndsWith(".map") ||
+            normalizedPath.Contains("/maps/") ||
+            normalizedPath.StartsWith("maps/"))
         {
-            var targetStr = installTargetTag.Substring("installTarget:".Length);
-            if (Enum.TryParse<ContentInstallTarget>(targetStr, out var target))
-            {
-                return target;
-            }
+            return ContentInstallTarget.UserMapsDirectory;
         }
 
-        // Default based on content type
-        return manifest.ContentType switch
+        // Replay files go to UserReplaysDirectory
+        if (normalizedPath.EndsWith(".rep") ||
+            normalizedPath.Contains("/replays/") ||
+            normalizedPath.StartsWith("replays/"))
         {
-            ContentType.MapPack => ContentInstallTarget.UserMapsDirectory,
-            ContentType.Map => ContentInstallTarget.UserMapsDirectory,
-            ContentType.Mission => ContentInstallTarget.UserMapsDirectory,
-            _ => ContentInstallTarget.Workspace,
-        };
+            return ContentInstallTarget.UserReplaysDirectory;
+        }
+
+        // Screenshot files go to UserScreenshotsDirectory
+        if ((normalizedPath.EndsWith(".bmp") || normalizedPath.EndsWith(".png") || normalizedPath.EndsWith(".jpg")) &&
+            (normalizedPath.Contains("/screenshots/") || normalizedPath.StartsWith("screenshots/")))
+        {
+            return ContentInstallTarget.UserScreenshotsDirectory;
+        }
+
+        // Game data files (BIG, INI, etc.) go to workspace
+        if (normalizedPath.EndsWith(".big") ||
+            normalizedPath.EndsWith(".ini") ||
+            normalizedPath.EndsWith(".exe") ||
+            normalizedPath.EndsWith(".dll") ||
+            normalizedPath.Contains("/data/"))
+        {
+            return ContentInstallTarget.Workspace;
+        }
+
+        // Use the content type's default target
+        return defaultTarget;
     }
 
     /// <summary>
@@ -261,53 +282,5 @@ public class CommunityOutpostManifestFactory(
             logger.LogError(ex, "Failed to build manifest for {Name}", originalManifest.Name);
             return null;
         }
-    }
-
-    /// <summary>
-    /// Determines the install target for a specific file based on its path and content type.
-    /// </summary>
-    private static ContentInstallTarget DetermineFileInstallTarget(
-        string relativePath,
-        ContentInstallTarget defaultTarget,
-        ContentType contentType)
-    {
-        // Normalize path separators
-        var normalizedPath = relativePath.Replace('\\', '/').ToLowerInvariant();
-
-        // Map files (.map extension or in Maps folder) always go to UserMapsDirectory
-        if (normalizedPath.EndsWith(".map") ||
-            normalizedPath.Contains("/maps/") ||
-            normalizedPath.StartsWith("maps/"))
-        {
-            return ContentInstallTarget.UserMapsDirectory;
-        }
-
-        // Replay files go to UserReplaysDirectory
-        if (normalizedPath.EndsWith(".rep") ||
-            normalizedPath.Contains("/replays/") ||
-            normalizedPath.StartsWith("replays/"))
-        {
-            return ContentInstallTarget.UserReplaysDirectory;
-        }
-
-        // Screenshot files go to UserScreenshotsDirectory
-        if ((normalizedPath.EndsWith(".bmp") || normalizedPath.EndsWith(".png") || normalizedPath.EndsWith(".jpg")) &&
-            (normalizedPath.Contains("/screenshots/") || normalizedPath.StartsWith("screenshots/")))
-        {
-            return ContentInstallTarget.UserScreenshotsDirectory;
-        }
-
-        // Game data files (BIG, INI, etc.) go to workspace
-        if (normalizedPath.EndsWith(".big") ||
-            normalizedPath.EndsWith(".ini") ||
-            normalizedPath.EndsWith(".exe") ||
-            normalizedPath.EndsWith(".dll") ||
-            normalizedPath.Contains("/data/"))
-        {
-            return ContentInstallTarget.Workspace;
-        }
-
-        // Use the content type's default target
-        return defaultTarget;
     }
 }

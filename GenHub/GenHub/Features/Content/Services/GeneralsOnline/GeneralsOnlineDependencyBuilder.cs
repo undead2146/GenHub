@@ -8,7 +8,8 @@ namespace GenHub.Features.Content.Services.GeneralsOnline;
 
 /// <summary>
 /// Builds dependency specifications for Generals Online content.
-/// Generals Online game clients require a base Zero Hour installation.
+/// Generals Online game clients require a base Zero Hour installation
+/// and the QuickMatch MapPack for multiplayer functionality.
 /// </summary>
 public class GeneralsOnlineDependencyBuilder : BaseDependencyBuilder
 {
@@ -33,27 +34,57 @@ public class GeneralsOnlineDependencyBuilder : BaseDependencyBuilder
     }
 
     /// <summary>
-    /// Gets the list of all dependencies for a Generals Online 30Hz variant.
+    /// Creates a dependency on the GeneralsOnline QuickMatch MapPack.
+    /// This is required for QuickMatch multiplayer functionality.
     /// </summary>
+    /// <param name="version">Optional version constraint for the mappack.</param>
+    /// <returns>A content dependency for the QuickMatch MapPack.</returns>
+    public static ContentDependency CreateQuickMatchMapPackDependency(int version = 0)
+    {
+        return new ContentDependency
+        {
+            Id = ManifestId.Create(ManifestIdGenerator.GeneratePublisherContentId(
+                PublisherTypeConstants.GeneralsOnline,
+                ContentType.MapPack,
+                GeneralsOnlineConstants.QuickMatchMapPackSuffix,
+                version)),
+            Name = $"{GeneralsOnlineConstants.QuickMatchMapPackDisplayName} (Required for QuickMatch)",
+            DependencyType = ContentType.MapPack,
+            InstallBehavior = DependencyInstallBehavior.AutoInstall,
+            IsOptional = false,
+            StrictPublisher = true, // Must be from GeneralsOnline publisher
+            PublisherType = PublisherTypeConstants.GeneralsOnline,
+            CompatibleGameTypes = new List<GameType> { GameType.ZeroHour },
+        };
+    }
+
+    /// <summary>
+    /// Gets the list of all dependencies for a Generals Online 30Hz variant.
+    /// Includes Zero Hour installation and QuickMatch MapPack.
+    /// </summary>
+    /// <param name="mapPackVersion">The version of the QuickMatch MapPack to depend on.</param>
     /// <returns>List of dependencies for 30Hz variant.</returns>
-    public static List<ContentDependency> GetDependenciesFor30Hz()
+    public static List<ContentDependency> GetDependenciesFor30Hz(int mapPackVersion = 0)
     {
         return new List<ContentDependency>
         {
             CreateZeroHourDependencyForGeneralsOnline(),
+            CreateQuickMatchMapPackDependency(mapPackVersion),
         };
     }
 
     /// <summary>
     /// Gets the list of all dependencies for a Generals Online 60Hz variant.
+    /// Includes Zero Hour installation and QuickMatch MapPack.
     /// </summary>
+    /// <param name="mapPackVersion">The version of the QuickMatch MapPack to depend on.</param>
     /// <returns>List of dependencies for 60Hz variant.</returns>
-    public static List<ContentDependency> GetDependenciesFor60Hz()
+    public static List<ContentDependency> GetDependenciesFor60Hz(int mapPackVersion = 0)
     {
-        // 60Hz has the same dependencies as 30Hz
         return new List<ContentDependency>
         {
             CreateZeroHourDependencyForGeneralsOnline(),
+            CreateQuickMatchMapPackDependency(mapPackVersion),
         };
     }
 
@@ -66,10 +97,16 @@ public class GeneralsOnlineDependencyBuilder : BaseDependencyBuilder
     {
         var dependencies = new List<ContentDependency>();
 
-        // All Generals Online game clients require Zero Hour 1.04
+        // All Generals Online game clients require Zero Hour 1.04 and the QuickMatch MapPack
         if (manifest.ContentType == ContentType.GameClient)
         {
-            dependencies.Add(CreateZeroHour104Dependency());
+            dependencies.Add(CreateZeroHourDependencyForGeneralsOnline());
+            dependencies.Add(CreateQuickMatchMapPackDependency());
+        }
+        else if (manifest.ContentType == ContentType.MapPack)
+        {
+            // MapPacks only require Zero Hour installation
+            dependencies.Add(CreateZeroHourDependencyForGeneralsOnline());
         }
 
         return dependencies;

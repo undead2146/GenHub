@@ -16,13 +16,14 @@ namespace GenHub.Tests.Core.Features.Content;
 /// <summary>
 /// Unit tests for <see cref="GitHubResolver"/>.
 /// </summary>
-public class GitHubResolverTests
+public class GitHubResolverTests : IDisposable
 {
     private readonly Mock<IGitHubApiClient> _apiClientMock;
     private readonly Mock<IContentManifestBuilder> _manifestBuilderMock;
     private readonly Mock<ILogger<GitHubResolver>> _loggerMock;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly ServiceProvider _serviceProvider;
     private readonly GitHubResolver _resolver;
+    private bool _disposed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GitHubResolverTests"/> class.
@@ -156,5 +157,31 @@ public class GitHubResolverTests
         // Assert
         Assert.False(result.Success);
         Assert.Contains("Missing required metadata", result.FirstError);
+    }
+
+    /// <summary>
+    /// Disposes of the service provider to prevent memory leaks.
+    /// </summary>
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Protected implementation of Dispose pattern.
+    /// </summary>
+    /// <param name="disposing">True if disposing managed resources.</param>
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposed)
+        {
+            if (disposing)
+            {
+                _serviceProvider?.Dispose();
+            }
+
+            _disposed = true;
+        }
     }
 }

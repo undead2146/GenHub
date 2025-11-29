@@ -219,7 +219,8 @@ public class CommunityOutpostResolver(
         if (metadata.Category == GenPatcherContentCategory.OfficialPatch && !string.IsNullOrEmpty(metadata.LanguageCode))
         {
             var languageName = GetLanguageDisplayName(metadata.LanguageCode);
-            return $"patch{contentCode.Substring(0, 3)}{languageName}".ToLowerInvariant();
+            var codePrefix = contentCode.Length >= 3 ? contentCode.Substring(0, 3) : contentCode;
+            return $"patch{codePrefix}{languageName}".ToLowerInvariant();
         }
 
         // For content with language codes, append language
