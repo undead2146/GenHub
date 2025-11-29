@@ -5,6 +5,7 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GitHub;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -20,6 +21,7 @@ public class GitHubResolverTests
     private readonly Mock<IGitHubApiClient> _apiClientMock;
     private readonly Mock<IContentManifestBuilder> _manifestBuilderMock;
     private readonly Mock<ILogger<GitHubResolver>> _loggerMock;
+    private readonly IServiceProvider _serviceProvider;
     private readonly GitHubResolver _resolver;
 
     /// <summary>
@@ -30,7 +32,13 @@ public class GitHubResolverTests
         _apiClientMock = new Mock<IGitHubApiClient>();
         _manifestBuilderMock = new Mock<IContentManifestBuilder>();
         _loggerMock = new Mock<ILogger<GitHubResolver>>();
-        _resolver = new GitHubResolver(_apiClientMock.Object, _manifestBuilderMock.Object, _loggerMock.Object);
+
+        // Create a service provider that returns the manifest builder mock
+        var services = new ServiceCollection();
+        services.AddTransient<IContentManifestBuilder>(sp => _manifestBuilderMock.Object);
+        _serviceProvider = services.BuildServiceProvider();
+
+        _resolver = new GitHubResolver(_apiClientMock.Object, _serviceProvider, _loggerMock.Object);
     }
 
     /// <summary>
