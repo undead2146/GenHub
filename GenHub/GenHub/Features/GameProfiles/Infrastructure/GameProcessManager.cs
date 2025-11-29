@@ -345,6 +345,7 @@ public class GameProcessManager(
             if (!_managedProcesses.TryRemove(processId, out process))
             {
                 _logger.LogDebug("[Terminate] Process {ProcessId} not in managed processes, trying system lookup", processId);
+
                 // Try to get from system processes
                 try
                 {
