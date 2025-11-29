@@ -4,17 +4,20 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.GeneralsOnline;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Features.AppUpdate.Interfaces;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.ViewModels;
+using GenHub.Features.GeneralsOnline.ViewModels;
 using GenHub.Features.Settings.ViewModels;
 using GenHub.Features.Tools.ViewModels;
 using Microsoft.Extensions.Logging;
@@ -33,6 +36,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IProfileEditorFacade _profileEditorFacade;
     private readonly IVelopackUpdateManager _velopackUpdateManager;
     private readonly CancellationTokenSource _initializationCts = new();
+    private readonly IGeneralsOnlineAuthService _generalsOnlineAuthService;
 
     [ObservableProperty]
     private NavigationTab _selectedTab = NavigationTab.GameProfiles;
@@ -47,34 +51,52 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <param name="downloadsViewModel">Downloads view model.</param>
     /// <param name="toolsViewModel">Tools view model.</param>
     /// <param name="settingsViewModel">Settings view model.</param>
+    /// <param name="generalsOnlineViewModel">Generals Online view model.</param>
     /// <param name="gameInstallationDetectionOrchestrator">Game installation orchestrator.</param>
     /// <param name="configurationProvider">Configuration provider service.</param>
     /// <param name="userSettingsService">User settings service for persistence operations.</param>
     /// <param name="profileEditorFacade">Profile editor facade for automatic profile creation.</param>
     /// <param name="velopackUpdateManager">The Velopack update manager for checking updates.</param>
+    /// <param name="generalsOnlineAuthService">Generals Online authentication service.</param>
     /// <param name="logger">Logger instance.</param>
     public MainViewModel(
         GameProfileLauncherViewModel gameProfilesViewModel,
         DownloadsViewModel downloadsViewModel,
         ToolsViewModel toolsViewModel,
         SettingsViewModel settingsViewModel,
+        GeneralsOnlineViewModel generalsOnlineViewModel,
         IGameInstallationDetectionOrchestrator gameInstallationDetectionOrchestrator,
         IConfigurationProviderService configurationProvider,
         IUserSettingsService userSettingsService,
         IProfileEditorFacade profileEditorFacade,
         IVelopackUpdateManager velopackUpdateManager,
+        IGeneralsOnlineAuthService generalsOnlineAuthService,
         ILogger<MainViewModel>? logger = null)
     {
         GameProfilesViewModel = gameProfilesViewModel;
         DownloadsViewModel = downloadsViewModel;
         ToolsViewModel = toolsViewModel;
         SettingsViewModel = settingsViewModel;
+        GeneralsOnlineViewModel = generalsOnlineViewModel;
         _gameInstallationDetectionOrchestrator = gameInstallationDetectionOrchestrator;
         _configurationProvider = configurationProvider;
         _userSettingsService = userSettingsService;
         _profileEditorFacade = profileEditorFacade ?? throw new ArgumentNullException(nameof(profileEditorFacade));
         _velopackUpdateManager = velopackUpdateManager ?? throw new ArgumentNullException(nameof(velopackUpdateManager));
+        _generalsOnlineAuthService = generalsOnlineAuthService ?? throw new ArgumentNullException(nameof(generalsOnlineAuthService));
         _logger = logger;
+
+        // Initialize available tabs
+        AvailableTabs = new ObservableCollection<NavigationTab>
+        {
+            NavigationTab.GameProfiles,
+            NavigationTab.Downloads,
+            NavigationTab.Tools,
+            NavigationTab.Settings,
+
+            // TESTING ONLY: Enable Generals Online tab for development/testing
+            NavigationTab.GeneralsOnline,
+        };
 
         // Load initial settings using unified configuration
         try
@@ -112,6 +134,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public SettingsViewModel SettingsViewModel { get; }
 
     /// <summary>
+    /// Gets the Generals Online view model.
+    /// </summary>
+    public GeneralsOnlineViewModel GeneralsOnlineViewModel { get; }
+
+    /// <summary>
     /// Gets the collection of detected game installations.
     /// </summary>
     public ObservableCollection<string> GameInstallations { get; } = new();
@@ -119,13 +146,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Gets the available navigation tabs.
     /// </summary>
-    public NavigationTab[] AvailableTabs { get; } =
-    {
-        NavigationTab.GameProfiles,
-        NavigationTab.Downloads,
-        NavigationTab.Tools,
-        NavigationTab.Settings,
-    };
+    public ObservableCollection<NavigationTab> AvailableTabs { get; }
 
     /// <summary>
     /// Gets the current tab's ViewModel for ContentControl binding.
@@ -136,6 +157,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         NavigationTab.Downloads => DownloadsViewModel,
         NavigationTab.Tools => ToolsViewModel,
         NavigationTab.Settings => SettingsViewModel,
+        NavigationTab.GeneralsOnline => GeneralsOnlineViewModel,
         _ => GameProfilesViewModel,
     };
 
@@ -150,6 +172,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         NavigationTab.Downloads => "Downloads",
         NavigationTab.Tools => "Tools",
         NavigationTab.Settings => "Settings",
+        NavigationTab.GeneralsOnline => "Generals Online",
         _ => tab.ToString(),
     };
 
@@ -197,6 +220,49 @@ public partial class MainViewModel : ObservableObject, IDisposable
         await GameProfilesViewModel.InitializeAsync();
         await DownloadsViewModel.InitializeAsync();
         await ToolsViewModel.InitializeAsync();
+        await GeneralsOnlineViewModel.InitializeAsync();
+        await _generalsOnlineAuthService.InitializeAsync();
+
+        // Subscribe to authentication changes
+        // TESTING ONLY: Authentication-based tab visibility disabled for development/testing
+        /*
+        _generalsOnlineAuthService.IsAuthenticated.Subscribe(isAuthenticated =>
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (isAuthenticated)
+                {
+                    if (!AvailableTabs.Contains(NavigationTab.GeneralsOnline))
+                    {
+                        // Insert before Settings (last item)
+                        var settingsIndex = AvailableTabs.IndexOf(NavigationTab.Settings);
+                        if (settingsIndex >= 0)
+                        {
+                            AvailableTabs.Insert(settingsIndex, NavigationTab.GeneralsOnline);
+                        }
+                        else
+                        {
+                            AvailableTabs.Add(NavigationTab.GeneralsOnline);
+                        }
+                    }
+                }
+                else
+                {
+                    if (AvailableTabs.Contains(NavigationTab.GeneralsOnline))
+                    {
+                        AvailableTabs.Remove(NavigationTab.GeneralsOnline);
+
+                        // If user was on this tab, switch to default
+                        if (SelectedTab == NavigationTab.GeneralsOnline)
+                        {
+                            SelectedTab = NavigationTab.GameProfiles;
+                        }
+                    }
+                }
+            });
+        });
+        */
+
         _logger?.LogInformation("MainViewModel initialized");
 
         // Start background check with cancellation support
