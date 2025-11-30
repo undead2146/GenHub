@@ -307,13 +307,12 @@ public class ContentManifestPoolTests : IDisposable
     {
         // Arrange
         var manifestId = "1.0.genhub.mod.publisher";
-        var contentDir = Path.Combine(_tempDirectory, "content");
+        var storageRoot = _tempDirectory;
+        var contentDir = Path.Combine(storageRoot, "Data", manifestId);
         Directory.CreateDirectory(contentDir);
 
-#pragma warning disable CS0618 // Type or member is obsolete - testing legacy behavior
-        _storageServiceMock.Setup(x => x.GetContentDirectoryPath(manifestId))
-            .Returns(contentDir);
-#pragma warning restore CS0618
+        _storageServiceMock.Setup(x => x.GetContentStorageRoot())
+            .Returns(storageRoot);
 
         // Act
         var result = await _manifestPool.GetContentDirectoryAsync(manifestId);
@@ -332,12 +331,11 @@ public class ContentManifestPoolTests : IDisposable
     {
         // Arrange
         var manifestId = "1.0.genhub.mod.publisher";
-        var contentDir = Path.Combine(_tempDirectory, "non-existent");
+        var storageRoot = _tempDirectory;
 
-#pragma warning disable CS0618 // Type or member is obsolete - testing legacy behavior
-        _storageServiceMock.Setup(x => x.GetContentDirectoryPath(manifestId))
-            .Returns(contentDir);
-#pragma warning restore CS0618
+        // Note: Don't create the directory - it should not exist
+        _storageServiceMock.Setup(x => x.GetContentStorageRoot())
+            .Returns(storageRoot);
 
         // Act
         var result = await _manifestPool.GetContentDirectoryAsync(manifestId);

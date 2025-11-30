@@ -2,19 +2,12 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using GenHub.Core.Interfaces.Content;
-using GenHub.Core.Interfaces.GitHub;
-using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
-using GenHub.Features.Content.Services.ContentResolvers;
 using GenHub.Features.Content.Services.GeneralsOnline;
-using GenHub.Features.Content.Services.GitHub;
 using GenHub.Features.Content.Services.Publishers;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace GenHub.Tests.Integration.ContentPipeline;
 
@@ -26,13 +19,6 @@ namespace GenHub.Tests.Integration.ContentPipeline;
 /// </summary>
 public class ContentPipelineIntegrationTests
 {
-    private readonly ITestOutputHelper _output;
-
-    public ContentPipelineIntegrationTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     [Fact]
     public async Task GeneralsOnline_ManifestEndpoint_ShouldReturnValidManifests()
     {
@@ -40,11 +26,9 @@ public class ContentPipelineIntegrationTests
         var discoverer = new GeneralsOnlineDiscoverer(
             NullLogger<GeneralsOnlineDiscoverer>.Instance);
 
-        _output.WriteLine("Testing GeneralsOnline manifest.json endpoint...");
-
         // Act
-        var query = new ContentSearchQuery 
-        { 
+        var query = new ContentSearchQuery
+        {
             SearchTerm = "generalsonline",
             Take = 10
         };
@@ -57,14 +41,10 @@ public class ContentPipelineIntegrationTests
         Assert.NotEmpty(result.Data);
 
         var firstResult = result.Data.First();
-        _output.WriteLine($"Found: {firstResult.Name} v{firstResult.Version}");
-        _output.WriteLine($"Provider: {firstResult.ProviderName}");
 
         // Verify it has the release data
         Assert.NotNull(firstResult.Data);
         Assert.Equal("GeneralsOnline", firstResult.ProviderName);
-
-        _output.WriteLine("✅ GeneralsOnline manifest.json endpoint test PASSED");
     }
 
     [Fact]
@@ -73,8 +53,6 @@ public class ContentPipelineIntegrationTests
         // Arrange
         var discoverer = new GeneralsOnlineDiscoverer(
             NullLogger<GeneralsOnlineDiscoverer>.Instance);
-
-        _output.WriteLine("Testing GeneralsOnline dual manifest generation...");
 
         // Act - Get latest release
         var query = new ContentSearchQuery { SearchTerm = "generalsonline", Take = 1 };
@@ -93,9 +71,6 @@ public class ContentPipelineIntegrationTests
         var hz30 = manifests[0];
         var hz60 = manifests[1];
 
-        _output.WriteLine($"30Hz Manifest ID: {hz30.Id.Value}");
-        _output.WriteLine($"60Hz Manifest ID: {hz60.Id.Value}");
-
         // Verify manifest IDs follow 5-segment format
         Assert.Contains("generalsonline", hz30.Id.Value);
         Assert.Contains("30hz", hz30.Id.Value);
@@ -107,50 +82,20 @@ public class ContentPipelineIntegrationTests
         Assert.Equal(release.Version, hz60.Version);
         Assert.Contains("30Hz", hz30.Name);
         Assert.Contains("60Hz", hz60.Name);
-
-        _output.WriteLine("✅ GeneralsOnline dual manifest generation test PASSED");
     }
 
-    [Fact]
+    [Fact(Skip = "Requires GitHub API client setup - manual verification at https://github.com/TheSuperHackers/GeneralsGameCode/releases")]
     public async Task TheSuperHackers_GitHubReleases_ShouldFindWeeklyReleases()
     {
-        // Arrange
-        _output.WriteLine("Testing TheSuperHackers GitHub weekly releases...");
-
-        // Note: This test requires actual GitHub API access
-        // For now, we'll use a mock or skip if not available
-        //var apiClient = CreateGitHubApiClient();
-        //var discoverer = new GitHubReleasesDiscoverer(apiClient, NullLogger<GitHubReleasesDiscoverer>.Instance);
-
-        // Act
-        var query = new ContentSearchQuery
-        {
-            SearchTerm = "thesuperhackers/GeneralsGameCode",
-            Take = 5
-        };
-
-        //var result = await discoverer.DiscoverAsync(query, CancellationToken.None);
-
-        // Assert
-        //Assert.True(result.Success, $"Discovery failed: {result.FirstError}");
-        //Assert.NotEmpty(result.Data);
-
-        //_output.WriteLine($"Found {result.Data.Count()} releases");
-        //foreach (var release in result.Data.Take(3))
-        //{
-        //    _output.WriteLine($"  - {release.Name} ({release.Version})");
-        //}
-
-        _output.WriteLine("⚠️  TheSuperHackers test requires GitHub API client setup");
-        _output.WriteLine("💡 Manual verification: Check https://github.com/TheSuperHackers/GeneralsGameCode/releases");
+        // This test requires actual GitHub API access with authentication
+        // Skipped until proper test infrastructure is in place
+        await Task.CompletedTask;
     }
 
     [Fact]
     public async Task TheSuperHackers_ManifestFactory_ShouldCreateGeneralsAndZeroHourManifests()
     {
         // Arrange
-        _output.WriteLine("Testing TheSuperHackers manifest factory for multi-game detection...");
-
         var factory = new SuperHackersManifestFactory(
             null!, // IContentManifestBuilder - would need proper setup
             null!, // IFileHashProvider
@@ -173,38 +118,31 @@ public class ContentPipelineIntegrationTests
         // Act
         var canHandle = factory.CanHandle(baseManifest);
 
-        // Assert
+        // Assert - Factory should handle TheSuperHackers manifests
+        // Full test requires extracted directory with genlauncher.exe and zhLauncher.exe
         Assert.True(canHandle, "Factory should handle TheSuperHackers manifests");
 
-        _output.WriteLine("✅ SuperHackersManifestFactory can handle TheSuperHackers content");
-        _output.WriteLine("💡 Full test requires extracted directory  with genlauncher.exe and zhLauncher.exe");
+        await Task.CompletedTask;
     }
 
     [Fact]
     public void PublisherInference_TheSuperHackers_ShouldRouteToCustomFactory()
     {
         // Arrange
-        _output.WriteLine("Testing publisher inference for TheSuperHackers...");
-
         var owner = "thesuperhackers";
         var repo = "GeneralsGameCode";
 
         // Act
         var publisherType = DeterminePublisherType(owner, repo);
 
-        // Assert
+        // Assert - This will route to SuperHackersManifestFactory
         Assert.Equal(PublisherTypeConstants.TheSuperHackers, publisherType);
-        _output.WriteLine($"Publisher Type: {publisherType} ✅");
-        _output.WriteLine("This will route to SuperHackersManifestFactory");
-        _output.WriteLine("✅ TheSuperHackers publisher inference test PASSED");
     }
 
     [Fact]
     public void PublisherInference_GenericRepo_ShouldUseGenericPublisherType()
     {
         // Arrange
-        _output.WriteLine("Testing publisher inference for generic GitHub repos...");
-
         var testCases = new[]
         {
             ("someuser", "somemod"),
@@ -219,19 +157,13 @@ public class ContentPipelineIntegrationTests
 
             // Assert
             Assert.Equal("github", publisherType);
-            _output.WriteLine($"  {owner}/{repo} → {publisherType} ✅");
         }
-
-        _output.WriteLine("✅ Generic publisher inference test PASSED");
     }
 
     [Fact]
     public void ManifestId_Uniqueness_ShouldPreventCollisions()
     {
-        // Arrange
-        _output.WriteLine("Testing manifest ID uniqueness across publishers...");
-
-        // Simulate manifest IDs from different sources
+        // Arrange - Simulate manifest IDs from different sources
         var ids = new[]
         {
             "1.101525.generalsonline.gameclient.30hz",
@@ -243,14 +175,6 @@ public class ContentPipelineIntegrationTests
         // Assert - All IDs should be unique
         var uniqueIds = ids.Distinct().ToList();
         Assert.Equal(ids.Length, uniqueIds.Count);
-
-        _output.WriteLine("Manifest IDs:");
-        foreach (var id in ids)
-        {
-            _output.WriteLine($"  - {id}");
-        }
-
-        _output.WriteLine("✅ All manifest IDs are unique - no collisions!");
     }
 
     // Helper method that matches GitHubResolver.DeterminePublisherType

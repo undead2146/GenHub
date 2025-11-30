@@ -4,6 +4,7 @@ using GenHub.Core.Extensions.Enums;
 using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameClients;
+using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
@@ -22,14 +23,14 @@ public sealed class ContentDisplayFormatter(IGameClientHashRegistry hashRegistry
     private const string VersionPrefix = "v";
 
     /// <inheritdoc/>
-    public GenHub.Core.Models.Content.ContentDisplayItem CreateDisplayItem(ContentManifest manifest, bool isEnabled = false)
+    public ContentDisplayItem CreateDisplayItem(ContentManifest manifest, bool isEnabled = false)
     {
         var publisher = GetPublisherFromManifest(manifest);
         var installationType = GetInstallationTypeFromManifest(manifest);
         var normalizedVersion = NormalizeVersion(manifest.Version);
         var displayName = BuildDisplayName(manifest.TargetGame, normalizedVersion, manifest.Name);
 
-        return new GenHub.Core.Models.Content.ContentDisplayItem
+        return new ContentDisplayItem
         {
             Id = manifest.Id.Value,
             ManifestId = manifest.Id.Value,
@@ -45,7 +46,7 @@ public sealed class ContentDisplayFormatter(IGameClientHashRegistry hashRegistry
     }
 
     /// <inheritdoc/>
-    public GenHub.Core.Models.Content.ContentDisplayItem CreateDisplayItemFromInstallation(
+    public ContentDisplayItem CreateDisplayItemFromInstallation(
         GameInstallation installation,
         GameClient gameClient,
         ManifestId manifestId,
@@ -55,7 +56,7 @@ public sealed class ContentDisplayFormatter(IGameClientHashRegistry hashRegistry
         var normalizedVersion = NormalizeVersion(gameClient.Version);
         var displayName = BuildDisplayName(gameClient.GameType, normalizedVersion);
 
-        return new GenHub.Core.Models.Content.ContentDisplayItem
+        return new ContentDisplayItem
         {
             Id = manifestId.Value,
             ManifestId = manifestId.Value,
@@ -172,15 +173,6 @@ public sealed class ContentDisplayFormatter(IGameClientHashRegistry hashRegistry
             ? normalizedVersion
             : $"{VersionPrefix}{normalizedVersion}";
     }
-
-    /// <inheritdoc/>
-#pragma warning disable CS0618 // Type or member is obsolete
-    public string FormatVersion(string version, ContentType contentType)
-    {
-        // contentType parameter is ignored - kept only for backward compatibility
-        return FormatVersion(version);
-    }
-#pragma warning restore CS0618 // Type or member is obsolete
 
     /// <inheritdoc/>
     public string GetGameTypeDisplayName(GameType gameType, bool useShortName = false)

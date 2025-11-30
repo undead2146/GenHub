@@ -70,11 +70,6 @@ public class ContentStorageService : IContentStorageService
         Path.Combine(_storageRoot, FileTypes.ManifestsDirectory, $"{manifestId}{FileTypes.ManifestFileExtension}");
 
     /// <inheritdoc/>
-    [Obsolete("Content is now stored in CAS, not in Content/Data directories. This method is retained for backward compatibility only.")]
-    public string GetContentDirectoryPath(ManifestId manifestId) =>
-        Path.Combine(_storageRoot, DirectoryNames.Data, manifestId.Value);
-
-    /// <inheritdoc/>
     public async Task<OperationResult<ContentManifest>> StoreContentAsync(
         ContentManifest manifest,
         string sourceDirectory,

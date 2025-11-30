@@ -43,15 +43,6 @@ public interface IContentDisplayFormatter
     string FormatVersion(string version);
 
     /// <summary>
-    /// Formats a version string for display.
-    /// </summary>
-    /// <param name="version">The raw version string.</param>
-    /// <param name="contentType">The type of content (unused - parameter kept for backward compatibility).</param>
-    /// <returns>A formatted version string.</returns>
-    [Obsolete("The contentType parameter is unused. Use FormatVersion(string version) instead.")]
-    string FormatVersion(string version, ContentType contentType);
-
-    /// <summary>
     /// Gets a display name for a content type.
     /// </summary>
     /// <param name="contentType">The content type.</param>

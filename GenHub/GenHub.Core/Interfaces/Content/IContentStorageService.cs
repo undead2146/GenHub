@@ -1,4 +1,3 @@
-using System;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
@@ -23,18 +22,6 @@ public interface IContentStorageService
     /// <param name="manifestId">The unique identifier of the manifest.</param>
     /// <returns>The absolute path where the manifest should be stored.</returns>
     string GetManifestStoragePath(ManifestId manifestId);
-
-    /// <summary>
-    /// Gets the content directory path for a specific manifest.
-    /// </summary>
-    /// <param name="manifestId">The unique identifier of the manifest.</param>
-    /// <returns>The absolute path where the manifest's content files are stored.</returns>
-    /// <remarks>
-    /// This method is obsolete - content is now stored in CAS (Content Addressable Storage),
-    /// not in Content/Data directories. Retained for backward compatibility only.
-    /// </remarks>
-    [Obsolete("Content is now stored in CAS, not in Content/Data directories. This method is retained for backward compatibility only.")]
-    string GetContentDirectoryPath(ManifestId manifestId);
 
     /// <summary>
     /// Stores content from a source directory into permanent storage.

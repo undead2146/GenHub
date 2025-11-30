@@ -1,3 +1,4 @@
+using GenHub.Core.Helpers;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 
@@ -189,25 +190,7 @@ public class ContentDisplayItem
     /// <summary>
     /// Gets the formatted file size for display.
     /// </summary>
-    public string? FormattedFileSize
-    {
-        get
-        {
-            if (!FileSize.HasValue) return null;
-
-            const long kb = 1024;
-            const long mb = kb * 1024;
-            const long gb = mb * 1024;
-
-            return FileSize.Value switch
-            {
-                < kb => $"{FileSize} B",
-                < mb => $"{FileSize.Value / (double)kb:F1} KB",
-                < gb => $"{FileSize.Value / (double)mb:F1} MB",
-                _ => $"{FileSize.Value / (double)gb:F1} GB"
-            };
-        }
-    }
+    public string? FormattedFileSize => FileSizeFormatter.FormatNullable(FileSize);
 
     /// <summary>
     /// Gets the formatted release date for display.
@@ -217,6 +200,9 @@ public class ContentDisplayItem
         get
         {
             if (!ReleaseDate.HasValue) return null;
+
+            // TODO: Add localization logic - current format is US-centric (e.g., "Nov 30, 2025")
+            // Should use culture-specific formatting (e.g., "30 November 2025" for NL/BE)
             return ReleaseDate.Value.ToString("MMM dd, yyyy");
         }
     }
