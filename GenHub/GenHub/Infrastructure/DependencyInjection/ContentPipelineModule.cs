@@ -139,6 +139,10 @@ public static class ContentPipelineModule
 
         // Register CNCLabs resolver
         services.AddTransient<IContentResolver, CNCLabsMapResolver>();
+
+        // Register CNCLabs manifest factory
+        services.AddTransient<CNCLabsManifestFactory>();
+        services.AddTransient<IPublisherManifestFactory, CNCLabsManifestFactory>();
     }
 
     /// <summary>
