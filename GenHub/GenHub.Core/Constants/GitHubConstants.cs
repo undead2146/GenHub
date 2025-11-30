@@ -3,16 +3,6 @@ namespace GenHub.Core.Constants;
 /// <summary>GitHub-related constants for API interactions, parsing, and UI.</summary>
 public static class GitHubConstants
 {
-    /// <summary>Enumeration for game variants.</summary>
-    public enum GameVariant
-    {
-        /// <summary>Command &amp; Conquer Generals.</summary>
-        Generals,
-
-        /// <summary>Command &amp; Conquer Generals Zero Hour.</summary>
-        ZeroHour,
-    }
-
     // Build parsing constants
 
     /// <summary>String identifier for Zero Hour game variant.</summary>
@@ -88,6 +78,7 @@ public static class GitHubConstants
     /// <summary>Format string for build descriptions.</summary>
     public const string BuildDescriptionFormat = "{0} {1} ({2})";
 
+    // TODO: Move to translations when localization is implemented
     // UI Messages
 
     /// <summary>Message displayed when no item is selected in details view.</summary>
