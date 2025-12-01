@@ -343,9 +343,8 @@ public partial class PublisherCardViewModel : ObservableObject
             }
 
             // If publisher + content type + name match but versions differ,
-            // still consider it installed (it may be an older/newer version)
-            // This handles cases where the manifest version format differs from the discoverer's version
-            return true;
+            // do not consider it installed - this could be a different version
+            // and would hide available updates from the user
         }
 
         return false;
