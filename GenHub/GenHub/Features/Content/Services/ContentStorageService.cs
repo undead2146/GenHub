@@ -46,7 +46,6 @@ public class ContentStorageService : IContentStorageService
         _storageRoot = configService.GetContentStoragePath();
 
         // Ensure storage directory structure exists using FileOperationsService for future configurability.
-        // Note: Content/Data directory is no longer needed as files are stored in CAS.
         var requiredDirs = new[]
         {
             _storageRoot,

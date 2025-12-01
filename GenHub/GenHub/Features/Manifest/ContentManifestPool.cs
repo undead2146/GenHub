@@ -255,9 +255,6 @@ public class ContentManifestPool(IContentStorageService storageService, ILogger<
     {
         try
         {
-            // Note: Content is now stored in CAS, not in Content/Data directories.
-            // This method returns the source path mapping if it exists (for backward compatibility),
-            // otherwise returns null which tells callers to use CAS-based resolution via file hashes.
             var contentDir = Path.Combine(_storageService.GetContentStorageRoot(), DirectoryNames.Data, manifestId.Value);
 
             // If a mapping file exists, return its value (this points to the original source directory)
