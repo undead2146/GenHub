@@ -255,61 +255,6 @@ public class ProfileContentLoader(
                 "Loaded {Count} game client options from {InstallationCount} detected installations and manifest pool",
                 result.Count,
                 installationsResult.Data.Count());
-
-            // Also load GameClient manifests from the manifest pool (e.g., from GitHub Manager)
-            var poolManifestsResult = await _contentManifestPool.GetAllManifestsAsync();
-            if (poolManifestsResult.Success && poolManifestsResult.Data != null)
-            {
-                var gameClientManifests = poolManifestsResult.Data.Where(m => m.ContentType == ContentType.GameClient).ToList();
-
-                _logger.LogInformation("Found {Count} GameClient manifests in manifest pool", gameClientManifests.Count);
-
-                foreach (var manifest in gameClientManifests)
-                {
-                    // Check if this manifest is already in the result (from installations)
-                    var alreadyExists = result.Any(r => r.ManifestId == manifest.Id.Value);
-                    if (alreadyExists)
-                    {
-                        _logger.LogDebug("Skipping manifest {ManifestId} - already loaded from installation", manifest.Id.Value);
-                        continue;
-                    }
-
-                    var normalizedVersion = _displayFormatter.NormalizeVersion(manifest.Version);
-                    var publisherName = _displayFormatter.GetPublisherFromManifest(manifest);
-                    var installationType = _displayFormatter.GetInstallationTypeFromManifest(manifest);
-                    var displayName = _displayFormatter.BuildDisplayName(manifest.TargetGame, normalizedVersion, manifest.Name);
-
-                    var item = new ContentDisplayItem
-                    {
-                        Id = manifest.Id.Value,
-                        ManifestId = manifest.Id.Value,
-                        SourceId = string.Empty, // No source installation
-                        GameClientId = manifest.Id.Value,
-                        DisplayName = displayName,
-                        ContentType = ContentType.GameClient,
-                        GameType = manifest.TargetGame,
-                        InstallationType = installationType,
-                        Publisher = publisherName,
-                        Version = normalizedVersion,
-                        IsEnabled = false,
-                    };
-                    result.Add(item);
-
-                    _logger.LogInformation(
-                        "Added GameClient from manifest pool: {DisplayName} (ManifestId={ManifestId}, Publisher={Publisher})",
-                        item.DisplayName,
-                        manifest.Id.Value,
-                        publisherName);
-                }
-
-                _logger.LogInformation(
-                    "Total {Count} game client options (installations + manifest pool)",
-                    result.Count);
-            }
-            else
-            {
-                _logger.LogWarning("Failed to load manifests from pool: {Errors}", poolManifestsResult.Success ? "No data" : string.Join(", ", poolManifestsResult.Errors));
-            }
         }
         catch (Exception ex)
         {
