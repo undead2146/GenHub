@@ -65,23 +65,30 @@ public class NotificationManagerViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        // Use InvokeAsync to ensure we're on UI thread and wait for completion
-                Dispatcher.UIThread.Post(
-                    () =>
+        // Use InvokeAsync to ensure we're on UI thread and handle exceptions
+        Dispatcher.UIThread.InvokeAsync(
+            () =>
+            {
+                try
+                {
+                    lock (_lock)
                     {
-                        lock (_lock)
-                        {
-                            var viewModel = new NotificationItemViewModel(message, RemoveNotification, _itemLogger);
-                            ActiveNotifications.Insert(0, viewModel);
+                        var viewModel = new NotificationItemViewModel(message, RemoveNotification, _itemLogger);
+                        ActiveNotifications.Insert(0, viewModel);
 
-                            _logger.LogDebug(
-                                "Added {Type} notification: {Title} (Total: {Count})",
-                                message.Type,
-                                message.Title,
-                                ActiveNotifications.Count);
-                        }
-                    },
-                    DispatcherPriority.Send);
+                        _logger.LogDebug(
+                            "Added {Type} notification: {Title} (Total: {Count})",
+                            message.Type,
+                            message.Title,
+                            ActiveNotifications.Count);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error adding notification");
+                }
+            },
+            DispatcherPriority.Send);
     }
 
     /// <summary>
@@ -93,16 +100,23 @@ public class NotificationManagerViewModel : ViewModelBase, IDisposable
         Dispatcher.UIThread.InvokeAsync(
             () =>
             {
-                lock (_lock)
+                try
                 {
-                    var notification = ActiveNotifications.FirstOrDefault(n => n.Id == id);
-                    if (notification != null)
+                    lock (_lock)
                     {
-                        ActiveNotifications.Remove(notification);
-                        notification.Dispose();
+                        var notification = ActiveNotifications.FirstOrDefault(n => n.Id == id);
+                        if (notification != null)
+                        {
+                            ActiveNotifications.Remove(notification);
+                            notification.Dispose();
 
-                        _logger.LogDebug("Removed notification {NotificationId}", id);
+                            _logger.LogDebug("Removed notification {NotificationId}", id);
+                        }
                     }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error removing notification");
                 }
             },
             DispatcherPriority.Send);
@@ -149,14 +163,21 @@ public class NotificationManagerViewModel : ViewModelBase, IDisposable
         Dispatcher.UIThread.InvokeAsync(
             () =>
             {
-                lock (_lock)
+                try
                 {
-                    foreach (var notification in ActiveNotifications)
+                    lock (_lock)
                     {
-                        notification?.Dispose();
-                    }
+                        foreach (var notification in ActiveNotifications)
+                        {
+                            notification?.Dispose();
+                        }
 
-                    ActiveNotifications.Clear();
+                        ActiveNotifications.Clear();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error dismissing all notifications");
                 }
             },
             DispatcherPriority.Send);
