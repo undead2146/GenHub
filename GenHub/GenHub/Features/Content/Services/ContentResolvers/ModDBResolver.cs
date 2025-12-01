@@ -107,7 +107,7 @@ public class ModDBResolver(
         var description = descEl?.TextContent?.Trim() ?? discoveredItem.Description ?? string.Empty;
 
         // 3. Author
-        var authorLink = document.QuerySelector("a[href*='/members/'], span.author, div.creat or a");
+        var authorLink = document.QuerySelector("a[href*='/members/'], span.author, div.creator a");
         var author = authorLink?.TextContent?.Trim() ?? discoveredItem.AuthorName ?? ModDBConstants.DefaultAuthor;
 
         _logger.LogDebug("Parsed author: {Author}", author);
