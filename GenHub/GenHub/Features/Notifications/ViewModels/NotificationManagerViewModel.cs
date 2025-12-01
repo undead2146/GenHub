@@ -66,22 +66,22 @@ public class NotificationManagerViewModel : ViewModelBase, IDisposable
         }
 
         // Use InvokeAsync to ensure we're on UI thread and wait for completion
-        Dispatcher.UIThread.InvokeAsync(
-            () =>
-            {
-                lock (_lock)
-                {
-                    var viewModel = new NotificationItemViewModel(message, RemoveNotification, _itemLogger);
-                    ActiveNotifications.Insert(0, viewModel);
+                Dispatcher.UIThread.Post(
+                    () =>
+                    {
+                        lock (_lock)
+                        {
+                            var viewModel = new NotificationItemViewModel(message, RemoveNotification, _itemLogger);
+                            ActiveNotifications.Insert(0, viewModel);
 
-                    _logger.LogDebug(
-                        "Added {Type} notification: {Title} (Total: {Count})",
-                        message.Type,
-                        message.Title,
-                        ActiveNotifications.Count);
-                }
-            },
-            DispatcherPriority.Send);
+                            _logger.LogDebug(
+                                "Added {Type} notification: {Title} (Total: {Count})",
+                                message.Type,
+                                message.Title,
+                                ActiveNotifications.Count);
+                        }
+                    },
+                    DispatcherPriority.Send);
     }
 
     /// <summary>
