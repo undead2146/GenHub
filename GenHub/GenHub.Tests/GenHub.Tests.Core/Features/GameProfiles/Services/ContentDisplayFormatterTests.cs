@@ -327,17 +327,16 @@ public class ContentDisplayFormatterTests
     /// Tests that FormatVersion formats the version correctly.
     /// </summary>
     /// <param name="version">The version string.</param>
-    /// <param name="contentType">The content type.</param>
     /// <param name="expected">The expected formatted version.</param>
     [Theory]
-    [InlineData("1.08", ContentType.GameInstallation, "v1.08")]
-    [InlineData("v1.08", ContentType.GameInstallation, "v1.08")]
-    [InlineData("2.0", ContentType.Mod, "v2.0")]
-    [InlineData("", ContentType.Mod, "")]
-    public void FormatVersion_FormatsCorrectly(string version, ContentType contentType, string expected)
+    [InlineData("1.08", "v1.08")]
+    [InlineData("v1.08", "v1.08")]
+    [InlineData("2.0", "v2.0")]
+    [InlineData("", "")]
+    public void FormatVersion_FormatsCorrectly(string version, string expected)
     {
         // Act
-        var result = _formatter.FormatVersion(version, contentType);
+        var result = _formatter.FormatVersion(version);
 
         // Assert
         Assert.Equal(expected, result);
