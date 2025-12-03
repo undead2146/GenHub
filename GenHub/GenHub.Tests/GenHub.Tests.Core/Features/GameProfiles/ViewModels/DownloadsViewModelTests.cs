@@ -1,4 +1,9 @@
+using GenHub.Core.Interfaces.Manifest;
 using GenHub.Features.Downloads.ViewModels;
+using Microsoft.Extensions.Logging;
+using Moq;
+using Xunit;
+using System.Threading.Tasks;
 
 namespace GenHub.Tests.Core.ViewModels;
 
