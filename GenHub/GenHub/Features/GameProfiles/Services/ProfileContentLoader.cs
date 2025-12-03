@@ -9,6 +9,7 @@ using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
+using GenHub.Core.Models.Results;
 using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 using System.Collections.ObjectModel;
@@ -552,5 +553,131 @@ public class ProfileContentLoader(
         }
 
         return CreateManifestDisplayItem(manifest, isEnabled: true);
+    }
+
+    /// <inheritdoc/>
+    public async Task<ObservableCollection<ContentDisplayItem>> GetAutoInstallDependenciesAsync(string manifestId)
+    {
+        var result = new ObservableCollection<ContentDisplayItem>();
+
+        try
+        {
+            logger.LogDebug("Getting auto-install dependencies for manifest {ManifestId}", manifestId);
+
+            // Get the manifest from the pool
+            var manifestResult = await contentManifestPool.GetManifestAsync(ManifestId.Create(manifestId));
+            if (!manifestResult.Success || manifestResult.Data == null)
+            {
+                logger.LogDebug("Manifest {ManifestId} not found in pool", manifestId);
+                return result;
+            }
+
+            var manifest = manifestResult.Data;
+
+            // Find dependencies with AutoInstall behavior only
+            // Note: RequireExisting GameInstallation dependencies are handled separately in the ViewModel
+            // by selecting from AvailableGameInstallations (detected system installations)
+            var autoInstallDeps = manifest.Dependencies
+                .Where(d => !d.IsOptional && d.InstallBehavior == DependencyInstallBehavior.AutoInstall)
+                .ToList();
+
+            if (!autoInstallDeps.Any())
+            {
+                logger.LogDebug("No auto-install dependencies found for manifest {ManifestId}", manifestId);
+                return result;
+            }
+
+            logger.LogInformation("Found {Count} auto-install dependencies for manifest {ManifestId}", autoInstallDeps.Count, manifestId);
+
+            foreach (var dependency in autoInstallDeps)
+            {
+                // Try to find the dependency manifest in the pool
+                ContentManifest? depManifest = null;
+
+                // First try exact ID match
+                var depManifestResult = await contentManifestPool.GetManifestAsync(dependency.Id);
+                if (depManifestResult.Success && depManifestResult.Data != null)
+                {
+                    depManifest = depManifestResult.Data;
+                }
+                else
+                {
+                    // Try searching by content type and publisher type
+                    var searchQuery = new ContentSearchQuery
+                    {
+                        ContentType = dependency.DependencyType,
+                    };
+                    var searchResult = await contentManifestPool.SearchManifestsAsync(searchQuery);
+                    if (searchResult.Success && searchResult.Data != null)
+                    {
+                        // Find a manifest that matches the dependency requirements
+                        depManifest = searchResult.Data.FirstOrDefault(m =>
+                        {
+                            // If StrictPublisher is set, check publisher type matches
+                            if (dependency.StrictPublisher && !string.IsNullOrEmpty(dependency.PublisherType))
+                            {
+                                var publisherType = m.Publisher?.PublisherType ?? string.Empty;
+                                return string.Equals(publisherType, dependency.PublisherType, StringComparison.OrdinalIgnoreCase);
+                            }
+
+                            return true;
+                        });
+                    }
+                }
+
+                if (depManifest == null)
+                {
+                    logger.LogWarning("Auto-install dependency {DependencyName} (ID: {DependencyId}) not found in manifest pool", dependency.Name, dependency.Id);
+                    continue;
+                }
+
+                // Create a ContentDisplayItem for this dependency
+                var displayName = !string.IsNullOrEmpty(depManifest.Name)
+                    ? depManifest.Name
+                    : dependency.Name;
+                var publisher = depManifest.Publisher?.Name ?? depManifest.Publisher?.PublisherType ?? "Unknown";
+
+                var item = new ContentDisplayItem
+                {
+                    Id = depManifest.Id.Value,
+                    ManifestId = depManifest.Id.Value,
+                    DisplayName = displayName,
+                    Version = displayFormatter.NormalizeVersion(depManifest.Version),
+                    ContentType = depManifest.ContentType,
+                    GameType = depManifest.TargetGame,
+                    Publisher = publisher,
+                    IsEnabled = false, // Will be enabled by the caller
+                };
+
+                result.Add(item);
+                logger.LogInformation("Auto-install dependency: {DisplayName} ({ManifestId})", displayName, depManifest.Id.Value);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error getting auto-install dependencies for manifest {ManifestId}", manifestId);
+        }
+
+        return result;
+    }
+
+    /// <inheritdoc/>
+    public async Task<OperationResult<ContentManifest?>> GetManifestAsync(string manifestId)
+    {
+        try
+        {
+            var result = await contentManifestPool.GetManifestAsync(ManifestId.Create(manifestId));
+            if (result.Success && result.Data != null)
+            {
+                return OperationResult<ContentManifest?>.CreateSuccess(result.Data);
+            }
+
+            return OperationResult<ContentManifest?>.CreateSuccess(null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error getting manifest {ManifestId}", manifestId);
+            return OperationResult<ContentManifest?>.CreateFailure($"Failed to get manifest: {ex.Message}");
+        }
     }
 }
