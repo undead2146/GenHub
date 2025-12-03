@@ -1,13 +1,13 @@
-using GenHub.Core.Interfaces.GitHub;
+using System;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Features.Content.Services.ContentDiscoverers;
 using GenHub.Features.Downloads.ViewModels;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Moq;
-using System;
-using System.Threading.Tasks;
 using Xunit;
+using System.Threading.Tasks;
+using GenHub.Core.Interfaces.GitHub;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace GenHub.Tests.Core.Features.Downloads.ViewModels;
 
