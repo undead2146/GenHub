@@ -12,7 +12,7 @@ namespace GenHub.Features.Content.Services.CommunityOutpost.Models;
 /// - Line 1: Version header (e.g., "2.13                ;;")
 /// - Content lines: [4-char-code] [9-digit-padded-size] [mirror-name] [url].
 /// </summary>
-public class GenPatcherDatParser(ILogger logger)
+public class GenPatcherDatParser
 {
     /// <summary>
     /// Regex pattern to match content lines.
@@ -28,6 +28,8 @@ public class GenPatcherDatParser(ILogger logger)
     private static readonly Regex VersionLinePattern = new(
         @"^([\d\.]+)\s+;;$",
         RegexOptions.Compiled);
+
+    private readonly ILogger _logger;
 
     /// <summary>
     /// Gets all download URLs for a content item, ordered by preference.
@@ -97,8 +99,17 @@ public class GenPatcherDatParser(ILogger logger)
             return gentoolMirror.Url;
         }
 
-        // Return first available mirror (use FirstOrDefault for null safety)
-        return item.Mirrors.FirstOrDefault()?.Url;
+        // Return first available mirror
+        return item.Mirrors.First().Url;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="GenPatcherDatParser"/> class.
+    /// </summary>
+    /// <param name="logger">The logger instance.</param>
+    public GenPatcherDatParser(ILogger logger)
+    {
+        _logger = logger;
     }
 
     /// <summary>
@@ -112,14 +123,14 @@ public class GenPatcherDatParser(ILogger logger)
 
         if (string.IsNullOrEmpty(content))
         {
-            logger.LogWarning("dl.dat content is empty");
+            _logger.LogWarning("dl.dat content is empty");
             return catalog;
         }
 
         // Split into lines (handle both \r\n and \n)
         var lines = content.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
-        logger.LogDebug("Parsing dl.dat with {LineCount} lines", lines.Length);
+        _logger.LogDebug("Parsing dl.dat with {LineCount} lines", lines.Length);
 
         // Dictionary to group mirrors by content code
         var contentByCode = new Dictionary<string, GenPatcherContentItem>(StringComparer.OrdinalIgnoreCase);
@@ -139,7 +150,7 @@ public class GenPatcherDatParser(ILogger logger)
             if (versionMatch.Success)
             {
                 catalog.CatalogVersion = versionMatch.Groups[1].Value;
-                logger.LogInformation("dl.dat catalog version: {Version}", catalog.CatalogVersion);
+                _logger.LogInformation("dl.dat catalog version: {Version}", catalog.CatalogVersion);
                 continue;
             }
 
@@ -147,7 +158,7 @@ public class GenPatcherDatParser(ILogger logger)
             var contentMatch = ContentLinePattern.Match(trimmedLine);
             if (!contentMatch.Success)
             {
-                logger.LogDebug("Skipping unrecognized line: {Line}", trimmedLine.Length > 50 ? trimmedLine[..50] + "..." : trimmedLine);
+                _logger.LogDebug("Skipping unrecognized line: {Line}", trimmedLine.Length > 50 ? trimmedLine[..50] + "..." : trimmedLine);
                 continue;
             }
 
@@ -158,7 +169,7 @@ public class GenPatcherDatParser(ILogger logger)
 
             if (!long.TryParse(sizeStr, out var fileSize))
             {
-                logger.LogWarning("Failed to parse file size '{Size}' for content code {Code}", sizeStr, code);
+                _logger.LogWarning("Failed to parse file size '{Size}' for content code {Code}", sizeStr, code);
                 continue;
             }
 
@@ -183,18 +194,27 @@ public class GenPatcherDatParser(ILogger logger)
 
         catalog.Items = contentByCode.Values.ToList();
 
-        // Log unique mirror count to show distinct mirrors, not total occurrences
-        var uniqueMirrors = catalog.Items
-            .SelectMany(i => i.Mirrors.Select(m => m.Url))
-            .Distinct()
-            .Count();
-
-        logger.LogInformation(
-            "Parsed {ItemCount} content items with {TotalMirrors} total mirrors ({UniqueMirrors} unique) from dl.dat",
+        _logger.LogInformation(
+            "Parsed {ItemCount} content items with {TotalMirrors} total mirrors from dl.dat",
             catalog.Items.Count,
-            catalog.Items.Sum(i => i.Mirrors.Count),
-            uniqueMirrors);
+            catalog.Items.Sum(i => i.Mirrors.Count));
 
         return catalog;
+    }
+
+    /// <summary>
+    /// Represents the parsed content catalog from dl.dat.
+    /// </summary>
+    public class GenPatcherCatalog
+    {
+        /// <summary>
+        /// Gets or sets the catalog version from the header line.
+        /// </summary>
+        public string CatalogVersion { get; set; } = "unknown";
+
+        /// <summary>
+        /// Gets or sets the list of content items.
+        /// </summary>
+        public List<GenPatcherContentItem> Items { get; set; } = new();
     }
 }

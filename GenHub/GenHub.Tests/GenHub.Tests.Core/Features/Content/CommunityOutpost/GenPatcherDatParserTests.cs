@@ -1,6 +1,8 @@
+using GenHub.Core.Models.Enums;
 using GenHub.Features.Content.Services.CommunityOutpost.Models;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Xunit;
 
 namespace GenHub.Tests.Core.Features.Content.CommunityOutpost;
 

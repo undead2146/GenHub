@@ -39,6 +39,11 @@ public static class CommunityOutpostConstants
     public const string CatalogUrl = "https://legi.cc/gp2/dl.dat";
 
     /// <summary>
+    /// Base URL for legi.cc mirror files.
+    /// </summary>
+    public const string LegiMirrorBaseUrl = "https://legi.cc/gp2/f/";
+
+    /// <summary>
     /// Description for the content provider.
     /// </summary>
     public const string ProviderDescription = "Official patches, tools, and addons from GenPatcher (Community Outpost)";

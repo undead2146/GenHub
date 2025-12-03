@@ -17,8 +17,6 @@ namespace GenHub.Features.Content.Services.CommunityOutpost.Models;
 /// via the semantic properties (DependencyType, CompatibleGameTypes, MinVersion).
 /// </para>
 /// <para>
-/// Dependencies should specify the game type (Generals/ZeroHour) and version requirement,
-/// not a specific publisher. Any EA or Steam installation that meets the requirements will work.
 /// </para>
 /// </remarks>
 public static class GenPatcherDependencyBuilder
@@ -147,7 +145,7 @@ public static class GenPatcherDependencyBuilder
             Id = ManifestId.Create("1.0.any.gameinstallation.zerohour"),
             Name = "Zero Hour Base Installation (Required)",
             DependencyType = ContentType.GameInstallation,
-            MinVersion = "0",
+            MinVersion = "1.0",
             InstallBehavior = DependencyInstallBehavior.RequireExisting,
             IsOptional = false,
             StrictPublisher = false,
@@ -167,7 +165,7 @@ public static class GenPatcherDependencyBuilder
             Id = ManifestId.Create("1.0.any.gameinstallation.generals"),
             Name = "Generals Base Installation (Required)",
             DependencyType = ContentType.GameInstallation,
-            MinVersion = "0",
+            MinVersion = "1.0",
             InstallBehavior = DependencyInstallBehavior.RequireExisting,
             IsOptional = false,
             StrictPublisher = false,
@@ -293,6 +291,9 @@ public static class GenPatcherDependencyBuilder
 
         // Control bars benefit from GenTool for better UI integration
         dependencies.Add(CreateOptionalGenToolDependency());
+
+        // Control bars conflict with each other (only one can be active)
+        // Note: This is handled via IsExclusive flag
     }
 
     /// <summary>
@@ -417,3 +418,4 @@ public static class GenPatcherDependencyBuilder
         }
     }
 }
+
