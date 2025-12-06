@@ -13,7 +13,7 @@ namespace GenHub.Features.GeneralsOnline.Services;
 
 /// <summary>
 /// Client for interacting with the Generals Online API with strongly-typed responses.
-/// Extensibility: Add new methods here when new API endpoints become available. Follow the pattern of 
+/// Extensibility: Add new methods here when new API endpoints become available. Follow the pattern of
 /// providing both typed methods (e.g., GetServiceStatsAsync) and raw JSON methods (e.g., GetServiceStatsJsonAsync).
 /// </summary>
 // TODO: Implement HTTP resilience patterns using Microsoft.Extensions.Http.Resilience to add retry policies,
@@ -120,6 +120,92 @@ public class GeneralsOnlineApiClient(
         return await GetAsync($"{GeneralsOnlineConstants.LeaderboardsEndpoint}?type={period}", cancellationToken);
     }
 
+    // ===== Authentication - Gamecode Flow =====
+
+    /// <inheritdoc />
+    public async Task<string?> CheckLoginAsync(string gameCode, CancellationToken cancellationToken = default)
+    {
+        // TODO: Replace with actual CheckLogin endpoint when available from GO team
+        // Expected endpoint: POST /api/auth/checklogin with gamecode in body
+        // Expected response: { "refresh_token": "token_here" } or { "status": "pending" }
+
+        _logger.LogDebug("Checking login status for gamecode: {GameCode}", gameCode);
+
+        // Stub implementation - returns null (no login yet)
+        await Task.Delay(100, cancellationToken); // Simulate API call
+        return null;
+
+        /* Real implementation will look like:
+        try
+        {
+            var content = new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("gamecode", gameCode)
+            });
+
+            var response = await _httpClient.PostAsync("/api/auth/checklogin", content, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            var result = json.DeserializeOrDefault<CheckLoginResponse>();
+            return result?.RefreshToken;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking login for gamecode {GameCode}", gameCode);
+            return null;
+        }
+        */
+    }
+
+    /// <inheritdoc />
+    public async Task<string?> LoginWithTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
+    {
+        // TODO: Replace with actual LoginWithToken endpoint when available from GO team
+        // Expected endpoint: POST /api/auth/login with refresh_token in body
+        // Expected response: { "session_token": "token_here", "expires_in": 3600 }
+
+        _logger.LogDebug("Validating refresh token");
+
+        // Stub implementation - returns a mock session token if refresh token is valid
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            return null;
+        }
+
+        await Task.Delay(100, cancellationToken); // Simulate API call
+        return $"session_{Guid.NewGuid():N}"; // Mock session token
+
+        /* Real implementation will look like:
+        try
+        {
+            var content = new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("refresh_token", refreshToken)
+            });
+
+            var response = await _httpClient.PostAsync("/api/auth/login", content, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Refresh token validation failed with status: {Status}", response.StatusCode);
+                return null;
+            }
+
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            var result = json.DeserializeOrDefault<LoginWithTokenResponse>();
+            return result?.SessionToken;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error validating refresh token");
+            return null;
+        }
+        */
+    }
+
     // ===== Private Helper Methods =====
     // These methods handle the HTTP communication and error handling uniformly.
     // To add a new endpoint: just call GetAsync or GetAuthenticatedAsync with the URL.
@@ -129,7 +215,7 @@ public class GeneralsOnlineApiClient(
         {
             _logger.LogDebug("Fetching data from {Url}", url);
             var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
-            
+
             if (!response.IsSuccessStatusCode)
             {
                 var error = $"API request failed with status {response.StatusCode} for {url}";
@@ -172,7 +258,7 @@ public class GeneralsOnlineApiClient(
 
             _logger.LogDebug("Fetching authenticated data from {Url}", url);
             var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-            
+
             if (!response.IsSuccessStatusCode)
             {
                 var error = $"Authenticated API request failed with status {response.StatusCode} for {url}";

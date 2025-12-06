@@ -159,6 +159,31 @@ public static class GeneralsOnlineConstants
     /// <summary>HTTP header name for authentication token.</summary>
     public const string AuthTokenHeader = "X-Auth-Token";
 
+    // ===== OAuth and Authentication Flow =====
+
+    /// <summary>Base URL for the login page.</summary>
+    public const string LoginUrlBase = "https://www.playgenerals.online/login";
+
+    /// <summary>Custom URI scheme for OAuth callbacks.</summary>
+    public const string CallbackScheme = "genhub";
+
+    /// <summary>Path component for OAuth callback URI.</summary>
+    public const string CallbackPath = "auth/callback";
+
+    /// <summary>Full callback URI template: genhub://auth/callback.</summary>
+    public const string CallbackUriTemplate = CallbackScheme + "://" + CallbackPath;
+
+    // ===== Credentials File =====
+
+    /// <summary>Name of the GeneralsOnline data folder.</summary>
+    public const string DataFolderName = "GeneralsOnlineData";
+
+    /// <summary>Name of the credentials JSON file.</summary>
+    public const string CredentialsFileName = "credentials.json";
+
+    /// <summary>Relative path to GeneralsOnlineData folder from Generals Zero Hour Data.</summary>
+    public const string GeneralsOnlineDataPath = "Command and Conquer Generals Zero Hour Data" + "\\" + DataFolderName;
+
     // ===== Content Tags =====
 
     /// <summary>Content tags for search and categorization.</summary>
