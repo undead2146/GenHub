@@ -5,6 +5,7 @@ using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.GeneralsOnline;
+using GenHub.Core.Models.GeneralsOnline;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.GeneralsOnline.Services;
@@ -13,20 +14,23 @@ namespace GenHub.Features.GeneralsOnline.Services;
 /// Service for managing Generals Online authentication state.
 /// Monitors the credentials file and provides reactive updates.
 /// </summary>
+/// <param name="credentialsStorage">The credentials storage service.</param>
 /// <param name="logger">The logger instance.</param>
-public class GeneralsOnlineAuthService(ILogger<GeneralsOnlineAuthService> logger) : IGeneralsOnlineAuthService, IDisposable
+public class GeneralsOnlineAuthService(
+    ICredentialsStorageService credentialsStorage,
+    ILogger<GeneralsOnlineAuthService> logger) : IGeneralsOnlineAuthService, IDisposable
 {
     private readonly BehaviorSubject<bool> _isAuthenticatedSubject = new(false);
     private FileSystemWatcher? _fileWatcher;
     private IDisposable? _fileChangeSubscription;
-    private string? _currentToken;
+    private CredentialsModel? _currentCredentials;
     private bool _disposed;
 
     /// <inheritdoc />
     public IObservable<bool> IsAuthenticated => _isAuthenticatedSubject.AsObservable();
 
     /// <inheritdoc />
-    public string? CurrentToken => _currentToken;
+    public string? CurrentToken => _currentCredentials?.RefreshToken;
 
     /// <inheritdoc />
     public async Task InitializeAsync()
@@ -47,26 +51,24 @@ public class GeneralsOnlineAuthService(ILogger<GeneralsOnlineAuthService> logger
     {
         try
         {
-            var path = GetCredentialsPath();
-            if (!File.Exists(path))
+            var credentials = await credentialsStorage.LoadCredentialsAsync().ConfigureAwait(false);
+
+            if (credentials == null)
             {
+                logger.LogDebug("No valid credentials found");
                 UpdateAuthState(null);
                 return false;
             }
 
-            var token = await File.ReadAllTextAsync(path).ConfigureAwait(false);
-            token = token?.Trim();
-
-            if (string.IsNullOrWhiteSpace(token))
+            if (!credentials.IsValid())
             {
-                logger.LogWarning("Credentials file found but token is empty");
+                logger.LogWarning("Loaded credentials are invalid");
                 UpdateAuthState(null);
                 return false;
             }
 
-            // If the file exists and has content, we are "locally" authenticated.
-            // The UI can then trigger VerifyTokenWithServerAsync for server validation.
-            UpdateAuthState(token);
+            logger.LogInformation("Successfully validated credentials");
+            UpdateAuthState(credentials);
             return true;
         }
         catch (Exception ex)
@@ -89,7 +91,32 @@ public class GeneralsOnlineAuthService(ILogger<GeneralsOnlineAuthService> logger
     /// <inheritdoc />
     public Task<string?> GetAuthTokenAsync()
     {
-        return Task.FromResult(_currentToken);
+        return Task.FromResult(_currentCredentials?.RefreshToken);
+    }
+
+    /// <inheritdoc />
+    public async Task SaveRefreshTokenAsync(string refreshToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(refreshToken);
+
+        try
+        {
+            var credentials = new CredentialsModel
+            {
+                RefreshToken = refreshToken,
+            };
+
+            await credentialsStorage.SaveCredentialsAsync(credentials).ConfigureAwait(false);
+            logger.LogInformation("Successfully saved refresh token");
+
+            // Update auth state immediately
+            UpdateAuthState(credentials);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to save refresh token");
+            throw;
+        }
     }
 
     /// <inheritdoc />
@@ -120,20 +147,11 @@ public class GeneralsOnlineAuthService(ILogger<GeneralsOnlineAuthService> logger
         _disposed = true;
     }
 
-    private static string GetCredentialsPath()
-    {
-        return Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            "Command and Conquer Generals Zero Hour Data",
-            "GeneralsOnlineData",
-            "credentials.json");
-    }
-
     private void SetupFileWatcher()
     {
         try
         {
-            var path = GetCredentialsPath();
+            var path = credentialsStorage.GetCredentialsPath();
             var directory = Path.GetDirectoryName(path);
             var filename = Path.GetFileName(path);
 
@@ -185,10 +203,10 @@ public class GeneralsOnlineAuthService(ILogger<GeneralsOnlineAuthService> logger
         }
     }
 
-    private void UpdateAuthState(string? token)
+    private void UpdateAuthState(CredentialsModel? credentials)
     {
-        _currentToken = token;
-        var isAuthenticated = !string.IsNullOrWhiteSpace(token);
+        _currentCredentials = credentials;
+        var isAuthenticated = credentials != null && credentials.IsValid();
 
         if (_isAuthenticatedSubject.Value != isAuthenticated)
         {

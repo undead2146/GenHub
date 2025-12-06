@@ -14,6 +14,7 @@ namespace GenHub.Features.GeneralsOnline.ViewModels;
 /// </summary>
 /// <param name="apiClient">The API client.</param>
 /// <param name="authService">The authentication service.</param>
+/// <param name="loginViewModel">The login ViewModel.</param>
 /// <param name="leaderboardViewModel">The leaderboard ViewModel.</param>
 /// <param name="matchHistoryViewModel">The match history ViewModel.</param>
 /// <param name="lobbiesViewModel">The lobbies ViewModel.</param>
@@ -23,6 +24,7 @@ namespace GenHub.Features.GeneralsOnline.ViewModels;
 public partial class GeneralsOnlineViewModel(
     IGeneralsOnlineApiClient apiClient,
     IGeneralsOnlineAuthService authService,
+    LoginViewModel loginViewModel,
     LeaderboardViewModel leaderboardViewModel,
     MatchHistoryViewModel matchHistoryViewModel,
     LobbiesViewModel lobbiesViewModel,
@@ -44,6 +46,11 @@ public partial class GeneralsOnlineViewModel(
 
     [ObservableProperty]
     private int selectedTabIndex;
+
+    /// <summary>
+    /// Gets the login ViewModel.
+    /// </summary>
+    public LoginViewModel Login => loginViewModel;
 
     /// <summary>
     /// Gets the leaderboard ViewModel.

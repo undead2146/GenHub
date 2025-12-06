@@ -56,99 +56,108 @@
     </Style>
   </UserControl.Styles>
 
-  <Grid RowDefinitions="Auto, *">
-    <!-- Compact Header Bar -->
-    <Border Grid.Row="0" Classes="header-bar" Margin="0,0,0,8">
-      <Grid ColumnDefinitions="Auto, Auto, *, Auto">
-        <!-- Logo and Status -->
-        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <TextBlock Text="🎮" FontSize="16"/>
-          <TextBlock Text="Generals Online" FontWeight="SemiBold" FontSize="14" Foreground="White"/>
-          <Border Background="#1e1e2e" CornerRadius="10" Padding="8,3" Margin="4,0,0,0">
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <Ellipse Classes="status-online" IsVisible="{Binding ServiceStatus.IsServiceOnline}" VerticalAlignment="Center"/>
-              <Ellipse Classes="status-offline" IsVisible="{Binding !ServiceStatus.IsServiceOnline}" VerticalAlignment="Center"/>
-              <TextBlock Text="Online" Foreground="#4ade80" FontSize="11" IsVisible="{Binding ServiceStatus.IsServiceOnline}"/>
-              <TextBlock Text="Offline" Foreground="#f87171" FontSize="11" IsVisible="{Binding !ServiceStatus.IsServiceOnline}"/>
-            </StackPanel>
-          </Border>
-        </StackPanel>
+  <Panel>
+    <!-- Main Content: Show LoginView when not authenticated, otherwise show authenticated content -->
+    <Grid RowDefinitions="Auto, *" IsVisible="{Binding !IsAuthenticated}">
+      <!-- Show LoginView when NOT authenticated -->
+      <views:LoginView Grid.Row="0" Grid.RowSpan="2" DataContext="{Binding Login}"/>
+    </Grid>
 
-        <!-- Status Message -->
-        <TextBlock Grid.Column="2" Text="{Binding StatusMessage}" 
-                   HorizontalAlignment="Center" VerticalAlignment="Center" 
-                   Opacity="0.5" Foreground="White" FontSize="11"/>
-
-        <!-- Actions -->
-        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6">
-          <Button Command="{Binding RefreshCommand}" Classes="refresh-btn">
-            <StackPanel Orientation="Horizontal" Spacing="4">
-              <TextBlock Text="↻" FontSize="12"/>
-              <TextBlock Text="Refresh" FontSize="11"/>
-            </StackPanel>
-          </Button>
-        </StackPanel>
-      </Grid>
-    </Border>
-
-    <!-- Main Content Tabs -->
-    <TabControl Grid.Row="1" Padding="0">
-      
-      <!-- Service Status Tab -->
-      <TabItem>
-        <TabItem.Header>
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <TextBlock Text="📊" FontSize="12"/>
-            <TextBlock Text="Status"/>
-          </StackPanel>
-        </TabItem.Header>
-        <views:ServiceStatusView DataContext="{Binding ServiceStatus}"/>
-      </TabItem>
-
-      <!-- Multiplayer / Active Players Tab -->
-      <TabItem>
-        <TabItem.Header>
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <TextBlock Text="🎯" FontSize="12"/>
-            <TextBlock Text="Multiplayer"/>
-            <Border Background="#4ade80" CornerRadius="8" Padding="5,1" IsVisible="{Binding Lobbies.HasPlayersOnline}">
-              <TextBlock Text="{Binding Lobbies.OnlinePlayersCount}" FontSize="10" Foreground="#1E1E2E" FontWeight="SemiBold"/>
+    <!-- Authenticated Content -->
+    <Grid RowDefinitions="Auto, *" IsVisible="{Binding IsAuthenticated}">
+      <!-- Compact Header Bar -->
+      <Border Grid.Row="0" Classes="header-bar" Margin="0,0,0,8">
+        <Grid ColumnDefinitions="Auto, Auto, *, Auto">
+          <!-- Logo and Status -->
+          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <TextBlock Text="🎮" FontSize="16"/>
+            <TextBlock Text="Generals Online" FontWeight="SemiBold" FontSize="14" Foreground="White"/>
+            <Border Background="#1e1e2e" CornerRadius="10" Padding="8,3" Margin="4,0,0,0">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Ellipse Classes="status-online" IsVisible="{Binding ServiceStatus.IsServiceOnline}" VerticalAlignment="Center"/>
+                <Ellipse Classes="status-offline" IsVisible="{Binding !ServiceStatus.IsServiceOnline}" VerticalAlignment="Center"/>
+                <TextBlock Text="Online" Foreground="#4ade80" FontSize="11" IsVisible="{Binding ServiceStatus.IsServiceOnline}"/>
+                <TextBlock Text="Offline" Foreground="#f87171" FontSize="11" IsVisible="{Binding !ServiceStatus.IsServiceOnline}"/>
+              </StackPanel>
             </Border>
           </StackPanel>
-        </TabItem.Header>
-        <views:LobbiesView DataContext="{Binding Lobbies}"/>
-      </TabItem>
 
-      <!-- Leaderboards Tab -->
-      <TabItem>
-        <TabItem.Header>
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <TextBlock Text="🏆" FontSize="12"/>
-            <TextBlock Text="Leaderboards"/>
+          <!-- Status Message -->
+          <TextBlock Grid.Column="2" Text="{Binding StatusMessage}" 
+                     HorizontalAlignment="Center" VerticalAlignment="Center" 
+                     Opacity="0.5" Foreground="White" FontSize="11"/>
+
+          <!-- Actions -->
+          <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6">
+            <Button Command="{Binding RefreshCommand}" Classes="refresh-btn">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <TextBlock Text="↻" FontSize="12"/>
+                <TextBlock Text="Refresh" FontSize="11"/>
+              </StackPanel>
+            </Button>
           </StackPanel>
-        </TabItem.Header>
-        <views:LeaderboardView DataContext="{Binding Leaderboard}"/>
-      </TabItem>
+        </Grid>
+      </Border>
 
-      <!-- Match History Tab -->
-      <TabItem>
-        <TabItem.Header>
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <TextBlock Text="📜" FontSize="12"/>
-            <TextBlock Text="Match History"/>
-          </StackPanel>
-        </TabItem.Header>
-        <views:MatchHistoryView DataContext="{Binding MatchHistory}"/>
-      </TabItem>
+      <!-- Main Content Tabs -->
+      <TabControl Grid.Row="1" Padding="0">
+        
+        <!-- Service Status Tab -->
+        <TabItem>
+          <TabItem.Header>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="📊" FontSize="12"/>
+              <TextBlock Text="Status"/>
+            </StackPanel>
+          </TabItem.Header>
+          <views:ServiceStatusView DataContext="{Binding ServiceStatus}"/>
+        </TabItem>
 
-    </TabControl>
-    
-    <!-- Loading Overlay -->
-    <Border Grid.Row="0" Grid.RowSpan="2" Classes="loading-overlay" IsVisible="{Binding IsLoading}">
-      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
-        <TextBlock Text="⏳" FontSize="32" HorizontalAlignment="Center"/>
-        <TextBlock Text="Connecting to Generals Online..." Foreground="White" FontWeight="SemiBold" FontSize="14"/>
-      </StackPanel>
-    </Border>
-  </Grid>
+        <!-- Multiplayer / Active Players Tab -->
+        <TabItem>
+          <TabItem.Header>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="🎯" FontSize="12"/>
+              <TextBlock Text="Multiplayer"/>
+              <Border Background="#4ade80" CornerRadius="8" Padding="5,1" IsVisible="{Binding Lobbies.HasPlayersOnline}">
+                <TextBlock Text="{Binding Lobbies.OnlinePlayersCount}" FontSize="10" Foreground="#1E1E2E" FontWeight="SemiBold"/>
+              </Border>
+            </StackPanel>
+          </TabItem.Header>
+          <views:LobbiesView DataContext="{Binding Lobbies}"/>
+        </TabItem>
+
+        <!-- Leaderboards Tab -->
+        <TabItem>
+          <TabItem.Header>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="🏆" FontSize="12"/>
+              <TextBlock Text="Leaderboards"/>
+            </StackPanel>
+          </TabItem.Header>
+          <views:LeaderboardView DataContext="{Binding Leaderboard}"/>
+        </TabItem>
+
+        <!-- Match History Tab -->
+        <TabItem>
+          <TabItem.Header>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="📜" FontSize="12"/>
+              <TextBlock Text="Match History"/>
+            </StackPanel>
+          </TabItem.Header>
+          <views:MatchHistoryView DataContext="{Binding MatchHistory}"/>
+        </TabItem>
+
+      </TabControl>
+      
+      <!-- Loading Overlay -->
+      <Border Grid.Row="0" Grid.RowSpan="2" Classes="loading-overlay" IsVisible="{Binding IsLoading}">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+          <TextBlock Text="⏳" FontSize="32" HorizontalAlignment="Center"/>
+          <TextBlock Text="Connecting to Generals Online..." Foreground="White" FontWeight="SemiBold" FontSize="14"/>
+        </StackPanel>
+      </Border>
+    </Grid>
+  </Panel>
 </UserControl>

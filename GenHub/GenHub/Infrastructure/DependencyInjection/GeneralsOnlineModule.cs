@@ -27,6 +27,9 @@ public static class GeneralsOnlineModule
             client.DefaultRequestHeaders.Add(GeneralsOnlineConstants.AcceptHeader, GeneralsOnlineConstants.AcceptHeaderValue);
         });
 
+        // Register credentials storage service
+        services.AddSingleton<ICredentialsStorageService, CredentialsStorageService>();
+
         // Register authentication service as singleton (monitors credentials file)
         services.AddSingleton<IGeneralsOnlineAuthService, GeneralsOnlineAuthService>();
 
@@ -34,6 +37,7 @@ public static class GeneralsOnlineModule
         services.AddSingleton<HtmlParsingService>();
 
         // Register child ViewModels
+        services.AddSingleton<LoginViewModel>();
         services.AddSingleton<LeaderboardViewModel>();
         services.AddSingleton<MatchHistoryViewModel>();
         services.AddSingleton<LobbiesViewModel>();
