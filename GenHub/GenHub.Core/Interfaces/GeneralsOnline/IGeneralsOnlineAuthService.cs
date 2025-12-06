@@ -43,4 +43,11 @@ public interface IGeneralsOnlineAuthService
     /// </summary>
     /// <returns>A task representing the asynchronous initialization operation.</returns>
     Task InitializeAsync();
+
+    /// <summary>
+    /// Saves a refresh token to the credentials file.
+    /// </summary>
+    /// <param name="refreshToken">The refresh token to save.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    Task SaveRefreshTokenAsync(string refreshToken);
 }

@@ -109,4 +109,22 @@ public interface IGeneralsOnlineApiClient
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>An operation result containing the JSON string or error information.</returns>
     Task<OperationResult<string>> GetLeaderboardJsonAsync(string period = "daily", CancellationToken cancellationToken = default);
+
+    // ===== Authentication - Gamecode Flow =====
+
+    /// <summary>
+    /// Checks if a user has completed login for the given gamecode.
+    /// </summary>
+    /// <param name="gameCode">The gamecode to check.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The refresh token if login is complete, otherwise null.</returns>
+    Task<string?> CheckLoginAsync(string gameCode, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Validates a refresh token and exchanges it for a session token.
+    /// </summary>
+    /// <param name="refreshToken">The refresh token to validate.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The session token if valid, otherwise null.</returns>
+    Task<string?> LoginWithTokenAsync(string refreshToken, CancellationToken cancellationToken = default);
 }

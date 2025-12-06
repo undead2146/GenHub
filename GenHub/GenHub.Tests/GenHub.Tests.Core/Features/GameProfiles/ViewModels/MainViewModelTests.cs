@@ -69,6 +69,7 @@ public class MainViewModelTests
     [InlineData(NavigationTab.GameProfiles)]
     [InlineData(NavigationTab.Downloads)]
     [InlineData(NavigationTab.Tools)]
+    [InlineData(NavigationTab.GeneralsOnline)]
     [InlineData(NavigationTab.Settings)]
     public void SelectTabCommand_SetsSelectedTab(NavigationTab tab)
     {
@@ -183,6 +184,7 @@ public class MainViewModelTests
     [InlineData(NavigationTab.GameProfiles)]
     [InlineData(NavigationTab.Downloads)]
     [InlineData(NavigationTab.Tools)]
+    [InlineData(NavigationTab.GeneralsOnline)]
     [InlineData(NavigationTab.Settings)]
     public void CurrentTabViewModel_ReturnsCorrectViewModel(NavigationTab tab)
     {
@@ -227,6 +229,9 @@ public class MainViewModelTests
                 break;
             case NavigationTab.Settings:
                 Assert.IsType<SettingsViewModel>(currentViewModel);
+                break;
+            case NavigationTab.GeneralsOnline:
+                Assert.IsType<GeneralsOnlineViewModel>(currentViewModel);
                 break;
         }
     }
@@ -304,9 +309,16 @@ public class MainViewModelTests
             mockExternalLinkService.Object,
             new Mock<ILogger<ServiceStatusViewModel>>().Object);
 
+        var loginVm = new LoginViewModel(
+            mockApiClient.Object,
+            mockAuthService.Object,
+            mockExternalLinkService.Object,
+            new Mock<ILogger<LoginViewModel>>().Object);
+
         return new GeneralsOnlineViewModel(
             mockApiClient.Object,
             mockAuthService.Object,
+            loginVm,
             leaderboardVm,
             matchHistoryVm,
             lobbiesVm,

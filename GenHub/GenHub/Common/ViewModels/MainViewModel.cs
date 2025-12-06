@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Core.Constants;
@@ -15,6 +14,7 @@ using GenHub.Core.Interfaces.GeneralsOnline;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Features.AppUpdate.Interfaces;
+using GenHub.Features.AppUpdate.Views;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.ViewModels;
 using GenHub.Features.GeneralsOnline.ViewModels;
@@ -92,10 +92,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             NavigationTab.GameProfiles,
             NavigationTab.Downloads,
             NavigationTab.Tools,
-            NavigationTab.Settings,
-
-            // TESTING ONLY: Enable Generals Online tab for development/testing
             NavigationTab.GeneralsOnline,
+            NavigationTab.Settings,
         };
 
         // Load initial settings using unified configuration
@@ -187,31 +185,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Shows the update notification dialog.
-    /// </summary>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    [RelayCommand]
-    public async Task ShowUpdateDialogAsync()
-    {
-        try
-        {
-            var mainWindow = GetMainWindow();
-            if (mainWindow != null)
-            {
-                await GenHub.Features.AppUpdate.Views.UpdateNotificationWindow.ShowAsync(mainWindow);
-            }
-            else
-            {
-                _logger?.LogWarning("Cannot show update dialog - main window not found");
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "Failed to show update dialog");
-        }
-    }
-
-    /// <summary>
     /// Performs asynchronous initialization for the shell and all tabs.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
@@ -224,7 +197,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         await _generalsOnlineAuthService.InitializeAsync();
 
         // Subscribe to authentication changes
-        // TESTING ONLY: Authentication-based tab visibility disabled for development/testing
         /*
         _generalsOnlineAuthService.IsAuthenticated.Subscribe(isAuthenticated =>
         {
@@ -262,7 +234,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             });
         });
         */
-
         _logger?.LogInformation("MainViewModel initialized");
 
         // Start background check with cancellation support
@@ -475,5 +446,40 @@ public partial class MainViewModel : ObservableObject, IDisposable
         SettingsViewModel.IsViewVisible = value == NavigationTab.Settings;
 
         SaveSelectedTab(value);
+    }
+
+    /// <summary>
+    /// Shows the update notification dialog.
+    /// </summary>
+    [RelayCommand]
+    private async Task ShowUpdateDialogAsync()
+    {
+        try
+        {
+            _logger?.LogInformation("ShowUpdateDialogCommand executed");
+
+            var mainWindow = GetMainWindow();
+            if (mainWindow is not null)
+            {
+                _logger?.LogInformation("Opening update notification window");
+
+                var updateWindow = new UpdateNotificationWindow
+                {
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                };
+
+                await updateWindow.ShowDialog(mainWindow);
+
+                _logger?.LogInformation("Update notification window closed");
+            }
+            else
+            {
+                _logger?.LogWarning("Could not find main window to show update dialog");
+            }
+        }
+        catch (System.Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to show update notification window");
+        }
     }
 }
