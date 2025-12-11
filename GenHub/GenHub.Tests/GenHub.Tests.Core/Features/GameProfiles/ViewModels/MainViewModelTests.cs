@@ -51,8 +51,8 @@ public class MainViewModelTests
 
         // Act
         var vm = new MainViewModel(
-            new GameProfileLauncherViewModel(),
-            downloadsVm,
+            new GameProfileLauncherViewModel(null, null, null, null, null, null, null, null, Microsoft.Extensions.Logging.Abstractions.NullLogger<GameProfileLauncherViewModel>.Instance),
+            new DownloadsViewModel(Mock.Of<IServiceProvider>(), Mock.Of<ILogger<DownloadsViewModel>>(), Mock.Of<INotificationService>()),
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,
@@ -93,8 +93,8 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationManagerViewModel>>(),
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var vm = new MainViewModel(
-            new GameProfileLauncherViewModel(),
-            downloadsVm,
+            new GameProfileLauncherViewModel(null, null, null, null, null, null, null, null, Microsoft.Extensions.Logging.Abstractions.NullLogger<GameProfileLauncherViewModel>.Instance),
+            new DownloadsViewModel(Mock.Of<IServiceProvider>(), Mock.Of<ILogger<DownloadsViewModel>>(), Mock.Of<INotificationService>()),
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,
@@ -130,8 +130,8 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationManagerViewModel>>(),
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var viewModel = new MainViewModel(
-            new GameProfileLauncherViewModel(),
-            downloadsVm,
+            new GameProfileLauncherViewModel(null, null, null, null, null, null, null, null, Microsoft.Extensions.Logging.Abstractions.NullLogger<GameProfileLauncherViewModel>.Instance),
+            new DownloadsViewModel(Mock.Of<IServiceProvider>(), Mock.Of<ILogger<DownloadsViewModel>>(), Mock.Of<INotificationService>()),
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,
@@ -170,8 +170,8 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationManagerViewModel>>(),
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var vm = new MainViewModel(
-            new GameProfileLauncherViewModel(),
-            CreateDownloadsVm(),
+            new GameProfileLauncherViewModel(null, null, null, null, null, null, null, null, Microsoft.Extensions.Logging.Abstractions.NullLogger<GameProfileLauncherViewModel>.Instance),
+            new DownloadsViewModel(Mock.Of<IServiceProvider>(), Mock.Of<ILogger<DownloadsViewModel>>(), Mock.Of<INotificationService>()),
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,
@@ -181,9 +181,6 @@ public class MainViewModelTests
             mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
             mockLogger.Object);
-
-        // Act & Assert
-        await vm.InitializeAsync();
         await vm.InitializeAsync(); // Should not throw
         Assert.True(true);
     }
@@ -212,8 +209,8 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationManagerViewModel>>(),
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var vm = new MainViewModel(
-            new GameProfileLauncherViewModel(),
-            CreateDownloadsVm(),
+            new GameProfileLauncherViewModel(null, null, null, null, null, null, null, null, Microsoft.Extensions.Logging.Abstractions.NullLogger<GameProfileLauncherViewModel>.Instance),
+            new DownloadsViewModel(Mock.Of<IServiceProvider>(), Mock.Of<ILogger<DownloadsViewModel>>(), Mock.Of<INotificationService>()),
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,

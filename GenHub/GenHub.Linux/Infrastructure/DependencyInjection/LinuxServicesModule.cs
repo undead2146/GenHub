@@ -1,5 +1,8 @@
 using System;
+using System.Runtime.Versioning;
 using GenHub.Core.Interfaces.GameInstallations;
+using GenHub.Core.Interfaces.Shortcuts;
+using GenHub.Linux.Features.Shortcuts;
 using GenHub.Linux.GameInstallations;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -18,6 +21,7 @@ public static class LinuxServicesModule
     public static IServiceCollection AddLinuxServices(this IServiceCollection services)
     {
         services.AddSingleton<IGameInstallationDetector, LinuxInstallationDetector>();
+        services.AddSingleton<IShortcutService, LinuxShortcutService>();
 
         return services;
     }

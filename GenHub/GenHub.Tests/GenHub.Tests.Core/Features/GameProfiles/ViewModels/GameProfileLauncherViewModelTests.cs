@@ -29,6 +29,7 @@ public class GameProfileLauncherViewModelTests
             null,
             null,
             null,
+            null,
             NullLogger<GameProfileLauncherViewModel>.Instance);
 
         Assert.NotNull(vm);
@@ -36,22 +37,6 @@ public class GameProfileLauncherViewModelTests
         Assert.False(vm.IsLaunching);
         Assert.False(vm.IsEditMode);
         Assert.Equal(string.Empty, vm.StatusMessage);
-    }
-
-    /// <summary>
-    /// Verifies that the parameterless constructor initializes correctly.
-    /// </summary>
-    [Fact]
-    public void Constructor_WithoutParameters_InitializesCorrectly()
-    {
-        var vm = new GameProfileLauncherViewModel();
-
-        Assert.NotNull(vm);
-        Assert.Empty(vm.Profiles);
-        Assert.False(vm.IsLaunching);
-        Assert.False(vm.IsEditMode);
-        Assert.Equal("Design-time preview", vm.StatusMessage); // Updated to match actual design-time behavior
-        Assert.False(vm.IsServiceAvailable); // Design-time constructor sets this to false
     }
 
     /// <summary>
@@ -64,6 +49,7 @@ public class GameProfileLauncherViewModelTests
         var installationService = new Mock<IGameInstallationService>();
         var vm = new GameProfileLauncherViewModel(
             installationService.Object,
+            null,
             null,
             null,
             null,
@@ -103,6 +89,7 @@ public class GameProfileLauncherViewModelTests
             null,
             null,
             null,
+            null,
             NullLogger<GameProfileLauncherViewModel>.Instance);
 
         await vm.ScanForGamesCommand.ExecuteAsync(null);
@@ -126,6 +113,7 @@ public class GameProfileLauncherViewModelTests
 
         var vm = new GameProfileLauncherViewModel(
             installationService.Object,
+            null,
             null,
             null,
             null,
@@ -158,6 +146,7 @@ public class GameProfileLauncherViewModelTests
             null,
             null,
             null,
+            null,
             NullLogger<GameProfileLauncherViewModel>.Instance);
 
         await vm.ScanForGamesCommand.ExecuteAsync(null);
@@ -172,7 +161,16 @@ public class GameProfileLauncherViewModelTests
     [Fact]
     public async Task ScanForGamesCommand_WithoutService_ShowsError()
     {
-        var vm = new GameProfileLauncherViewModel(); // No services injected
+        var vm = new GameProfileLauncherViewModel(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            NullLogger<GameProfileLauncherViewModel>.Instance);
 
         await vm.ScanForGamesCommand.ExecuteAsync(null);
 

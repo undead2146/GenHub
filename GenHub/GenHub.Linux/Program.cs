@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.Versioning;
 using Avalonia;
 using GenHub.Core.Constants;
 using GenHub.Infrastructure.DependencyInjection;

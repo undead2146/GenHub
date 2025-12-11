@@ -12,6 +12,7 @@ using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
@@ -33,10 +34,9 @@ public partial class GameProfileLauncherViewModel(
     IProfileEditorFacade? profileEditorFacade,
     IConfigurationProviderService? configService,
     IGameProcessManager? gameProcessManager,
-    ILogger<GameProfileLauncherViewModel>? logger) : ViewModelBase
+    IShortcutService? shortcutService,
+    ILogger<GameProfileLauncherViewModel> logger) : ViewModelBase
 {
-    private readonly ILogger<GameProfileLauncherViewModel> logger = logger ?? NullLogger<GameProfileLauncherViewModel>.Instance;
-
     private readonly SemaphoreSlim _launchSemaphore = new(1, 1);
 
     [ObservableProperty]
@@ -62,23 +62,6 @@ public partial class GameProfileLauncherViewModel(
 
     [ObservableProperty]
     private bool _isScanning;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="GameProfileLauncherViewModel"/> class for design-time or test usage.
-    /// This constructor is only for design-time and testing scenarios.
-    /// </summary>
-    public GameProfileLauncherViewModel()
-        : this(null, null, null, null, null, null, null, null)
-    {
-        // Initialize with sample data for design-time
-        StatusMessage = "Design-time preview";
-        IsServiceAvailable = false;
-    }
-
-    /// <summary>
-    /// Gets the command to create a shortcut for the selected profile.
-    /// </summary>
-    public IRelayCommand CreateShortcutCommand { get; } = new RelayCommand(() => { });
 
     /// <summary>
     /// Performs asynchronous initialization for the GameProfileLauncherViewModel.
@@ -828,6 +811,56 @@ public partial class GameProfileLauncherViewModel(
         {
             IsPreparingWorkspace = false;
             profile.IsPreparingWorkspace = false;
+        }
+    }
+
+    /// <summary>
+    /// Creates a desktop shortcut for the specified game profile.
+    /// </summary>
+    /// <param name="profile">The game profile to create a shortcut for.</param>
+    [RelayCommand]
+    private async Task CreateShortcut(GameProfileItemViewModel profile)
+    {
+        if (shortcutService == null)
+        {
+            StatusMessage = "Shortcut service not available";
+            return;
+        }
+
+        if (gameProfileManager == null)
+        {
+            StatusMessage = "Profile manager not available";
+            return;
+        }
+
+        try
+        {
+            StatusMessage = $"Creating desktop shortcut for {profile.Name}...";
+
+            // Get the full profile to pass to the shortcut service
+            var profileResult = await gameProfileManager.GetProfileAsync(profile.ProfileId);
+            if (!profileResult.Success || profileResult.Data == null)
+            {
+                StatusMessage = $"Failed to load profile: {string.Join(", ", profileResult.Errors)}";
+                return;
+            }
+
+            var result = await shortcutService.CreateDesktopShortcutAsync(profileResult.Data);
+            if (result.Success)
+            {
+                StatusMessage = $"Desktop shortcut created for {profile.Name}";
+                logger?.LogInformation("Created desktop shortcut for profile {ProfileName} at {Path}", profile.Name, result.Data);
+            }
+            else
+            {
+                StatusMessage = $"Failed to create shortcut: {string.Join(", ", result.Errors)}";
+                logger?.LogWarning("Failed to create shortcut for profile {ProfileName}: {Errors}", profile.Name, string.Join(", ", result.Errors));
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Error creating shortcut for profile {ProfileName}", profile.Name);
+            StatusMessage = $"Error creating shortcut for {profile.Name}";
         }
     }
 
