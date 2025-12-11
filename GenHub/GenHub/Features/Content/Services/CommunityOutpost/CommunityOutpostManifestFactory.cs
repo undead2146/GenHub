@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Models.Enums;
@@ -110,29 +111,6 @@ public class CommunityOutpostManifestFactory(
             ContentType.Patch => extractedDirectory,
             _ => extractedDirectory
         };
-    }
-
-    /// <summary>
-    /// Extracts a numeric version from a version string like "2025-11-07" or "weekly-2025-11-21".
-    /// Extracts all digits and returns them as an integer (e.g., "2025-11-07" -> 20251107).
-    /// </summary>
-    private static int ExtractVersionFromVersionString(string? version)
-    {
-        if (string.IsNullOrEmpty(version))
-        {
-            return 0;
-        }
-
-        // Extract all digits from the version string
-        var digits = System.Text.RegularExpressions.Regex.Replace(version, @"\D", string.Empty);
-
-        // Take first 8 digits (YYYYMMDD format) to avoid overflow
-        if (digits.Length > 8)
-        {
-            digits = digits.Substring(0, 8);
-        }
-
-        return int.TryParse(digits, out var result) ? result : 0;
     }
 
     /// <summary>
@@ -244,7 +222,7 @@ public class CommunityOutpostManifestFactory(
 
             // Extract version from original manifest Version for consistent versioning
             // Version is typically a date string like "2025-11-07" -> 20251107
-            var userVersion = ExtractVersionFromVersionString(originalManifest.Version);
+            var userVersion = VersionHelper.ExtractVersionFromVersionString(originalManifest.Version);
 
             // Determine content name based on content type
             var contentName = contentType switch

@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
+using GenHub.Features.Content.Services.GeneralsOnline;
 using GenHub.Features.Content.ViewModels;
 using Microsoft.Extensions.Logging;
 
@@ -155,7 +156,7 @@ public partial class DownloadsViewModel(IServiceProvider serviceProvider, ILogge
             var card = PublisherCards.FirstOrDefault(c => c.PublisherId == GeneralsOnlineConstants.PublisherType);
             if (card == null) return;
 
-            var discoverer = serviceProvider.GetService(typeof(GenHub.Features.Content.Services.GeneralsOnline.GeneralsOnlineDiscoverer)) as GenHub.Features.Content.Services.GeneralsOnline.GeneralsOnlineDiscoverer;
+            var discoverer = serviceProvider.GetService(typeof(GeneralsOnlineDiscoverer)) as GeneralsOnlineDiscoverer;
             if (discoverer == null) return;
 
             var result = await discoverer.DiscoverAsync(new ContentSearchQuery());
@@ -259,8 +260,6 @@ public partial class DownloadsViewModel(IServiceProvider serviceProvider, ILogge
                 if (latest != null)
                 {
                     card.LatestVersion = latest.Version;
-
-                    // card.ReleaseNotes = latest.Description ?? "Weekly releases of Generals and Zero Hour game code"; // Keep generic description
                     card.DownloadSize = latest.DownloadSize;
                     card.ReleaseDate = latest.LastUpdated;
                 }
@@ -327,8 +326,6 @@ public partial class DownloadsViewModel(IServiceProvider serviceProvider, ILogge
                 if (latest != null)
                 {
                     card.LatestVersion = latest.Version;
-
-                    // card.ReleaseNotes = latest.Description ?? card.ReleaseNotes; // Keep generic description
                     card.DownloadSize = latest.DownloadSize;
                     card.ReleaseDate = latest.LastUpdated;
                 }
@@ -372,7 +369,7 @@ public partial class DownloadsViewModel(IServiceProvider serviceProvider, ILogge
     {
         try
         {
-            var discoverer = serviceProvider.GetService(typeof(GenHub.Features.Content.Services.GeneralsOnline.GeneralsOnlineDiscoverer)) as GenHub.Features.Content.Services.GeneralsOnline.GeneralsOnlineDiscoverer;
+            var discoverer = serviceProvider.GetService(typeof(GeneralsOnlineDiscoverer)) as GeneralsOnlineDiscoverer;
             if (discoverer != null)
             {
                 var result = await discoverer.DiscoverAsync(new ContentSearchQuery());

@@ -1,3 +1,5 @@
+using GenHub.Core.Helpers;
+
 namespace GenHub.Core.Models.Common;
 
 /// <summary>
@@ -58,25 +60,8 @@ public class DownloadProgress
             : null;
 
     /// <summary>Gets a formatted string representation of the download speed.</summary>
-    public string FormattedSpeed => string.Format("{0}/s", FormatBytes(BytesPerSecond));
+    public string FormattedSpeed => string.Format("{0}/s", ByteFormatHelper.FormatBytes(BytesPerSecond));
 
     /// <summary>Gets a formatted string representation of the progress.</summary>
-    public string FormattedProgress => $"{FormatBytes(BytesReceived)} / {FormatBytes(TotalBytes)}";
-
-    private static string FormatBytes(long bytes)
-    {
-        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
-        double len = bytes;
-        int order = 0;
-        while (len >= 1024 && order < sizes.Length - 1)
-        {
-            order++;
-            len = len / 1024.0;
-        }
-
-        // TODO: Replace with localized formatting when localization system is implemented
-        // This uses InvariantCulture for consistent formatting across different system locales
-        // Future: Consider using IStringLocalizer or similar localization service
-        return string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:0.0} {1}", len, sizes[order]);
-    }
+    public string FormattedProgress => $"{ByteFormatHelper.FormatBytes(BytesReceived)} / {ByteFormatHelper.FormatBytes(TotalBytes)}";
 }
