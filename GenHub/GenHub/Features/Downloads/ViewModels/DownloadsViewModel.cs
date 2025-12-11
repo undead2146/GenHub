@@ -28,14 +28,6 @@ public partial class DownloadsViewModel(INotificationService notificationService
     }
 
     [RelayCommand]
-    private void ShowTestNotification()
-    {
-        _notificationService?.ShowSuccess(
-            "Download Complete",
-            "The download has finished successfully.");
-    }
-
-    [RelayCommand]
     private void OpenGitHubBuilds()
     {
         // TODO: Implement navigation to GitHub builds page

@@ -35,6 +35,7 @@ public class NotificationMessage
 
     /// <summary>
     /// Gets the auto-dismiss timeout in milliseconds. Null means no auto-dismiss.
+    /// When null, the notification must be manually dismissed by clicking the X button in the top-right corner.
     /// </summary>
     public int? AutoDismissMilliseconds { get; init; }
 

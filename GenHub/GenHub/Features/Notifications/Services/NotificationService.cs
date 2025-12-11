@@ -11,25 +11,12 @@ namespace GenHub.Features.Notifications.Services;
 /// <summary>
 /// Service for managing and displaying notifications.
 /// </summary>
-public class NotificationService : INotificationService, IDisposable
+public class NotificationService(ILogger<NotificationService> logger) : INotificationService, IDisposable
 {
-    private readonly ILogger<NotificationService> _logger;
-    private readonly Subject<NotificationMessage> _notificationSubject;
-    private readonly Subject<Guid> _dismissSubject;
-    private readonly Subject<bool> _dismissAllSubject;
+    private readonly Subject<NotificationMessage> _notificationSubject = new();
+    private readonly Subject<Guid> _dismissSubject = new();
+    private readonly Subject<bool> _dismissAllSubject = new();
     private bool _disposed;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="NotificationService"/> class.
-    /// </summary>
-    /// <param name="logger">The logger instance.</param>
-    public NotificationService(ILogger<NotificationService> logger)
-    {
-        _logger = logger;
-        _notificationSubject = new Subject<NotificationMessage>();
-        _dismissSubject = new Subject<Guid>();
-        _dismissAllSubject = new Subject<bool>();
-    }
 
     /// <inheritdoc/>
     public IObservable<NotificationMessage> Notifications => _notificationSubject;
@@ -89,7 +76,7 @@ public class NotificationService : INotificationService, IDisposable
     {
         if (_disposed)
         {
-            _logger.LogWarning("Attempted to show notification after service disposal");
+            logger.LogWarning("Attempted to show notification after service disposal");
             return;
         }
 
@@ -98,7 +85,7 @@ public class NotificationService : INotificationService, IDisposable
             throw new ArgumentNullException(nameof(notification));
         }
 
-        _logger.LogDebug(
+        logger.LogDebug(
             "Showing {Type} notification: {Title}",
             notification.Type,
             notification.Title);
@@ -109,14 +96,14 @@ public class NotificationService : INotificationService, IDisposable
     /// <inheritdoc/>
     public void Dismiss(Guid notificationId)
     {
-        _logger.LogDebug("Dismiss notification {NotificationId} requested", notificationId);
+        logger.LogDebug("Dismiss notification {NotificationId} requested", notificationId);
         _dismissSubject.OnNext(notificationId);
     }
 
     /// <inheritdoc/>
     public void DismissAll()
     {
-        _logger.LogDebug("Dismiss all notifications requested");
+        logger.LogDebug("Dismiss all notifications requested");
         _dismissAllSubject.OnNext(true);
     }
 

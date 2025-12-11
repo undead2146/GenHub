@@ -279,7 +279,7 @@ A test button is available in the Downloads tab for developers:
 
 ```csharp
 [RelayCommand]
-private void ShowTestNotification()
+private void ShowDownloadCompleteNotification()
 {
     _notificationService?.ShowSuccess(
         "Download Complete", 
