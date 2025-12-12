@@ -1,11 +1,13 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GeneralsOnline;
+using GenHub.Core.Models.GeneralsOnline;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.GeneralsOnline.ViewModels;
@@ -32,6 +34,12 @@ public partial class LoginViewModel : ViewModelBase
     [ObservableProperty]
     private string _statusMessage = "Ready to log in";
 
+    [ObservableProperty]
+    private bool _isLoggedIn;
+
+    [ObservableProperty]
+    private string _displayName = string.Empty;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="LoginViewModel"/> class.
     /// </summary>
@@ -49,6 +57,25 @@ public partial class LoginViewModel : ViewModelBase
         _authService = authService;
         _externalLinkService = externalLinkService;
         _logger = logger;
+
+        // Subscribe to auth state changes - dispatch to UI thread to avoid threading issues
+        _authService.IsAuthenticated.Subscribe(isAuthenticated =>
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                IsLoggedIn = isAuthenticated;
+                if (isAuthenticated)
+                {
+                    DisplayName = _authService.CurrentDisplayName ?? "Unknown User";
+                    StatusMessage = $"Logged in as {DisplayName}";
+                }
+                else
+                {
+                    DisplayName = string.Empty;
+                    StatusMessage = "Ready to log in";
+                }
+            });
+        });
     }
 
     /// <summary>
@@ -57,14 +84,16 @@ public partial class LoginViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanLogin))]
     private async Task LoginAsync()
     {
+        _logger.LogInformation("LoginAsync command invoked");
+        
         try
         {
-            // Generate 5-digit gamecode
-            GameCode = Random.Shared.Next(10000, 99999).ToString();
+            // Generate 32-character alphanumeric gamecode as per GO API spec
+            GameCode = _authService.GenerateGameCode();
             _logger.LogInformation("Generated gamecode: {GameCode}", GameCode);
 
             // Open browser with gamecode
-            var loginUrl = $"https://www.playgenerals.online/login/?gamecode={GameCode}";
+            var loginUrl = _authService.GetLoginUrl(GameCode);
             StatusMessage = "Opening browser for login...";
 
             var success = _externalLinkService.OpenUrl(loginUrl);
@@ -106,6 +135,25 @@ public partial class LoginViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Command to log out the current user.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanLogout))]
+    private async Task LogoutAsync()
+    {
+        try
+        {
+            _logger.LogInformation("User initiated logout");
+            await _authService.LogoutAsync();
+            StatusMessage = "Logged out successfully";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during logout");
+            StatusMessage = "Error during logout. Please try again.";
+        }
+    }
+
+    /// <summary>
     /// Command to open the registration page.
     /// </summary>
     [RelayCommand]
@@ -124,9 +172,11 @@ public partial class LoginViewModel : ViewModelBase
         }
     }
 
-    private bool CanLogin() => !IsPolling;
+    private bool CanLogin() => !IsPolling && !IsLoggedIn;
 
     private bool CanCancelLogin() => IsPolling;
+
+    private bool CanLogout() => IsLoggedIn && !IsPolling;
 
     private async Task PollForLoginAsync()
     {
@@ -135,35 +185,51 @@ public partial class LoginViewModel : ViewModelBase
 
         try
         {
-            // Poll for 5 minutes (60 attempts at 5 second intervals)
-            var maxAttempts = 60;
-            var pollInterval = TimeSpan.FromSeconds(5);
+            // Poll for 5 minutes (300 attempts at 1 second intervals, as per example code)
+            var maxAttempts = 300;
+            var pollInterval = TimeSpan.FromSeconds(1);
 
             for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
-                // Wait before polling (skip first iteration)
-                if (attempt > 1)
-                {
-                    await Task.Delay(pollInterval, _pollingCancellation.Token);
-                }
+                // Check for cancellation
+                _pollingCancellation.Token.ThrowIfCancellationRequested();
 
                 _logger.LogDebug("Polling attempt {Attempt}/{MaxAttempts} for gamecode {GameCode}", attempt, maxAttempts, GameCode);
 
-                // TODO: Replace with actual CheckLogin endpoint when available
-                // For now, this will throw NotImplementedException
-                var refreshToken = await _apiClient.CheckLoginAsync(GameCode);
+                // Call the CheckLogin endpoint
+                var result = await _apiClient.CheckLoginAsync(GameCode, _pollingCancellation.Token);
 
-                if (!string.IsNullOrEmpty(refreshToken))
+                if (result != null)
                 {
-                    // Success! Save credentials
-                    _logger.LogInformation("Login successful for gamecode {GameCode}", GameCode);
-                    StatusMessage = "Login successful!";
+                    if (result.IsSuccess)
+                    {
+                        // Success! Process the login
+                        _logger.LogInformation("Login successful for gamecode {GameCode}", GameCode);
+                        StatusMessage = "Login successful!";
 
-                    await _authService.SaveRefreshTokenAsync(refreshToken);
+                        await _authService.ProcessLoginSuccessAsync(result);
 
-                    IsPolling = false;
-                    GameCode = string.Empty;
-                    return;
+                        IsPolling = false;
+                        GameCode = string.Empty;
+                        return;
+                    }
+                    else if (result.IsFailed)
+                    {
+                        // Login explicitly failed
+                        _logger.LogWarning("Login failed for gamecode {GameCode}: {State}", GameCode, result.Result);
+                        StatusMessage = "Login failed. Please try again.";
+                        IsPolling = false;
+                        GameCode = string.Empty;
+                        return;
+                    }
+
+                    // If still pending/waiting, continue polling
+                }
+
+                // Wait before next poll (but not on last iteration)
+                if (attempt < maxAttempts)
+                {
+                    await Task.Delay(pollInterval, _pollingCancellation.Token);
                 }
             }
 
@@ -177,13 +243,6 @@ public partial class LoginViewModel : ViewModelBase
         {
             _logger.LogInformation("Polling cancelled");
             // Status already set by CancelLogin
-        }
-        catch (NotImplementedException)
-        {
-            _logger.LogWarning("CheckLogin endpoint not yet implemented");
-            StatusMessage = "API not yet available. Please wait for implementation.";
-            IsPolling = false;
-            GameCode = string.Empty;
         }
         catch (Exception ex)
         {
@@ -201,7 +260,14 @@ public partial class LoginViewModel : ViewModelBase
 
     partial void OnIsPollingChanged(bool value)
     {
-        LoginCommand.NotifyCanExecuteChanged();
-        CancelLoginCommand.NotifyCanExecuteChanged();
+        LoginCommand?.NotifyCanExecuteChanged();
+        CancelLoginCommand?.NotifyCanExecuteChanged();
+        LogoutCommand?.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsLoggedInChanged(bool value)
+    {
+        LoginCommand?.NotifyCanExecuteChanged();
+        LogoutCommand?.NotifyCanExecuteChanged();
     }
 }

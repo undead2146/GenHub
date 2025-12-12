@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Net;
 using System.Text.RegularExpressions;
 using GenHub.Core.Models.GeneralsOnline;
 using Microsoft.Extensions.Logging;
@@ -9,7 +10,7 @@ namespace GenHub.Features.GeneralsOnline.Services;
 
 /// <summary>
 /// Service for parsing HTML responses from Generals Online website.
-/// 
+///
 /// NOTE: This is a temporary implementation that scrapes HTML from the Generals Online website.
 /// This approach is fragile and should be replaced with proper API endpoints when available.
 /// The HTML structure may change without notice, breaking this parsing logic.
@@ -35,7 +36,7 @@ public partial class HtmlParsingService(ILogger<HtmlParsingService> logger)
                 totalPlayers = total;
             }
 
-            // Parse table rows - format: | rank | name | score | wins | losses |
+            // Parse table rows - HTML table format
             var rowMatches = LeaderboardRowRegex().Matches(html);
 
             foreach (Match match in rowMatches)
@@ -45,7 +46,7 @@ public partial class HtmlParsingService(ILogger<HtmlParsingService> logger)
                     int.TryParse(match.Groups[4].Value.Trim(), out var wins) &&
                     int.TryParse(match.Groups[5].Value.Trim(), out var losses))
                 {
-                    var playerName = match.Groups[2].Value.Trim();
+                    var playerName = WebUtility.HtmlDecode(match.Groups[2].Value.Trim());
                     entries.Add(new LeaderboardEntry(rank, playerName, score, wins, losses));
                 }
             }
@@ -87,15 +88,18 @@ public partial class HtmlParsingService(ILogger<HtmlParsingService> logger)
                 lifetimeCount = lifetime;
             }
 
-            // Parse player rows - format: | name | status | client | Playing for time |
+            // Parse player rows - HTML table format
             var rowMatches = PlayerRowRegex().Matches(html);
 
             foreach (Match match in rowMatches)
             {
-                var playerName = match.Groups[1].Value.Trim();
-                var statusText = match.Groups[2].Value.Trim();
-                var clientVersion = match.Groups[3].Value.Trim();
-                var timeText = match.Groups[4].Value.Trim();
+                var playerNameRaw = match.Groups[1].Value.Trim();
+
+                // Strip any HTML tags (e.g., Cloudflare email protection) and decode entities
+                var playerName = WebUtility.HtmlDecode(StripHtmlTags(playerNameRaw));
+                var statusText = WebUtility.HtmlDecode(match.Groups[2].Value.Trim());
+                var clientVersion = WebUtility.HtmlDecode(match.Groups[3].Value.Trim());
+                var timeText = WebUtility.HtmlDecode(match.Groups[4].Value.Trim());
 
                 // Parse status
                 var (status, lobbyName) = ParsePlayerStatus(statusText);
@@ -185,10 +189,10 @@ public partial class HtmlParsingService(ILogger<HtmlParsingService> logger)
 
         try
         {
-            // Match history format:
-            // ![Image](mapthumbnails/map.png)
-            // # [AS] Lobby Name
-            // ` player1, player2, player3
+            // Match history HTML card format:
+            // <img src="assets/images/mapthumbnails/map.png" ...>
+            // <h1 class="card-title small_h1">[EU] Quickmatch Lobby</h1>
+            // <p class="card-text">player1, player2</p>
             var matchRegex = MatchEntryRegex();
             var matchEntries = matchRegex.Matches(html);
 
@@ -196,8 +200,8 @@ public partial class HtmlParsingService(ILogger<HtmlParsingService> logger)
             foreach (Match match in matchEntries)
             {
                 var mapThumbnail = match.Groups[1].Value;
-                var lobbyName = match.Groups[2].Value.Trim();
-                var playersText = match.Groups[3].Value.Trim();
+                var lobbyName = WebUtility.HtmlDecode(match.Groups[2].Value.Trim());
+                var playersText = WebUtility.HtmlDecode(match.Groups[3].Value.Trim());
 
                 // Extract map name from thumbnail URL
                 var mapName = ExtractMapName(mapThumbnail);
@@ -316,11 +320,25 @@ public partial class HtmlParsingService(ILogger<HtmlParsingService> logger)
         return regionMatch.Success ? regionMatch.Groups[1].Value : "??";
     }
 
+    private static string StripHtmlTags(string html)
+    {
+        // Remove HTML tags and return plain text
+        // For email protection tags, try to extract the text content
+        var stripped = HtmlTagRegex().Replace(html, string.Empty);
+        return stripped.Trim();
+    }
+
     // Leaderboard patterns
     [GeneratedRegex(@"There are (\d+) player\(s\) in this ladder")]
     private static partial Regex TotalPlayersRegex();
 
-    [GeneratedRegex(@"\|\s*(\d+)\s*\|\s*([^|]+)\s*\|\s*([\d.]+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|")]
+    // Leaderboard row pattern: parses HTML table rows like:
+    // <th scope='row'>1</th>
+    // <td>PlayerName</td>
+    // <td>1320</td>
+    // <td>10</td>
+    // <td>1</td>
+    [GeneratedRegex(@"<th[^>]*scope='row'[^>]*>(\d+)</th>\s*<td>([^<]+)</td>\s*<td>(\d+)</td>\s*<td>(\d+)</td>\s*<td>(\d+)</td>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex LeaderboardRowRegex();
 
     // Active players patterns
@@ -330,8 +348,13 @@ public partial class HtmlParsingService(ILogger<HtmlParsingService> logger)
     [GeneratedRegex(@"Total Lifetime Players:\s*([\d,]+)")]
     private static partial Regex LifetimePlayersRegex();
 
-    // Player row pattern: | name | In lobby/status | client | Playing for time |
-    [GeneratedRegex(@"\|\s*([^|]+)\s*\|\s*((?:In lobby|In Server)[^|]+)\s*\|\s*([^|]+)\s*\|\s*Playing for\s*([^|]+)\s*\|")]
+    // Player row pattern: parses HTML table rows like:
+    // <th scope='row'>PlayerName</th>
+    // <td>In lobby '[AS] Lobby' - Status</td>
+    // <td>GeneralsOnline 60Hz</td>
+    // <td>Playing for X minutes, Y seconds</td>
+    // Note: Some player names may contain email protection tags, so we use a more flexible pattern
+    [GeneratedRegex(@"<th[^>]*scope='row'[^>]*>(.+?)</th>\s*<td>([^<]+)</td>\s*<td>([^<]+)</td>\s*<td>([^<]+)</td>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex PlayerRowRegex();
 
     [GeneratedRegex(@"In lobby '([^']+)'")]
@@ -369,10 +392,18 @@ public partial class HtmlParsingService(ILogger<HtmlParsingService> logger)
     [GeneratedRegex(@"IPv6 Connections:\s*([\d,]+)")]
     private static partial Regex Ipv6ConnectionsRegex();
 
-    // Match history pattern - captures map thumbnail URL, lobby name, and players
-    [GeneratedRegex(@"!\[Image\]\([^)]*mapthumbnails/([^)]+)\)[^#]*#\s*(\[[A-Z]{2}\][^\n`]+)\s*\n\s*`?\s*([^\n]+)", RegexOptions.Multiline)]
+    // Match history pattern - parses card-based HTML structure:
+    // <img src="assets/images/mapthumbnails/map.png" ...>
+    // <h1 class="card-title small_h1">[EU] Quickmatch Lobby</h1>
+    // <p class="card-text">player1, player2</p>
+    // <a ... href="/viewmatch?match=223910" ...>
+    [GeneratedRegex(@"<img\s+src=""assets/images/mapthumbnails/([^""]+)""[^>]*>\s*(?:</div>\s*)?(?:<div[^>]*>\s*)?<div[^>]*card-body[^>]*>\s*<h1[^>]*card-title[^>]*>([^<]+)</h1>\s*<p[^>]*card-text[^>]*>([^<]+)</p>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex MatchEntryRegex();
 
     [GeneratedRegex(@"\[([A-Z]{2})\]")]
     private static partial Regex RegionTagRegex();
+
+    // HTML tag stripping pattern
+    [GeneratedRegex(@"<[^>]+>")]
+    private static partial Regex HtmlTagRegex();
 }

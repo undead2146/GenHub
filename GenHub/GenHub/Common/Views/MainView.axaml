@@ -32,9 +32,10 @@
         <Style Selector="Button.modern-tab">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="#B0B0B0" />
-            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderThickness" Value="0,0,0,0" />
             <Setter Property="Padding" Value="20,12" />
             <Setter Property="Margin" Value="0" />
+            <Setter Property="ClipToBounds" Value="True" />
             <Setter Property="FontWeight" Value="Medium" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -46,8 +47,6 @@
                     <Transitions>
                         <BrushTransition Property="Background" Duration="0:0:0.15" />
                         <BrushTransition Property="Foreground" Duration="0:0:0.15" />
-                        <TransformOperationsTransition Property="RenderTransform"
-                            Duration="0:0:0.15" />
                     </Transitions>
                 </Setter.Value>
             </Setter>
@@ -70,9 +69,9 @@
         </Style>
 
         <Style Selector="Button.modern-tab:pointerover">
-            <Setter Property="Background" Value="#2A2A2A" />
+            <Setter Property="Background" Value="#1A1A1A" />
             <Setter Property="Foreground" Value="#E0E0E0" />
-            <Setter Property="RenderTransform" Value="translateY(-1px)" />
+            <Setter Property="BorderThickness" Value="0,0,0,0" />
         </Style>
 
         <Style Selector="Button.modern-tab.active">
@@ -86,7 +85,6 @@
         <Style Selector="Button.modern-tab.active:pointerover">
             <Setter Property="Background" Value="#1A1A1A" />
             <Setter Property="Foreground" Value="White" />
-            <Setter Property="RenderTransform" Value="none" />
         </Style>
 
         <!-- Update notification button style -->
@@ -119,12 +117,11 @@
                 <Setter.Value>
                     <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
                         <GradientStop Color="#2D2D2D" Offset="0" />
-                        <GradientStop Color="#202020" Offset="1" />
+                        <GradientStop Color="#1A1A1A" Offset="1" />
                     </LinearGradientBrush>
                 </Setter.Value>
             </Setter>
-            <Setter Property="BorderThickness" Value="0,0,0,1" />
-            <Setter Property="BorderBrush" Value="#404040" />
+            <Setter Property="BorderThickness" Value="0" />
         </Style>
 
         <!-- Compact branding style -->
