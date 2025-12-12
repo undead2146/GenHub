@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Constants;
+using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Models.Enums;
 using GenHub.Features.Content.Services.GeneralsOnline;
 using GenHub.Features.Content.ViewModels;
@@ -16,8 +17,12 @@ namespace GenHub.Features.Downloads.ViewModels;
 /// <summary>
 /// ViewModel for the Downloads tab.
 /// </summary>
-public partial class DownloadsViewModel(IServiceProvider serviceProvider, ILogger<DownloadsViewModel> logger) : ViewModelBase
+public partial class DownloadsViewModel(
+    IServiceProvider serviceProvider,
+    ILogger<DownloadsViewModel> logger,
+    INotificationService notificationService) : ViewModelBase
 {
+    private readonly INotificationService _notificationService = notificationService;
     [ObservableProperty]
     private string _title = "Downloads";
 

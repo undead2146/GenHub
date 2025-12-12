@@ -1,3 +1,4 @@
+using GenHub.Core.Helpers;
 using GenHub.Core.Models.Common;
 
 namespace GenHub.Tests.Core.Models.Common;
@@ -134,7 +135,7 @@ public class DownloadProgressTests
     }
 
     /// <summary>
-    /// Verifies that the FormatBytes method returns the correct formatted string.
+    /// Verifies that the FileSizeFormatter.Format method returns the correct formatted string.
     /// </summary>
     /// <param name="bytes">The number of bytes to format.</param>
     /// <param name="expected">The expected formatted string.</param>
@@ -148,10 +149,7 @@ public class DownloadProgressTests
     public void FormatBytes_FormatsCorrectly(long bytes, string expected)
     {
         // Act
-        var method = typeof(DownloadProgress)
-            .GetMethod("FormatBytes", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-        Assert.NotNull(method);
-        var formatted = method.Invoke(null, new object[] { bytes }) as string;
+        var formatted = FileSizeFormatter.Format(bytes);
 
         // Assert
         Assert.Equal(expected, formatted);

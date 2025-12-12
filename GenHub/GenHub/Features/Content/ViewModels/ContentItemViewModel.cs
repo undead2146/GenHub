@@ -17,6 +17,11 @@ public partial class ContentItemViewModel(ContentSearchResult model) : Observabl
     public ContentSearchResult Model { get; } = model ?? throw new ArgumentNullException(nameof(model));
 
     /// <summary>
+    /// Gets the source result for installation.
+    /// </summary>
+    public ContentSearchResult SourceResult => Model;
+
+    /// <summary>
     /// Gets the name of the content.
     /// </summary>
     public string Name => Model.Name ?? string.Empty;

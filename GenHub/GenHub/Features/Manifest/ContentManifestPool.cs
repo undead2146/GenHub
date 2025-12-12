@@ -255,7 +255,7 @@ public class ContentManifestPool(IContentStorageService storageService, ILogger<
     {
         try
         {
-            var contentDir = _storageService.GetContentDirectoryPath(manifestId);
+            var contentDir = Path.Combine(_storageService.GetContentStorageRoot(), DirectoryNames.Data, manifestId.Value);
 
             // If a mapping file exists, return its value (this points to the original source directory)
             var mappingFile = Path.Combine(contentDir, "source.path");

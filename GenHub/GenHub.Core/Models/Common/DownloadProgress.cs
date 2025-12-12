@@ -60,8 +60,8 @@ public class DownloadProgress
             : null;
 
     /// <summary>Gets a formatted string representation of the download speed.</summary>
-    public string FormattedSpeed => string.Format("{0}/s", ByteFormatHelper.FormatBytes(BytesPerSecond));
+    public string FormattedSpeed => $"{FileSizeFormatter.Format(BytesPerSecond)}/s";
 
     /// <summary>Gets a formatted string representation of the progress.</summary>
-    public string FormattedProgress => $"{ByteFormatHelper.FormatBytes(BytesReceived)} / {ByteFormatHelper.FormatBytes(TotalBytes)}";
+    public string FormattedProgress => $"{FileSizeFormatter.Format(BytesReceived)} / {FileSizeFormatter.Format(TotalBytes)}";
 }

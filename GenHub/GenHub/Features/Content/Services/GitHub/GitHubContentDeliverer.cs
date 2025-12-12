@@ -237,36 +237,42 @@ public class GitHubContentDeliverer(
                 manifests.Count,
                 string.Join(", ", manifests.Select(m => m.Id.Value)));
 
-            // Store PRIMARY manifest (first one) normally via return
-            var primaryManifest = manifests[0];
-
-            // TODO: Fix architectural violation - secondary manifests should be returned to orchestrator
-            // Currently storing directly to pool bypasses orchestrator validation and storage workflow
-            // This needs interface change to return IEnumerable<ContentManifest>
-            for (int i = 1; i < manifests.Count; i++)
+            // Store all manifests to CAS via manifest pool
+            // This ensures files are available in CAS before validation runs
+            foreach (var manifest in manifests)
             {
-                var manifest = manifests[i];
                 var manifestDirectory = factory.GetManifestDirectory(manifest, extractedDirectory);
 
-                logger.LogWarning(
-                    "Storing secondary manifest {ManifestId} directly to pool - violates architecture. Should be handled by orchestrator.",
-                    manifest.Id);
+                logger.LogInformation(
+                    "Storing manifest {ManifestId} to pool from directory {Directory}",
+                    manifest.Id,
+                    manifestDirectory);
 
                 var addResult = await manifestPool.AddManifestAsync(manifest, manifestDirectory, cancellationToken);
                 if (!addResult.Success)
                 {
                     logger.LogWarning(
-                        "Failed to store secondary manifest {ManifestId} to pool: {Errors}",
+                        "Failed to store manifest {ManifestId} to pool: {Errors}",
                         manifest.Id,
                         string.Join(", ", addResult.Errors));
                 }
                 else
                 {
                     logger.LogInformation(
-                        "Successfully stored secondary manifest {ManifestId} to pool",
+                        "Successfully stored manifest {ManifestId} to pool",
                         manifest.Id);
+
+                    // Update file source types to ContentAddressable since files are now in CAS
+                    // This ensures validation checks CAS instead of filesystem paths
+                    foreach (var file in manifest.Files)
+                    {
+                        file.SourceType = ContentSourceType.ContentAddressable;
+                    }
                 }
             }
+
+            // Return primary manifest
+            var primaryManifest = manifests[0];
 
             return OperationResult<ContentManifest>.CreateSuccess(primaryManifest);
         }

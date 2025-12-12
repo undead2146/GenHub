@@ -307,11 +307,12 @@ public class ContentManifestPoolTests : IDisposable
     {
         // Arrange
         var manifestId = "1.0.genhub.mod.publisher";
-        var contentDir = Path.Combine(_tempDirectory, "content");
+        var storageRoot = _tempDirectory;
+        var contentDir = Path.Combine(storageRoot, "Data", manifestId);
         Directory.CreateDirectory(contentDir);
 
-        _storageServiceMock.Setup(x => x.GetContentDirectoryPath(manifestId))
-            .Returns(contentDir);
+        _storageServiceMock.Setup(x => x.GetContentStorageRoot())
+            .Returns(storageRoot);
 
         // Act
         var result = await _manifestPool.GetContentDirectoryAsync(manifestId);
@@ -330,10 +331,11 @@ public class ContentManifestPoolTests : IDisposable
     {
         // Arrange
         var manifestId = "1.0.genhub.mod.publisher";
-        var contentDir = Path.Combine(_tempDirectory, "non-existent");
+        var storageRoot = _tempDirectory;
 
-        _storageServiceMock.Setup(x => x.GetContentDirectoryPath(manifestId))
-            .Returns(contentDir);
+        // Note: Don't create the directory - it should not exist
+        _storageServiceMock.Setup(x => x.GetContentStorageRoot())
+            .Returns(storageRoot);
 
         // Act
         var result = await _manifestPool.GetContentDirectoryAsync(manifestId);
