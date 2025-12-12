@@ -4,12 +4,11 @@ using GenHub.Core.Extensions.Enums;
 using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameClients;
+using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
-using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
-using GenHub.Features.GameClients;
 using System;
 
 namespace GenHub.Features.GameProfiles.Services;
@@ -18,21 +17,10 @@ namespace GenHub.Features.GameProfiles.Services;
 /// Service for formatting content items for display in the UI.
 /// Follows Single Responsibility Principle by centralizing all display formatting logic.
 /// </summary>
-public sealed class ContentDisplayFormatter : IContentDisplayFormatter
+public sealed class ContentDisplayFormatter(IGameClientHashRegistry hashRegistry) : IContentDisplayFormatter
 {
     private const string CommunityPatchIdentifier = "CommunityPatch";
     private const string VersionPrefix = "v";
-
-    private readonly IGameClientHashRegistry _hashRegistry;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ContentDisplayFormatter"/> class.
-    /// </summary>
-    /// <param name="hashRegistry">The game client hash registry.</param>
-    public ContentDisplayFormatter(IGameClientHashRegistry hashRegistry)
-    {
-        _hashRegistry = hashRegistry;
-    }
 
     /// <inheritdoc/>
     public ContentDisplayItem CreateDisplayItem(ContentManifest manifest, bool isEnabled = false)
@@ -44,6 +32,7 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
 
         return new ContentDisplayItem
         {
+            Id = manifest.Id.Value,
             ManifestId = manifest.Id.Value,
             DisplayName = displayName,
             ContentType = manifest.ContentType,
@@ -52,6 +41,7 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
             Publisher = publisher,
             Version = normalizedVersion,
             IsEnabled = isEnabled,
+            Manifest = manifest,
         };
     }
 
@@ -68,6 +58,7 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
 
         return new ContentDisplayItem
         {
+            Id = manifestId.Value,
             ManifestId = manifestId.Value,
             DisplayName = displayName,
             ContentType = ContentType.GameInstallation,
@@ -100,8 +91,20 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
             return string.Empty;
         }
 
-        // Try to resolve hash-based versions
-        var (detectedGameType, hashVersion) = _hashRegistry.GetGameInfoFromHash(trimmedVersion);
+        // Handle Auto-Updated versions (GeneralsOnline) - return empty string
+        if (trimmedVersion.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        // Handle auto-detected GeneralsOnline clients - return empty string to avoid showing "vAutomatically added"
+        if (trimmedVersion.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        // Try to resolve hash-based versions (e.g., from GameClientHashRegistry)
+        var (detectedGameType, hashVersion) = hashRegistry.GetGameInfoFromHash(trimmedVersion);
         if (detectedGameType != GameType.Unknown && !string.IsNullOrEmpty(hashVersion))
         {
             return hashVersion;
@@ -133,7 +136,7 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
                 return name;
             }
 
-            var formattedVersion = FormatVersion(normalizedVersion, ContentType.GameInstallation);
+            var formattedVersion = FormatVersion(normalizedVersion);
 
             // Check if the name already contains the formatted version
             if (name.Contains(formattedVersion, StringComparison.OrdinalIgnoreCase))
@@ -145,7 +148,7 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
         }
 
         // No name provided, use game type + version
-        var versionDisplay = FormatVersion(normalizedVersion, ContentType.GameInstallation);
+        var versionDisplay = FormatVersion(normalizedVersion);
 
         // If no version, just return game name
         if (string.IsNullOrWhiteSpace(versionDisplay))
@@ -157,7 +160,7 @@ public sealed class ContentDisplayFormatter : IContentDisplayFormatter
     }
 
     /// <inheritdoc/>
-    public string FormatVersion(string version, ContentType contentType)
+    public string FormatVersion(string version)
     {
         var normalizedVersion = NormalizeVersion(version);
 
