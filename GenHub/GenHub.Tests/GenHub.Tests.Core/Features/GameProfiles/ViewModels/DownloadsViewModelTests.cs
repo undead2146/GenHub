@@ -1,6 +1,9 @@
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Features.Downloads.ViewModels;
+using Microsoft.Extensions.Logging;
 using Moq;
+using System.Threading.Tasks;
+using Xunit;
 
 namespace GenHub.Tests.Core.ViewModels;
 
@@ -17,10 +20,14 @@ public class DownloadsViewModelTests
     public async Task InitializeAsync_CompletesSuccessfully()
     {
         // Arrange
+        var serviceProviderMock = new Mock<IServiceProvider>();
+        var loggerMock = new Mock<ILogger<DownloadsViewModel>>();
         var mockNotificationService = new Mock<INotificationService>();
 
         // Act
-        var vm = new DownloadsViewModel(mockNotificationService.Object);
+        var vm = new DownloadsViewModel(serviceProviderMock.Object, loggerMock.Object, mockNotificationService.Object);
+
+        // Assert
         await vm.InitializeAsync();
     }
 }

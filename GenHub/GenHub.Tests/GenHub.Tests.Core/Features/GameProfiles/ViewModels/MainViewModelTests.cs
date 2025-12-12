@@ -38,6 +38,7 @@ public class MainViewModelTests
         var mockOrchestrator = new Mock<IGameInstallationDetectionOrchestrator>();
         var (settingsVm, userSettingsMock) = CreateSettingsVm();
         var toolsVm = CreateToolsVm();
+        var downloadsVm = CreateDownloadsVm();
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockVelopackUpdateManager = new Mock<IVelopackUpdateManager>();
@@ -51,7 +52,7 @@ public class MainViewModelTests
         // Act
         var vm = new MainViewModel(
             new GameProfileLauncherViewModel(),
-            new DownloadsViewModel(mockNotificationService.Object),
+            downloadsVm,
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,
@@ -81,6 +82,7 @@ public class MainViewModelTests
         var mockOrchestrator = new Mock<IGameInstallationDetectionOrchestrator>();
         var (settingsVm, userSettingsMock) = CreateSettingsVm();
         var toolsVm = CreateToolsVm();
+        var downloadsVm = CreateDownloadsVm();
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockVelopackUpdateManager = new Mock<IVelopackUpdateManager>();
@@ -92,7 +94,7 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var vm = new MainViewModel(
             new GameProfileLauncherViewModel(),
-            new DownloadsViewModel(mockNotificationService.Object),
+            downloadsVm,
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,
@@ -117,6 +119,7 @@ public class MainViewModelTests
         var mockOrchestrator = new Mock<IGameInstallationDetectionOrchestrator>();
         var (settingsVm, userSettingsMock) = CreateSettingsVm();
         var toolsVm = CreateToolsVm();
+        var downloadsVm = CreateDownloadsVm();
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockVelopackUpdateManager = new Mock<IVelopackUpdateManager>();
@@ -128,7 +131,7 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var viewModel = new MainViewModel(
             new GameProfileLauncherViewModel(),
-            new DownloadsViewModel(mockNotificationService.Object),
+            downloadsVm,
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,
@@ -168,7 +171,7 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var vm = new MainViewModel(
             new GameProfileLauncherViewModel(),
-            new DownloadsViewModel(mockNotificationService.Object),
+            CreateDownloadsVm(),
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,
@@ -210,7 +213,7 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var vm = new MainViewModel(
             new GameProfileLauncherViewModel(),
-            new DownloadsViewModel(mockNotificationService.Object),
+            CreateDownloadsVm(),
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,
@@ -270,6 +273,17 @@ public class MainViewModelTests
         // Minimal defaults used by MainViewModel
         mock.Setup(x => x.GetLastSelectedTab()).Returns(NavigationTab.GameProfiles);
         return mock.Object;
+    }
+
+    /// <summary>
+    /// Creates a default DownloadsViewModel with mocked services for reuse.
+    /// </summary>
+    private static DownloadsViewModel CreateDownloadsVm()
+    {
+        var mockServiceProvider = new Mock<IServiceProvider>();
+        var mockLogger = new Mock<ILogger<DownloadsViewModel>>();
+        var mockNotificationService = new Mock<INotificationService>();
+        return new DownloadsViewModel(mockServiceProvider.Object, mockLogger.Object, mockNotificationService.Object);
     }
 
     private static Mock<INotificationService> CreateNotificationServiceMock()

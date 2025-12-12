@@ -1,3 +1,5 @@
+using GenHub.Core.Helpers;
+
 namespace GenHub.Core.Models.Results;
 
 /// <summary>
@@ -30,7 +32,7 @@ public class DownloadResult : ResultBase
         BytesDownloaded = bytesDownloaded;
         HashVerified = hashVerified;
         AverageSpeedBytesPerSecond = averageSpeedBytesPerSecond;
-        FormattedBytesDownloaded = FormatBytes(bytesDownloaded);
+        FormattedBytesDownloaded = ByteFormatHelper.FormatBytes(bytesDownloaded);
         FormattedSpeed = FormatSpeed(averageSpeedBytesPerSecond);
     }
 
@@ -104,27 +106,10 @@ public class DownloadResult : ResultBase
     }
 
     /// <summary>
-    /// Formats bytes into a human-readable string.
-    /// </summary>
-    private static string FormatBytes(long bytes)
-    {
-        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
-        double len = bytes;
-        int order = 0;
-        while (len >= 1024 && order < sizes.Length - 1)
-        {
-            order++;
-            len = len / 1024;
-        }
-
-        return string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:0.##} {1}", len, sizes[order]);
-    }
-
-    /// <summary>
     /// Formats bytes per second into a human-readable speed string.
     /// </summary>
     private static string FormatSpeed(double bytesPerSecond)
     {
-        return FormatBytes((long)bytesPerSecond) + "/s";
+        return ByteFormatHelper.FormatBytes((long)bytesPerSecond) + "/s";
     }
 }
