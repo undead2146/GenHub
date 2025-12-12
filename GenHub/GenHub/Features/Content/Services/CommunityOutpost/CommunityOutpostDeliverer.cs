@@ -238,6 +238,31 @@ public class CommunityOutpostDeliverer(
         }
     }
 
+    /// <inheritdoc />
+    public Task<OperationResult<bool>> ValidateContentAsync(
+        ContentManifest manifest,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var hasArchiveFile = manifest.Files.Any(f =>
+                !string.IsNullOrEmpty(f.DownloadUrl) &&
+                (f.DownloadUrl.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
+                 f.DownloadUrl.EndsWith(".dat", StringComparison.OrdinalIgnoreCase) ||
+                 f.DownloadUrl.EndsWith(".7z", StringComparison.OrdinalIgnoreCase)));
+
+            return Task.FromResult(OperationResult<bool>.CreateSuccess(hasArchiveFile));
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "Validation failed for Community Outpost manifest {ManifestId}",
+                manifest.Id);
+            return Task.FromResult(OperationResult<bool>.CreateFailure($"Validation failed: {ex.Message}"));
+        }
+    }
+
     /// <summary>
     /// Downloads a file with mirror fallback support.
     /// </summary>
@@ -266,7 +291,6 @@ public class CommunityOutpostDeliverer(
         // For now, we only try the primary URL since we don't have easy access
         // to the original metadata here. In a future enhancement, we could
         // store mirror URLs in the manifest or pass them through.
-
         return OperationResult<bool>.CreateFailure($"Download failed: {result.FirstError}");
     }
 
@@ -333,31 +357,6 @@ public class CommunityOutpostDeliverer(
                 logger.LogWarning(ex, "Failed to delete extracted directory {Path}", extractPath);
             }
         });
-    }
-
-    /// <inheritdoc />
-    public Task<OperationResult<bool>> ValidateContentAsync(
-        ContentManifest manifest,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var hasArchiveFile = manifest.Files.Any(f =>
-                !string.IsNullOrEmpty(f.DownloadUrl) &&
-                (f.DownloadUrl.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
-                 f.DownloadUrl.EndsWith(".dat", StringComparison.OrdinalIgnoreCase) ||
-                 f.DownloadUrl.EndsWith(".7z", StringComparison.OrdinalIgnoreCase)));
-
-            return Task.FromResult(OperationResult<bool>.CreateSuccess(hasArchiveFile));
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(
-                ex,
-                "Validation failed for Community Outpost manifest {ManifestId}",
-                manifest.Id);
-            return Task.FromResult(OperationResult<bool>.CreateFailure($"Validation failed: {ex.Message}"));
-        }
     }
 
     /// <summary>

@@ -2,14 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Manifest;
-using GenHub.Core.Models.Enums;
 using GenHub.Features.Content.ViewModels;
 using Microsoft.Extensions.Logging;
 
@@ -190,34 +189,8 @@ public partial class PublisherCardViewModel : ObservableObject
             return string.Empty;
         }
 
-        // Extract all digits
-        var digits = Regex.Replace(version, @"\D", string.Empty);
-
-        // If we have 8 digits (YYYYMMDD format), return it
-        if (digits.Length >= 8)
-        {
-            return digits.Substring(0, 8);
-        }
-
-        return digits;
-    }
-
-    /// <summary>
-    /// Formats bytes into a human-readable string.
-    /// </summary>
-    private static string FormatBytes(long bytes)
-    {
-        string[] sizes = { "B", "KB", "MB", "GB" };
-        int order = 0;
-        double size = bytes;
-
-        while (size >= 1024 && order < sizes.Length - 1)
-        {
-            order++;
-            size /= 1024;
-        }
-
-        return $"{size:0.#} {sizes[order]}";
+        var numericVersion = VersionHelper.ExtractVersionFromVersionString(version);
+        return numericVersion > 0 ? numericVersion.ToString() : string.Empty;
     }
 
     /// <summary>
@@ -243,8 +216,8 @@ public partial class PublisherCardViewModel : ObservableObject
         // Add file/bytes info if available
         if (progress.TotalBytes > 0 && progress.Phase == Core.Models.Content.ContentAcquisitionPhase.Downloading)
         {
-            var downloaded = FormatBytes(progress.BytesProcessed);
-            var total = FormatBytes(progress.TotalBytes);
+            var downloaded = ByteFormatHelper.FormatBytes(progress.BytesProcessed);
+            var total = ByteFormatHelper.FormatBytes(progress.TotalBytes);
             return $"{phaseName}: {downloaded} / {total} ({percentText})";
         }
 
@@ -371,9 +344,9 @@ public partial class PublisherCardViewModel : ObservableObject
             return;
         }
 
-        if (item.SourceResult == null)
+        if (item.Model == null)
         {
-            _logger.LogError("Cannot install item {ItemName}: SourceResult is null", item.Name);
+            _logger.LogError("Cannot install item {ItemName}: Model is null", item.Name);
             item.InstallStatus = "Error: No source available";
             return;
         }
@@ -393,7 +366,7 @@ public partial class PublisherCardViewModel : ObservableObject
                 item.InstallStatus = FormatProgressStatus(p);
             });
 
-            var result = await _contentOrchestrator.AcquireContentAsync(item.SourceResult, progress);
+            var result = await _contentOrchestrator.AcquireContentAsync(item.Model, progress);
 
             if (result.Success)
             {

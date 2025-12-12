@@ -24,13 +24,6 @@ public interface IContentStorageService
     string GetManifestStoragePath(ManifestId manifestId);
 
     /// <summary>
-    /// Gets the content directory path for a specific manifest.
-    /// </summary>
-    /// <param name="manifestId">The unique identifier of the manifest.</param>
-    /// <returns>The absolute path where the manifest's content files are stored.</returns>
-    string GetContentDirectoryPath(ManifestId manifestId);
-
-    /// <summary>
     /// Stores content from a source directory into permanent storage.
     /// </summary>
     /// <param name="manifest">The game manifest describing the content.</param>
