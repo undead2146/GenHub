@@ -2,26 +2,21 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Common.ViewModels;
+using GenHub.Core.Interfaces.Notifications;
 
 namespace GenHub.Features.Downloads.ViewModels;
 
 /// <summary>
 /// ViewModel for the Downloads tab.
 /// </summary>
-public partial class DownloadsViewModel : ViewModelBase
+public partial class DownloadsViewModel(INotificationService notificationService) : ViewModelBase
 {
+    private readonly INotificationService _notificationService = notificationService;
     [ObservableProperty]
     private string _title = "Downloads";
 
     [ObservableProperty]
     private string _description = "Manage your downloads and installations";
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="DownloadsViewModel"/> class.
-    /// </summary>
-    public DownloadsViewModel()
-    {
-    }
 
     /// <summary>
     /// Performs asynchronous initialization for the Downloads tab.
