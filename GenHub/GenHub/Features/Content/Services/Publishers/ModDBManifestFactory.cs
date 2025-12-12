@@ -11,6 +11,7 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.ModDB;
 using Microsoft.Extensions.Logging;
+using MapDetails = GenHub.Core.Models.ModDB.MapDetails;
 
 namespace GenHub.Features.Content.Services.Publishers;
 
@@ -77,7 +78,7 @@ public partial class ModDBManifestFactory(
     /// <param name="details">The parsed ModDB content details.</param>
     /// <param name="detailPageUrl">The detail page URL.</param>
     /// <returns>A fully constructed ContentManifest.</returns>
-    public ContentManifest CreateManifest(GenHub.Core.Models.ModDB.MapDetails details, string detailPageUrl)
+    public async Task<ContentManifest> CreateManifestAsync(MapDetails details, string detailPageUrl)
     {
         ArgumentNullException.ThrowIfNull(details);
 
@@ -139,10 +140,10 @@ public partial class ModDBManifestFactory(
 
         // 7. Add the download file
         var fileName = ExtractFileNameFromUrl(details.DownloadUrl);
-        manifest.AddRemoteFileAsync(
+        manifest = await manifest.AddRemoteFileAsync(
             fileName,
             details.DownloadUrl,
-            ContentSourceType.RemoteDownload).GetAwaiter().GetResult();
+            ContentSourceType.RemoteDownload);
 
         // 8. Add dependencies based on target game
         manifest = AddGameDependencies(manifest, details.TargetGame);

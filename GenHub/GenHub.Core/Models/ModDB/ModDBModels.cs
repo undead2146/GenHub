@@ -267,15 +267,19 @@ public static class ModDBCategoryMapper
 /// <param name="DownloadUrl">Direct download URL.</param>
 /// <param name="TargetGame">Target game type.</param>
 /// <param name="ContentType">Mapped content type.</param>
+/// <param name="FileType">File extension/type (optional, CNCLabs-specific).</param>
+/// <param name="Rating">Content rating (optional, CNCLabs-specific).</param>
 public record MapDetails(
     string Name,
     string Description,
     string Author,
     string PreviewImage,
-    List<string> Screenshots,
+    List<string>? Screenshots,
     long FileSize,
     int DownloadCount,
     DateTime SubmissionDate,
     string DownloadUrl,
     GameType TargetGame,
-    ContentType ContentType);
+    ContentType ContentType,
+    string? FileType = null,
+    float? Rating = null);

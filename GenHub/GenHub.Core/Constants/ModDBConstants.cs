@@ -95,6 +95,17 @@ public static class ModDBConstants
     /// <summary>Selector for mod author/creator.</summary>
     public const string DetailAuthorSelector = "a[href*='/members/'], span.author, div.creator a";
 
+    // ===== URL Path Patterns =====
+
+    /// <summary>URL path pattern for member profiles.</summary>
+    public const string MembersPath = "/members/";
+
+    /// <summary>URL path pattern for company profiles.</summary>
+    public const string CompanyPath = "/company/";
+
+    /// <summary>Selector for author links (members or companies).</summary>
+    public const string AuthorLinkSelector = "a[href*='/members/'], a[href*='/company/']";
+
     /// <summary>Selector for download button/link.</summary>
     public const string DownloadButtonSelector = "a.buttondownload, a[href*='/downloads/start/'], a.downloadslink";
 

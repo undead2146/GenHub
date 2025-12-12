@@ -57,8 +57,10 @@ public class ModDBDiscoverer(HttpClient httpClient, ILogger<ModDBDiscoverer> log
                 results.AddRange(sectionResults);
             }
 
-            _logger.LogInformation("Discovered {Count} ModDB items across {Sections} sections", 
-                results.Count, sectionsToSearch.Count);
+            _logger.LogInformation(
+                "Discovered {Count} ModDB items across {Sections} sections",
+                results.Count,
+                sectionsToSearch.Count);
 
             return OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(results);
         }
@@ -160,14 +162,14 @@ public class ModDBDiscoverer(HttpClient httpClient, ILogger<ModDBDiscoverer> log
         var filter = new ModDBFilter
         {
             Keyword = query.SearchTerm,
-            Page = query.Page ?? 1
+            Page = query.Page ?? 1,
         };
 
         // Map ContentType to ModDB category if specified
         if (query.ContentType.HasValue)
         {
             filter.Category = MapContentTypeToCategory(query.ContentType.Value, section);
-            
+
             // For addons, the parameter is different
             if (section == "addons")
             {
@@ -218,7 +220,7 @@ public class ModDBDiscoverer(HttpClient httpClient, ILogger<ModDBDiscoverer> log
         // Extract title and link
         // ModDB structure: <h4><a href="...">Title</a></h4>
         var titleLink = item.QuerySelector("h4 a, h3 a, a.title");
-        
+
         // Fallback for table rows (downloads/addons sometimes use tables)
         if (titleLink == null)
         {
@@ -248,7 +250,7 @@ public class ModDBDiscoverer(HttpClient httpClient, ILogger<ModDBDiscoverer> log
         var detailUrl = href.StartsWith("http") ? href : ModDBConstants.BaseUrl + href;
 
         // Extract author
-        var authorLink = item.QuerySelector("a[href*='/members/'], a[href*='/company/']");
+        var authorLink = item.QuerySelector(ModDBConstants.AuthorLinkSelector);
         var author = authorLink?.TextContent?.Trim() ?? ModDBConstants.DefaultAuthor;
 
         // Extract preview image

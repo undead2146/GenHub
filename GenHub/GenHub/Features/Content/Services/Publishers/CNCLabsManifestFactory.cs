@@ -10,6 +10,7 @@ using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using Microsoft.Extensions.Logging;
+using MapDetails = GenHub.Core.Models.ModDB.MapDetails;
 
 namespace GenHub.Features.Content.Services.Publishers;
 
@@ -75,7 +76,7 @@ public partial class CNCLabsManifestFactory(
     /// <param name="mapId">The CNC Labs map ID.</param>
     /// <param name="detailPageUrl">The detail page URL.</param>
     /// <returns>A fully constructed ContentManifest.</returns>
-    public ContentManifest CreateManifest(MapDetails details, int mapId, string detailPageUrl)
+    public async Task<ContentManifest> CreateManifestAsync(MapDetails details, int mapId, string detailPageUrl)
     {
         ArgumentNullException.ThrowIfNull(details);
         ArgumentException.ThrowIfNullOrWhiteSpace(detailPageUrl, nameof(detailPageUrl));
@@ -129,10 +130,10 @@ public partial class CNCLabsManifestFactory(
 
         // 5. Add the download file
         var fileName = ExtractFileNameFromUrl(details.DownloadUrl);
-        manifest.AddRemoteFileAsync(
+        manifest = await manifest.AddRemoteFileAsync(
             fileName,
             details.DownloadUrl,
-            ContentSourceType.RemoteDownload).GetAwaiter().GetResult();
+            ContentSourceType.RemoteDownload);
         return manifest.Build();
     }
 
@@ -274,35 +275,3 @@ public partial class CNCLabsManifestFactory(
     [GeneratedRegex(@"-+")]
     private static partial Regex MultipleDashesRegex();
 }
-
-/// <summary>
-/// Represents the details of a CNC Labs map or mission.
-/// This is an internal data structure used by the resolver and factory.
-/// </summary>
-/// <param name="Name">The name of the content.</param>
-/// <param name="Description">The description.</param>
-/// <param name="Author">The author's name.</param>
-/// <param name="PreviewImage">Preview image URL.</param>
-/// <param name="Screenshots">List of screenshot URLs.</param>
-/// <param name="FileSize">File size in bytes.</param>
-/// <param name="DownloadCount">Number of downloads.</param>
-/// <param name="SubmissionDate">Submission date.</param>
-/// <param name="DownloadUrl">Download URL.</param>
-/// <param name="FileType">File extension/type.</param>
-/// <param name="Rating">Content rating.</param>
-/// <param name="TargetGame">Target game (Generals or Zero Hour).</param>
-/// <param name="ContentType">Content type (Map or Mission).</param>
-public record MapDetails(
-    string Name,
-    string Description,
-    string Author,
-    string PreviewImage,
-    List<string>? Screenshots,
-    long FileSize,
-    int DownloadCount,
-    DateTime SubmissionDate,
-    string DownloadUrl,
-    string FileType,
-    float Rating,
-    GameType TargetGame,
-    ContentType ContentType);

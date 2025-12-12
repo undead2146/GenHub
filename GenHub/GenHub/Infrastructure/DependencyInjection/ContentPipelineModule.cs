@@ -152,10 +152,10 @@ public static class ContentPipelineModule
     private static void AddModDBPipeline(IServiceCollection services)
     {
         // Register named HTTP client for ModDB
-        services.AddHttpClient(ModDBConstants.PublisherPrefix, static httpClient =>
+        services.AddHttpClient(ModDBConstants.PublisherPrefix, httpClient =>
         {
             httpClient.Timeout = TimeSpan.FromSeconds(45); // ModDB can be slower
-            httpClient.DefaultRequestHeaders.Add("User-Agent", "GenHub/1.0");
+            httpClient.DefaultRequestHeaders.Add("User-Agent", ApiConstants.DefaultUserAgent);
         });
 
         // Register ModDB discoverer

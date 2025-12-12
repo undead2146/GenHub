@@ -1,22 +1,21 @@
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using AngleSharp;
 using AngleSharp.Dom;
 using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Content;
-using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
 using GenHub.Features.Content.Services.Helpers;
 using GenHub.Features.Content.Services.Publishers;
 using Microsoft.Extensions.Logging;
+using MapDetails = GenHub.Core.Models.ModDB.MapDetails;
 
 namespace GenHub.Features.Content.Services.ContentResolvers;
 
@@ -24,21 +23,11 @@ namespace GenHub.Features.Content.Services.ContentResolvers;
 /// Resolves CNC Labs map details from discovered content items.
 /// Parses HTML detail pages and generates content manifests.
 /// </summary>
-public partial class CNCLabsMapResolver(
+public class CNCLabsMapResolver(
     HttpClient httpClient,
     CNCLabsManifestFactory manifestFactory,
     ILogger<CNCLabsMapResolver> logger) : IContentResolver
 {
-    private readonly HttpClient _httpClient = httpClient;
-    private readonly CNCLabsManifestFactory _manifestFactory = manifestFactory;
-    private readonly ILogger<CNCLabsMapResolver> _logger = logger;
-
-    /// <summary>
-    /// Regex for parsing file size (e.g., "2.5 MB").
-    /// </summary>
-    [GeneratedRegex(@"([\d.]+)\s*(KB|MB|GB)", RegexOptions.IgnoreCase)]
-    private static partial Regex FileSizeRegex();
-
     /// <summary>
     /// Gets the unique resolver ID for CNC Labs Map.
     /// </summary>
@@ -61,10 +50,10 @@ public partial class CNCLabsMapResolver(
 
         try
         {
-            _logger.LogInformation("Resolving CNC Labs content from {Url}", discoveredItem.SourceUrl);
+            logger.LogInformation("Resolving CNC Labs content from {Url}", discoveredItem.SourceUrl);
 
             // Fetch HTML
-            var html = await _httpClient.GetStringAsync(discoveredItem.SourceUrl, cancellationToken);
+            var html = await httpClient.GetStringAsync(discoveredItem.SourceUrl, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
 
             // Parse details from HTML
@@ -79,14 +68,14 @@ public partial class CNCLabsMapResolver(
             if (!discoveredItem.ResolverMetadata.TryGetValue(CNCLabsConstants.MapIdMetadataKey, out var mapIdStr)
                 || !int.TryParse(mapIdStr, out var mapId))
             {
-                _logger.LogWarning("Invalid or missing map ID in resolver metadata for {Url}", discoveredItem.SourceUrl);
+                logger.LogWarning("Invalid or missing map ID in resolver metadata for {Url}", discoveredItem.SourceUrl);
                 return OperationResult<ContentManifest>.CreateFailure("Invalid map ID in resolver metadata");
             }
 
             // Use factory to create manifest
-            var manifest = _manifestFactory.CreateManifest(mapDetails, mapId, discoveredItem.SourceUrl);
+            var manifest = await manifestFactory.CreateManifestAsync(mapDetails, mapId, discoveredItem.SourceUrl);
 
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Successfully resolved CNC Labs content: {ManifestId} - {Name}",
                 manifest.Id.Value,
                 manifest.Name);
@@ -95,12 +84,12 @@ public partial class CNCLabsMapResolver(
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogError(ex, "HTTP error while resolving map details from {Url}", discoveredItem.SourceUrl);
+            logger.LogError(ex, "HTTP error while resolving map details from {Url}", discoveredItem.SourceUrl);
             return OperationResult<ContentManifest>.CreateFailure($"Failed to fetch content: {ex.Message}");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to resolve map details from {Url}", discoveredItem.SourceUrl);
+            logger.LogError(ex, "Failed to resolve map details from {Url}", discoveredItem.SourceUrl);
             return OperationResult<ContentManifest>.CreateFailure($"Resolution failed: {ex.Message}");
         }
     }
@@ -125,7 +114,7 @@ public partial class CNCLabsMapResolver(
                 ?.Trim()
             ?? string.Empty;
 
-        _logger.LogDebug("Parsed name: {Name}", name);
+        logger.LogDebug("Parsed name: {Name}", name);
 
         // 2. Description
         var descEl = document.QuerySelector(CNCLabsConstants.DetailsPageDescriptionSelector);
@@ -143,11 +132,11 @@ public partial class CNCLabsMapResolver(
         var author = CNCLabsHelper.GetNextNonEmptyTextSibling(authorStrong)
                      ?? CNCLabsConstants.DefaultAuthorName;
 
-        _logger.LogDebug("Parsed author: {Author}", author);
+        logger.LogDebug("Parsed author: {Author}", author);
 
         // 4. Game Type and Content Type from breadcrumb
         var (gameType, contentType) = CNCLabsHelper.ExtractBreadcrumbCategory(document);
-        _logger.LogDebug("Detected game type: {GameType}, content type: {ContentType}", gameType, contentType);
+        logger.LogDebug("Detected game type: {GameType}, content type: {ContentType}", gameType, contentType);
 
         // 5. Download URL
         var downloadLink = document.QuerySelector("a[href*='DownloadFile.aspx']");
@@ -159,7 +148,7 @@ public partial class CNCLabsMapResolver(
             downloadUrl = $"https://www.cnclabs.com{downloadUrl}";
         }
 
-        _logger.LogDebug("Parsed download URL: {DownloadUrl}", downloadUrl);
+        logger.LogDebug("Parsed download URL: {DownloadUrl}", downloadUrl);
 
         // 6. File metadata (optional but useful)
         var fileSizeText = ExtractMetadataValue(document, "File Size:");
@@ -227,33 +216,5 @@ public partial class CNCLabsMapResolver(
     /// </summary>
     /// <param name="sizeText">The size text to parse.</param>
     /// <returns>The file size in bytes, or 0 if parsing fails.</returns>
-    private long ParseFileSize(string? sizeText)
-    {
-        if (string.IsNullOrWhiteSpace(sizeText))
-        {
-            return 0;
-        }
-
-        // Parse formats like "2.5 MB", "1.2 KB", etc.
-        var match = FileSizeRegex().Match(sizeText);
-        if (!match.Success)
-        {
-            return 0;
-        }
-
-        if (!double.TryParse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var size))
-        {
-            return 0;
-        }
-
-        var unit = match.Groups[2].Value.ToUpperInvariant();
-        return unit switch
-        {
-            "KB" => (long)(size * 1024),
-            "MB" => (long)(size * 1024 * 1024),
-            "GB" => (long)(size * 1024 * 1024 * 1024),
-            _ => 0
-        };
-    }
-
+    private long ParseFileSize(string? sizeText) => FileSizeFormatter.ParseToBytes(sizeText);
 }

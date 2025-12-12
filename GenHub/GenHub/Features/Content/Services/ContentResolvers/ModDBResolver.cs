@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using AngleSharp;
 using AngleSharp.Dom;
 using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
@@ -14,6 +15,7 @@ using GenHub.Core.Models.ModDB;
 using GenHub.Core.Models.Results;
 using GenHub.Features.Content.Services.Publishers;
 using Microsoft.Extensions.Logging;
+using MapDetails = GenHub.Core.Models.ModDB.MapDetails;
 
 namespace GenHub.Features.Content.Services.ContentResolvers;
 
@@ -52,7 +54,7 @@ public class ModDBResolver(
             cancellationToken.ThrowIfCancellationRequested();
 
             // Parse details from HTML
-           var mapDetails = await ParseModDetailPageAsync(html, discoveredItem, cancellationToken);
+            var mapDetails = await ParseModDetailPageAsync(html, discoveredItem, cancellationToken);
 
             if (string.IsNullOrEmpty(mapDetails.DownloadUrl))
             {
@@ -60,7 +62,7 @@ public class ModDBResolver(
             }
 
             // Use factory to create manifest
-            var manifest = _manifestFactory.CreateManifest(mapDetails, discoveredItem.SourceUrl);
+            var manifest = await _manifestFactory.CreateManifestAsync(mapDetails, discoveredItem.SourceUrl);
 
             _logger.LogInformation(
                 "Successfully resolved ModDB content: {ManifestId} - {Name}",
@@ -84,7 +86,7 @@ public class ModDBResolver(
     /// <summary>
     /// Parses the HTML detail page for a ModDB mod and extracts all relevant details.
     /// </summary>
-    private async Task<GenHub.Core.Models.ModDB.MapDetails> ParseModDetailPageAsync(
+    private async Task<MapDetails> ParseModDetailPageAsync(
         string html,
         ContentSearchResult discoveredItem,
         CancellationToken cancellationToken)
@@ -158,7 +160,7 @@ public class ModDBResolver(
         if (categoryEl != null)
         {
             var mappedType = ModDBCategoryMapper.MapCategoryByName(categoryEl.TextContent);
-            
+
             // Only overwrite if the new type is not generic Addon, or if we currently have generic Addon
             if (mappedType != ContentType.Addon || contentType == ContentType.Addon)
             {
@@ -169,7 +171,7 @@ public class ModDBResolver(
         // 11. Target game from discoveredItem
         var targetGame = discoveredItem.TargetGame;
 
-        return new GenHub.Core.Models.ModDB.MapDetails(
+        return new MapDetails(
             Name: name,
             Description: description,
             Author: author,
@@ -254,46 +256,5 @@ public class ModDBResolver(
     /// <summary>
     /// Parses file size string to bytes.
     /// </summary>
-    private long ParseFileSize(string? sizeText)
-    {
-        if (string.IsNullOrWhiteSpace(sizeText))
-        {
-            return 0;
-        }
-
-        var parts = sizeText.Trim().Split(new[] { ' ', ',', '.', }, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length < 2)
-        {
-            return 0;
-        }
-
-        // Try to find numeric part and unit
-        double size = 0;
-        string? unit = null;
-
-        foreach (var part in parts)
-        {
-            if (double.TryParse(part, NumberStyles.Float, CultureInfo.InvariantCulture, out var s))
-            {
-                size = s;
-            }
-            else if (part.Length <= 3) // Likely a unit (KB, MB, GB)
-            {
-                unit = part.ToUpperInvariant();
-            }
-        }
-
-        if (size == 0 || unit == null)
-        {
-            return 0;
-        }
-
-        return unit switch
-        {
-            "KB" or "K" => (long)(size * 1024),
-            "MB" or "M" => (long)(size * 1024 * 1024),
-            "GB" or "G" => (long)(size * 1024 * 1024 * 1024),
-            _  => (long)size
-        };
-    }
+    private long ParseFileSize(string? sizeText) => FileSizeFormatter.ParseToBytes(sizeText);
 }
