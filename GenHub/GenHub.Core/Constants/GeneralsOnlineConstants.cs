@@ -127,6 +127,15 @@ public static class GeneralsOnlineConstants
 
     // ===== Authentication & API =====
 
+    /// <summary>Base URL for Generals Online REST API (production environment, contract version 1).</summary>
+    public const string RestApiBaseUrl = "https://api.playgenerals.online/env/prod/contract/1";
+
+    /// <summary>API endpoint for checking browser login status by gamecode.</summary>
+    public const string CheckLoginEndpoint = RestApiBaseUrl + "/CheckLogin";
+
+    /// <summary>API endpoint for exchanging refresh token for session token.</summary>
+    public const string LoginWithTokenEndpoint = RestApiBaseUrl + "/LoginWithToken";
+
     /// <summary>API endpoint for token verification.</summary>
     public const string VerifyTokenEndpoint = "https://api.playgenerals.online/v1/user/verify";
 
@@ -135,6 +144,12 @@ public static class GeneralsOnlineConstants
 
     /// <summary>API endpoint for lobby listings.</summary>
     public const string LobbiesEndpoint = "https://api.playgenerals.online/v1/lobbies";
+
+    /// <summary>Client identifier for GenHub authentication.</summary>
+    public const string ClientId = "genhub";
+
+    /// <summary>Length of the gamecode for browser login.</summary>
+    public const int GameCodeLength = 32;
 
     // ===== HTTP Headers =====
 
