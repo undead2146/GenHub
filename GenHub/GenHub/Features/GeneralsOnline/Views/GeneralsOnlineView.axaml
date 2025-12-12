@@ -89,10 +89,23 @@
 
           <!-- Actions -->
           <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6">
+            <!-- User Info -->
+            <Border Background="#1e1e2e" CornerRadius="6" Padding="8,4">
+              <TextBlock Text="{Binding Username}" FontSize="11" Foreground="#a78bfa"/>
+            </Border>
+            
             <Button Command="{Binding RefreshCommand}" Classes="refresh-btn">
               <StackPanel Orientation="Horizontal" Spacing="4">
                 <TextBlock Text="↻" FontSize="12"/>
                 <TextBlock Text="Refresh" FontSize="11"/>
+              </StackPanel>
+            </Button>
+            
+            <!-- Logout Button -->
+            <Button Command="{Binding Login.LogoutCommand}" Classes="refresh-btn">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <TextBlock Text="🚪" FontSize="12"/>
+                <TextBlock Text="Logout" FontSize="11"/>
               </StackPanel>
             </Button>
           </StackPanel>

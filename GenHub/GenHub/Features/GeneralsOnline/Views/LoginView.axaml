@@ -97,17 +97,41 @@
     <StackPanel Grid.Row="2" HorizontalAlignment="Center" Spacing="16" Margin="0,32,0,0">
       <Button Classes="primary-btn" 
               Command="{Binding LoginCommand}"
-              MinWidth="200">
+              MinWidth="200"
+              IsVisible="{Binding !IsPolling}">
         <StackPanel Orientation="Horizontal" Spacing="8">
           <TextBlock Text="🔐" FontSize="16" VerticalAlignment="Center"/>
-          <TextBlock Text="{Binding StatusMessage, FallbackValue='Login with Generals Online'}" 
+          <TextBlock Text="Ready to log in" 
                      FontSize="14" 
                      VerticalAlignment="Center"/>
         </StackPanel>
       </Button>
 
+      <!-- Cancel Button (shown during polling) -->
+      <Button Classes="primary-btn" 
+              Command="{Binding CancelLoginCommand}"
+              MinWidth="200"
+              IsVisible="{Binding IsPolling}"
+              Background="#ef4444">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="✖" FontSize="16" VerticalAlignment="Center"/>
+          <TextBlock Text="Cancel Login" 
+                     FontSize="14" 
+                     VerticalAlignment="Center"/>
+        </StackPanel>
+      </Button>
+
+      <!-- Status Message -->
+      <TextBlock Text="{Binding StatusMessage}" 
+                 FontSize="12" 
+                 Foreground="#a78bfa" 
+                 HorizontalAlignment="Center"
+                 Margin="0,4,0,0"
+                 IsVisible="{Binding IsPolling}"/>
+
       <!-- Registration Link -->
-      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="4">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="4"
+                  IsVisible="{Binding !IsPolling}">
         <TextBlock Text="Don't have an account?" 
                    Foreground="#64748b" 
                    FontSize="12" 
@@ -120,10 +144,10 @@
 
     <!-- Status/Info Section -->
     <Border Grid.Row="3" 
-            Background="#16161e" 
+            Background="Transparent" 
             CornerRadius="8" 
             Padding="16" 
-            Margin="40,32,40,0"
+            Margin="40,16,40,0"
             MaxWidth="500"
             HorizontalAlignment="Center">
       <StackPanel Spacing="12">

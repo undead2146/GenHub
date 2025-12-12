@@ -9,6 +9,13 @@ namespace GenHub.Core.Interfaces.GeneralsOnline;
 /// </summary>
 public interface IGeneralsOnlineApiClient
 {
+    /// <summary>
+    /// Sets the token provider function for authenticated API calls.
+    /// This breaks circular dependency between API client and auth service.
+    /// </summary>
+    /// <param name="tokenProvider">Function that returns the current auth token.</param>
+    void SetTokenProvider(Func<Task<string?>> tokenProvider);
+
     // ===== Service & Stats =====
 
     /// <summary>
@@ -114,17 +121,19 @@ public interface IGeneralsOnlineApiClient
 
     /// <summary>
     /// Checks if a user has completed login for the given gamecode.
+    /// Polls the server to see if browser authentication is complete.
     /// </summary>
     /// <param name="gameCode">The gamecode to check.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>The refresh token if login is complete, otherwise null.</returns>
-    Task<string?> CheckLoginAsync(string gameCode, CancellationToken cancellationToken = default);
+    /// <returns>The login result containing authentication state and tokens.</returns>
+    Task<LoginResult?> CheckLoginAsync(string gameCode, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Validates a refresh token and exchanges it for a session token.
+    /// Used for silent re-authentication with stored credentials.
     /// </summary>
     /// <param name="refreshToken">The refresh token to validate.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>The session token if valid, otherwise null.</returns>
-    Task<string?> LoginWithTokenAsync(string refreshToken, CancellationToken cancellationToken = default);
+    /// <returns>The login result containing session token and user info, or null on failure.</returns>
+    Task<LoginResult?> LoginWithTokenAsync(string refreshToken, CancellationToken cancellationToken = default);
 }

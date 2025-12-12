@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
@@ -21,14 +24,30 @@ namespace GenHub.Features.GeneralsOnline.Services;
 // Generals Online service experiences temporary issues. Configure in DI registration with:
 // services.AddHttpClient<IGeneralsOnlineApiClient, GeneralsOnlineApiClient>()
 //     .AddStandardResilienceHandler(options => { /* configure retry, circuit breaker, etc. */ });
-public class GeneralsOnlineApiClient(
-    HttpClient httpClient,
-    IGeneralsOnlineAuthService authService,
-    ILogger<GeneralsOnlineApiClient> logger) : IGeneralsOnlineApiClient
+public class GeneralsOnlineApiClient : IGeneralsOnlineApiClient
 {
-    private readonly HttpClient _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-    private readonly IGeneralsOnlineAuthService _authService = authService ?? throw new ArgumentNullException(nameof(authService));
-    private readonly ILogger<GeneralsOnlineApiClient> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<GeneralsOnlineApiClient> _logger;
+    private Func<Task<string?>>? _tokenProvider;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="GeneralsOnlineApiClient"/> class.
+    /// </summary>
+    /// <param name="httpClient">The HTTP client.</param>
+    /// <param name="logger">The logger instance.</param>
+    public GeneralsOnlineApiClient(
+        HttpClient httpClient,
+        ILogger<GeneralsOnlineApiClient> logger)
+    {
+        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    /// <inheritdoc />
+    public void SetTokenProvider(Func<Task<string?>> tokenProvider)
+    {
+        _tokenProvider = tokenProvider ?? throw new ArgumentNullException(nameof(tokenProvider));
+    }
 
     // ===== Service & Stats =====
 
@@ -123,87 +142,86 @@ public class GeneralsOnlineApiClient(
     // ===== Authentication - Gamecode Flow =====
 
     /// <inheritdoc />
-    public async Task<string?> CheckLoginAsync(string gameCode, CancellationToken cancellationToken = default)
+    public async Task<LoginResult?> CheckLoginAsync(string gameCode, CancellationToken cancellationToken = default)
     {
-        // TODO: Replace with actual CheckLogin endpoint when available from GO team
-        // Expected endpoint: POST /api/auth/checklogin with gamecode in body
-        // Expected response: { "refresh_token": "token_here" } or { "status": "pending" }
-
-        _logger.LogDebug("Checking login status for gamecode: {GameCode}", gameCode);
-
-        // Stub implementation - returns null (no login yet)
-        await Task.Delay(100, cancellationToken); // Simulate API call
-        return null;
-
-        /* Real implementation will look like:
         try
         {
-            var content = new FormUrlEncodedContent(new[]
-            {
-                new KeyValuePair<string, string>("gamecode", gameCode)
-            });
+            _logger.LogDebug("Checking login status for gamecode: {GameCode}", gameCode);
 
-            var response = await _httpClient.PostAsync("/api/auth/checklogin", content, cancellationToken);
-            if (!response.IsSuccessStatusCode)
+            var requestBody = new
             {
+                code = gameCode,
+                client_id = GeneralsOnlineConstants.ClientId,
+            };
+
+            var result = await PostAsync<LoginResult>(
+                GeneralsOnlineConstants.CheckLoginEndpoint,
+                requestBody,
+                token: null,
+                cancellationToken);
+
+            if (result == null)
+            {
+                _logger.LogDebug("CheckLogin returned null for gamecode: {GameCode}", gameCode);
                 return null;
             }
 
-            var json = await response.Content.ReadAsStringAsync(cancellationToken);
-            var result = json.DeserializeOrDefault<CheckLoginResponse>();
-            return result?.RefreshToken;
+            _logger.LogDebug("CheckLogin result for gamecode {GameCode}: {State}", gameCode, result.Result);
+            return result;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error checking login for gamecode {GameCode}", gameCode);
             return null;
         }
-        */
     }
 
     /// <inheritdoc />
-    public async Task<string?> LoginWithTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
+    public async Task<LoginResult?> LoginWithTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
     {
-        // TODO: Replace with actual LoginWithToken endpoint when available from GO team
-        // Expected endpoint: POST /api/auth/login with refresh_token in body
-        // Expected response: { "session_token": "token_here", "expires_in": 3600 }
-
-        _logger.LogDebug("Validating refresh token");
-
-        // Stub implementation - returns a mock session token if refresh token is valid
         if (string.IsNullOrWhiteSpace(refreshToken))
         {
+            _logger.LogWarning("LoginWithToken called with empty refresh token");
             return null;
         }
 
-        await Task.Delay(100, cancellationToken); // Simulate API call
-        return $"session_{Guid.NewGuid():N}"; // Mock session token
-
-        /* Real implementation will look like:
         try
         {
-            var content = new FormUrlEncodedContent(new[]
-            {
-                new KeyValuePair<string, string>("refresh_token", refreshToken)
-            });
+            _logger.LogDebug("Validating refresh token via LoginWithToken");
 
-            var response = await _httpClient.PostAsync("/api/auth/login", content, cancellationToken);
-            if (!response.IsSuccessStatusCode)
+            var requestBody = new
             {
-                _logger.LogWarning("Refresh token validation failed with status: {Status}", response.StatusCode);
+                client_id = GeneralsOnlineConstants.ClientId,
+            };
+
+            var result = await PostAsync<LoginResult>(
+                GeneralsOnlineConstants.LoginWithTokenEndpoint,
+                requestBody,
+                token: refreshToken,
+                cancellationToken);
+
+            if (result == null)
+            {
+                _logger.LogWarning("LoginWithToken returned null");
                 return null;
             }
 
-            var json = await response.Content.ReadAsStringAsync(cancellationToken);
-            var result = json.DeserializeOrDefault<LoginWithTokenResponse>();
-            return result?.SessionToken;
+            if (result.IsSuccess)
+            {
+                _logger.LogInformation("LoginWithToken successful for user: {DisplayName}", result.DisplayName);
+            }
+            else
+            {
+                _logger.LogWarning("LoginWithToken failed with state: {State}", result.Result);
+            }
+
+            return result;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error validating refresh token");
             return null;
         }
-        */
     }
 
     // ===== Private Helper Methods =====
@@ -245,7 +263,14 @@ public class GeneralsOnlineApiClient(
     {
         try
         {
-            var token = await _authService.GetAuthTokenAsync().ConfigureAwait(false);
+            if (_tokenProvider == null)
+            {
+                var error = $"Token provider not configured for authenticated request to {url}";
+                _logger.LogWarning(error);
+                return OperationResult<string>.CreateFailure(error);
+            }
+
+            var token = await _tokenProvider().ConfigureAwait(false);
             if (string.IsNullOrEmpty(token))
             {
                 var error = $"No authentication token available for {url}";
@@ -281,6 +306,60 @@ public class GeneralsOnlineApiClient(
             var error = $"Unexpected error calling authenticated Generals Online API: {url}";
             _logger.LogError(ex, error);
             return OperationResult<string>.CreateFailure(error);
+        }
+    }
+
+    private async Task<T?> PostAsync<T>(string url, object requestBody, string? token, CancellationToken cancellationToken)
+        where T : class
+    {
+        try
+        {
+            _logger.LogDebug("Posting to {Url}", url);
+
+            var jsonBody = JsonSerializer.Serialize(requestBody);
+            using var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Content = content;
+
+            // Set headers as per the example
+            request.Headers.UserAgent.ParseAdd("GenHub");
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            if (!string.IsNullOrEmpty(token))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            }
+
+            var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("POST request failed with status {Status} for {Url}", response.StatusCode, url);
+                return null;
+            }
+
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+            try
+            {
+                return JsonSerializer.Deserialize<T>(responseBody);
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "Failed to deserialize response from {Url}", url);
+                return null;
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error posting to {Url}", url);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error posting to {Url}", url);
+            return null;
         }
     }
 }

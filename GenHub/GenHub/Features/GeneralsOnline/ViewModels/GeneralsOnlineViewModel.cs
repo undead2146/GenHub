@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Common.ViewModels;
@@ -12,26 +13,18 @@ namespace GenHub.Features.GeneralsOnline.ViewModels;
 /// <summary>
 /// ViewModel for the Generals Online main tab.
 /// </summary>
-/// <param name="apiClient">The API client.</param>
-/// <param name="authService">The authentication service.</param>
-/// <param name="loginViewModel">The login ViewModel.</param>
-/// <param name="leaderboardViewModel">The leaderboard ViewModel.</param>
-/// <param name="matchHistoryViewModel">The match history ViewModel.</param>
-/// <param name="lobbiesViewModel">The lobbies ViewModel.</param>
-/// <param name="serviceStatusViewModel">The service status ViewModel.</param>
-/// <param name="externalLinkService">The external link service.</param>
-/// <param name="logger">The logger.</param>
-public partial class GeneralsOnlineViewModel(
-    IGeneralsOnlineApiClient apiClient,
-    IGeneralsOnlineAuthService authService,
-    LoginViewModel loginViewModel,
-    LeaderboardViewModel leaderboardViewModel,
-    MatchHistoryViewModel matchHistoryViewModel,
-    LobbiesViewModel lobbiesViewModel,
-    ServiceStatusViewModel serviceStatusViewModel,
-    IExternalLinkService externalLinkService,
-    ILogger<GeneralsOnlineViewModel> logger) : ViewModelBase
+public partial class GeneralsOnlineViewModel : ViewModelBase
 {
+    private readonly IGeneralsOnlineApiClient _apiClient;
+    private readonly IGeneralsOnlineAuthService _authService;
+    private readonly LoginViewModel _loginViewModel;
+    private readonly LeaderboardViewModel _leaderboardViewModel;
+    private readonly MatchHistoryViewModel _matchHistoryViewModel;
+    private readonly LobbiesViewModel _lobbiesViewModel;
+    private readonly ServiceStatusViewModel _serviceStatusViewModel;
+    private readonly IExternalLinkService _externalLinkService;
+    private readonly ILogger<GeneralsOnlineViewModel> _logger;
+
     [ObservableProperty]
     private string username = "Loading...";
 
@@ -48,29 +41,86 @@ public partial class GeneralsOnlineViewModel(
     private int selectedTabIndex;
 
     /// <summary>
+    /// Initializes a new instance of the <see cref="GeneralsOnlineViewModel"/> class.
+    /// </summary>
+    /// <param name="apiClient">The API client.</param>
+    /// <param name="authService">The authentication service.</param>
+    /// <param name="loginViewModel">The login ViewModel.</param>
+    /// <param name="leaderboardViewModel">The leaderboard ViewModel.</param>
+    /// <param name="matchHistoryViewModel">The match history ViewModel.</param>
+    /// <param name="lobbiesViewModel">The lobbies ViewModel.</param>
+    /// <param name="serviceStatusViewModel">The service status ViewModel.</param>
+    /// <param name="externalLinkService">The external link service.</param>
+    /// <param name="logger">The logger.</param>
+    public GeneralsOnlineViewModel(
+        IGeneralsOnlineApiClient apiClient,
+        IGeneralsOnlineAuthService authService,
+        LoginViewModel loginViewModel,
+        LeaderboardViewModel leaderboardViewModel,
+        MatchHistoryViewModel matchHistoryViewModel,
+        LobbiesViewModel lobbiesViewModel,
+        ServiceStatusViewModel serviceStatusViewModel,
+        IExternalLinkService externalLinkService,
+        ILogger<GeneralsOnlineViewModel> logger)
+    {
+        _apiClient = apiClient;
+        _authService = authService;
+        _loginViewModel = loginViewModel;
+        _leaderboardViewModel = leaderboardViewModel;
+        _matchHistoryViewModel = matchHistoryViewModel;
+        _lobbiesViewModel = lobbiesViewModel;
+        _serviceStatusViewModel = serviceStatusViewModel;
+        _externalLinkService = externalLinkService;
+        _logger = logger;
+
+        // Subscribe to auth state changes from the auth service
+        _authService.IsAuthenticated.Subscribe(OnAuthStateChanged);
+    }
+
+    private void OnAuthStateChanged(bool authenticated)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            IsAuthenticated = authenticated;
+            if (authenticated)
+            {
+                Username = _authService.CurrentDisplayName ?? "Authenticated User";
+                StatusMessage = "Connected to Generals Online";
+                _logger.LogInformation("Auth state changed: authenticated as {Username}", Username);
+            }
+            else
+            {
+                Username = "Not Authenticated";
+                StatusMessage = "Please log in";
+                _logger.LogInformation("Auth state changed: not authenticated");
+            }
+        });
+    }
+
+    /// <summary>
     /// Gets the login ViewModel.
     /// </summary>
-    public LoginViewModel Login => loginViewModel;
+    public LoginViewModel Login => _loginViewModel;
 
     /// <summary>
     /// Gets the leaderboard ViewModel.
     /// </summary>
-    public LeaderboardViewModel Leaderboard => leaderboardViewModel;
+    public LeaderboardViewModel Leaderboard => _leaderboardViewModel;
 
     /// <summary>
     /// Gets the match history ViewModel.
     /// </summary>
-    public MatchHistoryViewModel MatchHistory => matchHistoryViewModel;
+    public MatchHistoryViewModel MatchHistory => _matchHistoryViewModel;
 
     /// <summary>
     /// Gets the lobbies ViewModel.
     /// </summary>
-    public LobbiesViewModel Lobbies => lobbiesViewModel;
+    public LobbiesViewModel Lobbies => _lobbiesViewModel;
 
     /// <summary>
     /// Gets the service status ViewModel.
     /// </summary>
-    public ServiceStatusViewModel ServiceStatus => serviceStatusViewModel;
+    public ServiceStatusViewModel ServiceStatus => _serviceStatusViewModel;
 
     /// <summary>
     /// Initializes the ViewModel.
@@ -81,41 +131,13 @@ public partial class GeneralsOnlineViewModel(
         IsLoading = true;
         try
         {
-            var token = await authService.GetAuthTokenAsync();
-            if (string.IsNullOrEmpty(token))
-            {
-                Username = "Not Authenticated";
-                StatusMessage = "Please log in via the Generals Online client";
-                IsAuthenticated = false;
-
-                // Still load public data
-                await LoadPublicDataAsync();
-                return;
-            }
-
-            var isValid = await apiClient.VerifyTokenAsync(token);
-            if (!isValid)
-            {
-                Username = "Authentication Failed";
-                StatusMessage = "Invalid token. Please re-login.";
-                IsAuthenticated = false;
-
-                // Still load public data
-                await LoadPublicDataAsync();
-                return;
-            }
-
-            Username = "Authenticated User";
-            StatusMessage = "Connected to Generals Online";
-            IsAuthenticated = true;
-
-            await LoadAllDataAsync();
+            // Load public data regardless of auth state
+            await LoadPublicDataAsync();
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to initialize Generals Online view");
+            _logger.LogError(ex, "Failed to initialize Generals Online view");
             StatusMessage = "Error connecting to service";
-            IsAuthenticated = false;
         }
         finally
         {
@@ -132,28 +154,19 @@ public partial class GeneralsOnlineViewModel(
     [RelayCommand]
     private void OpenDiscord()
     {
-        if (!externalLinkService.OpenUrl("https://discord.playgenerals.online/"))
+        if (!_externalLinkService.OpenUrl("https://discord.playgenerals.online/"))
         {
-            logger.LogWarning("Failed to open Discord link");
+            _logger.LogWarning("Failed to open Discord link");
         }
     }
 
     [RelayCommand]
     private void OpenWebsite()
     {
-        if (!externalLinkService.OpenUrl("https://www.playgenerals.online/"))
+        if (!_externalLinkService.OpenUrl("https://www.playgenerals.online/"))
         {
-            logger.LogWarning("Failed to open website link");
+            _logger.LogWarning("Failed to open website link");
         }
-    }
-
-    private async Task LoadAllDataAsync()
-    {
-        await Task.WhenAll(
-            ServiceStatus.LoadAsync(),
-            Leaderboard.LoadAsync(),
-            Lobbies.LoadAsync(),
-            MatchHistory.LoadAsync());
     }
 
     private async Task LoadPublicDataAsync()
