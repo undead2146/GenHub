@@ -135,12 +135,12 @@ public class DownloadResultTests
     /// <param name="bytes">The number of bytes to format.</param>
     /// <param name="expected">The expected formatted string.</param>
     [Theory]
-    [InlineData(0, "0 B")]
-    [InlineData(1023, "1023 B")]
-    [InlineData(1024, "1 KB")]
+    [InlineData(0, "0.0 B")]
+    [InlineData(1023, "1023.0 B")]
+    [InlineData(1024, "1.0 KB")]
     [InlineData(1536, "1.5 KB")]
-    [InlineData(1048576, "1 MB")]
-    [InlineData(1073741824, "1 GB")]
+    [InlineData(1048576, "1.0 MB")]
+    [InlineData(1073741824, "1.0 GB")]
     public void FormattedBytesDownloaded_FormatsCorrectly(long bytes, string expected)
     {
         // Arrange
@@ -160,9 +160,9 @@ public class DownloadResultTests
     /// <param name="seconds">The elapsed time in seconds.</param>
     /// <param name="expected">The expected formatted speed string.</param>
     [Theory]
-    [InlineData(1024, 1, "1 KB/s")]
-    [InlineData(1048576, 2, "512 KB/s")]
-    [InlineData(0, 1, "0 B/s")]
+    [InlineData(1024, 1, "1.0 KB/s")]
+    [InlineData(1048576, 2, "512.0 KB/s")]
+    [InlineData(0, 1, "0.0 B/s")]
     public void FormattedSpeed_FormatsCorrectly(long bytesDownloaded, double seconds, string expected)
     {
         // Arrange

@@ -5,19 +5,18 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
-using GenHub.Features.Content.Services.CommunityOutpost.Models;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Content.Services.CommunityOutpost;
 
 /// <summary>
 /// Manifest factory for Community Outpost publisher.
-/// Handles single-content releases (patches, addons, maps, etc.) from the GenPatcher catalog.
-/// Creates manifests with proper file entries and install targets.
+/// Handles multi-content releases including game clients, addons (hotkeys, control bars), and patches.
 /// </summary>
 public class CommunityOutpostManifestFactory(
     ILogger<CommunityOutpostManifestFactory> logger,
@@ -50,7 +49,7 @@ public class CommunityOutpostManifestFactory(
         CancellationToken cancellationToken = default)
     {
         logger.LogInformation(
-            "Creating Community Outpost manifest from extracted content in: {Directory}",
+            "Creating Community Outpost manifests from extracted content in: {Directory}",
             extractedDirectory);
 
         if (!Directory.Exists(extractedDirectory))
@@ -59,180 +58,214 @@ public class CommunityOutpostManifestFactory(
             return new List<ContentManifest>();
         }
 
-        // Get the content code and install target from the original manifest metadata
-        var contentCode = GetContentCodeFromManifest(originalManifest);
-        var contentMetadata = GenPatcherContentRegistry.GetMetadata(contentCode);
+        var detectedContent = await DetectContentTypesAsync(extractedDirectory, cancellationToken);
 
-        logger.LogInformation(
-            "Processing content: {Name} ({ContentType}) with content code {Code}, InstallTarget={InstallTarget}",
-            originalManifest.Name,
-            originalManifest.ContentType,
-            contentCode,
-            contentMetadata.InstallTarget);
-
-        // Build the manifest with file entries
-        var manifest = await BuildManifestWithFilesAsync(
-            originalManifest,
-            extractedDirectory,
-            contentMetadata,
-            cancellationToken);
-
-        if (manifest == null)
+        if (detectedContent.Count == 0)
         {
-            logger.LogWarning("Failed to build manifest for {Name}", originalManifest.Name);
+            logger.LogWarning("No Community Outpost content detected in {Directory}", extractedDirectory);
             return new List<ContentManifest>();
         }
 
         logger.LogInformation(
-            "Created manifest {ManifestId} with {FileCount} files",
-            manifest.Id,
-            manifest.Files.Count);
+            "Detected {Count} content types for Community Outpost release",
+            detectedContent.Count);
 
-        return new List<ContentManifest> { manifest };
+        var manifests = new List<ContentManifest>();
+
+        foreach (var (contentType, contentFiles) in detectedContent.OrderBy(kv => kv.Key))
+        {
+            try
+            {
+                var manifest = await BuildManifestForContentTypeAsync(
+                    originalManifest,
+                    extractedDirectory,
+                    contentType,
+                    contentFiles,
+                    cancellationToken);
+
+                if (manifest != null)
+                {
+                    manifests.Add(manifest);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(
+                    ex,
+                    "Failed to create manifest for content type {ContentType}",
+                    contentType);
+            }
+        }
+
+        return manifests;
     }
 
     /// <inheritdoc />
     public string GetManifestDirectory(ContentManifest manifest, string extractedDirectory)
     {
-        // Get the content code to determine the correct subdirectory
-        var contentCode = GetContentCodeFromManifest(manifest);
-
-        // Check if there's a subdirectory matching the content code
-        var contentSubdir = Path.Combine(extractedDirectory, contentCode);
-        if (Directory.Exists(contentSubdir))
+        // For Community Outpost, content is organized by type
+        return manifest.ContentType switch
         {
-            return contentSubdir;
-        }
-
-        // Check for common subdirectory patterns (CCG for Generals, ZH for Zero Hour)
-        var ccgSubdir = Path.Combine(extractedDirectory, "CCG");
-        var zhSubdir = Path.Combine(extractedDirectory, "ZH");
-
-        if (manifest.TargetGame == GameType.Generals && Directory.Exists(ccgSubdir))
-        {
-            return ccgSubdir;
-        }
-
-        if (manifest.TargetGame == GameType.ZeroHour && Directory.Exists(zhSubdir))
-        {
-            return zhSubdir;
-        }
-
-        // Default to extracted directory
-        return extractedDirectory;
+            ContentType.GameClient => Path.Combine(extractedDirectory, "GameClient"),
+            ContentType.Addon => Path.Combine(extractedDirectory, "Addons", manifest.Name),
+            ContentType.Patch => extractedDirectory,
+            _ => extractedDirectory
+        };
     }
 
     /// <summary>
-    /// Extracts the content code from manifest metadata tags.
+    /// Detects different content types within the extracted directory.
+    /// Looks for game executables, addon files (hotkeys, control bars), and patches.
     /// </summary>
-    private static string GetContentCodeFromManifest(ContentManifest manifest)
-    {
-        // Look for contentCode tag in metadata
-        var contentCodeTag = manifest.Metadata?.Tags?
-            .FirstOrDefault(t => t.StartsWith("contentCode:", StringComparison.OrdinalIgnoreCase));
-
-        if (!string.IsNullOrEmpty(contentCodeTag))
-        {
-            return contentCodeTag.Substring("contentCode:".Length);
-        }
-
-        // Try to extract from manifest ID
-        // Format: 1.version.communityoutpost.contentType.contentName
-        var idParts = manifest.Id.Value?.Split('.') ?? Array.Empty<string>();
-        if (idParts.Length >= 5)
-        {
-            return idParts[4]; // The content name part
-        }
-
-        return "unknown";
-    }
-
-    /// <summary>
-    /// Determines the install target for a specific file based on its path and content type.
-    /// </summary>
-    private static ContentInstallTarget DetermineFileInstallTarget(
-        string relativePath,
-        ContentInstallTarget defaultTarget,
-        ContentType contentType)
-    {
-        // Normalize path separators
-        var normalizedPath = relativePath.Replace('\\', '/').ToLowerInvariant();
-
-        // Map files (.map extension or in Maps folder) always go to UserMapsDirectory
-        if (normalizedPath.EndsWith(".map") ||
-            normalizedPath.Contains("/maps/") ||
-            normalizedPath.StartsWith("maps/"))
-        {
-            return ContentInstallTarget.UserMapsDirectory;
-        }
-
-        // Replay files go to UserReplaysDirectory
-        if (normalizedPath.EndsWith(".rep") ||
-            normalizedPath.Contains("/replays/") ||
-            normalizedPath.StartsWith("replays/"))
-        {
-            return ContentInstallTarget.UserReplaysDirectory;
-        }
-
-        // Screenshot files go to UserScreenshotsDirectory
-        if ((normalizedPath.EndsWith(".bmp") || normalizedPath.EndsWith(".png") || normalizedPath.EndsWith(".jpg")) &&
-            (normalizedPath.Contains("/screenshots/") || normalizedPath.StartsWith("screenshots/")))
-        {
-            return ContentInstallTarget.UserScreenshotsDirectory;
-        }
-
-        // Game data files (BIG, INI, etc.) go to workspace
-        if (normalizedPath.EndsWith(".big") ||
-            normalizedPath.EndsWith(".ini") ||
-            normalizedPath.EndsWith(".exe") ||
-            normalizedPath.EndsWith(".dll") ||
-            normalizedPath.Contains("/data/"))
-        {
-            return ContentInstallTarget.Workspace;
-        }
-
-        // Use the content type's default target
-        return defaultTarget;
-    }
-
-    /// <summary>
-    /// Builds a manifest with all files from the extracted directory.
-    /// </summary>
-    private async Task<ContentManifest?> BuildManifestWithFilesAsync(
-        ContentManifest originalManifest,
-        string extractedDirectory,
-        GenPatcherContentMetadata contentMetadata,
+    private async Task<Dictionary<ContentType, List<string>>> DetectContentTypesAsync(
+        string directory,
         CancellationToken cancellationToken)
     {
+        var result = new Dictionary<ContentType, List<string>>();
+
         try
         {
-            // Get all files from extracted directory
-            var allFiles = Directory.GetFiles(extractedDirectory, "*.*", SearchOption.AllDirectories);
+            var allFiles = Directory.GetFiles(directory, "*.*", SearchOption.AllDirectories)
+                .Select(f => Path.GetRelativePath(directory, f))
+                .ToList();
 
-            if (allFiles.Length == 0)
+            // Detect game executables
+            var executables = allFiles.Where(f =>
+                f.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
+                (f.Contains("generals", StringComparison.OrdinalIgnoreCase) ||
+                 f.Contains("zerohour", StringComparison.OrdinalIgnoreCase) ||
+                 f.Contains("game", StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            if (executables.Any())
             {
-                logger.LogWarning("No files found in extracted directory: {Directory}", extractedDirectory);
-                return null;
+                result[ContentType.GameClient] = executables;
+                logger.LogInformation("Detected {Count} game executable(s)", executables.Count);
             }
 
-            logger.LogDebug("Found {FileCount} files in extracted directory", allFiles.Length);
+            // Detect hotkey addons
+            var hotkeyFiles = allFiles.Where(f =>
+                f.Contains("hotkey", StringComparison.OrdinalIgnoreCase) ||
+                f.Contains("keyboard", StringComparison.OrdinalIgnoreCase))
+                .ToList();
 
+            if (hotkeyFiles.Any())
+            {
+                result[ContentType.Addon] = hotkeyFiles;
+                logger.LogInformation("Detected {Count} hotkey addon file(s)", hotkeyFiles.Count);
+            }
+
+            // Detect control bar addons
+            var controlBarFiles = allFiles.Where(f =>
+                f.Contains("controlbar", StringComparison.OrdinalIgnoreCase) ||
+                f.Contains("commandbar", StringComparison.OrdinalIgnoreCase) ||
+                f.Contains("ui", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (controlBarFiles.Any())
+            {
+                if (result.ContainsKey(ContentType.Addon))
+                {
+                    result[ContentType.Addon].AddRange(controlBarFiles);
+                }
+                else
+                {
+                    result[ContentType.Addon] = controlBarFiles;
+                }
+
+                logger.LogInformation("Detected {Count} control bar addon file(s)", controlBarFiles.Count);
+            }
+
+            // Detect patches (DLL, BIG files, INI modifications)
+            var patchFiles = allFiles.Where(f =>
+                f.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ||
+                f.EndsWith(".big", StringComparison.OrdinalIgnoreCase) ||
+                (f.EndsWith(".ini", StringComparison.OrdinalIgnoreCase) &&
+                 !hotkeyFiles.Contains(f) &&
+                 !controlBarFiles.Contains(f)))
+                .ToList();
+
+            if (patchFiles.Any())
+            {
+                result[ContentType.Patch] = patchFiles;
+                logger.LogInformation("Detected {Count} patch file(s)", patchFiles.Count);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error detecting content types in {Directory}", directory);
+        }
+
+        await Task.CompletedTask;
+        return result;
+    }
+
+    /// <summary>
+    /// Builds a manifest for a specific content type.
+    /// </summary>
+    private async Task<ContentManifest?> BuildManifestForContentTypeAsync(
+        ContentManifest originalManifest,
+        string extractedDirectory,
+        ContentType contentType,
+        List<string> contentFiles,
+        CancellationToken cancellationToken)
+    {
+        if (contentFiles == null || contentFiles.Count == 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            // Determine content subdirectory
+            var contentDirectory = GetContentDirectory(extractedDirectory, contentType, contentFiles);
+
+            // Extract version from original manifest Version for consistent versioning
+            // Version is typically a date string like "2025-11-07" -> 20251107
+            var userVersion = VersionHelper.ExtractVersionFromVersionString(originalManifest.Version);
+
+            // Determine content name based on content type
+            var contentName = contentType switch
+            {
+                ContentType.GameClient => "zerohour", // Community Outpost targets Zero Hour
+                ContentType.Addon => "addons",
+                ContentType.Patch => "patch",
+                _ => contentType.ToString().ToLowerInvariant(),
+            };
+
+            // Generate proper manifest ID using the standard generator
+            var manifestId = ManifestIdGenerator.GeneratePublisherContentId(
+                CommunityOutpostConstants.PublisherId,
+                contentType,
+                contentName,
+                userVersion);
+
+            // Create manifest name
+            var manifestName = contentType switch
+            {
+                ContentType.GameClient => $"{CommunityOutpostConstants.ContentName} Game Client",
+                ContentType.Addon => $"{CommunityOutpostConstants.ContentName} Addons",
+                ContentType.Patch => CommunityOutpostConstants.ContentName,
+                _ => $"{CommunityOutpostConstants.ContentName} {contentType}"
+            };
+
+            // Build file entries with hashes
             var fileEntries = new List<ManifestFile>();
 
-            foreach (var fullPath in allFiles)
+            foreach (var relativePath in contentFiles)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                var fullPath = Path.Combine(contentDirectory, relativePath);
 
-                var relativePath = Path.GetRelativePath(extractedDirectory, fullPath);
+                if (!File.Exists(fullPath))
+                {
+                    logger.LogWarning("File not found during manifest creation: {Path}", fullPath);
+                    continue;
+                }
+
                 var hash = await hashProvider.ComputeFileHashAsync(fullPath, cancellationToken);
                 var fileSize = new FileInfo(fullPath).Length;
-                var isExecutable = relativePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
 
-                // Determine install target for this file
-                var fileInstallTarget = DetermineFileInstallTarget(
-                    relativePath,
-                    contentMetadata.InstallTarget,
-                    contentMetadata.ContentType);
+                var isExecutable = relativePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
 
                 fileEntries.Add(new ManifestFile
                 {
@@ -242,45 +275,102 @@ public class CommunityOutpostManifestFactory(
                     IsExecutable = isExecutable,
                     SourceType = ContentSourceType.ExtractedPackage,
                     SourcePath = fullPath,
-                    InstallTarget = fileInstallTarget,
                 });
 
                 logger.LogDebug(
-                    "Added file: {Path} (Size: {Size} bytes, InstallTarget: {Target})",
+                    "Added file to manifest: {Path} (Size: {Size} bytes, Hash: {Hash})",
                     relativePath,
                     fileSize,
-                    fileInstallTarget);
+                    hash);
             }
 
-            // Create the manifest preserving original data but with updated files
+            // Create the manifest
             var manifest = new ContentManifest
             {
-                Id = originalManifest.Id,
-                Name = originalManifest.Name,
+                Id = manifestId,
+                Name = manifestName,
                 Version = originalManifest.Version,
                 ManifestVersion = originalManifest.ManifestVersion,
-                ContentType = originalManifest.ContentType,
+                ContentType = contentType,
                 TargetGame = originalManifest.TargetGame,
                 Files = fileEntries,
-                Dependencies = originalManifest.Dependencies,
-                InstallationInstructions = originalManifest.InstallationInstructions ?? new InstallationInstructions(),
+                Dependencies = new List<ContentDependency>(),
+                InstallationInstructions = originalManifest.InstallationInstructions,
                 Publisher = originalManifest.Publisher,
-                Metadata = originalManifest.Metadata,
+                Metadata = new ContentMetadata
+                {
+                    Description = $"{manifestName} - {originalManifest.Metadata?.Description ?? string.Empty}",
+                    Tags = originalManifest.Metadata?.Tags ?? new List<string>(),
+                    ChangelogUrl = originalManifest.Metadata?.ChangelogUrl,
+                },
             };
 
             logger.LogInformation(
-                "Built manifest {ManifestId} for {ContentType} '{Name}' with {FileCount} files",
-                manifest.Id,
-                manifest.ContentType,
-                manifest.Name,
+                "Created manifest {ManifestId} for {ContentType} with {FileCount} files",
+                manifestId,
+                contentType,
                 fileEntries.Count);
 
             return manifest;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to build manifest for {Name}", originalManifest.Name);
+            logger.LogError(
+                ex,
+                "Failed to build manifest for content type {ContentType}",
+                contentType);
             return null;
         }
+    }
+
+    /// <summary>
+    /// Determines the content directory based on content type and files.
+    /// </summary>
+    private string GetContentDirectory(
+        string extractedDirectory,
+        ContentType contentType,
+        List<string> contentFiles)
+    {
+        if (contentFiles.Count == 0)
+        {
+            return extractedDirectory;
+        }
+
+        // For game clients, find the directory containing the executable
+        if (contentType == ContentType.GameClient)
+        {
+            var executable = contentFiles.FirstOrDefault(f => f.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
+            if (executable != null)
+            {
+                var executableFullPath = Path.Combine(extractedDirectory, executable);
+                var directory = Path.GetDirectoryName(executableFullPath);
+                return directory ?? extractedDirectory;
+            }
+        }
+
+        // For addons and patches, use the common parent directory
+        var firstFile = Path.Combine(extractedDirectory, contentFiles.First());
+        var commonDirectory = Path.GetDirectoryName(firstFile);
+
+        // Find common parent directory for all files
+        foreach (var file in contentFiles.Skip(1))
+        {
+            var fullPath = Path.Combine(extractedDirectory, file);
+            var fileDirectory = Path.GetDirectoryName(fullPath);
+
+            if (fileDirectory != null && commonDirectory != null)
+            {
+                while (!fileDirectory.StartsWith(commonDirectory, StringComparison.OrdinalIgnoreCase))
+                {
+                    commonDirectory = Path.GetDirectoryName(commonDirectory);
+                    if (commonDirectory == null)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
+        return commonDirectory ?? extractedDirectory;
     }
 }

@@ -2,14 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Manifest;
-using GenHub.Core.Models.Enums;
 using GenHub.Features.Content.ViewModels;
 using Microsoft.Extensions.Logging;
 
@@ -190,34 +189,8 @@ public partial class PublisherCardViewModel : ObservableObject
             return string.Empty;
         }
 
-        // Extract all digits
-        var digits = Regex.Replace(version, @"\D", string.Empty);
-
-        // If we have 8 digits (YYYYMMDD format), return it
-        if (digits.Length >= 8)
-        {
-            return digits.Substring(0, 8);
-        }
-
-        return digits;
-    }
-
-    /// <summary>
-    /// Formats bytes into a human-readable string.
-    /// </summary>
-    private static string FormatBytes(long bytes)
-    {
-        string[] sizes = { "B", "KB", "MB", "GB" };
-        int order = 0;
-        double size = bytes;
-
-        while (size >= 1024 && order < sizes.Length - 1)
-        {
-            order++;
-            size /= 1024;
-        }
-
-        return $"{size:0.#} {sizes[order]}";
+        var numericVersion = VersionHelper.ExtractVersionFromVersionString(version);
+        return numericVersion > 0 ? numericVersion.ToString() : string.Empty;
     }
 
     /// <summary>
@@ -243,14 +216,17 @@ public partial class PublisherCardViewModel : ObservableObject
         // Add file/bytes info if available
         if (progress.TotalBytes > 0 && progress.Phase == Core.Models.Content.ContentAcquisitionPhase.Downloading)
         {
-            var downloaded = FormatBytes(progress.BytesProcessed);
-            var total = FormatBytes(progress.TotalBytes);
+            var downloaded = ByteFormatHelper.FormatBytes(progress.BytesProcessed);
+            var total = ByteFormatHelper.FormatBytes(progress.TotalBytes);
             return $"{phaseName}: {downloaded} / {total} ({percentText})";
         }
 
         if (progress.TotalFiles > 0)
         {
-            return $"{phaseName}: {progress.FilesProcessed}/{progress.TotalFiles} files ({percentText})";
+            var phasePercent = progress.TotalFiles > 0
+                ? (int)((double)progress.FilesProcessed / progress.TotalFiles * 100)
+                : 0;
+            return $"{phaseName}: {progress.FilesProcessed}/{progress.TotalFiles} files ({phasePercent}%)";
         }
 
         if (!string.IsNullOrEmpty(progress.CurrentOperation))
@@ -262,22 +238,33 @@ public partial class PublisherCardViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Simple check if content is installed - matches by publisher, content type, and version date.
+    /// Simple check if content is installed - matches by manifest ID or by ID components with version.
     /// </summary>
     private static bool IsContentInstalledSimple(
         ContentItemViewModel item,
         List<Core.Models.Manifest.ContentManifest> allManifests,
         string publisherId)
     {
+        var itemId = item.Model.Id ?? string.Empty;
         var itemVersion = item.Version ?? string.Empty;
         var itemDatePart = ExtractDateFromVersion(itemVersion);
 
         foreach (var manifest in allManifests)
         {
-            // Check publisher match (by type or by ID containing publisher name)
-            var publisherMatch =
-                (manifest.Publisher?.PublisherType?.Contains(publisherId, StringComparison.OrdinalIgnoreCase) == true) ||
-                manifest.Id.Value.Contains(publisherId, StringComparison.OrdinalIgnoreCase);
+            // Direct ID match - most reliable
+            if (!string.IsNullOrEmpty(itemId) &&
+                manifest.Id.Value.Equals(itemId, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            // If no direct ID match, try matching by publisher + content type + name
+            // Check publisher match by exact ID prefix or type
+            var manifestIdParts = manifest.Id.Value.Split('.');
+            var hasPublisherInId = manifestIdParts.Length > 2 &&
+                manifestIdParts[2].Equals(publisherId, StringComparison.OrdinalIgnoreCase);
+            var publisherMatch = hasPublisherInId ||
+                (manifest.Publisher?.PublisherType?.Equals(publisherId, StringComparison.OrdinalIgnoreCase) == true);
 
             if (!publisherMatch)
             {
@@ -290,11 +277,31 @@ public partial class PublisherCardViewModel : ObservableObject
                 continue;
             }
 
-            // Check version match - compare date parts
+            // For manifests from the same publisher with same content type, check name match
+            // This prevents matching all map packs just because they share publisher + type
+            var itemName = item.Name?.ToLowerInvariant() ?? string.Empty;
+            var manifestName = manifest.Name?.ToLowerInvariant() ?? string.Empty;
+
+            // Skip if names don't match and we have name info
+            if (!string.IsNullOrEmpty(itemName) && !string.IsNullOrEmpty(manifestName))
+            {
+                // Allow for slight variations (e.g., "Far Cry" vs "FarCry")
+                var normalizedItemName = itemName.Replace(" ", string.Empty).Replace("-", string.Empty);
+                var normalizedManifestName = manifestName.Replace(" ", string.Empty).Replace("-", string.Empty);
+
+                if (!normalizedManifestName.Contains(normalizedItemName, StringComparison.OrdinalIgnoreCase) &&
+                    !normalizedItemName.Contains(normalizedManifestName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+            }
+
+            // Publisher + content type + name all match - this is enough to consider it installed
+            // Version matching is optional and used for additional confirmation
             var manifestVersion = manifest.Version ?? string.Empty;
             var manifestDatePart = ExtractDateFromVersion(manifestVersion);
 
-            // Direct version match
+            // Direct version match - strongest confirmation
             if (manifestVersion.Equals(itemVersion, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
@@ -307,6 +314,10 @@ public partial class PublisherCardViewModel : ObservableObject
             {
                 return true;
             }
+
+            // If publisher + content type + name match but versions differ,
+            // do not consider it installed - this could be a different version
+            // and would hide available updates from the user
         }
 
         return false;
@@ -333,9 +344,9 @@ public partial class PublisherCardViewModel : ObservableObject
             return;
         }
 
-        if (item.SourceResult == null)
+        if (item.Model == null)
         {
-            _logger.LogError("Cannot install item {ItemName}: SourceResult is null", item.Name);
+            _logger.LogError("Cannot install item {ItemName}: Model is null", item.Name);
             item.InstallStatus = "Error: No source available";
             return;
         }
@@ -355,7 +366,7 @@ public partial class PublisherCardViewModel : ObservableObject
                 item.InstallStatus = FormatProgressStatus(p);
             });
 
-            var result = await _contentOrchestrator.AcquireContentAsync(item.SourceResult, progress);
+            var result = await _contentOrchestrator.AcquireContentAsync(item.Model, progress);
 
             if (result.Success)
             {

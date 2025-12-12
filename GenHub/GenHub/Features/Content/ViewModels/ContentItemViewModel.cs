@@ -8,22 +8,13 @@ namespace GenHub.Features.Content.ViewModels;
 /// <summary>
 /// ViewModel for a single content item in the discovery browser.
 /// </summary>
-public partial class ContentItemViewModel : ObservableObject
+/// <param name="model">The underlying content search result model.</param>
+public partial class ContentItemViewModel(ContentSearchResult model) : ObservableObject
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ContentItemViewModel"/> class.
-    /// </summary>
-    /// <param name="model">The underlying content search result model.</param>
-    public ContentItemViewModel(ContentSearchResult model)
-    {
-        ArgumentNullException.ThrowIfNull(model);
-        Model = model;
-    }
-
     /// <summary>
     /// Gets the underlying data model for the content item.
     /// </summary>
-    public ContentSearchResult Model { get; }
+    public ContentSearchResult Model { get; } = model ?? throw new ArgumentNullException(nameof(model));
 
     /// <summary>
     /// Gets the source result for installation.
