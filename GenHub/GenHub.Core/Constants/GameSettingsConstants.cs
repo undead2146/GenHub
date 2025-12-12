@@ -114,6 +114,83 @@ public static class GameSettingsConstants
         /// Folder name for Command and Conquer Generals Zero Hour settings.
         /// </summary>
         public const string ZeroHour = "Command and Conquer Generals Zero Hour Data";
+
+        /// <summary>
+        /// Folder name for GeneralsOnline settings.
+        /// </summary>
+        public const string GeneralsOnlineData = "GeneralsOnlineData";
+    }
+
+    /// <summary>
+    /// TheSuperHackers game client settings constants.
+    /// </summary>
+    public static class TheSuperHackers
+    {
+        /// <summary>
+        /// Minimum font size value.
+        /// </summary>
+        public const int MinFontSize = 0;
+
+        /// <summary>
+        /// Maximum font size value.
+        /// </summary>
+        public const int MaxFontSize = 72;
+
+        /// <summary>
+        /// Minimum resolution font adjustment value.
+        /// </summary>
+        public const int MinResolutionFontAdjustment = -100;
+
+        /// <summary>
+        /// Maximum resolution font adjustment value.
+        /// </summary>
+        public const int MaxResolutionFontAdjustment = 100;
+
+        /// <summary>
+        /// Default resolution font adjustment value.
+        /// </summary>
+        public const int DefaultResolutionFontAdjustment = -100;
+
+        /// <summary>
+        /// Default font size for network latency display.
+        /// </summary>
+        public const int DefaultNetworkLatencyFontSize = 8;
+
+        /// <summary>
+        /// Default font size for FPS display.
+        /// </summary>
+        public const int DefaultRenderFpsFontSize = 8;
+
+        /// <summary>
+        /// Default font size for system time display.
+        /// </summary>
+        public const int DefaultSystemTimeFontSize = 8;
+    }
+
+    /// <summary>
+    /// GeneralsOnline game client settings constants.
+    /// </summary>
+    public static class GeneralsOnline
+    {
+        /// <summary>
+        /// Settings file name for GeneralsOnline.
+        /// </summary>
+        public const string SettingsFileName = "settings.json";
+
+        /// <summary>
+        /// Default chat font size.
+        /// </summary>
+        public const int DefaultChatFontSize = 12;
+
+        /// <summary>
+        /// Minimum chat font size.
+        /// </summary>
+        public const int MinChatFontSize = 8;
+
+        /// <summary>
+        /// Maximum chat font size.
+        /// </summary>
+        public const int MaxChatFontSize = 24;
     }
 
     /// <summary>
