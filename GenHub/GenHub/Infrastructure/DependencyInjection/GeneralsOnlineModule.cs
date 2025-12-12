@@ -71,6 +71,7 @@ public static class GeneralsOnlineModule
         services.AddSingleton<LeaderboardViewModel>();
         services.AddSingleton<MatchHistoryViewModel>();
         services.AddSingleton<LobbiesViewModel>();
+        services.AddSingleton<ActiveMatchesViewModel>();
         services.AddSingleton<ServiceStatusViewModel>();
 
         // Register main ViewModel (depends on child ViewModels)

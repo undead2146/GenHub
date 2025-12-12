@@ -237,6 +237,193 @@ public partial class HtmlParsingService(ILogger<HtmlParsingService> logger)
         return matches;
     }
 
+    /// <summary>
+    /// Parses active lobbies/matches from HTML response.
+    /// </summary>
+    /// <param name="html">The HTML content to parse.</param>
+    /// <returns>A list of active lobbies and lobby count.</returns>
+    public (List<ActiveLobby> Lobbies, int LobbyCount) ParseActiveLobbies(string html)
+    {
+        var lobbies = new List<ActiveLobby>();
+        int lobbyCount = 0;
+
+        try
+        {
+            // Extract lobby count from nav badge: Lobbies <span class="badge">57</span>
+            var countMatch = LobbyCountRegex().Match(html);
+            if (countMatch.Success && int.TryParse(countMatch.Groups[1].Value, out var count))
+            {
+                lobbyCount = count;
+            }
+
+            // Parse lobby cards - each card represents a lobby
+            var cardMatches = LobbyCardRegex().Matches(html);
+
+            foreach (Match cardMatch in cardMatches)
+            {
+                try
+                {
+                    var cardHtml = cardMatch.Value;
+
+                    // Extract map info: <small>[RANK] Map Name (slots)</small>
+                    var mapMatch = LobbyMapInfoRegex().Match(cardHtml);
+                    var mapName = mapMatch.Success ? WebUtility.HtmlDecode(mapMatch.Groups[1].Value.Trim()) : "Unknown Map";
+                    var mapSlots = mapMatch.Success && int.TryParse(mapMatch.Groups[2].Value, out var slots) ? slots : 8;
+
+                    // Extract map thumbnail
+                    var thumbMatch = LobbyMapThumbnailRegex().Match(cardHtml);
+                    var mapThumbnailUrl = thumbMatch.Success ? thumbMatch.Groups[1].Value : string.Empty;
+
+                    // Extract lobby name: <h5 class='card-title'>[AS] Generals Online Lobby</h5>
+                    var lobbyMatch = LobbyTitleRegex().Match(cardHtml);
+                    var lobbyName = lobbyMatch.Success ? WebUtility.HtmlDecode(lobbyMatch.Groups[1].Value.Trim()) : "Unknown Lobby";
+
+                    // Extract region from lobby name
+                    var region = ExtractRegion(lobbyName);
+
+                    // Parse player slots
+                    var playerSlots = ParseLobbySlots(cardHtml);
+
+                    // Determine status - check for "Game In Progress" indicator
+                    var status = cardHtml.Contains("Game In Progress", StringComparison.OrdinalIgnoreCase)
+                        ? LobbyStatus.InProgress
+                        : LobbyStatus.Waiting;
+
+                    // Parse settings
+                    var settings = ParseLobbySettings(cardHtml);
+
+                    lobbies.Add(new ActiveLobby(
+                        lobbyName,
+                        mapName,
+                        mapThumbnailUrl,
+                        mapSlots,
+                        region,
+                        playerSlots,
+                        status,
+                        settings));
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to parse individual lobby card");
+                }
+            }
+
+            logger.LogDebug("Parsed {Count} active lobbies from {Total} total", lobbies.Count, lobbyCount);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to parse active lobbies HTML");
+        }
+
+        return (lobbies, lobbyCount);
+    }
+
+    private static List<LobbySlot> ParseLobbySlots(string cardHtml)
+    {
+        var slots = new List<LobbySlot>();
+
+        // Find the Players section and parse each row
+        // HTML structure:
+        // <div class="row">
+        //   <div class="col-sm-2"><i class="fa-solid fa-square" style="color: #FF0000;"></i></div>
+        //   <div class="col-sm-2"><img src="assets/images/teams/..." /> OR <i class="fa-solid fa-circle-question" /></div>
+        //   <div class="col-sm">PlayerName OR Closed OR Open</div>
+        // </div>
+        var playerRows = LobbyPlayerRowRegex().Matches(cardHtml);
+
+        foreach (Match rowMatch in playerRows)
+        {
+            var rowHtml = rowMatch.Value;
+
+            // Extract team color from fa-square style
+            var colorMatch = LobbySlotColorRegex().Match(rowHtml);
+            var teamColor = colorMatch.Success ? colorMatch.Groups[1].Value.TrimEnd(';') : "#FFFFFF";
+
+            // Check for faction icon image
+            var factionMatch = LobbyFactionIconRegex().Match(rowHtml);
+            string? factionIcon = null;
+            if (factionMatch.Success)
+            {
+                // Make it a full URL
+                factionIcon = "https://www.playgenerals.online/" + factionMatch.Groups[1].Value;
+            }
+
+            // Extract player name from the col-sm div (not col-sm-2)
+            var nameMatch = LobbyPlayerNameRegex().Match(rowHtml);
+            var slotContent = nameMatch.Success ? WebUtility.HtmlDecode(nameMatch.Groups[1].Value.Trim()) : string.Empty;
+
+            // Determine slot state and player name
+            SlotState slotState;
+            string? playerName = null;
+
+            if (string.Equals(slotContent, "Closed", StringComparison.OrdinalIgnoreCase))
+            {
+                slotState = SlotState.Closed;
+            }
+            else if (string.Equals(slotContent, "Open", StringComparison.OrdinalIgnoreCase))
+            {
+                slotState = SlotState.Open;
+            }
+            else if (!string.IsNullOrWhiteSpace(slotContent))
+            {
+                playerName = slotContent;
+                slotState = SlotState.Occupied;
+            }
+            else
+            {
+                slotState = SlotState.Closed;
+            }
+
+            slots.Add(new LobbySlot(playerName, teamColor, factionIcon, slotState));
+        }
+
+        return slots;
+    }
+
+    private static LobbySettings ParseLobbySettings(string cardHtml)
+    {
+        // Extract settings section
+        bool isCustomMap = cardHtml.Contains("Custom Map") && ContainsCheckmark(cardHtml, "Custom Map");
+        bool isOriginalArmies = cardHtml.Contains("Original Armies") && ContainsCheckmark(cardHtml, "Original Armies");
+        bool limitSuperweapons = cardHtml.Contains("Limit Superweapons") && ContainsCheckmark(cardHtml, "Limit Superweapons");
+        bool trackStats = cardHtml.Contains("Track Stats") && ContainsCheckmark(cardHtml, "Track Stats");
+        bool allowObservers = cardHtml.Contains("Allow Observers") && ContainsCheckmark(cardHtml, "Allow Observers");
+        bool isPassworded = cardHtml.Contains("fa-lock\"") && !cardHtml.Contains("fa-lock-open");
+
+        // Extract starting cash
+        var cashMatch = LobbyStartingCashRegex().Match(cardHtml);
+        var startingCash = cashMatch.Success ? cashMatch.Groups[1].Value : "$10000";
+
+        // Extract camera height
+        var cameraMatch = LobbyCameraHeightRegex().Match(cardHtml);
+        var cameraHeight = cameraMatch.Success ? cameraMatch.Groups[1].Value : "Default";
+
+        return new LobbySettings(
+            isCustomMap,
+            isOriginalArmies,
+            startingCash,
+            limitSuperweapons,
+            trackStats,
+            allowObservers,
+            isPassworded,
+            cameraHeight);
+    }
+
+    private static bool ContainsCheckmark(string html, string settingName)
+    {
+        // Find the setting row and check if it has fa-square-check (checked) vs fa-square-xmark (unchecked)
+        var settingIndex = html.IndexOf(settingName, StringComparison.OrdinalIgnoreCase);
+        if (settingIndex < 0)
+        {
+            return false;
+        }
+
+        // Look for check/xmark within the next ~200 chars (reasonable for a row)
+        var searchEnd = Math.Min(settingIndex + 200, html.Length);
+        var searchSection = html.Substring(settingIndex, searchEnd - settingIndex);
+        return searchSection.Contains("fa-square-check", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static (PlayerStatus Status, string? LobbyName) ParsePlayerStatus(string statusText)
     {
         if (statusText.Contains("Server List", StringComparison.OrdinalIgnoreCase) ||
@@ -406,4 +593,50 @@ public partial class HtmlParsingService(ILogger<HtmlParsingService> logger)
     // HTML tag stripping pattern
     [GeneratedRegex(@"<[^>]+>")]
     private static partial Regex HtmlTagRegex();
+
+    // Active lobbies patterns
+    // Lobby count from nav: Lobbies <span class="badge text-bg-secondary">57</span>
+    [GeneratedRegex(@"Lobbies\s*<span[^>]*>(\d+)</span>", RegexOptions.IgnoreCase)]
+    private static partial Regex LobbyCountRegex();
+
+    // Each lobby card - ends with </p></div></div></div> pattern
+    [GeneratedRegex(@"<div\s+class='card\s+rounded-0\s+w-100\s+mb-1'>.*?</p>\s*</div>\s*</div>\s*</div>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex LobbyCardRegex();
+
+    // Map info: <small>[RANK] Map Name (slots)</small>
+    [GeneratedRegex(@"<small>([^<]+)\((\d+)\)</small>", RegexOptions.IgnoreCase)]
+    private static partial Regex LobbyMapInfoRegex();
+
+    // Map thumbnail: <img src='assets/images/mapthumbnails/...
+    [GeneratedRegex(@"<img\s+src='(assets/images/mapthumbnails/[^']+)'", RegexOptions.IgnoreCase)]
+    private static partial Regex LobbyMapThumbnailRegex();
+
+    // Lobby title: <h5 class='card-title'>[AS] Generals Online Lobby</h5>
+    [GeneratedRegex(@"<h5\s+class='card-title'>([^<]+)</h5>", RegexOptions.IgnoreCase)]
+    private static partial Regex LobbyTitleRegex();
+
+    // Player row in lobby - captures div.row containing player slot with three col divs
+    // Structure: <div class="row">...<div class="col-sm-2">color</div><div class="col-sm-2">faction</div><div class="col-sm">name</div></div>
+    [GeneratedRegex(@"<div\s+class=""row"">\s*<div\s+class=""col-sm-2"">\s*<i\s+class=""fa-solid\s+fa-square""[^>]*>.*?</div>\s*<div\s+class=""col-sm-2"">.*?</div>\s*<div\s+class=""col-sm"">.*?</div>\s*</div>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex LobbyPlayerRowRegex();
+
+    // Slot color: style="color: #32D7E6;"
+    [GeneratedRegex(@"fa-square""\s+style=""color:\s*([^""]+)""", RegexOptions.IgnoreCase)]
+    private static partial Regex LobbySlotColorRegex();
+
+    // Faction icon: <img ... src="assets/images/teams/usa_super.webp"
+    [GeneratedRegex(@"<img[^>]*src=""(assets/images/teams/[^""]+)""", RegexOptions.IgnoreCase)]
+    private static partial Regex LobbyFactionIconRegex();
+
+    // Player name - text inside the last <div class="col-sm"> (not col-sm-2)
+    [GeneratedRegex(@"<div\s+class=""col-sm"">\s*([^<]+?)\s*</div>\s*</div>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex LobbyPlayerNameRegex();
+
+    // Starting cash: Starting Cash</div> ... <div class="col-sm">$300000</div>
+    [GeneratedRegex(@"Starting Cash</div>\s*<div[^>]*>(\$[\d,]+)</div>", RegexOptions.IgnoreCase)]
+    private static partial Regex LobbyStartingCashRegex();
+
+    // Camera height: Camera Height</div> ... <div ...>Modified (310)</div>
+    [GeneratedRegex(@"Camera Height</div>\s*<div[^>]*>([^<]+)</div>", RegexOptions.IgnoreCase)]
+    private static partial Regex LobbyCameraHeightRegex();
 }

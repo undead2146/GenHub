@@ -332,6 +332,11 @@ public class MainViewModelTests
             htmlParser,
             new Mock<ILogger<LobbiesViewModel>>().Object);
 
+        var activeMatchesVm = new ActiveMatchesViewModel(
+            mockApiClient.Object,
+            htmlParser,
+            new Mock<ILogger<ActiveMatchesViewModel>>().Object);
+
         var serviceStatusVm = new ServiceStatusViewModel(
             mockApiClient.Object,
             htmlParser,
@@ -351,6 +356,7 @@ public class MainViewModelTests
             leaderboardVm,
             matchHistoryVm,
             lobbiesVm,
+            activeMatchesVm,
             serviceStatusVm,
             mockExternalLinkService.Object,
             mockLogger.Object);

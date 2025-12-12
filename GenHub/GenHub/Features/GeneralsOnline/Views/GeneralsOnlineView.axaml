@@ -70,7 +70,7 @@
         <Grid ColumnDefinitions="Auto, Auto, *, Auto">
           <!-- Logo and Status -->
           <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-            <TextBlock Text="🎮" FontSize="16"/>
+            <Image Source="/Assets/Logos/generalsonline-logo.png" Width="20" Height="20" VerticalAlignment="Center"/>
             <TextBlock Text="Generals Online" FontWeight="SemiBold" FontSize="14" Foreground="White"/>
             <Border Background="#1e1e2e" CornerRadius="10" Padding="8,3" Margin="4,0,0,0">
               <StackPanel Orientation="Horizontal" Spacing="6">
@@ -138,6 +138,20 @@
             </StackPanel>
           </TabItem.Header>
           <views:LobbiesView DataContext="{Binding Lobbies}"/>
+        </TabItem>
+
+        <!-- Active Matches Tab -->
+        <TabItem>
+          <TabItem.Header>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Image Source="/Assets/Logos/generalsonline-logo.png" Width="14" Height="14" VerticalAlignment="Center"/>
+              <TextBlock Text="Lobbies"/>
+              <Border Background="#60a5fa" CornerRadius="8" Padding="5,1" IsVisible="{Binding ActiveMatches.HasLobbies}">
+                <TextBlock Text="{Binding ActiveMatches.LobbyCount}" FontSize="10" Foreground="#1E1E2E" FontWeight="SemiBold"/>
+              </Border>
+            </StackPanel>
+          </TabItem.Header>
+          <views:ActiveMatchesView DataContext="{Binding ActiveMatches}"/>
         </TabItem>
 
         <!-- Leaderboards Tab -->

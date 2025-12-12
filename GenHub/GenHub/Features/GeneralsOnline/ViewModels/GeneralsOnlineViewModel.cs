@@ -21,6 +21,7 @@ public partial class GeneralsOnlineViewModel : ViewModelBase
     private readonly LeaderboardViewModel _leaderboardViewModel;
     private readonly MatchHistoryViewModel _matchHistoryViewModel;
     private readonly LobbiesViewModel _lobbiesViewModel;
+    private readonly ActiveMatchesViewModel _activeMatchesViewModel;
     private readonly ServiceStatusViewModel _serviceStatusViewModel;
     private readonly IExternalLinkService _externalLinkService;
     private readonly ILogger<GeneralsOnlineViewModel> _logger;
@@ -49,6 +50,7 @@ public partial class GeneralsOnlineViewModel : ViewModelBase
     /// <param name="leaderboardViewModel">The leaderboard ViewModel.</param>
     /// <param name="matchHistoryViewModel">The match history ViewModel.</param>
     /// <param name="lobbiesViewModel">The lobbies ViewModel.</param>
+    /// <param name="activeMatchesViewModel">The active matches ViewModel.</param>
     /// <param name="serviceStatusViewModel">The service status ViewModel.</param>
     /// <param name="externalLinkService">The external link service.</param>
     /// <param name="logger">The logger.</param>
@@ -59,6 +61,7 @@ public partial class GeneralsOnlineViewModel : ViewModelBase
         LeaderboardViewModel leaderboardViewModel,
         MatchHistoryViewModel matchHistoryViewModel,
         LobbiesViewModel lobbiesViewModel,
+        ActiveMatchesViewModel activeMatchesViewModel,
         ServiceStatusViewModel serviceStatusViewModel,
         IExternalLinkService externalLinkService,
         ILogger<GeneralsOnlineViewModel> logger)
@@ -69,6 +72,7 @@ public partial class GeneralsOnlineViewModel : ViewModelBase
         _leaderboardViewModel = leaderboardViewModel;
         _matchHistoryViewModel = matchHistoryViewModel;
         _lobbiesViewModel = lobbiesViewModel;
+        _activeMatchesViewModel = activeMatchesViewModel;
         _serviceStatusViewModel = serviceStatusViewModel;
         _externalLinkService = externalLinkService;
         _logger = logger;
@@ -116,6 +120,11 @@ public partial class GeneralsOnlineViewModel : ViewModelBase
     /// Gets the lobbies ViewModel.
     /// </summary>
     public LobbiesViewModel Lobbies => _lobbiesViewModel;
+
+    /// <summary>
+    /// Gets the active matches ViewModel.
+    /// </summary>
+    public ActiveMatchesViewModel ActiveMatches => _activeMatchesViewModel;
 
     /// <summary>
     /// Gets the service status ViewModel.
@@ -175,6 +184,7 @@ public partial class GeneralsOnlineViewModel : ViewModelBase
         await Task.WhenAll(
             ServiceStatus.LoadAsync(),
             Leaderboard.LoadAsync(),
-            Lobbies.LoadAsync());
+            Lobbies.LoadAsync(),
+            ActiveMatches.LoadAsync());
     }
 }
