@@ -112,7 +112,7 @@ public partial class DownloadsViewModel(
         {
             generalsOnlineCard.PublisherId = GeneralsOnlineConstants.PublisherType;
             generalsOnlineCard.DisplayName = GeneralsOnlineConstants.ContentName;
-            generalsOnlineCard.IconColor = GeneralsOnlineConstants.IconColor;
+            generalsOnlineCard.LogoSource = GeneralsOnlineConstants.LogoSource;
             generalsOnlineCard.ReleaseNotes = GeneralsOnlineConstants.ShortDescription;
             generalsOnlineCard.IsLoading = true;
             PublisherCards.Add(generalsOnlineCard);
@@ -124,7 +124,7 @@ public partial class DownloadsViewModel(
         {
             superHackersCard.PublisherId = PublisherTypeConstants.TheSuperHackers;
             superHackersCard.DisplayName = SuperHackersConstants.PublisherName;
-            superHackersCard.IconColor = SuperHackersConstants.IconColor;
+            superHackersCard.LogoSource = SuperHackersConstants.LogoSource;
             superHackersCard.ReleaseNotes = SuperHackersConstants.ProviderDescription;
             superHackersCard.IsLoading = true;
             PublisherCards.Add(superHackersCard);
@@ -136,7 +136,7 @@ public partial class DownloadsViewModel(
         {
             communityOutpostCard.PublisherId = CommunityOutpostConstants.PublisherType;
             communityOutpostCard.DisplayName = CommunityOutpostConstants.PublisherName;
-            communityOutpostCard.IconColor = CommunityOutpostConstants.IconColor;
+            communityOutpostCard.LogoSource = CommunityOutpostConstants.LogoSource;
             communityOutpostCard.ReleaseNotes = CommunityOutpostConstants.ProviderDescription;
             communityOutpostCard.IsLoading = true;
             PublisherCards.Add(communityOutpostCard);

@@ -30,9 +30,6 @@ public partial class PublisherCardViewModel : ObservableObject
     private string _displayName = string.Empty;
 
     [ObservableProperty]
-    private string _iconColor = "#888888";
-
-    [ObservableProperty]
     private string _iconPathData = string.Empty;
 
     [ObservableProperty]
