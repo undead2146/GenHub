@@ -14,6 +14,7 @@ namespace GenHub.Linux.Features.Shortcuts;
 /// <summary>
 /// Linux implementation of <see cref="IShortcutService"/> that creates .desktop files.
 /// </summary>
+[SupportedOSPlatform("linux")]
 public class LinuxShortcutService(ILogger<LinuxShortcutService> logger) : IShortcutService
 {
     private const string DesktopEntryVersion = "1.0";

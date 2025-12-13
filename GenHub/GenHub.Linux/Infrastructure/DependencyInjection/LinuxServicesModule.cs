@@ -18,6 +18,7 @@ public static class LinuxServicesModule
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <returns>The service collection for chaining.</returns>
+    [SupportedOSPlatform("linux")]
     public static IServiceCollection AddLinuxServices(this IServiceCollection services)
     {
         services.AddSingleton<IGameInstallationDetector, LinuxInstallationDetector>();

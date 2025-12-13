@@ -18,7 +18,6 @@ namespace GenHub.Windows.Features.Shortcuts;
 /// </summary>
 public class WindowsShortcutService(ILogger<WindowsShortcutService> logger) : IShortcutService
 {
-
     /// <inheritdoc />
     public Task<OperationResult<string>> CreateDesktopShortcutAsync(GameProfile profile, string? shortcutName = null)
     {

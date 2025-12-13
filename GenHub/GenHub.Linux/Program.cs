@@ -28,6 +28,7 @@ public class Program
     /// yet and stuff might break.
     /// </remarks>
     [STAThread]
+    [SupportedOSPlatform("linux")]
     public static void Main(string[] args)
     {
         // Initialize Velopack - must be first to handle install/update hooks
