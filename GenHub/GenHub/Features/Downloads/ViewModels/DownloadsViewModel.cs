@@ -8,6 +8,7 @@ using GenHub.Common.ViewModels;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Models.Enums;
+using GenHub.Features.Content.Services.ContentDiscoverers;
 using GenHub.Features.Content.Services.GeneralsOnline;
 using GenHub.Features.Content.ViewModels;
 using Microsoft.Extensions.Logging;
@@ -20,9 +21,11 @@ namespace GenHub.Features.Downloads.ViewModels;
 public partial class DownloadsViewModel(
     IServiceProvider serviceProvider,
     ILogger<DownloadsViewModel> logger,
-    INotificationService notificationService) : ViewModelBase
+    INotificationService notificationService,
+    GitHubTopicsDiscoverer gitHubTopicsDiscoverer) : ViewModelBase
 {
     private readonly INotificationService _notificationService = notificationService;
+    private readonly GitHubTopicsDiscoverer _gitHubTopicsDiscoverer = gitHubTopicsDiscoverer;
     [ObservableProperty]
     private string _title = "Downloads";
 
@@ -142,6 +145,18 @@ public partial class DownloadsViewModel(
             PublisherCards.Add(communityOutpostCard);
         }
 
+        // Create GitHub publisher card (topic-based discovery)
+        var githubCard = serviceProvider.GetService(typeof(PublisherCardViewModel)) as PublisherCardViewModel;
+        if (githubCard != null)
+        {
+            githubCard.PublisherId = GitHubTopicsConstants.PublisherType;
+            githubCard.DisplayName = GitHubTopicsConstants.PublisherName;
+            githubCard.IconColor = GitHubTopicsConstants.IconColor;
+            githubCard.ReleaseNotes = GitHubTopicsConstants.ProviderDescription;
+            githubCard.IsLoading = true;
+            PublisherCards.Add(githubCard);
+        }
+
         // Populate cards with real content asynchronously
         _ = PopulatePublisherCardsAsync();
     }
@@ -151,7 +166,8 @@ public partial class DownloadsViewModel(
         await Task.WhenAll(
             PopulateGeneralsOnlineCardAsync(),
             PopulateSuperHackersCardAsync(),
-            PopulateCommunityOutpostCardAsync());
+            PopulateCommunityOutpostCardAsync(),
+            PopulateGithubCardAsync());
     }
 
     private async Task PopulateGeneralsOnlineCardAsync()
@@ -353,6 +369,89 @@ public partial class DownloadsViewModel(
         }
     }
 
+    private async Task PopulateGithubCardAsync()
+    {
+        var card = PublisherCards.FirstOrDefault(c => c.PublisherId == GitHubTopicsConstants.PublisherType);
+        if (card == null) return;
+
+        try
+        {
+            if (_gitHubTopicsDiscoverer == null)
+            {
+                logger.LogWarning("GitHubTopicsDiscoverer not available for GitHub card");
+                card.HasError = true;
+                card.ErrorMessage = "GitHub discoverer service not available";
+                card.IsLoading = false;
+                return;
+            }
+
+            var result = await _gitHubTopicsDiscoverer.DiscoverAsync(new ContentSearchQuery());
+            if (result.Success && result.Data?.Any() == true)
+            {
+                var releases = result.Data.ToList();
+
+                // Group by content type
+                var groupedContent = releases.GroupBy(r => r.ContentType).ToList();
+
+                foreach (var group in groupedContent)
+                {
+                    var contentGroup = new ContentTypeGroup
+                    {
+                        Type = group.Key,
+                        DisplayName = GetContentTypeDisplayName(group.Key),
+                        Count = group.Count(),
+                        Items = new ObservableCollection<ContentItemViewModel>(
+                            group.Select(item => new ContentItemViewModel(item))),
+                    };
+                    card.ContentTypes.Add(contentGroup);
+                }
+
+                // Set card metadata from most starred repository
+                var latest = releases.OrderByDescending(r =>
+                {
+                    if (r.ResolverMetadata.TryGetValue(GitHubTopicsConstants.StarCountMetadataKey, out var stars) &&
+                        int.TryParse(stars, out var starCount))
+                    {
+                        return starCount;
+                    }
+
+                    return 0;
+                }).FirstOrDefault();
+
+                if (latest != null)
+                {
+                    card.LatestVersion = $"{releases.Count} repos";
+                    card.DownloadSize = releases.Sum(r => r.DownloadSize);
+                    card.ReleaseDate = releases.Max(r => r.LastUpdated);
+                }
+
+                logger.LogInformation("Populated GitHub card with {Count} repositories", releases.Count);
+                _notificationService.ShowSuccess(
+                    "GitHub Discovery Complete",
+                    $"Found {releases.Count} community repositories with {groupedContent.Count} content types.");
+            }
+            else
+            {
+                logger.LogInformation("No GitHub repositories found with GenHub topics");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to populate GitHub card");
+            card.HasError = true;
+            card.ErrorMessage = "Failed to discover GitHub repositories";
+            card.IsLoading = false;
+
+            _notificationService.ShowError(
+                "GitHub Discovery Failed",
+                $"Failed to discover GitHub repositories: {ex.Message}");
+        }
+        finally
+        {
+            card.IsLoading = false;
+        }
+    }
+
     private string GetContentTypeDisplayName(ContentType type)
     {
         return type switch
@@ -441,12 +540,6 @@ public partial class DownloadsViewModel(
             logger.LogWarning(ex, "Failed to fetch community patch version");
             CommunityPatchVersion = "Unavailable";
         }
-    }
-
-    [RelayCommand]
-    private void OpenGitHubBuilds()
-    {
-        // TODO: Implement navigation to GitHub builds page
     }
 
     [RelayCommand]
