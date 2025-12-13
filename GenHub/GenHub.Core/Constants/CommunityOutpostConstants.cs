@@ -84,6 +84,24 @@ public static class CommunityOutpostConstants
     public const string PatchZipLinkPattern = @"href=[""']([^""']*\.zip)[""']";
 
     /// <summary>
+    /// The file extension for GenPatcher .dat files (which are actually 7z archives).
+    /// </summary>
+    public const string DatFileExtension = ".dat";
+
+    /// <summary>
+    /// Timeout in seconds for downloading the catalog file.
+    /// </summary>
+    public const int CatalogDownloadTimeoutSeconds = 30;
+
+    /// <summary>
+    /// Timeout in seconds for downloading content files.
+    /// Set to 5 minutes (300s) to accommodate large content downloads (.dat files can be 100+ MB).
+    /// This is intentionally longer than CatalogDownloadTimeoutSeconds (30s) which only downloads
+    /// the small dl.dat catalog file (~few KB).
+    /// </summary>
+    public const int ContentDownloadTimeoutSeconds = 300;
+
+    /// <summary>
     /// Tags associated with the patch content.
     /// </summary>
     public static readonly string[] PatchTags = ["patch", "community", "weekly", "legionnaire"];
@@ -102,19 +120,4 @@ public static class CommunityOutpostConstants
     /// Tags associated with tools.
     /// </summary>
     public static readonly string[] ToolsTags = ["tool", "utility", "genpatcher"];
-
-    /// <summary>
-    /// The file extension for GenPatcher .dat files (which are actually 7z archives).
-    /// </summary>
-    public const string DatFileExtension = ".dat";
-
-    /// <summary>
-    /// Timeout in seconds for downloading the catalog file.
-    /// </summary>
-    public const int CatalogDownloadTimeoutSeconds = 30;
-
-    /// <summary>
-    /// Timeout in seconds for downloading content files.
-    /// </summary>
-    public const int ContentDownloadTimeoutSeconds = 300;
 }

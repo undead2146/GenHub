@@ -16,6 +16,8 @@ public enum ContentInstallTarget
     /// Install to the user's Documents folder for the specific game.
     /// Location: Documents\Command and Conquer Generals Zero Hour Data\
     /// Used for maps, replays, and other user-specific content.
+    /// Note: This path is used for Zero Hour content. Vanilla Generals content
+    /// would use a different flow (not currently implemented in this enum).
     /// </summary>
     UserDataDirectory = 1,
 

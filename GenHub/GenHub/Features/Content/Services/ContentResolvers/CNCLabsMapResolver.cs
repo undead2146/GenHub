@@ -18,12 +18,14 @@ namespace GenHub.Features.Content.Services.ContentResolvers;
 /// <summary>
 /// Resolves CNC Labs map details from discovered content items.
 /// </summary>
-public class CNCLabsMapResolver(HttpClient httpClient, IServiceProvider serviceProvider, ILogger<CNCLabsMapResolver> logger) : IContentResolver
+/// <param name="httpClient">HTTP client for fetching map details.</param>
+/// <param name="manifestBuilderFactory">Factory to create new manifest builders per resolve operation.</param>
+/// <param name="logger">Logger instance.</param>
+public class CNCLabsMapResolver(
+    HttpClient httpClient,
+    Func<IContentManifestBuilder> manifestBuilderFactory,
+    ILogger<CNCLabsMapResolver> logger) : IContentResolver
 {
-    private readonly HttpClient _httpClient = httpClient;
-    private readonly IServiceProvider _serviceProvider = serviceProvider;
-    private readonly ILogger<CNCLabsMapResolver> _logger = logger;
-
     /// <summary>
     /// Gets the unique resolver ID for CNC Labs Map.
     /// </summary>
@@ -44,7 +46,7 @@ public class CNCLabsMapResolver(HttpClient httpClient, IServiceProvider serviceP
 
         try
         {
-            var response = await _httpClient.GetStringAsync(discoveredItem.SourceUrl, cancellationToken);
+            var response = await httpClient.GetStringAsync(discoveredItem.SourceUrl, cancellationToken);
             var mapDetails = ParseMapDetailPage(response);
 
             if (string.IsNullOrEmpty(mapDetails.downloadUrl))
@@ -52,8 +54,9 @@ public class CNCLabsMapResolver(HttpClient httpClient, IServiceProvider serviceP
                 return OperationResult<ContentManifest>.CreateFailure("No download URL found in map details");
             }
 
-            // Create a new manifest builder for each resolve operation to ensure clean state
-            var manifestBuilder = _serviceProvider.GetRequiredService<IContentManifestBuilder>();
+            // Create a fresh manifest builder instance for each resolve operation
+            // Using factory pattern ensures we get a new Transient instance each time
+            var manifestBuilder = manifestBuilderFactory();
 
             var manifestVersionInt = int.TryParse(mapDetails.version, out var parsedVersion) ? parsedVersion : 0;
             var manifest = manifestBuilder
@@ -79,7 +82,7 @@ public class CNCLabsMapResolver(HttpClient httpClient, IServiceProvider serviceP
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to resolve map details from {Url}", discoveredItem.SourceUrl);
+            logger.LogError(ex, "Failed to resolve map details from {Url}", discoveredItem.SourceUrl);
             return OperationResult<ContentManifest>.CreateFailure($"Resolution failed: {ex.Message}");
         }
     }

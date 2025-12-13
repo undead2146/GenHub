@@ -10,7 +10,6 @@ using GenHub.Core.Models.GitHub;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
 using GenHub.Features.Content.Services.Helpers;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Content.Services.ContentResolvers;
@@ -18,8 +17,10 @@ namespace GenHub.Features.Content.Services.ContentResolvers;
 /// <summary>
 /// Resolves GitHub workflow artifacts into ContentManifest objects.
 /// </summary>
+/// <param name="manifestBuilderFactory">Factory to create new manifest builders per resolve operation.</param>
+/// <param name="logger">Logger instance.</param>
 public class GitHubArtifactResolver(
-    IServiceProvider serviceProvider,
+    Func<IContentManifestBuilder> manifestBuilderFactory,
     ILogger<GitHubArtifactResolver> logger) : IContentResolver
 {
     /// <summary>
@@ -66,8 +67,9 @@ public class GitHubArtifactResolver(
                 // Content name for manifest ID: "owner-repo-runN"
                 var contentName = $"{owner}-{repo}-run{runNumber}";
 
-                // Create a new manifest builder for each resolve operation to ensure clean state
-                var manifestBuilder = serviceProvider.GetRequiredService<IContentManifestBuilder>();
+                // Create a fresh manifest builder instance for each resolve operation
+                // Using factory pattern ensures we get a new Transient instance each time
+                var manifestBuilder = manifestBuilderFactory();
 
                 var manifest = manifestBuilder
                     .WithBasicInfo(
@@ -111,8 +113,8 @@ public class GitHubArtifactResolver(
                 workflowRun.Name,
                 workflowRun.RunNumber);
 
-            // Create a new manifest builder for each resolve operation to ensure clean state
-            var runManifestBuilder = serviceProvider.GetRequiredService<IContentManifestBuilder>();
+            // Create a fresh manifest builder instance for each resolve operation
+            var runManifestBuilder = manifestBuilderFactory();
 
             var manifestWithRun = runManifestBuilder
                 .WithBasicInfo(
