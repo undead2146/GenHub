@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
@@ -200,7 +201,7 @@ public class GameSettingsService : IGameSettingsService
             }
 
             var json = await File.ReadAllTextAsync(settingsPath);
-            var settings = System.Text.Json.JsonSerializer.Deserialize<GeneralsOnlineSettings>(json);
+            var settings = JsonSerializer.Deserialize<GeneralsOnlineSettings>(json);
 
             if (settings == null)
             {
@@ -234,8 +235,8 @@ public class GameSettingsService : IGameSettingsService
                 Directory.CreateDirectory(directory);
             }
 
-            var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
-            var json = System.Text.Json.JsonSerializer.Serialize(settings, options);
+            var options = new JsonSerializerOptions { WriteIndented = true };
+            var json = JsonSerializer.Serialize(settings, options);
             await File.WriteAllTextAsync(settingsPath, json, Encoding.UTF8);
 
             _logger.LogInformation("Saved GeneralsOnline settings to {SettingsPath}", settingsPath);
@@ -489,6 +490,6 @@ public class GameSettingsService : IGameSettingsService
         var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         var zeroHourDataPath = Path.Combine(documentsPath, GameSettingsConstants.FolderNames.ZeroHour);
         var generalsOnlineDataPath = Path.Combine(zeroHourDataPath, GameSettingsConstants.FolderNames.GeneralsOnlineData);
-        return Path.Combine(generalsOnlineDataPath, GameSettingsConstants.GeneralsOnline.SettingsFileName);
+        return Path.Combine(generalsOnlineDataPath, GameSettingsGeneralsOnlineConstants.SettingsFileName);
     }
 }
