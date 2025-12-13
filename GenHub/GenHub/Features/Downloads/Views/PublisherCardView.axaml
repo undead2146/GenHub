@@ -68,10 +68,6 @@
                             <EllipseGeometry Center="12,12" RadiusX="12" RadiusY="12" />
                         </Image.Clip>
                     </Image>
-                    <!-- Fallback Color Circle (shown when no logo) -->
-                    <Ellipse Width="24" Height="24"
-                             Fill="{Binding IconColor}"
-                             IsVisible="{Binding LogoSource, Converter={x:Static StringConverters.IsNullOrEmpty}}" />
                 </Panel>
 
                 <!-- Publisher Name -->
