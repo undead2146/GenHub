@@ -21,9 +21,9 @@ public static class SuperHackersConstants
     public const string ProviderDescription = "Weekly releases of Generals and Zero Hour game code from TheSuperHackers";
 
     /// <summary>
-    /// Publisher icon color.
+    /// Publisher logo source path for UI display.
     /// </summary>
-    public const string IconColor = "#FF9800";
+    public const string LogoSource = "/Assets/Logos/thesuperhackers-logo.png";
 
     /// <summary>
     /// The resolver ID used for GitHub releases.
