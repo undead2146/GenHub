@@ -93,7 +93,7 @@ public static class GitHubTopicsConstants
     /// <summary>
     /// Description for the GitHub Topics discoverer.
     /// </summary>
-    public const string DiscovererSourceName = "GitHub Topics";
+    public const string DiscovererSourceName = "GitHub";
 
     /// <summary>
     /// Description for the GitHub Topics discoverer.

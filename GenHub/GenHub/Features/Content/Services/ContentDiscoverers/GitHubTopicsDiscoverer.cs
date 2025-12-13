@@ -128,12 +128,16 @@ public class GitHubTopicsDiscoverer(
                         logger.LogDebug(ex, "No releases found for {Repo}, will use repo info", repo.FullName);
                     }
 
-                    var contentResult = CreateSearchResult(repo, latestRelease, topic);
+                    // Create search results (may return multiple for multi-asset releases)
+                    var contentResults = CreateSearchResults(repo, latestRelease, topic);
 
-                    // Apply search filters
-                    if (MatchesQuery(contentResult, query))
+                    // Apply search filters and add matching results
+                    foreach (var contentResult in contentResults)
                     {
-                        results.Add(contentResult);
+                        if (MatchesQuery(contentResult, query))
+                        {
+                            results.Add(contentResult);
+                        }
                     }
                 }
             }
@@ -202,7 +206,7 @@ public class GitHubTopicsDiscoverer(
         }
 
         // No explicit type found, will need inference
-        return (ContentType.Mod, true);
+        return (ContentType.Addon, true);
     }
 
     /// <summary>
@@ -277,6 +281,77 @@ public class GitHubTopicsDiscoverer(
     /// <summary>
     /// Searches for repositories by topic with caching to reduce API calls.
     /// </summary>
+    private static bool ShouldSplitAssets(GitHubRelease release)
+    {
+        if (release.Assets == null || release.Assets.Count <= 1)
+            return false;
+
+        // Count standalone files (non-archive extensions)
+        var standaloneExtensions = new[] { ".big", ".csf", ".ini", ".w3d", ".dds", ".tga" };
+        var standaloneCount = release.Assets.Count(a =>
+            standaloneExtensions.Any(ext => a.Name.EndsWith(ext, StringComparison.OrdinalIgnoreCase)));
+
+        // If we have multiple standalone files, split them
+        return standaloneCount > 1;
+    }
+
+    /// <summary>
+    /// Extracts a numeric version from a release tag string.
+    /// Examples: "v1.2.3" -> 123, "1.0" -> 10, "v2" -> 2, "latest" -> 0.
+    /// </summary>
+    private static int ExtractVersionFromTag(string? tag)
+    {
+        if (string.IsNullOrWhiteSpace(tag) || tag.Equals("latest", StringComparison.OrdinalIgnoreCase))
+            return 0;
+
+        // Extract all digits and concatenate
+        var digits = System.Text.RegularExpressions.Regex.Replace(tag, @"[^\d]", string.Empty);
+
+        if (string.IsNullOrEmpty(digits))
+            return 0;
+
+        // Take first 9 digits to avoid overflow
+        if (digits.Length > 9)
+            digits = digits.Substring(0, 9);
+
+        return int.TryParse(digits, out var version) ? version : 0;
+    }
+
+    /// <summary>
+    /// Extracts a variant name from an asset filename.
+    /// Examples: "0_ImprovedMenusEnglish.big" -> "English", "mod_russian.big" -> "Russian".
+    /// </summary>
+    private static string ExtractAssetVariant(string assetName)
+    {
+        var nameWithoutExt = System.IO.Path.GetFileNameWithoutExtension(assetName);
+
+        // Common language patterns
+        var languagePatterns = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "english", "English" },
+            { "russian", "Russian" },
+            { "spanish", "Spanish" },
+            { "french", "French" },
+            { "german", "German" },
+            { "chinese", "Chinese" },
+            { "japanese", "Japanese" },
+            { "korean", "Korean" },
+        };
+
+        // Check if filename contains a language keyword
+        foreach (var (pattern, displayName) in languagePatterns)
+        {
+            if (nameWithoutExt.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+                return displayName;
+        }
+
+        // Fallback: use the filename itself (cleaned up)
+        return nameWithoutExt.Replace("_", " ").Replace("-", " ").Trim();
+    }
+
+    /// <summary>
+    /// Searches for repositories by topic with caching to reduce API calls.
+    /// </summary>
     private async Task<GitHubRepositorySearchResponse> SearchRepositoriesByTopicWithCacheAsync(
         string topic,
         int perPage,
@@ -290,6 +365,135 @@ public class GitHubTopicsDiscoverer(
             return await gitHubApiClient.SearchRepositoriesByTopicAsync(topic, perPage, page, cancellationToken).ConfigureAwait(false);
         }).ConfigureAwait(false);
         return result ?? new GitHubRepositorySearchResponse();
+    }
+
+    /// <summary>
+    /// Creates ContentSearchResults from a repository and optional release.
+    /// Detects multi-asset releases and creates separate results for each standalone asset.
+    /// </summary>
+    private List<ContentSearchResult> CreateSearchResults(
+        GitHubRepositorySearchItem repo,
+        GitHubRelease? latestRelease,
+        string sourceTopic)
+    {
+        var results = new List<ContentSearchResult>();
+
+        // Check if this is a multi-asset release with standalone files
+        if (latestRelease != null && ShouldSplitAssets(latestRelease))
+        {
+            logger.LogInformation(
+                "Detected multi-asset release for {Repo}: {AssetCount} standalone assets",
+                repo.FullName,
+                latestRelease.Assets.Count);
+
+            // Create separate result for each asset
+            foreach (var asset in latestRelease.Assets)
+            {
+                var assetResult = CreateSearchResultForAsset(repo, latestRelease, asset, sourceTopic);
+                results.Add(assetResult);
+            }
+        }
+        else
+        {
+            // Single result for the entire release
+            var result = CreateSearchResult(repo, latestRelease, sourceTopic);
+            results.Add(result);
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Creates a ContentSearchResult for a single release asset.
+    /// </summary>
+    private ContentSearchResult CreateSearchResultForAsset(
+        GitHubRepositorySearchItem repo,
+        GitHubRelease release,
+        GitHubReleaseAsset asset,
+        string sourceTopic)
+    {
+        // Infer content type from topics first, then fall back to name-based inference
+        var (contentType, isTypeInferred) = InferContentTypeFromTopics(repo.Topics);
+        if (isTypeInferred)
+        {
+            var nameInference = GitHubInferenceHelper.InferContentType(repo.Name, release.Name);
+            contentType = nameInference.type;
+        }
+
+        // Infer game type
+        var (gameType, isGameInferred) = InferGameTypeFromTopics(repo.Topics);
+        if (isGameInferred)
+        {
+            var nameInference = GitHubInferenceHelper.InferTargetGame(repo.Name, release.Name);
+            gameType = nameInference.type;
+        }
+
+        // Extract asset variant name (e.g., "English" from "0_ImprovedMenusEnglish.big")
+        var assetVariant = ExtractAssetVariant(asset.Name);
+
+        // Generate unique manifest ID including asset variant
+        // Content name: reponame + variantname (owner is publisher, tag is version)
+        // This ensures each variant gets a unique ID after normalization
+        var version = release.TagName ?? "latest";
+        var userVersion = ExtractVersionFromTag(version);
+        var contentName = $"{repo.Name}{assetVariant}";
+
+        var manifestId = ManifestIdGenerator.GeneratePublisherContentId(
+            repo.Owner.Login,
+            contentType,
+            contentName,
+            userVersion);
+
+        var result = new ContentSearchResult
+        {
+            Id = manifestId,
+            Name = $"{repo.Name} ({assetVariant})", // Show variant in name
+            Description = repo.Description ?? $"Community content from {repo.Owner.Login}/{repo.Name}",
+            Version = version,
+            AuthorName = repo.Owner.Login,
+            ContentType = contentType,
+            TargetGame = gameType,
+            IsInferred = isTypeInferred || isGameInferred,
+            ProviderName = SourceName,
+            RequiresResolution = true,
+            ResolverId = GitHubConstants.GitHubReleaseResolverId,
+            SourceUrl = repo.HtmlUrl,
+            LastUpdated = release.PublishedAt?.DateTime ?? repo.UpdatedAt,
+            DownloadSize = asset.Size,
+        };
+
+        // Add tags from topics
+        foreach (var topic in repo.Topics.Take(MaxTagsToInclude))
+        {
+            result.Tags.Add(topic);
+        }
+
+        // Add variant tag
+        result.Tags.Add(assetVariant.ToLowerInvariant());
+
+        // Add resolver metadata
+        result.ResolverMetadata[GitHubConstants.OwnerMetadataKey] = repo.Owner.Login;
+        result.ResolverMetadata[GitHubConstants.RepoMetadataKey] = repo.Name;
+        result.ResolverMetadata[GitHubConstants.TagMetadataKey] = version;
+        result.ResolverMetadata[GitHubTopicsConstants.SourceTopicMetadataKey] = sourceTopic;
+        result.ResolverMetadata[GitHubTopicsConstants.StarCountMetadataKey] = repo.StargazersCount.ToString();
+        result.ResolverMetadata[GitHubTopicsConstants.ForkCountMetadataKey] = repo.ForksCount.ToString();
+        result.ResolverMetadata["asset-name"] = asset.Name; // Store asset name for resolution
+        if (!string.IsNullOrEmpty(repo.Language))
+        {
+            result.ResolverMetadata[GitHubTopicsConstants.LanguageMetadataKey] = repo.Language;
+        }
+
+        // Store the single asset for resolution
+        result.SetData(new GitHubArtifact
+        {
+            Name = asset.Name,
+            DownloadUrl = asset.BrowserDownloadUrl,
+            SizeInBytes = asset.Size,
+            IsRelease = true,
+        });
+
+        return result;
     }
 
     /// <summary>
