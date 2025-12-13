@@ -24,8 +24,6 @@ public partial class DownloadsViewModel(
     INotificationService notificationService,
     GitHubTopicsDiscoverer gitHubTopicsDiscoverer) : ViewModelBase
 {
-    private readonly INotificationService _notificationService = notificationService;
-    private readonly GitHubTopicsDiscoverer _gitHubTopicsDiscoverer = gitHubTopicsDiscoverer;
     [ObservableProperty]
     private string _title = "Downloads";
 
@@ -151,7 +149,7 @@ public partial class DownloadsViewModel(
         {
             githubCard.PublisherId = GitHubTopicsConstants.PublisherType;
             githubCard.DisplayName = GitHubTopicsConstants.PublisherName;
-            githubCard.IconColor = GitHubTopicsConstants.IconColor;
+            githubCard.LogoSource = GitHubTopicsConstants.LogoSource;
             githubCard.ReleaseNotes = GitHubTopicsConstants.ProviderDescription;
             githubCard.IsLoading = true;
             PublisherCards.Add(githubCard);
@@ -207,7 +205,6 @@ public partial class DownloadsViewModel(
                 {
                     card.LatestVersion = latest.Version;
 
-                    // card.ReleaseNotes = latest.Description ?? card.ReleaseNotes; // Keep generic description
                     card.DownloadSize = latest.DownloadSize;
                     card.ReleaseDate = latest.LastUpdated;
                 }
@@ -376,22 +373,13 @@ public partial class DownloadsViewModel(
 
         try
         {
-            if (_gitHubTopicsDiscoverer == null)
-            {
-                logger.LogWarning("GitHubTopicsDiscoverer not available for GitHub card");
-                card.HasError = true;
-                card.ErrorMessage = "GitHub discoverer service not available";
-                card.IsLoading = false;
-                return;
-            }
-
-            var result = await _gitHubTopicsDiscoverer.DiscoverAsync(new ContentSearchQuery());
+            var result = await gitHubTopicsDiscoverer.DiscoverAsync(new ContentSearchQuery());
             if (result.Success && result.Data?.Any() == true)
             {
-                var releases = result.Data.ToList();
+                var repositories = result.Data.ToList();
 
                 // Group by content type
-                var groupedContent = releases.GroupBy(r => r.ContentType).ToList();
+                var groupedContent = repositories.GroupBy(r => r.ContentType).ToList();
 
                 foreach (var group in groupedContent)
                 {
@@ -406,29 +394,15 @@ public partial class DownloadsViewModel(
                     card.ContentTypes.Add(contentGroup);
                 }
 
-                // Set card metadata from most starred repository
-                var latest = releases.OrderByDescending(r =>
+                // Set card metadata - this is an aggregate card showing multiple repos
+                // LatestVersion here represents the count of discovered repositories
+                // TODO: Consider adding a separate Summary property for aggregate cards
+                if (repositories.Count > 0)
                 {
-                    if (r.ResolverMetadata.TryGetValue(GitHubTopicsConstants.StarCountMetadataKey, out var stars) &&
-                        int.TryParse(stars, out var starCount))
-                    {
-                        return starCount;
-                    }
-
-                    return 0;
-                }).FirstOrDefault();
-
-                if (latest != null)
-                {
-                    card.LatestVersion = $"{releases.Count} repos";
-                    card.DownloadSize = releases.Sum(r => r.DownloadSize);
-                    card.ReleaseDate = releases.Max(r => r.LastUpdated);
+                    card.LatestVersion = $"{repositories.Count} repos";
                 }
 
-                logger.LogInformation("Populated GitHub card with {Count} repositories", releases.Count);
-                _notificationService.ShowSuccess(
-                    "GitHub Discovery Complete",
-                    $"Found {releases.Count} community repositories with {groupedContent.Count} content types.");
+                logger.LogInformation("Populated GitHub card with {Count} repositories", repositories.Count);
             }
             else
             {
@@ -440,9 +414,8 @@ public partial class DownloadsViewModel(
             logger.LogError(ex, "Failed to populate GitHub card");
             card.HasError = true;
             card.ErrorMessage = "Failed to discover GitHub repositories";
-            card.IsLoading = false;
 
-            _notificationService.ShowError(
+            notificationService.ShowError(
                 "GitHub Discovery Failed",
                 $"Failed to discover GitHub repositories: {ex.Message}");
         }

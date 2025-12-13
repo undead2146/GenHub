@@ -23,6 +23,7 @@ public class OctokitGitHubApiClient(
    ILogger<OctokitGitHubApiClient> logger)
    : IGitHubApiClient
 {
+    private const int MaxPerPage = 100;
     private SecureString? token;
 
     /// <summary>
@@ -557,7 +558,7 @@ public class OctokitGitHubApiClient(
 
             var request = new SearchRepositoriesRequest(topicQuery)
             {
-                PerPage = Math.Min(perPage, 100),
+                PerPage = Math.Min(perPage, MaxPerPage),
                 Page = page,
                 SortField = RepoSearchSort.Updated,
                 Order = SortDirection.Descending,
@@ -646,7 +647,6 @@ public class OctokitGitHubApiClient(
             Homepage = repo.Homepage,
             Size = repo.Size,
             StargazersCount = repo.StargazersCount,
-            WatchersCount = repo.WatchersCount,
             Language = repo.Language,
             ForksCount = repo.ForksCount,
             OpenIssuesCount = repo.OpenIssuesCount,
@@ -661,7 +661,8 @@ public class OctokitGitHubApiClient(
                 Name = repo.License.Name ?? string.Empty,
                 SpdxId = repo.License.SpdxId ?? string.Empty,
                 Url = repo.License.Url,
-            } : null,
+            }
+            : null,
         };
     }
 

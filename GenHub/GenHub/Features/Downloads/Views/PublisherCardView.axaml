@@ -11,6 +11,7 @@
 
     <UserControl.Resources>
         <converters:FileSizeConverter x:Key="FileSizeConverter" />
+        <converters:StringToImageConverter x:Key="StringToImageConverter" />
     </UserControl.Resources>
 
     <UserControl.Styles>
@@ -54,12 +55,24 @@
         <StackPanel Spacing="12">
             <!-- Header with expand/collapse -->
             <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                <!-- Icon -->
-                <Ellipse Grid.Column="0" 
-                         Width="12" Height="12"
-                         Fill="{Binding IconColor}"
-                         VerticalAlignment="Center"
-                         Margin="0,0,12,0" />
+                <!-- Icon - Logo Image or Color Circle -->
+                <Panel Grid.Column="0" 
+                       Width="24" Height="24"
+                       VerticalAlignment="Center"
+                       Margin="0,0,12,0">
+                    <Image Source="{Binding LogoSource, Converter={StaticResource StringToImageConverter}}"
+                           Width="24" Height="24"
+                           Stretch="UniformToFill"
+                           IsVisible="{Binding LogoSource, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                        <Image.Clip>
+                            <EllipseGeometry Center="12,12" RadiusX="12" RadiusY="12" />
+                        </Image.Clip>
+                    </Image>
+                    <!-- Fallback Color Circle (shown when no logo) -->
+                    <Ellipse Width="24" Height="24"
+                             Fill="{Binding IconColor}"
+                             IsVisible="{Binding LogoSource, Converter={x:Static StringConverters.IsNullOrEmpty}}" />
+                </Panel>
 
                 <!-- Publisher Name -->
                 <TextBlock Grid.Column="1"

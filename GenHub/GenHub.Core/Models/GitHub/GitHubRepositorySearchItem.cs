@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace GenHub.Core.Models.GitHub;
@@ -106,12 +104,6 @@ public class GitHubRepositorySearchItem
     public int StargazersCount { get; set; }
 
     /// <summary>
-    /// Gets or sets the watcher count.
-    /// </summary>
-    [JsonPropertyName("watchers_count")]
-    public int WatchersCount { get; set; }
-
-    /// <summary>
     /// Gets or sets the primary programming language.
     /// </summary>
     [JsonPropertyName("language")]
@@ -162,7 +154,7 @@ public class GitHubRepositorySearchItem
     /// <summary>
     /// Gets or sets a value indicating whether the repository is disabled.
     /// </summary>
-    [JsonPropertyName("disabled")]
+    [JsonPropertyName("is_disabled")]
     public bool IsDisabled { get; set; }
 
     /// <summary>

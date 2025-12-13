@@ -21,7 +21,10 @@ namespace GenHub.Features.Content.Services.ContentDiscoverers;
 /// This enables community-contributed content to be discovered automatically
 /// when users tag their repositories with topics like "genhub" or "generalsonline".
 /// </summary>
-public class GitHubTopicsDiscoverer : IContentDiscoverer
+public class GitHubTopicsDiscoverer(
+    IGitHubApiClient gitHubApiClient,
+    ILogger<GitHubTopicsDiscoverer> logger,
+    IMemoryCache cache) : IContentDiscoverer
 {
     /// <summary>Maximum number of tags to include in search result.</summary>
     private const int MaxTagsToInclude = 10;
@@ -29,39 +32,16 @@ public class GitHubTopicsDiscoverer : IContentDiscoverer
     /// <summary>Rate limit delay between API calls in milliseconds.</summary>
     private static readonly TimeSpan RateLimitDelay = TimeSpan.FromMilliseconds(100);
 
-    private readonly IGitHubApiClient _gitHubApiClient;
-    private readonly ILogger<GitHubTopicsDiscoverer> _logger;
-    private readonly IMemoryCache _cache;
-    private readonly SemaphoreSlim _rateLimiter;
+    private readonly SemaphoreSlim _rateLimitSemaphore = new(1, 1);
 
     // Topics to search for, in priority order
-    private readonly List<string> _discoveryTopics;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="GitHubTopicsDiscoverer"/> class.
-    /// </summary>
-    /// <param name="gitHubApiClient">The GitHub API client.</param>
-    /// <param name="logger">The logger instance.</param>
-    /// <param name="cache">The memory cache for caching search results.</param>
-    public GitHubTopicsDiscoverer(
-        IGitHubApiClient gitHubApiClient,
-        ILogger<GitHubTopicsDiscoverer> logger,
-        IMemoryCache cache)
-    {
-        _gitHubApiClient = gitHubApiClient;
-        _logger = logger;
-        _cache = cache;
-        _rateLimiter = new SemaphoreSlim(1, 1);
-
-        // Configure discovery topics
-        _discoveryTopics = new List<string>
-        {
-            GitHubTopicsConstants.GenHubTopic,
-            GitHubTopicsConstants.GeneralsOnlineTopic,
-            GitHubTopicsConstants.GeneralsModTopic,
-            GitHubTopicsConstants.ZeroHourModTopic,
-        };
-    }
+    private readonly List<string> _discoveryTopics =
+    [
+        GitHubTopicsConstants.GenHubTopic,
+        GitHubTopicsConstants.GeneralsOnlineTopic,
+        GitHubTopicsConstants.GeneralsModTopic,
+        GitHubTopicsConstants.ZeroHourModTopic,
+    ];
 
     /// <inheritdoc />
     public string SourceName => GitHubTopicsConstants.DiscovererSourceName;
@@ -87,7 +67,7 @@ public class GitHubTopicsDiscoverer : IContentDiscoverer
 
         try
         {
-            _logger.LogInformation("Starting GitHub Topics discovery for topics: {Topics}", string.Join(", ", _discoveryTopics));
+            logger.LogInformation("Starting GitHub Topics discovery for topics: {Topics}", string.Join(", ", _discoveryTopics));
 
             foreach (var topic in _discoveryTopics)
             {
@@ -112,14 +92,14 @@ public class GitHubTopicsDiscoverer : IContentDiscoverer
                     // Skip archived or disabled repos
                     if (repo.IsArchived || repo.IsDisabled)
                     {
-                        _logger.LogDebug("Skipping archived/disabled repository: {Repo}", repo.FullName);
+                        logger.LogDebug("Skipping archived/disabled repository: {Repo}", repo.FullName);
                         continue;
                     }
 
                     // Skip forks (unless they have GenHub topic explicitly)
                     if (repo.IsFork && !repo.Topics.Contains(GitHubTopicsConstants.GenHubTopic, StringComparer.OrdinalIgnoreCase))
                     {
-                        _logger.LogDebug("Skipping fork without genhub topic: {Repo}", repo.FullName);
+                        logger.LogDebug("Skipping fork without genhub topic: {Repo}", repo.FullName);
                         continue;
                     }
 
@@ -128,10 +108,10 @@ public class GitHubTopicsDiscoverer : IContentDiscoverer
                     try
                     {
                         // Apply rate limiting
-                        await _rateLimiter.WaitAsync(cancellationToken).ConfigureAwait(false);
+                        await _rateLimitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
                         try
                         {
-                            latestRelease = await _gitHubApiClient.GetLatestReleaseAsync(
+                            latestRelease = await gitHubApiClient.GetLatestReleaseAsync(
                                 repo.Owner.Login,
                                 repo.Name,
                                 cancellationToken).ConfigureAwait(false);
@@ -140,12 +120,12 @@ public class GitHubTopicsDiscoverer : IContentDiscoverer
                         {
                             // Add delay before releasing semaphore to maintain rate limit
                             await Task.Delay(RateLimitDelay, cancellationToken).ConfigureAwait(false);
-                            _rateLimiter.Release();
+                            _rateLimitSemaphore.Release();
                         }
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogDebug(ex, "No releases found for {Repo}, will use repo info", repo.FullName);
+                        logger.LogDebug(ex, "No releases found for {Repo}, will use repo info", repo.FullName);
                     }
 
                     var contentResult = CreateSearchResult(repo, latestRelease, topic);
@@ -158,17 +138,17 @@ public class GitHubTopicsDiscoverer : IContentDiscoverer
                 }
             }
 
-            _logger.LogInformation("GitHub Topics discovery found {Count} repositories", results.Count);
+            logger.LogInformation("GitHub Topics discovery found {Count} repositories", results.Count);
             return OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(results);
         }
         catch (OperationCanceledException)
         {
-            _logger.LogInformation("GitHub Topics discovery was cancelled");
+            logger.LogInformation("GitHub Topics discovery was cancelled");
             throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "GitHub Topics discovery failed");
+            logger.LogError(ex, "GitHub Topics discovery failed");
             return OperationResult<IEnumerable<ContentSearchResult>>.CreateFailure($"GitHub Topics discovery failed: {ex.Message}");
         }
     }
@@ -304,10 +284,10 @@ public class GitHubTopicsDiscoverer : IContentDiscoverer
         CancellationToken cancellationToken)
     {
         var cacheKey = $"github_topic_{topic}_{perPage}_{page}";
-        var result = await _cache.GetOrCreateAsync(cacheKey, async entry =>
+        var result = await cache.GetOrCreateAsync(cacheKey, async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(GitHubTopicsConstants.CacheDurationMinutes);
-            return await _gitHubApiClient.SearchRepositoriesByTopicAsync(topic, perPage, page, cancellationToken).ConfigureAwait(false);
+            return await gitHubApiClient.SearchRepositoriesByTopicAsync(topic, perPage, page, cancellationToken).ConfigureAwait(false);
         }).ConfigureAwait(false);
         return result ?? new GitHubRepositorySearchResponse();
     }
