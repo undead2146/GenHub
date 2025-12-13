@@ -154,7 +154,7 @@ public class GitHubRepositorySearchItem
     /// <summary>
     /// Gets or sets a value indicating whether the repository is disabled.
     /// </summary>
-    [JsonPropertyName("is_disabled")]
+    [JsonPropertyName("disabled")]
     public bool IsDisabled { get; set; }
 
     /// <summary>
