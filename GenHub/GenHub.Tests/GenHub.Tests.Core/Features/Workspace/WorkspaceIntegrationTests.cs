@@ -80,7 +80,6 @@ public class WorkspaceIntegrationTests : IDisposable
         services.AddSingleton(mockConfiguration.Object);
         services.AddSingleton(mockAppConfig.Object);
         services.AddSingleton(mockUserSettings.Object);
-        services.AddSingleton<IConfigurationProviderService, ConfigurationProviderService>();
 
         // Add workspace services
         services.AddWorkspaceServices();
