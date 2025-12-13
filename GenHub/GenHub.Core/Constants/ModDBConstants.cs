@@ -11,41 +11,41 @@ public static class ModDBConstants
     public const string BaseUrl = "https://www.moddb.com";
 
     /// <summary>Base URL for C&amp;C Generals content.</summary>
-    public const string GeneralsBaseUrl = "https://www.moddb.com/games/cc-generals";
+    public const string GeneralsBaseUrl = BaseUrl + "/games/cc-generals";
 
     /// <summary>Base URL for C&amp;C Generals Zero Hour content.</summary>
-    public const string ZeroHourBaseUrl = "https://www.moddb.com/games/cc-generals-zero-hour";
+    public const string ZeroHourBaseUrl = BaseUrl + "/games/cc-generals-zero-hour";
 
     // ===== Section URLs =====
 
     /// <summary>Mods section for Generals.</summary>
-    public const string GeneralsModsUrl = "https://www.moddb.com/games/cc-generals/mods";
+    public const string GeneralsModsUrl = GeneralsBaseUrl + "/mods";
 
     /// <summary>Mods section for Zero Hour.</summary>
-    public const string ZeroHourModsUrl = "https://www.moddb.com/games/cc-generals-zero-hour/mods";
+    public const string ZeroHourModsUrl = ZeroHourBaseUrl + "/mods";
 
     /// <summary>Downloads section for Generals.</summary>
-    public const string GeneralsDownloadsUrl = "https://www.moddb.com/games/cc-generals/downloads";
+    public const string GeneralsDownloadsUrl = GeneralsBaseUrl + "/downloads";
 
     /// <summary>Downloads section for Zero Hour.</summary>
-    public const string ZeroHourDownloadsUrl = "https://www.moddb.com/games/cc-generals-zero-hour/downloads";
+    public const string ZeroHourDownloadsUrl = ZeroHourBaseUrl + "/downloads";
 
     /// <summary>Addons section for Generals.</summary>
-    public const string GeneralsAddonsUrl = "https://www.moddb.com/games/cc-generals/addons";
+    public const string GeneralsAddonsUrl = GeneralsBaseUrl + "/addons";
 
     /// <summary>Addons section for Zero Hour.</summary>
-    public const string ZeroHourAddonsUrl = "https://www.moddb.com/games/cc-generals-zero-hour/addons";
+    public const string ZeroHourAddonsUrl = ZeroHourBaseUrl + "/addons";
 
     // ===== Publisher Info =====
 
-    /// <summary>Publisher prefix for ModDB content (combined with author: moddb-{author}).</summary>
+    /// <summary>Publisher prefix for ModDB content (to be combined with author: moddb-{author}).</summary>
     public const string PublisherPrefix = "moddb";
 
     /// <summary>Publisher name for manifests.</summary>
     public const string PublisherName = "ModDB";
 
     /// <summary>ModDB website URL.</summary>
-    public const string PublisherWebsite = "https://www.moddb.com";
+    public const string PublisherWebsite = BaseUrl;
 
     /// <summary>Manifest version for ModDB content. Always 0 per specification.</summary>
     public const int ManifestVersion = 0;
@@ -159,6 +159,7 @@ public static class ModDBConstants
     // ===== Category Values =====
 
     // Downloads Section - Releases
+
     /// <summary>Category: Full Version (Mod).</summary>
     public const string CategoryFullVersion = "2";
 
@@ -175,6 +176,7 @@ public static class ModDBConstants
     public const string CategoryTrainer = "29";
 
     // Downloads Section - Media
+
     /// <summary>Category: Trailer (Video).</summary>
     public const string CategoryTrailer = "7";
 
@@ -191,6 +193,7 @@ public static class ModDBConstants
     public const string CategoryWallpaper = "10";
 
     // Downloads Section - Tools
+
     /// <summary>Category: Archive Tool.</summary>
     public const string CategoryArchiveTool = "20";
 
@@ -219,6 +222,7 @@ public static class ModDBConstants
     public const string CategorySourceCode = "26";
 
     // Downloads Section - Miscellaneous
+
     /// <summary>Category: Guide.</summary>
     public const string CategoryGuide = "22";
 
@@ -232,6 +236,7 @@ public static class ModDBConstants
     public const string CategoryOther = "24";
 
     // Addons Section - Maps
+
     /// <summary>Addon Category: Multiplayer Map.</summary>
     public const string AddonMultiplayerMap = "101";
 
@@ -242,6 +247,7 @@ public static class ModDBConstants
     public const string AddonPrefab = "103";
 
     // Addons Section - Models
+
     /// <summary>Addon Category: Player Model.</summary>
     public const string AddonPlayerModel = "106";
 
@@ -258,6 +264,7 @@ public static class ModDBConstants
     public const string AddonModelPack = "131";
 
     // Addons Section - Skins
+
     /// <summary>Addon Category: Player Skin.</summary>
     public const string AddonPlayerSkin = "112";
 
@@ -274,6 +281,7 @@ public static class ModDBConstants
     public const string AddonSkinPack = "134";
 
     // Addons Section - Audio
+
     /// <summary>Addon Category: Music.</summary>
     public const string AddonMusic = "117";
 
@@ -287,6 +295,7 @@ public static class ModDBConstants
     public const string AddonAudioPack = "118";
 
     // Addons Section - Graphics
+
     /// <summary>Addon Category: Decal.</summary>
     public const string AddonDecal = "124";
 
@@ -364,5 +373,5 @@ public static class ModDBConstants
     // ===== Content Tags =====
 
     /// <summary>Content tags for search and categorization.</summary>
-    public static readonly string[] Tags = new[] { "ModDB", "Community", "Mods" };
+    public static readonly string[] Tags = new[] { "ModDB", "Community", "Mods", "Maps" };
 }

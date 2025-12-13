@@ -59,7 +59,7 @@ public class CNCLabsMapResolver(
             // Parse details from HTML
             var mapDetails = await ParseMapDetailPageAsync(html, cancellationToken);
 
-            if (string.IsNullOrEmpty(mapDetails.DownloadUrl))
+            if (string.IsNullOrEmpty(mapDetails.downloadUrl))
             {
                 return OperationResult<ContentManifest>.CreateFailure("No download URL found in map details");
             }
@@ -152,7 +152,7 @@ public class CNCLabsMapResolver(
 
         // 6. File metadata (optional but useful)
         var fileSizeText = ExtractMetadataValue(document, "File Size:");
-        var fileSize = ParseFileSize(fileSizeText);
+        var fileSize = FileSizeFormatter.ParseToBytes(fileSizeText);
 
         var maxPlayersText = ExtractMetadataValue(document, "Max Players:");
         var maxPlayers = int.TryParse(maxPlayersText?.Trim(), out var p) ? p : 0;
@@ -182,19 +182,19 @@ public class CNCLabsMapResolver(
             .ToList();
 
         return new MapDetails(
-            Name: name,
-            Description: description,
-            Author: author,
-            PreviewImage: previewImage,
-            Screenshots: screenshots,
-            FileSize: fileSize,
-            DownloadCount: downloadCount,
-            SubmissionDate: submissionDate,
-            DownloadUrl: downloadUrl,
-            FileType: Path.GetExtension(downloadUrl),
-            Rating: rating,
-            TargetGame: gameType,
-            ContentType: contentType);
+            name: name,
+            description: description,
+            author: author,
+            previewImage: previewImage,
+            screenshots: screenshots,
+            fileSize: fileSize,
+            downloadCount: downloadCount,
+            submissionDate: submissionDate,
+            downloadUrl: downloadUrl,
+            targetGame: gameType,
+            contentType: contentType,
+            fileType: Path.GetExtension(downloadUrl),
+            rating: rating);
     }
 
     /// <summary>
@@ -210,11 +210,4 @@ public class CNCLabsMapResolver(
 
         return CNCLabsHelper.GetNextNonEmptyTextSibling(strongEl);
     }
-
-    /// <summary>
-    /// Parses a file size string (e.g., "2.5 MB", "1.2 KB") into bytes.
-    /// </summary>
-    /// <param name="sizeText">The size text to parse.</param>
-    /// <returns>The file size in bytes, or 0 if parsing fails.</returns>
-    private long ParseFileSize(string? sizeText) => FileSizeFormatter.ParseToBytes(sizeText);
 }

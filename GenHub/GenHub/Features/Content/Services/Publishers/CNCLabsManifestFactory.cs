@@ -10,29 +10,57 @@ using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using Microsoft.Extensions.Logging;
+using Slugify;
 using MapDetails = GenHub.Core.Models.ModDB.MapDetails;
 
 namespace GenHub.Features.Content.Services.Publishers;
 
 /// <summary>
 /// Factory for creating CNC Labs content manifests from parsed map/mission details.
-/// Generates manifest IDs following the format: 1.0.cnclabs-{author}.{contentType}.{contentName}
+/// Generates manifest IDs following the format: 1.0.cnclabs-{author}.{contentType}.{contentName}.
 /// </summary>
 public partial class CNCLabsManifestFactory(
     IContentManifestBuilder manifestBuilder,
     IManifestIdService manifestIdService,
     ILogger<CNCLabsManifestFactory> logger) : IPublisherManifestFactory
 {
+    // ===== Static Members =====
+
+    /// <summary>
+    /// Regex that removes all non-alphanumeric characters.
+    /// </summary>
+    [GeneratedRegex(@"[^a-zA-Z0-9]")]
+    private static partial Regex AlphanumericOnlyRegex();
+
+    /// <summary>
+    /// Regex that removes special characters (keeps alphanumeric, spaces, and dashes).
+    /// </summary>
+    [GeneratedRegex(@"[^a-z0-9\s-]")]
+    private static partial Regex NonSlugCharactersRegex();
+
+    /// <summary>
+    /// Regex that matches one or more whitespace characters.
+    /// </summary>
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
+
+    /// <summary>
+    /// Regex that matches multiple consecutive dashes.
+    /// </summary>
+    [GeneratedRegex(@"-+")]
+    private static partial Regex MultipleDashesRegex();
+
+    // ===== Public Members =====
+
     /// <inheritdoc />
     public string PublisherId => CNCLabsConstants.PublisherPrefix;
-
 
     /// <inheritdoc />
     public bool CanHandle(ContentManifest manifest)
     {
         // CNC Labs publishes Maps, Missions, Mods, Patches, Skins, Videos, Screensavers, Replays, and Modding Tools
         var publisherMatches = manifest.Publisher?.PublisherType?.Equals(CNCLabsConstants.PublisherPrefix, StringComparison.OrdinalIgnoreCase) == true;
-        
+
         var supportedTypes = manifest.ContentType switch
         {
             ContentType.Map => true,
@@ -46,7 +74,7 @@ public partial class CNCLabsManifestFactory(
             ContentType.ModdingTool => true,
             _ => false
         };
-        
+
         return publisherMatches && supportedTypes;
     }
 
@@ -81,28 +109,28 @@ public partial class CNCLabsManifestFactory(
         ArgumentNullException.ThrowIfNull(details);
         ArgumentException.ThrowIfNullOrWhiteSpace(detailPageUrl, nameof(detailPageUrl));
 
-        if (string.IsNullOrWhiteSpace(details.DownloadUrl))
+        if (string.IsNullOrWhiteSpace(details.downloadUrl))
         {
             throw new ArgumentException("Download URL cannot be empty", nameof(details));
         }
 
         // 1. Normalize author for publisher ID
-        var normalizedAuthor = NormalizeAuthorForPublisherId(details.Author);
+        var normalizedAuthor = NormalizeAuthorForPublisherId(details.author);
         var publisherId = $"{CNCLabsConstants.PublisherPrefix}-{normalizedAuthor}";
 
         // 2. Slugify content name
-        var contentName = SlugifyTitle(details.Name);
+        var contentName = SlugifyTitle(details.name);
 
         // 3. Generate manifest ID
         var manifestIdResult = manifestIdService.GeneratePublisherContentId(
             publisherId,
-            details.ContentType,
+            details.contentType,
             contentName,
             userVersion: CNCLabsConstants.ManifestVersion);
 
         if (!manifestIdResult.Success)
         {
-            var errorMsg = $"Failed to generate manifest ID for CNC Labs content '{details.Name}': {manifestIdResult.FirstError}";
+            var errorMsg = $"Failed to generate manifest ID for CNC Labs content '{details.name}': {manifestIdResult.FirstError}";
             logger.LogError(errorMsg);
             throw new InvalidOperationException(errorMsg);
         }
@@ -110,29 +138,29 @@ public partial class CNCLabsManifestFactory(
         logger.LogInformation(
             "Creating CNC Labs manifest: ID={ManifestId}, Name={Name}, Author={Author}, Type={ContentType}",
             manifestIdResult.Data.Value,
-            details.Name,
-            details.Author,
-            details.ContentType);
+            details.name,
+            details.author,
+            details.contentType);
 
         // 4. Build manifest
         var manifest = manifestBuilder
-            .WithBasicInfo(publisherId, details.Name, CNCLabsConstants.ManifestVersion)
-            .WithContentType(details.ContentType, details.TargetGame)
+            .WithBasicInfo(publisherId, details.name, CNCLabsConstants.ManifestVersion)
+            .WithContentType(details.contentType, details.targetGame)
             .WithPublisher(
                 name: publisherId,
                 website: CNCLabsConstants.PublisherWebsite,
                 supportUrl: detailPageUrl)
             .WithMetadata(
-                description: details.Description,
+                description: details.description,
                 tags: GenerateTags(details),
-                iconUrl: details.PreviewImage,
-                screenshotUrls: details.Screenshots);
+                iconUrl: details.previewImage,
+                screenshotUrls: details.screenshots);
 
         // 5. Add the download file
-        var fileName = ExtractFileNameFromUrl(details.DownloadUrl);
+        var fileName = ExtractFileNameFromUrl(details.downloadUrl);
         manifest = await manifest.AddRemoteFileAsync(
             fileName,
-            details.DownloadUrl,
+            details.downloadUrl,
             ContentSourceType.RemoteDownload);
         return manifest.Build();
     }
@@ -169,22 +197,17 @@ public partial class CNCLabsManifestFactory(
             return "untitled";
         }
 
-        // Convert to lowercase
-        var slug = title.ToLowerInvariant();
-
-        // Remove special characters (keep alphanumeric, spaces, and dashes)
-        slug = NonSlugCharactersRegex().Replace(slug, string.Empty);
-
-        // Replace whitespace with dashes
-        slug = WhitespaceRegex().Replace(slug, "-");
-
-        // Collapse multiple dashes to single dash
-        slug = MultipleDashesRegex().Replace(slug, "-");
-
-        // Trim leading/trailing dashes
-        slug = slug.Trim('-');
-
-        return string.IsNullOrEmpty(slug) ? "untitled" : slug;
+        try
+        {
+            var slugHelper = new SlugHelper();
+            var slug = slugHelper.GenerateSlug(title);
+            return string.IsNullOrEmpty(slug) ? "untitled" : slug;
+        }
+        catch
+        {
+            // Fallback to default if slugification fails
+            return "untitled";
+        }
     }
 
     /// <summary>
@@ -197,17 +220,17 @@ public partial class CNCLabsManifestFactory(
         var tags = new List<string> { "CNC Labs", "Community" };
 
         // Add game-specific tag
-        if (details.TargetGame == GameType.Generals)
+        if (details.targetGame == GameType.Generals)
         {
             tags.Add("Generals");
         }
-        else if (details.TargetGame == GameType.ZeroHour)
+        else if (details.targetGame == GameType.ZeroHour)
         {
             tags.Add("Zero Hour");
         }
 
         // Add content type tag
-        tags.Add(details.ContentType switch
+        tags.Add(details.contentType switch
         {
             ContentType.Map => "Map",
             ContentType.Mission => "Mission",
@@ -250,28 +273,4 @@ public partial class CNCLabsManifestFactory(
         // Fallback: generate a generic filename
         return "download.zip";
     }
-
-    /// <summary>
-    /// Regex that removes all non-alphanumeric characters.
-    /// </summary>
-    [GeneratedRegex(@"[^a-zA-Z0-9]")]
-    private static partial Regex AlphanumericOnlyRegex();
-
-    /// <summary>
-    /// Regex that removes special characters (keeps alphanumeric, spaces, and dashes).
-    /// </summary>
-    [GeneratedRegex(@"[^a-z0-9\s-]")]
-    private static partial Regex NonSlugCharactersRegex();
-
-    /// <summary>
-    /// Regex that matches one or more whitespace characters.
-    /// </summary>
-    [GeneratedRegex(@"\s+")]
-    private static partial Regex WhitespaceRegex();
-
-    /// <summary>
-    /// Regex that matches multiple consecutive dashes.
-    /// </summary>
-    [GeneratedRegex(@"-+")]
-    private static partial Regex MultipleDashesRegex();
 }

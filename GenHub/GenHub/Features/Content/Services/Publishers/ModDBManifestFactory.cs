@@ -11,6 +11,7 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.ModDB;
 using Microsoft.Extensions.Logging;
+using Slugify;
 using MapDetails = GenHub.Core.Models.ModDB.MapDetails;
 
 namespace GenHub.Features.Content.Services.Publishers;
@@ -82,32 +83,32 @@ public partial class ModDBManifestFactory(
     {
         ArgumentNullException.ThrowIfNull(details);
 
-        if (string.IsNullOrWhiteSpace(details.DownloadUrl))
+        if (string.IsNullOrWhiteSpace(details.downloadUrl))
         {
             throw new ArgumentException("Download URL cannot be empty", nameof(details));
         }
 
         // 1. Normalize author for publisher ID
-        var normalizedAuthor = NormalizeAuthorForPublisherId(details.Author);
+        var normalizedAuthor = NormalizeAuthorForPublisherId(details.author);
         var publisherId = $"{ModDBConstants.PublisherPrefix}-{normalizedAuthor}";
 
         // 2. Slugify content name
-        var contentName = SlugifyTitle(details.Name);
+        var contentName = SlugifyTitle(details.name);
 
         // 3. Format release date as YYYYMMDD for manifest ID
-        var releaseDate = details.SubmissionDate.ToString("yyyyMMdd");
+        var releaseDate = details.submissionDate.ToString("yyyyMMdd");
 
         // 4. Generate manifest ID with release date
         // Format: 1.YYYYMMDD.moddb-{author}.{contentType}.{contentName}
         var manifestIdResult = manifestIdService.GeneratePublisherContentId(
             publisherId,
-            details.ContentType,
+            details.contentType,
             contentName,
             userVersion: int.Parse(releaseDate)); // Use date as user version
 
         if (!manifestIdResult.Success)
         {
-            var errorMsg = $"Failed to generate manifest ID for ModDB content '{details.Name}': {manifestIdResult.FirstError}";
+            var errorMsg = $"Failed to generate manifest ID for ModDB content '{details.name}': {manifestIdResult.FirstError}";
             logger.LogError(errorMsg);
             throw new InvalidOperationException(errorMsg);
         }
@@ -115,38 +116,38 @@ public partial class ModDBManifestFactory(
         logger.LogInformation(
             "Creating ModDB manifest: ID={ManifestId}, Name={Name}, Author={Author}, Type={ContentType}, ReleaseDate={Date}",
             manifestIdResult.Data.Value,
-            details.Name,
-            details.Author,
-            details.ContentType,
+            details.name,
+            details.author,
+            details.contentType,
             releaseDate);
 
         // 5. Build manifest
         var manifest = manifestBuilder
-            .WithBasicInfo(publisherId, details.Name, int.Parse(releaseDate))
-            .WithContentType(details.ContentType, details.TargetGame)
+            .WithBasicInfo(publisherId, details.name, int.Parse(releaseDate))
+            .WithContentType(details.contentType, details.targetGame)
             .WithPublisher(
-                name: $"ModDB - {details.Author}",
+                name: $"ModDB - {details.author}",
                 website: ModDBConstants.PublisherWebsite,
                 supportUrl: detailPageUrl,
                 publisherType: publisherId)
             .WithMetadata(
-                description: details.Description,
+                description: details.description,
                 tags: GenerateTags(details),
-                iconUrl: details.PreviewImage,
-                screenshotUrls: details.Screenshots ?? new List<string>());
+                iconUrl: details.previewImage,
+                screenshotUrls: details.screenshots ?? new List<string>());
 
         // 6. Add custom metadata
         manifest = AddCustomMetadata(manifest, details);
 
         // 7. Add the download file
-        var fileName = ExtractFileNameFromUrl(details.DownloadUrl);
+        var fileName = ExtractFileNameFromUrl(details.downloadUrl);
         manifest = await manifest.AddRemoteFileAsync(
             fileName,
-            details.DownloadUrl,
+            details.downloadUrl,
             ContentSourceType.RemoteDownload);
 
         // 8. Add dependencies based on target game
-        manifest = AddGameDependencies(manifest, details.TargetGame);
+        manifest = AddGameDependencies(manifest, details.targetGame);
 
         return manifest.Build();
     }
@@ -165,7 +166,9 @@ public partial class ModDBManifestFactory(
         }
 
         // Remove all non-alphanumeric characters and convert to lowercase
-        var normalized = AlphanumericOnlyRegex().Replace(author, string.Empty).ToLowerInvariant();
+        // Using Slugify to normalize the author name
+        var slugHelper = new SlugHelper();
+        var normalized = slugHelper.GenerateSlug(author).Replace("-", string.Empty);
 
         // If the result is empty after normalization, use default
         return string.IsNullOrEmpty(normalized) ? ModDBConstants.DefaultAuthor : normalized;
@@ -183,22 +186,17 @@ public partial class ModDBManifestFactory(
             return ModDBConstants.DefaultContentName;
         }
 
-        // Convert to lowercase
-        var slug = title.ToLowerInvariant();
-
-        // Remove special characters (keep alphanumeric, spaces, and dashes)
-        slug = NonSlugCharactersRegex().Replace(slug, string.Empty);
-
-        // Replace whitespace with dashes
-        slug = WhitespaceRegex().Replace(slug, "-");
-
-        // Collapse multiple dashes to single dash
-        slug = MultipleDashesRegex().Replace(slug, "-");
-
-        // Trim leading/trailing dashes
-        slug = slug.Trim('-');
-
-        return string.IsNullOrEmpty(slug) ? ModDBConstants.DefaultContentName : slug;
+        try
+        {
+            var slugHelper = new SlugHelper();
+            var slug = slugHelper.GenerateSlug(title);
+            return string.IsNullOrEmpty(slug) ? ModDBConstants.DefaultContentName : slug;
+        }
+        catch
+        {
+            // Fallback to default if slugification fails
+            return ModDBConstants.DefaultContentName;
+        }
     }
 
     /// <summary>
@@ -211,17 +209,17 @@ public partial class ModDBManifestFactory(
         var tags = new List<string> { "ModDB", "Community" };
 
         // Add game-specific tag
-        if (details.TargetGame == GameType.Generals)
+        if (details.targetGame == GameType.Generals)
         {
             tags.Add("Generals");
         }
-        else if (details.TargetGame == GameType.ZeroHour)
+        else if (details.targetGame == GameType.ZeroHour)
         {
             tags.Add("Zero Hour");
         }
 
         // Add content type tag
-        tags.Add(details.ContentType switch
+        tags.Add(details.contentType switch
         {
             ContentType.Mod => "Mod",
             ContentType.Patch => "Patch",
@@ -236,9 +234,9 @@ public partial class ModDBManifestFactory(
         });
 
         // Add author tag
-        if (!string.IsNullOrWhiteSpace(details.Author) && details.Author != ModDBConstants.DefaultAuthor)
+        if (!string.IsNullOrWhiteSpace(details.author) && details.author != ModDBConstants.DefaultAuthor)
         {
-            tags.Add($"by {details.Author}");
+            tags.Add($"by {details.author}");
         }
 
         return tags;
@@ -257,8 +255,7 @@ public partial class ModDBManifestFactory(
 
         // Note: ContentManifest doesn't have a CustomMetadata dictionary exposed
         // If needed, this can store information in the description or tags
-        // For now, this is a placeholder for future enhancement
-
+        // For now, this is a placeholder for future enhancement.
         return builder;
     }
 
@@ -322,28 +319,4 @@ public partial class ModDBManifestFactory(
         // Fallback: generate a generic filename
         return "download.zip";
     }
-
-    /// <summary>
-    /// Regex that removes all non-alphanumeric characters.
-    /// </summary>
-    [GeneratedRegex(@"[^a-zA-Z0-9]")]
-    private static partial Regex AlphanumericOnlyRegex();
-
-    /// <summary>
-    /// Regex that removes special characters (keeps alphanumeric, spaces, and dashes).
-    /// </summary>
-    [GeneratedRegex(@"[^a-z0-9\s-]")]
-    private static partial Regex NonSlugCharactersRegex();
-
-    /// <summary>
-    /// Regex that matches one or more whitespace characters.
-    /// </summary>
-    [GeneratedRegex(@"\s+")]
-    private static partial Regex WhitespaceRegex();
-
-    /// <summary>
-    /// Regex that matches multiple consecutive dashes.
-    /// </summary>
-    [GeneratedRegex(@"-+")]
-    private static partial Regex MultipleDashesRegex();
 }

@@ -56,7 +56,7 @@ public class ModDBResolver(
             // Parse details from HTML
             var mapDetails = await ParseModDetailPageAsync(html, discoveredItem, cancellationToken);
 
-            if (string.IsNullOrEmpty(mapDetails.DownloadUrl))
+            if (string.IsNullOrEmpty(mapDetails.downloadUrl))
             {
                 return OperationResult<ContentManifest>.CreateFailure("No download URL found in mod details");
             }
@@ -128,9 +128,9 @@ public class ModDBResolver(
 
         // 5. File size
         var fileSizeText = ExtractMetadataValue(document, "Size:", "File Size:");
-        var fileSize = ParseFileSize(fileSizeText);
+        var fileSize = FileSizeFormatter.ParseToBytes(fileSizeText);
 
-        // 6. Submission date (CRITICAL for manifest ID)
+        // 6. Submission date (for manifest ID)
         var submissionDate = ExtractSubmissionDate(document);
 
         _logger.LogDebug("Parsed submission date: {Date}", submissionDate);
@@ -172,17 +172,17 @@ public class ModDBResolver(
         var targetGame = discoveredItem.TargetGame;
 
         return new MapDetails(
-            Name: name,
-            Description: description,
-            Author: author,
-            PreviewImage: previewImage ?? string.Empty,
-            Screenshots: screenshots,
-            FileSize: fileSize,
-            DownloadCount: downloadCount,
-            SubmissionDate: submissionDate,
-            DownloadUrl: downloadUrl,
-            TargetGame: targetGame,
-            ContentType: contentType);
+            name: name,
+            description: description,
+            author: author,
+            previewImage: previewImage ?? string.Empty,
+            screenshots: screenshots,
+            fileSize: fileSize,
+            downloadCount: downloadCount,
+            submissionDate: submissionDate,
+            downloadUrl: downloadUrl,
+            targetGame: targetGame,
+            contentType: contentType);
     }
 
     /// <summary>
@@ -252,9 +252,4 @@ public class ModDBResolver(
 
         return null;
     }
-
-    /// <summary>
-    /// Parses file size string to bytes.
-    /// </summary>
-    private long ParseFileSize(string? sizeText) => FileSizeFormatter.ParseToBytes(sizeText);
 }
