@@ -27,14 +27,14 @@ namespace GenHub.Features.GameProfiles.ViewModels;
 /// ViewModel for launching game profiles.
 /// </summary>
 public partial class GameProfileLauncherViewModel(
-    IGameInstallationService? installationService,
-    IGameProfileManager? gameProfileManager,
-    IProfileLauncherFacade? profileLauncherFacade,
-    GameProfileSettingsViewModel? settingsViewModel,
-    IProfileEditorFacade? profileEditorFacade,
-    IConfigurationProviderService? configService,
-    IGameProcessManager? gameProcessManager,
-    IShortcutService? shortcutService,
+    IGameInstallationService installationService,
+    IGameProfileManager gameProfileManager,
+    IProfileLauncherFacade profileLauncherFacade,
+    GameProfileSettingsViewModel settingsViewModel,
+    IProfileEditorFacade profileEditorFacade,
+    IConfigurationProviderService configService,
+    IGameProcessManager gameProcessManager,
+    IShortcutService shortcutService,
     ILogger<GameProfileLauncherViewModel> logger) : ViewModelBase
 {
     private readonly SemaphoreSlim _launchSemaphore = new(1, 1);
@@ -73,25 +73,12 @@ public partial class GameProfileLauncherViewModel(
         try
         {
             // Subscribe to process exit events
-            if (gameProcessManager != null)
-            {
-                gameProcessManager.ProcessExited += OnProcessExited;
-            }
+            gameProcessManager.ProcessExited += OnProcessExited;
 
             StatusMessage = "Loading profiles...";
             ErrorMessage = string.Empty;
             Profiles.Clear();
 
-            if (gameProfileManager == null)
-            {
-                StatusMessage = "Profile manager not available";
-                ErrorMessage = "Game Profile Manager service is not initialized";
-                IsServiceAvailable = false;
-                logger.LogWarning("GameProfileManager not available for profile loading");
-                return;
-            }
-
-            IsServiceAvailable = true;
             var profilesResult = await gameProfileManager.GetAllProfilesAsync();
             if (profilesResult.Success && profilesResult.Data != null)
             {
@@ -179,12 +166,6 @@ public partial class GameProfileLauncherViewModel(
     {
         try
         {
-            if (gameProfileManager == null)
-            {
-                logger.LogWarning("GameProfileManager not available for profile refresh");
-                return;
-            }
-
             var profileResult = await gameProfileManager.GetProfileAsync(profileId);
             if (profileResult.Success && profileResult.Data != null)
             {
@@ -241,14 +222,6 @@ public partial class GameProfileLauncherViewModel(
     [RelayCommand]
     private async Task ScanForGamesAsync()
     {
-        if (installationService == null)
-        {
-            StatusMessage = "Game installation service not available";
-            ErrorMessage = "Game Installation Service is not initialized";
-            IsServiceAvailable = false;
-            return;
-        }
-
         if (IsScanning)
         {
             return; // Prevent multiple concurrent scans
@@ -278,20 +251,17 @@ public partial class GameProfileLauncherViewModel(
                 int manifestsGenerated = 0;
                 int profilesCreated = 0;
 
-                if (profileEditorFacade != null && gameProfileManager != null)
+                foreach (var installation in installations.Data)
                 {
-                    foreach (var installation in installations.Data)
-                    {
-                        manifestsGenerated += installation.AvailableGameClients?.Count() * 2 ?? 0;
+                    manifestsGenerated += installation.AvailableGameClients?.Count() * 2 ?? 0;
 
-                        // Create profiles for ALL detected game clients (not just one per game type)
-                        if (installation.AvailableGameClients != null)
+                    // Create profiles for ALL detected game clients (not just one per game type)
+                    if (installation.AvailableGameClients != null)
+                    {
+                        foreach (var gameClient in installation.AvailableGameClients)
                         {
-                            foreach (var gameClient in installation.AvailableGameClients)
-                            {
-                                var profileCreated = await TryCreateProfileForGameClientAsync(installation, gameClient);
-                                if (profileCreated) profilesCreated++;
-                            }
+                            var profileCreated = await TryCreateProfileForGameClientAsync(installation, gameClient);
+                            if (profileCreated) profilesCreated++;
                         }
                     }
                 }
@@ -331,9 +301,6 @@ public partial class GameProfileLauncherViewModel(
     {
         try
         {
-            if (profileEditorFacade == null || gameProfileManager == null)
-                return false;
-
             if (gameClient == null)
             {
                 logger.LogWarning(
@@ -374,7 +341,7 @@ public partial class GameProfileLauncherViewModel(
             }
 
             // Get user's preferred workspace strategy or default
-            var preferredStrategy = configService?.GetDefaultWorkspaceStrategy() ?? WorkspaceStrategy.SymlinkOnly;
+            var preferredStrategy = configService.GetDefaultWorkspaceStrategy();
 
             // Use the detected version from the game client for the GameInstallation manifest ID
             // This must match the version used in ProfileContentLoader and ManifestGenerationService
@@ -465,13 +432,6 @@ public partial class GameProfileLauncherViewModel(
 
         try
         {
-            if (profileLauncherFacade == null)
-            {
-                StatusMessage = "Profile launcher not available";
-                ErrorMessage = "Profile Launcher service is not initialized";
-                return;
-            }
-
             try
             {
                 IsLaunching = true;
@@ -528,12 +488,6 @@ public partial class GameProfileLauncherViewModel(
     [RelayCommand]
     private async Task StopProfile(GameProfileItemViewModel profile)
     {
-        if (profileLauncherFacade == null)
-        {
-            StatusMessage = "Profile launcher not available";
-            return;
-        }
-
         try
         {
             StatusMessage = $"Stopping {profile.Name}...";
@@ -614,9 +568,9 @@ public partial class GameProfileLauncherViewModel(
     [RelayCommand]
     private async Task DeleteProfile(GameProfileItemViewModel profile)
     {
-        if (profileLauncherFacade == null || string.IsNullOrEmpty(profile.ProfileId))
+        if (string.IsNullOrEmpty(profile.ProfileId))
         {
-            StatusMessage = "Profile launcher not available";
+            StatusMessage = "Invalid profile";
             return;
         }
 
@@ -652,20 +606,8 @@ public partial class GameProfileLauncherViewModel(
     [RelayCommand]
     private async Task EditProfile(GameProfileItemViewModel profile)
     {
-        if (settingsViewModel == null)
-        {
-            StatusMessage = "Profile settings not available";
-            return;
-        }
-
         try
         {
-            if (profileEditorFacade == null)
-            {
-                StatusMessage = "Profile editor not available";
-                return;
-            }
-
             // Load the profile using the profile editor facade
             var loadResult = await profileEditorFacade.GetProfileWithWorkspaceAsync(profile.ProfileId);
             if (!loadResult.Success || loadResult.Data == null)
@@ -711,12 +653,6 @@ public partial class GameProfileLauncherViewModel(
     [RelayCommand]
     private async Task CreateNewProfile()
     {
-        if (settingsViewModel == null)
-        {
-            StatusMessage = "Profile settings not available";
-            return;
-        }
-
         try
         {
             // Initialize settings view model for new profile creation
@@ -756,12 +692,6 @@ public partial class GameProfileLauncherViewModel(
     [RelayCommand]
     private async Task PrepareWorkspace(GameProfileItemViewModel profile)
     {
-        if (profileLauncherFacade == null)
-        {
-            StatusMessage = "Profile launcher not available";
-            return;
-        }
-
         try
         {
             IsPreparingWorkspace = true;
@@ -771,24 +701,21 @@ public partial class GameProfileLauncherViewModel(
 
             if (prepareResult.Success && prepareResult.Data != null)
             {
-                if (gameProfileManager != null)
+                var profileResult = await gameProfileManager.GetProfileAsync(profile.ProfileId);
+                if (profileResult.Success && profileResult.Data != null)
                 {
-                    var profileResult = await gameProfileManager.GetProfileAsync(profile.ProfileId);
-                    if (profileResult.Success && profileResult.Data != null)
+                    var loadedProfile = profileResult.Data;
+
+                    // Update the existing item's status
+                    profile.UpdateWorkspaceStatus(loadedProfile.ActiveWorkspaceId, loadedProfile.WorkspaceStrategy);
+
+                    // Force UI refresh by removing and re-adding to ObservableCollection
+                    var index = Profiles.IndexOf(profile);
+                    if (index >= 0)
                     {
-                        var loadedProfile = profileResult.Data;
-
-                        // Update the existing item's status
-                        profile.UpdateWorkspaceStatus(loadedProfile.ActiveWorkspaceId, loadedProfile.WorkspaceStrategy);
-
-                        // Force UI refresh by removing and re-adding to ObservableCollection
-                        var index = Profiles.IndexOf(profile);
-                        if (index >= 0)
-                        {
-                            Profiles.RemoveAt(index);
-                            Profiles.Insert(index, profile);
-                            logger?.LogDebug("Forced UI refresh for profile {ProfileName} at index {Index}", profile.Name, index);
-                        }
+                        Profiles.RemoveAt(index);
+                        Profiles.Insert(index, profile);
+                        logger?.LogDebug("Forced UI refresh for profile {ProfileName} at index {Index}", profile.Name, index);
                     }
                 }
 
@@ -821,18 +748,6 @@ public partial class GameProfileLauncherViewModel(
     [RelayCommand]
     private async Task CreateShortcut(GameProfileItemViewModel profile)
     {
-        if (shortcutService == null)
-        {
-            StatusMessage = "Shortcut service not available";
-            return;
-        }
-
-        if (gameProfileManager == null)
-        {
-            StatusMessage = "Profile manager not available";
-            return;
-        }
-
         try
         {
             StatusMessage = $"Creating desktop shortcut for {profile.Name}...";

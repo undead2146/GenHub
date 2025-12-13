@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
-using System.Runtime.Versioning;
 using System.Text;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
@@ -18,7 +17,6 @@ namespace GenHub.Windows.Features.Shortcuts;
 /// </summary>
 public class WindowsShortcutService(ILogger<WindowsShortcutService> logger) : IShortcutService
 {
-
     /// <inheritdoc />
     public Task<OperationResult<string>> CreateDesktopShortcutAsync(GameProfile profile, string? shortcutName = null)
     {

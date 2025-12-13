@@ -11,7 +11,6 @@ using GenHub.Core.Constants;
 using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameProfiles;
-using GenHub.Core.Interfaces.SingleInstance;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -25,6 +24,7 @@ public partial class App : Application
     private readonly IServiceProvider _serviceProvider;
     private readonly IUserSettingsService _userSettingsService;
     private readonly IConfigurationProviderService _configurationProvider;
+    private readonly IProfileLauncherFacade _profileLauncherFacade;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="App"/> class with the specified service provider.
@@ -35,6 +35,7 @@ public partial class App : Application
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _userSettingsService = _serviceProvider.GetService<IUserSettingsService>() ?? throw new InvalidOperationException("IUserSettingsService not registered");
         _configurationProvider = _serviceProvider.GetService<IConfigurationProviderService>() ?? throw new InvalidOperationException("IConfigurationProviderService not registered");
+        _profileLauncherFacade = _serviceProvider.GetRequiredService<IProfileLauncherFacade>();
     }
 
     /// <summary>
@@ -246,18 +247,9 @@ public partial class App : Application
 
         try
         {
-            using var scope = _serviceProvider.CreateScope();
-            var profileLauncher = scope.ServiceProvider.GetService<IProfileLauncherFacade>();
-
-            if (profileLauncher == null)
-            {
-                logger?.LogError("IProfileLauncherFacade service not available");
-                return;
-            }
-
             logger?.LogInformation("Launching profile {ProfileId}...", profileId);
 
-            var launchResult = await profileLauncher.LaunchProfileAsync(profileId);
+            var launchResult = await _profileLauncherFacade.LaunchProfileAsync(profileId);
 
             if (launchResult.Success && launchResult.Data != null)
             {
