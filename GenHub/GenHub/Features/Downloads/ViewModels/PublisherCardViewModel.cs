@@ -30,10 +30,10 @@ public partial class PublisherCardViewModel : ObservableObject
     private string _displayName = string.Empty;
 
     [ObservableProperty]
-    private string _iconColor = "#888888";
+    private string _iconPathData = string.Empty;
 
     [ObservableProperty]
-    private string _iconPathData = string.Empty;
+    private string? _logoSource;
 
     [ObservableProperty]
     private string _latestVersion = "Loading...";

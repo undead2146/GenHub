@@ -22,9 +22,9 @@ public static class CommunityOutpostConstants
     public const string PublisherName = "Community Outpost";
 
     /// <summary>
-    /// Publisher icon color.
+    /// Publisher logo source path for UI display.
     /// </summary>
-    public const string IconColor = "#2196F3";
+    public const string LogoSource = "/Assets/Logos/communityoutpost-logo.png";
 
     /// <summary>
     /// The URL where the patch page is hosted.
