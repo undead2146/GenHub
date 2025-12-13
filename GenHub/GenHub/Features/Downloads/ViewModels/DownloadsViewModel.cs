@@ -142,6 +142,30 @@ public partial class DownloadsViewModel(
             PublisherCards.Add(communityOutpostCard);
         }
 
+        // Create CNC Labs publisher card
+        var cncLabsCard = serviceProvider.GetService(typeof(PublisherCardViewModel)) as PublisherCardViewModel;
+        if (cncLabsCard != null)
+        {
+            cncLabsCard.PublisherId = CNCLabsConstants.PublisherType;
+            cncLabsCard.DisplayName = CNCLabsConstants.PublisherName;
+            cncLabsCard.LogoSource = CNCLabsConstants.LogoSource;
+            cncLabsCard.ReleaseNotes = CNCLabsConstants.ShortDescription;
+            cncLabsCard.IsLoading = true;
+            PublisherCards.Add(cncLabsCard);
+        }
+
+        // Create ModDB publisher card
+        var modDBCard = serviceProvider.GetService(typeof(PublisherCardViewModel)) as PublisherCardViewModel;
+        if (modDBCard != null)
+        {
+            modDBCard.PublisherId = ModDBConstants.PublisherType;
+            modDBCard.DisplayName = ModDBConstants.PublisherName;
+            modDBCard.LogoSource = ModDBConstants.LogoSource;
+            modDBCard.ReleaseNotes = ModDBConstants.ShortDescription;
+            modDBCard.IsLoading = true;
+            PublisherCards.Add(modDBCard);
+        }
+
         // Populate cards with real content asynchronously
         _ = PopulatePublisherCardsAsync();
     }
@@ -151,7 +175,9 @@ public partial class DownloadsViewModel(
         await Task.WhenAll(
             PopulateGeneralsOnlineCardAsync(),
             PopulateSuperHackersCardAsync(),
-            PopulateCommunityOutpostCardAsync());
+            PopulateCommunityOutpostCardAsync(),
+            PopulateCNCLabsCardAsync(),
+            PopulateModDBCardAsync());
     }
 
     private async Task PopulateGeneralsOnlineCardAsync()
@@ -353,6 +379,140 @@ public partial class DownloadsViewModel(
         }
     }
 
+    private async Task PopulateCNCLabsCardAsync()
+    {
+        try
+        {
+            var card = PublisherCards.FirstOrDefault(c => c.PublisherId == CNCLabsConstants.PublisherType);
+            if (card == null) return;
+
+            var discoverer = serviceProvider.GetService(typeof(GenHub.Features.Content.Services.ContentDiscoverers.CNCLabsMapDiscoverer)) as GenHub.Features.Content.Services.ContentDiscoverers.CNCLabsMapDiscoverer;
+            if (discoverer == null)
+            {
+                logger.LogWarning("CNCLabsMapDiscoverer not available for CNCLabs card");
+                card.LatestVersion = "Unavailable";
+                return;
+            }
+
+            var result = await discoverer.DiscoverAsync(new ContentSearchQuery());
+            if (result.Success && result.Data?.Any() == true)
+            {
+                var releases = result.Data.ToList();
+
+                // Group by content type
+                var groupedContent = releases.GroupBy(r => r.ContentType).ToList();
+
+                foreach (var group in groupedContent)
+                {
+                    var contentGroup = new ContentTypeGroup
+                    {
+                        Type = group.Key,
+                        DisplayName = GetContentTypeDisplayName(group.Key),
+                        Count = group.Count(),
+                        Items = new ObservableCollection<ContentItemViewModel>(
+                            group.Select(item => new ContentItemViewModel(item))),
+                    };
+                    card.ContentTypes.Add(contentGroup);
+                }
+
+                // Set card metadata from first release
+                var latest = releases.FirstOrDefault();
+                if (latest != null)
+                {
+                    card.LatestVersion = $"{releases.Count} maps";
+                    card.DownloadSize = latest.DownloadSize;
+                    card.ReleaseDate = latest.LastUpdated;
+                }
+            }
+            else
+            {
+                card.LatestVersion = "Ready";
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to populate CNC Labs card");
+            var card = PublisherCards.FirstOrDefault(c => c.PublisherId == CNCLabsConstants.PublisherType);
+            if (card != null)
+            {
+                card.HasError = true;
+                card.ErrorMessage = "Failed to load content from CNC Labs";
+            }
+        }
+        finally
+        {
+            var card = PublisherCards.FirstOrDefault(c => c.PublisherId == CNCLabsConstants.PublisherType);
+            if (card != null) card.IsLoading = false;
+        }
+    }
+
+    private async Task PopulateModDBCardAsync()
+    {
+        try
+        {
+            var card = PublisherCards.FirstOrDefault(c => c.PublisherId == ModDBConstants.PublisherType);
+            if (card == null) return;
+
+            var discoverer = serviceProvider.GetService(typeof(GenHub.Features.Content.Services.ContentDiscoverers.ModDBDiscoverer)) as GenHub.Features.Content.Services.ContentDiscoverers.ModDBDiscoverer;
+            if (discoverer == null)
+            {
+                logger.LogWarning("ModDBDiscoverer not available for ModDB card");
+                card.LatestVersion = "Unavailable";
+                return;
+            }
+
+            var result = await discoverer.DiscoverAsync(new ContentSearchQuery());
+            if (result.Success && result.Data?.Any() == true)
+            {
+                var releases = result.Data.ToList();
+
+                // Group by content type
+                var groupedContent = releases.GroupBy(r => r.ContentType).ToList();
+
+                foreach (var group in groupedContent)
+                {
+                    var contentGroup = new ContentTypeGroup
+                    {
+                        Type = group.Key,
+                        DisplayName = GetContentTypeDisplayName(group.Key),
+                        Count = group.Count(),
+                        Items = new ObservableCollection<ContentItemViewModel>(
+                            group.Select(item => new ContentItemViewModel(item))),
+                    };
+                    card.ContentTypes.Add(contentGroup);
+                }
+
+                // Set card metadata from first release
+                var latest = releases.OrderByDescending(r => r.LastUpdated).FirstOrDefault();
+                if (latest != null)
+                {
+                    card.LatestVersion = $"{releases.Count} items";
+                    card.DownloadSize = latest.DownloadSize;
+                    card.ReleaseDate = latest.LastUpdated;
+                }
+            }
+            else
+            {
+                card.LatestVersion = "Ready";
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to populate ModDB card");
+            var card = PublisherCards.FirstOrDefault(c => c.PublisherId == ModDBConstants.PublisherType);
+            if (card != null)
+            {
+                card.HasError = true;
+                card.ErrorMessage = "Failed to load content from ModDB";
+            }
+        }
+        finally
+        {
+            var card = PublisherCards.FirstOrDefault(c => c.PublisherId == ModDBConstants.PublisherType);
+            if (card != null) card.IsLoading = false;
+        }
+    }
+
     private string GetContentTypeDisplayName(ContentType type)
     {
         return type switch
@@ -441,12 +601,6 @@ public partial class DownloadsViewModel(
             logger.LogWarning(ex, "Failed to fetch community patch version");
             CommunityPatchVersion = "Unavailable";
         }
-    }
-
-    [RelayCommand]
-    private void OpenGitHubBuilds()
-    {
-        // TODO: Implement navigation to GitHub builds page
     }
 
     [RelayCommand]

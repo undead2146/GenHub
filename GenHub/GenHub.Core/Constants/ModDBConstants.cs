@@ -41,11 +41,20 @@ public static class ModDBConstants
     /// <summary>Publisher prefix for ModDB content (to be combined with author: moddb-{author}).</summary>
     public const string PublisherPrefix = "moddb";
 
+    /// <summary>Publisher type identifier for ModDB content pipeline.</summary>
+    public const string PublisherType = "moddb";
+
     /// <summary>Publisher name for manifests.</summary>
     public const string PublisherName = "ModDB";
 
+    /// <summary>Publisher logo source path for UI display.</summary>
+    public const string LogoSource = "/Assets/Logos/moddb-logo.png";
+
     /// <summary>ModDB website URL.</summary>
     public const string PublisherWebsite = BaseUrl;
+
+    /// <summary>Short description for publisher card display.</summary>
+    public const string ShortDescription = "Community mods, maps, and content from ModDB";
 
     /// <summary>Manifest version for ModDB content. Always 0 per specification.</summary>
     public const int ManifestVersion = 0;

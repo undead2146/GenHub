@@ -250,9 +250,29 @@ public static class CNCLabsConstants
     public const string PublisherPrefix = "cnclabs";
 
     /// <summary>
+    /// Publisher type identifier for CNCLabs content pipeline.
+    /// </summary>
+    public const string PublisherType = "cnclabs";
+
+    /// <summary>
     /// Official CNC Labs website URL.
     /// </summary>
     public const string PublisherWebsite = "https://www.cnclabs.com";
+
+    /// <summary>
+    /// Publisher display name for UI elements.
+    /// </summary>
+    public const string PublisherName = "CNC Labs";
+
+    /// <summary>
+    /// Publisher logo source path for UI display.
+    /// </summary>
+    public const string LogoSource = "/Assets/Logos/cnclabs-logo.png";
+
+    /// <summary>
+    /// Short description for publisher card display.
+    /// </summary>
+    public const string ShortDescription = "Maps, mods, and community content from CNC Labs";
 
     /// <summary>
     /// Manifest version for CNC Labs content. Always 0 per specification.

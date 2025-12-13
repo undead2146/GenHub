@@ -12,13 +12,12 @@ using GenHub.Features.Content.Services.ContentProviders;
 using GenHub.Features.Content.Services.ContentResolvers;
 using GenHub.Features.Content.Services.GeneralsOnline;
 using GenHub.Features.Content.Services.Publishers;
-using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GitHub.Services;
 using GenHub.Features.Manifest;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System;
-using System.Collections.Generic;
+using System.Net.Http;
 
 namespace GenHub.Infrastructure.DependencyInjection;
 
@@ -42,6 +41,7 @@ public static class ContentPipelineModule
         AddGeneralsOnlinePipeline(services);
         AddCommunityOutpostPipeline(services);
         AddCNCLabsPipeline(services);
+        AddModDBPipeline(services);
         AddLocalFileSystemPipeline(services);
         AddSharedComponents(services);
 
@@ -182,7 +182,8 @@ public static class ContentPipelineModule
         // Register CNCLabs content provider
         services.AddTransient<IContentProvider, CNCLabsContentProvider>();
 
-        // Register CNCLabs discoverer
+        // Register CNCLabs discoverer (concrete and interface)
+        services.AddTransient<CNCLabsMapDiscoverer>();
         services.AddTransient<IContentDiscoverer, CNCLabsMapDiscoverer>();
 
         // Register CNCLabs resolver
@@ -205,8 +206,15 @@ public static class ContentPipelineModule
             httpClient.DefaultRequestHeaders.Add("User-Agent", ApiConstants.DefaultUserAgent);
         });
 
-        // Register ModDB discoverer
-        services.AddTransient<IContentDiscoverer, ModDBDiscoverer>();
+        // Register ModDB discoverer (concrete and interface) with named HttpClient
+        services.AddTransient<ModDBDiscoverer>(sp =>
+        {
+            var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+            var httpClient = httpClientFactory.CreateClient(ModDBConstants.PublisherPrefix);
+            var logger = sp.GetRequiredService<ILogger<ModDBDiscoverer>>();
+            return new ModDBDiscoverer(httpClient, logger);
+        });
+        services.AddTransient<IContentDiscoverer>(sp => sp.GetRequiredService<ModDBDiscoverer>());
 
         // Register ModDB resolver
         services.AddTransient<IContentResolver, ModDBResolver>();

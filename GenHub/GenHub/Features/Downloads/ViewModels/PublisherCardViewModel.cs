@@ -36,6 +36,9 @@ public partial class PublisherCardViewModel : ObservableObject
     private string _iconPathData = string.Empty;
 
     [ObservableProperty]
+    private string? _logoSource;
+
+    [ObservableProperty]
     private string _latestVersion = "Loading...";
 
     [ObservableProperty]
