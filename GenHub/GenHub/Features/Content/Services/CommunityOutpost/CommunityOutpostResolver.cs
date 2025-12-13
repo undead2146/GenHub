@@ -1,18 +1,15 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
-using GenHub.Core.Extensions;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
 using GenHub.Features.Content.Services.CommunityOutpost.Models;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Content.Services.CommunityOutpost;
@@ -21,10 +18,10 @@ namespace GenHub.Features.Content.Services.CommunityOutpost;
 /// Resolves Community Outpost content into manifests.
 /// Supports the GenPatcher dl.dat catalog format with multiple download mirrors.
 /// </summary>
-/// <param name="serviceProvider">Service provider to create new manifest builders per resolve operation.</param>
+/// <param name="manifestBuilderFactory">Factory to create new manifest builders per resolve operation.</param>
 /// <param name="logger">The logger.</param>
 public class CommunityOutpostResolver(
-    IServiceProvider serviceProvider,
+    Func<IContentManifestBuilder> manifestBuilderFactory,
     ILogger<CommunityOutpostResolver> logger) : IContentResolver
 {
     /// <inheritdoc/>
@@ -86,13 +83,12 @@ public class CommunityOutpostResolver(
                 contentName,
                 manifestVersion);
 
-            // Create a new manifest builder for each resolve operation to ensure clean state
-            // This is critical because the builder accumulates files, and reusing the same
-            // instance across multiple ResolveAsync calls would cause files to accumulate
-            var manifestBuilder = serviceProvider.GetRequiredService<IContentManifestBuilder>();
+            // Create a fresh manifest builder instance for each resolve operation
+            // Using factory pattern ensures we get a new Transient instance each time
+            var manifestBuilder = manifestBuilderFactory();
 
             // Build manifest with correct parameters
-            // IMPORTANT: Use PublisherType (e.g., "communityoutpost") as the publisher ID, NOT combined with content code
+            // Use PublisherType (e.g., "communityoutpost") as the publisher ID, NOT combined with content code
             var manifest = manifestBuilder
                 .WithBasicInfo(
                     CommunityOutpostConstants.PublisherType,
