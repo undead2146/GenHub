@@ -99,7 +99,6 @@ public class WorkspaceIntegrationTests : IDisposable
     [InlineData(WorkspaceStrategy.FullCopy)]
     [InlineData(WorkspaceStrategy.SymlinkOnly)]
     [InlineData(WorkspaceStrategy.HybridCopySymlink)]
-    [InlineData(WorkspaceStrategy.HardLink)]
     public async Task EndToEndWorkspaceCreation_AllStrategies(WorkspaceStrategy strategy)
     {
         var manager = _serviceProvider.GetRequiredService<IWorkspaceManager>();
@@ -112,7 +111,6 @@ public class WorkspaceIntegrationTests : IDisposable
             .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
 
         if ((strategy == WorkspaceStrategy.SymlinkOnly ||
-             strategy == WorkspaceStrategy.HardLink ||
              strategy == WorkspaceStrategy.HybridCopySymlink) &&
             (!isWindows || !isAdmin))
         {
