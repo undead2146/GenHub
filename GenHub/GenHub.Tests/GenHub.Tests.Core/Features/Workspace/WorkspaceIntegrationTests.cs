@@ -255,7 +255,10 @@ public class WorkspaceIntegrationTests : IDisposable
     /// <returns>A configured <see cref="WorkspaceConfiguration"/>.</returns>
     private WorkspaceConfiguration CreateTestConfiguration(WorkspaceStrategy strategy)
     {
-        var manifest = new ContentManifest();
+        var manifest = new ContentManifest
+        {
+            ContentType = GenHub.Core.Models.Enums.ContentType.GameClient,
+        };
         var testFiles = new[]
         {
             "generals.exe",
