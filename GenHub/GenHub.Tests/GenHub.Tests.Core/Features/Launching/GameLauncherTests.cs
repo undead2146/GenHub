@@ -51,6 +51,10 @@ public class GameLauncherTests
 
         // Setup game installation service mock
         var testInstallation = new GameInstallation(@"C:\Games\CommandAndConquer", GameInstallationType.Steam);
+
+        // Ensure Generals path is set so GameLauncher validation passes
+        testInstallation.SetPaths(@"C:\Games\CommandAndConquer", null);
+
         _gameInstallationServiceMock.Setup(x => x.GetInstallationAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<GameInstallation>.CreateSuccess(testInstallation));
 
