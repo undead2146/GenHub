@@ -298,6 +298,7 @@ public class MainViewModelTests
             new Mock<IGameSettingsService>().Object,
             new Mock<IConfigurationProviderService>().Object,
             new Mock<IProfileContentLoader>().Object,
+            null,
             NullLogger<GameProfileSettingsViewModel>.Instance,
             NullLogger<GameSettingsViewModel>.Instance);
         var profileEditorFacade = new Mock<IProfileEditorFacade>();

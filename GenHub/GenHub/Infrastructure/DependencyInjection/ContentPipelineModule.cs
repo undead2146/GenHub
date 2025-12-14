@@ -5,6 +5,7 @@ using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Features.Content.Services;
+using GenHub.Features.Content.Services.CommunityOutpost;
 using GenHub.Features.Content.Services.ContentDeliverers;
 using GenHub.Features.Content.Services.ContentDiscoverers;
 using GenHub.Features.Content.Services.ContentProviders;
@@ -14,7 +15,9 @@ using GenHub.Features.Content.Services.Publishers;
 using GenHub.Features.GitHub.Services;
 using GenHub.Features.Manifest;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System;
+using System.Net.Http;
 
 namespace GenHub.Infrastructure.DependencyInjection;
 
@@ -36,7 +39,9 @@ public static class ContentPipelineModule
         // Register content pipelines
         AddGitHubPipeline(services);
         AddGeneralsOnlinePipeline(services);
+        AddCommunityOutpostPipeline(services);
         AddCNCLabsPipeline(services);
+        AddModDBPipeline(services);
         AddLocalFileSystemPipeline(services);
         AddSharedComponents(services);
 
@@ -94,12 +99,26 @@ public static class ContentPipelineModule
         // Register GitHub content provider
         services.AddTransient<IContentProvider, GitHubContentProvider>();
 
-        // Register GitHub discoverers
+        // Register SuperHackers provider (uses GitHub discoverer/resolver/deliverer)
+        services.AddTransient<IContentProvider, SuperHackersProvider>();
+
+        // Register GitHub discoverers (both concrete and interface registrations)
+        services.AddTransient<GitHubDiscoverer>();
+        services.AddTransient<GitHubReleasesDiscoverer>();
         services.AddTransient<IContentDiscoverer, GitHubDiscoverer>();
         services.AddTransient<IContentDiscoverer, GitHubReleasesDiscoverer>();
 
         // Register GitHub resolver
         services.AddTransient<IContentResolver, GitHubResolver>();
+
+        // Register GitHub deliverer
+        services.AddTransient<IContentDeliverer, GitHubContentDeliverer>();
+
+        // Register SuperHackers manifest factory
+        services.AddTransient<IPublisherManifestFactory, SuperHackersManifestFactory>();
+
+        // Register SuperHackers update service
+        services.AddSingleton<SuperHackersUpdateService>();
     }
 
     /// <summary>
@@ -110,10 +129,12 @@ public static class ContentPipelineModule
         // Register Generals Online provider
         services.AddTransient<IContentProvider, GeneralsOnlineProvider>();
 
-        // Register Generals Online discoverer
+        // Register Generals Online discoverer (concrete and interface)
+        services.AddTransient<GeneralsOnlineDiscoverer>();
         services.AddTransient<IContentDiscoverer, GeneralsOnlineDiscoverer>();
 
-        // Register Generals Online resolver
+        // Register Generals Online resolver (concrete and interface)
+        services.AddTransient<GeneralsOnlineResolver>();
         services.AddTransient<IContentResolver, GeneralsOnlineResolver>();
 
         // Register Generals Online deliverer
@@ -121,9 +142,36 @@ public static class ContentPipelineModule
 
         // Register Generals Online manifest factory
         services.AddTransient<GeneralsOnlineManifestFactory>();
+        services.AddTransient<IPublisherManifestFactory, GeneralsOnlineManifestFactory>();
 
         // Register Generals Online update service
         services.AddSingleton<GeneralsOnlineUpdateService>();
+    }
+
+    /// <summary>
+    /// Registers Community Outpost content pipeline services.
+    /// </summary>
+    private static void AddCommunityOutpostPipeline(IServiceCollection services)
+    {
+        // Register Community Outpost provider
+        services.AddTransient<IContentProvider, CommunityOutpostProvider>();
+
+        // Register Community Outpost discoverer (concrete and interface)
+        services.AddTransient<CommunityOutpostDiscoverer>();
+        services.AddTransient<IContentDiscoverer, CommunityOutpostDiscoverer>();
+
+        // Register Community Outpost resolver
+        services.AddTransient<IContentResolver, CommunityOutpostResolver>();
+
+        // Register Community Outpost deliverer
+        services.AddTransient<IContentDeliverer, CommunityOutpostDeliverer>();
+
+        // Register Community Outpost manifest factory
+        services.AddTransient<CommunityOutpostManifestFactory>();
+        services.AddTransient<IPublisherManifestFactory, CommunityOutpostManifestFactory>();
+
+        // Register Community Outpost update service
+        services.AddSingleton<CommunityOutpostUpdateService>();
     }
 
     /// <summary>
@@ -134,11 +182,46 @@ public static class ContentPipelineModule
         // Register CNCLabs content provider
         services.AddTransient<IContentProvider, CNCLabsContentProvider>();
 
-        // Register CNCLabs discoverer
+        // Register CNCLabs discoverer (concrete and interface)
+        services.AddTransient<CNCLabsMapDiscoverer>();
         services.AddTransient<IContentDiscoverer, CNCLabsMapDiscoverer>();
 
         // Register CNCLabs resolver
         services.AddTransient<IContentResolver, CNCLabsMapResolver>();
+
+        // Register CNCLabs manifest factory
+        services.AddTransient<CNCLabsManifestFactory>();
+        services.AddTransient<IPublisherManifestFactory, CNCLabsManifestFactory>();
+    }
+
+    /// <summary>
+    /// Registers ModDB content pipeline services.
+    /// </summary>
+    private static void AddModDBPipeline(IServiceCollection services)
+    {
+        // Register named HTTP client for ModDB
+        services.AddHttpClient(ModDBConstants.PublisherPrefix, httpClient =>
+        {
+            httpClient.Timeout = TimeSpan.FromSeconds(45); // ModDB can be slower
+            httpClient.DefaultRequestHeaders.Add("User-Agent", ApiConstants.DefaultUserAgent);
+        });
+
+        // Register ModDB discoverer (concrete and interface) with named HttpClient
+        services.AddTransient<ModDBDiscoverer>(sp =>
+        {
+            var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+            var httpClient = httpClientFactory.CreateClient(ModDBConstants.PublisherPrefix);
+            var logger = sp.GetRequiredService<ILogger<ModDBDiscoverer>>();
+            return new ModDBDiscoverer(httpClient, logger);
+        });
+        services.AddTransient<IContentDiscoverer>(sp => sp.GetRequiredService<ModDBDiscoverer>());
+
+        // Register ModDB resolver
+        services.AddTransient<IContentResolver, ModDBResolver>();
+
+        // Register ModDB manifest factory
+        services.AddTransient<ModDBManifestFactory>();
+        services.AddTransient<IPublisherManifestFactory, ModDBManifestFactory>();
     }
 
     /// <summary>

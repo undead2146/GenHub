@@ -86,14 +86,19 @@ public partial class GameProfileLauncherViewModel(
                 {
                     // Use profile's IconPath if available, otherwise fall back to generalshub icon
                     var iconPath = !string.IsNullOrEmpty(profile.IconPath)
-                        ? $"avares://GenHub/{profile.IconPath}"
+                        ? profile.IconPath
                         : Core.Constants.UriConstants.DefaultIconUri;
+
+                    // Use profile's CoverPath if available, otherwise fall back to icon path
+                    var coverPath = !string.IsNullOrEmpty(profile.CoverPath)
+                        ? profile.CoverPath
+                        : iconPath;
 
                     var item = new GameProfileItemViewModel(
                         profile.Id,
                         profile,
                         iconPath,
-                        iconPath); // Using same icon for both icon and cover for now
+                        coverPath);
                     Profiles.Add(item);
                 }
 
@@ -181,14 +186,19 @@ public partial class GameProfileLauncherViewModel(
 
                     // Update the profile data
                     var iconPath = !string.IsNullOrEmpty(profile.IconPath)
-                        ? $"avares://GenHub/{profile.IconPath}"
+                        ? profile.IconPath
                         : Core.Constants.UriConstants.DefaultIconUri;
+
+                    // Use profile's CoverPath if available, otherwise fall back to icon path
+                    var coverPath = !string.IsNullOrEmpty(profile.CoverPath)
+                        ? profile.CoverPath
+                        : iconPath;
 
                     var newItem = new GameProfileItemViewModel(
                         profile.Id,
                         profile,
                         iconPath,
-                        iconPath);
+                        coverPath);
 
                     // Restore the running state
                     if (wasRunning)

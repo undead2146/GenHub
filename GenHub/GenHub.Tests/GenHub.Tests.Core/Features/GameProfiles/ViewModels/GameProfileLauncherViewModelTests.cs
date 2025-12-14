@@ -34,6 +34,7 @@ public class GameProfileLauncherViewModelTests
             new Mock<IGameSettingsService>().Object,
             new Mock<IConfigurationProviderService>().Object,
             new Mock<IProfileContentLoader>().Object,
+            null,
             NullLogger<GameProfileSettingsViewModel>.Instance,
             NullLogger<GameSettingsViewModel>.Instance);
         var profileEditorFacade = new Mock<IProfileEditorFacade>();
@@ -77,6 +78,7 @@ public class GameProfileLauncherViewModelTests
             new Mock<IGameSettingsService>().Object,
             new Mock<IConfigurationProviderService>().Object,
             new Mock<IProfileContentLoader>().Object,
+            null,
             NullLogger<GameProfileSettingsViewModel>.Instance,
             NullLogger<GameSettingsViewModel>.Instance);
         var profileEditorFacade = new Mock<IProfileEditorFacade>();
@@ -124,6 +126,7 @@ public class GameProfileLauncherViewModelTests
             new Mock<IGameSettingsService>().Object,
             new Mock<IConfigurationProviderService>().Object,
             new Mock<IProfileContentLoader>().Object,
+            null,
             NullLogger<GameProfileSettingsViewModel>.Instance,
             NullLogger<GameSettingsViewModel>.Instance);
         var profileEditorFacade = new Mock<IProfileEditorFacade>();
@@ -168,6 +171,7 @@ public class GameProfileLauncherViewModelTests
             new Mock<IGameSettingsService>().Object,
             new Mock<IConfigurationProviderService>().Object,
             new Mock<IProfileContentLoader>().Object,
+            null,
             NullLogger<GameProfileSettingsViewModel>.Instance,
             NullLogger<GameSettingsViewModel>.Instance);
         var profileEditorFacade = new Mock<IProfileEditorFacade>();
@@ -209,6 +213,7 @@ public class GameProfileLauncherViewModelTests
             new Mock<IGameSettingsService>().Object,
             new Mock<IConfigurationProviderService>().Object,
             new Mock<IProfileContentLoader>().Object,
+            null,
             NullLogger<GameProfileSettingsViewModel>.Instance,
             NullLogger<GameSettingsViewModel>.Instance);
         var profileEditorFacade = new Mock<IProfileEditorFacade>();
@@ -247,6 +252,7 @@ public class GameProfileLauncherViewModelTests
             new Mock<IGameSettingsService>().Object,
             new Mock<IConfigurationProviderService>().Object,
             new Mock<IProfileContentLoader>().Object,
+            null,
             NullLogger<GameProfileSettingsViewModel>.Instance,
             NullLogger<GameSettingsViewModel>.Instance);
         var profileEditorFacade = new Mock<IProfileEditorFacade>();
@@ -254,6 +260,7 @@ public class GameProfileLauncherViewModelTests
         var gameProcessManager = new Mock<IGameProcessManager>();
         var shortcutService = new Mock<IShortcutService>();
         var installationService = new Mock<IGameInstallationService>();
+
         // Setup to return failure
         installationService.Setup(x => x.GetAllInstallationsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<IReadOnlyList<GameInstallation>>.CreateFailure("Service unavailable"));
@@ -271,7 +278,7 @@ public class GameProfileLauncherViewModelTests
 
         await vm.ScanForGamesCommand.ExecuteAsync(null);
 
-        // Service returns failure, so we should get a scan failed message  
+        // Service returns failure, so we should get a scan failed message
         Assert.Contains("Scan failed", vm.StatusMessage);
     }
 }

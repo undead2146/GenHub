@@ -32,6 +32,14 @@ public class StringToImageConverter : IValueConverter
                 return new Bitmap(asset);
             }
 
+            // Handle relative asset paths (e.g., "/Assets/Logos/logo.png")
+            if (path.StartsWith("/", StringComparison.Ordinal))
+            {
+                var uri = new Uri($"avares://GenHub{path}");
+                var asset = AssetLoader.Open(uri);
+                return new Bitmap(asset);
+            }
+
             // Handle web URLs
             if (path.StartsWith(UriConstants.HttpUriScheme, StringComparison.OrdinalIgnoreCase) ||
                 path.StartsWith(UriConstants.HttpsUriScheme, StringComparison.OrdinalIgnoreCase))
