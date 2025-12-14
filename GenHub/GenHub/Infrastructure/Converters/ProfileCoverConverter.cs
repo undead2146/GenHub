@@ -22,7 +22,7 @@ public class ProfileCoverConverter : IValueConverter
         if (value is string coverPath && !string.IsNullOrEmpty(coverPath))
             return coverPath;
 
-        return "avares://GenHub/Assets/Covers/default-cover.jpg";
+        return "avares://GenHub/Assets/Covers/generals-cover-2.png";
     }
 
     /// <summary>

@@ -29,6 +29,9 @@ public class CreateProfileRequest
     /// <summary>Gets or sets the icon path for the profile.</summary>
     public string? IconPath { get; set; }
 
+    /// <summary>Gets or sets the cover path for the profile.</summary>
+    public string? CoverPath { get; set; }
+
     /// <summary>Gets or sets the command line arguments to pass to the game executable.</summary>
     public string? CommandLineArguments { get; set; }
 }

@@ -115,6 +115,9 @@ public partial class GameSettingsViewModel : ViewModelBase
     private int _gamma = 50;
 
     [ObservableProperty]
+    private string _colorValue = "#8E44AD";
+
+    [ObservableProperty]
     private ObservableCollection<string> _resolutionPresets = new(ResolutionPresetsProvider.StandardResolutions);
 
     [ObservableProperty]

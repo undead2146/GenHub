@@ -303,7 +303,9 @@ public class ModDBDiscoverer(HttpClient httpClient, ILogger<ModDBDiscoverer> log
         if (!string.IsNullOrEmpty(category))
         {
             var mapped = ModDBCategoryMapper.MapCategoryByName(category);
-            if (mapped != ContentType.Addon) // Addon is the default fallback
+
+            // Addon is the default fallback
+            if (mapped != ContentType.Addon)
             {
                 return mapped;
             }

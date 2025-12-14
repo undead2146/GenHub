@@ -28,11 +28,10 @@ public partial class GameProfileSettingsViewModel(
     IGameSettingsService? gameSettingsService,
     IConfigurationProviderService? configurationProvider,
     IProfileContentLoader? profileContentLoader,
+    Services.ProfileResourceService? profileResourceService,
     ILogger<GameProfileSettingsViewModel>? logger,
     ILogger<GameSettingsViewModel>? gameSettingsLogger) : ViewModelBase
 {
-    private readonly ILogger<GameProfileSettingsViewModel> _logger = logger ?? NullLogger<GameProfileSettingsViewModel>.Instance;
-
     [ObservableProperty]
     private string _name = string.Empty;
 
@@ -61,6 +60,9 @@ public partial class GameProfileSettingsViewModel(
             }
         }
     }
+
+    [ObservableProperty]
+    private int _selectedTabIndex;
 
     [ObservableProperty]
     private ObservableCollection<ContentDisplayItem> _availableContent = new();
@@ -168,6 +170,21 @@ public partial class GameProfileSettingsViewModel(
     private string _iconPath = string.Empty;
 
     [ObservableProperty]
+    private string _coverPath = string.Empty;
+
+    [ObservableProperty]
+    private ObservableCollection<ProfileResourceItem> _availableIcons = new();
+
+    [ObservableProperty]
+    private ObservableCollection<ProfileResourceItem> _availableCoversForSelection = new();
+
+    [ObservableProperty]
+    private ProfileResourceItem? _selectedIcon;
+
+    [ObservableProperty]
+    private ProfileResourceItem? _selectedCoverItem;
+
+    [ObservableProperty]
     private string _path = string.Empty;
 
     [ObservableProperty]
@@ -246,24 +263,36 @@ public partial class GameProfileSettingsViewModel(
             if (AvailableGameInstallations.Any())
             {
                 SelectedGameInstallation = AvailableGameInstallations.First();
-                _logger.LogInformation("Pre-selected first GameInstallation for UI: {ContentName}", SelectedGameInstallation.DisplayName);
+                logger?.LogInformation("Pre-selected first GameInstallation for UI: {ContentName}", SelectedGameInstallation.DisplayName);
+
+                // Set default icon and cover FIRST
+                IconPath = NormalizeResourcePath(
+                    profileResourceService?.GetDefaultIconPath(SelectedGameInstallation.GameType.ToString()),
+                    Core.Constants.UriConstants.DefaultIconUri);
+                CoverPath = NormalizeResourcePath(
+                    profileResourceService?.GetDefaultCoverPath(SelectedGameInstallation.GameType.ToString()),
+                    string.Empty);
+
+                // then load available icons and covers (so SelectedIcon/SelectedCoverItem get set correctly)
+                LoadAvailableIconsAndCovers(SelectedGameInstallation.GameType.ToString());
             }
 
             // Initialize game settings with defaults for new profile
             if (GameSettingsViewModel != null)
             {
+                GameSettingsViewModel.ColorValue = ColorValue;
                 await GameSettingsViewModel.InitializeForProfileAsync(null, null);
             }
 
             StatusMessage = $"Found {AvailableGameInstallations.Count} installations and {AvailableContent.Count} content items";
-            _logger.LogInformation(
+            logger?.LogInformation(
                 "Initialized new profile creation with {InstallationCount} installations and {ContentCount} content items",
                 AvailableGameInstallations.Count,
                 AvailableContent.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error initializing new profile");
+            logger?.LogError(ex, "Error initializing new profile");
             StatusMessage = "Error loading content";
             LoadingError = true;
         }
@@ -287,7 +316,7 @@ public partial class GameProfileSettingsViewModel(
             StatusMessage = "Loading profile...";
 
             _currentProfileId = profileId;
-            _logger.LogInformation("InitializeForProfileAsync called with profileId: {ProfileId}", profileId);
+            logger?.LogInformation("InitializeForProfileAsync called with profileId: {ProfileId}", profileId);
 
             if (gameProfileManager == null)
             {
@@ -298,35 +327,41 @@ public partial class GameProfileSettingsViewModel(
             var profileResult = await gameProfileManager.GetProfileAsync(profileId);
             if (!profileResult.Success || profileResult.Data == null)
             {
-                _logger.LogWarning("Failed to load profile {ProfileId}: {Errors}", profileId, string.Join(", ", profileResult.Errors));
+                logger?.LogWarning("Failed to load profile {ProfileId}: {Errors}", profileId, string.Join(", ", profileResult.Errors));
                 StatusMessage = "Failed to load profile";
                 LoadingError = true;
                 return;
             }
 
             var profile = profileResult.Data;
-            _logger.LogInformation("Loaded profile: {ProfileName}, EnabledContentIds count: {Count}", profile.Name, profile.EnabledContentIds?.Count ?? 0);
+            logger?.LogInformation("Loaded profile: {ProfileName}, EnabledContentIds count: {Count}", profile.Name, profile.EnabledContentIds?.Count ?? 0);
 
             Name = profile.Name;
             Description = profile.Description ?? string.Empty;
             ColorValue = profile.ThemeColor ?? "#1976D2";
-            IconPath = !string.IsNullOrEmpty(profile.IconPath)
-                ? $"avares://GenHub/{profile.IconPath}"
-                : Core.Constants.UriConstants.DefaultIconUri;
+            var defaultIconPath = profileResourceService?.GetDefaultIconPath(profile.GameClient.GameType.ToString())
+                ?? Core.Constants.UriConstants.DefaultIconUri;
+            IconPath = NormalizeResourcePath(profile.IconPath, defaultIconPath);
+            var defaultCoverPath = profileResourceService?.GetDefaultCoverPath(profile.GameClient.GameType.ToString()) ?? string.Empty;
+            CoverPath = NormalizeResourcePath(profile.CoverPath, defaultCoverPath);
             SelectedWorkspaceStrategy = profile.WorkspaceStrategy;
             _originalWorkspaceStrategy = profile.WorkspaceStrategy; // Track original strategy
             CommandLineArguments = profile.CommandLineArguments ?? string.Empty;
 
+            // Load available icons and covers for selection
+            LoadAvailableIconsAndCovers(profile.GameClient.GameType.ToString());
+
             // Load game settings for this profile
             if (GameSettingsViewModel != null)
             {
+                GameSettingsViewModel.ColorValue = ColorValue;
                 await GameSettingsViewModel.InitializeForProfileAsync(profileId, profile);
             }
 
             // If the profile has no custom game settings, save the defaults from Options.ini
             if (GameSettingsViewModel != null && !profile.HasCustomSettings())
             {
-                _logger.LogInformation("Profile {ProfileId} has no custom settings, saving defaults from Options.ini", profileId);
+                logger?.LogInformation("Profile {ProfileId} has no custom settings, saving defaults from Options.ini", profileId);
                 var gameSettings = GameSettingsViewModel.GetProfileSettings();
                 var updateRequest = new UpdateProfileRequest();
                 PopulateGameSettings(updateRequest, gameSettings);
@@ -334,11 +369,11 @@ public partial class GameProfileSettingsViewModel(
                 var updateResult = await gameProfileManager.UpdateProfileAsync(profileId, updateRequest);
                 if (updateResult.Success)
                 {
-                    _logger.LogInformation("Saved default game settings for profile {ProfileId}", profileId);
+                    logger?.LogInformation("Saved default game settings for profile {ProfileId}", profileId);
                 }
                 else
                 {
-                    _logger.LogWarning(
+                    logger?.LogWarning(
                         "Failed to save default game settings for profile {ProfileId}: {Errors}",
                         profileId,
                         string.Join(", ", updateResult.Errors));
@@ -346,11 +381,11 @@ public partial class GameProfileSettingsViewModel(
             }
 
             // Load enabled content for this profile
-            _logger.LogInformation("About to call LoadEnabledContentForProfileAsync for profile: {ProfileName}", profile.Name);
+            logger?.LogInformation("About to call LoadEnabledContentForProfileAsync for profile: {ProfileName}", profile.Name);
             await LoadEnabledContentForProfileAsync(profile);
-            _logger.LogInformation("After LoadEnabledContentForProfileAsync: EnabledContent count = {Count}", EnabledContent.Count);
+            logger?.LogInformation("After LoadEnabledContentForProfileAsync: EnabledContent count = {Count}", EnabledContent.Count);
 
-            _logger.LogInformation("Loaded profile {ProfileName} for editing", profile.Name);
+            logger?.LogInformation("Loaded profile {ProfileName} for editing", profile.Name);
 
             await LoadAvailableGameInstallationsAsync();
             await LoadAvailableContentAsync();
@@ -360,7 +395,7 @@ public partial class GameProfileSettingsViewModel(
             if (hasGameInstallation)
             {
                 SelectedContentType = ContentType.GameInstallation;
-                _logger.LogInformation("Auto-selected GameInstallation content type filter for editing");
+                logger?.LogInformation("Auto-selected GameInstallation content type filter for editing");
 
                 var enabledInstallation = EnabledContent.FirstOrDefault(c => c.ContentType == ContentType.GameInstallation);
                 if (enabledInstallation != null)
@@ -370,7 +405,7 @@ public partial class GameProfileSettingsViewModel(
                         .FirstOrDefault(a => a.ManifestId.Value == enabledInstallation.ManifestId.Value)
                         ?? enabledInstallation;
 
-                    _logger.LogInformation(
+                    logger?.LogInformation(
                         "Set SelectedGameInstallation to {DisplayName} from existing profile",
                         SelectedGameInstallation.DisplayName);
                 }
@@ -380,7 +415,7 @@ public partial class GameProfileSettingsViewModel(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error initializing profile {ProfileId}", profileId);
+            logger?.LogError(ex, "Error initializing profile {ProfileId}", profileId);
             StatusMessage = "Error loading profile";
             LoadingError = true;
         }
@@ -388,6 +423,23 @@ public partial class GameProfileSettingsViewModel(
         {
             IsInitializing = false;
         }
+    }
+
+    /// <summary>
+    /// Normalizes a resource path to ensure it's a valid absolute URI or file path.
+    /// Handles legacy relative paths by converting them to full avares:// URIs.
+    /// </summary>
+    private static string NormalizeResourcePath(string? path, string defaultUri)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return defaultUri;
+
+        // If it's already a URI or absolute path, return as-is
+        if (Uri.TryCreate(path, UriKind.Absolute, out _))
+            return path;
+
+        // Legacy relative resource path - convert to full URI
+        return $"avares://GenHub/{path}";
     }
 
     /// <summary>
@@ -438,7 +490,7 @@ public partial class GameProfileSettingsViewModel(
             if (profileContentLoader == null)
             {
                 StatusMessage = "Profile content loader service not available";
-                _logger.LogWarning("Profile content loader service not available");
+                logger?.LogWarning("Profile content loader service not available");
                 return;
             }
 
@@ -488,11 +540,11 @@ public partial class GameProfileSettingsViewModel(
             }
 
             StatusMessage = $"Loaded {AvailableContent.Count} {SelectedContentType} items";
-            _logger.LogInformation("Loaded {Count} content items for content type {ContentType}", AvailableContent.Count, SelectedContentType);
+            logger?.LogInformation("Loaded {Count} content items for content type {ContentType}", AvailableContent.Count, SelectedContentType);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error loading available content");
+            logger?.LogError(ex, "Error loading available content");
             StatusMessage = "Error loading content";
         }
         finally
@@ -514,7 +566,7 @@ public partial class GameProfileSettingsViewModel(
 
             if (profileContentLoader == null)
             {
-                _logger.LogWarning("Profile content loader service not available");
+                logger?.LogWarning("Profile content loader service not available");
                 return;
             }
 
@@ -533,13 +585,13 @@ public partial class GameProfileSettingsViewModel(
                 SelectedGameInstallation = AvailableGameInstallations.First();
             }
 
-            _logger.LogInformation(
+            logger?.LogInformation(
                 "Loaded {Count} game installation options",
                 AvailableGameInstallations.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error loading available game installations");
+            logger?.LogError(ex, "Error loading available game installations");
         }
     }
 
@@ -556,7 +608,7 @@ public partial class GameProfileSettingsViewModel(
 
             if (profileContentLoader == null)
             {
-                _logger.LogWarning("Profile content loader service not available");
+                logger?.LogWarning("Profile content loader service not available");
                 return;
             }
 
@@ -570,11 +622,11 @@ public partial class GameProfileSettingsViewModel(
                 viewModelItem.IsEnabled = true; // Ensure enabled status
             }
 
-            _logger.LogInformation("Loaded {Count} enabled content items for profile {ProfileName}", EnabledContent.Count, profile.Name);
+            logger?.LogInformation("Loaded {Count} enabled content items for profile {ProfileName}", EnabledContent.Count, profile.Name);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error loading enabled content for profile");
+            logger?.LogError(ex, "Error loading enabled content for profile");
         }
     }
 
@@ -589,18 +641,18 @@ public partial class GameProfileSettingsViewModel(
         if (contentItem == null)
         {
             StatusMessage = "No content selected";
-            _logger.LogWarning("EnableContent: contentItem parameter is NULL");
+            logger?.LogWarning("EnableContent: contentItem parameter is NULL");
             return;
         }
 
         // Prevent cascading calls during content loading
         if (_isLoadingContent)
         {
-            _logger.LogDebug("EnableContent: Blocked during content loading (guard flag set) - {DisplayName}", contentItem.DisplayName);
+            logger?.LogDebug("EnableContent: Blocked during content loading (guard flag set) - {DisplayName}", contentItem.DisplayName);
             return;
         }
 
-        _logger.LogInformation(
+        logger?.LogInformation(
             "EnableContent called with: {DisplayName} (ManifestId: {ManifestId}, SourceId: {SourceId}, GameClientId: {GameClientId})",
             contentItem.DisplayName,
             contentItem.ManifestId.Value,
@@ -610,7 +662,7 @@ public partial class GameProfileSettingsViewModel(
         if (contentItem.IsEnabled)
         {
             StatusMessage = "Content already enabled";
-            _logger.LogWarning("EnableContent: {DisplayName} is already marked as enabled", contentItem.DisplayName);
+            logger?.LogWarning("EnableContent: {DisplayName} is already marked as enabled", contentItem.DisplayName);
             return;
         }
 
@@ -619,7 +671,7 @@ public partial class GameProfileSettingsViewModel(
         if (alreadyEnabled != null)
         {
             StatusMessage = "Content is already enabled";
-            _logger.LogWarning(
+            logger?.LogWarning(
                 "EnableContent: ManifestId {ManifestId} is already in EnabledContent as {DisplayName}",
                 contentItem.ManifestId.Value,
                 alreadyEnabled.DisplayName);
@@ -662,7 +714,7 @@ public partial class GameProfileSettingsViewModel(
                     }
                 }
 
-                _logger.LogInformation(
+                logger?.LogInformation(
                     "Disabled existing {ContentType}: {DisplayName} (enforcing cardinality of 1)",
                     existing.ContentType,
                     existing.DisplayName);
@@ -683,7 +735,7 @@ public partial class GameProfileSettingsViewModel(
         if (contentItem.ContentType == ContentType.GameInstallation)
         {
             SelectedGameInstallation = contentItem;
-            _logger.LogInformation(
+            logger?.LogInformation(
                 "Updated SelectedGameInstallation to {DisplayName} (SourceId={SourceId}, GameClientId={GameClientId})",
                 contentItem.DisplayName,
                 contentItem.SourceId,
@@ -691,7 +743,7 @@ public partial class GameProfileSettingsViewModel(
         }
 
         StatusMessage = $"Enabled {contentItem.DisplayName}";
-        _logger.LogInformation("Enabled content {ContentName} for profile", contentItem.DisplayName);
+        logger?.LogInformation("Enabled content {ContentName} for profile", contentItem.DisplayName);
     }
 
     /// <summary>
@@ -751,7 +803,7 @@ public partial class GameProfileSettingsViewModel(
             if (anotherEnabledInstallation != null)
             {
                 SelectedGameInstallation = anotherEnabledInstallation;
-                _logger.LogInformation(
+                logger?.LogInformation(
                     "Switched SelectedGameInstallation to {DisplayName} after disabling previous selection",
                     anotherEnabledInstallation.DisplayName);
             }
@@ -759,14 +811,14 @@ public partial class GameProfileSettingsViewModel(
             {
                 // No GameInstallation enabled - try to select from available list
                 SelectedGameInstallation = AvailableGameInstallations.FirstOrDefault();
-                _logger.LogWarning(
+                logger?.LogWarning(
                     "No GameInstallation enabled - reset to first available: {DisplayName}",
                     SelectedGameInstallation?.DisplayName ?? "None");
             }
         }
 
         StatusMessage = $"Disabled {contentItem.DisplayName}";
-        _logger.LogInformation("Disabled content {ContentName} for profile", contentItem.DisplayName);
+        logger?.LogInformation("Disabled content {ContentName} for profile", contentItem.DisplayName);
     }
 
     /// <summary>
@@ -803,14 +855,14 @@ public partial class GameProfileSettingsViewModel(
             if (!hasGameInstallation)
             {
                 StatusMessage = "Error: A Game Installation must be enabled for the profile to be launchable.";
-                _logger.LogWarning("Profile save blocked: No GameInstallation content enabled");
+                logger?.LogWarning("Profile save blocked: No GameInstallation content enabled");
                 return;
             }
 
             // Build enabled content IDs from all enabled content
             var enabledContentIds = EnabledContent.Where(c => c.IsEnabled).Select(c => c.ManifestId.Value).ToList();
 
-            _logger.LogInformation(
+            logger?.LogInformation(
                 "Profile will be created/updated with {Count} enabled content items: {ContentIds}",
                 enabledContentIds.Count,
                 string.Join(", ", enabledContentIds));
@@ -825,11 +877,11 @@ public partial class GameProfileSettingsViewModel(
                     !enabledContentIds.Contains(SelectedGameInstallation.GameClientId))
                 {
                     enabledContentIds.Add(SelectedGameInstallation.GameClientId);
-                    _logger.LogInformation("Auto-enabled default GameClient content: {GameClientId}", SelectedGameInstallation.GameClientId);
+                    logger?.LogInformation("Auto-enabled default GameClient content: {GameClientId}", SelectedGameInstallation.GameClientId);
                 }
                 else if (hasGameClientEnabled)
                 {
-                    _logger.LogInformation("Skipping auto-enable GameClient - user has already selected a GameClient");
+                    logger?.LogInformation("Skipping auto-enable GameClient - user has already selected a GameClient");
                 }
 
                 var createRequest = new CreateProfileRequest
@@ -841,13 +893,15 @@ public partial class GameProfileSettingsViewModel(
                     PreferredStrategy = SelectedWorkspaceStrategy,
                     EnabledContentIds = enabledContentIds,
                     CommandLineArguments = CommandLineArguments,
+                    IconPath = IconPath,
+                    CoverPath = CoverPath,
                 };
 
                 var result = await gameProfileManager.CreateProfileAsync(createRequest);
                 if (result.Success)
                 {
                     StatusMessage = "Profile created successfully";
-                    _logger.LogInformation("Created new profile {ProfileName} with {ContentCount} enabled content items", Name, enabledContentIds.Count);
+                    logger?.LogInformation("Created new profile {ProfileName} with {ContentCount} enabled content items", Name, enabledContentIds.Count);
 
                     // Close the window after a brief delay
                     await Task.Delay(1000);
@@ -856,7 +910,7 @@ public partial class GameProfileSettingsViewModel(
                 else
                 {
                     StatusMessage = $"Failed to create profile: {string.Join(", ", result.Errors)}";
-                    _logger.LogWarning("Failed to create profile: {Errors}", string.Join(", ", result.Errors));
+                    logger?.LogWarning("Failed to create profile: {Errors}", string.Join(", ", result.Errors));
                 }
             }
             else
@@ -877,6 +931,8 @@ public partial class GameProfileSettingsViewModel(
                         : null,
                     EnabledContentIds = enabledContentIds,
                     CommandLineArguments = CommandLineArguments,
+                    IconPath = IconPath,
+                    CoverPath = CoverPath,
                 };
 
                 PopulateGameSettings(updateRequest, gameSettings);
@@ -885,7 +941,7 @@ public partial class GameProfileSettingsViewModel(
                 if (result.Success)
                 {
                     StatusMessage = "Profile updated successfully";
-                    _logger.LogInformation("Updated profile {ProfileId} with {ContentCount} enabled content items", _currentProfileId, enabledContentIds.Count);
+                    logger?.LogInformation("Updated profile {ProfileId} with {ContentCount} enabled content items", _currentProfileId, enabledContentIds.Count);
 
                     // Close the window after a brief delay
                     await Task.Delay(1000);
@@ -894,18 +950,185 @@ public partial class GameProfileSettingsViewModel(
                 else
                 {
                     StatusMessage = $"Failed to update profile: {string.Join(", ", result.Errors)}";
-                    _logger.LogWarning("Failed to update profile {ProfileId}: {Errors}", _currentProfileId, string.Join(", ", result.Errors));
+                    logger?.LogWarning("Failed to update profile {ProfileId}: {Errors}", _currentProfileId, string.Join(", ", result.Errors));
                 }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error saving profile");
+            logger?.LogError(ex, "Error saving profile");
             StatusMessage = "Error saving profile";
         }
         finally
         {
             IsSaving = false;
+        }
+    }
+
+    /// <summary>
+    /// Loads available icons and covers based on the game type.
+    /// </summary>
+    private void LoadAvailableIconsAndCovers(string gameType)
+    {
+        try
+        {
+            if (profileResourceService == null)
+            {
+                logger?.LogWarning("ProfileResourceService is not available");
+                return;
+            }
+
+            // Load icons for this game type
+            var icons = profileResourceService.GetIconsForGameType(gameType);
+            AvailableIcons = new ObservableCollection<ProfileResourceItem>(icons);
+            logger?.LogInformation("Loaded {Count} icons for game type {GameType}", icons.Count, gameType);
+
+            // Load ALL covers (not filtered by game type) so users can choose any cover
+            var covers = profileResourceService.GetAvailableCovers();
+            AvailableCoversForSelection = new ObservableCollection<ProfileResourceItem>(covers);
+            logger?.LogInformation("Loaded {Count} covers (all types)", covers.Count);
+
+            // Set selected icon based on current IconPath
+            if (!string.IsNullOrEmpty(IconPath))
+            {
+                SelectedIcon = AvailableIcons.FirstOrDefault(i => i.Path == IconPath);
+            }
+
+            // Set selected cover based on current CoverPath
+            if (!string.IsNullOrEmpty(CoverPath))
+            {
+                SelectedCoverItem = AvailableCoversForSelection.FirstOrDefault(c => c.Path == CoverPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Error loading available icons and covers");
+        }
+    }
+
+    /// <summary>
+    /// Selects an icon for the profile.
+    /// </summary>
+    [RelayCommand]
+    private void SelectIcon(ProfileResourceItem? icon)
+    {
+        if (icon == null)
+        {
+            return;
+        }
+
+        SelectedIcon = icon;
+        IconPath = icon.Path;
+        logger?.LogInformation("Selected icon: {DisplayName} ({Path})", icon.DisplayName, icon.Path);
+    }
+
+    /// <summary>
+    /// Selects a cover for the profile.
+    /// </summary>
+    [RelayCommand]
+    private void SelectCover(ProfileResourceItem? cover)
+    {
+        if (cover == null)
+        {
+            return;
+        }
+
+        SelectedCoverItem = cover;
+        CoverPath = cover.Path;
+        logger?.LogInformation("Selected cover: {DisplayName} ({Path})", cover.DisplayName, cover.Path);
+    }
+
+    /// <summary>
+    /// Opens a file dialog to browse for a custom icon.
+    /// </summary>
+    [RelayCommand]
+    private async Task BrowseForCustomIconAsync()
+    {
+        try
+        {
+            var openFileDialog = new Avalonia.Platform.Storage.FilePickerOpenOptions
+            {
+                Title = "Select Custom Icon",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new Avalonia.Platform.Storage.FilePickerFileType("Image Files")
+                    {
+                        Patterns = new[] { "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.ico" },
+                    },
+                },
+            };
+
+            var topLevel = Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow
+                : null;
+
+            if (topLevel != null)
+            {
+                var storageProvider = topLevel.StorageProvider;
+                var result = await storageProvider.OpenFilePickerAsync(openFileDialog);
+
+                if (result.Count > 0)
+                {
+                    var selectedFile = result[0];
+                    IconPath = selectedFile.Path.LocalPath;
+                    SelectedIcon = null; // Clear built-in selection when using custom
+                    logger?.LogInformation("Selected custom icon: {Path}", IconPath);
+                    StatusMessage = "Custom icon selected";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Error browsing for custom icon");
+            StatusMessage = "Error selecting custom icon";
+        }
+    }
+
+    /// <summary>
+    /// Opens a file dialog to browse for a custom cover.
+    /// </summary>
+    [RelayCommand]
+    private async Task BrowseForCustomCoverAsync()
+    {
+        try
+        {
+            var openFileDialog = new Avalonia.Platform.Storage.FilePickerOpenOptions
+            {
+                Title = "Select Custom Cover",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new Avalonia.Platform.Storage.FilePickerFileType("Image Files")
+                    {
+                        Patterns = new[] { "*.png", "*.jpg", "*.jpeg", "*.bmp" },
+                    },
+                },
+            };
+
+            var topLevel = Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow
+                : null;
+
+            if (topLevel != null)
+            {
+                var storageProvider = topLevel.StorageProvider;
+                var result = await storageProvider.OpenFilePickerAsync(openFileDialog);
+
+                if (result.Count > 0)
+                {
+                    var selectedFile = result[0];
+                    CoverPath = selectedFile.Path.LocalPath;
+                    SelectedCoverItem = null; // Clear built-in selection when using custom
+                    logger?.LogInformation("Selected custom cover: {Path}", CoverPath);
+                    StatusMessage = "Custom cover selected";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Error browsing for custom cover");
+            StatusMessage = "Error selecting custom cover";
         }
     }
 
@@ -924,8 +1147,13 @@ public partial class GameProfileSettingsViewModel(
 
         var random = new Random();
         ColorValue = colors[random.Next(colors.Count)];
+        if (GameSettingsViewModel != null)
+        {
+            GameSettingsViewModel.ColorValue = ColorValue;
+        }
+
         StatusMessage = $"Color randomized to {ColorValue}";
-        _logger.LogInformation("Randomized profile color to {ColorValue}", ColorValue);
+        logger?.LogInformation("Randomized profile color to {ColorValue}", ColorValue);
     }
 
     /// <summary>
@@ -938,13 +1166,18 @@ public partial class GameProfileSettingsViewModel(
         if (!string.IsNullOrEmpty(color))
         {
             ColorValue = color;
+            if (GameSettingsViewModel != null)
+            {
+                GameSettingsViewModel.ColorValue = ColorValue;
+            }
+
             StatusMessage = $"Selected theme color {color}";
-            _logger.LogInformation("Selected theme color {ColorValue}", color);
+            logger?.LogInformation("Selected theme color {ColorValue}", color);
         }
         else
         {
             StatusMessage = "Invalid color selected";
-            _logger.LogWarning("Invalid color parameter passed to SelectThemeColor");
+            logger?.LogWarning("Invalid color parameter passed to SelectThemeColor");
         }
     }
 
@@ -956,18 +1189,7 @@ public partial class GameProfileSettingsViewModel(
     {
         // TODO: Implement file dialog for selecting cover image
         StatusMessage = "Browse custom cover: TODO - Implement file dialog";
-        _logger.LogInformation("BrowseCustomCoverCommand executed");
-    }
-
-    /// <summary>
-    /// Selects a cover from available options.
-    /// </summary>
-    [RelayCommand]
-    private void SelectCover()
-    {
-        // TODO: Implement cover selection logic
-        StatusMessage = "Select cover: TODO - Implement selection";
-        _logger.LogInformation("SelectCoverCommand executed");
+        logger?.LogInformation("BrowseCustomCoverCommand executed");
     }
 
     /// <summary>
@@ -978,29 +1200,7 @@ public partial class GameProfileSettingsViewModel(
     {
         // TODO: Implement file dialog for shortcut path
         StatusMessage = "Browse shortcut path: TODO - Implement file dialog";
-        _logger.LogInformation("BrowseShortcutPathCommand executed");
-    }
-
-    /// <summary>
-    /// Creates a shortcut for the profile.
-    /// </summary>
-    [RelayCommand]
-    private void CreateShortcut()
-    {
-        // TODO: Implement shortcut creation using IWshRuntimeLibrary or similar
-        ShortcutStatusMessage = "Shortcut creation: TODO - Implement";
-        _logger.LogInformation("CreateShortcutCommand executed");
-    }
-
-    /// <summary>
-    /// Selects an icon file.
-    /// </summary>
-    [RelayCommand]
-    private void SelectIcon()
-    {
-        // TODO: Implement file dialog for icon
-        StatusMessage = "Select icon: TODO - Implement file dialog";
-        _logger.LogInformation("SelectIconCommand executed");
+        logger?.LogInformation("BrowseShortcutPathCommand executed");
     }
 
     /// <summary>
@@ -1013,7 +1213,21 @@ public partial class GameProfileSettingsViewModel(
         if (contentType.HasValue && contentType.Value != SelectedContentType)
         {
             SelectedContentType = contentType.Value;
-            _logger.LogInformation("Content type filter changed to {ContentType}", contentType.Value);
+            logger?.LogInformation("Content type filter changed to {ContentType}", contentType.Value);
+        }
+    }
+
+    /// <summary>
+    /// Selects a tab by index.
+    /// </summary>
+    /// <param name="tabIndexStr">The tab index as a string.</param>
+    [RelayCommand]
+    private void SelectTab(string? tabIndexStr)
+    {
+        if (int.TryParse(tabIndexStr, out var tabIndex))
+        {
+            SelectedTabIndex = tabIndex;
+            logger?.LogDebug("Tab selected: {TabIndex}", tabIndex);
         }
     }
 
