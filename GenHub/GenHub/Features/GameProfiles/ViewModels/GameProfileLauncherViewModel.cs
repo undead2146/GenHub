@@ -28,21 +28,17 @@ namespace GenHub.Features.GameProfiles.ViewModels;
 /// ViewModel for launching game profiles.
 /// </summary>
 public partial class GameProfileLauncherViewModel(
-    IGameInstallationService? installationService,
-    IGameProfileManager? gameProfileManager,
-    IProfileLauncherFacade? profileLauncherFacade,
-    GameProfileSettingsViewModel? settingsViewModel,
-    IProfileEditorFacade? profileEditorFacade,
-    IConfigurationProviderService? configService,
-    IGameProcessManager? gameProcessManager,
-    IStorageLocationService? storageLocationService,
-    INotificationService? notificationService,
-    ILogger<GameProfileLauncherViewModel>? logger) : ViewModelBase
+    IGameInstallationService installationService,
+    IGameProfileManager gameProfileManager,
+    IProfileLauncherFacade profileLauncherFacade,
+    GameProfileSettingsViewModel settingsViewModel,
+    IProfileEditorFacade profileEditorFacade,
+    IConfigurationProviderService configService,
+    IGameProcessManager gameProcessManager,
+    IStorageLocationService storageLocationService,
+    INotificationService notificationService,
+    ILogger<GameProfileLauncherViewModel> logger) : ViewModelBase
 {
-    private readonly ILogger<GameProfileLauncherViewModel> logger = logger ?? NullLogger<GameProfileLauncherViewModel>.Instance;
-    private readonly IStorageLocationService? _storageLocationService = storageLocationService;
-    private readonly INotificationService? _notificationService = notificationService;
-
     private readonly SemaphoreSlim _launchSemaphore = new(1, 1);
 
     [ObservableProperty]
@@ -70,18 +66,6 @@ public partial class GameProfileLauncherViewModel(
     private bool _isScanning;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="GameProfileLauncherViewModel"/> class for design-time or test usage.
-    /// This constructor is only for design-time and testing scenarios.
-    /// </summary>
-    public GameProfileLauncherViewModel()
-        : this(null, null, null, null, null, null, null, null, null, null)
-    {
-        // Initialize with sample data for design-time
-        StatusMessage = "Design-time preview";
-        IsServiceAvailable = false;
-    }
-
-    /// <summary>
     /// Gets the command to create a shortcut for the selected profile.
     /// </summary>
     public IRelayCommand CreateShortcutCommand { get; } = new RelayCommand(() => { });
@@ -96,24 +80,12 @@ public partial class GameProfileLauncherViewModel(
         try
         {
             // Subscribe to process exit events
-            if (gameProcessManager != null)
-            {
-                gameProcessManager.ProcessExited += OnProcessExited;
-            }
+            // Subscribe to process exit events
+            gameProcessManager.ProcessExited += OnProcessExited;
 
             StatusMessage = "Loading profiles...";
             ErrorMessage = string.Empty;
             Profiles.Clear();
-
-            if (gameProfileManager == null)
-            {
-                StatusMessage = "Profile manager not available";
-                ErrorMessage = "Game Profile Manager service is not initialized";
-                IsServiceAvailable = false;
-                logger.LogWarning("GameProfileManager not available for profile loading");
-                return;
-            }
-
             IsServiceAvailable = true;
             var profilesResult = await gameProfileManager.GetAllProfilesAsync();
             if (profilesResult.Success && profilesResult.Data != null)
@@ -202,12 +174,6 @@ public partial class GameProfileLauncherViewModel(
     {
         try
         {
-            if (gameProfileManager == null)
-            {
-                logger.LogWarning("GameProfileManager not available for profile refresh");
-                return;
-            }
-
             var profileResult = await gameProfileManager.GetProfileAsync(profileId);
             if (profileResult.Success && profileResult.Data != null)
             {
@@ -264,14 +230,6 @@ public partial class GameProfileLauncherViewModel(
     [RelayCommand]
     private async Task ScanForGamesAsync()
     {
-        if (installationService == null)
-        {
-            StatusMessage = "Game installation service not available";
-            ErrorMessage = "Game Installation Service is not initialized";
-            IsServiceAvailable = false;
-            return;
-        }
-
         if (IsScanning)
         {
             return; // Prevent multiple concurrent scans
@@ -354,7 +312,7 @@ public partial class GameProfileLauncherViewModel(
     /// <param name="installations">The list of detected game installations.</param>
     private async Task CheckAndSetupStorageLocationAsync(IReadOnlyCollection<GameInstallation> installations)
     {
-        if (_storageLocationService == null || installations.Count == 0)
+        if (installations.Count == 0)
         {
             return;
         }
@@ -362,7 +320,7 @@ public partial class GameProfileLauncherViewModel(
         try
         {
             // Check if a preferred installation is already set
-            var existingPreferred = await _storageLocationService.GetPreferredInstallationAsync();
+            var existingPreferred = await storageLocationService.GetPreferredInstallationAsync();
             if (existingPreferred != null)
             {
                 logger.LogDebug("Preferred storage installation already set: {InstallationId}", existingPreferred.Id);
@@ -392,9 +350,9 @@ public partial class GameProfileLauncherViewModel(
                     installationsByDrive.First().Key,
                     selectedInstallation.InstallationPath);
 
-                _notificationService?.ShowInfo(
+                notificationService?.ShowInfo(
                     "Storage Location Set",
-                    $"CAS pool and workspaces will be created at {Path.GetPathRoot(selectedInstallation.InstallationPath)}");
+                    $"CAS pool and workspaces will be created at {Path.GetPathRoot(selectedInstallation.InstallationPath)?.ToUpperInvariant()}");
             }
             else
             {
@@ -411,36 +369,36 @@ public partial class GameProfileLauncherViewModel(
                     "Installations found on multiple drives: {Drives}. Auto-selected {InstallationPath} on {Drive}",
                     driveList,
                     selectedInstallation.InstallationPath,
-                    Path.GetPathRoot(selectedInstallation.InstallationPath));
+                    Path.GetPathRoot(selectedInstallation.InstallationPath)?.ToUpperInvariant());
 
                 var warningMessage = $"Installations found on drives: {driveList}. " +
-                    $"Using {Path.GetPathRoot(selectedInstallation.InstallationPath)} for CAS pool and workspaces. " +
+                    $"Using {Path.GetPathRoot(selectedInstallation.InstallationPath)?.ToUpperInvariant()} for CAS pool and workspaces. " +
                     $"Profiles on other drives may require admin rights or use file copying.";
-                _notificationService?.ShowWarning(
+                notificationService?.ShowWarning(
                     "Multiple Game Installations Found",
                     warningMessage,
                     autoDismissMs: 10000);
             }
 
             // Set the preferred installation
-            await _storageLocationService.SetPreferredInstallationAsync(selectedInstallation.Id);
+            await storageLocationService.SetPreferredInstallationAsync(selectedInstallation.Id);
 
-            var casPoolPath = _storageLocationService.GetCasPoolPath(selectedInstallation);
-            var workspacePath = _storageLocationService.GetWorkspacePath(selectedInstallation);
+            var casPoolPath = storageLocationService.GetCasPoolPath(selectedInstallation);
+            var workspacePath = storageLocationService.GetWorkspacePath(selectedInstallation);
 
             logger.LogInformation(
                 "Dynamic storage configured - CAS Pool: {CasPoolPath}, Workspace: {WorkspacePath}",
                 casPoolPath,
                 workspacePath);
 
-            _notificationService?.ShowSuccess(
+            notificationService?.ShowSuccess(
                 "Dynamic Storage Enabled",
                 $"CAS pool: {casPoolPath}");
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to set up dynamic storage location");
-            _notificationService?.ShowError(
+            notificationService?.ShowError(
                 "Storage Setup Failed",
                 $"Could not configure dynamic storage: {ex.Message}");
         }
@@ -456,9 +414,6 @@ public partial class GameProfileLauncherViewModel(
     {
         try
         {
-            if (profileEditorFacade == null || gameProfileManager == null)
-                return false;
-
             if (gameClient == null)
             {
                 logger.LogWarning(
@@ -590,13 +545,6 @@ public partial class GameProfileLauncherViewModel(
 
         try
         {
-            if (profileLauncherFacade == null)
-            {
-                StatusMessage = "Profile launcher not available";
-                ErrorMessage = "Profile Launcher service is not initialized";
-                return;
-            }
-
             try
             {
                 IsLaunching = true;
@@ -653,12 +601,6 @@ public partial class GameProfileLauncherViewModel(
     [RelayCommand]
     private async Task StopProfile(GameProfileItemViewModel profile)
     {
-        if (profileLauncherFacade == null)
-        {
-            StatusMessage = "Profile launcher not available";
-            return;
-        }
-
         try
         {
             StatusMessage = $"Stopping {profile.Name}...";
@@ -710,12 +652,6 @@ public partial class GameProfileLauncherViewModel(
     [RelayCommand]
     private async Task SaveProfiles()
     {
-        if (gameProfileManager == null)
-        {
-            StatusMessage = "Profile manager not available";
-            return;
-        }
-
         try
         {
             StatusMessage = "Saving profiles...";
@@ -739,9 +675,9 @@ public partial class GameProfileLauncherViewModel(
     [RelayCommand]
     private async Task DeleteProfile(GameProfileItemViewModel profile)
     {
-        if (profileLauncherFacade == null || string.IsNullOrEmpty(profile.ProfileId))
+        if (string.IsNullOrEmpty(profile.ProfileId))
         {
-            StatusMessage = "Profile launcher not available";
+            StatusMessage = "Invalid profile ID";
             return;
         }
 
@@ -777,20 +713,8 @@ public partial class GameProfileLauncherViewModel(
     [RelayCommand]
     private async Task EditProfile(GameProfileItemViewModel profile)
     {
-        if (settingsViewModel == null)
-        {
-            StatusMessage = "Profile settings not available";
-            return;
-        }
-
         try
         {
-            if (profileEditorFacade == null)
-            {
-                StatusMessage = "Profile editor not available";
-                return;
-            }
-
             // Load the profile using the profile editor facade
             var loadResult = await profileEditorFacade.GetProfileWithWorkspaceAsync(profile.ProfileId);
             if (!loadResult.Success || loadResult.Data == null)

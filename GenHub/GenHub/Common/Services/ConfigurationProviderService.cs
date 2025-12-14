@@ -280,9 +280,9 @@ public class ConfigurationProviderService(
 
     /// <inheritdoc />
     /// <remarks>
-    /// WARNING: If the specific configuration is missing or incomplete, this method may return a
-    /// new instance with default values (disconnected from the underlying settings).
-    /// modifying the returned object will NOT update the persistent settings.
+    /// Returns the current CAS configuration. If the path is not configured, a default path is applied
+    /// to a new configuration instance.
+    /// Note: Modifying the returned object will not update the persistent user settings.
     /// To update settings, use <see cref="IUserSettingsService.TryUpdateAndSaveAsync"/>.
     /// </remarks>
     public CasConfiguration GetCasConfiguration()

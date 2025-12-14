@@ -211,10 +211,10 @@ public class GameLauncher(
         var profileResult = await profileManager.GetProfileAsync(profileId, cancellationToken);
         if (!profileResult.Success)
         {
-            return LaunchOperationResult<GameLaunchInfo>.CreateFailure(profileResult.FirstError!, profileId: profileId);
+            return LaunchOperationResult<GameLaunchInfo>.CreateFailure(profileResult.FirstError ?? "Unknown error accessing profile", profileId: profileId);
         }
 
-        var profile = profileResult.Data!;
+        var profile = profileResult.Data;
         return await LaunchProfileAsync(profile, progress, cancellationToken);
     }
 
@@ -297,10 +297,10 @@ public class GameLauncher(
             var result = await processManager.GetActiveProcessesAsync(cancellationToken);
             if (!result.Success)
             {
-                return LaunchOperationResult<IReadOnlyList<GameProcessInfo>>.CreateFailure(result.FirstError!);
+                return LaunchOperationResult<IReadOnlyList<GameProcessInfo>>.CreateFailure(result.FirstError ?? "Unknown error retrieving processes");
             }
 
-            return LaunchOperationResult<IReadOnlyList<GameProcessInfo>>.CreateSuccess(result.Data!);
+            return LaunchOperationResult<IReadOnlyList<GameProcessInfo>>.CreateSuccess(result.Data);
         }
         catch (Exception ex)
         {
@@ -363,7 +363,7 @@ public class GameLauncher(
             var result = await processManager.TerminateProcessAsync(launchInfo.ProcessInfo.ProcessId, cancellationToken);
             if (!result.Success)
             {
-                return LaunchOperationResult<GameLaunchInfo>.CreateFailure(result.FirstError!, launchId, launchInfo.ProfileId);
+                return LaunchOperationResult<GameLaunchInfo>.CreateFailure(result.FirstError ?? "Unknown error truncating process", launchId, launchInfo.ProfileId);
             }
 
             // Update launch info with termination time
@@ -556,7 +556,7 @@ public class GameLauncher(
                 return LaunchOperationResult<GameLaunchInfo>.CreateFailure("Failed to resolve game installation.", launchId, profile.Id);
             }
 
-            var installation = installationResult.Data!;
+            var installation = installationResult.Data;
 
             var gameClient = profile.GameClient;
             if (gameClient == null)
@@ -584,7 +584,7 @@ public class GameLauncher(
             {
                 Id = profile.Id,
                 Manifests = manifests,
-                GameClient = gameClient, // FIX: No null-forgiving operator needed
+                GameClient = gameClient,
                 Strategy = profile.WorkspaceStrategy,
                 WorkspaceRootPath = dynamicWorkspacePath,
                 BaseInstallationPath = actualInstallationPath,
@@ -612,7 +612,7 @@ public class GameLauncher(
                 return LaunchOperationResult<GameLaunchInfo>.CreateFailure(workspaceResult.FirstError ?? "Workspace preparation failed", launchId, profile.Id);
             }
 
-            var workspaceInfo = workspaceResult.Data!;
+            var workspaceInfo = workspaceResult.Data;
             logger.LogInformation("[GameLauncher] Workspace prepared successfully: {WorkspaceId}", workspaceInfo.Id);
 
             // Start the process
@@ -786,7 +786,7 @@ public class GameLauncher(
     {
         try
         {
-            // FIX: Add null check for GameClient to resolve CS8602 warnings
+            // Add null check for GameClient to resolve CS8602 warnings
             if (profile.GameClient == null)
             {
                 logger.LogWarning("Profile {ProfileId} has no GameClient configured, skipping Options.ini write", profile.Id);
@@ -794,7 +794,7 @@ public class GameLauncher(
             }
 
             // Determine the game type from the profile's game client
-            var gameType = profile.GameClient.GameType; // Now safe - no CS8602 warning
+            var gameType = profile.GameClient.GameType;
             if (gameType == GameType.Unknown)
             {
                 logger.LogWarning("Profile {ProfileId} has unknown game type, skipping Options.ini write", profile.Id);

@@ -21,16 +21,12 @@ public class StorageLocationService(
     IGameInstallationService gameInstallationService,
     ILogger<StorageLocationService> logger) : IStorageLocationService
 {
-    private readonly IUserSettingsService _userSettingsService = userSettingsService ?? throw new ArgumentNullException(nameof(userSettingsService));
-    private readonly IGameInstallationService _gameInstallationService = gameInstallationService ?? throw new ArgumentNullException(nameof(gameInstallationService));
-    private readonly ILogger<StorageLocationService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
     /// <inheritdoc/>
     public string GetCasPoolPath(IGameInstallation installation)
     {
         ArgumentNullException.ThrowIfNull(installation);
 
-        var settings = _userSettingsService.Get();
+        var settings = userSettingsService.Get();
         if (!settings.UseInstallationAdjacentStorage)
         {
             // Fall back to centralized AppData location
@@ -38,13 +34,13 @@ public class StorageLocationService(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 AppConstants.AppName,
                 DirectoryNames.CasPool);
-            _logger.LogDebug("Using centralized CAS pool path: {CasPoolPath} (installation-adjacent disabled)", appDataPath);
+            logger.LogDebug("Using centralized CAS pool path: {CasPoolPath} (installation-adjacent disabled)", appDataPath);
             return appDataPath;
         }
 
         var installationRoot = PathHelper.GetSafeParentDirectory(installation.InstallationPath);
         var casPoolPath = Path.Combine(installationRoot, DirectoryNames.GenHubCasPool);
-        _logger.LogDebug("Resolved CAS pool path: {CasPoolPath} for installation {InstallationId}", casPoolPath, installation.Id);
+        logger.LogDebug("Resolved CAS pool path: {CasPoolPath} for installation {InstallationId}", casPoolPath, installation.Id);
         return casPoolPath;
     }
 
@@ -53,7 +49,7 @@ public class StorageLocationService(
     {
         ArgumentNullException.ThrowIfNull(installation);
 
-        var settings = _userSettingsService.Get();
+        var settings = userSettingsService.Get();
         if (!settings.UseInstallationAdjacentStorage)
         {
             // Fall back to centralized AppData location
@@ -61,38 +57,38 @@ public class StorageLocationService(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 AppConstants.AppName,
                 "Workspaces");
-            _logger.LogDebug("Using centralized workspace path: {WorkspacePath} (installation-adjacent disabled)", appDataPath);
+            logger.LogDebug("Using centralized workspace path: {WorkspacePath} (installation-adjacent disabled)", appDataPath);
             return appDataPath;
         }
 
         var installationRoot = PathHelper.GetSafeParentDirectory(installation.InstallationPath);
         var workspacePath = Path.Combine(installationRoot, DirectoryNames.GenHubWorkspace);
-        _logger.LogDebug("Resolved workspace path: {WorkspacePath} for installation {InstallationId}", workspacePath, installation.Id);
+        logger.LogDebug("Resolved workspace path: {WorkspacePath} for installation {InstallationId}", workspacePath, installation.Id);
         return workspacePath;
     }
 
     /// <inheritdoc/>
     public async Task<IGameInstallation?> GetPreferredInstallationAsync(CancellationToken cancellationToken = default)
     {
-        var settings = _userSettingsService.Get();
+        var settings = userSettingsService.Get();
 
         if (string.IsNullOrEmpty(settings.PreferredStorageInstallationId))
         {
-            _logger.LogDebug("No preferred storage installation ID set");
+            logger.LogDebug("No preferred storage installation ID set");
             return null;
         }
 
-        var installationsResult = await _gameInstallationService.GetAllInstallationsAsync(cancellationToken);
+        var installationsResult = await gameInstallationService.GetAllInstallationsAsync(cancellationToken);
         if (!installationsResult.Success || installationsResult.Data == null)
         {
-            _logger.LogWarning("Failed to get installations: {Error}", installationsResult.FirstError);
+            logger.LogWarning("Failed to get installations: {Error}", installationsResult.FirstError);
             return null;
         }
 
         var preferredInstallation = installationsResult.Data.FirstOrDefault(i => i.Id == settings.PreferredStorageInstallationId);
         if (preferredInstallation == null)
         {
-            _logger.LogWarning("Preferred installation {InstallationId} not found", settings.PreferredStorageInstallationId);
+            logger.LogWarning("Preferred installation {InstallationId} not found", settings.PreferredStorageInstallationId);
         }
 
         return preferredInstallation;
@@ -103,14 +99,14 @@ public class StorageLocationService(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(installationId, nameof(installationId));
 
-        await _userSettingsService.TryUpdateAndSaveAsync(settings =>
+        await userSettingsService.TryUpdateAndSaveAsync(settings =>
         {
             settings.PreferredStorageInstallationId = installationId;
             settings.MarkAsExplicitlySet(nameof(settings.PreferredStorageInstallationId));
             return true;
         });
 
-        _logger.LogInformation("Set preferred storage installation to {InstallationId}", installationId);
+        logger.LogInformation("Set preferred storage installation to {InstallationId}", installationId);
     }
 
     /// <inheritdoc/>
@@ -121,7 +117,7 @@ public class StorageLocationService(
         var installationsList = installations.ToList();
         if (installationsList.Count <= 1)
         {
-            _logger.LogDebug("Only {Count} installation(s), no user selection required", installationsList.Count);
+            logger.LogDebug("Only {Count} installation(s), no user selection required", installationsList.Count);
             return false;
         }
 
@@ -133,7 +129,7 @@ public class StorageLocationService(
             .ToList();
 
         var requiresSelection = drives.Count > 1;
-        _logger.LogDebug(
+        logger.LogDebug(
             "Found {InstallationCount} installations on {DriveCount} drive(s), user selection required: {RequiresSelection}",
             installationsList.Count,
             drives.Count,
@@ -150,7 +146,7 @@ public class StorageLocationService(
 
         var sameVolume = FileOperationsService.AreSameVolume(path1, path2);
 
-        _logger.LogDebug(
+        logger.LogDebug(
             "Comparing volumes: {Path1} vs {Path2}, same: {SameVolume}",
             path1,
             path2,

@@ -6,6 +6,7 @@ using GenHub.Common.ViewModels;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Tools;
 using GenHub.Core.Models.Common;
@@ -18,6 +19,7 @@ using GenHub.Features.Notifications.ViewModels;
 using GenHub.Features.Settings.ViewModels;
 using GenHub.Features.Tools.ViewModels;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -51,7 +53,7 @@ public class MainViewModelTests
 
         // Act
         var vm = new MainViewModel(
-            new GameProfileLauncherViewModel(),
+            CreateGameProfileLauncherVm(),
             downloadsVm,
             toolsVm,
             settingsVm,
@@ -93,7 +95,7 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationManagerViewModel>>(),
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var vm = new MainViewModel(
-            new GameProfileLauncherViewModel(),
+            CreateGameProfileLauncherVm(),
             downloadsVm,
             toolsVm,
             settingsVm,
@@ -130,7 +132,7 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationManagerViewModel>>(),
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var viewModel = new MainViewModel(
-            new GameProfileLauncherViewModel(),
+            CreateGameProfileLauncherVm(),
             downloadsVm,
             toolsVm,
             settingsVm,
@@ -170,7 +172,7 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationManagerViewModel>>(),
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var vm = new MainViewModel(
-            new GameProfileLauncherViewModel(),
+            CreateGameProfileLauncherVm(),
             CreateDownloadsVm(),
             toolsVm,
             settingsVm,
@@ -212,7 +214,7 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationManagerViewModel>>(),
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var vm = new MainViewModel(
-            new GameProfileLauncherViewModel(),
+            CreateGameProfileLauncherVm(),
             CreateDownloadsVm(),
             toolsVm,
             settingsVm,
@@ -293,5 +295,26 @@ public class MainViewModelTests
         mock.Setup(x => x.DismissRequests).Returns(Observable.Empty<Guid>());
         mock.Setup(x => x.DismissAllRequests).Returns(Observable.Empty<bool>());
         return mock;
+    }
+
+    private static GameProfileLauncherViewModel CreateGameProfileLauncherVm()
+    {
+        return new GameProfileLauncherViewModel(
+            Mock.Of<IGameInstallationService>(),
+            Mock.Of<IGameProfileManager>(),
+            Mock.Of<IProfileLauncherFacade>(),
+            new GameProfileSettingsViewModel(
+                Mock.Of<IGameProfileManager>(),
+                Mock.Of<IGameSettingsService>(),
+                Mock.Of<IConfigurationProviderService>(),
+                Mock.Of<IProfileContentLoader>(),
+                NullLogger<GameProfileSettingsViewModel>.Instance,
+                NullLogger<GameSettingsViewModel>.Instance),
+            Mock.Of<IProfileEditorFacade>(),
+            Mock.Of<IConfigurationProviderService>(),
+            Mock.Of<IGameProcessManager>(),
+            Mock.Of<IStorageLocationService>(),
+            Mock.Of<INotificationService>(),
+            NullLogger<GameProfileLauncherViewModel>.Instance);
     }
 }
