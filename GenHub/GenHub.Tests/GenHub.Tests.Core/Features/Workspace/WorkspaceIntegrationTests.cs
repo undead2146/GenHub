@@ -80,7 +80,6 @@ public class WorkspaceIntegrationTests : IDisposable
         services.AddSingleton(mockConfiguration.Object);
         services.AddSingleton(mockAppConfig.Object);
         services.AddSingleton(mockUserSettings.Object);
-        services.AddSingleton<IConfigurationProviderService, ConfigurationProviderService>();
 
         // Add workspace services
         services.AddWorkspaceServices();
@@ -255,10 +254,12 @@ public class WorkspaceIntegrationTests : IDisposable
     /// <returns>A configured <see cref="WorkspaceConfiguration"/>.</returns>
     private WorkspaceConfiguration CreateTestConfiguration(WorkspaceStrategy strategy)
     {
-        var manifest = new ContentManifest();
+        var manifest = new ContentManifest
+        {
+            ContentType = GenHub.Core.Models.Enums.ContentType.GameClient,
+        };
         var testFiles = new[]
         {
-            "generals.exe",
             "generals.exe",
             "data/textures/texture1.tga",
             "data/audio/sound1.wav",
@@ -315,7 +316,7 @@ public class WorkspaceIntegrationTests : IDisposable
         foreach (var file in testFiles)
         {
             var fullPath = Path.Combine(_tempGameInstall, file);
-            Directory.CreateDirectory(Path.GetDirectoryName(fullPath) !);
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
             await File.WriteAllTextAsync(fullPath, $"Test content for {file}");
         }
     }
