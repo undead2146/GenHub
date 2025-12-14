@@ -72,6 +72,7 @@ public class GameProfileManager(
                 EnabledContentIds = request.EnabledContentIds ?? new List<string>(),
                 ThemeColor = request.ThemeColor,
                 IconPath = request.IconPath,
+                CoverPath = request.CoverPath,
                 CommandLineArguments = request.CommandLineArguments ?? string.Empty,
             };
 
@@ -130,6 +131,7 @@ public class GameProfileManager(
             profile.CustomExecutablePath = request.CustomExecutablePath ?? profile.CustomExecutablePath;
             profile.WorkingDirectory = request.WorkingDirectory ?? profile.WorkingDirectory;
             profile.IconPath = request.IconPath ?? profile.IconPath;
+            profile.CoverPath = request.CoverPath ?? profile.CoverPath;
             profile.ThemeColor = request.ThemeColor ?? profile.ThemeColor;
             profile.GameInstallationId = request.GameInstallationId ?? profile.GameInstallationId;
             profile.CommandLineArguments = request.CommandLineArguments ?? profile.CommandLineArguments;

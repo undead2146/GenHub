@@ -1,13 +1,13 @@
-using System;
-using System.Reactive;
 using System.Reactive.Linq;
-using System.Threading.Tasks;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.GitHub;
+using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Tools;
 using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
@@ -21,6 +21,7 @@ using GenHub.Features.Settings.ViewModels;
 using GenHub.Features.Tools.ViewModels;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -41,7 +42,6 @@ public class MainViewModelTests
         var mockOrchestrator = new Mock<IGameInstallationDetectionOrchestrator>();
         var (settingsVm, userSettingsMock) = CreateSettingsVm();
         var toolsVm = CreateToolsVm();
-        var downloadsVm = CreateDownloadsVm();
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockVelopackUpdateManager = new Mock<IVelopackUpdateManager>();
@@ -54,8 +54,8 @@ public class MainViewModelTests
 
         // Act
         var vm = new MainViewModel(
-            new GameProfileLauncherViewModel(),
-            downloadsVm,
+            CreateGameProfileLauncherViewModel(),
+            CreateDownloadsViewModel(),
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,
@@ -85,7 +85,6 @@ public class MainViewModelTests
         var mockOrchestrator = new Mock<IGameInstallationDetectionOrchestrator>();
         var (settingsVm, userSettingsMock) = CreateSettingsVm();
         var toolsVm = CreateToolsVm();
-        var downloadsVm = CreateDownloadsVm();
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockVelopackUpdateManager = new Mock<IVelopackUpdateManager>();
@@ -96,8 +95,8 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationManagerViewModel>>(),
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var vm = new MainViewModel(
-            new GameProfileLauncherViewModel(),
-            downloadsVm,
+            CreateGameProfileLauncherViewModel(),
+            CreateDownloadsViewModel(),
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,
@@ -122,7 +121,6 @@ public class MainViewModelTests
         var mockOrchestrator = new Mock<IGameInstallationDetectionOrchestrator>();
         var (settingsVm, userSettingsMock) = CreateSettingsVm();
         var toolsVm = CreateToolsVm();
-        var downloadsVm = CreateDownloadsVm();
         var configProvider = CreateConfigProviderMock();
         var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockVelopackUpdateManager = new Mock<IVelopackUpdateManager>();
@@ -133,8 +131,8 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationManagerViewModel>>(),
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var viewModel = new MainViewModel(
-            new GameProfileLauncherViewModel(),
-            downloadsVm,
+            CreateGameProfileLauncherViewModel(),
+            CreateDownloadsViewModel(),
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,
@@ -173,8 +171,8 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationManagerViewModel>>(),
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var vm = new MainViewModel(
-            new GameProfileLauncherViewModel(),
-            CreateDownloadsVm(),
+            CreateGameProfileLauncherViewModel(),
+            CreateDownloadsViewModel(),
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,
@@ -184,9 +182,6 @@ public class MainViewModelTests
             mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
             mockLogger.Object);
-
-        // Act & Assert
-        await vm.InitializeAsync();
         await vm.InitializeAsync(); // Should not throw
         Assert.True(true);
     }
@@ -215,8 +210,8 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationManagerViewModel>>(),
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var vm = new MainViewModel(
-            new GameProfileLauncherViewModel(),
-            CreateDownloadsVm(),
+            CreateGameProfileLauncherViewModel(),
+            CreateDownloadsViewModel(),
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,
@@ -279,9 +274,9 @@ public class MainViewModelTests
     }
 
     /// <summary>
-    /// Creates a default DownloadsViewModel with mocked services for reuse.
+    /// Helper method to create a DownloadsViewModel with mocked dependencies.
     /// </summary>
-    private static DownloadsViewModel CreateDownloadsVm()
+    private static DownloadsViewModel CreateDownloadsViewModel()
     {
         var mockServiceProvider = new Mock<IServiceProvider>();
         var mockLogger = new Mock<ILogger<DownloadsViewModel>>();
@@ -291,11 +286,47 @@ public class MainViewModelTests
         var mockMemoryCache = new Mock<IMemoryCache>();
 
         var mockGitHubDiscoverer = new Mock<GitHubTopicsDiscoverer>(
-            mockGitHubApiClient.Object,
-            mockLoggerGitHubDiscoverer.Object,
-            mockMemoryCache.Object);
+            It.IsAny<IGitHubApiClient>(),
+            It.IsAny<ILogger<GitHubTopicsDiscoverer>>(),
+            It.IsAny<IMemoryCache>());
+        return new DownloadsViewModel(
+            mockServiceProvider.Object,
+            mockLogger.Object,
+            mockNotificationService.Object,
+            mockGitHubDiscoverer.Object);
+    }
 
-        return new DownloadsViewModel(mockServiceProvider.Object, mockLogger.Object, mockNotificationService.Object, mockGitHubDiscoverer.Object);
+    /// <summary>
+    /// Helper method to create a GameProfileLauncherViewModel with mocked dependencies.
+    /// </summary>
+    private static GameProfileLauncherViewModel CreateGameProfileLauncherViewModel()
+    {
+        var installationService = new Mock<IGameInstallationService>();
+        var gameProfileManager = new Mock<IGameProfileManager>();
+        var profileLauncherFacade = new Mock<IProfileLauncherFacade>();
+        var settingsViewModel = new GameProfileSettingsViewModel(
+            new Mock<IGameProfileManager>().Object,
+            new Mock<IGameSettingsService>().Object,
+            new Mock<IConfigurationProviderService>().Object,
+            new Mock<IProfileContentLoader>().Object,
+            null,
+            NullLogger<GameProfileSettingsViewModel>.Instance,
+            NullLogger<GameSettingsViewModel>.Instance);
+        var profileEditorFacade = new Mock<IProfileEditorFacade>();
+        var configService = new Mock<IConfigurationProviderService>();
+        var gameProcessManager = new Mock<IGameProcessManager>();
+        var shortcutService = new Mock<IShortcutService>();
+
+        return new GameProfileLauncherViewModel(
+            installationService.Object,
+            gameProfileManager.Object,
+            profileLauncherFacade.Object,
+            settingsViewModel,
+            profileEditorFacade.Object,
+            configService.Object,
+            gameProcessManager.Object,
+            shortcutService.Object,
+            NullLogger<GameProfileLauncherViewModel>.Instance);
     }
 
     private static Mock<INotificationService> CreateNotificationServiceMock()
