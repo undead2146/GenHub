@@ -61,6 +61,9 @@ public class GameProfile : IGameProfile
     /// <summary>Gets or sets the icon path.</summary>
     public string? IconPath { get; set; }
 
+    /// <summary>Gets or sets the cover image path.</summary>
+    public string? CoverPath { get; set; }
+
     /// <summary>Gets or sets the theme color.</summary>
     public string? ThemeColor { get; set; }
 

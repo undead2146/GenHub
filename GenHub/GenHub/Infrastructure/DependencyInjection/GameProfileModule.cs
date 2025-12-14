@@ -39,6 +39,7 @@ public static class GameProfileModule
         services.AddSingleton<IGameSettingsService, GameSettingsService>();
         services.AddSingleton<IContentDisplayFormatter, ContentDisplayFormatter>();
         services.AddScoped<IProfileContentLoader, ProfileContentLoader>();
+        services.AddSingleton<ProfileResourceService>();
 
         return services;
     }

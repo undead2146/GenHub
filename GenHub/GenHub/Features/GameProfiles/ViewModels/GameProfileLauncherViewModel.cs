@@ -13,7 +13,7 @@ using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
-using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
@@ -35,8 +35,7 @@ public partial class GameProfileLauncherViewModel(
     IProfileEditorFacade profileEditorFacade,
     IConfigurationProviderService configService,
     IGameProcessManager gameProcessManager,
-    IStorageLocationService storageLocationService,
-    INotificationService notificationService,
+    IShortcutService shortcutService,
     ILogger<GameProfileLauncherViewModel> logger) : ViewModelBase
 {
     private readonly SemaphoreSlim _launchSemaphore = new(1, 1);
@@ -66,11 +65,6 @@ public partial class GameProfileLauncherViewModel(
     private bool _isScanning;
 
     /// <summary>
-    /// Gets the command to create a shortcut for the selected profile.
-    /// </summary>
-    public IRelayCommand CreateShortcutCommand { get; } = new RelayCommand(() => { });
-
-    /// <summary>
     /// Performs asynchronous initialization for the GameProfileLauncherViewModel.
     /// Loads all game profiles and subscribes to process exit events.
     /// </summary>
@@ -79,14 +73,12 @@ public partial class GameProfileLauncherViewModel(
     {
         try
         {
-            // Subscribe to process exit events
-            // Subscribe to process exit events
             gameProcessManager.ProcessExited += OnProcessExited;
 
             StatusMessage = "Loading profiles...";
             ErrorMessage = string.Empty;
             Profiles.Clear();
-            IsServiceAvailable = true;
+
             var profilesResult = await gameProfileManager.GetAllProfilesAsync();
             if (profilesResult.Success && profilesResult.Data != null)
             {
@@ -94,14 +86,19 @@ public partial class GameProfileLauncherViewModel(
                 {
                     // Use profile's IconPath if available, otherwise fall back to generalshub icon
                     var iconPath = !string.IsNullOrEmpty(profile.IconPath)
-                        ? $"avares://GenHub/{profile.IconPath}"
+                        ? profile.IconPath
                         : Core.Constants.UriConstants.DefaultIconUri;
+
+                    // Use profile's CoverPath if available, otherwise fall back to icon path
+                    var coverPath = !string.IsNullOrEmpty(profile.CoverPath)
+                        ? profile.CoverPath
+                        : iconPath;
 
                     var item = new GameProfileItemViewModel(
                         profile.Id,
                         profile,
                         iconPath,
-                        iconPath); // Using same icon for both icon and cover for now
+                        coverPath);
                     Profiles.Add(item);
                 }
 
@@ -189,14 +186,19 @@ public partial class GameProfileLauncherViewModel(
 
                     // Update the profile data
                     var iconPath = !string.IsNullOrEmpty(profile.IconPath)
-                        ? $"avares://GenHub/{profile.IconPath}"
+                        ? profile.IconPath
                         : Core.Constants.UriConstants.DefaultIconUri;
+
+                    // Use profile's CoverPath if available, otherwise fall back to icon path
+                    var coverPath = !string.IsNullOrEmpty(profile.CoverPath)
+                        ? profile.CoverPath
+                        : iconPath;
 
                     var newItem = new GameProfileItemViewModel(
                         profile.Id,
                         profile,
                         iconPath,
-                        iconPath);
+                        coverPath);
 
                     // Restore the running state
                     if (wasRunning)
@@ -255,27 +257,21 @@ public partial class GameProfileLauncherViewModel(
                     generalsCount,
                     zeroHourCount);
 
-                // Check if we need to set up dynamic storage location
-                await CheckAndSetupStorageLocationAsync(installations.Data);
-
                 // Generate manifests and populate versions for detected installations
                 int manifestsGenerated = 0;
                 int profilesCreated = 0;
 
-                if (profileEditorFacade != null && gameProfileManager != null)
+                foreach (var installation in installations.Data)
                 {
-                    foreach (var installation in installations.Data)
-                    {
-                        manifestsGenerated += installation.AvailableGameClients?.Count() * 2 ?? 0;
+                    manifestsGenerated += installation.AvailableGameClients?.Count() * 2 ?? 0;
 
-                        // Create profiles for ALL detected game clients (not just one per game type)
-                        if (installation.AvailableGameClients != null)
+                    // Create profiles for ALL detected game clients (not just one per game type)
+                    if (installation.AvailableGameClients != null)
+                    {
+                        foreach (var gameClient in installation.AvailableGameClients)
                         {
-                            foreach (var gameClient in installation.AvailableGameClients)
-                            {
-                                var profileCreated = await TryCreateProfileForGameClientAsync(installation, gameClient);
-                                if (profileCreated) profilesCreated++;
-                            }
+                            var profileCreated = await TryCreateProfileForGameClientAsync(installation, gameClient);
+                            if (profileCreated) profilesCreated++;
                         }
                     }
                 }
@@ -302,105 +298,6 @@ public partial class GameProfileLauncherViewModel(
         finally
         {
             IsScanning = false;
-        }
-    }
-
-    /// <summary>
-    /// Checks if multiple game installations are on different drives and sets up the preferred storage location.
-    /// This enables hardlink-based workspace creation without requiring admin privileges.
-    /// </summary>
-    /// <param name="installations">The list of detected game installations.</param>
-    private async Task CheckAndSetupStorageLocationAsync(IReadOnlyCollection<GameInstallation> installations)
-    {
-        if (installations.Count == 0)
-        {
-            return;
-        }
-
-        try
-        {
-            // Check if a preferred installation is already set
-            var existingPreferred = await storageLocationService.GetPreferredInstallationAsync();
-            if (existingPreferred != null)
-            {
-                logger.LogDebug("Preferred storage installation already set: {InstallationId}", existingPreferred.Id);
-                return;
-            }
-
-            // Group installations by drive
-            var installationsByDrive = installations
-                .GroupBy(i => Path.GetPathRoot(i.InstallationPath)?.ToUpperInvariant() ?? string.Empty)
-                .Where(g => !string.IsNullOrEmpty(g.Key))
-                .ToList();
-
-            if (installationsByDrive.Count == 0)
-            {
-                logger.LogWarning("Could not determine drive information for any installations");
-                return;
-            }
-
-            // If all installations are on the same drive, use the first one
-            GameInstallation selectedInstallation;
-            if (installationsByDrive.Count == 1)
-            {
-                selectedInstallation = installationsByDrive.First().First();
-                logger.LogInformation(
-                    "All {Count} installations are on drive {Drive}, using {InstallationPath} for storage",
-                    installations.Count,
-                    installationsByDrive.First().Key,
-                    selectedInstallation.InstallationPath);
-
-                notificationService?.ShowInfo(
-                    "Storage Location Set",
-                    $"CAS pool and workspaces will be created at {Path.GetPathRoot(selectedInstallation.InstallationPath)?.ToUpperInvariant()}");
-            }
-            else
-            {
-                // Multiple drives - select the drive with the most installations (prioritizing Zero Hour)
-                var bestDrive = installationsByDrive
-                    .OrderByDescending(g => g.Count(i => i.HasZeroHour))
-                    .ThenByDescending(g => g.Count())
-                    .First();
-
-                selectedInstallation = bestDrive.FirstOrDefault(i => i.HasZeroHour) ?? bestDrive.First();
-
-                var driveList = string.Join(", ", installationsByDrive.Select(g => $"{g.Key} ({g.Count()})"));
-                logger.LogInformation(
-                    "Installations found on multiple drives: {Drives}. Auto-selected {InstallationPath} on {Drive}",
-                    driveList,
-                    selectedInstallation.InstallationPath,
-                    Path.GetPathRoot(selectedInstallation.InstallationPath)?.ToUpperInvariant());
-
-                var warningMessage = $"Installations found on drives: {driveList}. " +
-                    $"Using {Path.GetPathRoot(selectedInstallation.InstallationPath)?.ToUpperInvariant()} for CAS pool and workspaces. " +
-                    $"Profiles on other drives may require admin rights or use file copying.";
-                notificationService?.ShowWarning(
-                    "Multiple Game Installations Found",
-                    warningMessage,
-                    autoDismissMs: 10000);
-            }
-
-            // Set the preferred installation
-            await storageLocationService.SetPreferredInstallationAsync(selectedInstallation.Id);
-
-            var casPoolPath = storageLocationService.GetCasPoolPath(selectedInstallation);
-            var workspacePath = storageLocationService.GetWorkspacePath(selectedInstallation);
-
-            logger.LogInformation(
-                "Dynamic storage configured - CAS Pool: {CasPoolPath}, Workspace: {WorkspacePath}",
-                casPoolPath,
-                workspacePath);
-
-            notificationService?.ShowSuccess(
-                "Dynamic Storage Enabled",
-                $"CAS pool: {casPoolPath}");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to set up dynamic storage location");
-            notificationService?.ShowError(
-                "Storage Setup Failed",
-                $"Could not configure dynamic storage: {ex.Message}");
         }
     }
 
@@ -454,7 +351,7 @@ public partial class GameProfileLauncherViewModel(
             }
 
             // Get user's preferred workspace strategy or default
-            var preferredStrategy = configService?.GetDefaultWorkspaceStrategy() ?? WorkspaceStrategy.SymlinkOnly;
+            var preferredStrategy = configService.GetDefaultWorkspaceStrategy();
 
             // Use the detected version from the game client for the GameInstallation manifest ID
             // This must match the version used in ProfileContentLoader and ManifestGenerationService
@@ -677,7 +574,7 @@ public partial class GameProfileLauncherViewModel(
     {
         if (string.IsNullOrEmpty(profile.ProfileId))
         {
-            StatusMessage = "Invalid profile ID";
+            StatusMessage = "Invalid profile";
             return;
         }
 
@@ -760,12 +657,6 @@ public partial class GameProfileLauncherViewModel(
     [RelayCommand]
     private async Task CreateNewProfile()
     {
-        if (settingsViewModel == null)
-        {
-            StatusMessage = "Profile settings not available";
-            return;
-        }
-
         try
         {
             // Initialize settings view model for new profile creation
@@ -805,12 +696,6 @@ public partial class GameProfileLauncherViewModel(
     [RelayCommand]
     private async Task PrepareWorkspace(GameProfileItemViewModel profile)
     {
-        if (profileLauncherFacade == null)
-        {
-            StatusMessage = "Profile launcher not available";
-            return;
-        }
-
         try
         {
             IsPreparingWorkspace = true;
@@ -820,24 +705,21 @@ public partial class GameProfileLauncherViewModel(
 
             if (prepareResult.Success && prepareResult.Data != null)
             {
-                if (gameProfileManager != null)
+                var profileResult = await gameProfileManager.GetProfileAsync(profile.ProfileId);
+                if (profileResult.Success && profileResult.Data != null)
                 {
-                    var profileResult = await gameProfileManager.GetProfileAsync(profile.ProfileId);
-                    if (profileResult.Success && profileResult.Data != null)
+                    var loadedProfile = profileResult.Data;
+
+                    // Update the existing item's status
+                    profile.UpdateWorkspaceStatus(loadedProfile.ActiveWorkspaceId, loadedProfile.WorkspaceStrategy);
+
+                    // Force UI refresh by removing and re-adding to ObservableCollection
+                    var index = Profiles.IndexOf(profile);
+                    if (index >= 0)
                     {
-                        var loadedProfile = profileResult.Data;
-
-                        // Update the existing item's status
-                        profile.UpdateWorkspaceStatus(loadedProfile.ActiveWorkspaceId, loadedProfile.WorkspaceStrategy);
-
-                        // Force UI refresh by removing and re-adding to ObservableCollection
-                        var index = Profiles.IndexOf(profile);
-                        if (index >= 0)
-                        {
-                            Profiles.RemoveAt(index);
-                            Profiles.Insert(index, profile);
-                            logger?.LogDebug("Forced UI refresh for profile {ProfileName} at index {Index}", profile.Name, index);
-                        }
+                        Profiles.RemoveAt(index);
+                        Profiles.Insert(index, profile);
+                        logger?.LogDebug("Forced UI refresh for profile {ProfileName} at index {Index}", profile.Name, index);
                     }
                 }
 
@@ -860,6 +742,44 @@ public partial class GameProfileLauncherViewModel(
         {
             IsPreparingWorkspace = false;
             profile.IsPreparingWorkspace = false;
+        }
+    }
+
+    /// <summary>
+    /// Creates a desktop shortcut for the specified game profile.
+    /// </summary>
+    /// <param name="profile">The game profile to create a shortcut for.</param>
+    [RelayCommand]
+    private async Task CreateShortcut(GameProfileItemViewModel profile)
+    {
+        try
+        {
+            StatusMessage = $"Creating desktop shortcut for {profile.Name}...";
+
+            // Get the full profile to pass to the shortcut service
+            var profileResult = await gameProfileManager.GetProfileAsync(profile.ProfileId);
+            if (!profileResult.Success || profileResult.Data == null)
+            {
+                StatusMessage = $"Failed to load profile: {string.Join(", ", profileResult.Errors)}";
+                return;
+            }
+
+            var result = await shortcutService.CreateDesktopShortcutAsync(profileResult.Data);
+            if (result.Success)
+            {
+                StatusMessage = $"Desktop shortcut created for {profile.Name}";
+                logger?.LogInformation("Created desktop shortcut for profile {ProfileName} at {Path}", profile.Name, result.Data);
+            }
+            else
+            {
+                StatusMessage = $"Failed to create shortcut: {string.Join(", ", result.Errors)}";
+                logger?.LogWarning("Failed to create shortcut for profile {ProfileName}: {Errors}", profile.Name, string.Join(", ", result.Errors));
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Error creating shortcut for profile {ProfileName}", profile.Name);
+            StatusMessage = $"Error creating shortcut for {profile.Name}";
         }
     }
 

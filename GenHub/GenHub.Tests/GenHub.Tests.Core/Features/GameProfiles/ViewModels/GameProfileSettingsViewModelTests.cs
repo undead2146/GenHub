@@ -77,6 +77,7 @@ public class GameProfileSettingsViewModelTests
             mockGameSettingsService.Object,
             mockConfigProvider.Object,
             mockContentLoader.Object,
+            null, // ProfileResourceService
             nullLogger,
             gameSettingsLogger);
 
@@ -112,6 +113,7 @@ public class GameProfileSettingsViewModelTests
             mockGameSettingsService.Object,
             null,
             null,
+            null, // ProfileResourceService
             nullLogger,
             gameSettingsLogger);
 
