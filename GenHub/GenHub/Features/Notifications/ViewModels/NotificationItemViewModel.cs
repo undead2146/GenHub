@@ -77,9 +77,6 @@ public partial class NotificationItemViewModel : ViewModelBase, IDisposable
         _ => string.Empty
     };
 
-    /// <summary>
-    /// Gets the background brush based on notification type.
-    /// </summary>
     private static readonly IBrush InfoBrush = new SolidColorBrush(Color.Parse(NotificationConstants.InfoColor));
     private static readonly IBrush SuccessBrush = new SolidColorBrush(Color.Parse(NotificationConstants.SuccessColor));
     private static readonly IBrush WarningBrush = new SolidColorBrush(Color.Parse(NotificationConstants.WarningColor));
