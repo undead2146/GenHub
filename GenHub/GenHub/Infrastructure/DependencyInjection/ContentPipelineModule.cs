@@ -15,6 +15,7 @@ using GenHub.Features.Content.Services.ContentProviders;
 using GenHub.Features.Content.Services.ContentResolvers;
 using GenHub.Features.Content.Services.GeneralsOnline;
 using GenHub.Features.Content.Services.Publishers;
+using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GitHub.Services;
 using GenHub.Features.Manifest;
 using Microsoft.Extensions.DependencyInjection;
@@ -83,11 +84,11 @@ public static class ContentPipelineModule
         });
         services.AddScoped<IContentManifestPool, ContentManifestPool>();
 
-        // Register core orchestrator
-        services.AddSingleton<IContentOrchestrator, ContentOrchestrator>();
-
         // Register cache
         services.AddSingleton<IDynamicContentCache, MemoryDynamicContentCache>();
+
+        // Register core orchestrator
+        services.AddSingleton<IContentOrchestrator, ContentOrchestrator>();
 
         // Register Octokit GitHub client
         services.AddSingleton<Octokit.IGitHubClient>(sp =>
@@ -114,8 +115,10 @@ public static class ContentPipelineModule
         // Register GitHub discoverers (both concrete and interface registrations)
         services.AddTransient<GitHubDiscoverer>();
         services.AddTransient<GitHubReleasesDiscoverer>();
+        services.AddTransient<GitHubTopicsDiscoverer>();
         services.AddTransient<IContentDiscoverer, GitHubDiscoverer>();
         services.AddTransient<IContentDiscoverer, GitHubReleasesDiscoverer>();
+        services.AddTransient<IContentDiscoverer, GitHubTopicsDiscoverer>();
 
         // Register GitHub resolver
         services.AddTransient<IContentResolver, GitHubResolver>();
@@ -261,5 +264,7 @@ public static class ContentPipelineModule
 
         // Register publisher manifest factory resolver
         services.AddTransient<PublisherManifestFactoryResolver>();
+
+        services.AddTransient<PublisherCardViewModel>();
     }
 }

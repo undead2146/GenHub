@@ -84,7 +84,7 @@ public partial class NotificationItemViewModel : ViewModelBase, IDisposable
     private static readonly IBrush DefaultBrush = new SolidColorBrush(Colors.Gray);
 
     /// <summary>
-    /// Gets the background brush based on notification type.
+    /// Gets the background brush for the notification based on its type.
     /// </summary>
     public IBrush BackgroundBrush => Type switch
     {
