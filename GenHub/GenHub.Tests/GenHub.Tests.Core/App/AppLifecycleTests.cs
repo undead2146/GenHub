@@ -1,4 +1,5 @@
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.GameProfiles;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 
@@ -47,9 +48,11 @@ public class AppLifecycleTests
         var services = new ServiceCollection();
         var mockUserSettingsService = new Mock<IUserSettingsService>();
         var mockConfigurationProvider = new Mock<IConfigurationProviderService>();
+        var mockProfileLauncherFacade = new Mock<IProfileLauncherFacade>();
 
-        services.AddSingleton(mockUserSettingsService.Object);
-        services.AddSingleton(mockConfigurationProvider.Object);
+        services.AddSingleton(typeof(IUserSettingsService), mockUserSettingsService.Object);
+        services.AddSingleton(typeof(IConfigurationProviderService), mockConfigurationProvider.Object);
+        services.AddSingleton(typeof(IProfileLauncherFacade), mockProfileLauncherFacade.Object);
 
         var serviceProvider = services.BuildServiceProvider();
 

@@ -3,6 +3,8 @@ using GenHub.Common.ViewModels;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.GameSettings;
+using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Tools;
@@ -291,10 +293,13 @@ public class MainViewModelTests
         var installationService = new Mock<IGameInstallationService>();
         var gameProfileManager = new Mock<IGameProfileManager>();
         var profileLauncherFacade = new Mock<IProfileLauncherFacade>();
-        var settingsViewModel = new Mock<GameProfileSettingsViewModel>(
-            new Mock<IProfileEditorFacade>().Object,
+        var settingsViewModel = new GameProfileSettingsViewModel(
+            new Mock<IGameProfileManager>().Object,
+            new Mock<IGameSettingsService>().Object,
             new Mock<IConfigurationProviderService>().Object,
-            NullLogger<GameProfileSettingsViewModel>.Instance).Object;
+            new Mock<IProfileContentLoader>().Object,
+            NullLogger<GameProfileSettingsViewModel>.Instance,
+            NullLogger<GameSettingsViewModel>.Instance);
         var profileEditorFacade = new Mock<IProfileEditorFacade>();
         var configService = new Mock<IConfigurationProviderService>();
         var gameProcessManager = new Mock<IGameProcessManager>();
