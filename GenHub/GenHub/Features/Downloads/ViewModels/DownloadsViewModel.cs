@@ -752,4 +752,12 @@ public partial class DownloadsViewModel(
             logger.LogError(ex, "Failed to start Community Patch installation");
         }
     }
+
+    [RelayCommand]
+    private void OpenGitHubBuilds()
+    {
+        notificationService.ShowInfo(
+            "Coming Soon",
+            "GitHub Manager will allow you to browse and manage GitHub repositories, releases, and artifacts.");
+    }
 }

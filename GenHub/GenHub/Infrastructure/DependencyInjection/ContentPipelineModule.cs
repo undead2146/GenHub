@@ -7,6 +7,7 @@ using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Providers;
 using GenHub.Core.Services.Providers;
 using GenHub.Features.Content.Services;
+using GenHub.Features.Content.Services;
 using GenHub.Features.Content.Services.CommunityOutpost;
 using GenHub.Features.Content.Services.ContentDeliverers;
 using GenHub.Features.Content.Services.ContentDiscoverers;
@@ -56,6 +57,9 @@ public static class ContentPipelineModule
     /// </summary>
     private static void AddCoreServices(IServiceCollection services)
     {
+        // Register content orchestrator
+        services.AddSingleton<IContentOrchestrator, ContentOrchestrator>();
+
         // Register core hash provider
         var hashProvider = new Sha256HashProvider();
         services.AddSingleton<IFileHashProvider>(hashProvider);
