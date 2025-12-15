@@ -128,7 +128,7 @@ public static class PublisherInfoConstants
             GameInstallationType.Wine => (Wine.Name, Wine.Website, Wine.SupportUrl),
             GameInstallationType.CDISO => (CdIso.Name, CdIso.Website, CdIso.SupportUrl),
             GameInstallationType.Retail => (Retail.Name, Retail.Website, Retail.SupportUrl),
-            _ => (Retail.Name, Retail.Website, Retail.SupportUrl) // Default to retail
+            _ => (Retail.Name, Retail.Website, Retail.SupportUrl), // Default to retail
         };
     }
 }

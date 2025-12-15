@@ -105,7 +105,7 @@ public static class FileSizeFormatter
             "KB" or "K" => (long)(size * 1024),
             "MB" or "M" => (long)(size * 1024 * 1024),
             "GB" or "G" => (long)(size * 1024 * 1024 * 1024),
-            _ => (long)size
+            _ => (long)size,
         };
     }
 }

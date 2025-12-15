@@ -19,27 +19,27 @@ public partial class ContentDisplayItem : ObservableObject
     /// <summary>
     /// Gets or sets the manifest ID.
     /// </summary>
-    required public ManifestId ManifestId { get; set; }
+    public required ManifestId ManifestId { get; set; }
 
     /// <summary>
     /// Gets or sets the display name.
     /// </summary>
-    required public string DisplayName { get; set; }
+    public required string DisplayName { get; set; }
 
     /// <summary>
     /// Gets or sets the content type.
     /// </summary>
-    required public ContentType ContentType { get; set; }
+    public required ContentType ContentType { get; set; }
 
     /// <summary>
     /// Gets or sets the game type.
     /// </summary>
-    required public GameType GameType { get; set; }
+    public required GameType GameType { get; set; }
 
     /// <summary>
     /// Gets or sets the installation type.
     /// </summary>
-    required public GameInstallationType InstallationType { get; set; }
+    public required GameInstallationType InstallationType { get; set; }
 
     /// <summary>
     /// Gets or sets the publisher/source of the content (e.g., "EA", "Steam", "GeneralsOnline", "CNClabs-AuthorName").
