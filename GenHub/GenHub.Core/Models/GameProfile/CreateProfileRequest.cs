@@ -6,7 +6,7 @@ namespace GenHub.Core.Models.GameProfile;
 public class CreateProfileRequest
 {
     /// <summary>Gets or sets the profile name.</summary>
-    required public string Name { get; set; }
+    public required string Name { get; set; }
 
     /// <summary>Gets or sets the profile description.</summary>
     public string? Description { get; set; }

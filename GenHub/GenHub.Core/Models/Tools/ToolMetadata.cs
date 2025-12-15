@@ -8,22 +8,22 @@ public class ToolMetadata
     /// <summary>
     /// Gets or sets the unique identifier for the tool.
     /// </summary>
-    required public string Id { get; set; }
+    public required string Id { get; set; }
 
     /// <summary>
     /// Gets or sets the display name of the tool.
     /// </summary>
-    required public string Name { get; set; }
+    public required string Name { get; set; }
 
     /// <summary>
     /// Gets or sets the author of the tool.
     /// </summary>
-    required public string Version { get; set; }
+    public required string Version { get; set; }
 
     /// <summary>
     /// Gets or sets the version of the tool.
     /// </summary>
-    required public string Author { get; set; }
+    public required string Author { get; set; }
 
     /// <summary>
     /// Gets or sets a description of the tool's functionality.

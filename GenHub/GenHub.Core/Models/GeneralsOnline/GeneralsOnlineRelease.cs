@@ -12,7 +12,7 @@ public class GeneralsOnlineRelease
     /// <summary>
     /// Gets version string in format: MMDDYY_QFE# (e.g., "101525_QFE5").
     /// </summary>
-    required public string Version { get; init; }
+    public required string Version { get; init; }
 
     /// <summary>
     /// Gets date encoded in version (e.g., 101525 = October 15, 2025).
@@ -28,7 +28,7 @@ public class GeneralsOnlineRelease
     /// Gets URL to portable ZIP.
     /// This is the format GenHub uses for content delivery.
     /// </summary>
-    required public string PortableUrl { get; init; }
+    public required string PortableUrl { get; init; }
 
     /// <summary>
     /// Gets size of portable ZIP in bytes.

@@ -13,7 +13,7 @@ public class ContentDisplayItem
     /// <summary>
     /// Gets or sets the unique identifier for this content item.
     /// </summary>
-    required public string Id { get; set; }
+    public required string Id { get; set; }
 
     /// <summary>
     /// Gets or sets the manifest ID for this content item.
@@ -23,7 +23,7 @@ public class ContentDisplayItem
     /// <summary>
     /// Gets or sets the display name for this content item.
     /// </summary>
-    required public string DisplayName { get; set; }
+    public required string DisplayName { get; set; }
 
     /// <summary>
     /// Gets or sets the description of this content item.
