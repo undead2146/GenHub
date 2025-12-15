@@ -72,7 +72,7 @@ public partial class CNCLabsManifestFactory(
             ContentType.Screensaver => true,
             ContentType.Replay => true,
             ContentType.ModdingTool => true,
-            _ => false
+            _ => false,
         };
 
         return publisherMatches && supportedTypes;
@@ -241,7 +241,7 @@ public partial class CNCLabsManifestFactory(
             ContentType.Screensaver => "Screensaver",
             ContentType.Replay => "Replay",
             ContentType.ModdingTool => "Modding Tool",
-            _ => "Other"
+            _ => "Other",
         });
 
         return tags;

@@ -20,7 +20,7 @@ public static class GitHubInferenceHelper
     /// <param name="repo">Repository name or owner/repo segment used for inference.</param>
     /// <param name="releaseName">Optional release name/tag used for inference.</param>
     /// <returns>A tuple of the inferred <see cref="ContentType"/> and a boolean indicating the value is inferred.</returns>
-    public static (ContentType type, bool isInferred) InferContentType(string repo, string? releaseName)
+    public static (ContentType Type, bool IsInferred) InferContentType(string repo, string? releaseName)
     {
         var searchText = $"{repo} {releaseName ?? string.Empty}";
 
@@ -46,7 +46,7 @@ public static class GitHubInferenceHelper
     /// <param name="repo">Repository name or owner/repo segment used for inference.</param>
     /// <param name="releaseName">Optional release name/tag used for inference.</param>
     /// <returns>A tuple of the inferred <see cref="GameType"/> and a boolean indicating the value is inferred.</returns>
-    public static (GameType type, bool isInferred) InferTargetGame(string repo, string? releaseName)
+    public static (GameType Type, bool IsInferred) InferTargetGame(string repo, string? releaseName)
     {
         var searchText = $"{repo} {releaseName ?? string.Empty}";
 

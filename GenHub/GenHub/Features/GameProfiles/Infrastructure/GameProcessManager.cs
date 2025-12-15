@@ -270,7 +270,7 @@ public class GameProcessManager(
                         -1073741502 => "Bad image format (STATUS_INVALID_IMAGE_FORMAT)",
                         -1073741790 => "Access denied (STATUS_ACCESS_DENIED)",
                         -1073741781 => "Application error (STATUS_APPLICATION_ERROR)",
-                        _ => $"Unknown error code {exitCode}"
+                        _ => $"Unknown error code {exitCode}",
                     };
                     process.Dispose();
                     return OperationResult<GameProcessInfo>.CreateFailure($"Process exited immediately with code {exitCode}: {exitCodeMessage}");

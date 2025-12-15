@@ -21,7 +21,7 @@ namespace GenHub.Features.Content.Services.ContentDiscoverers;
 /// This enables community-contributed content to be discovered automatically
 /// when users tag their repositories with topics like "genhub" or "generalsonline".
 /// </summary>
-public class GitHubTopicsDiscoverer(
+public partial class GitHubTopicsDiscoverer(
     IGitHubApiClient gitHubApiClient,
     ILogger<GitHubTopicsDiscoverer> logger,
     IMemoryCache cache) : IContentDiscoverer
@@ -42,6 +42,55 @@ public class GitHubTopicsDiscoverer(
         GitHubTopicsConstants.GeneralsModTopic,
         GitHubTopicsConstants.ZeroHourModTopic,
     ];
+
+    /// <summary>
+    /// Patterns that indicate variant-based releases that should be split.
+    /// </summary>
+    private static partial class VariantPatterns
+    {
+        /// <summary>
+        /// Regex to match resolution patterns like 1920x1080, 2560x1440, etc.
+        /// </summary>
+        [System.Text.RegularExpressions.GeneratedRegex(@"\d{3,4}x\d{3,4}", System.Text.RegularExpressions.RegexOptions.Compiled)]
+        public static partial System.Text.RegularExpressions.Regex ResolutionPattern();
+
+        /// <summary>
+        /// Regex to match non-digit characters.
+        /// </summary>
+        [System.Text.RegularExpressions.GeneratedRegex(@"[^\d]", System.Text.RegularExpressions.RegexOptions.Compiled)]
+        public static partial System.Text.RegularExpressions.Regex NonDigitPattern();
+
+        /// <summary>
+        /// Common resolution display names for user-friendly output.
+        /// </summary>
+        public static readonly Dictionary<string, string> ResolutionDisplayNames = new(StringComparer.OrdinalIgnoreCase)
+        {
+            { "1280x720", "720p" },
+            { "1366x768", "768p" },
+            { "1600x900", "900p" },
+            { "1920x1080", "1080p" },
+            { "2560x1440", "1440p" },
+            { "3840x2160", "4K" },
+            { "5120x2880", "5K" },
+            { "7680x4320", "8K" },
+        };
+
+        /// <summary>
+        /// File extensions that are archives and should be checked for variants.
+        /// </summary>
+        public static readonly string[] ArchiveExtensions =
+        [
+            ".zip", ".7z", ".rar", ".tar.gz", ".tgz",
+        ];
+
+        /// <summary>
+        /// Filenames to exclude from variant splitting (source code, etc.).
+        /// </summary>
+        public static readonly string[] ExcludedPatterns =
+        [
+            "source", "src", "debug", "symbols", "pdb",
+        ];
+    }
 
     /// <inheritdoc />
     public string SourceName => GitHubTopicsConstants.DiscovererSourceName;
@@ -160,7 +209,7 @@ public class GitHubTopicsDiscoverer(
     /// <summary>
     /// Infers ContentType from repository topics.
     /// </summary>
-    private static (ContentType type, bool isInferred) InferContentTypeFromTopics(List<string> topics)
+    private static (ContentType Type, bool IsInferred) InferContentTypeFromTopics(List<string> topics)
     {
         // Check for explicit type topics
         if (topics.Contains(GitHubTopicsConstants.GameClientTopic, StringComparer.OrdinalIgnoreCase))
@@ -212,7 +261,7 @@ public class GitHubTopicsDiscoverer(
     /// <summary>
     /// Infers GameType from repository topics.
     /// </summary>
-    private static (GameType type, bool isInferred) InferGameTypeFromTopics(List<string> topics)
+    private static (GameType Type, bool IsInferred) InferGameTypeFromTopics(List<string> topics)
     {
         // Check for game-specific topics
         if (topics.Contains(GitHubTopicsConstants.ZeroHourModTopic, StringComparer.OrdinalIgnoreCase))
@@ -279,20 +328,101 @@ public class GitHubTopicsDiscoverer(
     }
 
     /// <summary>
-    /// Searches for repositories by topic with caching to reduce API calls.
+    /// Determines if release assets should be split into separate content entries.
+    /// Detects standalone game files and variant-based archives (resolution packs, language packs).
     /// </summary>
     private static bool ShouldSplitAssets(GitHubRelease release)
     {
         if (release.Assets == null || release.Assets.Count <= 1)
             return false;
 
-        // Count standalone files (non-archive extensions)
+        // Filter out source code and other non-content assets
+        var contentAssets = release.Assets
+            .Where(a => !IsSourceCodeAsset(a.Name))
+            .ToList();
+
+        if (contentAssets.Count <= 1)
+            return false;
+
+        // Check 1: Multiple standalone game files (.big, .csf, etc.)
         var standaloneExtensions = new[] { ".big", ".csf", ".ini", ".w3d", ".dds", ".tga" };
-        var standaloneCount = release.Assets.Count(a =>
+        var standaloneCount = contentAssets.Count(a =>
             standaloneExtensions.Any(ext => a.Name.EndsWith(ext, StringComparison.OrdinalIgnoreCase)));
 
-        // If we have multiple standalone files, split them
-        return standaloneCount > 1;
+        if (standaloneCount > 1)
+            return true;
+
+        // Check 2: Multiple archives with resolution variants
+        var archiveAssets = contentAssets
+            .Where(a => IsArchiveAsset(a.Name))
+            .ToList();
+
+        if (archiveAssets.Count > 1 && HasVariantPattern(archiveAssets))
+            return true;
+
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if assets contain variant patterns (resolutions, languages, etc.).
+    /// </summary>
+    private static bool HasVariantPattern(List<GitHubReleaseAsset> assets)
+    {
+        // Check for resolution variants
+        var resolutionMatches = assets
+            .Select(a => VariantPatterns.ResolutionPattern().Match(a.Name))
+            .Where(m => m.Success)
+            .Select(m => m.Value)
+            .Distinct()
+            .ToList();
+
+        if (resolutionMatches.Count > 1)
+            return true;
+
+        // Check for language variants (reuse existing language patterns)
+        var languagePatterns = new[]
+        {
+            "english", "russian", "spanish", "french", "german",
+            "chinese", "japanese", "korean", "italian", "portuguese",
+        };
+
+        var languageMatches = assets
+            .Select(a => a.Name.ToLowerInvariant())
+            .SelectMany(name => languagePatterns.Where(lang => name.Contains(lang)))
+            .Distinct()
+            .ToList();
+
+        if (languageMatches.Count > 1)
+            return true;
+
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if an asset is a source code archive (should be excluded from splitting).
+    /// </summary>
+    private static bool IsSourceCodeAsset(string assetName)
+    {
+        var lowerName = assetName.ToLowerInvariant();
+
+        // GitHub auto-generated source archives
+        if (lowerName == "source code (zip)" || lowerName == "source code (tar.gz)")
+            return true;
+
+        // Check for source-related patterns
+        if (VariantPatterns.ExcludedPatterns.Any(p => lowerName.Contains(p)))
+            return true;
+
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if an asset is an archive file.
+    /// </summary>
+    private static bool IsArchiveAsset(string assetName)
+    {
+        var lowerName = assetName.ToLowerInvariant();
+        return VariantPatterns.ArchiveExtensions.Any(ext => lowerName.EndsWith(ext));
     }
 
     /// <summary>
@@ -305,27 +435,43 @@ public class GitHubTopicsDiscoverer(
             return 0;
 
         // Extract all digits and concatenate
-        var digits = System.Text.RegularExpressions.Regex.Replace(tag, @"[^\d]", string.Empty);
+        var digits = VariantPatterns.NonDigitPattern().Replace(tag, string.Empty);
 
         if (string.IsNullOrEmpty(digits))
             return 0;
 
         // Take first 9 digits to avoid overflow
         if (digits.Length > 9)
-            digits = digits.Substring(0, 9);
+            digits = digits[..9];
 
         return int.TryParse(digits, out var version) ? version : 0;
     }
 
     /// <summary>
     /// Extracts a variant name from an asset filename.
-    /// Examples: "0_ImprovedMenusEnglish.big" -> "English", "mod_russian.big" -> "Russian".
+    /// Detects resolutions (1920x1080 → "1080p"), languages, and other patterns.
     /// </summary>
     private static string ExtractAssetVariant(string assetName)
     {
         var nameWithoutExt = System.IO.Path.GetFileNameWithoutExtension(assetName);
 
-        // Common language patterns
+        // Handle double extensions like .tar.gz
+        if (nameWithoutExt.EndsWith(".tar", StringComparison.OrdinalIgnoreCase))
+            nameWithoutExt = System.IO.Path.GetFileNameWithoutExtension(nameWithoutExt);
+
+        // Check for resolution pattern first (most specific)
+        var resolutionMatch = VariantPatterns.ResolutionPattern().Match(nameWithoutExt);
+        if (resolutionMatch.Success)
+        {
+            var resolution = resolutionMatch.Value;
+
+            // Return friendly name if available, otherwise raw resolution
+            return VariantPatterns.ResolutionDisplayNames.TryGetValue(resolution, out var displayName)
+                ? displayName
+                : resolution;
+        }
+
+        // Check for language patterns
         var languagePatterns = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             { "english", "English" },
@@ -336,17 +482,25 @@ public class GitHubTopicsDiscoverer(
             { "chinese", "Chinese" },
             { "japanese", "Japanese" },
             { "korean", "Korean" },
+            { "italian", "Italian" },
+            { "portuguese", "Portuguese" },
         };
 
-        // Check if filename contains a language keyword
         foreach (var (pattern, displayName) in languagePatterns)
         {
             if (nameWithoutExt.Contains(pattern, StringComparison.OrdinalIgnoreCase))
                 return displayName;
         }
 
-        // Fallback: use the filename itself (cleaned up)
-        return nameWithoutExt.Replace("_", " ").Replace("-", " ").Trim();
+        // Fallback: extract meaningful suffix
+        var parts = nameWithoutExt.Split(['_', '-', '.'], StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length > 1)
+        {
+            // Return last meaningful part (often the variant)
+            return parts[^1];
+        }
+
+        return nameWithoutExt;
     }
 
     /// <summary>
@@ -369,7 +523,7 @@ public class GitHubTopicsDiscoverer(
 
     /// <summary>
     /// Creates ContentSearchResults from a repository and optional release.
-    /// Detects multi-asset releases and creates separate results for each standalone asset.
+    /// Detects multi-asset releases and creates separate results for each variant.
     /// </summary>
     private List<ContentSearchResult> CreateSearchResults(
         GitHubRepositorySearchItem repo,
@@ -378,16 +532,21 @@ public class GitHubTopicsDiscoverer(
     {
         var results = new List<ContentSearchResult>();
 
-        // Check if this is a multi-asset release with standalone files
+        // Check if this is a multi-variant release
         if (latestRelease != null && ShouldSplitAssets(latestRelease))
         {
-            logger.LogInformation(
-                "Detected multi-asset release for {Repo}: {AssetCount} standalone assets",
-                repo.FullName,
-                latestRelease.Assets.Count);
+            // Filter to only content assets (exclude source code)
+            var contentAssets = latestRelease.Assets
+                .Where(a => !IsSourceCodeAsset(a.Name))
+                .ToList();
 
-            // Create separate result for each asset
-            foreach (var asset in latestRelease.Assets)
+            logger.LogInformation(
+                "Detected multi-variant release for {Repo}: {AssetCount} content assets",
+                repo.FullName,
+                contentAssets.Count);
+
+            // Create separate result for each content asset
+            foreach (var asset in contentAssets)
             {
                 var assetResult = CreateSearchResultForAsset(repo, latestRelease, asset, sourceTopic);
                 results.Add(assetResult);
@@ -416,16 +575,14 @@ public class GitHubTopicsDiscoverer(
         var (contentType, isTypeInferred) = InferContentTypeFromTopics(repo.Topics);
         if (isTypeInferred)
         {
-            var nameInference = GitHubInferenceHelper.InferContentType(repo.Name, release.Name);
-            contentType = nameInference.type;
+            (contentType, _) = GitHubInferenceHelper.InferContentType(repo.Name, release.Name);
         }
 
         // Infer game type
         var (gameType, isGameInferred) = InferGameTypeFromTopics(repo.Topics);
         if (isGameInferred)
         {
-            var nameInference = GitHubInferenceHelper.InferTargetGame(repo.Name, release.Name);
-            gameType = nameInference.type;
+            (gameType, _) = GitHubInferenceHelper.InferTargetGame(repo.Name, release.Name);
         }
 
         // Extract asset variant name (e.g., "English" from "0_ImprovedMenusEnglish.big")
@@ -508,16 +665,14 @@ public class GitHubTopicsDiscoverer(
         var (contentType, isTypeInferred) = InferContentTypeFromTopics(repo.Topics);
         if (isTypeInferred)
         {
-            var nameInference = GitHubInferenceHelper.InferContentType(repo.Name, latestRelease?.Name);
-            contentType = nameInference.type;
+            (contentType, _) = GitHubInferenceHelper.InferContentType(repo.Name, latestRelease?.Name);
         }
 
         // Infer game type
         var (gameType, isGameInferred) = InferGameTypeFromTopics(repo.Topics);
         if (isGameInferred)
         {
-            var nameInference = GitHubInferenceHelper.InferTargetGame(repo.Name, latestRelease?.Name);
-            gameType = nameInference.type;
+            (gameType, _) = GitHubInferenceHelper.InferTargetGame(repo.Name, latestRelease?.Name);
         }
 
         // Generate manifest ID

@@ -145,7 +145,7 @@ public partial class GameProfileLauncherViewModel(
         {
             GameInstallationType.Steam => Core.Constants.UriConstants.SteamIconFilename,
             GameInstallationType.EaApp => Core.Constants.UriConstants.EaAppIconFilename,
-            _ => Core.Constants.UriConstants.GenHubIconFilename
+            _ => Core.Constants.UriConstants.GenHubIconFilename,
         };
 
         // For now, return the game-specific icon - could be enhanced to combine with platform icon

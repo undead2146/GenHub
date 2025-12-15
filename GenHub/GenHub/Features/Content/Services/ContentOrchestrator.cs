@@ -617,7 +617,7 @@ public class ContentOrchestrator : IContentOrchestrator
             ContentSortField.DateCreated => results.OrderByDescending(r => r.LastUpdated),
             ContentSortField.DownloadCount => results.OrderByDescending(r => r.DownloadCount),
             ContentSortField.Rating => results.OrderByDescending(r => r.Rating),
-            _ => results // Relevance - keep original order
+            _ => results, // Relevance - keep original order
         };
     }
 }

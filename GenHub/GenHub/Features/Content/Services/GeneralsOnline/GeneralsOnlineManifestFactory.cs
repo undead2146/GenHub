@@ -187,7 +187,7 @@ public class GeneralsOnlineManifestFactory(ILogger<GeneralsOnlineManifestFactory
         var allFiles = Directory.GetFiles(extractPath, "*", SearchOption.AllDirectories);
         logger.LogInformation("Processing {Count} files", allFiles.Length);
 
-        var filesWithHashes = new List<(string relativePath, FileInfo fileInfo, string hash, bool isMap)>();
+        var filesWithHashes = new List<(string RelativePath, FileInfo FileInfo, string Hash, bool IsMap)>();
 
         // Detect Maps directory (case-insensitive)
         var mapsDirectory = Directory.GetDirectories(extractPath, "*", SearchOption.TopDirectoryOnly)

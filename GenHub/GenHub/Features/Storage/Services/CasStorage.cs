@@ -207,7 +207,8 @@ public class CasStorage(
                     .Where(name => name != null && !string.IsNullOrEmpty(name) && IsValidHash(name))
                     .Cast<string>()
                     .ToArray();
-            }, cancellationToken);
+            },
+                cancellationToken);
 
             return hashes;
         }

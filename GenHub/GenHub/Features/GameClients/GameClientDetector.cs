@@ -340,7 +340,7 @@ public class GameClientDetector(
     /// <param name="installation">The game installation.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A tuple containing the detected version string and the actual executable path found, or ("Unknown", original path) if not recognized.</returns>
-    private async Task<(string version, string executablePath)> DetectVersionFromInstallationAsync(string installationPath, GameType gameType, GameInstallation? installation, CancellationToken cancellationToken)
+    private async Task<(string Version, string ExecutablePath)> DetectVersionFromInstallationAsync(string installationPath, GameType gameType, GameInstallation? installation, CancellationToken cancellationToken)
     {
         // Use the possible executable names from the registry
         foreach (var executableName in _hashRegistry.PossibleExecutableNames)

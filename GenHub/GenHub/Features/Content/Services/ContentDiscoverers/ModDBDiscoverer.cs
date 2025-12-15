@@ -88,7 +88,7 @@ public class ModDBDiscoverer(HttpClient httpClient, ILogger<ModDBDiscoverer> log
             ContentType.ModdingTool => ["downloads"],
             ContentType.LanguagePack => ["downloads", "addons"],
             ContentType.Video => ["downloads"],
-            _ => ["downloads", "addons"]
+            _ => ["downloads", "addons"],
         };
     }
 
@@ -192,7 +192,7 @@ public class ModDBDiscoverer(HttpClient httpClient, ILogger<ModDBDiscoverer> log
                 ContentType.Video => ModDBConstants.CategoryMovie,
                 ContentType.ModdingTool => ModDBConstants.CategoryMappingTool,
                 ContentType.LanguagePack => ModDBConstants.CategoryLanguagePack,
-                _ => null
+                _ => null,
             };
         }
         else if (section == "addons")
@@ -202,7 +202,7 @@ public class ModDBDiscoverer(HttpClient httpClient, ILogger<ModDBDiscoverer> log
                 ContentType.Map => ModDBConstants.AddonMultiplayerMap,
                 ContentType.Skin => ModDBConstants.AddonPlayerSkin,
                 ContentType.LanguagePack => ModDBConstants.AddonLanguageSounds,
-                _ => null
+                _ => null,
             };
         }
 
@@ -317,7 +317,7 @@ public class ModDBDiscoverer(HttpClient httpClient, ILogger<ModDBDiscoverer> log
             "mods" => ContentType.Mod,
             "downloads" => url.Contains("/maps/") ? ContentType.Map : ContentType.Addon,
             "addons" => url.Contains("/maps/") ? ContentType.Map : ContentType.Addon,
-            _ => ContentType.Addon
+            _ => ContentType.Addon,
         };
     }
 

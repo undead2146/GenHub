@@ -598,7 +598,7 @@ public partial class DownloadsViewModel(
             ContentType.Map => UiConstants.MapDisplayName,
             ContentType.LanguagePack => UiConstants.LanguagePackDisplayName,
             ContentType.ContentBundle => UiConstants.ContentBundleDisplayName,
-            _ => type.ToString()
+            _ => type.ToString(),
         };
     }
 

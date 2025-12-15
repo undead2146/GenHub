@@ -255,7 +255,7 @@ public class MainViewModelTests
     /// <summary>
     /// Creates a default SettingsViewModel with mocked services for reuse.
     /// </summary>
-    private static (SettingsViewModel settingsVm, Mock<IUserSettingsService> userSettingsMock) CreateSettingsVm()
+    private static (SettingsViewModel SettingsVm, Mock<IUserSettingsService> UserSettingsMock) CreateSettingsVm()
     {
         var mockUserSettings = new Mock<IUserSettingsService>();
         mockUserSettings.Setup(x => x.Get()).Returns(new UserSettings());

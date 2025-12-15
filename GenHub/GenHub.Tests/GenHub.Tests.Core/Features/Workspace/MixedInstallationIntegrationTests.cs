@@ -444,11 +444,11 @@ public class MixedInstallationIntegrationTests : IDisposable
 
     private async Task CreateTestFile(string path, string content)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(path) !);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await File.WriteAllTextAsync(path, content);
     }
 
-    private ContentManifest CreateManifest(string id, string name, ContentType contentType, (string relativePath, string sourcePath)[] files)
+    private ContentManifest CreateManifest(string id, string name, ContentType contentType, (string RelativePath, string SourcePath)[] files)
     {
         var manifest = new ContentManifest
         {

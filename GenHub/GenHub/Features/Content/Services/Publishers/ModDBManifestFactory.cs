@@ -45,7 +45,7 @@ public partial class ModDBManifestFactory(
             ContentType.ModdingTool => true,
             ContentType.LanguagePack => true,
             ContentType.Addon => true,
-            _ => false
+            _ => false,
         };
 
         return publisherMatches && supportedTypes;
@@ -230,7 +230,7 @@ public partial class ModDBManifestFactory(
             ContentType.ModdingTool => "Modding Tool",
             ContentType.LanguagePack => "Language Pack",
             ContentType.Addon => "Addon",
-            _ => "Other"
+            _ => "Other",
         });
 
         // Add author tag

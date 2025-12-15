@@ -98,7 +98,8 @@ public class GameClientValidator(
                 () =>
             Directory.EnumerateFiles(gameClient.WorkingDirectory, "*", SearchOption.AllDirectories)
                 .Select(f => Path.GetRelativePath(gameClient.WorkingDirectory, f).Replace('\\', '/'))
-                .ToList(), cancellationToken);
+                .ToList(),
+                cancellationToken);
 
         // KnownAddons detection - check against actual files
         if (manifest.KnownAddons != null)

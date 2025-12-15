@@ -315,12 +315,7 @@ public class WorkspaceIntegrationTests : IDisposable
         foreach (var file in testFiles)
         {
             var fullPath = Path.Combine(_tempGameInstall, file);
-            var dirName = Path.GetDirectoryName(fullPath);
-            if (dirName != null)
-            {
-                Directory.CreateDirectory(dirName);
-            }
-
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
             await File.WriteAllTextAsync(fullPath, $"Test content for {file}");
         }
     }
