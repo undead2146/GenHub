@@ -2,7 +2,6 @@ using GenHub.Common.ViewModels;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Manifest;
-using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
@@ -33,6 +32,7 @@ public class SharedViewModelModuleTests
         // Register all required configuration services first
         var configProvider = CreateMockConfigProvider();
         services.AddSingleton<IConfigurationProviderService>(configProvider);
+
         services.AddSingleton<IUserSettingsService>(CreateMockUserSettingsService());
         services.AddSingleton<IAppConfiguration>(CreateMockAppConfiguration());
 
@@ -96,19 +96,23 @@ public class SharedViewModelModuleTests
         var validatorMock = new Mock<IContentValidator>();
         services.AddSingleton<IContentValidator>(validatorMock.Object);
 
-        // Mock IShortcutService (platform-specific service)
-        var shortcutServiceMock = new Mock<IShortcutService>();
-        services.AddSingleton<IShortcutService>(shortcutServiceMock.Object);
+        // Mock IShortcutService to avoid dependency issues
+        var shortcutServiceMock = new Mock<GenHub.Core.Interfaces.Shortcuts.IShortcutService>();
+        services.AddSingleton<GenHub.Core.Interfaces.Shortcuts.IShortcutService>(shortcutServiceMock.Object);
+
+        // Mock IGitHubTokenStorage to avoid dependency issues
+        var tokenStorageMock = new Mock<GenHub.Core.Interfaces.GitHub.IGitHubTokenStorage>();
+        services.AddSingleton<GenHub.Core.Interfaces.GitHub.IGitHubTokenStorage>(tokenStorageMock.Object);
 
         // Register required modules in correct order
         services.AddLoggingModule();
         services.AddValidationServices();
         services.AddGameDetectionService();
         services.AddGameInstallation();
+        services.AddCasServices();
         services.AddContentPipelineServices();
         services.AddManifestServices();
         services.AddWorkspaceServices();
-        services.AddCasServices();
         services.AddDownloadServices();
         services.AddNotificationModule();
         services.AddAppUpdateModule();
