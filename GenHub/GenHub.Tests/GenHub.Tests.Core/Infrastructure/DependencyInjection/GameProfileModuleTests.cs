@@ -4,6 +4,7 @@ using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Launching;
 using GenHub.Core.Interfaces.Manifest;
+
 using GenHub.Core.Interfaces.Storage;
 using GenHub.Core.Interfaces.Workspace;
 using GenHub.Infrastructure.DependencyInjection;
@@ -137,6 +138,7 @@ public class GameProfileModuleTests
         var configProviderMock = new Mock<IConfigurationProviderService>();
 
         services.AddLogging();
+        services.AddSingleton<IConfigurationProviderService>(configProviderMock.Object);
 
         // Act
         services.AddLaunchingServices();
@@ -165,6 +167,7 @@ public class GameProfileModuleTests
         // Add required dependencies
         services.AddLogging();
         services.AddSingleton<IConfigurationProviderService>(configProviderMock.Object);
+
         services.AddScoped(provider => new Mock<IGameInstallationService>().Object);
         services.AddScoped(provider => new Mock<IContentManifestPool>().Object);
         services.AddScoped(provider => new Mock<IContentOrchestrator>().Object);
@@ -254,6 +257,7 @@ public class GameProfileModuleTests
         services.AddSingleton<IGameLauncher>(new Mock<IGameLauncher>().Object);
         services.AddSingleton<ILaunchRegistry>(new Mock<ILaunchRegistry>().Object);
         services.AddSingleton<ICasService>(new Mock<ICasService>().Object);
+        services.AddSingleton<GenHub.Core.Interfaces.Shortcuts.IShortcutService>(new Mock<GenHub.Core.Interfaces.Shortcuts.IShortcutService>().Object);
 
         // Act
         services.AddGameProfileServices();

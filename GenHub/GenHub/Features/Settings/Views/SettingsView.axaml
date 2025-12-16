@@ -22,27 +22,27 @@
       <Setter Property="BorderBrush" Value="#3F3F46" />
       <Setter Property="BorderThickness" Value="1" />
     </Style>
-    
+
     <Style Selector="TextBlock.section-header">
       <Setter Property="FontSize" Value="18" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Foreground" Value="#FFFFFF" />
       <Setter Property="Margin" Value="0,0,0,10" />
     </Style>
-    
+
     <Style Selector="TextBlock.setting-label">
       <Setter Property="FontSize" Value="14" />
       <Setter Property="Foreground" Value="#E0E0E0" />
       <Setter Property="Margin" Value="0,0,0,5" />
     </Style>
-    
+
     <Style Selector="TextBlock.setting-description">
       <Setter Property="FontSize" Value="12" />
       <Setter Property="Foreground" Value="#AAAAAA" />
       <Setter Property="TextWrapping" Value="Wrap" />
       <Setter Property="Margin" Value="0,2,0,0" />
     </Style>
-    
+
     <Style Selector="Button.browse-button">
       <Setter Property="Background" Value="#404040" />
       <Setter Property="Foreground" Value="#FFFFFF" />
@@ -50,24 +50,24 @@
       <Setter Property="Padding" Value="12,6" />
       <Setter Property="CornerRadius" Value="4" />
     </Style>
-    
+
     <Style Selector="Button.browse-button:pointerover">
       <Setter Property="Background" Value="#505050" />
     </Style>
-    
+
     <Style Selector="Button.primary-button">
-      <Setter Property="Background" Value="#0078D4" />
+      <Setter Property="Background" Value="#7B1FA2" />
       <Setter Property="Foreground" Value="#FFFFFF" />
-      <Setter Property="BorderBrush" Value="#106EBE" />
+      <Setter Property="BorderBrush" Value="#9C27B0" />
       <Setter Property="Padding" Value="16,8" />
       <Setter Property="CornerRadius" Value="4" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
-    
+
     <Style Selector="Button.primary-button:pointerover">
-      <Setter Property="Background" Value="#106EBE" />
+      <Setter Property="Background" Value="#9C27B0" />
     </Style>
-    
+
     <Style Selector="Button.secondary-button">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="Foreground" Value="#E0E0E0" />
@@ -76,11 +76,11 @@
       <Setter Property="Padding" Value="16,8" />
       <Setter Property="CornerRadius" Value="4" />
     </Style>
-    
+
     <Style Selector="Button.secondary-button:pointerover">
       <Setter Property="Background" Value="#404040" />
     </Style>
-    
+
     <Style Selector="TextBox">
       <Setter Property="Background" Value="#1E1E1E" />
       <Setter Property="Foreground" Value="#FFFFFF" />
@@ -88,7 +88,7 @@
       <Setter Property="CornerRadius" Value="4" />
       <Setter Property="Padding" Value="8" />
     </Style>
-    
+
     <Style Selector="ComboBox">
       <Setter Property="Background" Value="#1E1E1E" />
       <Setter Property="Foreground" Value="#FFFFFF" />
@@ -96,18 +96,18 @@
       <Setter Property="CornerRadius" Value="4" />
       <Setter Property="Padding" Value="8" />
     </Style>
-    
+
     <Style Selector="NumericUpDown">
       <Setter Property="Background" Value="#1E1E1E" />
       <Setter Property="Foreground" Value="#FFFFFF" />
       <Setter Property="BorderBrush" Value="#606060" />
       <Setter Property="CornerRadius" Value="4" />
     </Style>
-    
+
     <Style Selector="CheckBox">
       <Setter Property="Foreground" Value="#E0E0E0" />
     </Style>
-    
+
     <Style Selector="Border.notification">
       <Setter Property="Background" Value="#4CAF50" />
       <Setter Property="CornerRadius" Value="4" />
@@ -115,7 +115,7 @@
       <Setter Property="Margin" Value="0,0,0,10" />
       <Setter Property="IsVisible" Value="{Binding ShowSaveNotification}" />
     </Style>
-    
+
     <Style Selector="Border.notification TextBlock">
       <Setter Property="Foreground" Value="#FFFFFF" />
       <Setter Property="FontWeight" Value="SemiBold" />
@@ -124,11 +124,11 @@
 
   <ScrollViewer Background="#1A1A1A" Focusable="True">
     <StackPanel Margin="30" Spacing="25" MaxWidth="800">
-      
+
       <!-- Header -->
       <StackPanel Spacing="5" Margin="0,0,0,10">
         <TextBlock Text="Settings" FontSize="32" FontWeight="Bold" Foreground="#FFFFFF" />
-        <TextBlock Text="Configure your GenHub preferences and application behavior" 
+        <TextBlock Text="Configure your GenHub preferences and application behavior"
                    FontSize="16" Foreground="#AAAAAA" />
       </StackPanel>
 
@@ -142,21 +142,21 @@
       <Border Classes="settings-card">
         <StackPanel Spacing="20">
           <TextBlock Text="🎮 Game Configuration" Classes="section-header" />
-          
+
           <!-- Preferred Game Path -->
           <StackPanel Spacing="8">
             <TextBlock Text="Preferred Game Installation Path" Classes="setting-label" />
             <Grid ColumnDefinitions="*,Auto">
-              <TextBox Grid.Column="0" 
+              <TextBox Grid.Column="0"
                        Text="{Binding WorkspacePath}"
                        Watermark="Auto-detect game installation path..."
                        LostFocus="OnTextBoxLostFocus" />
-              <Button Grid.Column="1" 
+              <Button Grid.Column="1"
                       Content="Browse"
                       Command="{Binding BrowseGamePathCommand}"
                       Classes="browse-button" />
             </Grid>
-            <TextBlock Text="Specify where you prefer games to be installed. Leave empty for auto-detection." 
+            <TextBlock Text="Specify where you prefer games to be installed. Leave empty for auto-detection."
                        Classes="setting-description" />
           </StackPanel>
 
@@ -167,7 +167,7 @@
                       SelectedItem="{Binding DefaultWorkspaceStrategy}"
                       HorizontalAlignment="Left"
                       MinWidth="200" />
-            <TextBlock Text="Choose how files are managed in game workspaces" 
+            <TextBlock Text="Choose how files are managed in game workspaces"
                        Classes="setting-description" />
           </StackPanel>
         </StackPanel>
@@ -177,7 +177,7 @@
       <Border Classes="settings-card">
         <StackPanel Spacing="20">
           <TextBlock Text="📥 Downloads" Classes="section-header" />
-          
+
           <!-- Max Concurrent Downloads -->
           <StackPanel Spacing="8">
             <TextBlock Text="Maximum Concurrent Downloads" Classes="setting-label" />
@@ -189,7 +189,7 @@
                            Width="120"
                            FormatString="F0"
                            LostFocus="OnTextBoxLostFocus" />
-            <TextBlock Text="Limit the number of simultaneous downloads to manage bandwidth usage (1-10)" 
+            <TextBlock Text="Limit the number of simultaneous downloads to manage bandwidth usage (1-10)"
                        Classes="setting-description" />
           </StackPanel>
 
@@ -204,7 +204,7 @@
                            Width="160"
                            FormatString="F0"
                            LostFocus="OnTextBoxLostFocus" />
-            <TextBlock Text="Buffer size used for file downloads (4KB - 1MB, default: 80KB)" 
+            <TextBlock Text="Buffer size used for file downloads (4KB - 1MB, default: 80KB)"
                        Classes="setting-description" />
           </StackPanel>
 
@@ -219,17 +219,17 @@
                            Width="120"
                            FormatString="F0"
                            LostFocus="OnTextBoxLostFocus" />
-            <TextBlock Text="Timeout for each download operation  (10-3600 seconds,default: 600 seconds)" 
+            <TextBlock Text="Timeout for each download operation  (10-3600 seconds,default: 600 seconds)"
                        Classes="setting-description" />
           </StackPanel>
 
           <!-- Download User-Agent -->
           <StackPanel Spacing="8">
             <TextBlock Text="Download User-Agent" Classes="setting-label" />
-            <TextBox Text="{Binding DownloadUserAgent}" 
+            <TextBox Text="{Binding DownloadUserAgent}"
                      Width="300"
                      LostFocus="OnTextBoxLostFocus" />
-            <TextBlock Text="HTTP User-Agent string sent with download requests" 
+            <TextBlock Text="HTTP User-Agent string sent with download requests"
                        Classes="setting-description" />
           </StackPanel>
 
@@ -237,7 +237,7 @@
           <StackPanel Spacing="8">
             <CheckBox Content="Allow background downloads"
                       IsChecked="{Binding AllowBackgroundDownloads}" />
-            <TextBlock Text="Continue downloads when the application is minimized or in the background" 
+            <TextBlock Text="Continue downloads when the application is minimized or in the background"
                        Classes="setting-description" Margin="24,0,0,0" />
           </StackPanel>
         </StackPanel>
@@ -247,7 +247,7 @@
       <Border Classes="settings-card">
         <StackPanel Spacing="20">
           <TextBlock Text="🎨 Appearance" Classes="section-header" />
-          
+
           <!-- Theme Selection -->
           <StackPanel Spacing="8">
             <TextBlock Text="Theme" Classes="setting-label" />
@@ -255,7 +255,7 @@
                       SelectedItem="{Binding Theme}"
                       HorizontalAlignment="Left"
                       MinWidth="150" />
-            <TextBlock Text="Choose between light and dark themes" 
+            <TextBlock Text="Choose between light and dark themes"
                        Classes="setting-description" />
           </StackPanel>
 
@@ -263,7 +263,7 @@
           <StackPanel Spacing="8">
             <CheckBox Content="Enable detailed logging"
                       IsChecked="{Binding EnableDetailedLogging}" />
-            <TextBlock Text="Enable verbose logging for troubleshooting. May impact performance." 
+            <TextBlock Text="Enable verbose logging for troubleshooting. May impact performance."
                        Classes="setting-description" Margin="24,0,0,0" />
           </StackPanel>
 
@@ -271,7 +271,7 @@
           <StackPanel Spacing="8">
             <CheckBox Content="Check for updates on startup"
                       IsChecked="{Binding AutoCheckForUpdatesOnStartup}" />
-            <TextBlock Text="Automatically check for GenHub updates when the application starts" 
+            <TextBlock Text="Automatically check for GenHub updates when the application starts"
                        Classes="setting-description" Margin="24,0,0,0" />
           </StackPanel>
 
@@ -298,13 +298,13 @@
       <Border Classes="settings-card">
         <StackPanel Spacing="20">
           <TextBlock Text="⚡ Performance" Classes="section-header" />
-          
+
           <!-- Memory Usage Info -->
           <StackPanel Spacing="8">
             <TextBlock Text="Memory Usage" Classes="setting-label" />
-            <TextBlock Text="{Binding CurrentMemoryUsage, StringFormat='Current: {0:F1} MB'}" 
+            <TextBlock Text="{Binding CurrentMemoryUsage, StringFormat='Current: {0:F1} MB'}"
                        Foreground="#AAAAAA" FontSize="14" />
-            <TextBlock Text="Monitor application memory consumption" 
+            <TextBlock Text="Monitor application memory consumption"
                        Classes="setting-description" />
           </StackPanel>
         </StackPanel>
@@ -314,21 +314,21 @@
       <Border Classes="settings-card">
         <StackPanel Spacing="20">
           <TextBlock Text="🔗 Content-Addressable Storage (CAS)" Classes="section-header" />
-          
+
           <!-- CAS Root Path -->
           <StackPanel Spacing="8">
             <TextBlock Text="CAS Root Directory" Classes="setting-label" />
             <Grid ColumnDefinitions="*,Auto">
-              <TextBox Grid.Column="0" 
+              <TextBox Grid.Column="0"
                        Text="{Binding CasRootPath}"
                        Watermark="Default (%AppData%/GenHub/cas-pool)"
                        LostFocus="OnTextBoxLostFocus" />
-              <Button Grid.Column="1" 
+              <Button Grid.Column="1"
                       Content="Browse"
                       Command="{Binding BrowseCasRootPathCommand}"
                       Classes="browse-button" />
             </Grid>
-            <TextBlock Text="Directory where deduplicated content is stored. All workspaces reference files from here." 
+            <TextBlock Text="Directory where deduplicated content is stored. All workspaces reference files from here."
                        Classes="setting-description" />
           </StackPanel>
 
@@ -343,7 +343,7 @@
                            Width="120"
                            FormatString="F0"
                            LostFocus="OnTextBoxLostFocus" />
-            <TextBlock Text="Maximum size for the CAS pool before garbage collection runs (1-1000 GB)" 
+            <TextBlock Text="Maximum size for the CAS pool before garbage collection runs (1-1000 GB)"
                        Classes="setting-description" />
           </StackPanel>
 
@@ -358,7 +358,7 @@
                            Width="120"
                            FormatString="F0"
                            LostFocus="OnTextBoxLostFocus" />
-            <TextBlock Text="Number of simultaneous CAS operations (1-16, default: 4)" 
+            <TextBlock Text="Number of simultaneous CAS operations (1-16, default: 4)"
                        Classes="setting-description" />
           </StackPanel>
 
@@ -366,7 +366,7 @@
           <StackPanel Spacing="8">
             <CheckBox Content="Enable automatic garbage collection"
                       IsChecked="{Binding EnableAutomaticGc}" />
-            <TextBlock Text="Automatically clean up unreferenced content to free disk space" 
+            <TextBlock Text="Automatically clean up unreferenced content to free disk space"
                        Classes="setting-description" Margin="24,0,0,0" />
           </StackPanel>
 
@@ -380,7 +380,7 @@
                            Width="120"
                            FormatString="F0"
                            LostFocus="OnTextBoxLostFocus" />
-            <TextBlock Text="How long to keep unreferenced content before deletion (1-365 days)" 
+            <TextBlock Text="How long to keep unreferenced content before deletion (1-365 days)"
                        Classes="setting-description" />
           </StackPanel>
 
@@ -394,7 +394,7 @@
                            Width="120"
                            FormatString="F0"
                            LostFocus="OnTextBoxLostFocus" />
-            <TextBlock Text="How often to run automatic garbage collection (1-30 days)" 
+            <TextBlock Text="How often to run automatic garbage collection (1-30 days)"
                        Classes="setting-description" />
           </StackPanel>
 
@@ -402,7 +402,7 @@
           <StackPanel Spacing="8">
             <CheckBox Content="Verify file integrity during operations"
                       IsChecked="{Binding CasVerifyIntegrity}" />
-            <TextBlock Text="Check file hashes to ensure data integrity (recommended, slight performance impact)" 
+            <TextBlock Text="Check file hashes to ensure data integrity (recommended, slight performance impact)"
                        Classes="setting-description" Margin="24,0,0,0" />
           </StackPanel>
         </StackPanel>
@@ -449,6 +449,132 @@
         </StackPanel>
       </Border>
 
+      <!-- Update Settings -->
+      <Border Classes="settings-card">
+        <StackPanel Spacing="20">
+          <TextBlock Text="🔄 Updates" Classes="section-header" />
+
+          <!-- Current Version -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="Current Version" Classes="setting-label" />
+            <TextBlock Text="{Binding CurrentVersion}" FontSize="14" Foreground="#67B26F" FontWeight="SemiBold" />
+          </StackPanel>
+
+          <!-- Update Channel Selection -->
+          <StackPanel Spacing="8">
+            <TextBlock Text="Update Channel" Classes="setting-label" />
+            <ComboBox ItemsSource="{Binding AvailableUpdateChannels}"
+                      SelectedItem="{Binding SelectedUpdateChannel}"
+                      HorizontalAlignment="Left"
+                      MinWidth="200" />
+            <TextBlock Classes="setting-description">
+              <Run Text="Stable: Release builds only • " />
+              <Run Text="Prerelease: Alpha/Beta builds • " />
+              <Run Text="Artifacts: CI builds (requires PAT)" />
+            </TextBlock>
+
+            <!-- Manage Updates & PRs Button -->
+            <Button Content="Manage Updates &amp; PRs"
+                    Command="{Binding OpenUpdateWindowCommand}"
+                    Classes="browse-button"
+                    HorizontalAlignment="Left"
+                    Margin="0,8,0,0"
+                    ToolTip.Tip="Browse available updates and subscribe to Pull Requests" />
+          </StackPanel>
+
+          <!-- GitHub PAT for Artifact Access -->
+          <Border Background="#1E1E1E" CornerRadius="4" Padding="15" BorderBrush="#4E4E4E" BorderThickness="1">
+            <StackPanel Spacing="12">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="🔑" FontSize="16" VerticalAlignment="Center" />
+                <TextBlock Text="GitHub Personal Access Token (for Artifact Updates)"
+                           Classes="setting-label" VerticalAlignment="Center" Margin="0" />
+              </StackPanel>
+
+              <!-- PAT Status -->
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                 <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                          Fill="{Binding PatStatusColor}">
+                 </Ellipse>
+                <TextBlock Text="{Binding PatStatusMessage}" Foreground="#AAAAAA" FontSize="12" />
+              </StackPanel>
+
+              <!-- PAT Input -->
+              <Grid ColumnDefinitions="*,Auto,Auto" IsVisible="{Binding !HasGitHubPat}">
+                <TextBox Grid.Column="0"
+                         Text="{Binding GitHubPatInput}"
+                         PasswordChar="●"
+                         Watermark="ghp_xxxxxxxxxxxxxxxxxxxx"
+                         Margin="0,0,8,0" />
+                <Button Grid.Column="1"
+                        Content="Save &amp; Test"
+                        Command="{Binding TestPatCommand}"
+                        IsEnabled="{Binding !IsTestingPat}"
+                        Classes="browse-button" />
+              </Grid>
+
+              <!-- Delete PAT button (when PAT exists) -->
+              <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding HasGitHubPat}">
+                <Button Content="Remove PAT"
+                        Command="{Binding DeletePatCommand}"
+                        Classes="secondary-button" />
+                <Button Content="Refresh Artifacts"
+                        Command="{Binding LoadArtifactsCommand}"
+                        IsEnabled="{Binding !IsLoadingArtifacts}"
+                        Classes="browse-button" />
+              </StackPanel>
+
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <TextBlock Text="PAT with 'repo' scope required for CI artifact access."
+                           Classes="setting-description" VerticalAlignment="Center" />
+                <Button Content="Create PAT →"
+                        Click="OnOpenPatCreationUrl"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Padding="0"
+                        Foreground="#7B1FA2"
+                        FontSize="12"
+                        Cursor="Hand"
+                        ToolTip.Tip="Click to open GitHub PAT creation page" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Available Artifacts (for PAT users) -->
+          <StackPanel Spacing="8" IsVisible="{Binding HasGitHubPat}">
+            <TextBlock Text="Available CI Artifacts" Classes="setting-label" />
+            <ItemsControl ItemsSource="{Binding AvailableArtifacts}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Background="#3D3D3D" CornerRadius="4" Padding="12" Margin="0,4">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <StackPanel Grid.Column="0" Spacing="4">
+                        <TextBlock Text="{Binding DisplayVersion}" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <TextBlock Text="{Binding CreatedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm}'}"
+                                     Foreground="#AAAAAA" FontSize="11" />
+                          <TextBlock Text="{Binding ArtifactName}"
+                                     Foreground="#888888" FontSize="11" />
+                        </StackPanel>
+                      </StackPanel>
+                      <Button Grid.Column="1"
+                              Content="View Run →"
+                              Classes="browse-button"
+                              Click="OnViewWorkflowRun"
+                              Tag="{Binding WorkflowRunUrl}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="No artifacts available"
+                       IsVisible="{Binding !AvailableArtifacts.Count}"
+                       Foreground="#888888" FontStyle="Italic" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+
       <!-- Action Buttons -->
       <StackPanel Orientation="Horizontal" Spacing="15" HorizontalAlignment="Right" Margin="0,10,0,0">
         <Button Content="Reset to Defaults"
@@ -465,7 +591,7 @@
       <Border Background="#2D2D30" CornerRadius="4" Padding="15" Margin="0,20,0,0">
         <StackPanel Orientation="Horizontal" Spacing="10">
           <TextBlock Text="💡" FontSize="16" />
-          <TextBlock Text="Settings are automatically saved and will take effect immediately or on next restart as needed." 
+          <TextBlock Text="Settings are automatically saved and will take effect immediately or on next restart as needed."
                      Foreground="#AAAAAA" FontSize="12" TextWrapping="Wrap" />
         </StackPanel>
       </Border>

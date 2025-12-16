@@ -23,7 +23,7 @@ env:
   WINDOWS_PROJECT: 'GenHub/GenHub.Windows/GenHub.Windows.csproj'
   LINUX_PROJECT: 'GenHub/GenHub.Linux/GenHub.Linux.csproj'
   TEST_PROJECTS: 'GenHub/GenHub.Tests/**/*.csproj'
-  
+
 jobs:
   detect-changes:
     name: Detect File Changes
@@ -75,16 +75,16 @@ jobs:
     needs: detect-changes
     if: ${{ github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.any == 'true' || needs.detect-changes.outputs.core == 'true' || needs.detect-changes.outputs.ui == 'true' || needs.detect-changes.outputs.windows == 'true' }}
     runs-on: windows-latest
-    
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-          
+
       - name: Cache NuGet Packages
         uses: actions/cache@v3
         with:
@@ -92,30 +92,95 @@ jobs:
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
-      
+
+      - name: Extract Build Info
+        id: buildinfo
+        shell: pwsh
+        run: |
+          $shortHash = "${{ github.sha }}".Substring(0, 7)
+          $prNumber = "${{ github.event.pull_request.number }}"
+          $runNumber = "${{ github.run_number }}"
+
+          # Velopack requires SemVer2 3-part version (MAJOR.MINOR.PATCH)
+          # Using 0.0.X format to indicate alpha/pre-release status
+          if ($prNumber) {
+            $version = "0.0.$runNumber-pr$prNumber"
+            $channel = "PR"
+          } else {
+            $version = "0.0.$runNumber"
+            $channel = "CI"
+          }
+
+          Write-Host "Build Info:"
+          Write-Host "  Short Hash: $shortHash"
+          Write-Host "  PR Number: $prNumber"
+          Write-Host "  Run Number: $runNumber"
+          Write-Host "  Version: $version (SemVer2 for Velopack)"
+          Write-Host "  Channel: $channel"
+
+          echo "SHORT_HASH=$shortHash" >> $env:GITHUB_OUTPUT
+          echo "PR_NUMBER=$prNumber" >> $env:GITHUB_OUTPUT
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+          echo "CHANNEL=$channel" >> $env:GITHUB_OUTPUT
+
       - name: Build Projects
         shell: pwsh
         run: |
-          # Build projects in the correct order (core dependencies first)
-          Write-Host "Building Core project"
-          dotnet build "${{ env.CORE_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }}
-          
-          Write-Host "Building UI project"  
-          dotnet build "${{ env.UI_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }}
-          
+          $buildProps = @(
+            "-p:Version=${{ steps.buildinfo.outputs.VERSION }}"
+            "-p:GitShortHash=${{ steps.buildinfo.outputs.SHORT_HASH }}"
+            "-p:PullRequestNumber=${{ steps.buildinfo.outputs.PR_NUMBER }}"
+            "-p:BuildChannel=${{ steps.buildinfo.outputs.CHANNEL }}"
+          )
+
+          Write-Host "Building Core project with build info"
+          dotnet build "${{ env.CORE_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }} @buildProps
+
+          Write-Host "Building UI project"
+          dotnet build "${{ env.UI_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }} @buildProps
+
           Write-Host "Building Windows project"
-          dotnet build "${{ env.WINDOWS_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }}
-      
+          dotnet build "${{ env.WINDOWS_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }} @buildProps
+
       - name: Publish Windows App
         shell: pwsh
         run: |
+          $buildProps = @(
+            "-p:Version=${{ steps.buildinfo.outputs.VERSION }}"
+            "-p:GitShortHash=${{ steps.buildinfo.outputs.SHORT_HASH }}"
+            "-p:PullRequestNumber=${{ steps.buildinfo.outputs.PR_NUMBER }}"
+            "-p:BuildChannel=${{ steps.buildinfo.outputs.CHANNEL }}"
+          )
+
           Write-Host "Publishing Windows application"
+          Write-Host "Version: ${{ steps.buildinfo.outputs.VERSION }}"
           dotnet publish "${{ env.WINDOWS_PROJECT }}" `
             -c ${{ env.BUILD_CONFIGURATION }} `
             -r win-x64 `
             --self-contained true `
-            -o "win-publish"
-      
+            -o "win-publish" `
+            @buildProps
+
+      - name: Install Velopack CLI
+        run: dotnet tool install -g vpk
+
+      - name: Create Velopack Package
+        shell: pwsh
+        run: |
+          Write-Host "Creating Velopack package..."
+          vpk pack `
+            --packId GenHub `
+            --packVersion ${{ steps.buildinfo.outputs.VERSION }} `
+            --packDir win-publish `
+            --mainExe GenHub.Windows.exe `
+            --packTitle "GenHub" `
+            --packAuthors "Community Outpost" `
+            --icon GenHub/GenHub/Assets/Icons/generalshub.ico `
+            --outputDir velopack-release
+
+          Write-Host "Velopack artifacts created:"
+          Get-ChildItem -Path "velopack-release" -Recurse | Select-Object Name, Length
+
       - name: Run Tests
         id: tests
         shell: pwsh
@@ -133,33 +198,51 @@ jobs:
           } else {
             Write-Host "No test projects found."
           }
-      - name: Upload Windows Artifact
+
+      - name: Upload Velopack Update Package (.nupkg)
         uses: actions/upload-artifact@v4
         with:
-          name: genhub-windows
-          path: win-publish
+          name: genhub-velopack-windows-${{ steps.buildinfo.outputs.VERSION }}
+          path: velopack-release/*.nupkg
           if-no-files-found: error
-          
+          retention-days: 30
+
+      - name: Upload Velopack Setup Installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: genhub-setup-windows-${{ steps.buildinfo.outputs.VERSION }}
+          path: velopack-release/*-Setup.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Velopack Metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: genhub-metadata-windows-${{ steps.buildinfo.outputs.VERSION }}
+          path: velopack-release/RELEASES
+          if-no-files-found: error
+          retention-days: 30
+
   build-linux:
     name: Build Linux
     needs: detect-changes
     if: ${{ github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.any == 'true' || needs.detect-changes.outputs.core == 'true' || needs.detect-changes.outputs.ui == 'true' || needs.detect-changes.outputs.linux == 'true' }}
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-          
+
       - name: Install Linux Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libx11-dev
-          
+
       - name: Cache NuGet Packages
         uses: actions/cache@v3
         with:
@@ -167,28 +250,79 @@ jobs:
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
-      
+
+      - name: Extract Build Info
+        id: buildinfo
+        run: |
+          SHORT_HASH=$(echo "${{ github.sha }}" | cut -c1-7)
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          RUN_NUMBER="${{ github.run_number }}"
+
+          # Velopack requires SemVer2 3-part version (MAJOR.MINOR.PATCH)
+          # Using 0.0.X format to indicate alpha/pre-release status
+          if [ -n "$PR_NUMBER" ]; then
+            VERSION="0.0.${RUN_NUMBER}-pr${PR_NUMBER}"
+            CHANNEL="PR"
+          else
+            VERSION="0.0.${RUN_NUMBER}"
+            CHANNEL="CI"
+          fi
+
+          echo "Build Info:"
+          echo "  Short Hash: $SHORT_HASH"
+          echo "  PR Number: $PR_NUMBER"
+          echo "  Run Number: $RUN_NUMBER"
+          echo "  Version: $VERSION (SemVer2 for Velopack)"
+          echo "  Channel: $CHANNEL"
+
+          echo "SHORT_HASH=$SHORT_HASH" >> $GITHUB_OUTPUT
+          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Build Projects
         run: |
-          # Build projects, which will also restore dependencies
-          echo "Building Core project"
-          dotnet build "${{ env.CORE_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }}
-          
+          BUILD_PROPS="-p:GitShortHash=${{ steps.buildinfo.outputs.SHORT_HASH }} -p:PullRequestNumber=${{ steps.buildinfo.outputs.PR_NUMBER }} -p:BuildChannel=${{ steps.buildinfo.outputs.CHANNEL }}"
+
+          echo "Building Core project with build info"
+          dotnet build "${{ env.CORE_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }} $BUILD_PROPS
+
           echo "Building UI project"
-          dotnet build "${{ env.UI_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }}
-          
-          echo "Building Linux project"  
-          dotnet build "${{ env.LINUX_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }}
-      
+          dotnet build "${{ env.UI_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }} $BUILD_PROPS
+
+          echo "Building Linux project"
+          dotnet build "${{ env.LINUX_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }} $BUILD_PROPS
+
       - name: Publish Linux App
         run: |
+          BUILD_PROPS="-p:GitShortHash=${{ steps.buildinfo.outputs.SHORT_HASH }} -p:PullRequestNumber=${{ steps.buildinfo.outputs.PR_NUMBER }} -p:BuildChannel=${{ steps.buildinfo.outputs.CHANNEL }}"
+
           echo "Publishing Linux application"
           dotnet publish "${{ env.LINUX_PROJECT }}" \
             -c ${{ env.BUILD_CONFIGURATION }} \
             -r linux-x64 \
             --self-contained true \
-            -o "linux-publish"
-      
+            -o "linux-publish" \
+            $BUILD_PROPS
+
+      - name: Install Velopack CLI
+        run: dotnet tool install -g vpk
+
+      - name: Create Velopack Package
+        run: |
+          echo "Creating Velopack package..."
+          vpk pack \
+            --packId GenHub \
+            --packVersion ${{ steps.buildinfo.outputs.VERSION }} \
+            --packDir linux-publish \
+            --mainExe GenHub.Linux \
+            --packTitle "GenHub" \
+            --packAuthors "Community Outpost" \
+            --icon GenHub/GenHub/Assets/Icons/generalshub-icon.png \
+            --outputDir velopack-release
+
+          echo "Velopack artifacts created:"
+          ls -lh velopack-release/
+
       - name: Run Tests
         run: |
           shopt -s globstar nullglob
@@ -197,17 +331,67 @@ jobs:
             echo "Testing $test_project"
             dotnet test "$test_project" -c ${{ env.BUILD_CONFIGURATION }} --verbosity normal
           done
-        
-      - name: Upload Linux Artifact
+
+      - name: Upload Velopack Update Package (.nupkg)
         uses: actions/upload-artifact@v4
         with:
-          name: genhub-linux
-          path: linux-publish
+          name: genhub-velopack-linux-${{ steps.buildinfo.outputs.VERSION }}
+          path: velopack-release/*.nupkg
           if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Velopack Metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: genhub-metadata-linux-${{ steps.buildinfo.outputs.VERSION }}
+          path: velopack-release/releases.*.json
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Create Release
+    needs: [build-windows, build-linux]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: genhub-velopack-windows-*
+          merge-multiple: true
+          path: release-assets/windows
+
+      - name: Download Linux Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: genhub-velopack-linux-*
+          merge-multiple: true
+          path: release-assets/linux
+
+      - name: Prepare Release Assets
+        run: |
+          mkdir final-assets
+          cp release-assets/windows/*.nupkg final-assets/
+          cp release-assets/linux/*.nupkg final-assets/ || true
+          # Prioritize Windows RELEASES file for now
+          cp release-assets/windows/RELEASES final-assets/RELEASES || true
+          # Include Setup.exe for easy first-time installation (Velopack names it GenHub-win-Setup.exe)
+          cp release-assets/windows/*-Setup.exe final-assets/ || true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.0.${{ github.run_number }}
+          name: GenHub Alpha ${{ github.run_number }}
+          prerelease: true
+          draft: false
+          files: final-assets/*
 
   summary:
     name: Build Summary
-    needs: [build-windows, build-linux]
+    needs: [build-windows, build-linux, release]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -221,3 +405,4 @@ jobs:
           echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
           echo "| Windows | ${{ needs.build-windows.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Linux | ${{ needs.build-linux.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release | ${{ needs.release.result == 'success' && '✅ Created' || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
