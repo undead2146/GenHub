@@ -62,6 +62,6 @@ public enum ContentType
     /// <summary>Modding and mapping tools/utilities.</summary>
     ModdingTool,
 
-    /// <summary>Unknown content type</summary>
+    /// <summary>Unknown content type.</summary>
     UnknownContentType,
 }

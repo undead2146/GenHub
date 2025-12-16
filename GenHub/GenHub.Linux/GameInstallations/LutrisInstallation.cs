@@ -68,7 +68,7 @@ public class LutrisInstallation(ILogger<LutrisInstallation>? logger = null) : IG
     /// <summary>
     /// Gets Lutris installation Type.
     /// </summary>
-    public LinuxPackageInstallationType PackageInstallationType { get; private set; }
+    public LinuxInstallationType PackageInstallationType { get; private set; }
 
     /// <summary>
     /// Gets the value of Lutris Version.
@@ -82,10 +82,10 @@ public class LutrisInstallation(ILogger<LutrisInstallation>? logger = null) : IG
 
         try
         {
-            var lutrisExecutables = new Dictionary<string, LinuxPackageInstallationType>
+            var lutrisExecutables = new Dictionary<string, LinuxInstallationType>
             {
-                { "lutris", LinuxPackageInstallationType.Binary },
-                { "flatpak run net.lutris.Lutris", LinuxPackageInstallationType.Flatpack },
+                { "lutris", LinuxInstallationType.Binary },
+                { "flatpak run net.lutris.Lutris", LinuxInstallationType.Flatpack },
 
                 // TODO add snap
             };

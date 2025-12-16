@@ -4,7 +4,7 @@ namespace GenHub.Core.Models.Launching;
 public class GameLaunchConfiguration
 {
     /// <summary>Gets or sets the executable path.</summary>
-    required public string ExecutablePath { get; set; }
+    public required string ExecutablePath { get; set; }
 
     /// <summary>Gets or sets the working directory.</summary>
     public string? WorkingDirectory { get; set; }

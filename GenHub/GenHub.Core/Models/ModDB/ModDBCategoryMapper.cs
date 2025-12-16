@@ -81,7 +81,7 @@ public static class ModDBCategoryMapper
             "129" => ContentType.Addon, // Texture
 
             // Default
-            _ => ContentType.Addon
+            _ => ContentType.Addon,
         };
     }
 
@@ -127,7 +127,7 @@ public static class ModDBCategoryMapper
             var s when s.Contains("ide") => ContentType.ModdingTool,
             var s when s.Contains("source code") => ContentType.ModdingTool,
 
-            _ => ContentType.Addon
+            _ => ContentType.Addon,
         };
     }
 }

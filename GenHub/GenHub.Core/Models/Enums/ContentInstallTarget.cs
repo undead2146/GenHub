@@ -37,7 +37,7 @@ public enum ContentInstallTarget
 
     /// <summary>
     /// Install to the Screenshots subdirectory within user data.
-    /// Location: Documents\Command and Conquer Generals Zero Hour Data\Screenshots\
+    /// Location: Documents\Command and Conquer Generals Zero Hour Data\Screenshots\.
     /// </summary>
     UserScreenshotsDirectory = 4,
 
