@@ -21,10 +21,14 @@ public class AppConstantsTests
             // Application name and version
             Assert.Equal("GenHub", AppConstants.AppName);
 
-            // Version is dynamically loaded from assembly, just verify it's not empty and starts with expected prefix
+            // AppVersion should be a valid semantic version starting with 0.0 (alpha format)
             Assert.NotNull(AppConstants.AppVersion);
             Assert.NotEmpty(AppConstants.AppVersion);
-            Assert.StartsWith("1.", AppConstants.AppVersion);
+            Assert.StartsWith("0.0", AppConstants.AppVersion);
+
+            // DisplayVersion should have 'v' prefix
+            Assert.NotNull(AppConstants.DisplayVersion);
+            Assert.StartsWith("v0.0", AppConstants.DisplayVersion);
 
             // Theme constants
             Assert.Equal(Theme.Dark, AppConstants.DefaultTheme);

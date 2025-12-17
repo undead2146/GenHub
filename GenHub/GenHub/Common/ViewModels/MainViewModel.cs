@@ -352,16 +352,44 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             if (hasUpdate)
             {
+                string? latestVersion = null;
+
                 if (updateInfo != null)
                 {
-                    _logger?.LogInformation("Update available: {Current} → {Latest}", AppConstants.AppVersion, updateInfo.TargetFullRelease.Version);
+                    latestVersion = updateInfo.TargetFullRelease.Version.ToString();
+                    _logger?.LogInformation("Update available: {Current} → {Latest}", AppConstants.AppVersion, latestVersion);
                 }
                 else if (_velopackUpdateManager.LatestVersionFromGitHub != null)
                 {
-                    _logger?.LogInformation("Update available from GitHub API: {Version}", _velopackUpdateManager.LatestVersionFromGitHub);
+                    latestVersion = _velopackUpdateManager.LatestVersionFromGitHub;
+                    _logger?.LogInformation("Update available from GitHub API: {Version}", latestVersion);
                 }
 
-                HasUpdateAvailable = true;
+                // Strip build metadata for comparison (everything after '+')
+                var latestVersionBase = latestVersion?.Split('+')[0];
+                var currentVersionBase = AppConstants.AppVersion.Split('+')[0];
+
+                // Check if this version was dismissed by the user
+                var settings = _userSettingsService.Get();
+                var dismissedVersionBase = settings.DismissedUpdateVersion?.Split('+')[0];
+
+                if (!string.IsNullOrEmpty(latestVersionBase) &&
+                    string.Equals(latestVersionBase, dismissedVersionBase, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger?.LogDebug("Update {Version} was dismissed by user, hiding notification", latestVersionBase);
+                    HasUpdateAvailable = false;
+                }
+                // Also check if we're already on this version (ignoring build metadata)
+                else if (!string.IsNullOrEmpty(latestVersionBase) &&
+                         string.Equals(latestVersionBase, currentVersionBase, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger?.LogDebug("Already on version {Version} (ignoring build metadata), hiding notification", latestVersionBase);
+                    HasUpdateAvailable = false;
+                }
+                else
+                {
+                    HasUpdateAvailable = true;
+                }
             }
             else
             {

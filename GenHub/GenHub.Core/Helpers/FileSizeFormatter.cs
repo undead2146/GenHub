@@ -78,9 +78,10 @@ public static class FileSizeFormatter
             {
                 size = s;
             }
+
+            // Likely a unit (KB, MB, GB)
             else if (part.Length <= 3)
             {
-                // Likely a unit (KB, MB, GB)
                 unit = part.ToUpperInvariant();
             }
         }

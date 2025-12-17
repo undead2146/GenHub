@@ -1,14 +1,44 @@
 <Project>
   <PropertyGroup>
-    <!-- 
-      Change this to update version everywhere
-      Format: Major.Minor.Patch[-prerelease] (e.g., 1.0.0-alpha.1)
+    <!--
+      Alpha versioning: 0.0.X format
+      CI will override with: 0.0.{runNumber} or 0.0.{runNumber}-pr{prNumber}
     -->
-    <Version>1.0.0-alpha.1</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
-    
+    <Version>0.0.1</Version>
+    <AssemblyVersion>0.0.1.0</AssemblyVersion>
+    <FileVersion>0.0.1.0</FileVersion>
+
     <!-- Make version available to source generators / build-time code -->
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+
+    <!--
+      Build info for CI - these are overridden by CI workflow via MSBuild properties:
+      dotnet build -p:GitShortHash=abc1234 -p:PullRequestNumber=42 -p:BuildChannel=PR
+    -->
+    <GitShortHash></GitShortHash>
+    <PullRequestNumber></PullRequestNumber>
+    <BuildChannel>Dev</BuildChannel>
+
+    <!--
+      Include git hash in InformationalVersion for display
+      Results in: "0.0.150+abc1234" for CI builds
+    -->
+    <InformationalVersion Condition="'$(GitShortHash)' != ''">$(Version)+$(GitShortHash)</InformationalVersion>
   </PropertyGroup>
+
+  <!-- Embed build metadata in assembly for runtime access -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>GitShortHash</_Parameter1>
+      <_Parameter2>$(GitShortHash)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>PullRequestNumber</_Parameter1>
+      <_Parameter2>$(PullRequestNumber)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>BuildChannel</_Parameter1>
+      <_Parameter2>$(BuildChannel)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
 </Project>
