@@ -801,11 +801,22 @@ public class ManifestGenerationService(
                 }
             }
 
+            // For Steam installations, also add game.dat as an alternative executable
+            // This allows launching without Steam integration
+            var gameDatPath = Path.Combine(installationPath, GameClientConstants.SteamGameDatExecutable);
+            if (File.Exists(gameDatPath))
+            {
+                await builder.AddGameInstallationFileAsync(GameClientConstants.SteamGameDatExecutable, gameDatPath, isExecutable: false);
+                logger.LogDebug("Added game.dat to GameClient manifest (non-executable, for Steam-free launch)");
+            }
+
+            var gameDatExists = File.Exists(Path.Combine(installationPath, GameClientConstants.SteamGameDatExecutable));
             logger.LogInformation(
-                "Added GameClient files to manifest for {GameType}: executable + {DllCount} DLLs + {ConfigCount} configs",
+                "Added GameClient files to manifest for {GameType}: executable + {DllCount} DLLs + {ConfigCount} configs{GameDat}",
                 gameType,
                 requiredDlls.Count(dll => File.Exists(Path.Combine(executableDirectory ?? string.Empty, dll))),
-                configFiles.Count(cfg => File.Exists(Path.Combine(installationPath, cfg))));
+                configFiles.Count(cfg => File.Exists(Path.Combine(installationPath, cfg))),
+                gameDatExists ? " + game.dat" : string.Empty);
         }
         catch (Exception ex)
         {

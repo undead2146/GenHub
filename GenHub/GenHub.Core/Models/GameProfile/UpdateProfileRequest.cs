@@ -222,4 +222,7 @@ public class UpdateProfileRequest
 
     /// <summary>Gets or sets a value indicating whether to show player ranks (GO).</summary>
     public bool? GoShowPlayerRanks { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to launch using Steam integration (generals.exe) or standalone (game.dat).</summary>
+    public bool? UseSteamLaunch { get; set; }
 }

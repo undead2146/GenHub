@@ -59,7 +59,9 @@ public class StringToImageConverter : IValueConverter
         }
         catch
         {
-            return null;
+            // If manual loading fails, return the path string to let Avalonia's built-in
+            // type converter attempt to handle it (works for some valid URIs that AssetLoader might miss context for).
+            return path;
         }
     }
 

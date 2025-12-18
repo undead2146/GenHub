@@ -8,7 +8,9 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Results;
+using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.ViewModels;
+using GenHub.Features.Manifest;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -51,6 +53,8 @@ public class GameProfileLauncherViewModelTests
             configService.Object,
             gameProcessManager.Object,
             shortcutService.Object,
+            new Mock<ISteamManifestPatcher>().Object,
+            CreateProfileResourceService(),
             NullLogger<GameProfileLauncherViewModel>.Instance);
 
         Assert.NotNull(vm);
@@ -95,6 +99,8 @@ public class GameProfileLauncherViewModelTests
             configService.Object,
             gameProcessManager.Object,
             shortcutService.Object,
+            new Mock<ISteamManifestPatcher>().Object,
+            CreateProfileResourceService(),
             NullLogger<GameProfileLauncherViewModel>.Instance);
 
         await vm.InitializeAsync();
@@ -143,6 +149,8 @@ public class GameProfileLauncherViewModelTests
             configService.Object,
             gameProcessManager.Object,
             shortcutService.Object,
+            new Mock<ISteamManifestPatcher>().Object,
+            CreateProfileResourceService(),
             NullLogger<GameProfileLauncherViewModel>.Instance);
 
         await vm.ScanForGamesCommand.ExecuteAsync(null);
@@ -188,6 +196,8 @@ public class GameProfileLauncherViewModelTests
             configService.Object,
             gameProcessManager.Object,
             shortcutService.Object,
+            new Mock<ISteamManifestPatcher>().Object,
+            CreateProfileResourceService(),
             NullLogger<GameProfileLauncherViewModel>.Instance);
 
         await vm.ScanForGamesCommand.ExecuteAsync(null);
@@ -230,6 +240,8 @@ public class GameProfileLauncherViewModelTests
             configService.Object,
             gameProcessManager.Object,
             shortcutService.Object,
+            new Mock<ISteamManifestPatcher>().Object,
+            CreateProfileResourceService(),
             NullLogger<GameProfileLauncherViewModel>.Instance);
 
         await vm.ScanForGamesCommand.ExecuteAsync(null);
@@ -274,11 +286,18 @@ public class GameProfileLauncherViewModelTests
             configService.Object,
             gameProcessManager.Object,
             shortcutService.Object,
+            new Mock<ISteamManifestPatcher>().Object,
+            CreateProfileResourceService(),
             NullLogger<GameProfileLauncherViewModel>.Instance);
 
         await vm.ScanForGamesCommand.ExecuteAsync(null);
 
         // Service returns failure, so we should get a scan failed message
         Assert.Contains("Scan failed", vm.StatusMessage);
+    }
+
+    private static ProfileResourceService CreateProfileResourceService()
+    {
+        return new ProfileResourceService(NullLogger<ProfileResourceService>.Instance);
     }
 }

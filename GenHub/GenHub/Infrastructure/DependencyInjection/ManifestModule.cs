@@ -49,6 +49,8 @@ public static class ManifestModule
 
         services.AddScoped<IManifestGenerationService, ManifestGenerationService>();
 
+        services.AddScoped<ISteamManifestPatcher, SteamManifestPatcher>();
+
         services.AddTransient<IContentManifestBuilder, ContentManifestBuilder>();
 
         // Register factory function for creating transient manifest builders

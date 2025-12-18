@@ -15,7 +15,9 @@ using GenHub.Core.Models.Notifications;
 using GenHub.Features.AppUpdate.Interfaces;
 using GenHub.Features.Content.Services.ContentDiscoverers;
 using GenHub.Features.Downloads.ViewModels;
+using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.ViewModels;
+using GenHub.Features.Manifest;
 using GenHub.Features.Notifications.ViewModels;
 using GenHub.Features.Settings.ViewModels;
 using GenHub.Features.Tools.ViewModels;
@@ -64,6 +66,7 @@ public class MainViewModelTests
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
+            CreateProfileResourceService(),
             mockLogger.Object);
 
         // Assert
@@ -105,6 +108,7 @@ public class MainViewModelTests
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
+            CreateProfileResourceService(),
             mockLogger.Object);
         vm.SelectTabCommand.Execute(tab);
         Assert.Equal(tab, vm.SelectedTab);
@@ -141,6 +145,7 @@ public class MainViewModelTests
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
+            CreateProfileResourceService(),
             mockLogger.Object);
 
         // Act & Assert
@@ -181,6 +186,7 @@ public class MainViewModelTests
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
+            CreateProfileResourceService(),
             mockLogger.Object);
         await vm.InitializeAsync(); // Should not throw
         Assert.True(true);
@@ -220,6 +226,7 @@ public class MainViewModelTests
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
+            CreateProfileResourceService(),
             mockLogger.Object);
         vm.SelectTabCommand.Execute(tab);
         var currentViewModel = vm.CurrentTabViewModel;
@@ -322,6 +329,8 @@ public class MainViewModelTests
             configService.Object,
             gameProcessManager.Object,
             shortcutService.Object,
+            new Mock<ISteamManifestPatcher>().Object,
+            CreateProfileResourceService(),
             NullLogger<GameProfileLauncherViewModel>.Instance);
     }
 
@@ -332,5 +341,10 @@ public class MainViewModelTests
         mock.Setup(x => x.DismissRequests).Returns(Observable.Empty<Guid>());
         mock.Setup(x => x.DismissAllRequests).Returns(Observable.Empty<bool>());
         return mock;
+    }
+
+    private static ProfileResourceService CreateProfileResourceService()
+    {
+        return new ProfileResourceService(Mock.Of<ILogger<ProfileResourceService>>());
     }
 }
