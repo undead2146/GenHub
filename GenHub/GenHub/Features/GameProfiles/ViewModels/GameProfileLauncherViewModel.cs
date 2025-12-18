@@ -16,6 +16,7 @@ using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
+using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
 using GenHub.Features.GameProfiles.Views;
 using Microsoft.Extensions.Logging;
@@ -140,16 +141,16 @@ public partial class GameProfileLauncherViewModel(
     /// <returns>The relative icon path.</returns>
     private static string GetIconPathForGame(GameType gameType, GameInstallationType installationType)
     {
-        var gameIcon = gameType == GameType.Generals ? Core.Constants.UriConstants.GeneralsIconFilename : Core.Constants.UriConstants.ZeroHourIconFilename;
+        var gameIcon = gameType == GameType.Generals ? UriConstants.GeneralsIconFilename : UriConstants.ZeroHourIconFilename;
         var platformIcon = installationType switch
         {
-            GameInstallationType.Steam => Core.Constants.UriConstants.SteamIconFilename,
-            GameInstallationType.EaApp => Core.Constants.UriConstants.EaAppIconFilename,
-            _ => Core.Constants.UriConstants.GenHubIconFilename
+            GameInstallationType.Steam => UriConstants.SteamIconFilename,
+            GameInstallationType.EaApp => UriConstants.EaAppIconFilename,
+            _ => UriConstants.GenHubIconFilename,
         };
 
         // For now, return the game-specific icon - could be enhanced to combine with platform icon
-        return $"{Core.Constants.UriConstants.IconsBasePath}/{gameIcon}";
+        return $"{UriConstants.IconsBasePath}/{gameIcon}";
     }
 
     /// <summary>
@@ -594,6 +595,16 @@ public partial class GameProfileLauncherViewModel(
                 Profiles.Remove(profile);
                 StatusMessage = $"{profile.Name} deleted successfully";
                 logger?.LogInformation("Deleted profile {ProfileName}", profile.Name);
+
+                try
+                {
+                    CommunityToolkit.Mvvm.Messaging.WeakReferenceMessenger.Default.Send(
+                        new ProfileDeletedMessage(profile.ProfileId, profile.Name), 0);
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogError(ex, "Failed to send ProfileDeletedMessage");
+                }
             }
             else
             {

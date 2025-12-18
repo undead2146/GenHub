@@ -2,13 +2,18 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Content;
+using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Models.GameProfile;
 using GenHub.Features.Content.ViewModels;
 using Microsoft.Extensions.Logging;
 
@@ -17,11 +22,18 @@ namespace GenHub.Features.Downloads.ViewModels;
 /// <summary>
 /// ViewModel for a publisher card displaying content from a single publisher.
 /// </summary>
-public partial class PublisherCardViewModel : ObservableObject
+public partial class PublisherCardViewModel : ObservableObject, IRecipient<ProfileCreatedMessage>, IRecipient<ProfileDeletedMessage>, IDisposable
 {
     private readonly ILogger<PublisherCardViewModel> _logger;
     private readonly IContentOrchestrator _contentOrchestrator;
     private readonly IContentManifestPool _manifestPool;
+    private readonly IProfileContentService? _profileContentService;
+    private readonly IGameProfileManager? _profileManager;
+    private readonly INotificationService? _notificationService;
+    private readonly CancellationTokenSource _cts = new();
+    private readonly SemaphoreSlim _profileLock = new(1, 1);
+
+    private bool _disposed;
 
     [ObservableProperty]
     private string _publisherId = string.Empty;
@@ -72,19 +84,34 @@ public partial class PublisherCardViewModel : ObservableObject
     private ICommand? _primaryActionCommand;
 
     /// <summary>
+    /// Gets or sets the available profiles for the "Add to Profile" dropdown.
+    /// </summary>
+    [ObservableProperty]
+    private ObservableCollection<GameProfile> _availableProfiles = new();
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="PublisherCardViewModel"/> class.
     /// </summary>
     /// <param name="logger">The logger.</param>
     /// <param name="contentOrchestrator">The content orchestrator.</param>
-    /// <param name="manifestPool">The manifest pool for checking installed content.</param>
+    /// <param name="manifestPool">The manifest pool.</param>
+    /// <param name="profileContentService">The profile content service.</param>
+    /// <param name="profileManager">The profile manager.</param>
+    /// <param name="notificationService">The notification service.</param>
     public PublisherCardViewModel(
         ILogger<PublisherCardViewModel> logger,
         IContentOrchestrator contentOrchestrator,
-        IContentManifestPool manifestPool)
+        IContentManifestPool manifestPool,
+        IProfileContentService? profileContentService = null,
+        IGameProfileManager? profileManager = null,
+        INotificationService? notificationService = null)
     {
         _logger = logger;
         _contentOrchestrator = contentOrchestrator;
         _manifestPool = manifestPool;
+        _profileContentService = profileContentService;
+        _profileManager = profileManager;
+        _notificationService = notificationService;
 
         // Subscribe to collection changes to update HasContent and ContentSummary
         ContentTypes.CollectionChanged += (s, e) =>
@@ -92,6 +119,102 @@ public partial class PublisherCardViewModel : ObservableObject
             OnPropertyChanged(nameof(HasContent));
             OnPropertyChanged(nameof(ContentSummary));
         };
+
+        // Register for profile creation and deletion messages
+        WeakReferenceMessenger.Default.RegisterAll(this);
+    }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            _cts.Cancel();
+            _cts.Dispose();
+            _profileLock.Dispose();
+            WeakReferenceMessenger.Default.UnregisterAll(this);
+            _disposed = true;
+        }
+    }
+
+    /// <summary>
+    /// Refreshes the list of available profiles.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    public async Task RefreshAvailableProfilesAsync(CancellationToken cancellationToken = default)
+    {
+        if (_profileManager == null)
+        {
+            return;
+        }
+
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, cancellationToken);
+        var token = linkedCts.Token;
+
+        await _profileLock.WaitAsync(token);
+        try
+        {
+            var profilesResult = await _profileManager.GetAllProfilesAsync();
+            if (profilesResult.Success && profilesResult.Data != null)
+            {
+                AvailableProfiles.Clear();
+                foreach (var profile in profilesResult.Data)
+                {
+                    if (token.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
+                    AvailableProfiles.Add(profile);
+                }
+
+                _logger.LogDebug("Refreshed available profiles: {Count} profiles", AvailableProfiles.Count);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Ignore cancellation
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to refresh available profiles");
+        }
+        finally
+        {
+            _profileLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Receives profile creation messages and refreshes the available profiles dropdown.
+    /// </summary>
+    /// <param name="message">The profile created message.</param>
+    public void Receive(ProfileCreatedMessage message)
+    {
+        _logger.LogDebug("Profile created: {Name}", message.Profile.Name);
+        RefreshProfilesOnUiThread();
+    }
+
+    /// <summary>
+    /// Receives profile deletion messages and refreshes the available profiles dropdown.
+    /// </summary>
+    /// <param name="message">The profile deleted message.</param>
+    public void Receive(ProfileDeletedMessage message)
+    {
+        _logger.LogDebug("Profile deleted: {Name}", message.ProfileName);
+        RefreshProfilesOnUiThread();
+    }
+
+    /// <summary>
+    /// Called when IsExpanded changes - refresh profiles for the dropdown.
+    /// </summary>
+    partial void OnIsExpandedChanged(bool value)
+    {
+        if (value)
+        {
+            _ = RefreshAvailableProfilesAsync();
+        }
     }
 
     /// <summary>
@@ -161,15 +284,16 @@ public partial class PublisherCardViewModel : ObservableObject
             {
                 foreach (var item in group.Items)
                 {
-                    var wasInstalled = item.IsInstalled;
-                    item.IsInstalled = IsContentInstalledSimple(item, allManifests, PublisherId);
+                    var isDownloaded = IsContentInstalledSimple(item, allManifests, PublisherId);
+                    item.IsDownloaded = isDownloaded;
+                    item.IsInstalled = isDownloaded;
 
                     _logger.LogDebug(
-                        "Content item: {Name} v{Version} ({ContentType}) - Installed: {IsInstalled}",
+                        "Content item: {Name} v{Version} ({ContentType}) - Downloaded: {IsDownloaded}",
                         item.Name,
                         item.Version,
                         item.Model.ContentType,
-                        item.IsInstalled);
+                        item.IsDownloaded);
                 }
             }
         }
@@ -336,61 +460,67 @@ public partial class PublisherCardViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task InstallContentAsync(ContentItemViewModel item)
+    private async Task DownloadContentAsync(ContentItemViewModel item)
     {
-        if (item.IsInstalled)
+        if (item.IsDownloaded)
         {
-            _logger.LogDebug("Content {ItemName} is already installed", item.Name);
+            _logger.LogDebug("Content {ItemName} is already downloaded", item.Name);
             return;
         }
 
         if (item.Model == null)
         {
             _logger.LogError("Cannot install item {ItemName}: Model is null", item.Name);
-            item.InstallStatus = "Error: No source available";
+            item.DownloadStatus = "Error: No source available";
             return;
         }
 
         try
         {
-            _logger.LogInformation("Starting installation of {ItemName} v{Version}", item.Name, item.Version);
-            item.IsInstalling = true;
-            item.InstallStatus = "Starting download...";
-            item.InstallProgress = 0;
+            _logger.LogInformation("Starting download of {ItemName} v{Version}", item.Name, item.Version);
+            item.IsDownloading = true;
+            item.DownloadStatus = "Downloading...";
+            item.DownloadProgress = 0;
 
             var progress = new Progress<GenHub.Core.Models.Content.ContentAcquisitionProgress>(p =>
             {
-                item.InstallProgress = (int)p.ProgressPercentage;
-
-                // Format a user-friendly status message based on phase
-                item.InstallStatus = FormatProgressStatus(p);
+                item.DownloadProgress = (int)p.ProgressPercentage;
+                item.DownloadStatus = FormatProgressStatus(p);
             });
 
             var result = await _contentOrchestrator.AcquireContentAsync(item.Model, progress);
 
             if (result.Success)
             {
-                item.InstallStatus = "✓ Installation complete";
-                item.InstallProgress = 100;
-                item.IsInstalled = true;
+                item.DownloadStatus = "✓ Downloaded";
+                item.DownloadProgress = 100;
+                item.IsDownloaded = true;
 
-                _logger.LogInformation("Successfully installed {ItemName}", item.Name);
+                // Update the Model.Id with the resolved manifest ID
+                if (result.Data != null)
+                {
+                    item.Model.Id = result.Data.Id.Value;
+                    _logger.LogDebug("Updated Model.Id to resolved manifest ID: {ManifestId}", item.Model.Id);
+                }
+
+                _logger.LogInformation("Successfully downloaded {ItemName}", item.Name);
+                _notificationService?.ShowSuccess("Download Complete", $"Downloaded {item.Name}");
             }
             else
             {
                 var errorMsg = result.Errors != null ? string.Join(", ", result.Errors) : "Unknown error";
-                item.InstallStatus = $"✗ Failed: {errorMsg}";
-                _logger.LogError("Failed to install {ItemName}: {Error}", item.Name, errorMsg);
+                item.DownloadStatus = $"✗ Failed: {errorMsg}";
+                _logger.LogError("Failed to download {ItemName}: {Error}", item.Name, errorMsg);
             }
         }
         catch (Exception ex)
         {
-            item.InstallStatus = $"✗ Error: {ex.Message}";
-            _logger.LogError(ex, "Exception during installation of {ItemName}", item.Name);
+            item.DownloadStatus = $"✗ Error: {ex.Message}";
+            _logger.LogError(ex, "Exception during download of {ItemName}", item.Name);
         }
         finally
         {
-            item.IsInstalling = false;
+            item.IsDownloading = false;
         }
     }
 
@@ -421,6 +551,168 @@ public partial class PublisherCardViewModel : ObservableObject
             return;
         }
 
-        await InstallContentAsync(latestItem);
+        await DownloadContentAsync(latestItem);
+    }
+
+    [RelayCommand]
+    private async Task AddToProfileAsync(object? args)
+    {
+        if (args is not object[] parameters || parameters.Length != 2)
+        {
+            return;
+        }
+
+        if (parameters[0] is not ContentItemViewModel item || parameters[1] is not GameProfile profile)
+        {
+            return;
+        }
+
+        if (_profileContentService == null)
+        {
+            _logger.LogWarning("Cannot add to profile: ProfileContentService is null");
+            return;
+        }
+
+        if (item.IsDownloading)
+        {
+            return;
+        }
+
+        try
+        {
+            _logger.LogInformation("Adding {ItemName} to profile {ProfileName}", item.Name, profile.Name);
+            item.DownloadStatus = "Adding to profile...";
+
+            var result = await _profileContentService.AddContentToProfileAsync(
+                profile.Id,
+                item.Model.Id,
+                CancellationToken.None);
+
+            if (result.Success)
+            {
+                item.DownloadStatus = $"✓ Added to {profile.Name}";
+
+                if (result.WasContentSwapped)
+                {
+                    _notificationService?.ShowInfo(
+                        "Content Replaced",
+                        $"Replaced '{result.SwappedContentName}' with '{item.Name}' in profile '{profile.Name}'");
+
+                    _logger.LogInformation(
+                        "Content swap: replaced {OldContent} with {NewContent} in profile {ProfileName}",
+                        result.SwappedContentName,
+                        item.Name,
+                        profile.Name);
+                }
+                else
+                {
+                    _notificationService?.ShowSuccess(
+                        "Added to Profile",
+                        $"'{item.Name}' added to profile '{profile.Name}'");
+                }
+
+                await RefreshAvailableProfilesAsync();
+            }
+            else
+            {
+                item.DownloadStatus = $"✗ Failed: {result.FirstError}";
+                _notificationService?.ShowError(
+                    "Failed to Add to Profile",
+                    result.FirstError ?? "Unknown error occurred");
+                _logger.LogError("Failed to add content to profile: {Error}", result.FirstError);
+            }
+        }
+        catch (Exception ex)
+        {
+            item.DownloadStatus = $"✗ Error: {ex.Message}";
+            _notificationService?.ShowError(
+                "Error Adding to Profile",
+                $"An unexpected error occurred: {ex.Message}");
+            _logger.LogError(ex, "Exception adding content to profile");
+        }
+    }
+
+    [RelayCommand]
+    private async Task CreateProfileWithContentAsync(ContentItemViewModel item)
+    {
+        if (_profileContentService == null)
+        {
+            return;
+        }
+
+        if (item.IsDownloading)
+        {
+            return;
+        }
+
+        try
+        {
+            var baseName = $"{item.Name} Profile";
+            var profileName = baseName;
+            var counter = 1;
+
+            // Ensure unique name
+            while (AvailableProfiles.Any(p => p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase)))
+            {
+                profileName = $"{baseName} ({counter++})";
+            }
+
+            _logger.LogInformation("Creating new profile '{ProfileName}' with {ItemName}", profileName, item.Name);
+            item.DownloadStatus = "Creating profile...";
+
+            var result = await _profileContentService.CreateProfileWithContentAsync(
+                profileName,
+                item.Model.Id,
+                CancellationToken.None);
+
+            if (result.Success && result.Data != null)
+            {
+                item.DownloadStatus = $"✓ Profile created: {result.Data.Name}";
+
+                // Notify other components that a profile was created
+                try
+                {
+                    var message = new ProfileCreatedMessage(result.Data);
+                    WeakReferenceMessenger.Default.Send(message);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send ProfileCreatedMessage");
+                }
+
+                await RefreshAvailableProfilesAsync();
+            }
+            else
+            {
+                item.DownloadStatus = $"✗ Failed: {result.FirstError}";
+                _notificationService?.ShowError(
+                    "Failed to Create Profile",
+                    result.FirstError ?? "Unknown error occurred");
+                _logger.LogError("Failed to create profile: {Error}", result.FirstError);
+            }
+        }
+        catch (Exception ex)
+        {
+            item.DownloadStatus = $"✗ Error: {ex.Message}";
+            _notificationService?.ShowError(
+                "Error Creating Profile",
+                $"An unexpected error occurred: {ex.Message}");
+            _logger.LogError(ex, "Exception creating profile with content");
+        }
+    }
+
+    private void RefreshProfilesOnUiThread()
+    {
+        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            try
+            {
+                await RefreshAvailableProfilesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to refresh profiles dropdown");
+            }
+        });
     }
 }

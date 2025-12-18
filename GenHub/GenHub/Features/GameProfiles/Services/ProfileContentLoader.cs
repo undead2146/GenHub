@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameInstallations;
@@ -10,11 +15,6 @@ using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
 using Microsoft.Extensions.Logging;
-using System.Threading.Tasks;
-using System.Collections.ObjectModel;
-using System.Linq;
-using System;
-using System.Collections.Generic;
 
 namespace GenHub.Features.GameProfiles.Services;
 
@@ -150,7 +150,7 @@ public class ProfileContentLoader(
                 ContentType.GameClient =>
                     await LoadGameClientsWithEnabledStateAsync(enabledSet),
                 _ =>
-                    await LoadManifestContentAsync(contentType, enabledSet)
+                    await LoadManifestContentAsync(contentType, enabledSet),
             };
         }
         catch (Exception ex)
@@ -224,8 +224,30 @@ public class ProfileContentLoader(
         {
             _ when name.Contains("generalsonline") => 2,
             _ when name.Contains("superhacker") => 3,
-            _ => 1
+            _ => 1,
         };
+    }
+
+    private static ObservableCollection<ContentDisplayItem> CloneWithEnabledState(
+        ObservableCollection<ContentDisplayItem> items,
+        HashSet<string> enabledIds)
+    {
+        return new ObservableCollection<ContentDisplayItem>(
+            items.Select(item => new ContentDisplayItem
+            {
+                Id = item.Id,
+                ManifestId = item.ManifestId,
+                DisplayName = item.DisplayName,
+                Description = item.Description,
+                Version = item.Version,
+                ContentType = item.ContentType,
+                GameType = item.GameType,
+                InstallationType = item.InstallationType,
+                Publisher = item.Publisher,
+                SourceId = item.SourceId,
+                GameClientId = item.GameClientId,
+                IsEnabled = enabledIds.Contains(item.ManifestId),
+            }));
     }
 
     private (string ForManifestId, string ForDisplay) GetVersionStrings(string? detectedVersion)
@@ -348,28 +370,6 @@ public class ProfileContentLoader(
         }
     }
 
-    private static ObservableCollection<ContentDisplayItem> CloneWithEnabledState(
-        ObservableCollection<ContentDisplayItem> items,
-        HashSet<string> enabledIds)
-    {
-        return new ObservableCollection<ContentDisplayItem>(
-            items.Select(item => new ContentDisplayItem
-            {
-                Id = item.Id,
-                ManifestId = item.ManifestId,
-                DisplayName = item.DisplayName,
-                Description = item.Description,
-                Version = item.Version,
-                ContentType = item.ContentType,
-                GameType = item.GameType,
-                InstallationType = item.InstallationType,
-                Publisher = item.Publisher,
-                SourceId = item.SourceId,
-                GameClientId = item.GameClientId,
-                IsEnabled = enabledIds.Contains(item.ManifestId),
-            }));
-    }
-
     private async Task<ObservableCollection<ContentDisplayItem>> LoadGameClientsWithEnabledStateAsync(
         HashSet<string> enabledIds)
     {
@@ -459,7 +459,7 @@ public class ProfileContentLoader(
             ContentType.GameInstallation =>
                 CreateEnabledInstallationItem(manifest, profile, gameInstallation),
             _ =>
-                CreateManifestDisplayItem(manifest, isEnabled: true)
+                CreateManifestDisplayItem(manifest, isEnabled: true),
         };
     }
 
@@ -492,42 +492,13 @@ public class ProfileContentLoader(
             isEnabled: true);
     }
 
-    private async Task<(GameInstallation?, GameClient?)> FindGameClientInInstallationsAsync(
-        string manifestId,
-        GameInstallation? primaryInstallation)
-    {
-        // Check primary installation first
-        var client = primaryInstallation?.AvailableGameClients?
-            .FirstOrDefault(gc => gc.Id == manifestId);
-        if (client is not null) return (primaryInstallation, client);
-
-        // Search all installations
-        var allResult = await gameInstallationService.GetAllInstallationsAsync();
-        if (!allResult.Success || allResult.Data is null) return (null, null);
-
-        foreach (var installation in allResult.Data)
-        {
-            client = installation.AvailableGameClients?.FirstOrDefault(gc => gc.Id == manifestId);
-            if (client is not null)
-            {
-                logger.LogInformation(
-                    "Found GameClient {Id} in installation {InstallationId}",
-                    manifestId,
-                    installation.Id);
-                return (installation, client);
-            }
-        }
-
-        return (null, null);
-    }
-
     private ContentDisplayItem CreateEnabledInstallationItem(
         ContentManifest manifest,
         GameProfile profile,
         GameInstallation? gameInstallation)
     {
         var gameClient = gameInstallation?.AvailableGameClients?
-            .FirstOrDefault(gc => gc.Id == profile.GameClient?.Id);
+            .FirstOrDefault(gc => gc.Id == profile.GameClient.Id);
 
         if (gameInstallation is not null && gameClient is not null)
         {
@@ -551,6 +522,47 @@ public class ProfileContentLoader(
             };
         }
 
+        if (gameInstallation is not null)
+        {
+            var baseClient = GetBaseGameClient(gameInstallation, manifest.TargetGame);
+            if (baseClient is not null)
+            {
+                return CreateInstallationDisplayItem(gameInstallation, baseClient, manifest.TargetGame);
+            }
+        }
+
         return CreateManifestDisplayItem(manifest, isEnabled: true);
+    }
+
+    private async Task<(GameInstallation? Installation, GameClient? Client)> FindGameClientInInstallationsAsync(
+        string manifestId,
+        GameInstallation? primaryInstallation)
+    {
+        // Check primary installation first
+        var client = primaryInstallation?.AvailableGameClients?
+            .FirstOrDefault(c => c.Id == manifestId);
+
+        if (client is not null)
+        {
+            return (primaryInstallation, client);
+        }
+
+        // Check all other installations
+        var installationsResult = await gameInstallationService.GetAllInstallationsAsync();
+        if (installationsResult.Success && installationsResult.Data is not null)
+        {
+            foreach (var installation in installationsResult.Data)
+            {
+                if (installation.Id == primaryInstallation?.Id) continue;
+
+                client = installation.AvailableGameClients.FirstOrDefault(c => c.Id == manifestId);
+                if (client is not null)
+                {
+                    return (installation, client);
+                }
+            }
+        }
+
+        return (null, null);
     }
 }

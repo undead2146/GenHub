@@ -54,19 +54,38 @@ public partial class ContentItemViewModel(ContentSearchResult model) : Observabl
     private bool _isInstalled;
 
     /// <summary>
+    /// Gets or sets a value indicating whether this content is downloaded locally.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanAddToProfile))]
+    [NotifyPropertyChangedFor(nameof(CanDownload))]
+    private bool _isDownloaded;
+
+    /// <summary>
+    /// Gets a value indicating whether this content can be added to a profile (must be downloaded).
+    /// </summary>
+    public bool CanAddToProfile => IsDownloaded;
+
+    /// <summary>
     /// Gets a value indicating whether this content can be installed (not already installed).
     /// </summary>
-    public bool CanInstall => !IsInstalled && !IsInstalling;
+    public bool CanInstall => !IsInstalled && !IsDownloading;
+
+    /// <summary>
+    /// Gets a value indicating whether this content can be downloaded.
+    /// </summary>
+    public bool CanDownload => !IsDownloaded && !IsDownloading;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanInstall))]
-    private bool _isInstalling;
+    [NotifyPropertyChangedFor(nameof(CanDownload))]
+    private bool _isDownloading;
 
     [ObservableProperty]
-    private string _installStatus = string.Empty;
+    private string _downloadStatus = string.Empty;
 
     [ObservableProperty]
-    private int _installProgress;
+    private int _downloadProgress;
 
     /// <summary>
     /// Gets or sets a value indicating whether the changelog view is expanded.
