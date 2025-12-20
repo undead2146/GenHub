@@ -28,10 +28,11 @@ public interface IProfileContentLinker
     /// <summary>
     /// Switches user data content from one profile to another.
     /// Deactivates the old profile's content and activates the new profile's content.
+    /// The <paramref name="newManifests"/> collection represents the complete set of content that should be active for the new profile.
     /// </summary>
     /// <param name="oldProfileId">The profile being switched away from (null if first launch).</param>
     /// <param name="newProfileId">The profile being switched to.</param>
-    /// <param name="newManifests">The content manifests for the new profile.</param>
+    /// <param name="newManifests">The content manifests defining the desired state for the new profile.</param>
     /// <param name="targetGame">The target game type.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Success if switch completed.</returns>
@@ -43,9 +44,11 @@ public interface IProfileContentLinker
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Cleans up all user data when a profile is deleted.
+    /// Cleans up all user data (installed files, hard links) associated with a profile.
+    /// This should be called after the profile entity itself has been deleted.
+    /// This method does NOT delete the profile configuration/entity itself.
     /// </summary>
-    /// <param name="profileId">The profile being deleted.</param>
+    /// <param name="profileId">The ID of the deleted profile.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Success if cleanup completed.</returns>
     Task<OperationResult<bool>> CleanupDeletedProfileAsync(

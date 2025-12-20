@@ -93,7 +93,7 @@ public class UserDataTrackerService(
 
                 // Check for conflicts
                 var conflictResult = await CheckFileConflictAsync(targetPath, cancellationToken);
-                var wasOverwrite = false;
+                var wasOverwritten = false;
                 string? backupPath = null;
 
                 if (File.Exists(targetPath))
@@ -103,7 +103,7 @@ public class UserDataTrackerService(
                     {
                         // User's own file - back it up
                         backupPath = await BackupExistingFileAsync(targetPath, targetGame, cancellationToken);
-                        wasOverwrite = true;
+                        wasOverwritten = true;
                         logger.LogInformation("[UserData] Backed up existing user file: {Path} -> {Backup}", targetPath, backupPath);
                     }
                     else if (conflictResult.Data != userDataManifest.InstallationKey)
@@ -164,7 +164,7 @@ public class UserDataTrackerService(
                     SourceHash = file.Hash,
                     FileSize = file.Size,
                     InstallTarget = file.InstallTarget,
-                    WasOverwrite = wasOverwrite,
+                    WasOverwritten = wasOverwritten,
                     BackupPath = backupPath,
                     InstalledAt = DateTime.UtcNow,
                     IsHardLink = isHardLink,
@@ -226,7 +226,7 @@ public class UserDataTrackerService(
                     if (File.Exists(file.AbsolutePath))
                     {
                         // Verify we should delete this file (hash matches or is our hard link)
-                        if (file.IsHardLink || await VerifyFileHashAsync(file.AbsolutePath, file.SourceHash, cancellationToken))
+                        if (file.IsHardLink || await fileOperations.VerifyFileHashAsync(file.AbsolutePath, file.SourceHash, cancellationToken))
                         {
                             File.Delete(file.AbsolutePath);
                             logger.LogDebug("[UserData] Deleted file: {Path}", file.AbsolutePath);
@@ -267,6 +267,10 @@ public class UserDataTrackerService(
 
             logger.LogInformation("[UserData] Successfully uninstalled user data for manifest {ManifestId}", manifestId);
             return OperationResult<bool>.CreateSuccess(true);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -510,7 +514,7 @@ public class UserDataTrackerService(
                 if (!file.IsHardLink)
                 {
                     // Verify hash for copied files
-                    if (!await VerifyFileHashAsync(file.AbsolutePath, file.SourceHash, cancellationToken))
+                    if (!await fileOperations.VerifyFileHashAsync(file.AbsolutePath, file.SourceHash, cancellationToken))
                     {
                         logger.LogWarning("[UserData] File hash mismatch: {Path}", file.AbsolutePath);
                         allValid = false;
@@ -689,11 +693,6 @@ public class UserDataTrackerService(
             logger.LogWarning(ex, "[UserData] Failed to backup file: {Path}", filePath);
             return null;
         }
-    }
-
-    private async Task<bool> VerifyFileHashAsync(string filePath, string expectedHash, CancellationToken cancellationToken)
-    {
-        return await fileOperations.VerifyFileHashAsync(filePath, expectedHash, cancellationToken);
     }
 
     private string GetManifestFilePath(string installationKey)

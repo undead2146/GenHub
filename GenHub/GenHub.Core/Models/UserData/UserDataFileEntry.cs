@@ -40,7 +40,7 @@ public class UserDataFileEntry
     /// <summary>
     /// Gets or sets a value indicating whether this file overwrote an existing file.
     /// </summary>
-    public bool WasOverwrite { get; set; }
+    public bool WasOverwritten { get; set; }
 
     /// <summary>
     /// Gets or sets the backup path if an existing file was backed up.
