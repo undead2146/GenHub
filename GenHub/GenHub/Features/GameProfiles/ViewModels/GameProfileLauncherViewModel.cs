@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -72,7 +73,6 @@ public partial class GameProfileLauncherViewModel(
     {
         try
         {
-            // Subscribe to process exit events
             gameProcessManager.ProcessExited += OnProcessExited;
 
             StatusMessage = "Loading profiles...";
@@ -549,12 +549,6 @@ public partial class GameProfileLauncherViewModel(
     [RelayCommand]
     private async Task SaveProfiles()
     {
-        if (gameProfileManager == null)
-        {
-            StatusMessage = "Profile manager not available";
-            return;
-        }
-
         try
         {
             StatusMessage = "Saving profiles...";

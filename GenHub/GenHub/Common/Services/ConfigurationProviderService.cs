@@ -279,9 +279,38 @@ public class ConfigurationProviderService(
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Returns the current CAS configuration. If the path is not configured, a default path is applied
+    /// to a new configuration instance.
+    /// Note: Modifying the returned object will not update the persistent user settings.
+    /// To update settings, use <see cref="IUserSettingsService.TryUpdateAndSaveAsync"/>.
+    /// </remarks>
     public CasConfiguration GetCasConfiguration()
     {
         var settings = _userSettings.Get();
-        return settings.CasConfiguration;
+        var casConfig = settings.CasConfiguration;
+
+        // If CasRootPath is empty, apply the default path
+        if (string.IsNullOrWhiteSpace(casConfig.CasRootPath))
+        {
+            var defaultPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                AppConstants.AppName,
+                DirectoryNames.CasPool);
+
+            return new CasConfiguration
+            {
+                CasRootPath = defaultPath,
+                EnableAutomaticGc = casConfig.EnableAutomaticGc,
+                HashAlgorithm = casConfig.HashAlgorithm,
+                GcGracePeriod = casConfig.GcGracePeriod,
+                MaxCacheSizeBytes = casConfig.MaxCacheSizeBytes,
+                AutoGcInterval = casConfig.AutoGcInterval,
+                MaxConcurrentOperations = casConfig.MaxConcurrentOperations,
+                VerifyIntegrity = casConfig.VerifyIntegrity,
+            };
+        }
+
+        return casConfig;
     }
 }

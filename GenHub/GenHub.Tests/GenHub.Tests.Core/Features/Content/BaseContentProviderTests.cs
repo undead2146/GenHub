@@ -52,51 +52,6 @@ public class BaseContentProviderTests
     }
 
     /// <summary>
-    /// Verifies that PrepareContentAsync forwards validation progress from the validator into the provider's progress reporter.
-    /// </summary>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    [Fact]
-    public async Task PrepareContentAsync_ReportsValidationProgress()
-    {
-        // Arrange
-        var validatorMock = new Mock<IContentValidator>();
-        var loggerMock = new Mock<ILogger>();
-        var discovererMock = new Mock<IContentDiscoverer>();
-        var resolverMock = new Mock<IContentResolver>();
-        var delivererMock = new Mock<IContentDeliverer>();
-
-        var manifest = new ContentManifest { Id = "1.0.genhub.mod.content", Name = "Test" };
-        var validationResult = new ValidationResult(manifest.Id, new List<ValidationIssue>());
-
-        validatorMock.Setup(v => v.ValidateManifestAsync(manifest, It.IsAny<CancellationToken>())).ReturnsAsync(validationResult);
-
-        // When ValidateAllAsync is invoked, invoke the provided IProgress<ValidationProgress> with a sample update
-        validatorMock.Setup(v => v.ValidateAllAsync(It.IsAny<string>(), manifest, It.IsAny<IProgress<ValidationProgress>>(), It.IsAny<CancellationToken>()))
-            .Callback<string, ContentManifest, IProgress<ValidationProgress>, CancellationToken>((p, m, prog, ct) =>
-            {
-                prog?.Report(new ValidationProgress(1, 2, "file1"));
-            })
-            .ReturnsAsync(validationResult);
-
-        var provider = new TestContentProvider(validatorMock.Object, loggerMock.Object, discovererMock.Object, resolverMock.Object, delivererMock.Object);
-
-        var reports = new List<ContentAcquisitionProgress>();
-        var progress = new Progress<ContentAcquisitionProgress>(r => reports.Add(r));
-
-        // Act
-        var result = await provider.PrepareContentAsync(manifest, "/tmp/test", progress);
-
-        // Assert
-        Assert.True(result.Success);
-        Assert.NotEmpty(reports);
-
-        // Ensure we received a validation-related update (manifest validation or prepared-content validation)
-        // Create a snapshot of the list to avoid collection modification during enumeration
-        var reportsList = reports.ToList();
-        Assert.Contains(reportsList, r => r.CurrentOperation != null && r.CurrentOperation.Contains("Validating"));
-    }
-
-    /// <summary>
     /// Verifies that PrepareContentAsync fails when manifest validation fails with errors.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>

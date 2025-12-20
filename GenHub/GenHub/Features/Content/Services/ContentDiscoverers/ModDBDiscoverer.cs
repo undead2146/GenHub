@@ -240,7 +240,7 @@ public class ModDBDiscoverer(HttpClient httpClient, ILogger<ModDBDiscoverer> log
         // Filter out non-content links if we grabbed something generic
         if (!href.Contains("/mods/") && !href.Contains("/downloads/") && !href.Contains("/addons/"))
         {
-             return null;
+            return null;
         }
 
         // Make absolute URL
