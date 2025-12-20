@@ -22,11 +22,17 @@ public class ProfileSelectionConverter : IMultiValueConverter
     /// <inheritdoc/>
     public object? Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
     {
-        if (values.Count >= 2 &&
-            values[0] is ContentItemViewModel contentItem &&
-            values[1] is GameProfile profile)
+        if (values.Count >= 2 && values[1] is GameProfile profile)
         {
-            return new object[] { contentItem, profile };
+            // Support both ContentItemViewModel and ContentManifest
+            if (values[0] is ContentItemViewModel contentItem)
+            {
+                return new object[] { contentItem, profile };
+            }
+            else if (values[0] is Core.Models.Manifest.ContentManifest manifest)
+            {
+                return new object[] { manifest, profile };
+            }
         }
 
         return null;

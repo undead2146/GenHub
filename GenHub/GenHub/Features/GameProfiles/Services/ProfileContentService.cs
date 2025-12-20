@@ -67,7 +67,7 @@ public sealed class ProfileContentService(
 
             if (manifestResult.Failed || manifestResult.Data == null)
             {
-                var error = manifestResult.FirstError ?? "Manifest not found";
+                var error = manifestResult.FirstError ?? "Failed to retrieve manifest";
                 logger.LogWarning("Failed to get manifest {ManifestId}: {Error}", manifestId, error);
                 return AddToProfileResult.CreateFailure(error, sw.Elapsed);
             }
@@ -79,7 +79,7 @@ public sealed class ProfileContentService(
             var conflictInfo = await CheckContentConflictsAsync(profileId, manifestId, cancellationToken);
 
             // Build new enabled content list
-            var enabledContentIds = new List<string>(profile.EnabledContentIds ?? new List<string>());
+            var enabledContentIds = new List<string>(profile.EnabledContentIds ?? []);
             string? swappedContentId = null;
             string? swappedContentName = null;
             ContentType swappedContentType = ContentType.UnknownContentType;
@@ -112,6 +112,12 @@ public sealed class ProfileContentService(
             {
                 var resolvedIds = await dependencyResolver.ResolveDependenciesAsync(enabledContentIds, cancellationToken);
                 enabledContentIds = resolvedIds.ToList();
+
+                // Ensure the target manifest is included (may have been added by resolution)
+                if (!enabledContentIds.Contains(manifestId, StringComparer.OrdinalIgnoreCase))
+                {
+                    enabledContentIds.Add(manifestId);
+                }
             }
             catch (Exception ex)
             {
@@ -221,7 +227,7 @@ public sealed class ProfileContentService(
             }
 
             // Check for existing content of the same exclusive type
-            foreach (var existingId in profile.EnabledContentIds ?? new List<string>())
+            foreach (var existingId in profile.EnabledContentIds ?? [])
             {
                 try
                 {
@@ -282,7 +288,7 @@ public sealed class ProfileContentService(
 
             if (manifestResult.Failed || manifestResult.Data == null)
             {
-                var error = manifestResult.FirstError ?? "Manifest not found";
+                var error = manifestResult.FirstError ?? "Failed to retrieve manifest";
                 return ProfileOperationResult<GameProfile>.CreateFailure(error);
             }
 
@@ -294,6 +300,12 @@ public sealed class ProfileContentService(
             {
                 var resolvedIds = await dependencyResolver.ResolveDependenciesAsync(enabledContentIds, cancellationToken);
                 enabledContentIds = resolvedIds.ToList();
+
+                // Ensure the target manifest is included (may have been added by resolution)
+                if (!enabledContentIds.Contains(manifestId, StringComparer.OrdinalIgnoreCase))
+                {
+                    enabledContentIds.Add(manifestId);
+                }
             }
             catch (Exception ex)
             {
@@ -318,7 +330,12 @@ public sealed class ProfileContentService(
 
             // Prefer a game client matching the target game type
             var gameClient = installation.AvailableGameClients.FirstOrDefault(c => c.GameType == manifest.TargetGame)
-                ?? installation.AvailableGameClients.First();
+                ?? installation.AvailableGameClients.FirstOrDefault();
+
+            if (gameClient == null)
+            {
+                return ProfileOperationResult<GameProfile>.CreateFailure($"No suitable game client found for installation '{installation.InstallationType}'.");
+            }
 
             // Create the profile request
             var createRequest = new CreateProfileRequest
