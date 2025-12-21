@@ -13,6 +13,7 @@ using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Features.Content.ViewModels;
 using Microsoft.Extensions.Logging;
@@ -499,8 +500,11 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
             }
 
             // If publisher matches AND (names match OR versions match), it's a variant
-            // This handles cases where discoverer provides release tag as name but manifest has display name
-            if (nameMatch || versionMatch)
+            // RESTRICTION: strict version matching without name matching is ONLY allowed for GameClient content.
+            // This prevents "Addon A v1.0" being identified as a variant of "Addon B v1.0".
+            var isGameClient = item.Model.ContentType == ContentType.GameClient;
+
+            if (nameMatch || (versionMatch && isGameClient))
             {
                 variants.Add(manifest);
             }
