@@ -348,8 +348,8 @@ public partial class GitHubTopicsDiscoverer(
             return true;
 
         // Check 2: Multiple archives with resolution variants
-        var archiveAssets = contentAssets
-            .Where(a => IsArchiveAsset(a.Name))
+        var archiveAssets = release.Assets
+            .Where(a => !IsSourceCodeAsset(a.Name) && IsArchiveAsset(a.Name))
             .ToList();
 
         if (archiveAssets.Count > 1 && HasVariantPattern(archiveAssets))

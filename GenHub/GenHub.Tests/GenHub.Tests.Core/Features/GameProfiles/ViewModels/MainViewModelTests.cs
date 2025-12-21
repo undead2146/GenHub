@@ -5,9 +5,9 @@ using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.GitHub;
-using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Shortcuts;
+using GenHub.Core.Interfaces.Steam;
 using GenHub.Core.Interfaces.Tools;
 using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
@@ -17,7 +17,6 @@ using GenHub.Features.Content.Services.ContentDiscoverers;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.ViewModels;
-using GenHub.Features.Manifest;
 using GenHub.Features.Notifications.ViewModels;
 using GenHub.Features.Settings.ViewModels;
 using GenHub.Features.Tools.ViewModels;
@@ -341,5 +340,10 @@ public class MainViewModelTests
         mock.Setup(x => x.DismissRequests).Returns(Observable.Empty<Guid>());
         mock.Setup(x => x.DismissAllRequests).Returns(Observable.Empty<bool>());
         return mock;
+    }
+
+    private static ProfileResourceService CreateProfileResourceService()
+    {
+        return new ProfileResourceService(NullLogger<ProfileResourceService>.Instance);
     }
 }
