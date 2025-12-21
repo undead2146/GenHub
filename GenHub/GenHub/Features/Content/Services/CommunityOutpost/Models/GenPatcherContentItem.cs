@@ -20,5 +20,5 @@ public class GenPatcherContentItem
     /// <summary>
     /// Gets or sets the list of available download mirrors.
     /// </summary>
-    public List<GenPatcherMirror> Mirrors { get; set; } = new();
+    public List<GenPatcherMirror> Mirrors { get; set; } = [];
 }

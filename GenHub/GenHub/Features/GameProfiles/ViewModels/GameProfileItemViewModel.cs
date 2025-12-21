@@ -512,7 +512,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
 
             // Parse content type from suffix in segment[3]
             var gameTypeSegment = segments[3];
-            if (gameTypeSegment.Contains("-"))
+            if (gameTypeSegment.Contains('-'))
             {
                 var parts = gameTypeSegment.Split('-');
                 ContentType = parts[1] switch

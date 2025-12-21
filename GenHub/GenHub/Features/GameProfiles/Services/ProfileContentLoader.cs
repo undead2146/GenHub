@@ -46,7 +46,7 @@ public class ProfileContentLoader(
 
             foreach (var installation in installationsResult.Data)
             {
-                if (!installation.AvailableGameClients.Any())
+                if (installation.AvailableGameClients.Count == 0)
                 {
                     logger.LogDebug(
                         "Skipping installation {InstallationId} - no available game clients",
@@ -78,7 +78,7 @@ public class ProfileContentLoader(
             logger.LogInformation(
                 "Loaded {Count} game installation options from {InstallationCount} installations",
                 result.Count,
-                installationsResult.Data.Count());
+                installationsResult.Data.Count);
         }
         catch (Exception ex)
         {

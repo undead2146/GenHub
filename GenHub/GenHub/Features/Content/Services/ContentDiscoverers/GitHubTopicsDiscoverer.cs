@@ -26,6 +26,9 @@ public partial class GitHubTopicsDiscoverer(
     ILogger<GitHubTopicsDiscoverer> logger,
     IMemoryCache cache) : IContentDiscoverer
 {
+    [System.Text.RegularExpressions.GeneratedRegex(@"[^\d]")]
+    private static partial System.Text.RegularExpressions.Regex NonDigitRegex();
+
     /// <summary>Maximum number of tags to include in search result.</summary>
     private const int MaxTagsToInclude = 10;
 
@@ -336,17 +339,9 @@ public partial class GitHubTopicsDiscoverer(
         if (release.Assets == null || release.Assets.Count <= 1)
             return false;
 
-        // Filter out source code and other non-content assets
-        var contentAssets = release.Assets
-            .Where(a => !IsSourceCodeAsset(a.Name))
-            .ToList();
-
-        if (contentAssets.Count <= 1)
-            return false;
-
-        // Check 1: Multiple standalone game files (.big, .csf, etc.)
-        var standaloneExtensions = new[] { ".big", ".csf", ".ini", ".w3d", ".dds", ".tga" };
-        var standaloneCount = contentAssets.Count(a =>
+        // Count standalone files (non-archive extensions)
+        string[] standaloneExtensions = [".big", ".csf", ".ini", ".w3d", ".dds", ".tga"];
+        var standaloneCount = release.Assets.Count(a =>
             standaloneExtensions.Any(ext => a.Name.EndsWith(ext, StringComparison.OrdinalIgnoreCase)));
 
         if (standaloneCount > 1)
@@ -435,7 +430,7 @@ public partial class GitHubTopicsDiscoverer(
             return 0;
 
         // Extract all digits and concatenate
-        var digits = VariantPatterns.NonDigitPattern().Replace(tag, string.Empty);
+        var digits = NonDigitRegex().Replace(tag, string.Empty);
 
         if (string.IsNullOrEmpty(digits))
             return 0;
@@ -575,14 +570,16 @@ public partial class GitHubTopicsDiscoverer(
         var (contentType, isTypeInferred) = InferContentTypeFromTopics(repo.Topics);
         if (isTypeInferred)
         {
-            (contentType, _) = GitHubInferenceHelper.InferContentType(repo.Name, release.Name);
+            var nameInference = GitHubInferenceHelper.InferContentType(repo.Name, release.Name);
+            contentType = nameInference.Type;
         }
 
         // Infer game type
         var (gameType, isGameInferred) = InferGameTypeFromTopics(repo.Topics);
         if (isGameInferred)
         {
-            (gameType, _) = GitHubInferenceHelper.InferTargetGame(repo.Name, release.Name);
+            var nameInference = GitHubInferenceHelper.InferTargetGame(repo.Name, release.Name);
+            gameType = nameInference.Type;
         }
 
         // Extract asset variant name (e.g., "English" from "0_ImprovedMenusEnglish.big")
@@ -665,14 +662,16 @@ public partial class GitHubTopicsDiscoverer(
         var (contentType, isTypeInferred) = InferContentTypeFromTopics(repo.Topics);
         if (isTypeInferred)
         {
-            (contentType, _) = GitHubInferenceHelper.InferContentType(repo.Name, latestRelease?.Name);
+            var nameInference = GitHubInferenceHelper.InferContentType(repo.Name, latestRelease?.Name);
+            contentType = nameInference.Type;
         }
 
         // Infer game type
         var (gameType, isGameInferred) = InferGameTypeFromTopics(repo.Topics);
         if (isGameInferred)
         {
-            (gameType, _) = GitHubInferenceHelper.InferTargetGame(repo.Name, latestRelease?.Name);
+            var nameInference = GitHubInferenceHelper.InferTargetGame(repo.Name, latestRelease?.Name);
+            gameType = nameInference.Type;
         }
 
         // Generate manifest ID

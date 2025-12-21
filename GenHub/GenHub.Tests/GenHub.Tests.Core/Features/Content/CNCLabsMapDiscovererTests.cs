@@ -1,9 +1,8 @@
 ﻿using System.Net;
 using GenHub.Core.Constants;
-using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Features.Content.Services.ContentDiscoverers;
-using GenHub.Tests.Core.Extensions;
+using GenHub.Tests.Core.Infrastructure;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -228,26 +227,17 @@ public class CNCLabsMapDiscovererTests
     /// An <see cref="HttpMessageHandler"/> that delegates sending to a provided function.
     /// Useful for crafting deterministic HTTP responses in tests.
     /// </summary>
-    private sealed class DelegateHandler : HttpMessageHandler
+    private sealed class DelegateHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> impl) : HttpMessageHandler
     {
-        private readonly Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> _impl;
+        private readonly Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> _impl = impl;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DelegateHandler"/> class from a synchronous responder.
         /// </summary>
-        /// <param name="impl">The synchronous delegate that returns an <see cref="HttpResponseMessage"/>.</param>
-        public DelegateHandler(Func<HttpRequestMessage, HttpResponseMessage> impl)
-            : this((r, _) => Task.FromResult(impl(r)))
+        /// <param name="implSync">The synchronous delegate that returns an <see cref="HttpResponseMessage"/>.</param>
+        public DelegateHandler(Func<HttpRequestMessage, HttpResponseMessage> implSync)
+            : this((r, _) => Task.FromResult(implSync(r)))
         {
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="DelegateHandler"/> class.
-        /// </summary>
-        /// <param name="impl">The asynchronous delegate that returns an <see cref="HttpResponseMessage"/>.</param>
-        public DelegateHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> impl)
-        {
-            _impl = impl;
         }
 
         /// <inheritdoc />
@@ -259,18 +249,9 @@ public class CNCLabsMapDiscovererTests
     /// An <see cref="HttpMessageHandler"/> that always throws the provided exception.
     /// Useful for simulating transport-layer failures.
     /// </summary>
-    private sealed class ThrowingHandler : HttpMessageHandler
+    private sealed class ThrowingHandler(Exception ex) : HttpMessageHandler
     {
-        private readonly Exception _ex;
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="ThrowingHandler"/> class.
-        /// </summary>
-        /// <param name="ex">The exception to throw when a request is sent.</param>
-        public ThrowingHandler(Exception ex)
-        {
-            _ex = ex;
-        }
+        private readonly Exception _ex = ex;
 
         /// <inheritdoc />
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

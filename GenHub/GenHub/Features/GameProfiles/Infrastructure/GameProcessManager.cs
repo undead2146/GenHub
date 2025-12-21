@@ -104,7 +104,7 @@ public class GameProcessManager(
                 foreach (var arg in configuration.Arguments)
                 {
                     // If the key starts with - or --, treat it as a flag/option
-                    if (arg.Key.StartsWith("-"))
+                    if (arg.Key.StartsWith('-'))
                     {
                         argList.Add(arg.Key);
                         if (!string.IsNullOrEmpty(arg.Value))
@@ -338,10 +338,8 @@ public class GameProcessManager(
         {
             _logger.LogInformation("[Terminate] Starting termination of process {ProcessId}", processId);
 
-            Process? process = null;
-
             // Try to get from managed processes first
-            if (!_managedProcesses.TryRemove(processId, out process))
+            if (!_managedProcesses.TryRemove(processId, out Process? process))
             {
                 _logger.LogDebug("[Terminate] Process {ProcessId} not in managed processes, trying system lookup", processId);
 
@@ -432,9 +430,7 @@ public class GameProcessManager(
     {
         try
         {
-            Process? process = null;
-
-            if (_managedProcesses.TryGetValue(processId, out process))
+            if (_managedProcesses.TryGetValue(processId, out Process? process))
             {
                 if (process.HasExited)
                 {
@@ -601,10 +597,12 @@ public class GameProcessManager(
         _terminationSemaphore.Dispose();
         _disposed = true;
 
+        GC.SuppressFinalize(this);
+
         _logger.LogInformation("GameProcessManager disposed");
     }
 
-    private string GetProcessExecutablePath(Process process)
+    private static string GetProcessExecutablePath(Process process)
     {
         try
         {

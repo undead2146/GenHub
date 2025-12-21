@@ -155,7 +155,6 @@ public class GeneralsOnlineUpdateService : ContentUpdateServiceBase
         }
 
         // Compare date first
-        // Compare date first
         if (latest.Value.Date > current.Value.Date)
         {
             return true;

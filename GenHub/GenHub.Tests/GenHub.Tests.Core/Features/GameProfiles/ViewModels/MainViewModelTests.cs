@@ -27,7 +27,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
-namespace GenHub.Tests.Core.ViewModels;
+namespace GenHub.Tests.Core.Features.GameProfiles.ViewModels;
 
 /// <summary>
 /// Contains unit tests for the <see cref="MainViewModel"/> class.
@@ -341,10 +341,5 @@ public class MainViewModelTests
         mock.Setup(x => x.DismissRequests).Returns(Observable.Empty<Guid>());
         mock.Setup(x => x.DismissAllRequests).Returns(Observable.Empty<bool>());
         return mock;
-    }
-
-    private static ProfileResourceService CreateProfileResourceService()
-    {
-        return new ProfileResourceService(Mock.Of<ILogger<ProfileResourceService>>());
     }
 }

@@ -45,7 +45,7 @@ public class GameTypeDisplayConverter : IValueConverter
     /// <param name="value">The value to convert back.</param>
     /// <param name="targetType">The target type for the conversion.</param>
     /// <param name="parameter">An optional parameter for the conversion.</param>
-    /// <param name="culture">The culture to use for the converter.</param>
+    /// <param name="culture">The culture to use for the conversion.</param>
     /// <returns>This method does not return a value; it always throws <see cref="NotSupportedException"/>.</returns>
     /// <exception cref="NotSupportedException">Always thrown as this converter only supports one-way conversion.</exception>
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

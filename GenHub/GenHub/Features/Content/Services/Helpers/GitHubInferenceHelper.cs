@@ -51,12 +51,12 @@ public static class GitHubInferenceHelper
         var searchText = $"{repo} {releaseName ?? string.Empty}";
 
         if (searchText.Contains("zero hour", StringComparison.OrdinalIgnoreCase) || searchText.Contains("zh", StringComparison.OrdinalIgnoreCase))
-            return (GameType.ZeroHour, true);
+            return (Type: GameType.ZeroHour, IsInferred: true);
 
         if (searchText.Contains("generals", StringComparison.OrdinalIgnoreCase) && !searchText.Contains("zero hour", StringComparison.OrdinalIgnoreCase))
-            return (GameType.Generals, true);
+            return (Type: GameType.Generals, IsInferred: true);
 
-        return (GameType.ZeroHour, true);
+        return (Type: GameType.ZeroHour, IsInferred: true);
     }
 
     /// <summary>
@@ -66,7 +66,7 @@ public static class GitHubInferenceHelper
     /// <returns>A list of inferred tags.</returns>
     public static List<string> InferTagsFromRelease(GitHubRelease release)
     {
-        var tags = new List<string>();
+        List<string> tags = [];
         var text = $"{release.Name} {release.Body}";
 
         if (text.Contains("patch", StringComparison.OrdinalIgnoreCase))
@@ -104,7 +104,7 @@ public static class GitHubInferenceHelper
             tags.Add("Draft");
         }
 
-        return tags.Distinct().ToList();
+        return [.. tags.Distinct()];
     }
 
     /// <summary>
@@ -165,7 +165,7 @@ public static class GitHubInferenceHelper
     public static bool IsMultiGameRelease(IEnumerable<GitHubReleaseAsset> assets)
     {
         var assetNames = assets.Select(a => a.Name).ToList();
-        var detectedGames = new HashSet<GameType>();
+        HashSet<GameType> detectedGames = [];
 
         foreach (var assetName in assetNames)
         {

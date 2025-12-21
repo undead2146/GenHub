@@ -14,7 +14,7 @@ using GenHub.Core.Models.Results;
 using GenHub.Features.Content.Services.Helpers;
 using Microsoft.Extensions.Logging;
 
-namespace GenHub.Features.Content.Services.ContentDiscoverers;
+namespace GenHub.Features.Content.Services.GitHub;
 
 /// <summary>
 /// Discovers content from GitHub releases in configured repositories.
@@ -72,7 +72,7 @@ public class GitHubDiscoverer : IContentDiscoverer
     public async Task<OperationResult<IEnumerable<ContentSearchResult>>> DiscoverAsync(
         ContentSearchQuery query, CancellationToken cancellationToken = default)
     {
-        var discoveredItems = new List<ContentSearchResult>();
+        List<ContentSearchResult> discoveredItems = [];
 
         foreach (var (owner, repo) in _repositories)
         {
@@ -129,7 +129,7 @@ public class GitHubDiscoverer : IContentDiscoverer
         return OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(discoveredItems);
     }
 
-    private bool MatchesQuery(ContentSearchResult result, ContentSearchQuery query)
+    private static bool MatchesQuery(ContentSearchResult result, ContentSearchQuery query)
     {
         if (!string.IsNullOrWhiteSpace(query.SearchTerm) &&
             !result.Name.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase))

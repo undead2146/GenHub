@@ -84,7 +84,7 @@ public static partial class CNCLabsHelper
                   .Append(query.NumberOfPlayers.Value.ToString(CultureInfo.InvariantCulture));
             }
 
-            if (query.Tags != null && query.Tags.Any())
+            if (query.Tags != null && query.Tags.Count > 0)
             {
                 sb.Append('&')
                   .Append(CNCLabsConstants.TagsQueryParam)
@@ -184,7 +184,7 @@ public static partial class CNCLabsHelper
     /// <returns>
     /// A tuple of (<see cref="GameType"/>, <see cref="ContentType"/>).
     /// </returns>
-    public static (GameType Game, ContentType Type) ExtractBreadcrumbCategory(IDocument document)
+    public static (GameType GameType, ContentType ContentType) ExtractBreadcrumbCategory(IDocument document)
     {
         var header = document.QuerySelector(CNCLabsConstants.BreadcrumbHeaderSelector);
         if (header == null) return (GameType.Unknown, ContentType.UnknownContentType);

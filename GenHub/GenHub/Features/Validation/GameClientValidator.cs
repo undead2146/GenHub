@@ -89,7 +89,7 @@ public class GameClientValidator(
         return new ValidationResult(gameClient.Id, issues);
     }
 
-    private async Task<List<ValidationIssue>> ValidateGameClientSpecificAsync(GameClient gameClient, ContentManifest manifest, CancellationToken cancellationToken)
+    private static async Task<List<ValidationIssue>> ValidateGameClientSpecificAsync(GameClient gameClient, ContentManifest manifest, CancellationToken cancellationToken)
     {
         var issues = new List<ValidationIssue>();
 

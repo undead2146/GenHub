@@ -1,6 +1,4 @@
-using System.Threading.Tasks;
-
-namespace GenHub.Features.Manifest;
+namespace GenHub.Core.Interfaces.Steam;
 
 /// <summary>
 /// Interface for patching Steam game manifests to toggle between Steam integration and standalone launch.
