@@ -272,6 +272,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
         ContentType.GameClient,
         ContentType.Mod,
         ContentType.MapPack,
+        ContentType.Addon,
         ContentType.Patch,
     ];
 
@@ -334,11 +335,8 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             }
 
             // Initialize game settings with defaults for new profile
-            if (GameSettingsViewModel != null)
-            {
-                GameSettingsViewModel.ColorValue = ColorValue;
-                await GameSettingsViewModel.InitializeForProfileAsync(null, null);
-            }
+            GameSettingsViewModel.ColorValue = ColorValue;
+            await GameSettingsViewModel.InitializeForProfileAsync(null, null);
 
             StatusMessage = $"Found {AvailableGameInstallations.Count} installations and {AvailableContent.Count} content items";
             logger?.LogInformation(
@@ -374,13 +372,8 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             _currentProfileId = profileId;
             logger?.LogInformation("InitializeForProfileAsync called with profileId: {ProfileId}", profileId);
 
-            if (gameProfileManager == null)
-            {
-                throw new InvalidOperationException("GameProfileManager service is not available.");
-            }
-
             // Load the existing profile
-            var profileResult = await gameProfileManager.GetProfileAsync(profileId);
+            var profileResult = await gameProfileManager!.GetProfileAsync(profileId);
             if (!profileResult.Success || profileResult.Data == null)
             {
                 logger?.LogWarning("Failed to load profile {ProfileId}: {Errors}", profileId, string.Join(", ", profileResult.Errors));
@@ -408,14 +401,11 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             LoadAvailableIconsAndCovers(profile.GameClient.GameType.ToString());
 
             // Load game settings for this profile
-            if (GameSettingsViewModel != null)
-            {
-                GameSettingsViewModel.ColorValue = ColorValue;
-                await GameSettingsViewModel.InitializeForProfileAsync(profileId, profile);
-            }
+            GameSettingsViewModel.ColorValue = ColorValue;
+            await GameSettingsViewModel.InitializeForProfileAsync(profileId, profile);
 
             // If the profile has no custom game settings, save the defaults from Options.ini
-            if (GameSettingsViewModel != null && !profile.HasCustomSettings())
+            if (!profile.HasCustomSettings())
             {
                 logger?.LogInformation("Profile {ProfileId} has no custom settings, saving defaults from Options.ini", profileId);
                 var gameSettings = GameSettingsViewModel.GetProfileSettings();
@@ -532,7 +522,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     /// </summary>
     private WorkspaceStrategy GetDefaultWorkspaceStrategy()
     {
-        return configurationProvider?.GetDefaultWorkspaceStrategy() ?? WorkspaceStrategy.SymlinkOnly;
+        return configurationProvider!.GetDefaultWorkspaceStrategy();
     }
 
     /// <summary>
@@ -543,13 +533,6 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     {
         try
         {
-            if (profileContentLoader == null)
-            {
-                StatusMessage = "Profile content loader service not available";
-                logger?.LogWarning("Profile content loader service not available");
-                return;
-            }
-
             _isLoadingContent = true;
             StatusMessage = "Loading content...";
             AvailableContent.Clear();
@@ -577,7 +560,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                 });
             }
 
-            var coreItems = await profileContentLoader.LoadAvailableContentAsync(
+            var coreItems = await profileContentLoader!.LoadAvailableContentAsync(
                 SelectedContentType,
                 new ObservableCollection<Core.Models.Content.ContentDisplayItem>(coreAvailableInstallations),
                 enabledContentIds);
@@ -620,13 +603,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
         {
             AvailableGameInstallations.Clear();
 
-            if (profileContentLoader == null)
-            {
-                logger?.LogWarning("Profile content loader service not available");
-                return;
-            }
-
-            var coreItems = await profileContentLoader.LoadAvailableGameInstallationsAsync();
+            var coreItems = await profileContentLoader!.LoadAvailableGameInstallationsAsync();
 
             // Convert Core.ContentDisplayItem to ViewModel items
             foreach (var coreItem in coreItems)
@@ -662,13 +639,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
         {
             EnabledContent.Clear();
 
-            if (profileContentLoader == null)
-            {
-                logger?.LogWarning("Profile content loader service not available");
-                return;
-            }
-
-            var coreItems = await profileContentLoader.LoadEnabledContentForProfileAsync(profile);
+            var coreItems = await profileContentLoader!.LoadEnabledContentForProfileAsync(profile);
 
             // Convert Core items to ViewModel items
             foreach (var coreItem in coreItems)
