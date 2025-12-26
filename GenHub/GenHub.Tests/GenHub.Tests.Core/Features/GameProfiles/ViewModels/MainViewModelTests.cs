@@ -11,6 +11,7 @@ using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Tools;
 using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Notifications;
 using GenHub.Features.AppUpdate.Interfaces;
 using GenHub.Features.Content.Services.ContentDiscoverers;
@@ -25,7 +26,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
-namespace GenHub.Tests.Core.ViewModels;
+namespace GenHub.Tests.Core.Features.GameProfiles.ViewModels;
 
 /// <summary>
 /// Contains unit tests for the <see cref="MainViewModel"/> class.
@@ -255,7 +256,7 @@ public class MainViewModelTests
     /// <summary>
     /// Creates a default SettingsViewModel with mocked services for reuse.
     /// </summary>
-    private static (SettingsViewModel settingsVm, Mock<IUserSettingsService> userSettingsMock) CreateSettingsVm()
+    private static (SettingsViewModel SettingsVm, Mock<IUserSettingsService> UserSettingsMock) CreateSettingsVm()
     {
         var mockUserSettings = new Mock<IUserSettingsService>();
         mockUserSettings.Setup(x => x.Get()).Returns(new UserSettings());
@@ -306,12 +307,15 @@ public class MainViewModelTests
             new Mock<IConfigurationProviderService>().Object,
             new Mock<IProfileContentLoader>().Object,
             null,
+            null, // INotificationService
+            null, // IContentManifestPool
             NullLogger<GameProfileSettingsViewModel>.Instance,
             NullLogger<GameSettingsViewModel>.Instance);
         var profileEditorFacade = new Mock<IProfileEditorFacade>();
         var configService = new Mock<IConfigurationProviderService>();
         var gameProcessManager = new Mock<IGameProcessManager>();
         var shortcutService = new Mock<IShortcutService>();
+        var notificationServiceForLauncher = new Mock<INotificationService>();
 
         return new GameProfileLauncherViewModel(
             installationService.Object,
@@ -322,6 +326,7 @@ public class MainViewModelTests
             configService.Object,
             gameProcessManager.Object,
             shortcutService.Object,
+            notificationServiceForLauncher.Object,
             NullLogger<GameProfileLauncherViewModel>.Instance);
     }
 

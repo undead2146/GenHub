@@ -7,6 +7,7 @@ using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GitHub;
+using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Results;
 using GenHub.Features.Content.Services.Helpers;
@@ -76,9 +77,9 @@ public class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILogger<Git
                                 Description = release.Body ?? "GitHub release - full details available after resolution",
                                 Version = release.TagName,
                                 AuthorName = release.Author,
-                                ContentType = inferredContentType.type,
-                                TargetGame = inferredGame.type,
-                                IsInferred = inferredContentType.isInferred || inferredGame.isInferred,
+                                ContentType = inferredContentType.Type,
+                                TargetGame = inferredGame.Type,
+                                IsInferred = inferredContentType.IsInferred || inferredGame.IsInferred,
                                 ProviderName = SourceName,
                                 RequiresResolution = true,
                                 ResolverId = ContentSourceNames.GitHubResolverId,

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GitHub;
+using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GitHub;
 using GenHub.Core.Models.Manifest;
@@ -21,11 +22,14 @@ namespace GenHub.Features.Content.Services.ContentDiscoverers;
 /// This enables community-contributed content to be discovered automatically
 /// when users tag their repositories with topics like "genhub" or "generalsonline".
 /// </summary>
-public class GitHubTopicsDiscoverer(
+public partial class GitHubTopicsDiscoverer(
     IGitHubApiClient gitHubApiClient,
     ILogger<GitHubTopicsDiscoverer> logger,
     IMemoryCache cache) : IContentDiscoverer
 {
+    [System.Text.RegularExpressions.GeneratedRegex(@"[^\d]")]
+    private static partial System.Text.RegularExpressions.Regex NonDigitRegex();
+
     /// <summary>Maximum number of tags to include in search result.</summary>
     private const int MaxTagsToInclude = 10;
 
@@ -103,6 +107,12 @@ public class GitHubTopicsDiscoverer(
                         continue;
                     }
 
+                    if (repo.Name.Equals(AppConstants.GitHubRepositoryName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        logger.LogDebug("Skipping system repository: {Repo}", repo.FullName);
+                        continue;
+                    }
+
                     // Try to get latest release for version info
                     GitHubRelease? latestRelease = null;
                     try
@@ -157,10 +167,13 @@ public class GitHubTopicsDiscoverer(
         }
     }
 
+    [System.Text.RegularExpressions.GeneratedRegex(@"(\d{3,4}x\d{3,4})")]
+    private static partial System.Text.RegularExpressions.Regex MyRegex();
+
     /// <summary>
     /// Infers ContentType from repository topics.
     /// </summary>
-    private static (ContentType type, bool isInferred) InferContentTypeFromTopics(List<string> topics)
+    private static (ContentType Type, bool IsInferred) InferContentTypeFromTopics(List<string> topics)
     {
         // Check for explicit type topics
         if (topics.Contains(GitHubTopicsConstants.GameClientTopic, StringComparer.OrdinalIgnoreCase))
@@ -212,7 +225,7 @@ public class GitHubTopicsDiscoverer(
     /// <summary>
     /// Infers GameType from repository topics.
     /// </summary>
-    private static (GameType type, bool isInferred) InferGameTypeFromTopics(List<string> topics)
+    private static (GameType Type, bool IsInferred) InferGameTypeFromTopics(List<string> topics)
     {
         // Check for game-specific topics
         if (topics.Contains(GitHubTopicsConstants.ZeroHourModTopic, StringComparer.OrdinalIgnoreCase))
@@ -287,7 +300,7 @@ public class GitHubTopicsDiscoverer(
             return false;
 
         // Count standalone files (non-archive extensions)
-        var standaloneExtensions = new[] { ".big", ".csf", ".ini", ".w3d", ".dds", ".tga" };
+        string[] standaloneExtensions = [".big", ".csf", ".ini", ".w3d", ".dds", ".tga", ".zip"];
         var standaloneCount = release.Assets.Count(a =>
             standaloneExtensions.Any(ext => a.Name.EndsWith(ext, StringComparison.OrdinalIgnoreCase)));
 
@@ -305,14 +318,14 @@ public class GitHubTopicsDiscoverer(
             return 0;
 
         // Extract all digits and concatenate
-        var digits = System.Text.RegularExpressions.Regex.Replace(tag, @"[^\d]", string.Empty);
+        var digits = NonDigitRegex().Replace(tag, string.Empty);
 
         if (string.IsNullOrEmpty(digits))
             return 0;
 
         // Take first 9 digits to avoid overflow
         if (digits.Length > 9)
-            digits = digits.Substring(0, 9);
+            digits = digits[..9];
 
         return int.TryParse(digits, out var version) ? version : 0;
     }
@@ -337,6 +350,13 @@ public class GitHubTopicsDiscoverer(
             { "japanese", "Japanese" },
             { "korean", "Korean" },
         };
+
+        // Check if filename contains a resolution (e.g., 1920x1080)
+        var resolutionMatch = MyRegex().Match(nameWithoutExt);
+        if (resolutionMatch.Success)
+        {
+            return resolutionMatch.Value;
+        }
 
         // Check if filename contains a language keyword
         foreach (var (pattern, displayName) in languagePatterns)
@@ -417,7 +437,7 @@ public class GitHubTopicsDiscoverer(
         if (isTypeInferred)
         {
             var nameInference = GitHubInferenceHelper.InferContentType(repo.Name, release.Name);
-            contentType = nameInference.type;
+            contentType = nameInference.Type;
         }
 
         // Infer game type
@@ -425,7 +445,7 @@ public class GitHubTopicsDiscoverer(
         if (isGameInferred)
         {
             var nameInference = GitHubInferenceHelper.InferTargetGame(repo.Name, release.Name);
-            gameType = nameInference.type;
+            gameType = nameInference.Type;
         }
 
         // Extract asset variant name (e.g., "English" from "0_ImprovedMenusEnglish.big")
@@ -509,7 +529,7 @@ public class GitHubTopicsDiscoverer(
         if (isTypeInferred)
         {
             var nameInference = GitHubInferenceHelper.InferContentType(repo.Name, latestRelease?.Name);
-            contentType = nameInference.type;
+            contentType = nameInference.Type;
         }
 
         // Infer game type
@@ -517,7 +537,7 @@ public class GitHubTopicsDiscoverer(
         if (isGameInferred)
         {
             var nameInference = GitHubInferenceHelper.InferTargetGame(repo.Name, latestRelease?.Name);
-            gameType = nameInference.type;
+            gameType = nameInference.Type;
         }
 
         // Generate manifest ID
