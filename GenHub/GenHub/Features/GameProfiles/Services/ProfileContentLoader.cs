@@ -46,7 +46,7 @@ public class ProfileContentLoader(
 
             foreach (var installation in installationsResult.Data)
             {
-                if (!installation.AvailableGameClients.Any())
+                if (installation.AvailableGameClients.Count == 0)
                 {
                     logger.LogDebug(
                         "Skipping installation {InstallationId} - no available game clients",
@@ -78,7 +78,7 @@ public class ProfileContentLoader(
             logger.LogInformation(
                 "Loaded {Count} game installation options from {InstallationCount} installations",
                 result.Count,
-                installationsResult.Data.Count());
+                installationsResult.Data.Count);
         }
         catch (Exception ex)
         {
@@ -492,6 +492,35 @@ public class ProfileContentLoader(
             isEnabled: true);
     }
 
+    private async Task<(GameInstallation? Installation, GameClient? Client)> FindGameClientInInstallationsAsync(
+        string manifestId,
+        GameInstallation? primaryInstallation)
+    {
+        // Check primary installation first
+        var client = primaryInstallation?.AvailableGameClients?
+            .FirstOrDefault(gc => gc.Id == manifestId);
+        if (client is not null) return (primaryInstallation, client);
+
+        // Search all installations
+        var allResult = await gameInstallationService.GetAllInstallationsAsync();
+        if (!allResult.Success || allResult.Data is null) return (null, null);
+
+        foreach (var installation in allResult.Data)
+        {
+            client = installation.AvailableGameClients?.FirstOrDefault(gc => gc.Id == manifestId);
+            if (client is not null)
+            {
+                logger.LogInformation(
+                    "Found GameClient {Id} in installation {InstallationId}",
+                    manifestId,
+                    installation.Id);
+                return (installation, client);
+            }
+        }
+
+        return (null, null);
+    }
+
     private ContentDisplayItem CreateEnabledInstallationItem(
         ContentManifest manifest,
         GameProfile profile,
@@ -532,37 +561,5 @@ public class ProfileContentLoader(
         }
 
         return CreateManifestDisplayItem(manifest, isEnabled: true);
-    }
-
-    private async Task<(GameInstallation? Installation, GameClient? Client)> FindGameClientInInstallationsAsync(
-        string manifestId,
-        GameInstallation? primaryInstallation)
-    {
-        // Check primary installation first
-        var client = primaryInstallation?.AvailableGameClients?
-            .FirstOrDefault(c => c.Id == manifestId);
-
-        if (client is not null)
-        {
-            return (primaryInstallation, client);
-        }
-
-        // Check all other installations
-        var installationsResult = await gameInstallationService.GetAllInstallationsAsync();
-        if (installationsResult.Success && installationsResult.Data is not null)
-        {
-            foreach (var installation in installationsResult.Data)
-            {
-                if (installation.Id == primaryInstallation?.Id) continue;
-
-                client = installation.AvailableGameClients.FirstOrDefault(c => c.Id == manifestId);
-                if (client is not null)
-                {
-                    return (installation, client);
-                }
-            }
-        }
-
-        return (null, null);
     }
 }

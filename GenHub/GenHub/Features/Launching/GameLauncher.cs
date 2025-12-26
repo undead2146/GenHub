@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -40,10 +41,11 @@ public class GameLauncher(
     ILaunchRegistry launchRegistry,
     IGameInstallationService gameInstallationService,
     ICasService casService,
-    IConfigurationProviderService configurationProvider,
+    IStorageLocationService storageLocationService,
     IGameSettingsService gameSettingsService) : IGameLauncher
 {
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _profileLaunchLocks = new();
+    private static readonly SearchValues<char> InvalidArgChars = SearchValues.Create(";|&\n\r`$%");
 
     /// <inheritdoc/>
     public async Task<IDisposable> AcquireProfileLockAsync(string profileId, CancellationToken cancellationToken = default)
@@ -107,7 +109,8 @@ public class GameLauncher(
                         return LaunchResult.CreateFailure("Failed to start process", null);
                     var launchDuration = DateTime.UtcNow - startTime;
                     return LaunchResult.CreateSuccess(process.Id, process.StartTime, launchDuration);
-                }, cancellationToken);
+                },
+                cancellationToken);
         }
         catch (System.Exception ex)
         {
@@ -154,7 +157,8 @@ public class GameLauncher(
                         CommandLine = commandLine,
                         IsResponding = process.Responding,
                     };
-                }, cancellationToken);
+                },
+                cancellationToken);
         }
         catch (System.Exception ex)
         {
@@ -211,10 +215,10 @@ public class GameLauncher(
         var profileResult = await profileManager.GetProfileAsync(profileId, cancellationToken);
         if (!profileResult.Success)
         {
-            return LaunchOperationResult<GameLaunchInfo>.CreateFailure(profileResult.FirstError!, profileId: profileId);
+            return LaunchOperationResult<GameLaunchInfo>.CreateFailure(profileResult.FirstError ?? "Unknown error accessing profile", profileId: profileId);
         }
 
-        var profile = profileResult.Data!;
+        var profile = profileResult.Data;
         return await LaunchProfileAsync(profile, progress, cancellationToken);
     }
 
@@ -277,7 +281,7 @@ public class GameLauncher(
             await launchRegistry.RegisterLaunchAsync(placeholderLaunchInfo);
             logger.LogDebug("Registered placeholder launch {LaunchId} for profile {ProfileId} to prevent deletion during launch", launchId, profile.Id);
 
-            return await LaunchProfileAsync(profile, progress, cancellationToken, launchId);
+            return await LaunchProfileAsync(profile, progress, launchId, cancellationToken);
         }
         finally
         {
@@ -297,10 +301,10 @@ public class GameLauncher(
             var result = await processManager.GetActiveProcessesAsync(cancellationToken);
             if (!result.Success)
             {
-                return LaunchOperationResult<IReadOnlyList<GameProcessInfo>>.CreateFailure(result.FirstError!);
+                return LaunchOperationResult<IReadOnlyList<GameProcessInfo>>.CreateFailure(result.FirstError ?? "Unknown error retrieving processes");
             }
 
-            return LaunchOperationResult<IReadOnlyList<GameProcessInfo>>.CreateSuccess(result.Data!);
+            return LaunchOperationResult<IReadOnlyList<GameProcessInfo>>.CreateSuccess(result.Data);
         }
         catch (Exception ex)
         {
@@ -363,7 +367,7 @@ public class GameLauncher(
             var result = await processManager.TerminateProcessAsync(launchInfo.ProcessInfo.ProcessId, cancellationToken);
             if (!result.Success)
             {
-                return LaunchOperationResult<GameLaunchInfo>.CreateFailure(result.FirstError!, launchId, launchInfo.ProfileId);
+                return LaunchOperationResult<GameLaunchInfo>.CreateFailure(result.FirstError ?? "Unknown error truncating process", launchId, launchInfo.ProfileId);
             }
 
             // Update launch info with termination time
@@ -394,13 +398,11 @@ public class GameLauncher(
         if (arg.Length > 1024)
             return false;
 
-        // Block command separators and shell metacharacters
-        // This includes: ; | & && || ` $ % newlines, carriage returns
-        if (arg.IndexOfAny(new[] { ';', '|', '&', '\n', '\r', '`', '$', '%' }) >= 0)
+        if (arg.AsSpan().ContainsAny(InvalidArgChars))
             return false;
 
         // Block path traversal attempts
-        if (arg.Contains("..") || arg.Contains("~"))
+        if (arg.Contains("..") || arg.Contains('~'))
             return false;
 
         // Block suspicious patterns commonly used in injection attacks
@@ -414,8 +416,8 @@ public class GameLauncher(
             return false;
 
         // Block quoted strings (can be used to bypass validation)
-        if ((arg.StartsWith("\"") && arg.EndsWith("\"")) ||
-            (arg.StartsWith("'") && arg.EndsWith("'")))
+        if ((arg.StartsWith('"') && arg.EndsWith('"')) ||
+            (arg.StartsWith('\'') && arg.EndsWith('\'')))
             return false;
 
         // Block absolute paths unless they're explicitly whitelisted for game executables
@@ -429,15 +431,15 @@ public class GameLauncher(
                 return false;
 
             // Validate path doesn't try to escape common directories
-            if (arg.Contains("..") || arg.ToLowerInvariant().Contains("windows\\system") ||
-                arg.ToLowerInvariant().Contains("windows\\system32"))
+            if (arg.Contains("..") || arg.Contains("windows\\system", StringComparison.OrdinalIgnoreCase) ||
+                arg.Contains("windows\\system32", StringComparison.OrdinalIgnoreCase))
                 return false;
         }
 
         return true;
     }
 
-    private async Task<LaunchOperationResult<GameLaunchInfo>> LaunchProfileAsync(GameProfile profile, IProgress<LaunchProgress>? progress, CancellationToken cancellationToken, string launchId)
+    private async Task<LaunchOperationResult<GameLaunchInfo>> LaunchProfileAsync(GameProfile profile, IProgress<LaunchProgress>? progress, string launchId, CancellationToken cancellationToken)
     {
         try
         {
@@ -477,11 +479,23 @@ public class GameLauncher(
             }
 
             logger.LogInformation("[GameLauncher] Resolved {Count} manifests successfully", manifests.Count);
+            foreach (var manifest in manifests)
+            {
+                logger.LogDebug(
+                    "[GameLauncher] Manifest details - ID: {Id}, Name: {Name}, Type: {Type}, Files: {FileCount}",
+                    manifest.Id.Value,
+                    manifest.Name,
+                    manifest.ContentType,
+                    manifest.Files?.Count ?? 0);
+            }
 
-            // CRITICAL: Apply profile-specific game settings to Options.ini BEFORE workspace preparation
-            // This prevents race conditions where the game might start reading Options.ini before we write it
+            logger.LogDebug(
+                "[GameLauncher] Profile GameClient - Name: {Name}, WorkingDir: {WorkingDir}",
+                profile.GameClient?.Name ?? "null",
+                profile.GameClient?.WorkingDirectory ?? "null");
+
             logger.LogDebug("[GameLauncher] Applying profile settings to Options.ini before workspace preparation");
-            await ApplyProfileSettingsToIniOptionsAsync(profile, cancellationToken);
+            await ApplyProfileSettingsToIniOptionsAsync(profile);
 
             // Prepare workspace
             progress?.Report(new LaunchProgress { Phase = LaunchPhase.PreparingWorkspace, PercentComplete = 20 });
@@ -502,13 +516,13 @@ public class GameLauncher(
             foreach (var manifest in manifests)
             {
                 // Skip GameInstallation manifests - they use BaseInstallationPath
-                if (manifest.ContentType == Core.Models.Enums.ContentType.GameInstallation)
+                if (manifest.ContentType == ContentType.GameInstallation)
                 {
                     continue;
                 }
 
                 // For GameClient, use WorkingDirectory if available
-                if (manifest.ContentType == Core.Models.Enums.ContentType.GameClient &&
+                if (manifest.ContentType == ContentType.GameClient &&
                     !string.IsNullOrEmpty(profile.GameClient?.WorkingDirectory))
                 {
                     manifestSourcePaths[manifest.Id.Value] = profile.GameClient.WorkingDirectory;
@@ -536,40 +550,62 @@ public class GameLauncher(
                 }
             }
 
+            // Resolve the installation
+            var installationResult = await gameInstallationService.GetInstallationAsync(profile.GameInstallationId, cancellationToken);
+            if (!installationResult.Success || installationResult.Data == null)
+            {
+                logger.LogError("[GameLauncher] Failed to resolve game installation for profile {ProfileId}", profile.Id);
+                return LaunchOperationResult<GameLaunchInfo>.CreateFailure("Failed to resolve game installation.", launchId, profile.Id);
+            }
+
+            var installation = installationResult.Data;
+
+            var gameClient = profile.GameClient;
+            if (gameClient == null)
+            {
+                logger.LogError("[GameLauncher] GameClient is not set for profile {ProfileId}", profile.Id);
+                return LaunchOperationResult<GameLaunchInfo>.CreateFailure("GameClient not configured for profile.", launchId, profile.Id);
+            }
+
+            var actualInstallationPath = gameClient.GameType == GameType.Generals
+                ? installation.GeneralsPath ?? string.Empty
+                : installation.ZeroHourPath ?? string.Empty;
+
+            if (string.IsNullOrEmpty(actualInstallationPath))
+            {
+                logger.LogError("[GameLauncher] Installation path is not set for {GameType}", gameClient.GameType);
+                return LaunchOperationResult<GameLaunchInfo>.CreateFailure("Installation path not found.", launchId, profile.Id);
+            }
+
+            // Use dynamic workspace path based on the installation location
+            var dynamicWorkspacePath = storageLocationService.GetWorkspacePath(installation);
+            logger.LogDebug("[GameLauncher] Using dynamic workspace path: {WorkspacePath} (Installation: {InstallPath})", dynamicWorkspacePath, actualInstallationPath);
+
             logger.LogDebug("[GameLauncher] Creating workspace configuration - Strategy: {Strategy}", profile.WorkspaceStrategy);
             var workspaceConfig = new WorkspaceConfiguration
             {
                 Id = profile.Id,
                 Manifests = manifests,
-                GameClient = profile.GameClient!,
+                GameClient = gameClient,
                 Strategy = profile.WorkspaceStrategy,
-                WorkspaceRootPath = configurationProvider.GetWorkspacePath(),
+                WorkspaceRootPath = dynamicWorkspacePath,
+                BaseInstallationPath = actualInstallationPath,
                 ManifestSourcePaths = manifestSourcePaths,
             };
 
-            // Resolve the base installation path from the installation ID
-            logger.LogDebug("[GameLauncher] Resolving installation path for ID: {InstallationId}", profile.GameInstallationId);
-            var installationResult = await gameInstallationService.GetInstallationAsync(profile.GameInstallationId, cancellationToken);
-            if (!installationResult.Success || installationResult.Data == null)
-            {
-                logger.LogError("[GameLauncher] Failed to resolve installation: {Error}", installationResult.FirstError);
-                return LaunchOperationResult<GameLaunchInfo>.CreateFailure($"Failed to resolve game installation '{profile.GameInstallationId}': {installationResult.FirstError}", launchId, profile.Id);
-            }
-
-            var installation = (GameInstallation)installationResult.Data!;
-            workspaceConfig.BaseInstallationPath = installation.InstallationPath;
-            logger.LogDebug("[GameLauncher] Installation path set: {Path}", workspaceConfig.BaseInstallationPath);
+            logger.LogDebug("[GameLauncher] BaseInstallationPath set to: {Path}", workspaceConfig.BaseInstallationPath);
 
             // Note: Removed fallback manifest generation - the profile should explicitly include
             // all required manifests in EnabledContentIds. This prevents conflicts between cached
             // manifests and newly generated ones with different version numbers.
             logger.LogInformation("[GameLauncher] Preparing workspace at: {WorkspacePath}", workspaceConfig.WorkspaceRootPath);
-            var workspaceProgress = new Progress<WorkspacePreparationProgress>(wp =>
-            {
-                // Convert workspace progress to launch progress
-                var percentComplete = 20 + (int)(wp.FilesProcessed / (double)Math.Max(1, wp.TotalFiles) * 60); // 20-80%
-                progress?.Report(new LaunchProgress { Phase = LaunchPhase.PreparingWorkspace, PercentComplete = Math.Min(percentComplete, 80) });
-            });
+            var workspaceProgress = new Progress<WorkspacePreparationProgress>(
+                wp =>
+                {
+                    // Convert workspace progress to launch progress
+                    var percentComplete = 20 + (int)(wp.FilesProcessed / (double)Math.Max(1, wp.TotalFiles) * 60); // 20-80%
+                    progress?.Report(new LaunchProgress { Phase = LaunchPhase.PreparingWorkspace, PercentComplete = Math.Min(percentComplete, 80) });
+                });
 
             var workspaceResult = await workspaceManager.PrepareWorkspaceAsync(workspaceConfig, workspaceProgress, cancellationToken);
             if (!workspaceResult.Success || workspaceResult.Data == null)
@@ -578,7 +614,7 @@ public class GameLauncher(
                 return LaunchOperationResult<GameLaunchInfo>.CreateFailure(workspaceResult.FirstError ?? "Workspace preparation failed", launchId, profile.Id);
             }
 
-            var workspaceInfo = workspaceResult.Data!;
+            var workspaceInfo = workspaceResult.Data;
             logger.LogInformation("[GameLauncher] Workspace prepared successfully: {WorkspaceId}", workspaceInfo.Id);
 
             // Start the process
@@ -652,7 +688,7 @@ public class GameLauncher(
                 foreach (var arg in args)
                 {
                     // Arguments starting with - are flags
-                    if (arg.StartsWith("-"))
+                    if (arg.StartsWith('-'))
                     {
                         arguments[arg] = string.Empty; // Flags don't have values
                     }
@@ -746,12 +782,18 @@ public class GameLauncher(
     /// This ensures the game launches with the settings configured for this specific profile.
     /// </summary>
     /// <param name="profile">The game profile containing the settings to apply.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    private async Task ApplyProfileSettingsToIniOptionsAsync(GameProfile profile, CancellationToken cancellationToken)
+    private async Task ApplyProfileSettingsToIniOptionsAsync(GameProfile profile)
     {
         try
         {
+            // Add null check for GameClient to resolve CS8602 warnings
+            if (profile.GameClient == null)
+            {
+                logger.LogWarning("Profile {ProfileId} has no GameClient configured, skipping Options.ini write", profile.Id);
+                return;
+            }
+
             // Determine the game type from the profile's game client
             var gameType = profile.GameClient.GameType;
             if (gameType == GameType.Unknown)
@@ -810,7 +852,7 @@ public class GameLauncher(
         {
             if (manifest.Files != null)
             {
-                foreach (var file in manifest.Files.Where(f => f.SourceType == Core.Models.Enums.ContentSourceType.ContentAddressable && !string.IsNullOrEmpty(f.Hash)))
+                foreach (var file in manifest.Files.Where(f => f.SourceType == ContentSourceType.ContentAddressable && !string.IsNullOrEmpty(f.Hash)))
                 {
                     var existsResult = await casService.ExistsAsync(file.Hash, cancellationToken);
                     if (!existsResult.Success || !existsResult.Data)
@@ -821,7 +863,7 @@ public class GameLauncher(
             }
         }
 
-        if (missingHashes.Any())
+        if (missingHashes.Count > 0)
         {
             return OperationResult<bool>.CreateFailure($"Missing CAS objects: {string.Join(", ", missingHashes.Distinct())}");
         }

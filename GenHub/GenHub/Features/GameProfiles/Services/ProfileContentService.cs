@@ -79,7 +79,7 @@ public sealed class ProfileContentService(
             var conflictInfo = await CheckContentConflictsAsync(profileId, manifestId, cancellationToken);
 
             // Build new enabled content list
-            var enabledContentIds = new List<string>(profile.EnabledContentIds ?? []);
+            List<string> enabledContentIds = [.. profile.EnabledContentIds ?? []];
             string? swappedContentId = null;
             string? swappedContentName = null;
             ContentType swappedContentType = ContentType.UnknownContentType;
@@ -111,7 +111,7 @@ public sealed class ProfileContentService(
             try
             {
                 var resolvedIds = await dependencyResolver.ResolveDependenciesAsync(enabledContentIds, cancellationToken);
-                enabledContentIds = resolvedIds.ToList();
+                enabledContentIds = [.. resolvedIds];
 
                 // Ensure the target manifest is included (may have been added by resolution)
                 if (!enabledContentIds.Contains(manifestId, StringComparer.OrdinalIgnoreCase))
@@ -295,11 +295,11 @@ public sealed class ProfileContentService(
             var manifest = manifestResult.Data;
 
             // Build enabled content IDs with dependency resolution
-            var enabledContentIds = new List<string> { manifestId };
+            List<string> enabledContentIds = [manifestId];
             try
             {
                 var resolvedIds = await dependencyResolver.ResolveDependenciesAsync(enabledContentIds, cancellationToken);
-                enabledContentIds = resolvedIds.ToList();
+                enabledContentIds = [.. resolvedIds];
 
                 // Ensure the target manifest is included (may have been added by resolution)
                 if (!enabledContentIds.Contains(manifestId, StringComparer.OrdinalIgnoreCase))
@@ -314,16 +314,16 @@ public sealed class ProfileContentService(
 
             // Find a suitable game installation
             var installationsResult = await installationService.GetAllInstallationsAsync(cancellationToken);
-            if (installationsResult.Failed || installationsResult.Data == null || !installationsResult.Data.Any())
+            if (installationsResult.Failed || installationsResult.Data == null || installationsResult.Data.Count == 0)
             {
                 return ProfileOperationResult<GameProfile>.CreateFailure("No game installations found. Please configure a game installation first.");
             }
 
             // Find installation that has a game client matching the content's target game type
             var installation = installationsResult.Data.FirstOrDefault(i =>
-                i.AvailableGameClients.Any(c => c.GameType == manifest.TargetGame)) ?? installationsResult.Data.First();
+                i.AvailableGameClients.Any(c => c.GameType == manifest.TargetGame)) ?? installationsResult.Data[0];
 
-            if (!installation.AvailableGameClients.Any())
+            if (installation.AvailableGameClients.Count == 0)
             {
                 return ProfileOperationResult<GameProfile>.CreateFailure($"No game clients found for installation '{installation.InstallationType}'.");
             }
@@ -335,6 +335,25 @@ public sealed class ProfileContentService(
             if (gameClient == null)
             {
                 return ProfileOperationResult<GameProfile>.CreateFailure($"No suitable game client found for installation '{installation.InstallationType}'.");
+            }
+
+            // Generate and add the GameInstallation manifest ID to enabled content
+            var gameInstallationManifestId = Core.Models.Manifest.ManifestIdGenerator.GenerateGameInstallationId(
+                installation,
+                manifest.TargetGame,
+                gameClient.Version); // Use the actual game version from the selected client
+
+            if (!enabledContentIds.Contains(gameInstallationManifestId, StringComparer.OrdinalIgnoreCase))
+            {
+                enabledContentIds.Insert(0, gameInstallationManifestId); // Add at beginning for proper dependency order
+                logger.LogInformation("Added GameInstallation manifest {ManifestId} to enabled content", gameInstallationManifestId);
+            }
+
+            // Add the GameClient manifest ID
+            if (!string.IsNullOrEmpty(gameClient.Id) && !enabledContentIds.Contains(gameClient.Id, StringComparer.OrdinalIgnoreCase))
+            {
+                enabledContentIds.Insert(1, gameClient.Id); // Add after GameInstallation
+                logger.LogInformation("Added GameClient manifest {ManifestId} to enabled content", gameClient.Id);
             }
 
             // Create the profile request

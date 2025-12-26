@@ -1,9 +1,12 @@
+using System;
+using System.Net.Http;
 using GenHub.Common.Services;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Interfaces.Storage;
 using GenHub.Features.Content.Services;
 using GenHub.Features.Content.Services.CommunityOutpost;
 using GenHub.Features.Content.Services.ContentDeliverers;
@@ -11,14 +14,13 @@ using GenHub.Features.Content.Services.ContentDiscoverers;
 using GenHub.Features.Content.Services.ContentProviders;
 using GenHub.Features.Content.Services.ContentResolvers;
 using GenHub.Features.Content.Services.GeneralsOnline;
+using GenHub.Features.Content.Services.GitHub;
 using GenHub.Features.Content.Services.Publishers;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GitHub.Services;
 using GenHub.Features.Manifest;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Net.Http;
 
 namespace GenHub.Infrastructure.DependencyInjection;
 
@@ -72,7 +74,15 @@ public static class ContentPipelineModule
         });
 
         // Register core storage and manifest services
-        services.AddSingleton<IContentStorageService, ContentStorageService>();
+        services.AddSingleton<IContentStorageService>(sp =>
+        {
+            var configService = sp.GetRequiredService<IConfigurationProviderService>();
+            var logger = sp.GetRequiredService<ILogger<ContentStorageService>>();
+            var casService = sp.GetRequiredService<ICasService>();
+            var storageRoot = configService.GetContentStoragePath();
+
+            return new ContentStorageService(storageRoot, logger, casService);
+        });
         services.AddScoped<IContentManifestPool, ContentManifestPool>();
 
         // Register cache
@@ -257,5 +267,9 @@ public static class ContentPipelineModule
         services.AddTransient<PublisherManifestFactoryResolver>();
 
         services.AddTransient<PublisherCardViewModel>();
+
+        // Register content orchestrator and validator
+        services.AddSingleton<IContentValidator, ContentValidator>();
+        services.AddSingleton<IContentOrchestrator, ContentOrchestrator>();
     }
 }

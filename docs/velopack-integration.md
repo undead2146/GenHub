@@ -5,16 +5,19 @@ GenHub uses [Velopack](https://velopack.io/) for application installation and au
 ## Overview
 
 Velopack provides:
+
 - **Zero-config installers** - Generate installers automatically from your build output
 - **Automatic updates** - Delta updates that only download changed files
 - **Cross-platform** - Single solution for Windows and Linux
 - **GitHub Releases integration** - Seamless updates from GitHub
+- **CI Artifact Updates** - Subscribe to PR builds for testing
 
 ## How It Works
 
 ### 1. Application Startup
 
 When GenHub starts, `VelopackApp.Build().Run()` is called first in `Program.cs`. This handles:
+
 - First-run initialization
 - Update installation on startup
 - Install/uninstall hooks
@@ -22,7 +25,11 @@ When GenHub starts, `VelopackApp.Build().Run()` is called first in `Program.cs`.
 
 ### 2. Update Checking
 
-The `VelopackUpdateManager` service checks for updates from GitHub Releases:
+GenHub supports two update sources:
+
+#### GitHub Releases (Stable Channel)
+
+The `VelopackUpdateManager` service checks for stable releases:
 
 ```csharp
 var updateInfo = await _velopackUpdateManager.CheckForUpdatesAsync();
@@ -34,12 +41,107 @@ if (updateInfo != null)
 }
 ```
 
+#### PR Artifacts (Testing Channel)
+
+Users can subscribe to specific Pull Request builds for testing:
+
+```csharp
+// Subscribe to PR #3
+_userSettingsService.Update(s => s.SubscribedPrNumber = 3);
+
+// Check for PR updates
+var prInfo = await _velopackUpdateManager.GetSubscribedPrInfoAsync();
+if (prInfo?.LatestArtifact != null)
+{
+    // Install PR build
+    await _velopackUpdateManager.InstallPrArtifactAsync(prInfo, progress);
+}
+```
+
 ### 3. Update Flow
 
-1. **Check** - Application queries GitHub Releases for new versions
-2. **Download** - Delta packages are downloaded (only changes)
-3. **Apply** - Update is staged and applied on next restart
+1. **Check** - Application queries GitHub Releases or PR artifacts for new versions
+2. **Download** - Packages are downloaded (delta updates when possible)
+3. **Apply** - Update is staged and applied
 4. **Restart** - Application restarts with new version
+
+## Versioning Scheme
+
+GenHub uses a custom versioning scheme optimized for continuous integration:
+
+### Version Format
+
+```
+0.0.{RUN_NUMBER}[-pr{PR_NUMBER}][+{BUILD_METADATA}]
+```
+
+**Components:**
+
+- `0.0.X` - Base version (0.0 indicates pre-1.0 development)
+- `RUN_NUMBER` - GitHub Actions run number (auto-incrementing)
+- `-pr{N}` - Optional PR number for pull request builds
+- `+{HASH}` - Build metadata (git commit hash, stripped for comparison)
+
+### Examples
+
+```bash
+# Main branch build (run #157)
+0.0.157
+
+# PR #3 build (run #160)
+0.0.160-pr3
+
+# Full version with build metadata
+0.0.160-pr3+051baf8.051baf832a894f542e60d3e4c2471c7d4dd753da
+```
+
+### Version Comparison
+
+GenHub strips build metadata (everything after `+`) when comparing versions:
+
+```csharp
+// These are considered the same version:
+"0.0.160-pr3+051baf8..."
+"0.0.160-pr3+18d0017..."
+// Both compare as: "0.0.160-pr3"
+```
+
+This allows users to reinstall the same PR build with different commits without version conflicts.
+
+## Update Channels
+
+GenHub provides two update channels that users can switch between:
+
+### Stable Channel
+
+- **Source**: GitHub Releases
+- **Versions**: `0.0.X` (no PR suffix)
+- **Updates**: Only stable builds from main branch
+- **Recommended for**: Production use
+
+### Artifacts Channel (PR Subscription)
+
+- **Source**: GitHub Actions CI artifacts
+- **Versions**: `0.0.X-prY` format
+- **Updates**: Specific PR builds
+- **Recommended for**: Testing features, bug fixes
+- **Requires**: GitHub Personal Access Token (PAT) with `repo` scope
+
+#### Subscribing to PR Builds
+
+1. Navigate to Settings → Updates
+2. Click "Manage Updates & PRs"
+3. Enter GitHub PAT (if not already configured)
+4. Select a PR from the list
+5. Click "Subscribe"
+
+The app will now check for updates from that PR instead of stable releases.
+
+#### Unsubscribing
+
+1. Open "Manage Updates & PRs"
+2. Click "Unsubscribe" on the currently subscribed PR
+3. App returns to stable channel
 
 ## Building Releases
 
@@ -48,90 +150,129 @@ if (updateInfo != null)
 - .NET 8 SDK
 - Velopack CLI tool: `dotnet tool install -g vpk`
 
+### Version Number Generation
+
+GenHub uses GitHub Actions run numbers for versioning:
+
+```yaml
+# CI builds (PRs and main branch)
+VERSION: 0.0.${{ github.run_number }}[-pr${{ github.event.pull_request.number }}]
+
+# Example outputs:
+# Main branch: 0.0.157
+# PR #3: 0.0.160-pr3
+```
+
 ### Manual Build Process
 
 #### Windows
 
 ```powershell
+# Set version
+$VERSION = "0.0.157"  # Or "0.0.160-pr3" for PR builds
+
 # Publish the application
 dotnet publish GenHub/GenHub.Windows/GenHub.Windows.csproj `
   -c Release `
   --self-contained `
   -r win-x64 `
-  -o ./publish/windows
+  -o ./publish/windows `
+  -p:Version=$VERSION
 
 # Package with Velopack
 vpk pack `
   --packId GenHub `
-  --packVersion 1.0.0 `
+  --packVersion $VERSION `
   --packDir ./publish/windows `
   --mainExe GenHub.Windows.exe `
   --packTitle "GenHub" `
   --packAuthors "Community Outpost" `
   --icon GenHub/GenHub/Assets/Icons/generalshub.ico `
   --outputDir ./releases
-
-# For alpha/beta releases, use semantic versioning prerelease identifiers:
-# vpk pack ... --packVersion 1.0.0-alpha.1
-# vpk pack ... --packVersion 1.0.0-beta.2
-# vpk pack ... --packVersion 1.0.0-rc.1
 ```
 
 #### Linux
 
 ```bash
+# Set version
+VERSION="0.0.157"  # Or "0.0.160-pr3" for PR builds
+
 # Publish the application
 dotnet publish GenHub/GenHub.Linux/GenHub.Linux.csproj \
   -c Release \
   --self-contained \
   -r linux-x64 \
-  -o ./publish/linux
+  -o ./publish/linux \
+  -p:Version=$VERSION
 
 # Package with Velopack
 vpk pack \
   --packId GenHub \
-  --packVersion 1.0.0 \
+  --packVersion $VERSION \
   --packDir ./publish/linux \
   --mainExe GenHub.Linux \
   --packTitle "GenHub" \
   --packAuthors "Community Outpost" \
   --icon GenHub/GenHub/Assets/Icons/generalshub.ico \
   --outputDir ./releases
-
-# For alpha/beta releases:
-# vpk pack ... --packVersion 1.0.0-alpha.1
-# vpk pack ... --packVersion 1.0.0-beta.2
 ```
 
 ### Automated CI/CD
 
-GenHub includes a GitHub Actions workflow (`.github/workflows/release.yml`) that automatically:
+GenHub includes GitHub Actions workflows:
+
+#### `.github/workflows/ci.yml` - Continuous Integration
+
+Runs on every push and PR:
+
+1. Builds for Windows and Linux
+2. Packages with Velopack using `0.0.{RUN_NUMBER}[-pr{PR_NUMBER}]` versioning
+3. Uploads artifacts to GitHub Actions
+4. Generates `releases.win.json` and `releases.linux.json` metadata
+
+**Artifacts uploaded:**
+
+- `genhub-velopack-windows-{VERSION}` - Windows installer and packages
+- `genhub-velopack-linux-{VERSION}` - Linux packages
+- `genhub-metadata-windows-{VERSION}` - Update metadata (`releases.win.json`)
+- `genhub-metadata-linux-{VERSION}` - Update metadata (`releases.linux.json`)
+
+#### `.github/workflows/release.yml` - Stable Releases
+
+Triggered by version tags (`v*`):
 
 1. Builds releases for Windows and Linux
-2. Packages them with Velopack
-3. Creates a GitHub Release with installers
+2. Creates GitHub Release
+3. Uploads installers and packages
 4. Publishes update feed for automatic updates
 
-**To trigger a release:**
+**To trigger a stable release:**
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v0.0.157
+git push origin v0.0.157
 ```
-
-Or manually through GitHub Actions workflow dispatch.
 
 ## Release Artifacts
 
 After packaging, Velopack generates:
 
-- **GenHub-win-Setup.exe** (Windows) - Full installer that installs to `%LOCALAPPDATA%\GenHub`
+### Windows
+
+- **GenHub-{Version}-Setup.exe** - Full installer (installs to `%LOCALAPPDATA%\GenHub`)
 - **GenHub-{Version}-full.nupkg** - Full release package
 - **GenHub-{Version}-delta.nupkg** - Delta update package (if previous version exists)
-- **GenHub-win-Portable.zip** - Portable version (no installation required)
-- **RELEASES** - Update feed manifest
+- **GenHub-{Version}-Portable.zip** - Portable version (no installation required)
+- **releases.win.json** - Update feed manifest (JSON format)
 
-Upload all artifacts to GitHub Releases. Velopack will automatically serve updates.
+### Linux
+
+- **GenHub-{Version}-linux-x64.AppImage** - AppImage installer
+- **GenHub-{Version}-full.nupkg** - Full release package
+- **GenHub-{Version}-delta.nupkg** - Delta update package
+- **releases.linux.json** - Update feed manifest (JSON format)
+
+**Note**: Velopack v0.0.942+ uses JSON format (`releases.*.json`) instead of the legacy `RELEASES` file.
 
 ## Installation Locations
 
@@ -139,7 +280,7 @@ Upload all artifacts to GitHub Releases. Velopack will automatically serve updat
 
 - **Installation Directory**: `%LOCALAPPDATA%\GenHub\` (e.g., `C:\Users\YourName\AppData\Local\GenHub\`)
 - **User Data**: `%APPDATA%\GenHub\`
-- **Update Cache**: `%LOCALAPPDATA%\GenHub\`
+- **Update Cache**: `%LOCALAPPDATA%\GenHub\packages\`
 
 **Note**: Velopack uses a "one-click" installer that always installs to LocalAppData. This location:
 
@@ -150,111 +291,62 @@ Upload all artifacts to GitHub Releases. Velopack will automatically serve updat
 
 ### Linux Installation
 
-- **Installation Directory**: `/usr/local/bin/GenHub/` or `~/.local/share/GenHub/`
+- **Installation Directory**: `~/.local/share/GenHub/`
 - **User Data**: `~/.config/GenHub/`
 - **Update Cache**: `~/.cache/GenHub/`
 
 The app ID `GenHub` ensures clean, predictable installation paths without vendor prefixes.
 
-## Release Channels and Prerelease Versions
+## Update Features
 
-Velopack supports **semantic versioning prerelease identifiers** for alpha, beta, and release candidate builds. You can use semver formats without needing separate channels:
+### Dismiss Updates
 
-### Semantic Versioning Examples
+Users can dismiss update notifications:
 
-**Version Format:** `MAJOR.MINOR.PATCH[-PRERELEASE]`
-
-```bash
-# Stable release
-vpk pack ... --packVersion 1.0.0
-
-# Alpha releases (early testing) - increment the number after alpha
-vpk pack ... --packVersion 1.0.0-alpha.1
-vpk pack ... --packVersion 1.0.0-alpha.2
-vpk pack ... --packVersion 1.0.0-alpha.3
-
-# Beta releases (feature complete, testing)
-vpk pack ... --packVersion 1.0.0-beta.1
-vpk pack ... --packVersion 1.0.0-beta.2
-
-# Release candidates
-vpk pack ... --packVersion 1.0.0-rc.1
-vpk pack ... --packVersion 1.0.0-rc.2
-
-# Final stable release
-vpk pack ... --packVersion 1.0.0
-
-# Next feature version - start over with alpha
-vpk pack ... --packVersion 1.1.0-alpha.1
-vpk pack ... --packVersion 1.1.0-alpha.2
-vpk pack ... --packVersion 1.1.0-beta.1
-vpk pack ... --packVersion 1.1.0
-
-# Patch release
-vpk pack ... --packVersion 1.1.1
-
-# Major version bump
-vpk pack ... --packVersion 2.0.0-alpha.1
+```csharp
+// In UpdateNotificationViewModel
+private void DismissUpdate()
+{
+    // Persist dismissed version to prevent showing again
+    _userSettingsService.Update(s => s.DismissedUpdateVersion = LatestVersion);
+    IsUpdateAvailable = false;
+}
 ```
 
-**Versioning Flow:**
+Dismissed updates won't reappear until a **different version** is available.
 
-```text
-1.0.0-alpha.1 → 1.0.0-alpha.2 → ... → 1.0.0-beta.1 → 1.0.0-beta.2 → 1.0.0
-                                                                        ↓
-1.1.0-alpha.1 → 1.1.0-alpha.2 → ... → 1.1.0-beta.1 → 1.1.0 ←─────────┘
+### PR Update Priority
+
+When subscribed to a PR:
+
+1. PR updates take priority over stable releases
+2. Version comparison ignores build metadata
+3. Users can "switch" to any PR build regardless of version number
+4. Unsubscribing returns to stable channel
+
+### Build Metadata Handling
+
+Build metadata (commit hashes) is:
+
+- **Included** in the version string for tracking
+- **Displayed** in the UI for transparency
+- **Stripped** during version comparison to avoid false updates
+- **Logged** for debugging purposes
+
+Example:
+
 ```
-
-### How Velopack Handles Prereleases
-
-- **Stable users** (installed from a stable version like `1.0.0`) will ONLY receive stable updates
-- **Prerelease users** (installed from `1.0.0-beta.1`) will receive ALL updates including prereleases
-- Versioning follows [SemVer 2.0](https://semver.org/) rules
-- Users on prereleases automatically upgrade to stable when available
-
-### Using Channels for Different Features
-
-If you need separate feature branches (e.g., stable vs experimental features), use the `--channel` parameter:
-
-```bash
-# Stable channel (default: "win" for Windows, "linux" for Linux)
-vpk pack ... --packVersion 1.0.0
-
-# Beta feature channel
-vpk pack ... --packVersion 1.0.0 --channel win-beta
-
-# Experimental channel
-vpk pack ... --packVersion 1.0.0 --channel win-experimental
+Display: v0.0.160-pr3 (051baf8)
+Full version: 0.0.160-pr3+051baf8.051baf832a894f542e60d3e4c2471c7d4dd753da
+Comparison: 0.0.160-pr3
 ```
-
-**Note**: Once a user installs from a specific channel, they only receive updates from that channel unless they explicitly switch.
-
-### Recommended Strategy
-
-For most use cases, use **prerelease identifiers** instead of channels:
-
-- ✅ Simpler: No channel management needed
-- ✅ Automatic graduation: Beta users get stable updates automatically
-- ✅ Clear versioning: Everyone sees the same version numbers
-
-Use channels only if you need persistent feature branches (like stable/nightly builds).
-
-## Update Channel Management
-
-By default, GenHub uses the default update channel. You can create multiple channels (stable, beta, etc.):
-
-```bash
-vpk pack ... --channel beta
-```
-
-Users will automatically receive updates from their installed channel.
 
 ## Testing Updates Locally
 
 ### 1. Create Test Release
 
 ```powershell
-vpk pack --packId GenHub --packVersion 1.0.0 --packDir ./publish --mainExe GenHub.Windows.exe -o ./test-releases
+vpk pack --packId GenHub --packVersion 0.0.100 --packDir ./publish --mainExe GenHub.Windows.exe -o ./test-releases
 ```
 
 ### 2. Create Second Version
@@ -262,7 +354,7 @@ vpk pack --packId GenHub --packVersion 1.0.0 --packDir ./publish --mainExe GenHu
 Update your code, then:
 
 ```powershell
-vpk pack --packId GenHub --packVersion 1.0.1 --packDir ./publish --mainExe GenHub.Windows.exe -o ./test-releases --delta ./test-releases/RELEASES
+vpk pack --packId GenHub --packVersion 0.0.101 --packDir ./publish --mainExe GenHub.Windows.exe -o ./test-releases --delta ./test-releases/releases.win.json
 ```
 
 ### 3. Test Update
@@ -270,7 +362,8 @@ vpk pack --packId GenHub --packVersion 1.0.1 --packDir ./publish --mainExe GenHu
 Point UpdateManager to local directory:
 
 ```csharp
-var manager = new UpdateManager("file:///C:/path/to/test-releases");
+var source = new SimpleWebSource("file:///C:/path/to/test-releases");
+var manager = new UpdateManager(source);
 ```
 
 ## Architecture
@@ -280,7 +373,9 @@ var manager = new UpdateManager("file:///C:/path/to/test-releases");
 - **VelopackApp** - Handles application lifecycle hooks
 - **VelopackUpdateManager** - Service for checking/downloading/applying updates
 - **IVelopackUpdateManager** - Interface for update operations
-- **UpdateInfo** - Model containing update metadata
+- **UpdateInfo** - Model containing update metadata from Velopack
+- **ArtifactUpdateInfo** - Model for PR artifact metadata
+- **PullRequestInfo** - Model for PR information and artifacts
 - **UpdateProgress** - Progress reporting model
 
 ### Integration Points
@@ -288,6 +383,28 @@ var manager = new UpdateManager("file:///C:/path/to/test-releases");
 - `Program.cs` - VelopackApp.Build().Run() initialization
 - `AppUpdateModule.cs` - DI registration
 - `VelopackUpdateManager.cs` - Update service implementation
+- `UpdateNotificationViewModel.cs` - UI logic for update notifications
+- `MainViewModel.cs` - Main window update badge logic
+
+### Key Services
+
+```csharp
+public interface IVelopackUpdateManager
+{
+    // Stable channel updates
+    Task<UpdateInfo?> CheckForUpdatesAsync(CancellationToken cancellationToken = default);
+    Task DownloadUpdatesAsync(UpdateInfo updateInfo, IProgress<UpdateProgress>? progress = null);
+    void ApplyUpdatesAndRestart(UpdateInfo updateInfo);
+
+    // PR artifact updates
+    Task<PullRequestInfo?> GetSubscribedPrInfoAsync(CancellationToken cancellationToken = default);
+    Task InstallPrArtifactAsync(PullRequestInfo prInfo, IProgress<UpdateProgress>? progress = null, CancellationToken cancellationToken = default);
+
+    // Properties
+    bool HasUpdateAvailableFromGitHub { get; }
+    string? LatestVersionFromGitHub { get; }
+}
+```
 
 ## Troubleshooting
 
@@ -295,18 +412,72 @@ var manager = new UpdateManager("file:///C:/path/to/test-releases");
 
 Velopack only works when the app is installed. When running from Visual Studio or `dotnet run`, updates are disabled. This is expected behavior.
 
+To test updates:
+
+1. Build a Velopack package
+2. Install it using the Setup.exe
+3. Run the installed app
+
 ### Update Check Fails
 
-- Ensure GitHub repository is public or provide authentication
-- Verify GitHub Releases contain Velopack packages
+- **GitHub Releases**: Ensure repository is public or provide authentication
+- **PR Artifacts**: Requires GitHub PAT with `repo` scope
+- Verify GitHub Releases/Actions contain Velopack packages
 - Check network connectivity
+- Review logs for specific error messages
 
 ### Version Comparison Issues
 
-Velopack uses semantic versioning (SemVer). Ensure version numbers follow `Major.Minor.Patch` format.
+GenHub strips build metadata before comparison. If updates aren't detected:
+
+1. Check version format: `0.0.X` or `0.0.X-prY`
+2. Verify build metadata is after `+` symbol
+3. Review logs for version comparison details
+
+### PR Artifact Installation Fails
+
+Common issues:
+
+1. **"No update found from PR artifact"**
+   - Current version >= target version
+   - Velopack won't "downgrade" by default
+   - Solution: Uninstall and run Setup.exe from PR artifact
+
+2. **"Already installed"**
+   - Same base version with different build metadata
+   - This is expected - versions are identical
+
+3. **Authentication errors**
+   - GitHub PAT missing or invalid
+   - PAT needs `repo` scope for private repos
+
+### App Doesn't Restart After Update
+
+- Ensure using `ApplyUpdatesAndRestart()` not `ApplyUpdatesAndExit()`
+- Check logs for update application errors
+- Verify update package integrity
+
+## Security Considerations
+
+### GitHub Personal Access Tokens
+
+- **Storage**: Tokens are stored in Windows Credential Manager (Windows) or Keyring (Linux)
+- **Scope**: Only `repo` scope is required
+- **Usage**: Only for downloading PR artifacts
+- **Rotation**: Users can update/remove tokens at any time
+
+### Update Verification
+
+Velopack verifies package integrity using:
+
+- SHA256 checksums in metadata files
+- Package signatures (if configured)
+- HTTPS for all downloads
 
 ## Additional Resources
 
 - [Velopack Documentation](https://docs.velopack.io/)
 - [Velopack GitHub](https://github.com/velopack/velopack)
 - [GitHub Releases Guide](https://docs.github.com/en/repositories/releasing-projects-on-github)
+- [GitHub Actions Artifacts](https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts)
+- [Semantic Versioning](https://semver.org/)

@@ -23,7 +23,7 @@ namespace GenHub.Features.Downloads.ViewModels;
 /// <summary>
 /// ViewModel for a publisher card displaying content from a single publisher.
 /// </summary>
-public partial class PublisherCardViewModel : ObservableObject, IRecipient<ProfileCreatedMessage>, IRecipient<ProfileDeletedMessage>, IDisposable
+public partial class PublisherCardViewModel : ObservableObject, IRecipient<ProfileCreatedMessage>, IRecipient<ProfileUpdatedMessage>, IRecipient<ProfileDeletedMessage>, IDisposable
 {
     private readonly ILogger<PublisherCardViewModel> _logger;
     private readonly IContentOrchestrator _contentOrchestrator;
@@ -73,7 +73,7 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
     private string _errorMessage = string.Empty;
 
     [ObservableProperty]
-    private ObservableCollection<ContentTypeGroup> _contentTypes = new();
+    private ObservableCollection<ContentTypeGroup> _contentTypes = [];
 
     [ObservableProperty]
     private bool _showContentSummary = true;
@@ -88,7 +88,7 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
     /// Gets or sets the available profiles for the "Add to Profile" dropdown.
     /// </summary>
     [ObservableProperty]
-    private ObservableCollection<GameProfile> _availableProfiles = new();
+    private ObservableCollection<GameProfile> _availableProfiles = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PublisherCardViewModel"/> class.
@@ -135,6 +135,7 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
             _profileLock.Dispose();
             WeakReferenceMessenger.Default.UnregisterAll(this);
             _disposed = true;
+            GC.SuppressFinalize(this);
         }
     }
 
@@ -151,7 +152,7 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
         await _profileLock.WaitAsync(token);
         try
         {
-            var profilesResult = await _profileManager.GetAllProfilesAsync();
+            var profilesResult = await _profileManager.GetAllProfilesAsync(token);
             if (profilesResult.Success && profilesResult.Data != null)
             {
                 AvailableProfiles.Clear();
@@ -196,6 +197,16 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
     public void Receive(ProfileCreatedMessage message)
     {
         _logger.LogDebug("Profile created: {Name}", message.Profile.Name);
+        RefreshProfilesOnUiThread();
+    }
+
+    /// <summary>
+    /// Receives profile update messages and refreshes the available profiles dropdown.
+    /// </summary>
+    /// <param name="message">The profile updated message.</param>
+    public void Receive(ProfileUpdatedMessage message)
+    {
+        _logger.LogDebug("Profile updated: {Name}", message.Profile.Name);
         RefreshProfilesOnUiThread();
     }
 
@@ -511,7 +522,7 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
         }
 
         // Sort variants by name for consistent UI display
-        return variants.OrderBy(v => v.Name).ToList();
+        return [.. variants.OrderBy(v => v.Name)];
     }
 
     [RelayCommand]
@@ -711,6 +722,17 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
                 if (parameters[0] is ContentItemViewModel successItem)
                 {
                     successItem.DownloadStatus = $"✓ Added to {profile.Name}";
+                }
+
+                // Notify other components that a profile was updated
+                try
+                {
+                    var message = new ProfileUpdatedMessage(profile);
+                    WeakReferenceMessenger.Default.Send(message);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send ProfileUpdatedMessage");
                 }
 
                 if (result.WasContentSwapped)

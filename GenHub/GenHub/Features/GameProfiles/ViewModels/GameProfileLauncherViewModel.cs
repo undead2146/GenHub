@@ -1,17 +1,20 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
@@ -36,12 +39,13 @@ public partial class GameProfileLauncherViewModel(
     IConfigurationProviderService configService,
     IGameProcessManager gameProcessManager,
     IShortcutService shortcutService,
-    ILogger<GameProfileLauncherViewModel> logger) : ViewModelBase
+    INotificationService notificationService,
+    ILogger<GameProfileLauncherViewModel> logger) : ViewModelBase, IRecipient<ProfileCreatedMessage>, IRecipient<ProfileUpdatedMessage>
 {
     private readonly SemaphoreSlim _launchSemaphore = new(1, 1);
 
     [ObservableProperty]
-    private ObservableCollection<GameProfileItemViewModel> _profiles = new();
+    private ObservableCollection<GameProfileItemViewModel> _profiles = [];
 
     [ObservableProperty]
     private bool _isLaunching;
@@ -73,7 +77,6 @@ public partial class GameProfileLauncherViewModel(
     {
         try
         {
-            // Subscribe to process exit events
             gameProcessManager.ProcessExited += OnProcessExited;
 
             StatusMessage = "Loading profiles...";
@@ -88,7 +91,7 @@ public partial class GameProfileLauncherViewModel(
                     // Use profile's IconPath if available, otherwise fall back to generalshub icon
                     var iconPath = !string.IsNullOrEmpty(profile.IconPath)
                         ? profile.IconPath
-                        : Core.Constants.UriConstants.DefaultIconUri;
+                        : UriConstants.DefaultIconUri;
 
                     // Use profile's CoverPath if available, otherwise fall back to icon path
                     var coverPath = !string.IsNullOrEmpty(profile.CoverPath)
@@ -113,6 +116,12 @@ public partial class GameProfileLauncherViewModel(
                 ErrorMessage = errors;
                 logger.LogWarning("Failed to load profiles: {Errors}", errors);
             }
+
+            // Register for profile messages on first initialization only
+            if (!WeakReferenceMessenger.Default.IsRegistered<ProfileCreatedMessage>(this))
+            {
+                WeakReferenceMessenger.Default.RegisterAll(this);
+            }
         }
         catch (Exception ex)
         {
@@ -121,6 +130,50 @@ public partial class GameProfileLauncherViewModel(
             ErrorMessage = ex.Message;
             IsServiceAvailable = false;
         }
+    }
+
+    /// <summary>
+    /// Receives notification when a new profile is created and refreshes the profiles list.
+    /// </summary>
+    /// <param name="message">The profile created message.</param>
+    public void Receive(ProfileCreatedMessage message)
+    {
+        logger.LogInformation("Profile created notification received for {ProfileName}, refreshing list", message.Profile.Name);
+
+        // Refresh profiles on UI thread
+        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            try
+            {
+                await InitializeAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error refreshing profiles after profile creation");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Receives notification when a profile is updated and refreshes the profiles list.
+    /// </summary>
+    /// <param name="message">The profile updated message.</param>
+    public void Receive(ProfileUpdatedMessage message)
+    {
+        logger.LogInformation("Profile updated notification received for {ProfileName}, refreshing list", message.Profile.Name);
+
+        // Refresh profiles on UI thread
+        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            try
+            {
+                await InitializeAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error refreshing profiles after profile update");
+            }
+        });
     }
 
     /// <summary>
@@ -137,17 +190,10 @@ public partial class GameProfileLauncherViewModel(
     /// Gets the icon path for a game type and installation type.
     /// </summary>
     /// <param name="gameType">The game type.</param>
-    /// <param name="installationType">The installation type.</param>
     /// <returns>The relative icon path.</returns>
-    private static string GetIconPathForGame(GameType gameType, GameInstallationType installationType)
+    private static string GetIconPathForGame(GameType gameType)
     {
         var gameIcon = gameType == GameType.Generals ? UriConstants.GeneralsIconFilename : UriConstants.ZeroHourIconFilename;
-        var platformIcon = installationType switch
-        {
-            GameInstallationType.Steam => UriConstants.SteamIconFilename,
-            GameInstallationType.EaApp => UriConstants.EaAppIconFilename,
-            _ => UriConstants.GenHubIconFilename,
-        };
 
         // For now, return the game-specific icon - could be enhanced to combine with platform icon
         return $"{UriConstants.IconsBasePath}/{gameIcon}";
@@ -188,7 +234,7 @@ public partial class GameProfileLauncherViewModel(
                     // Update the profile data
                     var iconPath = !string.IsNullOrEmpty(profile.IconPath)
                         ? profile.IconPath
-                        : Core.Constants.UriConstants.DefaultIconUri;
+                        : UriConstants.DefaultIconUri;
 
                     // Use profile's CoverPath if available, otherwise fall back to icon path
                     var coverPath = !string.IsNullOrEmpty(profile.CoverPath)
@@ -264,7 +310,7 @@ public partial class GameProfileLauncherViewModel(
 
                 foreach (var installation in installations.Data)
                 {
-                    manifestsGenerated += installation.AvailableGameClients?.Count() * 2 ?? 0;
+                    manifestsGenerated += installation.AvailableGameClients?.Count * 2 ?? 0;
 
                     // Create profiles for ALL detected game clients (not just one per game type)
                     if (installation.AvailableGameClients != null)
@@ -371,7 +417,7 @@ public partial class GameProfileLauncherViewModel(
                 var normalizedFallback = fallbackVersion.Replace(".", string.Empty);
                 manifestVersionInt = int.TryParse(normalizedFallback, out var v) ? v : 0;
             }
-            else if (gameClient.Version.Contains("."))
+            else if (gameClient.Version.Contains('.'))
             {
                 // Normalize dotted version ("1.04" → 104, "1.08" → 108)
                 var normalized = gameClient.Version.Replace(".", string.Empty);
@@ -404,7 +450,7 @@ public partial class GameProfileLauncherViewModel(
                 PreferredStrategy = preferredStrategy,
                 EnabledContentIds = enabledContentIds, // Both GameInstallation and GameClient manifests
                 ThemeColor = GetThemeColorForGameType(gameClient.GameType),
-                IconPath = GetIconPathForGame(gameClient.GameType, installation.InstallationType),
+                IconPath = GetIconPathForGame(gameClient.GameType),
             };
 
             var profileResult = await profileEditorFacade.CreateProfileWithWorkspaceAsync(createRequest);
@@ -469,6 +515,12 @@ public partial class GameProfileLauncherViewModel(
                     var errors = string.Join(", ", launchResult.Errors);
                     StatusMessage = $"Failed to launch {profile.Name}: {errors}";
                     ErrorMessage = errors;
+
+                    // Show error notification to user
+                    notificationService.ShowError(
+                        "Launch Failed",
+                        $"Failed to launch {profile.Name}: {errors}");
+
                     logger.LogWarning(
                         "Failed to launch profile {ProfileName}: {Errors}",
                         profile.Name,
@@ -550,12 +602,6 @@ public partial class GameProfileLauncherViewModel(
     [RelayCommand]
     private async Task SaveProfiles()
     {
-        if (gameProfileManager == null)
-        {
-            StatusMessage = "Profile manager not available";
-            return;
-        }
-
         try
         {
             StatusMessage = "Saving profiles...";
