@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -47,6 +48,7 @@ public class GameLauncher(
     IProfileContentLinker profileContentLinker) : IGameLauncher
 {
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _profileLaunchLocks = new();
+    private static readonly SearchValues<char> InvalidArgChars = SearchValues.Create(";|&\n\r`$%");
 
     /// <inheritdoc/>
     public async Task<IDisposable> AcquireProfileLockAsync(string profileId, CancellationToken cancellationToken = default)
@@ -110,7 +112,8 @@ public class GameLauncher(
                         return LaunchResult.CreateFailure("Failed to start process", null);
                     var launchDuration = DateTime.UtcNow - startTime;
                     return LaunchResult.CreateSuccess(process.Id, process.StartTime, launchDuration);
-                }, cancellationToken);
+                },
+                cancellationToken);
         }
         catch (System.Exception ex)
         {
@@ -157,7 +160,8 @@ public class GameLauncher(
                         CommandLine = commandLine,
                         IsResponding = process.Responding,
                     };
-                }, cancellationToken);
+                },
+                cancellationToken);
         }
         catch (System.Exception ex)
         {
@@ -280,7 +284,7 @@ public class GameLauncher(
             await launchRegistry.RegisterLaunchAsync(placeholderLaunchInfo);
             logger.LogDebug("Registered placeholder launch {LaunchId} for profile {ProfileId} to prevent deletion during launch", launchId, profile.Id);
 
-            return await LaunchProfileAsync(profile, progress, cancellationToken, launchId);
+            return await LaunchProfileAsync(profile, progress, launchId, cancellationToken);
         }
         finally
         {
@@ -397,13 +401,11 @@ public class GameLauncher(
         if (arg.Length > 1024)
             return false;
 
-        // Block command separators and shell metacharacters
-        // This includes: ; | & && || ` $ % newlines, carriage returns
-        if (arg.IndexOfAny(new[] { ';', '|', '&', '\n', '\r', '`', '$', '%' }) >= 0)
+        if (arg.AsSpan().ContainsAny(InvalidArgChars))
             return false;
 
         // Block path traversal attempts
-        if (arg.Contains("..") || arg.Contains("~"))
+        if (arg.Contains("..") || arg.Contains('~'))
             return false;
 
         // Block suspicious patterns commonly used in injection attacks
@@ -417,8 +419,8 @@ public class GameLauncher(
             return false;
 
         // Block quoted strings (can be used to bypass validation)
-        if ((arg.StartsWith("\"") && arg.EndsWith("\"")) ||
-            (arg.StartsWith("'") && arg.EndsWith("'")))
+        if ((arg.StartsWith('"') && arg.EndsWith('"')) ||
+            (arg.StartsWith('\'') && arg.EndsWith('\'')))
             return false;
 
         // Block absolute paths unless they're explicitly whitelisted for game executables
@@ -432,15 +434,15 @@ public class GameLauncher(
                 return false;
 
             // Validate path doesn't try to escape common directories
-            if (arg.Contains("..") || arg.ToLowerInvariant().Contains("windows\\system") ||
-                arg.ToLowerInvariant().Contains("windows\\system32"))
+            if (arg.Contains("..") || arg.Contains("windows\\system", StringComparison.OrdinalIgnoreCase) ||
+                arg.Contains("windows\\system32", StringComparison.OrdinalIgnoreCase))
                 return false;
         }
 
         return true;
     }
 
-    private async Task<LaunchOperationResult<GameLaunchInfo>> LaunchProfileAsync(GameProfile profile, IProgress<LaunchProgress>? progress, CancellationToken cancellationToken, string launchId)
+    private async Task<LaunchOperationResult<GameLaunchInfo>> LaunchProfileAsync(GameProfile profile, IProgress<LaunchProgress>? progress, string launchId, CancellationToken cancellationToken)
     {
         try
         {
@@ -496,7 +498,7 @@ public class GameLauncher(
                 profile.GameClient?.WorkingDirectory ?? "null");
 
             logger.LogDebug("[GameLauncher] Applying profile settings to Options.ini before workspace preparation");
-            await ApplyProfileSettingsToIniOptionsAsync(profile, cancellationToken);
+            await ApplyProfileSettingsToIniOptionsAsync(profile);
 
             // Prepare workspace
             progress?.Report(new LaunchProgress { Phase = LaunchPhase.PreparingWorkspace, PercentComplete = 20 });
@@ -715,7 +717,7 @@ public class GameLauncher(
                 foreach (var arg in args)
                 {
                     // Arguments starting with - are flags
-                    if (arg.StartsWith("-"))
+                    if (arg.StartsWith('-'))
                     {
                         arguments[arg] = string.Empty; // Flags don't have values
                     }
@@ -809,9 +811,8 @@ public class GameLauncher(
     /// This ensures the game launches with the settings configured for this specific profile.
     /// </summary>
     /// <param name="profile">The game profile containing the settings to apply.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    private async Task ApplyProfileSettingsToIniOptionsAsync(GameProfile profile, CancellationToken cancellationToken)
+    private async Task ApplyProfileSettingsToIniOptionsAsync(GameProfile profile)
     {
         try
         {
@@ -891,7 +892,7 @@ public class GameLauncher(
             }
         }
 
-        if (missingHashes.Any())
+        if (missingHashes.Count > 0)
         {
             return OperationResult<bool>.CreateFailure($"Missing CAS objects: {string.Join(", ", missingHashes.Distinct())}");
         }

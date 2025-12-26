@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameInstallations;
@@ -11,11 +16,6 @@ using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace GenHub.Features.GameProfiles.Services;
 
@@ -654,7 +654,7 @@ public class ProfileContentLoader(
         GameInstallation? gameInstallation)
     {
         var gameClient = gameInstallation?.AvailableGameClients?
-            .FirstOrDefault(gc => gc.Id == profile.GameClient?.Id);
+            .FirstOrDefault(gc => gc.Id == profile.GameClient.Id);
 
         if (gameInstallation is not null && gameClient is not null)
         {
@@ -676,6 +676,15 @@ public class ProfileContentLoader(
                 GameClientId = gameClient.Id,
                 IsEnabled = true,
             };
+        }
+
+        if (gameInstallation is not null)
+        {
+            var baseClient = GetBaseGameClient(gameInstallation, manifest.TargetGame);
+            if (baseClient is not null)
+            {
+                return CreateInstallationDisplayItem(gameInstallation, baseClient, manifest.TargetGame);
+            }
         }
 
         return CreateManifestDisplayItem(manifest, isEnabled: true);
