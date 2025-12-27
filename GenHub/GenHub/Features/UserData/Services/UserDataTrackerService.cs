@@ -30,10 +30,10 @@ public class UserDataTrackerService(
 {
     private static readonly SemaphoreSlim IndexLock = new(1, 1);
 
-    private readonly string _userDataTrackingPath = Path.Combine(configProvider.GetContentStoragePath(), "UserData");
-    private readonly string _manifestsPath = Path.Combine(configProvider.GetContentStoragePath(), "UserData", "manifests");
-    private readonly string _backupsPath = Path.Combine(configProvider.GetContentStoragePath(), "UserData", "backups");
-    private readonly string _indexPath = Path.Combine(configProvider.GetContentStoragePath(), "UserData", "index.json");
+    private readonly string _userDataTrackingPath = Path.Combine(configProvider.GetApplicationDataPath(), "UserData");
+    private readonly string _manifestsPath = Path.Combine(configProvider.GetApplicationDataPath(), "UserData", "manifests");
+    private readonly string _backupsPath = Path.Combine(configProvider.GetApplicationDataPath(), "UserData", "backups");
+    private readonly string _indexPath = Path.Combine(configProvider.GetApplicationDataPath(), "UserData", "index.json");
 
     private UserDataIndex? _cachedIndex;
 

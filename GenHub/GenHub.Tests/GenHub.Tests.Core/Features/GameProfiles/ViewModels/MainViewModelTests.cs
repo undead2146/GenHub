@@ -5,13 +5,15 @@ using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.GitHub;
+using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Steam;
+using GenHub.Core.Interfaces.Storage;
 using GenHub.Core.Interfaces.Tools;
+using GenHub.Core.Interfaces.Workspace;
 using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
-using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Notifications;
 using GenHub.Features.AppUpdate.Interfaces;
 using GenHub.Features.Content.Services.ContentDiscoverers;
@@ -267,7 +269,25 @@ public class MainViewModelTests
         var mockUserSettings = new Mock<IUserSettingsService>();
         mockUserSettings.Setup(x => x.Get()).Returns(new UserSettings());
         var mockLogger = new Mock<ILogger<SettingsViewModel>>();
-        var settingsVm = new SettingsViewModel(mockUserSettings.Object, mockLogger.Object);
+        var mockCasService = new Mock<ICasService>();
+        var mockProfileManager = new Mock<IGameProfileManager>();
+        var mockWorkspaceManager = new Mock<IWorkspaceManager>();
+        var mockManifestPool = new Mock<IContentManifestPool>();
+        var mockUpdateManager = new Mock<IVelopackUpdateManager>();
+        var mockNotificationService = new Mock<INotificationService>();
+        var mockNotificationServiceForSettings = new Mock<INotificationService>();
+        var mockConfigurationProvider = new Mock<IConfigurationProviderService>();
+
+        var settingsVm = new SettingsViewModel(
+            mockUserSettings.Object,
+            mockLogger.Object,
+            mockCasService.Object,
+            mockProfileManager.Object,
+            mockWorkspaceManager.Object,
+            mockManifestPool.Object,
+            mockUpdateManager.Object,
+            mockNotificationServiceForSettings.Object,
+            mockConfigurationProvider.Object);
         return (settingsVm, mockUserSettings);
     }
 

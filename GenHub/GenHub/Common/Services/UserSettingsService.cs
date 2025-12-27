@@ -266,7 +266,7 @@ public class UserSettingsService : IUserSettingsService
             "downloadUserAgent" => nameof(UserSettings.DownloadUserAgent),
             "settingsFilePath" => nameof(UserSettings.SettingsFilePath),
             "cachePath" => nameof(UserSettings.CachePath),
-            "contentStoragePath" => nameof(UserSettings.ContentStoragePath),
+            "applicationDataPath" => nameof(UserSettings.ApplicationDataPath),
             "contentDirectories" => nameof(UserSettings.ContentDirectories),
             "gitHubDiscoveryRepositories" => nameof(UserSettings.GitHubDiscoveryRepositories),
             _ => string.Empty,

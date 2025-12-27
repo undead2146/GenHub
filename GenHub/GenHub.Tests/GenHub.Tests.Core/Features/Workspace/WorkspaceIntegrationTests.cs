@@ -57,7 +57,7 @@ public class WorkspaceIntegrationTests : IDisposable
 
         // Mock ConfigurationProviderService instead of using real one
         var mockConfigProvider = new Mock<IConfigurationProviderService>();
-        mockConfigProvider.Setup(x => x.GetContentStoragePath()).Returns(_tempWorkspaceRoot);
+        mockConfigProvider.Setup(x => x.GetApplicationDataPath()).Returns(_tempWorkspaceRoot);
         services.AddSingleton<IConfigurationProviderService>(mockConfigProvider.Object);
 
         services.AddSingleton<ICasStorage, CasStorage>();
@@ -156,7 +156,7 @@ public class WorkspaceIntegrationTests : IDisposable
         var strategy = new FullCopyStrategy(fileOps, logger.Object);
 
         var mockConfigProvider = new Mock<IConfigurationProviderService>();
-        mockConfigProvider.Setup(x => x.GetContentStoragePath()).Returns(_tempWorkspaceRoot);
+        mockConfigProvider.Setup(x => x.GetApplicationDataPath()).Returns(_tempWorkspaceRoot);
         mockConfigProvider.Setup(x => x.GetWorkspacePath()).Returns(_tempWorkspaceRoot);
 
         var mockLogger = new Mock<ILogger<WorkspaceManager>>().Object;

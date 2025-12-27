@@ -36,6 +36,9 @@ features:
   - title: Three-Tier Architecture
     details: Sophisticated content pipeline with orchestrator, providers, and specialized pipeline components.
     icon: 🏗️
+  - title: Maintenance Tools
+    details: Built-in "Danger Zone" for deep cleaning of CAS storage, workspaces, and metadata.
+    icon: 🛡️
   - title: Developer Friendly
     details: Clean architecture, comprehensive testing, and extensive documentation for contributors.
     icon: 👥

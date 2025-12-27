@@ -79,7 +79,9 @@ public static class ContentPipelineModule
             var configService = sp.GetRequiredService<IConfigurationProviderService>();
             var logger = sp.GetRequiredService<ILogger<ContentStorageService>>();
             var casService = sp.GetRequiredService<ICasService>();
-            var storageRoot = configService.GetContentStoragePath();
+
+            // Get application data path where manifests metadata is stored
+            var storageRoot = configService.GetApplicationDataPath();
 
             return new ContentStorageService(storageRoot, logger, casService);
         });
@@ -270,6 +272,5 @@ public static class ContentPipelineModule
 
         // Register content orchestrator and validator
         services.AddSingleton<IContentValidator, ContentValidator>();
-        services.AddSingleton<IContentOrchestrator, ContentOrchestrator>();
     }
 }

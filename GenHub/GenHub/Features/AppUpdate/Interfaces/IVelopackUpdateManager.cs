@@ -54,4 +54,9 @@ public interface IVelopackUpdateManager
     /// Gets the latest version available from GitHub, if an update was found.
     /// </summary>
     string? LatestVersionFromGitHub { get; }
+
+    /// <summary>
+    /// Uninstalls the application.
+    /// </summary>
+    void Uninstall();
 }

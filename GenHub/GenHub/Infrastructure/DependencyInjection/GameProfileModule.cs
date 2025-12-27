@@ -49,7 +49,7 @@ public static class GameProfileModule
     {
         try
         {
-            var appDataPath = configProvider.GetContentStoragePath();
+            var appDataPath = configProvider.GetApplicationDataPath();
             var parentDirectory = Path.GetDirectoryName(appDataPath);
             if (string.IsNullOrEmpty(parentDirectory))
             {

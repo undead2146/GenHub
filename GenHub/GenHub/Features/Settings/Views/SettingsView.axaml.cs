@@ -1,6 +1,9 @@
+using System;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using GenHub.Features.Settings.ViewModels;
 
 namespace GenHub.Features.Settings.Views;
 
@@ -18,6 +21,46 @@ public partial class SettingsView : UserControl
 
         // Handle pointer press to unfocus text boxes when clicking elsewhere
         this.AddHandler(PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
+    }
+
+    /// <summary>
+    /// Called when the control is attached to the visual tree.
+    /// </summary>
+    /// <param name="e">The event arguments.</param>
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (DataContext is SettingsViewModel vm)
+        {
+            vm.IsViewVisible = true;
+        }
+    }
+
+    /// <summary>
+    /// Called when the control is detached from the visual tree.
+    /// </summary>
+    /// <param name="e">The event arguments.</param>
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (DataContext is SettingsViewModel vm)
+        {
+            vm.IsViewVisible = false;
+        }
+    }
+
+    /// <summary>
+    /// Called when the DataContext changes.
+    /// </summary>
+    /// <param name="e">The event arguments.</param>
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+        if (DataContext is SettingsViewModel vm)
+        {
+            // Sync visibility state with current visual tree state
+            vm.IsViewVisible = this.VisualRoot != null;
+        }
     }
 
     private void OnPointerPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e)

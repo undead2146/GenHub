@@ -70,7 +70,7 @@ public class MixedInstallationIntegrationTests : IDisposable
         });
 
         var mockConfigProvider = new Mock<IConfigurationProviderService>();
-        mockConfigProvider.Setup(x => x.GetContentStoragePath()).Returns(_tempContentStorage);
+        mockConfigProvider.Setup(x => x.GetApplicationDataPath()).Returns(_tempContentStorage);
         mockConfigProvider.Setup(x => x.GetWorkspacePath()).Returns(_tempWorkspaceRoot);
         services.AddSingleton<IConfigurationProviderService>(mockConfigProvider.Object);
 

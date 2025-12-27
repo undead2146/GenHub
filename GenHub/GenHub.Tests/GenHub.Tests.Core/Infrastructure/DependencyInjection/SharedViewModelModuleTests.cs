@@ -145,7 +145,7 @@ public class SharedViewModelModuleTests
         mock.Setup(x => x.GetWindowHeight()).Returns(800.0);
         mock.Setup(x => x.GetIsWindowMaximized()).Returns(false);
         mock.Setup(x => x.GetLastSelectedTab()).Returns(NavigationTab.Home);
-        mock.Setup(x => x.GetContentStoragePath()).Returns(Path.Combine(Path.GetTempPath(), "GenHubTest", "Content"));
+        mock.Setup(x => x.GetApplicationDataPath()).Returns(Path.Combine(Path.GetTempPath(), "GenHubTest", "Content"));
         mock.Setup(x => x.GetWorkspacePath()).Returns(Path.Combine(Path.GetTempPath(), "GenHubTest", "Workspace"));
         mock.Setup(x => x.GetContentDirectories()).Returns(new List<string> { Path.GetTempPath() });
         mock.Setup(x => x.GetGitHubDiscoveryRepositories()).Returns(new List<string> { "test/repo" });

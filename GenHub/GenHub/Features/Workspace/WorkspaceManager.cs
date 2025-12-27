@@ -29,7 +29,10 @@ public class WorkspaceManager(
     IWorkspaceValidator workspaceValidator
 ) : IWorkspaceManager
 {
-    private readonly string _workspaceMetadataPath = Path.Combine(configurationProvider.GetContentStoragePath(), "workspaces.json");
+    private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
+
+    // Stores workspace metadata in the application data directory
+    private readonly string _workspaceMetadataPath = Path.Combine(configurationProvider.GetApplicationDataPath(), "workspaces.json");
 
     /// <summary>
     /// Prepares a workspace using the specified configuration and strategy.
@@ -74,11 +77,11 @@ public class WorkspaceManager(
                             workspace.Strategy);
 
                         // Check if manifest IDs have changed
-                        var currentManifestIds = (configuration.Manifests ?? Enumerable.Empty<ContentManifest>())
+                        var currentManifestIds = (configuration.Manifests ?? [])
                             .Select(m => m.Id.Value)
                             .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
                             .ToList();
-                        var cachedManifestIds = (workspace.ManifestIds ?? new List<string>())
+                        var cachedManifestIds = (workspace.ManifestIds ?? [])
                             .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
                             .ToList();
 
@@ -96,8 +99,8 @@ public class WorkspaceManager(
                         {
                             // Quick check: compare expected file count from manifests with cached workspace file count
                             // Account for file deduplication - files with same relative path keep highest priority version only
-                            var allFiles = (configuration.Manifests ?? Enumerable.Empty<ContentManifest>())
-                                .SelectMany(m => (m.Files ?? Enumerable.Empty<ManifestFile>()).Select(f => new { File = f, Manifest = m }))
+                            var allFiles = (configuration.Manifests ?? [])
+                                .SelectMany(m => (m.Files ?? []).Select(f => new { File = f, Manifest = m }))
                                 .GroupBy(x => x.File.RelativePath, StringComparer.OrdinalIgnoreCase)
                                 .Select(g => g.OrderByDescending(x => ContentTypePriority.GetPriority(x.Manifest.ContentType)).First().File);
                             var expectedFileCount = allFiles.Count();
@@ -113,7 +116,7 @@ public class WorkspaceManager(
 
                             // Perform basic validation before reusing workspace
                             // Ensure workspace is not corrupted or incomplete
-                            if (!ValidateWorkspaceBasics(workspace, configuration))
+                            if (!ValidateWorkspaceBasics(workspace))
                             {
                                 logger.LogWarning(
                                     "[Workspace] Workspace {Id} validation failed, will recreate",
@@ -201,7 +204,7 @@ public class WorkspaceManager(
         if (!workspaceInfo.IsPrepared)
         {
             var messages = workspaceInfo.ValidationIssues?.Select(i => i.Message)
-                           ?? new[] { "Workspace preparation failed" };
+                           ?? ["Workspace preparation failed"];
             logger.LogError("[Workspace] Strategy preparation failed: {Errors}", string.Join(", ", messages));
             return OperationResult<WorkspaceInfo>.CreateFailure(string.Join(", ", messages) ?? "Workspace preparation failed");
         }
@@ -223,7 +226,7 @@ public class WorkspaceManager(
         }
 
         // Store manifest IDs for future reuse comparison
-        workspaceInfo.ManifestIds = (configuration.Manifests ?? Enumerable.Empty<ContentManifest>())
+        workspaceInfo.ManifestIds = (configuration.Manifests ?? [])
             .Select(m => m.Id.Value)
             .ToList();
 
@@ -250,7 +253,7 @@ public class WorkspaceManager(
         {
             if (!File.Exists(_workspaceMetadataPath))
             {
-                return OperationResult<IEnumerable<WorkspaceInfo>>.CreateSuccess(Enumerable.Empty<WorkspaceInfo>());
+                return OperationResult<IEnumerable<WorkspaceInfo>>.CreateSuccess([]);
             }
 
             var json = await File.ReadAllTextAsync(_workspaceMetadataPath, cancellationToken);
@@ -327,14 +330,14 @@ public class WorkspaceManager(
             Directory.CreateDirectory(directory);
         }
 
-        var json = JsonSerializer.Serialize(workspaces, new JsonSerializerOptions { WriteIndented = true });
+        var json = JsonSerializer.Serialize(workspaces, _jsonOptions);
         await File.WriteAllTextAsync(_workspaceMetadataPath, json, cancellationToken);
     }
 
     private async Task SaveWorkspaceMetadataAsync(WorkspaceInfo workspaceInfo, CancellationToken cancellationToken)
     {
         var workspacesResult = await GetAllWorkspacesAsync(cancellationToken);
-        var workspaces = workspacesResult.Data?.ToList() ?? new List<WorkspaceInfo>();
+        var workspaces = workspacesResult.Data?.ToList() ?? [];
         var existing = workspaces.FirstOrDefault(w => w.Id == workspaceInfo.Id);
 
         if (existing != null)
@@ -348,12 +351,12 @@ public class WorkspaceManager(
 
     private async Task TrackWorkspaceCasReferencesAsync(string workspaceId, IEnumerable<ContentManifest> manifests, CancellationToken cancellationToken)
     {
-        var casReferences = manifests.SelectMany(m => m.Files ?? Enumerable.Empty<ManifestFile>())
+        var casReferences = manifests.SelectMany(m => m.Files ?? [])
             .Where(f => f.SourceType == ContentSourceType.ContentAddressable && !string.IsNullOrEmpty(f.Hash))
             .Select(f => f.Hash!)
             .ToList();
 
-        if (casReferences.Any())
+        if (casReferences.Count > 0)
         {
             await casReferenceTracker.TrackWorkspaceReferencesAsync(workspaceId, casReferences, cancellationToken);
         }
@@ -364,9 +367,8 @@ public class WorkspaceManager(
     /// Checks if the workspace directory exists and contains expected structure.
     /// </summary>
     /// <param name="workspace">The workspace to validate.</param>
-    /// <param name="configuration">The current workspace configuration.</param>
     /// <returns>True if workspace passes basic validation, false otherwise.</returns>
-    private bool ValidateWorkspaceBasics(WorkspaceInfo workspace, WorkspaceConfiguration configuration)
+    private bool ValidateWorkspaceBasics(WorkspaceInfo workspace)
     {
         try
         {

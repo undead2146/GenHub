@@ -140,6 +140,7 @@ Features integrate through well-defined interfaces and shared models:
 - **Cancellation**: `CancellationToken` support for all operations  
 - **Logging**: Structured logging with `Microsoft.Extensions.Logging`  
 - **Configuration**: Unified configuration system (`IAppConfiguration`,`IUserSettingsService`, `IConfigurationProviderService`)
+- **Danger Zone**: Destructive maintenance operations for advanced data management
 
 ---
 
@@ -147,6 +148,7 @@ Features integrate through well-defined interfaces and shared models:
 
 - **Installation & Setup**: Game installation detection, validation, and configuration  
 - **Content Management**: Mods, patches, add-ons, and community content  
+- **Data Maintenance**: [Danger Zone](./danger-zone.md), CAS cleanup, and workspace management
 - **Profile Management**: Game profiles, workspaces, and custom configurations  
 - **Launching & Execution**: Advanced launch options and runtime monitoring  
 - **Maintenance**: Updates, validation, and system health monitoring  

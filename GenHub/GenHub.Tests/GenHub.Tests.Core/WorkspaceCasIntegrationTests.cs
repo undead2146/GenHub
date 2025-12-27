@@ -48,7 +48,7 @@ public class WorkspaceCasIntegrationTests : IDisposable
 
         // Mock ConfigurationProviderService instead of using real one
         var mockConfigProvider = new Mock<IConfigurationProviderService>();
-        mockConfigProvider.Setup(x => x.GetContentStoragePath()).Returns(casRootPath);
+        mockConfigProvider.Setup(x => x.GetApplicationDataPath()).Returns(casRootPath);
         services.AddSingleton<IConfigurationProviderService>(mockConfigProvider.Object);
 
         // Register hash providers
