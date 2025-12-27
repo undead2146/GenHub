@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GitHub;
+using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GitHub;
 using GenHub.Core.Models.Manifest;
@@ -155,6 +156,12 @@ public partial class GitHubTopicsDiscoverer(
                         continue;
                     }
 
+                    if (repo.Name.Equals(AppConstants.GitHubRepositoryName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        logger.LogDebug("Skipping system repository: {Repo}", repo.FullName);
+                        continue;
+                    }
+
                     // Try to get latest release for version info
                     GitHubRelease? latestRelease = null;
                     try
@@ -208,6 +215,9 @@ public partial class GitHubTopicsDiscoverer(
             return OperationResult<IEnumerable<ContentSearchResult>>.CreateFailure($"GitHub Topics discovery failed: {ex.Message}");
         }
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"(\d{3,4}x\d{3,4})")]
+    private static partial System.Text.RegularExpressions.Regex MyRegex();
 
     /// <summary>
     /// Infers ContentType from repository topics.
@@ -340,7 +350,7 @@ public partial class GitHubTopicsDiscoverer(
             return false;
 
         // Count standalone files (non-archive extensions)
-        string[] standaloneExtensions = [".big", ".csf", ".ini", ".w3d", ".dds", ".tga"];
+        string[] standaloneExtensions = [".big", ".csf", ".ini", ".w3d", ".dds", ".tga", ".zip"];
         var standaloneCount = release.Assets.Count(a =>
             standaloneExtensions.Any(ext => a.Name.EndsWith(ext, StringComparison.OrdinalIgnoreCase)));
 
@@ -481,6 +491,8 @@ public partial class GitHubTopicsDiscoverer(
             { "portuguese", "Portuguese" },
         };
 
+        // Check if filename contains a resolution (e.g., 1920x1080)
+        // Note: Resolution matching is already handled by VariantPatterns.ResolutionPattern() above.
         foreach (var (pattern, displayName) in languagePatterns)
         {
             if (nameWithoutExt.Contains(pattern, StringComparison.OrdinalIgnoreCase))

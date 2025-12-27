@@ -11,6 +11,7 @@ using GenHub.Core.Interfaces.Steam;
 using GenHub.Core.Interfaces.Tools;
 using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Notifications;
 using GenHub.Features.AppUpdate.Interfaces;
 using GenHub.Features.Content.Services.ContentDiscoverers;
@@ -312,12 +313,15 @@ public class MainViewModelTests
             new Mock<IConfigurationProviderService>().Object,
             new Mock<IProfileContentLoader>().Object,
             null,
+            null, // INotificationService
+            null, // IContentManifestPool
             NullLogger<GameProfileSettingsViewModel>.Instance,
             NullLogger<GameSettingsViewModel>.Instance);
         var profileEditorFacade = new Mock<IProfileEditorFacade>();
         var configService = new Mock<IConfigurationProviderService>();
         var gameProcessManager = new Mock<IGameProcessManager>();
         var shortcutService = new Mock<IShortcutService>();
+        var notificationServiceForLauncher = new Mock<INotificationService>();
 
         return new GameProfileLauncherViewModel(
             installationService.Object,
@@ -330,6 +334,7 @@ public class MainViewModelTests
             shortcutService.Object,
             new Mock<ISteamManifestPatcher>().Object,
             CreateProfileResourceService(),
+            notificationServiceForLauncher.Object,
             NullLogger<GameProfileLauncherViewModel>.Instance);
     }
 

@@ -7,16 +7,19 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Steam;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
+using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
 using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.Views;
@@ -38,7 +41,8 @@ public partial class GameProfileLauncherViewModel(
     IShortcutService shortcutService,
     ISteamManifestPatcher steamManifestPatcher,
     ProfileResourceService profileResourceService,
-    ILogger<GameProfileLauncherViewModel> logger) : ViewModelBase
+    INotificationService notificationService,
+    ILogger<GameProfileLauncherViewModel> logger) : ViewModelBase, IRecipient<ProfileCreatedMessage>, IRecipient<ProfileUpdatedMessage>
 {
     private readonly SemaphoreSlim _launchSemaphore = new(1, 1);
 
@@ -115,6 +119,12 @@ public partial class GameProfileLauncherViewModel(
                 ErrorMessage = errors;
                 logger.LogWarning("Failed to load profiles: {Errors}", errors);
             }
+
+            // Register for profile messages on first initialization only
+            if (!WeakReferenceMessenger.Default.IsRegistered<ProfileCreatedMessage>(this))
+            {
+                WeakReferenceMessenger.Default.RegisterAll(this);
+            }
         }
         catch (Exception ex)
         {
@@ -123,6 +133,50 @@ public partial class GameProfileLauncherViewModel(
             ErrorMessage = ex.Message;
             IsServiceAvailable = false;
         }
+    }
+
+    /// <summary>
+    /// Receives notification when a new profile is created and refreshes the profiles list.
+    /// </summary>
+    /// <param name="message">The profile created message.</param>
+    public void Receive(ProfileCreatedMessage message)
+    {
+        logger.LogInformation("Profile created notification received for {ProfileName}, refreshing list", message.Profile.Name);
+
+        // Refresh profiles on UI thread
+        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            try
+            {
+                await InitializeAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error refreshing profiles after profile creation");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Receives notification when a profile is updated and refreshes the profiles list.
+    /// </summary>
+    /// <param name="message">The profile updated message.</param>
+    public void Receive(ProfileUpdatedMessage message)
+    {
+        logger.LogInformation("Profile updated notification received for {ProfileName}, refreshing list", message.Profile.Name);
+
+        // Refresh profiles on UI thread
+        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            try
+            {
+                await InitializeAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error refreshing profiles after profile update");
+            }
+        });
     }
 
     /// <summary>
@@ -139,17 +193,10 @@ public partial class GameProfileLauncherViewModel(
     /// Gets the icon path for a game type and installation type.
     /// </summary>
     /// <param name="gameType">The game type.</param>
-    /// <param name="installationType">The installation type.</param>
     /// <returns>The relative icon path.</returns>
-    private static string GetIconPathForGame(GameType gameType, GameInstallationType installationType)
+    private static string GetIconPathForGame(GameType gameType)
     {
         var gameIcon = gameType == GameType.Generals ? UriConstants.GeneralsIconFilename : UriConstants.ZeroHourIconFilename;
-        _ = installationType switch
-        {
-            GameInstallationType.Steam => UriConstants.SteamIconFilename,
-            GameInstallationType.EaApp => UriConstants.EaAppIconFilename,
-            _ => UriConstants.GenHubIconFilename,
-        };
 
         // For now, return the game-specific icon - could be enhanced to combine with platform icon
         return $"{UriConstants.IconsBasePath}/{gameIcon}";
@@ -478,6 +525,12 @@ public partial class GameProfileLauncherViewModel(
                     var errors = string.Join(", ", launchResult.Errors);
                     StatusMessage = $"Failed to launch {profile.Name}: {errors}";
                     ErrorMessage = errors;
+
+                    // Show error notification to user
+                    notificationService.ShowError(
+                        "Launch Failed",
+                        $"Failed to launch {profile.Name}: {errors}");
+
                     logger.LogWarning(
                         "Failed to launch profile {ProfileName}: {Errors}",
                         profile.Name,
@@ -598,6 +651,16 @@ public partial class GameProfileLauncherViewModel(
                 Profiles.Remove(profile);
                 StatusMessage = $"{profile.Name} deleted successfully";
                 logger?.LogInformation("Deleted profile {ProfileName}", profile.Name);
+
+                try
+                {
+                    CommunityToolkit.Mvvm.Messaging.WeakReferenceMessenger.Default.Send(
+                        new ProfileDeletedMessage(profile.ProfileId, profile.Name), 0);
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogError(ex, "Failed to send ProfileDeletedMessage");
+                }
             }
             else
             {

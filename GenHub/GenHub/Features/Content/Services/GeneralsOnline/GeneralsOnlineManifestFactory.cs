@@ -49,31 +49,39 @@ public class GeneralsOnlineManifestFactory(ILogger<GeneralsOnlineManifestFactory
     /// <summary>
     /// Parses a Generals Online version string to extract a numeric user version for manifest IDs.
     /// Converts versions like "111825_QFE2" (Nov 18, 2025) to a numeric value like 1118252.
-    /// NOTE: Format is dictated by Generals Online CDN API (MMDDYY_QFE#), not our choice.
-    /// This method converts it to a sortable numeric format.
+    /// Also supports simple versions like "122025" -> 1220250 (default assignment of 0 for QFE).
     /// </summary>
-    /// <param name="version">The version string (e.g., "111825_QFE2").</param>
+    /// <param name="version">The version string (e.g., "111825_QFE2" or "122025").</param>
     /// <returns>A numeric version suitable for manifest IDs.</returns>
     private static int ParseVersionForManifestId(string version)
     {
         try
         {
-            var parts = version.Split(GeneralsOnlineConstants.QfeSeparator, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length != 2)
+            // Case 1: Version with QFE (e.g., "111825_QFE2")
+            if (version.Contains(GeneralsOnlineConstants.QfeSeparator))
             {
-                return 0;
+                var parts = version.Split([GeneralsOnlineConstants.QfeSeparator], StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 2)
+                {
+                    var datePart = parts[0];
+                    var qfePart = parts[1].Replace("QFE", string.Empty, StringComparison.OrdinalIgnoreCase);
+
+                    if (int.TryParse(datePart, out var dateValue) && int.TryParse(qfePart, out var qfeValue))
+                    {
+                        // Combine: 101525 * 10 + 5 = 1015255
+                        return (dateValue * 10) + qfeValue;
+                    }
+                }
             }
 
-            var datePart = parts[0]; // "101525"
-            var qfePart = parts[1].Replace("QFE", string.Empty, StringComparison.OrdinalIgnoreCase);
-
-            if (!int.TryParse(datePart, out var dateValue) || !int.TryParse(qfePart, out var qfeValue))
+            // Case 2: Simple version (e.g., "122025")
+            // Treat as QFE 0 -> 1220250
+            if (int.TryParse(version, out var simpleVersion))
             {
-                return 0;
+                return simpleVersion * 10;
             }
 
-            // Combine: 101525 * 10 + 5 = 1015255
-            return (dateValue * 10) + qfeValue;
+            return 0;
         }
         catch
         {
@@ -195,8 +203,9 @@ public class GeneralsOnlineManifestFactory(ILogger<GeneralsOnlineManifestFactory
         var userVersion = ParseVersionForManifestId(release.Version);
 
         // Content name for GeneralsOnline (publisher is "generalsonline", content is the variant)
-        // This will create IDs like: 1.1015255.generalsonline.gameclient.30hz
-        var contentName = variantSuffix;
+        // For GeneralsOnline, we want the content name to be prefixed with the publisher type
+        // This will create IDs like: 1.1015255.generalsonline.gameclient.generalsonline_30hz
+        var contentName = $"{GeneralsOnlineConstants.PublisherType}_{variantSuffix}";
 
         var manifestId = ManifestId.Create(ManifestIdGenerator.GeneratePublisherContentId(
             PublisherTypeConstants.GeneralsOnline,

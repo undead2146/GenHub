@@ -170,11 +170,11 @@ public class WorkspaceIntegrationTests : IDisposable
 
         var mockWorkspaceValidator = new Mock<IWorkspaceValidator>();
         mockWorkspaceValidator.Setup(x => x.ValidateWorkspaceAsync(It.IsAny<WorkspaceInfo>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(OperationResult<ValidationResult>.CreateSuccess(new ValidationResult("test", new List<ValidationIssue>())));
+            .ReturnsAsync(OperationResult<ValidationResult>.CreateSuccess(new ValidationResult("test", [])));
         mockWorkspaceValidator.Setup(x => x.ValidatePrerequisitesAsync(It.IsAny<IWorkspaceStrategy>(), It.IsAny<WorkspaceConfiguration>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ValidationResult("test", new List<ValidationIssue>()));
+            .ReturnsAsync(new ValidationResult("test", []));
         mockWorkspaceValidator.Setup(x => x.ValidateConfigurationAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ValidationResult("test", new List<ValidationIssue>()));
+            .ReturnsAsync(new ValidationResult("test", []));
 
         // Create WorkspaceReconciler
         var workspaceReconciler = new WorkspaceReconciler(mockReconcilerLogger);
@@ -197,6 +197,7 @@ public class WorkspaceIntegrationTests : IDisposable
     /// </summary>
     public void Dispose()
     {
+        GC.SuppressFinalize(this);
         try
         {
             if (Directory.Exists(_tempGameInstall))
@@ -293,7 +294,7 @@ public class WorkspaceIntegrationTests : IDisposable
             WorkspaceRootPath = _tempWorkspaceRoot,
             Strategy = strategy,
             BaseInstallationPath = _tempGameInstall,
-            Manifests = new List<ContentManifest> { manifest },
+            Manifests = [manifest],
         };
     }
 

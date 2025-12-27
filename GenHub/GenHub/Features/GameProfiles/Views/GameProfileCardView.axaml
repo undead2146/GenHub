@@ -434,13 +434,22 @@
 
                     <!-- Steam mode toggle - only visible for Steam installations and when not running -->
                     <ToggleButton Classes="steam-launch-toggle"
-                        IsChecked="{Binding UseSteamLaunch}"
-                        IsVisible="{Binding IsSteamInstallation}"
-                        Command="{Binding $parent[ItemsControl].((vm:GameProfileLauncherViewModel)DataContext).ToggleSteamLaunchCommand}"
-                        CommandParameter="{Binding}"
-                        ToolTip.Tip="Toggle Steam integration (on: use Steam, off: standalone)"
-                        HorizontalContentAlignment="Center"
-                        VerticalContentAlignment="Center">
+                        IsChecked="{Binding UseSteamLaunch}">
+                        <ToggleButton.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="IsSteamInstallation" />
+                                <Binding Path="$parent[ItemsControl].((vm:GameProfileLauncherViewModel)DataContext).IsEditMode" />
+                            </MultiBinding>
+                        </ToggleButton.IsVisible>
+                        <ToggleButton.Command>
+                            <Binding Path="$parent[ItemsControl].((vm:GameProfileLauncherViewModel)DataContext).ToggleSteamLaunchCommand" />
+                        </ToggleButton.Command>
+                        <ToggleButton.CommandParameter>
+                            <Binding />
+                        </ToggleButton.CommandParameter>
+                        <ToolTip.Tip>Toggle Steam integration (on: use Steam, off: standalone)</ToolTip.Tip>
+                        <ToggleButton.HorizontalContentAlignment>Center</ToggleButton.HorizontalContentAlignment>
+                        <ToggleButton.VerticalContentAlignment>Center</ToggleButton.VerticalContentAlignment>
                         <ToggleButton.Styles>
                             <Style Selector="ToggleButton:checked Image">
                                 <Setter Property="Opacity" Value="1.0" />
