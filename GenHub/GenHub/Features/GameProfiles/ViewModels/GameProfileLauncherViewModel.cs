@@ -10,12 +10,14 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Steam;
+using GenHub.Core.Messages;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
@@ -39,10 +41,14 @@ public partial class GameProfileLauncherViewModel(
     IConfigurationProviderService configService,
     IGameProcessManager gameProcessManager,
     IShortcutService shortcutService,
+    IPublisherProfileOrchestrator publisherProfileOrchestrator,
     ISteamManifestPatcher steamManifestPatcher,
     ProfileResourceService profileResourceService,
     INotificationService notificationService,
-    ILogger<GameProfileLauncherViewModel> logger) : ViewModelBase, IRecipient<ProfileCreatedMessage>, IRecipient<ProfileUpdatedMessage>
+    ILogger<GameProfileLauncherViewModel> logger) : ViewModelBase,
+    IRecipient<ProfileCreatedMessage>,
+    IRecipient<ProfileUpdatedMessage>,
+    IRecipient<ProfileListUpdatedMessage>
 {
     private readonly SemaphoreSlim _launchSemaphore = new(1, 1);
 
@@ -69,6 +75,18 @@ public partial class GameProfileLauncherViewModel(
 
     [ObservableProperty]
     private bool _isScanning;
+
+    [ObservableProperty]
+    private bool _isShowingPatchPrompt;
+
+    [ObservableProperty]
+    private string _promptMessage = string.Empty;
+
+    [ObservableProperty]
+    private string _promptTitle = string.Empty;
+
+    private GameInstallation? _pendingInstallation;
+    private TaskCompletionSource<bool>? _promptCompletionSource;
 
     /// <summary>
     /// Performs asynchronous initialization for the GameProfileLauncherViewModel.
@@ -141,18 +159,18 @@ public partial class GameProfileLauncherViewModel(
     /// <param name="message">The profile created message.</param>
     public void Receive(ProfileCreatedMessage message)
     {
-        logger.LogInformation("Profile created notification received for {ProfileName}, refreshing list", message.Profile.Name);
+        logger.LogInformation("Profile created notification received for {ProfileName}, adding to UI", message.Profile.Name);
 
-        // Refresh profiles on UI thread
-        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
+        // Add profile to UI on UI thread
+        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
         {
             try
             {
-                await InitializeAsync();
+                AddProfileToUI(message.Profile);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Error refreshing profiles after profile creation");
+                logger.LogError(ex, "Error adding profile to UI after creation");
             }
         });
     }
@@ -180,6 +198,28 @@ public partial class GameProfileLauncherViewModel(
     }
 
     /// <summary>
+    /// Receives notification when the profile list has been updated (bulk changes).
+    /// </summary>
+    /// <param name="message">The profile list updated message.</param>
+    public void Receive(ProfileListUpdatedMessage message)
+    {
+        logger.LogInformation("Profile list updated notification received, refreshing list");
+
+        // Refresh profiles on UI thread
+        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            try
+            {
+                await InitializeAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error refreshing profiles after list update");
+            }
+        });
+    }
+
+    /// <summary>
     /// Gets the default theme color for a game type.
     /// </summary>
     /// <param name="gameType">The game type.</param>
@@ -200,6 +240,23 @@ public partial class GameProfileLauncherViewModel(
 
         // For now, return the game-specific icon - could be enhanced to combine with platform icon
         return $"{UriConstants.IconsBasePath}/{gameIcon}";
+    }
+
+    /// <summary>
+    /// Checks if the installation has any publisher-based game clients (GeneralsOnline, TheSuperHackers).
+    /// </summary>
+    private static bool HasPublisherClients(GameInstallation installation)
+    {
+        return installation.AvailableGameClients != null &&
+               installation.AvailableGameClients.Any(c => c.IsPublisherClient);
+    }
+
+    /// <summary>
+    /// Checks if a game client is a standard base game client (not a publisher client).
+    /// </summary>
+    private static bool IsStandardGameClient(GameClient client)
+    {
+        return !client.IsPublisherClient;
     }
 
     /// <summary>
@@ -279,6 +336,8 @@ public partial class GameProfileLauncherViewModel(
 
     /// <summary>
     /// Scans for games and automatically creates profiles for detected installations.
+    /// Implements smart profile creation: skips base Generals/ZeroHour if publisher clients exist,
+    /// or prompts for Community Patch installation.
     /// </summary>
     [RelayCommand]
     private async Task ScanForGamesAsync()
@@ -303,34 +362,159 @@ public partial class GameProfileLauncherViewModel(
                 var zeroHourCount = installations.Data.Count(i => i.HasZeroHour);
 
                 logger.LogInformation(
-                    "Game scan completed successfully. Found {Count} installations ({GeneralsCount} Generals, {ZeroHourCount} Zero Hour)",
+                    "Game scan completed. Found {Count} installations ({GeneralsCount} Generals, {ZeroHourCount} Zero Hour)",
                     installationCount,
                     generalsCount,
                     zeroHourCount);
 
-                // Generate manifests and populate versions for detected installations
-                int manifestsGenerated = 0;
                 int profilesCreated = 0;
 
                 foreach (var installation in installations.Data)
                 {
-                    manifestsGenerated += installation.AvailableGameClients?.Count * 2 ?? 0;
-
-                    // Create profiles for ALL detected game clients (not just one per game type)
-                    if (installation.AvailableGameClients != null)
+                    if (installation.AvailableGameClients == null || installation.AvailableGameClients.Count == 0)
                     {
+                        continue;
+                    }
+
+                    // Check if this installation has any publisher clients (GeneralsOnline, TheSuperHackers)
+                    bool hasPublisherClients = HasPublisherClients(installation);
+
+                    if (hasPublisherClients)
+                    {
+                        // Publisher clients detected - create profiles only for publisher clients, skip base games
+                        logger.LogInformation(
+                            "Installation {InstallationId} has publisher clients, skipping base game profiles",
+                            installation.Id);
+
+                        notificationService.ShowInfo(
+                            "Existing Patches Found",
+                            "Creating profiles for existing patches...",
+                            null);
+
                         foreach (var gameClient in installation.AvailableGameClients)
                         {
-                            var profileCreated = await TryCreateProfileForGameClientAsync(installation, gameClient);
-                            if (profileCreated) profilesCreated++;
+                            if (gameClient.IsPublisherClient)
+                            {
+                                var profileCreated = await TryCreateProfileForGameClientAsync(installation, gameClient);
+                                if (profileCreated) profilesCreated++;
+                            }
+                            else
+                            {
+                                logger.LogDebug(
+                                    "Skipping base game client {ClientName} - publisher clients exist",
+                                    gameClient.Name);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // No publisher clients - prompt for Community Patch installation
+                        logger.LogInformation(
+                            "Installation {InstallationId} has no publisher clients, prompting for Community Patch",
+                            installation.Id);
+
+                        var wantsCommunityPatch = await ShowPromptAsync(
+                            "Install Community Patch?",
+                            "Would you like to install the Community Patch? This includes the latest fixes and improvements and is recommended over base game profiles.",
+                            installation);
+
+                        if (wantsCommunityPatch)
+                        {
+                            // User wants Community Patch - use the orchestrator to acquire and create profiles
+                            logger.LogInformation("User accepted Community Patch installation");
+                            notificationService.ShowInfo(
+                                "Installing Community Patch",
+                                "Downloading and installing Community Patch...",
+                                null);
+
+                            // Create synthetic GameClient for Community Patch
+                            var communityPatchClient = new GameClient
+                            {
+                                Id = $"communityoutpost.gameclient.communitypatch",
+                                Name = "Community Patch",
+                                PublisherType = CommunityOutpostConstants.PublisherType,
+                                GameType = GameType.ZeroHour,
+                                InstallationId = installation.Id,
+                            };
+
+                            var cpResult = await publisherProfileOrchestrator.CreateProfilesForPublisherClientAsync(
+                                installation, communityPatchClient);
+
+                            if (cpResult.Success && cpResult.Data > 0)
+                            {
+                                profilesCreated += cpResult.Data;
+                                logger.LogInformation("Community Patch installed, created {Count} profiles", cpResult.Data);
+
+                                // Now prompt for GeneralsOnline
+                                var wantsGeneralsOnline = await ShowPromptAsync(
+                                    "Install GeneralsOnline?",
+                                    "Would you also like to install GeneralsOnline for online multiplayer?",
+                                    installation);
+
+                                if (wantsGeneralsOnline)
+                                {
+                                    notificationService.ShowInfo(
+                                        "Installing GeneralsOnline",
+                                        "Downloading and installing GeneralsOnline...",
+                                        null);
+
+                                    var goClient = new GameClient
+                                    {
+                                        Id = $"generalsonline.gameclient",
+                                        Name = "GeneralsOnline",
+                                        PublisherType = PublisherTypeConstants.GeneralsOnline,
+                                        GameType = GameType.ZeroHour,
+                                        InstallationId = installation.Id,
+                                    };
+
+                                    var goResult = await publisherProfileOrchestrator.CreateProfilesForPublisherClientAsync(
+                                        installation, goClient);
+
+                                    if (goResult.Success && goResult.Data > 0)
+                                    {
+                                        profilesCreated += goResult.Data;
+                                        logger.LogInformation("GeneralsOnline installed, created {Count} profiles", goResult.Data);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                logger.LogWarning("Failed to create Community Patch profiles");
+                                notificationService.ShowWarning(
+                                    "Community Patch Failed",
+                                    "Community Patch installation failed. Creating base game profiles as fallback.");
+
+                                // Fallback to base profiles if acquisition failed
+                                foreach (var gameClient in installation.AvailableGameClients)
+                                {
+                                    var profileCreated = await TryCreateProfileForGameClientAsync(installation, gameClient);
+                                    if (profileCreated) profilesCreated++;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // User declined - create base game profiles as fallback
+                            logger.LogInformation("User declined Community Patch, creating base game profiles");
+                            notificationService.ShowInfo(
+                                "Creating Base Profiles",
+                                "Creating profiles for base game installations...",
+                                null);
+
+                            foreach (var gameClient in installation.AvailableGameClients)
+                            {
+                                var profileCreated = await TryCreateProfileForGameClientAsync(installation, gameClient);
+                                if (profileCreated) profilesCreated++;
+                            }
                         }
                     }
                 }
 
-                // Refresh the profiles list to show the newly created ones
-                await InitializeAsync();
+                StatusMessage = $"Scan complete. Found {installations.Data.Count} installations, created {profilesCreated} profiles";
 
-                StatusMessage = $"Scan complete. Found {installationCount} installations, generated {manifestsGenerated} manifests, created {profilesCreated} profiles";
+                notificationService.ShowSuccess(
+                    "Scan Complete",
+                    $"Created {profilesCreated} profile(s) for your game installations.");
             }
             else
             {
@@ -367,6 +551,19 @@ public partial class GameProfileLauncherViewModel(
                 logger.LogWarning(
                     "GameClient is null for installation {InstallationId}",
                     installation.Id);
+                return false;
+            }
+
+            // For publisher clients, handle specially to create all variant profiles
+            if (gameClient.IsPublisherClient)
+            {
+                var result = await publisherProfileOrchestrator.CreateProfilesForPublisherClientAsync(installation, gameClient);
+                if (result.Success && result.Data > 0)
+                {
+                    // No need to manually refresh - ProfileCreatedMessage handles UI updates
+                    return true;
+                }
+
                 return false;
             }
 
@@ -418,13 +615,33 @@ public partial class GameProfileLauncherViewModel(
                     : ManifestConstants.GeneralsManifestVersion;
 
                 // Normalize the fallback version (remove dots): "1.04" → 104, "1.08" → 108
-                var normalizedFallback = fallbackVersion.Replace(".", string.Empty);
+                // Ensure "1.0" is treated as "1" to avoid "v10" display issue
+                string normalizedFallback;
+                if (fallbackVersion == "1.0")
+                {
+                    normalizedFallback = "1";
+                }
+                else
+                {
+                    normalizedFallback = fallbackVersion.Replace(".", string.Empty);
+                }
+
                 manifestVersionInt = int.TryParse(normalizedFallback, out var v) ? v : 0;
             }
             else if (gameClient.Version.Contains('.'))
             {
                 // Normalize dotted version ("1.04" → 104, "1.08" → 108)
-                var normalized = gameClient.Version.Replace(".", string.Empty);
+                // Ensure "1.0" is treated as "1" to avoid "v10" display issue as requested by user
+                string normalized;
+                if (gameClient.Version == "1.0")
+                {
+                    normalized = "1";
+                }
+                else
+                {
+                    normalized = gameClient.Version.Replace(".", string.Empty);
+                }
+
                 manifestVersionInt = int.TryParse(normalized, out var v) ? v : 0;
             }
             else
@@ -450,7 +667,7 @@ public partial class GameProfileLauncherViewModel(
             var coverPath = profileResourceService.GetDefaultCoverPath(gameTypeStr);
 
             // Create the profile request using the client manifest ID for GameClientId
-            var createRequest = new Core.Models.GameProfile.CreateProfileRequest
+            var createRequest = new CreateProfileRequest
             {
                 Name = profileName,
                 GameInstallationId = installation.Id, // The actual installation GUID
@@ -467,11 +684,15 @@ public partial class GameProfileLauncherViewModel(
             if (profileResult.Success && profileResult.Data != null)
             {
                 logger.LogInformation("Successfully created profile '{ProfileName}' for {InstallationType} {GameClientName}", profileResult.Data.Name, installation.InstallationType, gameClient.Name);
+
+                // Add profile to UI immediately
+                AddProfileToUI(profileResult.Data);
+
                 return true;
             }
             else
             {
-                var errors = string.Join(", ", profileResult.Errors);
+                var errors = ManifestHelper.FormatErrors(profileResult.Errors);
                 logger.LogWarning("Failed to create profile for {InstallationType} {GameClientName}: {Errors}", installation.InstallationType, gameClient.Name, errors);
                 return false;
             }
@@ -480,6 +701,45 @@ public partial class GameProfileLauncherViewModel(
         {
             logger.LogError(ex, "Error creating profile for {InstallationType} {GameClientName}", installation.InstallationType, gameClient?.Name ?? "Unknown");
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Adds a newly created profile to the UI immediately (without waiting for full refresh).
+    /// </summary>
+    private void AddProfileToUI(Core.Models.GameProfile.GameProfile profile)
+    {
+        try
+        {
+            // Check if profile already exists in UI
+            if (Profiles.Any(p => p.ProfileId.Equals(profile.Id, StringComparison.OrdinalIgnoreCase)))
+            {
+                logger.LogDebug("Profile {ProfileId} already in UI, skipping add", profile.Id);
+                return;
+            }
+
+            var iconPath = !string.IsNullOrEmpty(profile.IconPath)
+                ? profile.IconPath
+                : Core.Constants.UriConstants.DefaultIconUri;
+
+            var coverPath = !string.IsNullOrEmpty(profile.CoverPath)
+                ? profile.CoverPath
+                : iconPath;
+
+            var item = new GameProfileItemViewModel(
+                profile.Id,
+                profile,
+                iconPath,
+                coverPath);
+
+            // Add to collection (Avalonia will update UI automatically)
+            Profiles.Add(item);
+
+            logger.LogDebug("Added profile {ProfileName} to UI (Total: {Count})", profile.Name, Profiles.Count);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Error adding profile {ProfileId} to UI", profile.Id);
         }
     }
 
@@ -603,7 +863,7 @@ public partial class GameProfileLauncherViewModel(
     {
         IsEditMode = !IsEditMode;
         StatusMessage = IsEditMode ? "Edit mode enabled" : "Edit mode disabled";
-        logger?.LogInformation("Toggled edit mode to {IsEditMode}", IsEditMode);
+        logger.LogInformation("Toggled edit mode to {IsEditMode}", IsEditMode);
     }
 
     /// <summary>
@@ -620,11 +880,11 @@ public partial class GameProfileLauncherViewModel(
             // For now, just refresh the list
             await InitializeAsync();
             StatusMessage = "Profiles saved successfully";
-            logger?.LogInformation("Saved profiles in edit mode");
+            logger.LogInformation("Saved profiles in edit mode");
         }
         catch (Exception ex)
         {
-            logger?.LogError(ex, "Error saving profiles");
+            logger.LogError(ex, "Error saving profiles");
             StatusMessage = "Error saving profiles";
         }
     }
@@ -650,28 +910,28 @@ public partial class GameProfileLauncherViewModel(
             {
                 Profiles.Remove(profile);
                 StatusMessage = $"{profile.Name} deleted successfully";
-                logger?.LogInformation("Deleted profile {ProfileName}", profile.Name);
+                logger.LogInformation("Deleted profile {ProfileName}", profile.Name);
 
                 try
                 {
-                    CommunityToolkit.Mvvm.Messaging.WeakReferenceMessenger.Default.Send(
+                    WeakReferenceMessenger.Default.Send(
                         new ProfileDeletedMessage(profile.ProfileId, profile.Name), 0);
                 }
                 catch (Exception ex)
                 {
-                    logger?.LogError(ex, "Failed to send ProfileDeletedMessage");
+                    logger.LogError(ex, "Failed to send ProfileDeletedMessage");
                 }
             }
             else
             {
                 var errors = string.Join(", ", deleteResult.Errors);
                 StatusMessage = $"Failed to delete {profile.Name}: {errors}";
-                logger?.LogWarning("Failed to delete profile {ProfileName}: {Errors}", profile.Name, errors);
+                logger.LogWarning("Failed to delete profile {ProfileName}: {Errors}", profile.Name, errors);
             }
         }
         catch (Exception ex)
         {
-            logger?.LogError(ex, "Error deleting profile {ProfileName}", profile.Name);
+            logger.LogError(ex, "Error deleting profile {ProfileName}", profile.Name);
             StatusMessage = $"Error deleting {profile.Name}";
         }
     }
@@ -719,7 +979,7 @@ public partial class GameProfileLauncherViewModel(
         }
         catch (Exception ex)
         {
-            logger?.LogError(ex, "Error editing profile {ProfileName}", profile.Name);
+            logger.LogError(ex, "Error editing profile {ProfileName}", profile.Name);
             StatusMessage = $"Error editing {profile.Name}";
         }
     }
@@ -757,7 +1017,7 @@ public partial class GameProfileLauncherViewModel(
         }
         catch (Exception ex)
         {
-            logger?.LogError(ex, "Error creating new profile");
+            logger.LogError(ex, "Error creating new profile");
             StatusMessage = "Error creating new profile";
         }
     }
@@ -792,23 +1052,23 @@ public partial class GameProfileLauncherViewModel(
                     {
                         Profiles.RemoveAt(index);
                         Profiles.Insert(index, profile);
-                        logger?.LogDebug("Forced UI refresh for profile {ProfileName} at index {Index}", profile.Name, index);
+                        logger.LogDebug("Forced UI refresh for profile {ProfileName} at index {Index}", profile.Name, index);
                     }
                 }
 
                 StatusMessage = $"Workspace prepared for {profile.Name} at {prepareResult.Data.WorkspacePath}";
-                logger?.LogInformation("Prepared workspace for profile {ProfileName} at {Path}", profile.Name, prepareResult.Data.WorkspacePath);
+                logger.LogInformation("Prepared workspace for profile {ProfileName} at {Path}", profile.Name, prepareResult.Data.WorkspacePath);
             }
             else
             {
                 var errors = string.Join(", ", prepareResult.Errors);
                 StatusMessage = $"Failed to prepare workspace for {profile.Name}: {errors}";
-                logger?.LogWarning("Failed to prepare workspace for profile {ProfileName}: {Errors}", profile.Name, errors);
+                logger.LogWarning("Failed to prepare workspace for profile {ProfileName}: {Errors}", profile.Name, errors);
             }
         }
         catch (Exception ex)
         {
-            logger?.LogError(ex, "Error preparing workspace for profile {ProfileName}", profile.Name);
+            logger.LogError(ex, "Error preparing workspace for profile {ProfileName}", profile.Name);
             StatusMessage = $"Error preparing workspace for {profile.Name}";
         }
         finally
@@ -841,17 +1101,17 @@ public partial class GameProfileLauncherViewModel(
             if (result.Success)
             {
                 StatusMessage = $"Desktop shortcut created for {profile.Name}";
-                logger?.LogInformation("Created desktop shortcut for profile {ProfileName} at {Path}", profile.Name, result.Data);
+                logger.LogInformation("Created desktop shortcut for profile {ProfileName} at {Path}", profile.Name, result.Data);
             }
             else
             {
                 StatusMessage = $"Failed to create shortcut: {string.Join(", ", result.Errors)}";
-                logger?.LogWarning("Failed to create shortcut for profile {ProfileName}: {Errors}", profile.Name, string.Join(", ", result.Errors));
+                logger.LogWarning("Failed to create shortcut for profile {ProfileName}: {Errors}", profile.Name, string.Join(", ", result.Errors));
             }
         }
         catch (Exception ex)
         {
-            logger?.LogError(ex, "Error creating shortcut for profile {ProfileName}", profile.Name);
+            logger.LogError(ex, "Error creating shortcut for profile {ProfileName}", profile.Name);
             StatusMessage = $"Error creating shortcut for {profile.Name}";
         }
     }
@@ -900,7 +1160,7 @@ public partial class GameProfileLauncherViewModel(
     {
         try
         {
-            logger?.LogInformation("Game process {ProcessId} exited with code {ExitCode}", e.ProcessId, e.ExitCode);
+            logger.LogInformation("Game process {ProcessId} exited with code {ExitCode}", e.ProcessId, e.ExitCode);
 
             // Find the profile that was running this process
             var profile = Profiles.FirstOrDefault(p => p.ProcessId == e.ProcessId);
@@ -908,12 +1168,46 @@ public partial class GameProfileLauncherViewModel(
             {
                 profile.IsProcessRunning = false;
                 profile.ProcessId = 0;
-                logger?.LogInformation("Updated profile {ProfileName} - process no longer running", profile.Name);
+                logger.LogInformation("Updated profile {ProfileName} - process no longer running", profile.Name);
             }
         }
         catch (Exception ex)
         {
-            logger?.LogError(ex, "Error handling process exit event for process {ProcessId}", e.ProcessId);
+            logger.LogError(ex, "Error handling process exit event for process {ProcessId}", e.ProcessId);
         }
+    }
+
+    /// <summary>
+    /// User accepts the patch installation prompt.
+    /// </summary>
+    [RelayCommand]
+    private void AcceptPatchPrompt()
+    {
+        IsShowingPatchPrompt = false;
+        _promptCompletionSource?.TrySetResult(true);
+    }
+
+    /// <summary>
+    /// User declines the patch installation prompt.
+    /// </summary>
+    [RelayCommand]
+    private void DeclinePatchPrompt()
+    {
+        IsShowingPatchPrompt = false;
+        _promptCompletionSource?.TrySetResult(false);
+    }
+
+    /// <summary>
+    /// Shows a prompt to the user and waits for their response.
+    /// </summary>
+    private async Task<bool> ShowPromptAsync(string title, string message, GameInstallation installation)
+    {
+        _pendingInstallation = installation;
+        _promptCompletionSource = new TaskCompletionSource<bool>();
+        PromptTitle = title;
+        PromptMessage = message;
+        IsShowingPatchPrompt = true;
+
+        return await _promptCompletionSource.Task;
     }
 }

@@ -184,7 +184,7 @@ public static class GenPatcherDependencyBuilder
     {
         return new ContentDependency
         {
-            Id = ManifestId.Create($"1.0.{CommunityOutpostConstants.PublisherType}.addon.gent"),
+            Id = ManifestId.Create($"1.{ManifestConstants.DefaultManifestVersion}.{CommunityOutpostConstants.PublisherType}.addon.gent"),
             Name = "GenTool (Required)",
             DependencyType = ContentType.Addon,
             InstallBehavior = DependencyInstallBehavior.AutoInstall,
@@ -200,7 +200,7 @@ public static class GenPatcherDependencyBuilder
     {
         return new ContentDependency
         {
-            Id = ManifestId.Create($"1.0.{CommunityOutpostConstants.PublisherType}.addon.gent"),
+            Id = ManifestId.Create($"1.{ManifestConstants.DefaultManifestVersion}.{CommunityOutpostConstants.PublisherType}.addon.gent"),
             Name = "GenTool (Recommended)",
             DependencyType = ContentType.Addon,
             InstallBehavior = DependencyInstallBehavior.Suggest,

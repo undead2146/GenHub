@@ -28,6 +28,7 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
     private readonly ILogger<PublisherCardViewModel> _logger;
     private readonly IContentOrchestrator _contentOrchestrator;
     private readonly IContentManifestPool _manifestPool;
+    private readonly IGameClientProfileService _profileService;
     private readonly IProfileContentService _profileContentService;
     private readonly IGameProfileManager _profileManager;
     private readonly INotificationService _notificationService;
@@ -35,7 +36,6 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
     private readonly SemaphoreSlim _profileLock = new(1, 1);
 
     private bool _disposed;
-
     [ObservableProperty]
     private string _publisherId = string.Empty;
 
@@ -47,6 +47,9 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
 
     [ObservableProperty]
     private string? _logoSource;
+
+    [ObservableProperty]
+    private ObservableCollection<GameProfile> _availableProfiles = [];
 
     [ObservableProperty]
     private string _latestVersion = string.Empty;
@@ -75,6 +78,12 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
     [ObservableProperty]
     private ObservableCollection<ContentTypeGroup> _contentTypes = [];
 
+    private void ContentTypes_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(HasContent));
+        OnPropertyChanged(nameof(ContentSummary));
+    }
+
     [ObservableProperty]
     private bool _showContentSummary = true;
 
@@ -85,17 +94,12 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
     private ICommand? _primaryActionCommand;
 
     /// <summary>
-    /// Gets or sets the available profiles for the "Add to Profile" dropdown.
-    /// </summary>
-    [ObservableProperty]
-    private ObservableCollection<GameProfile> _availableProfiles = [];
-
-    /// <summary>
     /// Initializes a new instance of the <see cref="PublisherCardViewModel"/> class.
     /// </summary>
     /// <param name="logger">The logger.</param>
     /// <param name="contentOrchestrator">The content orchestrator.</param>
     /// <param name="manifestPool">The manifest pool.</param>
+    /// <param name="profileService">The game client profile service.</param>
     /// <param name="profileContentService">The profile content service.</param>
     /// <param name="profileManager">The profile manager.</param>
     /// <param name="notificationService">The notification service.</param>
@@ -103,6 +107,7 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
         ILogger<PublisherCardViewModel> logger,
         IContentOrchestrator contentOrchestrator,
         IContentManifestPool manifestPool,
+        IGameClientProfileService profileService,
         IProfileContentService profileContentService,
         IGameProfileManager profileManager,
         INotificationService notificationService)
@@ -110,16 +115,12 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
         _logger = logger;
         _contentOrchestrator = contentOrchestrator;
         _manifestPool = manifestPool;
+        _profileService = profileService;
         _profileContentService = profileContentService;
         _profileManager = profileManager;
         _notificationService = notificationService;
 
-        // Subscribe to collection changes to update HasContent and ContentSummary
-        ContentTypes.CollectionChanged += (s, e) =>
-        {
-            OnPropertyChanged(nameof(HasContent));
-            OnPropertyChanged(nameof(ContentSummary));
-        };
+        ContentTypes.CollectionChanged += ContentTypes_CollectionChanged;
 
         // Register for profile creation and deletion messages
         WeakReferenceMessenger.Default.RegisterAll(this);
@@ -270,7 +271,7 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
             var result = await _manifestPool.GetAllManifestsAsync();
             if (!result.Success || result.Data == null)
             {
-                _logger.LogWarning("Failed to retrieve manifests for installation status check");
+                _logger.LogWarning("Failed to retrieve manifests for installation status check: {Errors}", ManifestHelper.FormatErrors(result.Errors));
                 return;
             }
 
@@ -568,7 +569,7 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
 
             var result = await _contentOrchestrator.AcquireContentAsync(item.Model, progress);
 
-            if (result.Success)
+            if (result.Success && result.Data != null)
             {
                 item.DownloadStatus = "✓ Downloaded";
                 item.DownloadProgress = 100;
@@ -585,6 +586,52 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
                 }
 
                 _logger.LogInformation("Successfully downloaded {ItemName}", item.Name);
+
+                if (result.Data!.ContentType == Core.Models.Enums.ContentType.GameClient)
+                {
+                    // For multi-variant content (GeneralsOnline, SuperHackers), we need to create profiles
+                    // for all variants that were just installed, not just the primary one returned.
+                    // Query the manifest pool for all GameClient manifests matching the version
+                    // and publisher type that was just acquired.
+                    var installedVersion = result.Data.Version;
+                    var publisherType = result.Data.Publisher?.PublisherType;
+
+                    var allManifests = await _manifestPool.GetAllManifestsAsync();
+                    if (allManifests.Success && allManifests.Data != null)
+                    {
+                        // Find all GameClient manifests with matching version and publisher
+                        var justInstalledGameClients = allManifests.Data.Where(m =>
+                            m.Version == installedVersion &&
+                            m.Publisher?.PublisherType == publisherType &&
+                            m.ContentType == Core.Models.Enums.ContentType.GameClient).ToList();
+
+                        _logger.LogInformation(
+                            "Found {Count} GameClient variants for {Publisher} v{Version}",
+                            justInstalledGameClients.Count,
+                            publisherType,
+                            installedVersion);
+
+                        foreach (var manifest in justInstalledGameClients)
+                        {
+                            var profileResult = await _profileService.CreateProfileFromManifestAsync(manifest);
+                            if (profileResult.Success)
+                            {
+                                _logger.LogInformation(
+                                    "Created profile for {ManifestId}: {ProfileName}",
+                                    manifest.Id,
+                                    profileResult.Data?.Name);
+                            }
+                            else
+                            {
+                                _logger.LogWarning(
+                                    "Failed to create profile for {ManifestId}: {Errors}",
+                                    manifest.Id,
+                                    string.Join(", ", profileResult.Errors));
+                            }
+                        }
+                    }
+                }
+
                 _notificationService.ShowSuccess("Download Complete", $"Downloaded {item.Name}");
             }
             else

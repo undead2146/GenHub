@@ -41,6 +41,24 @@ public static class GameProfileModule
         services.AddSingleton<IContentDisplayFormatter, ContentDisplayFormatter>();
         services.AddScoped<IProfileContentLoader, ProfileContentLoader>();
         services.AddSingleton<ProfileResourceService>();
+        services.AddScoped<IPublisherProfileOrchestrator, PublisherProfileOrchestrator>();
+
+        // Register GameClientProfileService
+        services.AddScoped<IGameClientProfileService>(sp =>
+        {
+            var profileManager = sp.GetRequiredService<IGameProfileManager>();
+            var installationService = sp.GetRequiredService<Core.Interfaces.GameInstallations.IGameInstallationService>();
+            var configService = sp.GetRequiredService<IConfigurationProviderService>();
+            var manifestPool = sp.GetRequiredService<Core.Interfaces.Manifest.IContentManifestPool>();
+            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<GameClientProfileService>>();
+
+            return new GameClientProfileService(
+                profileManager,
+                installationService,
+                configService,
+                manifestPool,
+                logger);
+        });
 
         return services;
     }

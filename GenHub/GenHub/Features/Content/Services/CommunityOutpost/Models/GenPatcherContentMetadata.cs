@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 
@@ -42,7 +43,7 @@ public class GenPatcherContentMetadata
     /// <summary>
     /// Gets or sets the version string derived from the content code.
     /// </summary>
-    public string Version { get; set; } = "1.0";
+    public string Version { get; set; } = ManifestConstants.DefaultManifestVersion;
 
     /// <summary>
     /// Gets or sets the content category for grouping in UI.
@@ -58,7 +59,7 @@ public class GenPatcherContentMetadata
     /// <summary>
     /// Gets or sets the list of content codes that conflict with this content.
     /// </summary>
-    public List<string> ConflictsWith { get; set; } = new();
+    public List<string> ConflictsWith { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the target installation location for this content.

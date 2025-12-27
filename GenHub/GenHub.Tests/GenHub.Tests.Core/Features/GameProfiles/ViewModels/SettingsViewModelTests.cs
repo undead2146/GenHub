@@ -332,7 +332,7 @@ public class SettingsViewModelTests
         await viewModel.DeleteCasStorageCommand.ExecuteAsync(null);
 
         // Assert
-        _mockCasService.Verify(x => x.RunGarbageCollectionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _mockCasService.Verify(x => x.RunGarbageCollectionAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     /// <summary>

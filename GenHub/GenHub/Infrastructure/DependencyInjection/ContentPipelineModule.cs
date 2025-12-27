@@ -19,6 +19,7 @@ using GenHub.Features.Content.Services.Publishers;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GitHub.Services;
 using GenHub.Features.Manifest;
+using GenHub.Features.Storage.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -82,22 +83,22 @@ public static class ContentPipelineModule
 
             // Get application data path where manifests metadata is stored
             var storageRoot = configService.GetApplicationDataPath();
+            var referenceTracker = sp.GetRequiredService<CasReferenceTracker>();
 
-            return new ContentStorageService(storageRoot, logger, casService);
+            return new ContentStorageService(storageRoot, logger, casService, referenceTracker);
         });
         services.AddScoped<IContentManifestPool, ContentManifestPool>();
-
-        // Register cache
-        services.AddSingleton<IDynamicContentCache, MemoryDynamicContentCache>();
 
         // Register core orchestrator
         services.AddSingleton<IContentOrchestrator, ContentOrchestrator>();
 
+        // Register cache
+        services.AddSingleton<IDynamicContentCache, MemoryDynamicContentCache>();
+
         // Register Octokit GitHub client
         services.AddSingleton<Octokit.IGitHubClient>(sp =>
         {
-            var client = new Octokit.GitHubClient(new Octokit.ProductHeaderValue("GenHub"));
-            return client;
+            return new Octokit.GitHubClient(new Octokit.ProductHeaderValue("GenHub"));
         });
 
         // Register GitHub API client
@@ -130,7 +131,8 @@ public static class ContentPipelineModule
         services.AddTransient<IContentDeliverer, GitHubContentDeliverer>();
 
         // Register SuperHackers manifest factory
-        services.AddTransient<IPublisherManifestFactory, SuperHackersManifestFactory>();
+        services.AddTransient<SuperHackersManifestFactory>();
+        services.AddTransient<IPublisherManifestFactory>(sp => sp.GetRequiredService<SuperHackersManifestFactory>());
 
         // Register SuperHackers update service
         services.AddSingleton<SuperHackersUpdateService>();
@@ -157,7 +159,7 @@ public static class ContentPipelineModule
 
         // Register Generals Online manifest factory
         services.AddTransient<GeneralsOnlineManifestFactory>();
-        services.AddTransient<IPublisherManifestFactory, GeneralsOnlineManifestFactory>();
+        services.AddTransient<IPublisherManifestFactory>(sp => sp.GetRequiredService<GeneralsOnlineManifestFactory>());
 
         // Register Generals Online update service
         services.AddSingleton<GeneralsOnlineUpdateService>();

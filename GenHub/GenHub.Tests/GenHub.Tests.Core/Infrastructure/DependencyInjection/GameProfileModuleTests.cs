@@ -43,6 +43,7 @@ public class GameProfileModuleTests
         services.AddScoped(provider => new Mock<IContentOrchestrator>().Object);
         services.AddScoped(provider => new Mock<IWorkspaceManager>().Object);
         services.AddScoped(provider => new Mock<ILaunchRegistry>().Object);
+        services.AddScoped(provider => new Mock<INotificationService>().Object);
 
         // Act
         services.AddGameProfileServices();
@@ -119,6 +120,7 @@ public class GameProfileModuleTests
         services.AddScoped(provider => new Mock<IContentOrchestrator>().Object);
         services.AddScoped(provider => new Mock<IWorkspaceManager>().Object);
         services.AddScoped(provider => new Mock<ILaunchRegistry>().Object);
+        services.AddScoped(provider => new Mock<INotificationService>().Object);
 
         // Act
         services.AddGameProfileServices();
@@ -177,6 +179,7 @@ public class GameProfileModuleTests
         services.AddScoped(provider => new Mock<IContentOrchestrator>().Object);
         services.AddScoped(provider => new Mock<IWorkspaceManager>().Object);
         services.AddScoped(provider => new Mock<ILaunchRegistry>().Object);
+        services.AddScoped(provider => new Mock<INotificationService>().Object);
 
         // Act
         services.AddGameProfileServices();
@@ -260,6 +263,8 @@ public class GameProfileModuleTests
         services.AddScoped(provider => new Mock<IContentOrchestrator>().Object);
         services.AddScoped(provider => new Mock<IWorkspaceManager>().Object);
         services.AddScoped(provider => new Mock<IGameProcessManager>().Object);
+        services.AddScoped(provider => new Mock<INotificationService>().Object);
+        services.AddSingleton<ICasService>(new Mock<ICasService>().Object);
         services.AddSingleton<IGameLauncher>(new Mock<IGameLauncher>().Object);
         services.AddSingleton<ILaunchRegistry>(new Mock<ILaunchRegistry>().Object);
         services.AddSingleton<ICasService>(new Mock<ICasService>().Object);
@@ -299,6 +304,7 @@ public class GameProfileModuleTests
         services.AddScoped(provider => new Mock<IContentOrchestrator>().Object);
         services.AddScoped(provider => new Mock<IWorkspaceManager>().Object);
         services.AddScoped(provider => new Mock<ILaunchRegistry>().Object);
+        services.AddScoped(provider => new Mock<INotificationService>().Object);
 
         // Act
         services.AddGameProfileServices();

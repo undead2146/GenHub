@@ -14,6 +14,7 @@ using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
+using GenHub.Features.Storage.Services;
 using GenHub.Features.Workspace;
 using Microsoft.Extensions.Logging;
 
@@ -28,6 +29,7 @@ public class ContentStorageService : IContentStorageService
     private readonly string _storageRoot;
     private readonly ILogger<ContentStorageService> _logger;
     private readonly ICasService _casService;
+    private readonly CasReferenceTracker _referenceTracker;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ContentStorageService"/> class.
@@ -35,10 +37,12 @@ public class ContentStorageService : IContentStorageService
     /// <param name="storageRoot">The root directory for content storage.</param>
     /// <param name="logger">The logger instance.</param>
     /// <param name="casService">The CAS service for content-addressable storage.</param>
+    /// <param name="referenceTracker">The CAS reference tracker.</param>
     public ContentStorageService(
         string storageRoot,
         ILogger<ContentStorageService> logger,
-        ICasService casService)
+        ICasService casService,
+        CasReferenceTracker referenceTracker)
     {
         if (string.IsNullOrWhiteSpace(storageRoot))
         {
@@ -48,6 +52,7 @@ public class ContentStorageService : IContentStorageService
         _storageRoot = storageRoot;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _casService = casService ?? throw new ArgumentNullException(nameof(casService));
+        _referenceTracker = referenceTracker ?? throw new ArgumentNullException(nameof(referenceTracker));
 
         // Ensure storage directory structure exists using FileOperationsService for future configurability.
         var requiredDirs = new[]
@@ -117,6 +122,9 @@ public class ContentStorageService : IContentStorageService
 
             // Store content files in CAS with integrity verification
             var updatedManifest = await StoreContentFilesAsync(manifest, sourceDirectory, cancellationToken);
+
+            // Track CAS references to ensure files are not prematurely garbage collected
+            await _referenceTracker.TrackManifestReferencesAsync(updatedManifest.Id, updatedManifest, cancellationToken);
 
             // Ensure Manifests directory exists before writing manifest file
             var manifestDirectory = Path.GetDirectoryName(manifestPath);
@@ -228,6 +236,9 @@ public class ContentStorageService : IContentStorageService
 
         try
         {
+            // Untrack CAS references before removing manifest file
+            await _referenceTracker.UntrackManifestAsync(manifestId, cancellationToken);
+
             // Only remove manifest file - CAS files are cleaned up via garbage collection
             await Task.Run(() => FileOperationsService.DeleteFileIfExists(manifestPath), cancellationToken);
 
@@ -307,6 +318,49 @@ public class ContentStorageService : IContentStorageService
         await using var stream = File.OpenRead(filePath);
         var hashBytes = await sha256.ComputeHashAsync(stream, cancellationToken);
         return Convert.ToHexString(hashBytes);
+    }
+
+    /// <summary>
+    /// Determines whether a manifest requires physical file storage in the CAS system.
+    /// </summary>
+    /// <param name="manifest">The manifest to check.</param>
+    /// <returns>True if files should be physically stored; false if metadata-only storage is sufficient.</returns>
+    private static bool RequiresPhysicalStorage(ContentManifest manifest)
+    {
+        // GameInstallation content always references external installations - no storage needed
+        if (manifest.ContentType == ContentType.GameInstallation)
+        {
+            return false;
+        }
+
+        // GameClient content typically references external installations - no storage needed (old behavior)
+        // Only store physically for GitHub content that requires it
+        if (manifest.ContentType == ContentType.GameClient)
+        {
+            // Check if any file requires CAS storage based on its source type
+            // This covers content from any GitHub publisher (thesuperhackers, generalsonline, etc.)
+            return manifest.Files.Any(f =>
+                f.SourceType == ContentSourceType.ContentAddressable ||
+                f.SourceType == ContentSourceType.ExtractedPackage ||
+                f.SourceType == ContentSourceType.LocalFile ||
+                f.SourceType == ContentSourceType.Unknown);
+        }
+
+        // For other content types, check if files have source types that require CAS storage
+        if (manifest.Files.Count == 0)
+        {
+            // No files to store
+            return false;
+        }
+
+        // Check if any file requires CAS storage based on its source type
+        bool hasStorableContent = manifest.Files.Any(f =>
+            f.SourceType == ContentSourceType.ContentAddressable ||
+            f.SourceType == ContentSourceType.ExtractedPackage ||
+            f.SourceType == ContentSourceType.LocalFile ||
+            f.SourceType == ContentSourceType.Unknown);
+
+        return hasStorableContent;
     }
 
     private async Task<OperationResult<ContentManifest>> StoreManifestOnlyAsync(
@@ -541,48 +595,5 @@ public class ContentStorageService : IContentStorageService
             manifest.Id);
 
         return manifest;
-    }
-
-    /// <summary>
-    /// Determines whether a manifest requires physical file storage in the CAS system.
-    /// </summary>
-    /// <param name="manifest">The manifest to check.</param>
-    /// <returns>True if files should be physically stored; false if metadata-only storage is sufficient.</returns>
-    private bool RequiresPhysicalStorage(ContentManifest manifest)
-    {
-        // GameInstallation content always references external installations - no storage needed
-        if (manifest.ContentType == ContentType.GameInstallation)
-        {
-            return false;
-        }
-
-        // GameClient content typically references external installations - no storage needed (old behavior)
-        // Only store physically for GitHub content that requires it
-        if (manifest.ContentType == ContentType.GameClient)
-        {
-            // Check if any file requires CAS storage based on its source type
-            // This covers content from any GitHub publisher (thesuperhackers, generalsonline, etc.)
-            return manifest.Files.Any(f =>
-                f.SourceType == ContentSourceType.ContentAddressable ||
-                f.SourceType == ContentSourceType.ExtractedPackage ||
-                f.SourceType == ContentSourceType.LocalFile ||
-                f.SourceType == ContentSourceType.Unknown);
-        }
-
-        // For other content types, check if files have source types that require CAS storage
-        if (manifest.Files.Count == 0)
-        {
-            // No files to store
-            return false;
-        }
-
-        // Check if any file requires CAS storage based on its source type
-        bool hasStorableContent = manifest.Files.Any(f =>
-            f.SourceType == ContentSourceType.ContentAddressable ||
-            f.SourceType == ContentSourceType.ExtractedPackage ||
-            f.SourceType == ContentSourceType.LocalFile ||
-            f.SourceType == ContentSourceType.Unknown);
-
-        return hasStorableContent;
     }
 }

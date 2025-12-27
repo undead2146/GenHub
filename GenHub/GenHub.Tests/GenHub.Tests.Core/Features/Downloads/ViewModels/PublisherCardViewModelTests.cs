@@ -166,6 +166,7 @@ public class PublisherCardViewModelTests
             _loggerMock.Object,
             _contentOrchestratorMock.Object,
             _manifestPoolMock.Object,
+            new Mock<IGameClientProfileService>().Object,
             _profileContentServiceMock.Object,
             _gameProfileManagerMock.Object,
             _notificationServiceMock.Object);

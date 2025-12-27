@@ -26,6 +26,16 @@ public static class SuperHackersConstants
     public const string LogoSource = "/Assets/Logos/thesuperhackers-logo.png";
 
     /// <summary>
+    /// Cover image source path for Generals variant.
+    /// </summary>
+    public const string GeneralsCoverSource = "/Assets/Covers/generals-cover-2.png";
+
+    /// <summary>
+    /// Cover image source path for Zero Hour variant.
+    /// </summary>
+    public const string ZeroHourCoverSource = "/Assets/Covers/zerohour-cover.png";
+
+    /// <summary>
     /// The resolver ID used for GitHub releases.
     /// </summary>
     public const string ResolverId = "GitHubRelease";

@@ -21,6 +21,11 @@ public class ContentSearchQuery
     public ContentType? ContentType { get; set; }
 
     /// <summary>
+    /// Gets or sets optional provider name to restrict the search to a specific provider.
+    /// </summary>
+    public string? ProviderName { get; set; }
+
+    /// <summary>
     /// Gets or sets the target game to filter by.
     /// </summary>
     public GameType? TargetGame { get; set; }
@@ -28,7 +33,7 @@ public class ContentSearchQuery
     /// <summary>
     /// Gets a list of tags to filter by.
     /// </summary>
-    public Collection<string> Tags { get; } = new();
+    public Collection<string> Tags { get; } = [];
 
     /// <summary>
     /// Gets or sets the author's name to filter by.

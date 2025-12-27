@@ -212,7 +212,7 @@
 
             <!-- Top section with icon and title - fixed height -->
             <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="16,16,16,0">
-                <Border Grid.Column="0" Width="48" Height="48" Background="#30FFFFFF" CornerRadius="24" VerticalAlignment="Top">
+                <Border Grid.Column="0" Width="48" Height="48" Background="#30FFFFFF" CornerRadius="24" VerticalAlignment="Top" ClipToBounds="True">
                     <Image Source="{Binding IconPath, Converter={StaticResource StringToImageConverter}}" Width="40" Height="40" />
                 </Border>
                 <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Top" Spacing="2">

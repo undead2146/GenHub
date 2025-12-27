@@ -27,7 +27,6 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using Xunit;
 
 namespace GenHub.Tests.Core.Features.GameProfiles.ViewModels;
 
@@ -341,7 +340,7 @@ public class MainViewModelTests
         var configService = new Mock<IConfigurationProviderService>();
         var gameProcessManager = new Mock<IGameProcessManager>();
         var shortcutService = new Mock<IShortcutService>();
-        var notificationServiceForLauncher = new Mock<INotificationService>();
+        var notificationService = new Mock<INotificationService>();
 
         return new GameProfileLauncherViewModel(
             installationService.Object,
@@ -352,9 +351,10 @@ public class MainViewModelTests
             configService.Object,
             gameProcessManager.Object,
             shortcutService.Object,
+            new Mock<IPublisherProfileOrchestrator>().Object,
             new Mock<ISteamManifestPatcher>().Object,
             CreateProfileResourceService(),
-            notificationServiceForLauncher.Object,
+            notificationService.Object,
             NullLogger<GameProfileLauncherViewModel>.Instance);
     }
 

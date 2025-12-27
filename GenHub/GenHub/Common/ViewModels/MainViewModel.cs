@@ -89,7 +89,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         try
         {
             _selectedTab = _configurationProvider.GetLastSelectedTab();
-            _logger?.LogDebug($"Initial settings loaded, selected tab: {_selectedTab}");
+            if (_selectedTab == NavigationTab.Tools)
+            {
+                _selectedTab = NavigationTab.GameProfiles;
+            }
+
+            _logger?.LogDebug("Initial settings loaded, selected tab: {Tab}", _selectedTab);
         }
         catch (Exception ex)
         {
@@ -128,18 +133,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Gets the collection of detected game installations.
     /// </summary>
-    public ObservableCollection<string> GameInstallations { get; } = new();
+    public ObservableCollection<string> GameInstallations { get; } = [];
 
     /// <summary>
     /// Gets the available navigation tabs.
     /// </summary>
     public NavigationTab[] AvailableTabs { get; } =
-    {
+    [
         NavigationTab.GameProfiles,
         NavigationTab.Downloads,
-        NavigationTab.Tools,
         NavigationTab.Settings,
-    };
+    ];
 
     /// <summary>
     /// Gets the current tab's ViewModel for ContentControl binding.
@@ -257,56 +261,67 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 try
                 {
                     // Skip installations that don't have available game clients
-                    if (!installation.AvailableGameClients.Any())
+                    if (installation.AvailableGameClients.Count == 0)
                     {
                         _logger?.LogWarning("Skipping installation {InstallationId} - no available GameClients found", installation.Id);
                         continue;
                     }
 
-                    // Use the first available game client for profile creation
-                    var gameClient = installation.AvailableGameClients.First();
-                    if (!gameClient.IsValid)
+                    // Create profiles for ALL available game clients (standard, GeneralsOnline, SuperHackers, etc.)
+                    foreach (var gameClient in installation.AvailableGameClients)
                     {
-                        _logger?.LogWarning("Skipping installation {InstallationId} - GameClient {ClientId} is not valid", installation.Id, gameClient.Id);
-                        continue;
-                    }
+                        if (!gameClient.IsValid)
+                        {
+                            _logger?.LogWarning("Skipping GameClient {ClientId} in installation {InstallationId} - not valid", gameClient.Id, installation.Id);
+                            continue;
+                        }
 
-                    var gameClientId = gameClient.Id;
+                        var gameClientId = gameClient.Id;
 
-                    // Determine assets based on game type using ProfileResourceService
-                    var gameTypeStr = gameClient.GameType.ToString();
-                    var iconPath = _profileResourceService.GetDefaultIconPath(gameTypeStr);
-                    var coverPath = _profileResourceService.GetDefaultCoverPath(gameTypeStr);
+                        // Determine assets based on game type using ProfileResourceService
+                        var gameTypeStr = gameClient.GameType.ToString();
+                        var iconPath = _profileResourceService.GetDefaultIconPath(gameTypeStr);
+                        var coverPath = _profileResourceService.GetDefaultCoverPath(gameTypeStr);
 
-                    // Create a profile request from the installation
-                    var createRequest = new CreateProfileRequest
-                    {
-                        Name = $"{installation.InstallationType} Profile",
-                        GameInstallationId = installation.Id,
-                        GameClientId = gameClientId,
-                        Description = $"Auto-created profile for {installation.InstallationType} installation at {installation.InstallationPath}",
-                        PreferredStrategy = WorkspaceStrategy.HybridCopySymlink,
-                        IconPath = iconPath,
-                        CoverPath = coverPath,
-                    };
+                        // Create a profile request for this game client
+                        var createRequest = new CreateProfileRequest
+                        {
+                            Name = $"{installation.InstallationType} {gameClient.Name}",
+                            GameInstallationId = installation.Id,
+                            GameClientId = gameClientId,
+                            Description = $"Auto-created profile for {gameClient.Name} in {installation.InstallationType} installation",
+                            PreferredStrategy = WorkspaceStrategy.HybridCopySymlink,
+                            IconPath = iconPath,
+                            CoverPath = coverPath,
+                        };
 
-                    var profileResult = await _profileEditorFacade.CreateProfileWithWorkspaceAsync(createRequest);
+                        var profileResult = await _profileEditorFacade.CreateProfileWithWorkspaceAsync(createRequest);
 
-                    if (profileResult.Success)
-                    {
-                        createdCount++;
-                        _logger?.LogInformation(
-                            "Created profile '{ProfileName}' for installation {InstallationId}",
-                            profileResult.Data?.Name,
-                            installation.Id);
-                    }
-                    else
-                    {
-                        failedCount++;
-                        _logger?.LogWarning(
-                            "Failed to create profile for installation {InstallationId}: {Errors}",
-                            installation.Id,
-                            string.Join(", ", profileResult.Errors));
+                        if (profileResult.Success)
+                        {
+                            createdCount++;
+                            _logger?.LogInformation(
+                                "Created profile '{ProfileName}' for {GameClientName}",
+                                profileResult.Data?.Name,
+                                gameClient.Name);
+                        }
+                        else
+                        {
+                            // Profile might already exist - don't count as failure
+                            var errors = string.Join(", ", profileResult.Errors);
+                            if (errors.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+                            {
+                                _logger?.LogDebug("Profile already exists for {GameClientName}", gameClient.Name);
+                            }
+                            else
+                            {
+                                failedCount++;
+                                _logger?.LogWarning(
+                                    "Failed to create profile for {GameClientName}: {Errors}",
+                                    gameClient.Name,
+                                    errors);
+                            }
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -414,7 +429,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             });
 
             _ = _userSettingsService.SaveAsync();
-            _logger?.LogDebug($"Updated last selected tab to: {selectedTab}");
+            _logger?.LogDebug("Updated last selected tab to: {Tab}", selectedTab);
         }
         catch (Exception ex)
         {

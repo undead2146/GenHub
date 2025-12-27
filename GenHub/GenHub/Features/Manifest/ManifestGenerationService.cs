@@ -360,9 +360,9 @@ public class ManifestGenerationService(
             var builderLogger = NullLogger<ContentManifestBuilder>.Instance;
 
             // Determine publisher name using user-friendly display format matching InstallationTypeDisplayConverter
-            var publisherName = clientName.ToLowerInvariant().Contains("steam") ? "Steam" :
-                                clientName.ToLowerInvariant().Contains("ea") ? "EA App" :
-                                "Retail Installation";
+            var publisherName = clientName.ToLowerInvariant().Contains("steam") ? PublisherInfoConstants.Steam.Name :
+                                clientName.ToLowerInvariant().Contains("ea") ? PublisherInfoConstants.EaApp.Name :
+                                PublisherInfoConstants.Retail.Name;
             var publisher = new PublisherInfo { Name = publisherName };
             var contentName = gameType.ToString().ToLowerInvariant();
             var builder = new ContentManifestBuilder(builderLogger, hashProvider, manifestIdService)

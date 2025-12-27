@@ -568,14 +568,25 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             // Convert Core items to ViewModel items, excluding already-enabled content
             foreach (var coreItem in coreItems)
             {
-                // Skip items that are already in the EnabledContent list
-                if (enabledContentIds.Contains(coreItem.ManifestId))
+                try
                 {
-                    continue;
-                }
+                    // Skip items that are already in the EnabledContent list
+                    if (enabledContentIds.Contains(coreItem.ManifestId))
+                    {
+                        continue;
+                    }
 
-                var viewModelItem = ConvertToViewModelContentDisplayItem(coreItem);
-                AvailableContent.Add(viewModelItem);
+                    var viewModelItem = ConvertToViewModelContentDisplayItem(coreItem);
+                    AvailableContent.Add(viewModelItem);
+                }
+                catch (ArgumentException argEx)
+                {
+                    logger?.LogWarning("Skipping invalid content item {DisplayName} (ID: {Id}): {Message}", coreItem.DisplayName, coreItem.ManifestId, argEx.Message);
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogError(ex, "Error converting content item {DisplayName}", coreItem.DisplayName);
+                }
             }
 
             StatusMessage = $"Loaded {AvailableContent.Count} {SelectedContentType} items";
@@ -608,8 +619,15 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             // Convert Core.ContentDisplayItem to ViewModel items
             foreach (var coreItem in coreItems)
             {
-                var viewModelItem = ConvertToViewModelContentDisplayItem(coreItem);
-                AvailableGameInstallations.Add(viewModelItem);
+                try
+                {
+                    var viewModelItem = ConvertToViewModelContentDisplayItem(coreItem);
+                    AvailableGameInstallations.Add(viewModelItem);
+                }
+                catch (ArgumentException argEx)
+                {
+                    logger?.LogWarning("Skipping invalid game installation {DisplayName} (ID: {Id}): {Message}", coreItem.DisplayName, coreItem.ManifestId, argEx.Message);
+                }
             }
 
             // Select the first installation if available

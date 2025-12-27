@@ -13,7 +13,7 @@ public static class ManifestConstants
     /// <summary>
     /// Default manifest format version as string.
     /// </summary>
-    public const string DefaultManifestVersion = "1.0";
+    public const string DefaultManifestVersion = "1";
 
     /// <summary>
     /// Prefix for publisher content IDs.

@@ -179,6 +179,7 @@
                         Command="{Binding SelectTabCommand}"
                         CommandParameter="{x:Static enums:NavigationTab.Tools}"
                         Content="Tools"
+                        IsVisible="False"
                         Name="Tab2Button" />
                     <Button Classes="modern-tab"
                         Classes.active="{Binding SelectedTab, Converter={x:Static conv:NavigationTabConverter.Instance}, ConverterParameter={x:Static enums:NavigationTab.Settings}}"

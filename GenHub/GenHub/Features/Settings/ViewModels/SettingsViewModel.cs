@@ -822,7 +822,11 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         await DeleteProfiles();
         await DeleteWorkspaces();
         await DeleteManifests();
-        await DeleteCasStorage();
+
+        // Force CAS deletion when deleting all data to ensure immediate UI feedback
+        _logger.LogInformation("Forcing CAS storage cleanup as part of DeleteAllData");
+        var result = await _casService.RunGarbageCollectionAsync(force: true, CancellationToken.None);
+        _logger.LogInformation("CAS cleanup completed: {Deleted} objects deleted", result.ObjectsDeleted);
 
         await UpdateDangerZoneDataAsync();
         _notificationService.ShowSuccess("Data Deleted", "All application data has been deleted successfully.", 5000);
@@ -847,8 +851,8 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     {
         try
         {
-            _logger.LogWarning("Deleting CAS storage");
-            var result = await _casService.RunGarbageCollectionAsync(CancellationToken.None);
+            _logger.LogWarning("Deleting CAS storage (forced)");
+            var result = await _casService.RunGarbageCollectionAsync(force: true, CancellationToken.None);
             if (result.ObjectsDeleted == 0)
             {
                 if (result.ObjectsReferenced > 0)
@@ -969,6 +973,9 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
 
                 _notificationService.ShowSuccess("Profiles Deleted", $"Deleted {count} profile(s) successfully.", 3000);
             }
+
+            // Notify listeners that profile list has changed
+            WeakReferenceMessenger.Default.Send(new ProfileListUpdatedMessage());
 
             await UpdateDangerZoneDataAsync();
         }
