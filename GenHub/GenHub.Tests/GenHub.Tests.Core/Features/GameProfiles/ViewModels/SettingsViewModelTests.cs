@@ -5,7 +5,7 @@ using GenHub.Features.Settings.ViewModels;
 using Microsoft.Extensions.Logging;
 using Moq;
 
-namespace GenHub.Tests.Core.ViewModels;
+namespace GenHub.Tests.Core.Features.GameProfiles.ViewModels;
 
 /// <summary>
 /// Unit tests for <see cref="SettingsViewModel"/>.
@@ -46,7 +46,7 @@ public class SettingsViewModelTests
         _mockConfigService.Setup(x => x.Get()).Returns(customSettings);
 
         // Act
-        var viewModel = new SettingsViewModel(_mockConfigService.Object, _mockLogger.Object);
+        SettingsViewModel viewModel = new(_mockConfigService.Object, _mockLogger.Object);
 
         // Assert
         Assert.Equal("Light", viewModel.Theme);
@@ -63,9 +63,11 @@ public class SettingsViewModelTests
     public async Task SaveSettingsCommand_UpdatesUserSettingsService()
     {
         // Arrange
-        var viewModel = new SettingsViewModel(_mockConfigService.Object, _mockLogger.Object);
-        viewModel.Theme = "Light";
-        viewModel.MaxConcurrentDownloads = 5;
+        SettingsViewModel viewModel = new(_mockConfigService.Object, _mockLogger.Object)
+        {
+            Theme = "Light",
+            MaxConcurrentDownloads = 5,
+        };
 
         // Act
         await Task.Run(() => viewModel.SaveSettingsCommand.Execute(null));
@@ -83,10 +85,12 @@ public class SettingsViewModelTests
     public async Task ResetToDefaultsCommand_ResetsAllProperties()
     {
         // Arrange
-        var viewModel = new SettingsViewModel(_mockConfigService.Object, _mockLogger.Object);
-        viewModel.Theme = "Light";
-        viewModel.MaxConcurrentDownloads = 10;
-        viewModel.EnableDetailedLogging = true;
+        SettingsViewModel viewModel = new(_mockConfigService.Object, _mockLogger.Object)
+        {
+            Theme = "Light",
+            MaxConcurrentDownloads = 10,
+            EnableDetailedLogging = true,
+        };
 
         // Act
         await Task.Run(() => viewModel.ResetToDefaultsCommand.Execute(null));
@@ -105,10 +109,11 @@ public class SettingsViewModelTests
     public void MaxConcurrentDownloads_SetsValueWithinBounds()
     {
         // Arrange
-        var viewModel = new SettingsViewModel(_mockConfigService.Object, _mockLogger.Object);
-
-        // Act & Assert - Test lower bound
-        viewModel.MaxConcurrentDownloads = 0;
+        var viewModel = new SettingsViewModel(_mockConfigService.Object, _mockLogger.Object)
+        {
+            // Act & Assert - Test lower bound
+            MaxConcurrentDownloads = 0,
+        };
         Assert.Equal(1, viewModel.MaxConcurrentDownloads); // ViewModel clamps to 1
 
         // Act & Assert - Test upper bound
@@ -127,10 +132,9 @@ public class SettingsViewModelTests
     public void AvailableThemes_ReturnsExpectedValues()
     {
         // Arrange
-        var viewModel = new SettingsViewModel(_mockConfigService.Object, _mockLogger.Object);
 
         // Act
-        var themes = viewModel.AvailableThemes.ToList();
+        var themes = SettingsViewModel.AvailableThemes.ToList();
 
         // Assert
         Assert.Contains("Dark", themes);
@@ -145,10 +149,9 @@ public class SettingsViewModelTests
     public void AvailableWorkspaceStrategies_ReturnsAllEnumValues()
     {
         // Arrange
-        var viewModel = new SettingsViewModel(_mockConfigService.Object, _mockLogger.Object);
 
         // Act
-        var strategies = viewModel.AvailableWorkspaceStrategies.ToList();
+        var strategies = SettingsViewModel.AvailableWorkspaceStrategies.ToList();
 
         // Assert
         Assert.Contains(WorkspaceStrategy.HybridCopySymlink, strategies);
@@ -165,7 +168,7 @@ public class SettingsViewModelTests
     {
         // Arrange
         _mockConfigService.Setup(x => x.SaveAsync()).ThrowsAsync(new IOException("Disk full"));
-        var viewModel = new SettingsViewModel(_mockConfigService.Object, _mockLogger.Object);
+        SettingsViewModel viewModel = new(_mockConfigService.Object, _mockLogger.Object);
 
         // Act
         await Task.Run(() => viewModel.SaveSettingsCommand.Execute(null));
@@ -173,11 +176,12 @@ public class SettingsViewModelTests
         // Assert
         _mockLogger.Verify(
             x => x.Log(
-            LogLevel.Error,
-            It.IsAny<EventId>(),
-            It.Is<It.IsAnyType>((v, t) => v != null && v.ToString()!.Contains("Failed to save settings")),
-            It.IsAny<IOException>(),
-            It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+                LogLevel.Error,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()
+                !.Contains("Failed to save settings")),
+                It.IsAny<IOException>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
     }
 
@@ -191,7 +195,7 @@ public class SettingsViewModelTests
         _mockConfigService.Setup(x => x.Get()).Throws(new Exception("Configuration error"));
 
         // Act
-        var viewModel = new SettingsViewModel(_mockConfigService.Object, _mockLogger.Object);
+        SettingsViewModel viewModel = new(_mockConfigService.Object, _mockLogger.Object);
 
         // Assert - Should not throw and use defaults
         Assert.Equal("Dark", viewModel.Theme);

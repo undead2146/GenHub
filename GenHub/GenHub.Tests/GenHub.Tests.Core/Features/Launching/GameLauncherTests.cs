@@ -360,7 +360,7 @@ public class GameLauncherTests
         List<LaunchProgress> reports;
         lock (progressLock)
         {
-            reports = progressReports.ToList(); // Create a copy for safe enumeration
+            reports = [.. progressReports]; // Create a copy for safe enumeration
         }
 
         Assert.NotEmpty(reports);
@@ -414,7 +414,7 @@ public class GameLauncherTests
     {
         // Arrange
         var profile = CreateTestProfile();
-        profile.EnabledContentIds = new List<string>(); // Empty content
+        profile.EnabledContentIds = []; // Empty content
         var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = @"C:\workspace" };
         var processInfo = new GameProcessInfo { ProcessId = 123, ProcessName = "generals.exe" };
 
@@ -536,7 +536,7 @@ public class GameLauncherTests
     {
         // Arrange
         var profile = CreateTestProfile();
-        profile.EnabledContentIds = new List<string> { "1.0.genhub.mod.manifest1mod", "1.0.genhub.mod.manifest2mod", "1.0.genhub.mod.manifest3mod" };
+        profile.EnabledContentIds = ["1.0.genhub.mod.manifest1mod", "1.0.genhub.mod.manifest2mod", "1.0.genhub.mod.manifest3mod"];
         var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = @"C:\workspace" };
         var processInfo = new GameProcessInfo { ProcessId = 123, ProcessName = "generals.exe" };
 
@@ -706,7 +706,7 @@ public class GameLauncherTests
     /// Creates a test <see cref="GameProfile"/> with required members set.
     /// </summary>
     /// <returns>A valid <see cref="GameProfile"/>.</returns>
-    private GameProfile CreateTestProfile()
+    private static GameProfile CreateTestProfile()
     {
         return new GameProfile
         {
@@ -714,7 +714,7 @@ public class GameLauncherTests
             Name = "Test Profile",
             GameInstallationId = "install-1",
             GameClient = new GameClient { Id = "version-1", ExecutablePath = @"C:\Games\generals.exe", GameType = GameType.Generals },
-            EnabledContentIds = new List<string> { "1.0.genhub.mod.test" },
+            EnabledContentIds = ["1.0.genhub.mod.test"],
         };
     }
 }

@@ -26,11 +26,34 @@ namespace GenHub.Features.Settings.ViewModels;
 /// </summary>
 public partial class SettingsViewModel : ObservableObject, IDisposable
 {
+    private static readonly char[] LineSeparators = ['\r', '\n'];
+
+    /// <summary>
+    /// Gets the available themes for selection in the UI.
+    /// </summary>
+    public static IEnumerable<string> AvailableThemes => ["Dark", "Light"];
+
+    /// <summary>
+    /// Gets the available workspace strategies for selection in the UI.
+    /// </summary>
+    public static IEnumerable<WorkspaceStrategy> AvailableWorkspaceStrategies => Enum.GetValues<WorkspaceStrategy>();
+
+    /// <summary>
+    /// Gets the available update channels for selection in the UI.
+    /// </summary>
+    public static IEnumerable<UpdateChannel> AvailableUpdateChannels => Enum.GetValues<UpdateChannel>();
+
+    /// <summary>
+    /// Gets the current application version for display.
+    /// </summary>
+    public static string CurrentVersion => AppConstants.FullDisplayVersion;
+
     private readonly IUserSettingsService _userSettingsService;
     private readonly ILogger<SettingsViewModel> _logger;
     private readonly IGitHubTokenStorage? _gitHubTokenStorage;
     private readonly IVelopackUpdateManager? _updateManager;
     private readonly Timer _memoryUpdateTimer;
+
     private bool _isViewVisible = false;
     private bool _disposed = false;
 
@@ -141,7 +164,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     private bool _isLoadingArtifacts;
 
     [ObservableProperty]
-    private ObservableCollection<ArtifactUpdateInfo> _availableArtifacts = new();
+    private ObservableCollection<ArtifactUpdateInfo> _availableArtifacts = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SettingsViewModel"/> class.
@@ -237,26 +260,6 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Gets the available themes for selection in the UI.
-    /// </summary>
-    public IEnumerable<string> AvailableThemes => new[] { "Dark", "Light" };
-
-    /// <summary>
-    /// Gets the available workspace strategies for selection in the UI.
-    /// </summary>
-    public IEnumerable<WorkspaceStrategy> AvailableWorkspaceStrategies => Enum.GetValues<WorkspaceStrategy>();
-
-    /// <summary>
-    /// Gets the available update channels for selection in the UI.
-    /// </summary>
-    public IEnumerable<UpdateChannel> AvailableUpdateChannels => Enum.GetValues<UpdateChannel>();
-
-    /// <summary>
-    /// Gets the current application version for display.
-    /// </summary>
-    public string CurrentVersion => AppConstants.FullDisplayVersion;
-
-    /// <summary>
     /// Disposes the ViewModel and its resources.
     /// </summary>
     public void Dispose()
@@ -265,6 +268,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         {
             _memoryUpdateTimer?.Dispose();
             _disposed = true;
+            GC.SuppressFinalize(this);
         }
     }
 
@@ -391,8 +395,8 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             DownloadUserAgent = string.IsNullOrWhiteSpace(settings.DownloadUserAgent) ? ApiConstants.DefaultUserAgent : settings.DownloadUserAgent;
             SettingsFilePath = settings.SettingsFilePath;
             CachePath = settings.CachePath;
-            ContentDirectoriesText = string.Join(Environment.NewLine, settings.ContentDirectories ?? new());
-            GitHubDiscoveryRepositoriesText = string.Join(Environment.NewLine, settings.GitHubDiscoveryRepositories ?? new());
+            ContentDirectoriesText = string.Join(Environment.NewLine, settings.ContentDirectories ?? []);
+            GitHubDiscoveryRepositoriesText = string.Join(Environment.NewLine, settings.GitHubDiscoveryRepositories ?? []);
             ContentStoragePath = settings.ContentStoragePath;
 
             // Load CAS settings
@@ -445,12 +449,11 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
                 settings.DownloadUserAgent = DownloadUserAgent;
                 settings.SettingsFilePath = SettingsFilePath;
                 settings.CachePath = CachePath;
-                settings.ContentDirectories = (ContentDirectoriesText ?? string.Empty)
-                    .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                    .ToList();
-                settings.GitHubDiscoveryRepositories = (GitHubDiscoveryRepositoriesText ?? string.Empty)
-                    .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                    .ToList();
+                settings.ContentDirectories = [.. (ContentDirectoriesText ?? string.Empty).Split(LineSeparators, StringSplitOptions.RemoveEmptyEntries)];
+                settings.GitHubDiscoveryRepositories = [.. (GitHubDiscoveryRepositoriesText ?? string.Empty)
+                    .Split(LineSeparators, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(r => r.Trim())
+                    .Where(r => !string.IsNullOrWhiteSpace(r))];
                 settings.ContentStoragePath = ContentStoragePath;
 
                 // Update CAS settings

@@ -89,9 +89,14 @@ public interface IVelopackUpdateManager
     ArtifactUpdateInfo? LatestArtifactUpdate { get; }
 
     /// <summary>
-    /// Gets or sets the subscribed PR number. Set to null for MAIN branch updates.
+    /// Gets or sets the subscribed PR number. Set to null for branch-based updates.
     /// </summary>
     int? SubscribedPrNumber { get; set; }
+
+    /// <summary>
+    /// Gets or sets the subscribed branch name. Set to null for release-based updates.
+    /// </summary>
+    string? SubscribedBranch { get; set; }
 
     /// <summary>
     /// Gets a value indicating whether the subscribed PR has been merged or closed.

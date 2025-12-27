@@ -8,6 +8,7 @@ using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
@@ -26,8 +27,14 @@ namespace GenHub.Features.AppUpdate.Services;
 /// <summary>
 /// Velopack-based update manager service with support for release and artifact update channels.
 /// </summary>
-public class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
+public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
 {
+    /// <summary>
+    /// Regex for extracting version from nupkg filename.
+    /// </summary>
+    [GeneratedRegex(@"GenHub-(.+)-full\.nupkg", RegexOptions.IgnoreCase)]
+    private static partial Regex NupkgVersionRegex();
+
     /// <summary>
     /// Length of the git short hash used in versioning (7 characters).
     /// </summary>
@@ -64,6 +71,9 @@ public class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
 
     /// <inheritdoc/>
     public int? SubscribedPrNumber { get; set; }
+
+    /// <inheritdoc/>
+    public string? SubscribedBranch { get; set; }
 
     /// <inheritdoc/>
     public bool IsPrMergedOrClosed { get; private set; }
@@ -311,7 +321,7 @@ public class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                 };
             }
 
-            await _updateManager.DownloadUpdatesAsync(updateInfo, velopackProgress);
+            await _updateManager.DownloadUpdatesAsync(updateInfo, velopackProgress, cancellationToken);
 
             progress?.Report(new UpdateProgress
             {
@@ -430,7 +440,31 @@ public class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
 
         try
         {
-            _latestArtifactUpdate = await FindLatestArtifactAsync(cancellationToken);
+            // Reset latest artifact if switching modes/channels
+            _latestArtifactUpdate = null;
+
+            // Priority:
+            // 1. Subscribed PR
+            // 2. Subscribed Branch
+            // 3. Overall latest
+            if (SubscribedPrNumber.HasValue)
+            {
+                _logger.LogInformation("Checking for artifacts for subscribed PR #{PrNumber}", SubscribedPrNumber.Value);
+                var prs = await GetOpenPullRequestsAsync(cancellationToken);
+                var subscribedPr = prs.FirstOrDefault(p => p.Number == SubscribedPrNumber.Value);
+                _latestArtifactUpdate = subscribedPr?.LatestArtifact;
+            }
+            else if (!string.IsNullOrEmpty(SubscribedBranch))
+            {
+                _logger.LogInformation("Checking for artifacts for subscribed branch: {Branch}", SubscribedBranch);
+                _latestArtifactUpdate = await FindLatestArtifactAsync(SubscribedBranch, cancellationToken);
+            }
+            else
+            {
+                _logger.LogInformation("Checking for overall latest artifact");
+                _latestArtifactUpdate = await FindLatestArtifactAsync(null, cancellationToken);
+            }
+
             return _latestArtifactUpdate;
         }
         catch (Exception ex)
@@ -584,8 +618,7 @@ public class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
         {
             progress?.Report(new UpdateProgress { Status = "Downloading PR artifact...", PercentComplete = 0 });
 
-            var token = await _gitHubTokenStorage.LoadTokenAsync();
-            if (token == null)
+            if (await _gitHubTokenStorage.LoadTokenAsync() is not { } token)
             {
                 throw new InvalidOperationException("Failed to load GitHub PAT");
             }
@@ -636,10 +669,7 @@ public class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
             var sha256 = CalculateSHA256(nupkgFile);
 
             // Extract version from nupkg filename
-            var versionMatch = System.Text.RegularExpressions.Regex.Match(
-                nupkgFileName,
-                @"GenHub-(.+)-full\.nupkg",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            var versionMatch = NupkgVersionRegex().Match(nupkgFileName);
             var fileVersion = versionMatch.Success ? versionMatch.Groups[1].Value : prInfo.LatestArtifact.Version;
 
             var releasesJson = new
@@ -722,14 +752,17 @@ public class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                 }
 
                 // Download from localhost
-                await localUpdateManager.DownloadUpdatesAsync(updateInfo, p =>
-                {
-                    progress?.Report(new UpdateProgress
+                await localUpdateManager.DownloadUpdatesAsync(
+                    updateInfo,
+                    p =>
                     {
-                        Status = "Downloading update...",
-                        PercentComplete = 70 + (int)(p * 0.2),
-                    });
-                });
+                        progress?.Report(new UpdateProgress
+                        {
+                            Status = "Downloading update...",
+                            PercentComplete = 70 + (int)(p * 0.2),
+                        });
+                    },
+                    cancellationToken);
 
                 progress?.Report(new UpdateProgress { Status = "Installing update...", PercentComplete = 90 });
 
@@ -1068,9 +1101,9 @@ public class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
     }
 
     /// <summary>
-    /// Finds the latest artifact overall (for artifact update checking).
+    /// Finds the latest artifact overall or for a specific branch (for artifact update checking).
     /// </summary>
-    private async Task<ArtifactUpdateInfo?> FindLatestArtifactAsync(CancellationToken cancellationToken)
+    private async Task<ArtifactUpdateInfo?> FindLatestArtifactAsync(string? branch, CancellationToken cancellationToken)
     {
         if (_gitHubTokenStorage == null || !_gitHubTokenStorage.HasToken())
             return null;
@@ -1085,23 +1118,43 @@ public class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
             var owner = AppConstants.GitHubRepositoryOwner;
             var repo = AppConstants.GitHubRepositoryName;
 
-            var runsUrl = string.Format(ApiConstants.GitHubApiLatestWorkflowRunsFormat, owner, repo);
+            string runsUrl;
+            if (!string.IsNullOrEmpty(branch))
+            {
+                _logger.LogInformation("Searching for latest workflow success on branch: {Branch}", branch);
+                runsUrl = string.Format(ApiConstants.GitHubApiWorkflowRunsFormat, owner, repo, branch);
+            }
+            else
+            {
+                _logger.LogInformation("Searching for overall latest workflow success");
+                runsUrl = string.Format(ApiConstants.GitHubApiLatestWorkflowRunsFormat, owner, repo);
+            }
+
             var runsResponse = await client.GetAsync(runsUrl, cancellationToken);
 
             if (!runsResponse.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Failed to fetch workflow runs: {Status}", runsResponse.StatusCode);
                 return null;
+            }
 
             var runsJson = await runsResponse.Content.ReadAsStringAsync(cancellationToken);
             var runsData = JsonSerializer.Deserialize<JsonElement>(runsJson);
 
             if (!runsData.TryGetProperty("workflow_runs", out var runs) || runs.GetArrayLength() == 0)
+            {
+                _logger.LogWarning("No workflow runs found in response for URL: {Url}", runsUrl);
                 return null;
+            }
 
+            // GitHubApiWorkflowRunsFormat (with branch) returns up to 10 runs, we want the most recent one
+            // GitHubApiLatestWorkflowRunsFormat returns exactly 1 (per_page=1)
             var latestRun = runs.EnumerateArray().FirstOrDefault();
             var runId = latestRun.GetProperty("id").GetInt64();
             var runUrl = latestRun.GetProperty("html_url").GetString() ?? string.Empty;
             var headSha = latestRun.GetProperty("head_sha").GetString() ?? string.Empty;
             var shortHash = headSha.Length >= GitShortHashLength ? headSha[..GitShortHashLength] : headSha;
+            var actualBranch = latestRun.TryGetProperty("head_branch", out var b) ? b.GetString() : branch ?? "unknown";
 
             DateTime createdAt;
             try
@@ -1113,17 +1166,25 @@ public class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                 createdAt = DateTime.MinValue;
             }
 
+            _logger.LogInformation("Found run {RunId} on branch {Branch} with hash {Hash}. Fetching artifacts...", runId, actualBranch, shortHash);
+
             var artifactsUrl = string.Format(ApiConstants.GitHubApiRunArtifactsFormat, owner, repo, runId);
             var artifactsResponse = await client.GetAsync(artifactsUrl, cancellationToken);
 
             if (!artifactsResponse.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Failed to fetch artifacts for run {RunId}: {Status}", runId, artifactsResponse.StatusCode);
                 return null;
+            }
 
             var artifactsJson = await artifactsResponse.Content.ReadAsStringAsync(cancellationToken);
             var artifactsData = JsonSerializer.Deserialize<JsonElement>(artifactsJson);
 
             if (!artifactsData.TryGetProperty("artifacts", out var artifacts))
+            {
+                _logger.LogWarning("No artifacts property in response for run {RunId}", runId);
                 return null;
+            }
 
             foreach (var artifact in artifacts.EnumerateArray())
             {
@@ -1134,6 +1195,8 @@ public class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
 
                 var artifactId = artifact.GetProperty("id").GetInt64();
                 var version = ExtractVersionFromArtifactName(artifactName) ?? "unknown";
+
+                _logger.LogInformation("Found artifact: {Name} (ID: {Id})", artifactName, artifactId);
 
                 return new ArtifactUpdateInfo(
                     version: version,
@@ -1146,11 +1209,12 @@ public class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                     createdAt: createdAt);
             }
 
+            _logger.LogWarning("No Velopack artifacts found in run {RunId}", runId);
             return null;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to find latest artifact");
+            _logger.LogWarning(ex, "Failed to find latest artifact for branch {Branch}", branch ?? "any");
             return null;
         }
     }
