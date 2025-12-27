@@ -48,12 +48,12 @@ public class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILogger<Git
                 if (parts.Length != ContentConstants.GitHubRepoPartsCount)
                 {
                     logger.LogWarning("Invalid repository format: {Repository}. Expected 'owner/repo'", r);
-                    return (owner: string.Empty, repo: string.Empty);
+                    return (Owner: string.Empty, Repo: string.Empty);
                 }
 
-                return (owner: parts[0].Trim(), repo: parts[1].Trim());
+                return (Owner: parts[0].Trim(), Repo: parts[1].Trim());
             })
-            .Where(t => !string.IsNullOrEmpty(t.owner) && !string.IsNullOrEmpty(t.repo));
+            .Where(t => !string.IsNullOrEmpty(t.Owner) && !string.IsNullOrEmpty(t.Repo));
         foreach (var (owner, repo) in relevantRepos)
         {
             try

@@ -335,6 +335,26 @@ public class ProfileContentLoader(
         }
     }
 
+    private static GameClient? GetBaseGameClient(GameInstallation installation, GameType gameType)
+    {
+        return installation.AvailableGameClients
+            .Where(gc => gc.GameType == gameType)
+            .OrderBy(gc => GetClientPriority(gc.Name))
+            .ThenBy(gc => gc.Name)
+            .FirstOrDefault();
+    }
+
+    private static int GetClientPriority(string clientName)
+    {
+        var name = clientName.ToLowerInvariant();
+        return name switch
+        {
+            _ when name.Contains("generalsonline") => 2,
+            _ when name.Contains("superhacker") => 3,
+            _ => 1,
+        };
+    }
+
     private static ObservableCollection<ContentDisplayItem> CloneWithEnabledState(
         ObservableCollection<ContentDisplayItem> items,
         HashSet<string> enabledIds)
@@ -355,26 +375,6 @@ public class ProfileContentLoader(
                 GameClientId = item.GameClientId,
                 IsEnabled = enabledIds.Contains(item.ManifestId),
             }));
-    }
-
-    private static GameClient? GetBaseGameClient(GameInstallation installation, GameType gameType)
-    {
-        return installation.AvailableGameClients
-            .Where(gc => gc.GameType == gameType)
-            .OrderBy(gc => GetClientPriority(gc.Name))
-            .ThenBy(gc => gc.Name)
-            .FirstOrDefault();
-    }
-
-    private static int GetClientPriority(string clientName)
-    {
-        var name = clientName.ToLowerInvariant();
-        return name switch
-        {
-            _ when name.Contains("generalsonline") => 2,
-            _ when name.Contains("superhacker") => 3,
-            _ => 1,
-        };
     }
 
     private (string ForManifestId, string ForDisplay) GetVersionStrings(string? detectedVersion)

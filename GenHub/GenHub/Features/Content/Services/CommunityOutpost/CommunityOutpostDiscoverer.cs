@@ -22,10 +22,15 @@ namespace GenHub.Features.Content.Services.CommunityOutpost;
 /// </summary>
 /// <param name="httpClientFactory">HTTP client factory.</param>
 /// <param name="logger">Logger instance.</param>
-public class CommunityOutpostDiscoverer(
+public partial class CommunityOutpostDiscoverer(
     IHttpClientFactory httpClientFactory,
     ILogger<CommunityOutpostDiscoverer> logger) : IContentDiscoverer
 {
+    /// <summary>
+    /// Gets the provider ID for registration.
+    /// </summary>
+    public static string ProviderId => CommunityOutpostConstants.PublisherId;
+
     /// <inheritdoc/>
     public string SourceName => CommunityOutpostConstants.PublisherType;
 
@@ -39,11 +44,6 @@ public class CommunityOutpostDiscoverer(
     public ContentSourceCapabilities Capabilities =>
         ContentSourceCapabilities.RequiresDiscovery |
         ContentSourceCapabilities.SupportsPackageAcquisition;
-
-    /// <summary>
-    /// Gets the provider ID for registration.
-    /// </summary>
-    public string ProviderId => CommunityOutpostConstants.PublisherId;
 
     /// <inheritdoc/>
     public async Task<OperationResult<IEnumerable<ContentSearchResult>>> DiscoverAsync(
@@ -131,6 +131,51 @@ public class CommunityOutpostDiscoverer(
     }
 
     /// <summary>
+    /// Checks if a search result matches the query filters.
+    /// </summary>
+    private static bool MatchesQuery(ContentSearchResult result, ContentSearchQuery query)
+    {
+        // If no filters specified, include all
+        if (string.IsNullOrWhiteSpace(query.SearchTerm) &&
+            !query.ContentType.HasValue &&
+            !query.TargetGame.HasValue)
+        {
+            return true;
+        }
+
+        // Check search term
+        if (!string.IsNullOrWhiteSpace(query.SearchTerm))
+        {
+            var term = query.SearchTerm.ToLowerInvariant();
+            var nameMatches = result.Name?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false;
+            var descMatches = result.Description?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false;
+            var tagMatches = result.Tags.Any(t => t.Contains(term, StringComparison.OrdinalIgnoreCase));
+
+            if (!nameMatches && !descMatches && !tagMatches)
+            {
+                return false;
+            }
+        }
+
+        // Check content type filter
+        if (query.ContentType.HasValue && result.ContentType != query.ContentType.Value)
+        {
+            return false;
+        }
+
+        // Check target game filter
+        if (query.TargetGame.HasValue && result.TargetGame != query.TargetGame.Value)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    [GeneratedRegex(@"href=[""']([^""']*generalszh-weekly-(\d{4}-\d{2}-\d{2})[^""']*\.zip)[""']", RegexOptions.IgnoreCase)]
+    private static partial Regex CommunityPatchRegex();
+
+    /// <summary>
     /// Discovers the Community Patch (TheSuperHackers Patch Build) from legi.cc/patch.
     /// </summary>
     private async Task<ContentSearchResult?> DiscoverCommunityPatchAsync(
@@ -144,10 +189,7 @@ public class CommunityOutpostDiscoverer(
             var pageContent = await client.GetStringAsync(CommunityOutpostConstants.PatchPageUrl, cancellationToken);
 
             // Look for the download link pattern: generalszh-weekly-YYYY-MM-DD*.zip
-            var downloadUrlMatch = Regex.Match(
-                pageContent,
-                @"href=[""']([^""']*generalszh-weekly-(\d{4}-\d{2}-\d{2})[^""']*\.zip)[""']",
-                RegexOptions.IgnoreCase);
+            var downloadUrlMatch = CommunityPatchRegex().Match(pageContent);
 
             if (!downloadUrlMatch.Success)
             {
@@ -307,47 +349,5 @@ public class CommunityOutpostDiscoverer(
             logger.LogWarning(ex, "Failed to convert content item {Code} to search result", item.ContentCode);
             return null;
         }
-    }
-
-    /// <summary>
-    /// Checks if a search result matches the query filters.
-    /// </summary>
-    private bool MatchesQuery(ContentSearchResult result, ContentSearchQuery query)
-    {
-        // If no filters specified, include all
-        if (string.IsNullOrWhiteSpace(query.SearchTerm) &&
-            !query.ContentType.HasValue &&
-            !query.TargetGame.HasValue)
-        {
-            return true;
-        }
-
-        // Check search term
-        if (!string.IsNullOrWhiteSpace(query.SearchTerm))
-        {
-            var term = query.SearchTerm.ToLowerInvariant();
-            var nameMatches = result.Name?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false;
-            var descMatches = result.Description?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false;
-            var tagMatches = result.Tags.Any(t => t.Contains(term, StringComparison.OrdinalIgnoreCase));
-
-            if (!nameMatches && !descMatches && !tagMatches)
-            {
-                return false;
-            }
-        }
-
-        // Check content type filter
-        if (query.ContentType.HasValue && result.ContentType != query.ContentType.Value)
-        {
-            return false;
-        }
-
-        // Check target game filter
-        if (query.TargetGame.HasValue && result.TargetGame != query.TargetGame.Value)
-        {
-            return false;
-        }
-
-        return true;
     }
 }

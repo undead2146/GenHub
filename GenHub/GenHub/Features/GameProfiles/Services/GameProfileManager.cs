@@ -173,6 +173,8 @@ public class GameProfileManager(
                 profile.AudioEnabled = request.AudioEnabled;
             if (request.AudioNumSounds.HasValue)
                 profile.AudioNumSounds = request.AudioNumSounds;
+            if (request.UseSteamLaunch.HasValue)
+                profile.UseSteamLaunch = request.UseSteamLaunch;
 
             var saveResult = await _profileRepository.SaveProfileAsync(profile, cancellationToken);
             if (saveResult.Success)

@@ -13,6 +13,9 @@ public static class GameClientConstants
     /// <summary>Zero Hour executable filename.</summary>
     public const string ZeroHourExecutable = "generals.exe";
 
+    /// <summary>Steam game.dat executable (alternative to generals.exe for Steam-free launch).</summary>
+    public const string SteamGameDatExecutable = "game.dat";
+
     // ===== SuperHackers Client Detection =====
 
     /// <summary>SuperHackers Generals executable filename.</summary>

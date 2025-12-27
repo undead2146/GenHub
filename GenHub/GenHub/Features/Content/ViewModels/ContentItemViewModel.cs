@@ -121,7 +121,7 @@ public partial class ContentItemViewModel : ObservableObject
     /// <summary>
     /// Gets the collection of available content variants (e.g., Generals vs Zero Hour, or 30Hz vs 60Hz).
     /// </summary>
-    public ObservableCollection<ContentManifest> AvailableVariants { get; } = new();
+    public ObservableCollection<ContentManifest> AvailableVariants { get; } = [];
 
     /// <summary>
     /// Gets a value indicating whether this content has multiple variants to choose from.

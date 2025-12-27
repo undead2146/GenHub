@@ -206,6 +206,23 @@ public partial class GameProfileItemViewModel : ViewModelBase
     private string? _activeWorkspaceId;
 
     /// <summary>
+    /// Gets or sets a value indicating whether to use Steam launch mode (generals.exe) or standalone mode (game.dat).
+    /// </summary>
+    [ObservableProperty]
+    private bool _useSteamLaunch = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this profile is from a Steam installation.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isSteamInstallation;
+
+    /// <summary>
+    /// Gets the underlying game profile.
+    /// </summary>
+    public IGameProfile Profile { get; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="GameProfileItemViewModel"/> class.
     /// </summary>
     /// <param name="profileId">The profile ID.</param>
@@ -214,6 +231,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
     /// <param name="coverPath">The cover path.</param>
     public GameProfileItemViewModel(string profileId, IGameProfile profile, string iconPath, string coverPath)
     {
+        Profile = profile;
         _profileId = profileId;
         _name = profile.Name;
         _version = profile.Version;
@@ -324,6 +342,12 @@ public partial class GameProfileItemViewModel : ViewModelBase
         {
             _activeWorkspaceId = gameProfile2.ActiveWorkspaceId;
             _isProcessRunning = false; // Will be updated by LauncherViewModel
+
+            // Initialize Steam launch mode settings
+            _useSteamLaunch = gameProfile2.UseSteamLaunch ?? true;
+
+            // Determine if this is a Steam installation by checking the publisher in the manifest ID
+            _isSteamInstallation = gameProfile2.GameInstallationId?.Contains("steam", StringComparison.OrdinalIgnoreCase) ?? false;
 
             if (string.IsNullOrEmpty(gameProfile2.ActiveWorkspaceId))
             {

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,14 +15,15 @@ using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Shortcuts;
+using GenHub.Core.Interfaces.Steam;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
+using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.Views;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace GenHub.Features.GameProfiles.ViewModels;
 
@@ -39,6 +39,8 @@ public partial class GameProfileLauncherViewModel(
     IConfigurationProviderService configService,
     IGameProcessManager gameProcessManager,
     IShortcutService shortcutService,
+    ISteamManifestPatcher steamManifestPatcher,
+    ProfileResourceService profileResourceService,
     INotificationService notificationService,
     ILogger<GameProfileLauncherViewModel> logger) : ViewModelBase, IRecipient<ProfileCreatedMessage>, IRecipient<ProfileUpdatedMessage>
 {
@@ -88,15 +90,16 @@ public partial class GameProfileLauncherViewModel(
             {
                 foreach (var profile in profilesResult.Data)
                 {
-                    // Use profile's IconPath if available, otherwise fall back to generalshub icon
+                    // Use ProfileResourceService to get default paths based on game type if profile paths are missing
+                    var gameTypeStr = profile.GameClient?.GameType.ToString() ?? "ZeroHour";
+
                     var iconPath = !string.IsNullOrEmpty(profile.IconPath)
                         ? profile.IconPath
                         : UriConstants.DefaultIconUri;
 
-                    // Use profile's CoverPath if available, otherwise fall back to icon path
                     var coverPath = !string.IsNullOrEmpty(profile.CoverPath)
                         ? profile.CoverPath
-                        : iconPath;
+                        : profileResourceService.GetDefaultCoverPath(gameTypeStr);
 
                     var item = new GameProfileItemViewModel(
                         profile.Id,
@@ -232,14 +235,15 @@ public partial class GameProfileLauncherViewModel(
                     var workspaceId = existingItem.ActiveWorkspaceId;
 
                     // Update the profile data
+                    var gameTypeStr = profile.GameClient?.GameType.ToString() ?? "ZeroHour";
+
                     var iconPath = !string.IsNullOrEmpty(profile.IconPath)
                         ? profile.IconPath
                         : UriConstants.DefaultIconUri;
 
-                    // Use profile's CoverPath if available, otherwise fall back to icon path
                     var coverPath = !string.IsNullOrEmpty(profile.CoverPath)
                         ? profile.CoverPath
-                        : iconPath;
+                        : profileResourceService.GetDefaultCoverPath(gameTypeStr);
 
                     var newItem = new GameProfileItemViewModel(
                         profile.Id,
@@ -440,6 +444,11 @@ public partial class GameProfileLauncherViewModel(
                 gameClient.Id,          // GameClient manifest (required for launch validation)
             };
 
+            // Determine assets based on game type using ProfileResourceService
+            var gameTypeStr = gameClient.GameType.ToString();
+            var iconPath = profileResourceService.GetDefaultIconPath(gameTypeStr);
+            var coverPath = profileResourceService.GetDefaultCoverPath(gameTypeStr);
+
             // Create the profile request using the client manifest ID for GameClientId
             var createRequest = new Core.Models.GameProfile.CreateProfileRequest
             {
@@ -450,7 +459,8 @@ public partial class GameProfileLauncherViewModel(
                 PreferredStrategy = preferredStrategy,
                 EnabledContentIds = enabledContentIds, // Both GameInstallation and GameClient manifests
                 ThemeColor = GetThemeColorForGameType(gameClient.GameType),
-                IconPath = GetIconPathForGame(gameClient.GameType),
+                IconPath = iconPath,
+                CoverPath = coverPath,
             };
 
             var profileResult = await profileEditorFacade.CreateProfileWithWorkspaceAsync(createRequest);
@@ -843,6 +853,43 @@ public partial class GameProfileLauncherViewModel(
         {
             logger?.LogError(ex, "Error creating shortcut for profile {ProfileName}", profile.Name);
             StatusMessage = $"Error creating shortcut for {profile.Name}";
+        }
+    }
+
+    /// <summary>
+    /// Toggles the Steam launch mode for a profile and updates the manifest on disk.
+    /// </summary>
+    /// <param name="profile">The profile to update.</param>
+    [RelayCommand]
+    private async Task ToggleSteamLaunch(GameProfileItemViewModel profile)
+    {
+        try
+        {
+            if (profile.Profile is Core.Models.GameProfile.GameProfile gameProfile && !string.IsNullOrEmpty(gameProfile.GameClient?.Id))
+            {
+                StatusMessage = $"Updating launch mode for {profile.Name}...";
+
+                // Update the persisted profile
+                var updateRequest = new Core.Models.GameProfile.UpdateProfileRequest
+                {
+                    UseSteamLaunch = profile.UseSteamLaunch,
+                };
+                await gameProfileManager.UpdateProfileAsync(profile.ProfileId, updateRequest);
+
+                // Patch the manifest on disk immediately
+                await steamManifestPatcher.PatchManifestAsync(gameProfile.GameClient.Id, profile.UseSteamLaunch);
+
+                StatusMessage = $"Launch mode updated for {profile.Name}";
+                logger.LogInformation("Toggled Steam launch to {UseSteam} for profile {ProfileName}", profile.UseSteamLaunch, profile.Name);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error toggling Steam launch for {ProfileName}", profile.Name);
+            StatusMessage = "Error updating launch mode";
+
+            // Revert UI if failed
+            profile.UseSteamLaunch = !profile.UseSteamLaunch;
         }
     }
 

@@ -14,6 +14,7 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Features.AppUpdate.Interfaces;
 using GenHub.Features.Downloads.ViewModels;
+using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.ViewModels;
 using GenHub.Features.Notifications.ViewModels;
 using GenHub.Features.Settings.ViewModels;
@@ -33,6 +34,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IUserSettingsService _userSettingsService;
     private readonly IProfileEditorFacade _profileEditorFacade;
     private readonly IVelopackUpdateManager _velopackUpdateManager;
+    private readonly ProfileResourceService _profileResourceService;
     private readonly CancellationTokenSource _initializationCts = new();
 
     [ObservableProperty]
@@ -54,6 +56,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <param name="userSettingsService">User settings service for persistence operations.</param>
     /// <param name="profileEditorFacade">Profile editor facade for automatic profile creation.</param>
     /// <param name="velopackUpdateManager">The Velopack update manager for checking updates.</param>
+    /// <param name="profileResourceService">Service for accessing profile resources.</param>
     /// <param name="logger">Logger instance.</param>
     public MainViewModel(
         GameProfileLauncherViewModel gameProfilesViewModel,
@@ -66,6 +69,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IUserSettingsService userSettingsService,
         IProfileEditorFacade profileEditorFacade,
         IVelopackUpdateManager velopackUpdateManager,
+        ProfileResourceService profileResourceService,
         ILogger<MainViewModel>? logger = null)
     {
         GameProfilesViewModel = gameProfilesViewModel;
@@ -78,6 +82,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _userSettingsService = userSettingsService;
         _profileEditorFacade = profileEditorFacade ?? throw new ArgumentNullException(nameof(profileEditorFacade));
         _velopackUpdateManager = velopackUpdateManager ?? throw new ArgumentNullException(nameof(velopackUpdateManager));
+        _profileResourceService = profileResourceService ?? throw new ArgumentNullException(nameof(profileResourceService));
         _logger = logger;
 
         // Load initial settings using unified configuration
@@ -268,6 +273,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
                     var gameClientId = gameClient.Id;
 
+                    // Determine assets based on game type using ProfileResourceService
+                    var gameTypeStr = gameClient.GameType.ToString();
+                    var iconPath = _profileResourceService.GetDefaultIconPath(gameTypeStr);
+                    var coverPath = _profileResourceService.GetDefaultCoverPath(gameTypeStr);
+
                     // Create a profile request from the installation
                     var createRequest = new CreateProfileRequest
                     {
@@ -276,6 +286,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                         GameClientId = gameClientId,
                         Description = $"Auto-created profile for {installation.InstallationType} installation at {installation.InstallationPath}",
                         PreferredStrategy = WorkspaceStrategy.HybridCopySymlink,
+                        IconPath = iconPath,
+                        CoverPath = coverPath,
                     };
 
                     var profileResult = await _profileEditorFacade.CreateProfileWithWorkspaceAsync(createRequest);

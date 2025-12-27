@@ -60,7 +60,7 @@ public class GeneralsOnlineManifestFactory(ILogger<GeneralsOnlineManifestFactory
             // Case 1: Version with QFE (e.g., "111825_QFE2")
             if (version.Contains(GeneralsOnlineConstants.QfeSeparator))
             {
-                var parts = version.Split(new[] { GeneralsOnlineConstants.QfeSeparator }, StringSplitOptions.RemoveEmptyEntries);
+                var parts = version.Split([GeneralsOnlineConstants.QfeSeparator], StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 2)
                 {
                     var datePart = parts[0];
@@ -203,6 +203,7 @@ public class GeneralsOnlineManifestFactory(ILogger<GeneralsOnlineManifestFactory
         var userVersion = ParseVersionForManifestId(release.Version);
 
         // Content name for GeneralsOnline (publisher is "generalsonline", content is the variant)
+        // For GeneralsOnline, we want the content name to be prefixed with the publisher type
         // This will create IDs like: 1.1015255.generalsonline.gameclient.generalsonline_30hz
         var contentName = $"{GeneralsOnlineConstants.PublisherType}_{variantSuffix}";
 

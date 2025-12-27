@@ -2,7 +2,6 @@ using System;
 using System.Globalization;
 using Avalonia.Data.Converters;
 using GenHub.Core.Constants;
-using GenHub.Core.Extensions;
 using GenHub.Core.Models.Enums;
 
 namespace GenHub.Infrastructure.Converters;
