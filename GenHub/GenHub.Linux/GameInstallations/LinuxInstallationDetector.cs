@@ -91,6 +91,22 @@ public class LinuxInstallationDetector(ILogger<LinuxInstallationDetector> logger
                 logger.LogDebug("No valid Wine installation found");
             }
 
+            // Check CD/ISO installations
+            logger.LogDebug("Checking CD/ISO installations on Linux");
+            var cdiso = new CdisoInstallation(fetch: true, logger: logger as ILogger<CdisoInstallation>);
+            if (cdiso.IsCdisoInstalled && (cdiso.HasGenerals || cdiso.HasZeroHour))
+            {
+                installs.Add(cdiso.ToDomain(logger));
+                logger.LogInformation(
+                    "Detected CD/ISO installation with {GeneralsCount} Generals and {ZeroHourCount} Zero Hour installations",
+                    cdiso.HasGenerals ? 1 : 0,
+                    cdiso.HasZeroHour ? 1 : 0);
+            }
+            else
+            {
+                logger.LogDebug("No valid CD/ISO installation found");
+            }
+
             logger.LogInformation("Linux installation detection completed with {ResultCount} installations found", installs.Count);
         }
         catch (Exception ex)
@@ -100,7 +116,7 @@ public class LinuxInstallationDetector(ILogger<LinuxInstallationDetector> logger
         }
 
         sw.Stop();
-        var result = errors.Any()
+        var result = errors.Count > 0
             ? DetectionResult<GameInstallation>.CreateFailure(string.Join(", ", errors))
             : DetectionResult<GameInstallation>.CreateSuccess(installs, sw.Elapsed);
 

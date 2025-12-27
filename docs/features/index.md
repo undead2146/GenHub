@@ -32,8 +32,8 @@ and provides discovery, resolution, and delivery pipelines.
 ### [Game Installations](./game-installations)
 
 Automatic detection and management of game installations across multiple platforms.
-Scans for Command & Conquer Generals and Zero Hour installations, validates integrity,
-and provides seamless integration with launching and content management features.
+Scans for Command & Conquer Generals and Zero Hour installations (Steam, EA App, CD/ISO),
+validates integrity, and provides seamless integration with launching and content management features.
 
 ---
 

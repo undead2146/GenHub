@@ -22,7 +22,7 @@ hero:
 
 features:
   - title: Universal Game Support
-    details: Supports multiple game versions, forks, and community builds from Steam, EA App, Origin, and manual installations.
+    details: Supports multiple game versions, forks, and community builds from Steam, EA App, CD/ISO, and manual installations.
     icon: 🎮
   - title: Content Discovery
     details: Automated discovery and installation of mods, patches, and add-ons from GitHub, ModDB, CNCLabs, and local sources.

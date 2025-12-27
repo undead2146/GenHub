@@ -12,16 +12,17 @@ using Microsoft.Win32;
 namespace GenHub.Windows.GameInstallations;
 
 /// <summary>
-/// EaApp installation detector and manager.
+/// CD/ISO installation detector for games installed from CD/ISO media.
+/// Uses registry lookup as a fallback when Steam and EA App installations are not found.
 /// </summary>
-public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstallation
+public class CdisoInstallation(ILogger<CdisoInstallation>? logger) : IGameInstallation
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="EaAppInstallation"/> class, optionally fetching installation details.
+    /// Initializes a new instance of the <see cref="CdisoInstallation"/> class, optionally fetching installation details.
     /// </summary>
     /// <param name="fetch">Value indicating whether <see cref="Fetch"/> should be called while instantiation.</param>
     /// <param name="logger">Optional logger instance.</param>
-    public EaAppInstallation(bool fetch, ILogger<EaAppInstallation>? logger = null)
+    public CdisoInstallation(bool fetch, ILogger<CdisoInstallation>? logger = null)
         : this(logger)
     {
         if (fetch)
@@ -31,10 +32,10 @@ public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstal
     }
 
     /// <inheritdoc/>
-    public string Id => "EaApp";
+    public string Id => "CDISO";
 
     /// <inheritdoc/>
-    public GameInstallationType InstallationType => GameInstallationType.EaApp;
+    public GameInstallationType InstallationType => GameInstallationType.CDISO;
 
     /// <inheritdoc/>
     public string InstallationPath { get; private set; } = string.Empty;
@@ -55,9 +56,9 @@ public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstal
     public List<GameClient> AvailableGameClients { get; } = [];
 
     /// <summary>
-    /// Gets a value indicating whether the EA App is installed successfully.
+    /// Gets a value indicating whether a CD/ISO installation was found via registry.
     /// </summary>
-    public bool IsEaAppInstalled { get; private set; }
+    public bool IsCdisoInstalled { get; private set; }
 
     /// <inheritdoc/>
     public void SetPaths(string? generalsPath, string? zeroHourPath)
@@ -84,27 +85,19 @@ public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstal
     /// <inheritdoc/>
     public void Fetch()
     {
-        logger?.LogInformation("Starting EA App installation detection");
+        logger?.LogInformation("Starting CD/ISO installation detection");
 
         try
         {
-            IsEaAppInstalled = IsEaAppInstallationSuccessful();
-            if (!IsEaAppInstalled)
+            if (!TryGetCdisoGamesGeneralsPath(out var generalsPath))
             {
-                logger?.LogDebug("EA App installation not found or not successful");
+                logger?.LogDebug("CD/ISO Games path not found in registry");
                 return;
             }
 
-            logger?.LogDebug("EA App installation found, searching for game installations");
-
-            if (!TryGetEaGamesGeneralsPath(out var generalsPath))
-            {
-                logger?.LogWarning("EA Games path not found in registry");
-                return;
-            }
-
-            logger?.LogDebug("EA Games path found: {GeneralsPath}", generalsPath);
+            logger?.LogDebug("CD/ISO Games path found: {GeneralsPath}", generalsPath);
             InstallationPath = generalsPath!;
+            IsCdisoInstalled = true;
 
             // Check for Generals
             if (!HasGenerals)
@@ -123,18 +116,18 @@ public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstal
                     {
                         HasGenerals = true;
                         GeneralsPath = gamePath;
-                        logger?.LogInformation("Found EA App Generals installation: {GeneralsPath}", GeneralsPath);
+                        logger?.LogInformation("Found CD/ISO Generals installation: {GeneralsPath}", GeneralsPath);
                     }
                 }
             }
 
             // Check for Zero Hour
-            // EA registry returns parent folder, so Zero Hour could be:
+            // Registry returns parent folder, so Zero Hour could be:
             // 1. A subdirectory: {generalsPath}\Command and Conquer Generals Zero Hour
             // 2. The base path itself if the registry path already points to Zero Hour
             if (!HasZeroHour)
             {
-                // Possible Zero Hour executables ( Generals.exe, generalszh.exe, etc.)
+                // Possible Zero Hour executables (Generals.exe, generalszh.exe, etc.)
                 var zeroHourExecutables = new[]
                 {
                     GameClientConstants.ZeroHourExecutable,
@@ -147,7 +140,7 @@ public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstal
                 {
                     HasZeroHour = true;
                     ZeroHourPath = generalsPath!;
-                    logger?.LogInformation("Found EA App Zero Hour installation at base path: {ZeroHourPath}", ZeroHourPath);
+                    logger?.LogInformation("Found CD/ISO Zero Hour installation at base path: {ZeroHourPath}", ZeroHourPath);
                 }
                 else
                 {
@@ -157,19 +150,19 @@ public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstal
                     {
                         HasZeroHour = true;
                         ZeroHourPath = gamePath;
-                        logger?.LogInformation("Found EA App Zero Hour installation: {ZeroHourPath}", ZeroHourPath);
+                        logger?.LogInformation("Found CD/ISO Zero Hour installation: {ZeroHourPath}", ZeroHourPath);
                     }
                 }
             }
 
             logger?.LogInformation(
-                "EA App detection completed: Generals={HasGenerals}, ZeroHour={HasZeroHour}",
+                "CD/ISO detection completed: Generals={HasGenerals}, ZeroHour={HasZeroHour}",
                 HasGenerals,
                 HasZeroHour);
         }
         catch (Exception ex)
         {
-            logger?.LogError(ex, "Error occurred during EA App installation detection");
+            logger?.LogError(ex, "Error occurred during CD/ISO installation detection");
         }
     }
 
@@ -194,101 +187,31 @@ public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstal
     }
 
     /// <summary>
-    /// Tries to fetch the installation path of the EA App from the windows registry.
-    /// </summary>
-    /// <param name="path">Returns the installation path if successful; otherwise, an empty string.</param>
-    /// <returns><c>true</c> if the installation path of EA App was found.</returns>
-    private bool TryGetEaAppPath(out string? path)
-    {
-        path = string.Empty;
-
-        try
-        {
-            using var key = GetEaAppRegistryKey();
-            if (key == null)
-            {
-                logger?.LogDebug("EA App registry key not found");
-                return false;
-            }
-
-            path = key.GetValue("InstallLocation") as string;
-            var success = !string.IsNullOrEmpty(path);
-            logger?.LogDebug(
-                "EA App path lookup: {Success}, Path: {Path}",
-                success,
-                path);
-            return success;
-        }
-        catch (Exception ex)
-        {
-            logger?.LogWarning(ex, "Failed to get EA App path from registry");
-            return false;
-        }
-    }
-
-    /// <summary>
     /// Tries to fetch the installation path of generals and ZH from the windows registry.
     /// </summary>
     /// <param name="path">Returns the installation path if successful; otherwise, an empty string.</param>
     /// <returns><c>true</c> if the installation path was found.</returns>
-    private bool TryGetEaGamesGeneralsPath(out string? path)
+    private bool TryGetCdisoGamesGeneralsPath(out string? path)
     {
         path = string.Empty;
 
         try
         {
-            using var key = GetEaGamesGeneralsRegistryKey();
+            using var key = GetCdisoGamesGeneralsRegistryKey();
             if (key == null)
             {
-                logger?.LogDebug("EA Games Generals registry key not found");
+                logger?.LogDebug("CD/ISO Games Generals registry key not found");
                 return false;
             }
 
             path = key.GetValue("Install Dir") as string;
             var success = !string.IsNullOrEmpty(path);
-            logger?.LogDebug("EA Games Generals path lookup: {Success}, Path: {Path}", success, path);
+            logger?.LogDebug("CD/ISO Games Generals path lookup: {Success}, Path: {Path}", success, path);
             return success;
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "Failed to get EA Games Generals path from registry");
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Checks if the EA app was installed successfully via the registry.
-    /// </summary>
-    /// <returns><c>True</c> if EA App was installed successfully.</returns>
-    private bool IsEaAppInstallationSuccessful()
-    {
-        try
-        {
-            using var key = GetEaAppRegistryKey();
-            if (key == null)
-            {
-                logger?.LogDebug("EA App registry key not found for installation check");
-                return false;
-            }
-
-            if (key.GetValue("InstallSuccessful") is not string successValue)
-            {
-                logger?.LogDebug("EA App InstallSuccessful value not found in registry");
-                return false;
-            }
-
-            if (bool.TryParse(successValue, out var success))
-            {
-                logger?.LogDebug("EA App installation successful: {Success}", success);
-                return success;
-            }
-
-            logger?.LogDebug("Could not parse EA App InstallSuccessful value: {Value}", successValue);
-            return false;
-        }
-        catch (Exception ex)
-        {
-            logger?.LogWarning(ex, "Failed to check EA App installation status");
+            logger?.LogWarning(ex, "Failed to get CD/ISO Games Generals path from registry");
             return false;
         }
     }
@@ -297,52 +220,25 @@ public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstal
     /// Returns a disposable <see cref="RegistryKey"/>. Caller is responsible for disposing it.
     /// </summary>
     /// <returns>A disposable <see cref="RegistryKey"/>.</returns>
-    private RegistryKey? GetEaAppRegistryKey()
-    {
-        try
-        {
-            var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Electronic Arts\EA Desktop");
-            if (key != null)
-            {
-                logger?.LogDebug("Found EA App registry key");
-            }
-            else
-            {
-                logger?.LogDebug("EA App registry key not found");
-            }
-
-            return key;
-        }
-        catch (Exception ex)
-        {
-            logger?.LogWarning(ex, "Failed to get EA App registry key");
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Returns a disposable <see cref="RegistryKey"/>. Caller is responsible for disposing it.
-    /// </summary>
-    /// <returns>A disposable <see cref="RegistryKey"/>.</returns>
-    private RegistryKey? GetEaGamesGeneralsRegistryKey()
+    private RegistryKey? GetCdisoGamesGeneralsRegistryKey()
     {
         try
         {
             var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\EA Games\Command and Conquer Generals Zero Hour");
             if (key != null)
             {
-                logger?.LogDebug("Found EA Games Generals registry key");
+                logger?.LogDebug("Found CD/ISO Games Generals registry key");
             }
             else
             {
-                logger?.LogDebug("EA Games Generals registry key not found");
+                logger?.LogDebug("CD/ISO Games Generals registry key not found");
             }
 
             return key;
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "Failed to get EA Games Generals registry key");
+            logger?.LogWarning(ex, "Failed to get CD/ISO Games Generals registry key");
             return null;
         }
     }
