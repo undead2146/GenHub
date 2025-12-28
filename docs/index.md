@@ -22,7 +22,7 @@ hero:
 
 features:
   - title: Universal Game Support
-    details: Supports multiple game versions, forks, and community builds from Steam, EA App, Origin, and manual installations.
+    details: Supports multiple game versions, forks, and community builds from Steam, EA App, CD/ISO, and manual installations.
     icon: 🎮
   - title: Content Discovery
     details: Automated discovery and installation of mods, patches, and add-ons from GitHub, ModDB, CNCLabs, and local sources.
@@ -36,6 +36,9 @@ features:
   - title: Three-Tier Architecture
     details: Sophisticated content pipeline with orchestrator, providers, and specialized pipeline components.
     icon: 🏗️
+  - title: Maintenance Tools
+    details: Built-in "Danger Zone" for deep cleaning of CAS storage, workspaces, and metadata.
+    icon: 🛡️
   - title: Developer Friendly
     details: Clean architecture, comprehensive testing, and extensive documentation for contributors.
     icon: 👥

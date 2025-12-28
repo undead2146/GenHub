@@ -54,9 +54,10 @@ public interface ICasService
     /// <summary>
     /// Runs garbage collection to remove unreferenced content.
     /// </summary>
+    /// <param name="force">If true, ignores the grace period and deletes all unreferenced objects immediately.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The result of the garbage collection operation.</returns>
-    Task<CasGarbageCollectionResult> RunGarbageCollectionAsync(CancellationToken cancellationToken = default);
+    Task<CasGarbageCollectionResult> RunGarbageCollectionAsync(bool force = false, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Validates the integrity of content in the CAS.

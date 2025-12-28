@@ -122,7 +122,7 @@ public class HttpContentDeliverer(IDownloadService downloadService, IContentMani
 
                 // Download the file
                 var downloadResult = await _downloadService.DownloadFileAsync(
-                    file.DownloadUrl!, localPath, file.Hash, null, cancellationToken);
+                    new Uri(file.DownloadUrl!), localPath, file.Hash, null, cancellationToken);
 
                 if (!downloadResult.Success)
                 {
@@ -153,7 +153,7 @@ public class HttpContentDeliverer(IDownloadService downloadService, IContentMani
             }
 
             // Add required directories
-            deliveredManifest.AddRequiredDirectories(packageManifest.RequiredDirectories.ToArray());
+            deliveredManifest.AddRequiredDirectories([.. packageManifest.RequiredDirectories]);
 
             // Add installation instructions if present
             if (packageManifest.InstallationInstructions != null)

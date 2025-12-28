@@ -28,7 +28,7 @@ public class WorkspaceManagerTests : IDisposable
     public WorkspaceManagerTests()
     {
         _mockConfigProvider = new Mock<IConfigurationProviderService>();
-        _mockConfigProvider.Setup(x => x.GetContentStoragePath()).Returns("/test/content/path");
+        _mockConfigProvider.Setup(x => x.GetApplicationDataPath()).Returns("/test/content/path");
 
         _mockLogger = new Mock<ILogger<WorkspaceManager>>();
         _mockWorkspaceValidator = new Mock<IWorkspaceValidator>();

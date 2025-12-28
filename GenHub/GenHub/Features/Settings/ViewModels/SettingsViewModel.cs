@@ -9,11 +9,19 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GitHub;
+using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Interfaces.Storage;
+using GenHub.Core.Interfaces.Workspace;
+using GenHub.Core.Messages;
 using GenHub.Core.Models.AppUpdate;
 using GenHub.Core.Models.Enums;
 using GenHub.Features.AppUpdate.Interfaces;
@@ -46,16 +54,23 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Gets the current application version for display.
     /// </summary>
-    public static string CurrentVersion => AppConstants.FullDisplayVersion;
+    public string CurrentVersion => AppConstants.FullDisplayVersion;
 
     private readonly IUserSettingsService _userSettingsService;
+    private readonly ICasService _casService;
+    private readonly IGameProfileManager _profileManager;
+    private readonly IWorkspaceManager _workspaceManager;
+    private readonly IContentManifestPool _manifestPool;
+    private readonly IVelopackUpdateManager _updateManager;
+    private readonly INotificationService _notificationService;
     private readonly ILogger<SettingsViewModel> _logger;
     private readonly IGitHubTokenStorage? _gitHubTokenStorage;
-    private readonly IVelopackUpdateManager? _updateManager;
     private readonly Timer _memoryUpdateTimer;
+    private readonly Timer _dangerZoneUpdateTimer;
+    private readonly IConfigurationProviderService _configurationProvider;
 
-    private bool _isViewVisible = false;
-    private bool _disposed = false;
+    private bool _isViewVisible;
+    private bool _disposed;
 
     // Use private fields for properties that need validation
     private int _maxConcurrentDownloads = DownloadDefaults.MaxConcurrentDownloads;
@@ -64,6 +79,39 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private string _theme = "Dark";
+
+    [ObservableProperty]
+    private string _latestVersion = "Checking...";
+
+    [ObservableProperty]
+    private bool _updateAvailable;
+
+    [ObservableProperty]
+    private string _releaseNotes = string.Empty;
+
+    [ObservableProperty]
+    private string _downloadUserAgent = ApiConstants.DefaultUserAgent;
+
+    [ObservableProperty]
+    private string? _settingsFilePath = string.Empty;
+
+    [ObservableProperty]
+    private string _casRootPath = string.Empty;
+
+    [ObservableProperty]
+    private double _currentMemoryUsage;
+
+    [ObservableProperty]
+    private string _casStorageInfo = "Calculating...";
+
+    [ObservableProperty]
+    private string _workspacesInfo = "Calculating...";
+
+    [ObservableProperty]
+    private string _manifestsInfo = "Calculating...";
+
+    [ObservableProperty]
+    private string _profilesInfo = "Calculating...";
 
     [ObservableProperty]
     private string? _workspacePath;
@@ -99,15 +147,6 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     private string _saveButtonText = "Save Settings";
 
     [ObservableProperty]
-    private double _currentMemoryUsage = 0;
-
-    [ObservableProperty]
-    private string _downloadUserAgent = ApiConstants.DefaultUserAgent;
-
-    [ObservableProperty]
-    private string? _settingsFilePath;
-
-    [ObservableProperty]
     private string? _cachePath;
 
     [ObservableProperty]
@@ -117,10 +156,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     private string _gitHubDiscoveryRepositoriesText = string.Empty;
 
     [ObservableProperty]
-    private string? _contentStoragePath;
-
-    [ObservableProperty]
-    private string _casRootPath = string.Empty;
+    private string? _applicationDataPath;
 
     [ObservableProperty]
     private bool _enableAutomaticGc = true;
@@ -169,27 +205,63 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Initializes a new instance of the <see cref="SettingsViewModel"/> class.
     /// </summary>
-    /// <param name="userSettingsService">The configuration service.</param>
+    /// <param name="userSettingsService">The user settings service.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="casService">The CAS service.</param>
+    /// <param name="profileManager">The game profile manager.</param>
+    /// <param name="workspaceManager">The workspace manager.</param>
+    /// <param name="manifestPool">The content manifest pool.</param>
+    /// <param name="updateManager">The update manager service.</param>
+    /// <param name="notificationService">The notification service.</param>
+    /// <param name="configurationProvider">The configuration provider service.</param>
     /// <param name="gitHubTokenStorage">Optional GitHub token storage for PAT management.</param>
-    /// <param name="updateManager">Optional Velopack update manager for artifact checking.</param>
     public SettingsViewModel(
         IUserSettingsService userSettingsService,
         ILogger<SettingsViewModel> logger,
-        IGitHubTokenStorage? gitHubTokenStorage = null,
-        IVelopackUpdateManager? updateManager = null)
+        ICasService casService,
+        IGameProfileManager profileManager,
+        IWorkspaceManager workspaceManager,
+        IContentManifestPool manifestPool,
+        IVelopackUpdateManager updateManager,
+        INotificationService notificationService,
+        IConfigurationProviderService configurationProvider,
+        IGitHubTokenStorage? gitHubTokenStorage = null)
     {
-        _userSettingsService = userSettingsService;
-        _logger = logger;
+        _userSettingsService = userSettingsService ?? throw new ArgumentNullException(nameof(userSettingsService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _casService = casService ?? throw new ArgumentNullException(nameof(casService));
+        _profileManager = profileManager ?? throw new ArgumentNullException(nameof(profileManager));
+        _workspaceManager = workspaceManager ?? throw new ArgumentNullException(nameof(workspaceManager));
+        _manifestPool = manifestPool ?? throw new ArgumentNullException(nameof(manifestPool));
+        _updateManager = updateManager ?? throw new ArgumentNullException(nameof(updateManager));
+        _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
+        _configurationProvider = configurationProvider ?? throw new ArgumentNullException(nameof(configurationProvider));
         _gitHubTokenStorage = gitHubTokenStorage;
-        _updateManager = updateManager;
 
         LoadSettings();
         _ = LoadPatStatusAsync();
 
+        // Initialize with default if needed
+        if (string.IsNullOrWhiteSpace(_theme))
+        {
+            _theme = AppConstants.DefaultThemeName;
+        }
+
+        if (DownloadTimeoutSeconds == 0) DownloadTimeoutSeconds = 30;
+        if (MaxConcurrentDownloads == 0) MaxConcurrentDownloads = 3;
+        if (string.IsNullOrEmpty(DownloadUserAgent)) DownloadUserAgent = ApiConstants.DefaultUserAgent;
+
         // Initialize memory update timer (update every 2 seconds when visible)
-        _memoryUpdateTimer = new Timer(UpdateMemoryUsageCallback, null, Timeout.Infinite, Timeout.Infinite);
-        UpdateMemoryUsage();
+        _memoryUpdateTimer = new Timer(UpdateMemoryUsageCallback, null, TimeSpan.Zero, TimeSpan.FromSeconds(2));
+
+        // Initialize Danger Zone update timer (update every 5 seconds when visible)
+        _dangerZoneUpdateTimer = new Timer(UpdateDangerZoneDataCallback, null, Timeout.Infinite, Timeout.Infinite);
+
+        WeakReferenceMessenger.Default.Register<DownloadSettingsChangedMessage>(this, (r, m) => ((SettingsViewModel)r).OnDownloadSettingsChanged(m));
+        WeakReferenceMessenger.Default.Register<ThemeChangedMessage>(this, (r, m) => ((SettingsViewModel)r).OnThemeSettingsChanged(m));
+
+        // Ensure initial danger zone update if visible (though normally waits for attach)
+        Task.Run(UpdateDangerZoneDataAsync);
     }
 
     /// <summary>
@@ -205,10 +277,15 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
                 if (_isViewVisible)
                 {
                     StartMemoryUpdateTimer();
+                    StartDangerZoneUpdateTimer();
+
+                    // Initial update when becoming visible
+                    Task.Run(UpdateDangerZoneDataAsync);
                 }
                 else
                 {
                     StopMemoryUpdateTimer();
+                    StopDangerZoneUpdateTimer();
                 }
             }
         }
@@ -264,9 +341,24 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     /// </summary>
     public void Dispose()
     {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Disposes the ViewModel and its resources.
+    /// </summary>
+    /// <param name="disposing">True if disposing managed resources.</param>
+    protected virtual void Dispose(bool disposing)
+    {
         if (!_disposed)
         {
-            _memoryUpdateTimer?.Dispose();
+            if (disposing)
+            {
+                _memoryUpdateTimer?.Dispose();
+                _dangerZoneUpdateTimer?.Dispose();
+            }
+
             _disposed = true;
             GC.SuppressFinalize(this);
         }
@@ -393,11 +485,11 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             DownloadBufferSizeKB = settings.DownloadBufferSize / (double)ConversionConstants.BytesPerKilobyte; // Convert bytes to KB
             DownloadTimeoutSeconds = settings.DownloadTimeoutSeconds;
             DownloadUserAgent = string.IsNullOrWhiteSpace(settings.DownloadUserAgent) ? ApiConstants.DefaultUserAgent : settings.DownloadUserAgent;
-            SettingsFilePath = settings.SettingsFilePath;
+            SettingsFilePath = settings.SettingsFilePath ?? string.Empty;
             CachePath = settings.CachePath;
             ContentDirectoriesText = string.Join(Environment.NewLine, settings.ContentDirectories ?? []);
             GitHubDiscoveryRepositoriesText = string.Join(Environment.NewLine, settings.GitHubDiscoveryRepositories ?? []);
-            ContentStoragePath = settings.ContentStoragePath;
+            ApplicationDataPath = settings.ApplicationDataPath ?? string.Empty;
 
             // Load CAS settings
             CasRootPath = settings.CasConfiguration.CasRootPath;
@@ -454,7 +546,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
                     .Split(LineSeparators, StringSplitOptions.RemoveEmptyEntries)
                     .Select(r => r.Trim())
                     .Where(r => !string.IsNullOrWhiteSpace(r))];
-                settings.ContentStoragePath = ContentStoragePath;
+                settings.ApplicationDataPath = ApplicationDataPath;
 
                 // Update CAS settings
                 settings.CasConfiguration.CasRootPath = CasRootPath;
@@ -493,7 +585,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         try
         {
             Theme = AppConstants.DefaultThemeName;
-            WorkspacePath = null;
+            WorkspacePath = string.Empty;
             MaxConcurrentDownloads = DownloadDefaults.MaxConcurrentDownloads;
             AutoCheckForUpdatesOnStartup = true;
             AllowBackgroundDownloads = true;
@@ -502,11 +594,11 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             DownloadBufferSizeKB = DownloadDefaults.BufferSizeKB; // 80KB default
             DownloadTimeoutSeconds = DownloadDefaults.TimeoutSeconds;
             DownloadUserAgent = ApiConstants.DefaultUserAgent;
-            SettingsFilePath = null;
+            SettingsFilePath = string.Empty;
             CachePath = null;
             ContentDirectoriesText = string.Empty;
             GitHubDiscoveryRepositoriesText = string.Empty;
-            ContentStoragePath = null;
+            ApplicationDataPath = null;
 
             // Reset CAS settings
             CasRootPath = Path.Combine(
@@ -738,6 +830,85 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         await Task.CompletedTask;
     }
 
+    private void StartDangerZoneUpdateTimer()
+    {
+        if (!_disposed)
+        {
+            _dangerZoneUpdateTimer.Change(TimeSpan.Zero, TimeSpan.FromSeconds(5));
+        }
+    }
+
+    private void StopDangerZoneUpdateTimer()
+    {
+        if (!_disposed)
+        {
+            _dangerZoneUpdateTimer.Change(Timeout.Infinite, Timeout.Infinite);
+        }
+    }
+
+    private void UpdateDangerZoneDataCallback(object? state)
+    {
+        if (_isViewVisible && !_disposed)
+        {
+            // maximize responsiveness by running on thread pool
+            Task.Run(UpdateDangerZoneDataAsync);
+        }
+    }
+
+    private async Task UpdateDangerZoneDataAsync()
+    {
+        try
+        {
+            // Update CAS stats
+            var casStats = await _casService.GetStatsAsync();
+            CasStorageInfo = $"{casStats.ObjectCount} objects, {casStats.TotalSize / (double)ConversionConstants.BytesPerGigabyte:F2} GB";
+
+            // Update Manifests count
+            var manifestsResult = await _manifestPool.GetAllManifestsAsync();
+            if (manifestsResult.Success && manifestsResult.Data != null)
+            {
+                var manifestCount = manifestsResult.Data.Count();
+                ManifestsInfo = $"{manifestCount} items";
+            }
+            else
+            {
+                ManifestsInfo = "Unknown";
+            }
+
+            // Update Workspaces count
+            var workspacesResult = await _workspaceManager.GetAllWorkspacesAsync();
+            if (workspacesResult.Success && workspacesResult.Data != null)
+            {
+                var workspaceCount = workspacesResult.Data.Count();
+                WorkspacesInfo = $"{workspaceCount} items";
+            }
+            else
+            {
+                WorkspacesInfo = "Unknown";
+            }
+
+            // Update Profiles count
+            var profilesResult = await _profileManager.GetAllProfilesAsync();
+            if (profilesResult.Success && profilesResult.Data != null)
+            {
+                var profileCount = profilesResult.Data.Count;
+                ProfilesInfo = $"{profileCount} items";
+            }
+            else
+            {
+                ProfilesInfo = "Unknown";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update Danger Zone data");
+            CasStorageInfo = "Error";
+            ManifestsInfo = "Error";
+            WorkspacesInfo = "Error";
+            ProfilesInfo = "Error";
+        }
+    }
+
     /// <summary>
     /// Tests the entered GitHub PAT by making an API call.
     /// </summary>
@@ -902,39 +1073,297 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>
-    /// Handles update channel change.
-    /// </summary>
-    partial void OnSelectedUpdateChannelChanged(UpdateChannel value)
+    [RelayCommand]
+    private async Task DeleteAllData()
     {
-        _logger.LogInformation("Update channel changed to: {Channel}", value);
+        _logger.LogWarning("Deleting ALL application data requested");
 
-        // Update the update manager's channel
-        if (_updateManager != null)
+        await DeleteProfiles();
+        await DeleteWorkspaces();
+        await DeleteManifests();
+
+        // Force CAS deletion when deleting all data to ensure immediate UI feedback
+        _logger.LogInformation("Forcing CAS storage cleanup as part of DeleteAllData");
+        var result = await _casService.RunGarbageCollectionAsync(force: true, CancellationToken.None);
+        _logger.LogInformation("CAS cleanup completed: {Deleted} objects deleted", result.ObjectsDeleted);
+
+        await UpdateDangerZoneDataAsync();
+        _notificationService.ShowSuccess("Data Deleted", "All application data has been deleted successfully.", 5000);
+    }
+
+    [RelayCommand]
+    private async Task UninstallGenHub()
+    {
+        try
         {
-            _updateManager.CurrentChannel = value;
+            _logger.LogWarning("Uninstall GenHub requested");
+            await Task.Run(() => _updateManager.Uninstall());
         }
-
-        // Persist setting
-        _userSettingsService.Update(s => s.UpdateChannel = value);
-
-        // Save settings asynchronously with error handling
-        _ = _userSettingsService.SaveAsync().ContinueWith(t =>
+        catch (Exception ex)
         {
-            if (t.IsFaulted)
+            _logger.LogError(ex, "Failed to uninstall GenHub");
+        }
+    }
+
+    [RelayCommand]
+    private async Task DeleteCasStorage()
+    {
+        try
+        {
+            _logger.LogWarning("Deleting CAS storage (forced)");
+            var result = await _casService.RunGarbageCollectionAsync(force: true, CancellationToken.None);
+            if (result.ObjectsDeleted == 0)
             {
-                _logger.LogError(t.Exception, "Failed to save update channel setting");
+                if (result.ObjectsReferenced > 0)
+                {
+                    _notificationService.ShowInfo("CAS Clean", "All items in CAS are currently in use and cannot be deleted.", TimeIntervals.NotificationHideDelay.Milliseconds);
+                }
+                else
+                {
+                    _notificationService.ShowInfo("CAS Empty", "CAS storage is already empty.", TimeIntervals.NotificationHideDelay.Milliseconds);
+                }
             }
-        });
+            else
+            {
+                _notificationService.ShowSuccess("CAS Cleared", $"Deleted {result.ObjectsDeleted} objects, freed {result.BytesFreed / (double)ConversionConstants.BytesPerGigabyte:F2} GB.", 5000); // Keep 5s for significant operations
+            }
 
-        // If switching to Artifacts, load available artifacts
-        if (value == UpdateChannel.Artifacts && HasGitHubPat)
-        {
-            _ = LoadArtifactsAsync();
+            await UpdateDangerZoneDataAsync();
         }
-        else if (value == UpdateChannel.Artifacts && !HasGitHubPat)
+        catch (Exception ex)
         {
-            PatStatusMessage = "GitHub PAT required for artifact updates";
+            _logger.LogError(ex, "Failed to delete CAS storage");
+            _notificationService.ShowError("Deletion Failed", $"An error occurred: {ex.Message}", 5000);
+        }
+    }
+
+    [RelayCommand]
+    private async Task DeleteManifests()
+    {
+        try
+        {
+            _logger.LogWarning("Deleting all manifests");
+            var manifestsResult = await _manifestPool.GetAllManifestsAsync();
+            if (manifestsResult.Success && manifestsResult.Data != null)
+            {
+                var count = manifestsResult.Data.Count();
+                foreach (var manifest in manifestsResult.Data)
+                {
+                    await _manifestPool.RemoveManifestAsync(manifest.Id);
+                }
+
+                _notificationService.ShowSuccess("Manifests Deleted", $"Deleted {count} manifest(s) successfully.", TimeIntervals.NotificationHideDelay.Milliseconds);
+            }
+
+            await UpdateDangerZoneDataAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete manifests");
+            _notificationService.ShowError("Deletion Failed", $"Failed to delete manifests: {ex.Message}", 5000);
+        }
+    }
+
+    [RelayCommand]
+    private async Task DeleteWorkspaces()
+    {
+        try
+        {
+            _logger.LogWarning("Deleting all workspaces");
+            var workspacesResult = await _workspaceManager.GetAllWorkspacesAsync();
+            if (workspacesResult.Success && workspacesResult.Data != null)
+            {
+                var count = workspacesResult.Data.Count();
+                foreach (var workspace in workspacesResult.Data)
+                {
+                    await _workspaceManager.CleanupWorkspaceAsync(workspace.Id);
+                }
+
+                _notificationService.ShowSuccess("Workspaces Deleted", $"Deleted {count} workspace(s) successfully.", 3000);
+            }
+
+            await UpdateDangerZoneDataAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete workspaces");
+            _notificationService.ShowError("Deletion Failed", $"Failed to delete workspaces: {ex.Message}", 5000);
+        }
+    }
+
+    private void OnDownloadSettingsChanged(DownloadSettingsChangedMessage message)
+    {
+        if (MaxConcurrentDownloads != message.MaxConcurrentDownloads)
+            MaxConcurrentDownloads = message.MaxConcurrentDownloads;
+
+        // Compare double with epsilon
+        if (Math.Abs(DownloadBufferSizeKB - message.BufferSizeKB) > 0.01)
+            DownloadBufferSizeKB = message.BufferSizeKB;
+
+        if (DownloadTimeoutSeconds != message.TimeoutSeconds)
+            DownloadTimeoutSeconds = message.TimeoutSeconds;
+
+        if (DownloadUserAgent != message.UserAgent)
+            DownloadUserAgent = message.UserAgent;
+    }
+
+    private void OnThemeSettingsChanged(ThemeChangedMessage message)
+    {
+        if (Theme != message.ThemeName)
+            Theme = message.ThemeName;
+    }
+
+    [RelayCommand]
+    private async Task DeleteProfiles()
+    {
+        try
+        {
+            _logger.LogWarning("Deleting all profiles");
+            var profilesResult = await _profileManager.GetAllProfilesAsync();
+            if (profilesResult.Success && profilesResult.Data != null)
+            {
+                var count = profilesResult.Data.Count;
+                foreach (var profile in profilesResult.Data)
+                {
+                    // Copy ID to avoid potential collection modification issues if list is live
+                    string id = profile.Id;
+                    await _profileManager.DeleteProfileAsync(id);
+                }
+
+                _notificationService.ShowSuccess("Profiles Deleted", $"Deleted {count} profile(s) successfully.", 3000);
+            }
+
+            // Notify listeners that profile list has changed
+            WeakReferenceMessenger.Default.Send(new ProfileListUpdatedMessage());
+
+            await UpdateDangerZoneDataAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete profiles");
+            _notificationService.ShowError("Deletion Failed", $"Failed to delete profiles: {ex.Message}", 5000);
+        }
+    }
+
+    [RelayCommand]
+    private void OpenLogsDirectory()
+    {
+        try
+        {
+            var logsPath = _configurationProvider.GetLogsPath();
+            if (Directory.Exists(logsPath))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = logsPath,
+                    UseShellExecute = true,
+                    Verb = "open",
+                });
+            }
+            else
+            {
+                _notificationService.ShowError("Error", "Logs directory not found.", 3000);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open logs directory");
+            _notificationService.ShowError("Error", "Failed to open logs directory.", 3000);
+        }
+    }
+
+    [RelayCommand]
+    private void OpenLatestLog()
+    {
+        try
+        {
+            var logsPath = _configurationProvider.GetLogsPath();
+            if (!Directory.Exists(logsPath))
+            {
+                _notificationService.ShowError("Error", "Logs directory not found.", 3000);
+                return;
+            }
+
+            var directoryInfo = new DirectoryInfo(logsPath);
+            var latestLog = directoryInfo.GetFiles("*.log")
+                                         .OrderByDescending(f => f.LastWriteTime)
+                                         .FirstOrDefault();
+
+            if (latestLog != null)
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = latestLog.FullName,
+                    UseShellExecute = true,
+                });
+            }
+            else
+            {
+                _notificationService.ShowInfo("Info", "No log files found.", 3000);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open latest log file");
+            _notificationService.ShowError("Error", "Failed to open latest log file.", 3000);
+        }
+    }
+
+    [RelayCommand]
+    private async Task CopyLatestLog()
+    {
+        try
+        {
+            var logsPath = _configurationProvider.GetLogsPath();
+            if (!Directory.Exists(logsPath))
+            {
+                _notificationService.ShowError("Error", "Logs directory not found.", 3000);
+                return;
+            }
+
+            var directoryInfo = new DirectoryInfo(logsPath);
+            var latestLog = directoryInfo.GetFiles("*.log")
+                                         .OrderByDescending(f => f.LastWriteTime)
+                                         .FirstOrDefault();
+
+            if (latestLog != null)
+            {
+                try
+                {
+                    // Read with sharing allowed to prevent "file in use" errors if the app is currently writing to it
+                    using var fileStream = new FileStream(latestLog.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    using var streamReader = new StreamReader(fileStream);
+                    string logContent = await streamReader.ReadToEndAsync();
+
+                    var lifetime = Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
+                    var mainWindow = lifetime?.MainWindow;
+                    var topLevel = mainWindow != null ? TopLevel.GetTopLevel(mainWindow) : null;
+
+                    if (topLevel?.Clipboard != null)
+                    {
+                        await topLevel.Clipboard.SetTextAsync(logContent);
+                        _notificationService.ShowSuccess("Copied", "Latest log content copied to clipboard.", 3000);
+                    }
+                    else
+                    {
+                        _notificationService.ShowError("Error", "Clipboard not available.", 3000);
+                    }
+                }
+                catch (IOException ioEx)
+                {
+                    _logger.LogWarning(ioEx, "Failed to read log file (file in use?)");
+                    _notificationService.ShowError("Error", "Could not read log file (it might be in use).", 3000);
+                }
+            }
+            else
+            {
+                _notificationService.ShowInfo("Info", "No log files found.", 3000);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to copy latest log file");
+            _notificationService.ShowError("Error", "Failed to copy latest log.", 3000);
         }
     }
 }

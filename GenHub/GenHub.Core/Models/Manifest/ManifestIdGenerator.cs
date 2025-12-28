@@ -234,7 +234,12 @@ public static partial class ManifestIdGenerator
         // Remove all non-alphanumeric characters
         var normalized = NonAlphaNumericRegex().Replace(lower, string.Empty);
 
-        return string.IsNullOrEmpty(normalized) ? throw new ArgumentException("Input results in empty string after normalization", nameof(input)) : normalized;
+        if (string.IsNullOrEmpty(normalized))
+        {
+            throw new ArgumentException("Input results in empty string after normalization", nameof(input));
+        }
+
+        return normalized;
     }
 
     [GeneratedRegex(@"[^\d]")]

@@ -4,6 +4,7 @@
              x:Class="GenHub.App">
     <Application.Styles>
         <FluentTheme />
+        <StyleInclude Source="avares://GenHub/Assets/Styles/ComboBoxStyles.axaml" />
     </Application.Styles>
     <Application.Resources>
         <ResourceDictionary>

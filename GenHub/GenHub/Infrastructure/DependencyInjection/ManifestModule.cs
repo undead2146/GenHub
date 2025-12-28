@@ -1,5 +1,6 @@
 using System;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Interfaces.Steam;
 using GenHub.Core.Models.Manifest;
 using GenHub.Features.Manifest;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,6 +49,8 @@ public static class ManifestModule
         services.AddScoped<ManifestDiscoveryService>();
 
         services.AddScoped<IManifestGenerationService, ManifestGenerationService>();
+
+        services.AddScoped<ISteamManifestPatcher, SteamManifestPatcher>();
 
         services.AddTransient<IContentManifestBuilder, ContentManifestBuilder>();
 

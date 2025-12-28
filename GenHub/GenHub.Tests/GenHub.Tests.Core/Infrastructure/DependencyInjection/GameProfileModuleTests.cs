@@ -30,7 +30,7 @@ public class GameProfileModuleTests
         var tempDir = Path.GetTempPath();
 
         configProviderMock.Setup(x => x.GetWorkspacePath()).Returns(tempDir);
-        configProviderMock.Setup(x => x.GetContentStoragePath()).Returns(Path.Combine(tempDir, "Content"));
+        configProviderMock.Setup(x => x.GetApplicationDataPath()).Returns(Path.Combine(tempDir, "Content"));
 
         // Add required dependencies
         services.AddLogging();
@@ -43,6 +43,7 @@ public class GameProfileModuleTests
         services.AddScoped(provider => new Mock<IContentOrchestrator>().Object);
         services.AddScoped(provider => new Mock<IWorkspaceManager>().Object);
         services.AddScoped(provider => new Mock<ILaunchRegistry>().Object);
+        services.AddScoped(provider => new Mock<INotificationService>().Object);
 
         // Act
         services.AddGameProfileServices();
@@ -107,7 +108,7 @@ public class GameProfileModuleTests
         var tempDir = Path.GetTempPath();
 
         configProviderMock.Setup(x => x.GetWorkspacePath()).Returns(tempDir);
-        configProviderMock.Setup(x => x.GetContentStoragePath()).Returns(Path.Combine(tempDir, "Content"));
+        configProviderMock.Setup(x => x.GetApplicationDataPath()).Returns(Path.Combine(tempDir, "Content"));
 
         services.AddLogging();
         services.AddSingleton<IConfigurationProviderService>(configProviderMock.Object);
@@ -119,6 +120,7 @@ public class GameProfileModuleTests
         services.AddScoped(provider => new Mock<IContentOrchestrator>().Object);
         services.AddScoped(provider => new Mock<IWorkspaceManager>().Object);
         services.AddScoped(provider => new Mock<ILaunchRegistry>().Object);
+        services.AddScoped(provider => new Mock<INotificationService>().Object);
 
         // Act
         services.AddGameProfileServices();
@@ -166,7 +168,7 @@ public class GameProfileModuleTests
         var tempDir = Path.GetTempPath();
 
         configProviderMock.Setup(x => x.GetWorkspacePath()).Returns(tempDir);
-        configProviderMock.Setup(x => x.GetContentStoragePath()).Returns(Path.Combine(tempDir, "Content"));
+        configProviderMock.Setup(x => x.GetApplicationDataPath()).Returns(Path.Combine(tempDir, "Content"));
 
         // Add required dependencies
         services.AddLogging();
@@ -177,6 +179,7 @@ public class GameProfileModuleTests
         services.AddScoped(provider => new Mock<IContentOrchestrator>().Object);
         services.AddScoped(provider => new Mock<IWorkspaceManager>().Object);
         services.AddScoped(provider => new Mock<ILaunchRegistry>().Object);
+        services.AddScoped(provider => new Mock<INotificationService>().Object);
 
         // Act
         services.AddGameProfileServices();
@@ -207,7 +210,7 @@ public class GameProfileModuleTests
         var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
 
         configProviderMock.Setup(x => x.GetWorkspacePath()).Returns(tempDir);
-        configProviderMock.Setup(x => x.GetContentStoragePath()).Returns(Path.Combine(tempDir, "Content"));
+        configProviderMock.Setup(x => x.GetApplicationDataPath()).Returns(Path.Combine(tempDir, "Content"));
 
         services.AddLogging();
         services.AddSingleton<IConfigurationProviderService>(configProviderMock.Object);
@@ -248,7 +251,7 @@ public class GameProfileModuleTests
         var tempDir = Path.GetTempPath();
 
         configProviderMock.Setup(x => x.GetWorkspacePath()).Returns(tempDir);
-        configProviderMock.Setup(x => x.GetContentStoragePath()).Returns(Path.Combine(tempDir, "Content"));
+        configProviderMock.Setup(x => x.GetApplicationDataPath()).Returns(Path.Combine(tempDir, "Content"));
 
         services.AddLogging();
         services.AddSingleton<IConfigurationProviderService>(configProviderMock.Object);
@@ -260,6 +263,8 @@ public class GameProfileModuleTests
         services.AddScoped(provider => new Mock<IContentOrchestrator>().Object);
         services.AddScoped(provider => new Mock<IWorkspaceManager>().Object);
         services.AddScoped(provider => new Mock<IGameProcessManager>().Object);
+        services.AddScoped(provider => new Mock<INotificationService>().Object);
+        services.AddSingleton<ICasService>(new Mock<ICasService>().Object);
         services.AddSingleton<IGameLauncher>(new Mock<IGameLauncher>().Object);
         services.AddSingleton<ILaunchRegistry>(new Mock<ILaunchRegistry>().Object);
         services.AddSingleton<ICasService>(new Mock<ICasService>().Object);
@@ -288,7 +293,7 @@ public class GameProfileModuleTests
         var tempDir = Path.GetTempPath();
 
         configProviderMock.Setup(x => x.GetWorkspacePath()).Returns(tempDir);
-        configProviderMock.Setup(x => x.GetContentStoragePath()).Returns(Path.Combine(tempDir, "Content"));
+        configProviderMock.Setup(x => x.GetApplicationDataPath()).Returns(Path.Combine(tempDir, "Content"));
 
         services.AddLogging();
         services.AddSingleton<IConfigurationProviderService>(configProviderMock.Object);
@@ -300,6 +305,7 @@ public class GameProfileModuleTests
         services.AddScoped(provider => new Mock<IContentOrchestrator>().Object);
         services.AddScoped(provider => new Mock<IWorkspaceManager>().Object);
         services.AddScoped(provider => new Mock<ILaunchRegistry>().Object);
+        services.AddScoped(provider => new Mock<INotificationService>().Object);
 
         // Act
         services.AddGameProfileServices();

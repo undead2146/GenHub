@@ -65,7 +65,7 @@ public class GameProfileWorkspaceIntegrationTest : IDisposable
 
         // Mock ConfigurationProviderService - required by WorkspaceManager
         var mockConfigProvider = new Mock<IConfigurationProviderService>();
-        mockConfigProvider.Setup(x => x.GetContentStoragePath()).Returns(_tempContentStorage);
+        mockConfigProvider.Setup(x => x.GetApplicationDataPath()).Returns(_tempContentStorage);
         services.AddSingleton<IConfigurationProviderService>(mockConfigProvider.Object);
 
         // Register CAS reference tracker (required by WorkspaceManager)

@@ -61,6 +61,16 @@ public class GameClient
     /// <summary>Gets or sets the content source type (GameInstallation or StandaloneVersion).</summary>
     public ContentType SourceType { get; set; }
 
+    /// <summary>Gets or sets the publisher type (e.g. "generalsonline", "thesuperhackers").</summary>
+    public string? PublisherType { get; set; }
+
+    /// <summary>
+    /// Gets a value indicating whether this is a publisher-based client.
+    /// </summary>
+    public bool IsPublisherClient =>
+        !string.IsNullOrEmpty(PublisherType) &&
+        !string.Equals(PublisherType, "Retail Installation", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Gets or sets additional command line arguments.</summary>
     public string CommandLineArgs { get; set; } = string.Empty;
 

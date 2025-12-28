@@ -276,18 +276,18 @@ public class UserSettingsServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies that ContentStoragePath can be set and retrieved correctly.
+    /// Verifies that ApplicationDataPath can be set and retrieved correctly.
     /// </summary>
     [Fact]
-    public void UpdateSettings_ContentStoragePath_CanBeSetAndRetrieved()
+    public void UpdateSettings_ApplicationDataPath_CanBeSetAndRetrieved()
     {
         var service = CreateService();
         var contentPath = "/test/content/path";
 
-        service.Update(settings => settings.ContentStoragePath = contentPath);
+        service.Update(settings => settings.ApplicationDataPath = contentPath);
         var currentSettings = service.Get();
 
-        Assert.Equal(contentPath, currentSettings.ContentStoragePath);
+        Assert.Equal(contentPath, currentSettings.ApplicationDataPath);
     }
 
     /// <summary>

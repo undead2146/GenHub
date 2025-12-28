@@ -60,8 +60,8 @@ public class UserSettings : ICloneable
     /// <summary>Gets or sets the cache directory path.</summary>
     public string? CachePath { get; set; }
 
-    /// <summary>Gets or sets the content storage path.</summary>
-    public string? ContentStoragePath { get; set; }
+    /// <summary>Gets or sets the application data directory path where metadata is stored.</summary>
+    public string? ApplicationDataPath { get; set; }
 
     /// <summary>Gets or sets the list of content directories for local discovery.</summary>
     public List<string>? ContentDirectories { get; set; }
@@ -140,7 +140,7 @@ public class UserSettings : ICloneable
             DownloadUserAgent = DownloadUserAgent,
             SettingsFilePath = SettingsFilePath,
             CachePath = CachePath,
-            ContentStoragePath = ContentStoragePath,
+            ApplicationDataPath = ApplicationDataPath,
             UpdateChannel = UpdateChannel,
             SubscribedPrNumber = SubscribedPrNumber,
             DismissedUpdateVersion = DismissedUpdateVersion,

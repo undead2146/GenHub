@@ -112,4 +112,9 @@ public interface IVelopackUpdateManager
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A task representing the installation operation.</returns>
     Task InstallPrArtifactAsync(PullRequestInfo prInfo, IProgress<UpdateProgress>? progress = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Uninstalls the application.
+    /// </summary>
+    void Uninstall();
 }

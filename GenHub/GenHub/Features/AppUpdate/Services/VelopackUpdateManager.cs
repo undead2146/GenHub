@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -399,7 +400,7 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to apply updates and exit");
+            _logger.LogError(ex, "Failed to apply updates and restart");
             throw;
         }
     }
@@ -816,6 +817,35 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                     _logger.LogWarning(ex, "Failed to cleanup temp directory: {Path}", tempDir);
                 }
             }
+        }
+    }
+
+    /// <inheritdoc/>
+    public void Uninstall()
+    {
+        try
+        {
+            // Update.exe is typically in the parent directory of the current app directory (app-{version})
+            var updateExe = System.IO.Path.Combine(AppContext.BaseDirectory, "..", "Update.exe");
+
+            // Normalize path
+            updateExe = System.IO.Path.GetFullPath(updateExe);
+
+            if (System.IO.File.Exists(updateExe))
+            {
+                _logger.LogInformation("Invoking uninstaller: {Path}", updateExe);
+                Process.Start(new ProcessStartInfo(updateExe, "--uninstall") { UseShellExecute = true });
+                Environment.Exit(0);
+            }
+            else
+            {
+                _logger.LogWarning("Update.exe not found at {Path}. Uninstall not possible (Debug/Portable mode?)", updateExe);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to uninstall application");
+            throw; // Re-throw so ViewModel can show error
         }
     }
 

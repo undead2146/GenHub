@@ -47,8 +47,15 @@ public static class GeneralsOnlineConstants
     /// <summary>Content icon URL.</summary>
     public const string IconUrl = "https://www.playgenerals.online/logo.png";
 
-    /// <summary>Publisher logo source path for UI display.</summary>
+    /// <summary>
+    /// Publisher logo source path for UI display.
+    /// </summary>
     public const string LogoSource = "/Assets/Logos/generalsonline-logo.png";
+
+    /// <summary>
+    /// Cover image source path for UI display.
+    /// </summary>
+    public const string CoverSource = "/Assets/Covers/zerohour-cover.png";
 
     // ===== Version Parsing =====
 

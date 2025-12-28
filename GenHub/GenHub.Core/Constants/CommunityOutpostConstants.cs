@@ -27,6 +27,11 @@ public static class CommunityOutpostConstants
     public const string LogoSource = "/Assets/Logos/communityoutpost-logo.png";
 
     /// <summary>
+    /// Cover image source path for UI display.
+    /// </summary>
+    public const string CoverSource = "/Assets/Covers/generals-cover.png";
+
+    /// <summary>
     /// The URL where the patch page is hosted.
     /// </summary>
     public const string PatchPageUrl = "https://legi.cc/patch";

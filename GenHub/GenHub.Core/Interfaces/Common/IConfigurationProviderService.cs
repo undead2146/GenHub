@@ -120,14 +120,21 @@ public interface IConfigurationProviderService
     List<string> GetGitHubDiscoveryRepositories();
 
     /// <summary>
-    /// Gets the effective content storage path.
+    /// Gets the application data directory path where metadata (workspaces, manifests) is stored.
+    /// Note: Actual game content files are stored in CAS, not here.
     /// </summary>
-    /// <returns>The content storage path as a string.</returns>
-    string GetContentStoragePath();
+    /// <returns>The application data path as a string.</returns>
+    string GetApplicationDataPath();
 
     /// <summary>
     /// Gets the CAS configuration settings.
     /// </summary>
     /// <returns>The CAS configuration.</returns>
     CasConfiguration GetCasConfiguration();
+
+    /// <summary>
+    /// Gets the directory path where application logs are stored.
+    /// </summary>
+    /// <returns>The logs directory path.</returns>
+    string GetLogsPath();
 }

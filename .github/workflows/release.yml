@@ -112,11 +112,65 @@ jobs:
           Write-Host "Windows artifacts created:"
           Get-ChildItem -Path "velopack-release-windows" -Recurse | Select-Object Name, Length
 
+      - name: Create Portable Windows Build
+        shell: pwsh
+        run: |
+          Write-Host "Creating portable Windows build..."
+          
+          # Create portable directory structure
+          $portableDir = "GenHub-Portable"
+          New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
+          
+          # Copy published files to portable directory
+          Copy-Item -Path "win-publish\*" -Destination $portableDir -Recurse -Force
+          
+          # Create README for portable version
+          $readmeContent = @"
+          GenHub Portable v${{ steps.buildinfo.outputs.VERSION }}
+          ==========================================
+          
+          This is a portable version of GenHub that does not require installation.
+          
+          HOW TO USE:
+          1. Extract this entire folder to any location on your computer
+          2. Run GenHub.Windows.exe to start the application
+          3. Your settings and data will be stored in this folder
+          
+          NOTES:
+          - This version will NOT auto-update. Download new versions manually.
+          - Keep this entire folder together - do not move individual files.
+          - You can move the entire folder to a USB drive or another computer.
+          
+          For the auto-updating installer version, download GenHub-win-Setup.exe instead.
+          
+          Build Information:
+          - Version: ${{ steps.buildinfo.outputs.VERSION }}
+          - Commit: ${{ steps.buildinfo.outputs.SHORT_HASH }}
+          - Build Date: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC")
+          "@
+          
+          Set-Content -Path "$portableDir\README.txt" -Value $readmeContent
+          
+          # Create zip file
+          $zipName = "GenHub-${{ steps.buildinfo.outputs.VERSION }}-win-portable.zip"
+          Compress-Archive -Path $portableDir -DestinationPath $zipName -Force
+          
+          Write-Host "Portable build created: $zipName"
+          Write-Host "Size: $((Get-Item $zipName).Length / 1MB) MB"
+
       - name: Upload Windows Release Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-release-${{ steps.buildinfo.outputs.VERSION }}
           path: velopack-release-windows/*
+          if-no-files-found: error
+          retention-days: 2
+
+      - name: Upload Windows Portable Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-portable-${{ steps.buildinfo.outputs.VERSION }}
+          path: GenHub-${{ steps.buildinfo.outputs.VERSION }}-win-portable.zip
           if-no-files-found: error
           retention-days: 2
 
@@ -222,6 +276,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for changelog generation
 
       - name: Extract Version
         id: version
@@ -232,11 +288,45 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "SHORT_HASH=$SHORT_HASH" >> $GITHUB_OUTPUT
 
+      - name: Generate Changelog
+        id: changelog
+        run: |
+          echo "Generating changelog from development branch commits..."
+          
+          # Fetch development branch
+          git fetch origin development:development || echo "Development branch not found, skipping changelog"
+          
+          # Count commits between main and development
+          COMMIT_COUNT=$(git rev-list --count HEAD..development 2>/dev/null || echo "0")
+          echo "COMMIT_COUNT=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+          
+          # Generate changelog from commit messages
+          if [ "$COMMIT_COUNT" -gt "0" ]; then
+            echo "Found $COMMIT_COUNT commits in development branch"
+            
+            # Extract commit messages and format them
+            CHANGELOG=$(git log --pretty=format:"- %s" HEAD..development 2>/dev/null || echo "")
+            
+            # Save changelog to file (multiline output)
+            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+            echo "$CHANGELOG" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "No commits found between main and development"
+            echo "CHANGELOG=No changes recorded" >> $GITHUB_OUTPUT
+          fi
+
       - name: Download Windows Artifacts
         uses: actions/download-artifact@v4
         with:
           name: windows-release-${{ steps.version.outputs.VERSION }}
           path: release-assets/windows
+
+      - name: Download Windows Portable Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-portable-${{ steps.version.outputs.VERSION }}
+          path: release-assets/portable
 
       - name: Download Linux Artifacts
         uses: actions/download-artifact@v4
@@ -253,6 +343,9 @@ jobs:
           cp release-assets/windows/RELEASES final-assets/
           cp release-assets/windows/*-Setup.exe final-assets/
           cp release-assets/windows/*.json final-assets/ || true
+
+          # Copy Windows Portable
+          cp release-assets/portable/*.zip final-assets/
 
           # Copy Linux assets
           cp release-assets/linux/*.nupkg final-assets/
@@ -274,10 +367,18 @@ jobs:
             ### 📦 Installation
 
             **First-time users (Windows):**
-            - Download `GenHub-win-Setup.exe` and run it
+            - **Installer (Recommended):** Download `GenHub-win-Setup.exe` and run it
+            - **Portable:** Download `GenHub-${{ steps.version.outputs.VERSION }}-win-portable.zip`, extract, and run `GenHub.Windows.exe`
 
             **Existing users:**
-            - The app will auto-update using Velopack
+            - The app will auto-update using Velopack (installer version only)
+            - Portable users: Download the new portable zip manually
+
+            ### 🆕 What's New
+
+            **${{ steps.changelog.outputs.COMMIT_COUNT }} commits** merged from development branch:
+
+            ${{ steps.changelog.outputs.CHANGELOG }}
 
             ### 📝 Build Information
             - **Version:** ${{ steps.version.outputs.VERSION }}
@@ -285,7 +386,8 @@ jobs:
             - **Channel:** Release
 
             ### 🔧 Assets Included
-            - `GenHub-win-Setup.exe` - Windows installer
+            - `GenHub-win-Setup.exe` - Windows installer (auto-updates)
+            - `GenHub-${{ steps.version.outputs.VERSION }}-win-portable.zip` - Windows portable (no installation required)
             - `GenHub-{version}-win-full.nupkg` - Windows update package
             - `GenHub-{version}-linux-full.nupkg` - Linux update package
             - `RELEASES` - Windows update metadata
@@ -301,6 +403,10 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📦 Assets Published" >> $GITHUB_STEP_SUMMARY
           echo "- Windows Setup Installer" >> $GITHUB_STEP_SUMMARY
+          echo "- Windows Portable Build" >> $GITHUB_STEP_SUMMARY
           echo "- Windows Update Package" >> $GITHUB_STEP_SUMMARY
           echo "- Linux Update Package" >> $GITHUB_STEP_SUMMARY
           echo "- Update Metadata Files" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Changelog" >> $GITHUB_STEP_SUMMARY
+          echo "**${{ steps.changelog.outputs.COMMIT_COUNT }} commits** from development branch" >> $GITHUB_STEP_SUMMARY

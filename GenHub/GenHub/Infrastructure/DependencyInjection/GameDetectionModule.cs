@@ -1,6 +1,8 @@
 using System.Collections.Generic;
+using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameClients;
 using GenHub.Core.Interfaces.GameInstallations;
+using GenHub.Core.Interfaces.Manifest;
 using GenHub.Features.GameClients;
 using GenHub.Features.GameInstallations;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,8 +25,21 @@ public static class GameDetectionModule
         // Register game client hash registry
         services.AddSingleton<IGameClientHashRegistry, GameClientHashRegistry>();
 
-        // Register game client detector
-        services.AddSingleton<IGameClientDetector, GameClientDetector>();
+        // Register identifiers for local detection
+        services.AddSingleton<IGameClientIdentifier, Features.Content.Services.GeneralsOnline.GeneralsOnlineClientIdentifier>();
+        services.AddSingleton<IGameClientIdentifier, Features.Content.Services.Publishers.SuperHackersClientIdentifier>();
+
+        // Register game client detector with dependencies
+        services.AddSingleton<IGameClientDetector>(provider =>
+        {
+            var manifestGenService = provider.GetRequiredService<IManifestGenerationService>();
+            var manifestPool = provider.GetRequiredService<IContentManifestPool>();
+            var hashProvider = provider.GetRequiredService<IFileHashProvider>();
+            var hashRegistry = provider.GetRequiredService<IGameClientHashRegistry>();
+            var identifiers = provider.GetServices<IGameClientIdentifier>();
+            var logger = provider.GetRequiredService<ILogger<GameClientDetector>>();
+            return new GameClientDetector(manifestGenService, manifestPool, hashProvider, hashRegistry, identifiers, logger);
+        });
 
         // Register orchestrators with logging
         services.AddTransient<IGameInstallationDetectionOrchestrator>(provider =>

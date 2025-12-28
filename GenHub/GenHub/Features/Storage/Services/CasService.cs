@@ -200,14 +200,14 @@ public class CasService(
     }
 
     /// <inheritdoc/>
-    public async Task<CasGarbageCollectionResult> RunGarbageCollectionAsync(CancellationToken cancellationToken = default)
+    public async Task<CasGarbageCollectionResult> RunGarbageCollectionAsync(bool force = false, CancellationToken cancellationToken = default)
     {
         var startTime = DateTime.UtcNow;
         var result = new CasGarbageCollectionResult(true, (string?)null);
 
         try
         {
-            _logger.LogInformation("Starting CAS garbage collection");
+            _logger.LogInformation("Starting CAS garbage collection (force={Force})", force);
 
             // Get all objects in CAS
             var allHashes = await _storage.GetAllObjectHashesAsync(cancellationToken);
@@ -220,8 +220,8 @@ public class CasService(
             // Find unreferenced objects
             var unreferencedHashes = System.Linq.Enumerable.Except(allHashes, referencedHashes);
 
-            // Use configurable grace period
-            var gracePeriod = _config.GcGracePeriod;
+            // Use configurable grace period unless forced
+            var gracePeriod = force ? TimeSpan.Zero : _config.GcGracePeriod;
             long bytesFreed = 0;
             int objectsDeleted = 0;
 
@@ -230,7 +230,7 @@ public class CasService(
                 try
                 {
                     var creationTime = await _storage.GetObjectCreationTimeAsync(hash, cancellationToken);
-                    if (creationTime == null || DateTime.UtcNow - creationTime.Value > gracePeriod)
+                    if (force || creationTime == null || DateTime.UtcNow - creationTime.Value > gracePeriod)
                     {
                         // Get size before deletion
                         var objectPath = _storage.GetObjectPath(hash);

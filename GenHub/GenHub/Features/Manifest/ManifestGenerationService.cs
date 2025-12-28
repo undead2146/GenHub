@@ -360,9 +360,9 @@ public class ManifestGenerationService(
             var builderLogger = NullLogger<ContentManifestBuilder>.Instance;
 
             // Determine publisher name using user-friendly display format matching InstallationTypeDisplayConverter
-            var publisherName = clientName.ToLowerInvariant().Contains("steam") ? "Steam" :
-                                clientName.ToLowerInvariant().Contains("ea") ? "EA App" :
-                                "Retail Installation";
+            var publisherName = clientName.ToLowerInvariant().Contains("steam") ? PublisherInfoConstants.Steam.Name :
+                                clientName.ToLowerInvariant().Contains("ea") ? PublisherInfoConstants.EaApp.Name :
+                                PublisherInfoConstants.Retail.Name;
             var publisher = new PublisherInfo { Name = publisherName };
             var contentName = gameType.ToString().ToLowerInvariant();
             var builder = new ContentManifestBuilder(builderLogger, hashProvider, manifestIdService)
@@ -801,11 +801,22 @@ public class ManifestGenerationService(
                 }
             }
 
+            // For Steam installations, also add game.dat as an alternative executable
+            // This allows launching without Steam integration
+            var gameDatPath = Path.Combine(installationPath, GameClientConstants.SteamGameDatExecutable);
+            if (File.Exists(gameDatPath))
+            {
+                await builder.AddGameInstallationFileAsync(GameClientConstants.SteamGameDatExecutable, gameDatPath, isExecutable: false);
+                logger.LogDebug("Added game.dat to GameClient manifest (non-executable, for Steam-free launch)");
+            }
+
+            var gameDatExists = File.Exists(Path.Combine(installationPath, GameClientConstants.SteamGameDatExecutable));
             logger.LogInformation(
-                "Added GameClient files to manifest for {GameType}: executable + {DllCount} DLLs + {ConfigCount} configs",
+                "Added GameClient files to manifest for {GameType}: executable + {DllCount} DLLs + {ConfigCount} configs{GameDat}",
                 gameType,
                 requiredDlls.Count(dll => File.Exists(Path.Combine(executableDirectory ?? string.Empty, dll))),
-                configFiles.Count(cfg => File.Exists(Path.Combine(installationPath, cfg))));
+                configFiles.Count(cfg => File.Exists(Path.Combine(installationPath, cfg))),
+                gameDatExists ? " + game.dat" : string.Empty);
         }
         catch (Exception ex)
         {

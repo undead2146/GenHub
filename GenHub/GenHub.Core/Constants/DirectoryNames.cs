@@ -29,4 +29,19 @@ public static class DirectoryNames
     /// Directory name for GenHub workspace adjacent to game installations.
     /// </summary>
     public const string GenHubWorkspace = ".genhub-workspace";
+
+    /// <summary>
+    /// Directory for temporary files.
+    /// </summary>
+    public const string Temp = "Temp";
+
+    /// <summary>
+    /// Directory for log files.
+    /// </summary>
+    public const string Logs = "Logs";
+
+    /// <summary>
+    /// Directory for backup files.
+    /// </summary>
+    public const string Backups = "Backups";
 }

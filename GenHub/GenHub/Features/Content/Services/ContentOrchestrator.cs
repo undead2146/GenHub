@@ -92,7 +92,7 @@ public class ContentOrchestrator : IContentOrchestrator
         _logger.LogDebug("Starting orchestrated content search with query: {SearchTerm}, ContentType: {ContentType}", query.SearchTerm, query.ContentType);
 
         // Check cache first
-        var cacheKey = $"search::{query.SearchTerm}::{query.ContentType}::{query.Skip}::{query.Take}::{query.SortOrder}";
+        var cacheKey = $"search::{query.ProviderName}::{query.SearchTerm}::{query.ContentType}::{query.Skip}::{query.Take}::{query.SortOrder}";
         var cachedResults = await _cache.GetAsync<List<ContentSearchResult>>(cacheKey, cancellationToken);
         if (cachedResults != null)
         {
@@ -105,10 +105,15 @@ public class ContentOrchestrator : IContentOrchestrator
 
         // Orchestrate search across all enabled providers concurrently
         // Each provider handles its own internal discovery→resolution→delivery pipeline
-        var searchTasks = _providers
-            .Where(p => p.IsEnabled)
-            .ToList();
+        var providersToSearch = _providers.Where(p => p.IsEnabled);
 
+        // Optimization: If provider is specified in query, only search that provider
+        if (!string.IsNullOrEmpty(query.ProviderName))
+        {
+            providersToSearch = providersToSearch.Where(p => p.SourceName.Equals(query.ProviderName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var searchTasks = providersToSearch.ToList();
         if (searchTasks.Count == 0)
         {
             _logger.LogWarning("No enabled providers available for search");
@@ -254,8 +259,8 @@ public class ContentOrchestrator : IContentOrchestrator
     /// <returns>A task that returns a result containing available content providers.</returns>
     public Task<OperationResult<IEnumerable<IContentProvider>>> GetAvailableProvidersAsync(CancellationToken cancellationToken = default)
     {
-        var providers = _providers.ToList();
-        return Task.FromResult(OperationResult<IEnumerable<IContentProvider>>.CreateSuccess(providers));
+        var currentProviders = _providers.ToList();
+        return Task.FromResult(OperationResult<IEnumerable<IContentProvider>>.CreateSuccess(currentProviders));
     }
 
     /// <summary>
@@ -539,6 +544,7 @@ public class ContentOrchestrator : IContentOrchestrator
                 });
 
                 _logger.LogInformation("Content {ContentName} acquired and stored in manifest pool", searchResult.Name);
+
                 return OperationResult<ContentManifest>.CreateSuccess(prepareResult.Data);
             }
             finally
