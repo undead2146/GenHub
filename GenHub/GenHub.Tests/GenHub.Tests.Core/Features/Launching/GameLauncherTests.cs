@@ -5,6 +5,7 @@ using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.Launching;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Storage;
+using GenHub.Core.Interfaces.UserData;
 using GenHub.Core.Interfaces.Workspace;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
@@ -26,10 +27,12 @@ namespace GenHub.Tests.Core.Features.Launching;
 /// </summary>
 public class GameLauncherTests
 {
+    private static readonly string[] TestContentIds = ["1.0.genhub.mod.test"];
     private readonly Mock<IGameProfileManager> _profileManagerMock = new();
     private readonly Mock<IWorkspaceManager> _workspaceManagerMock = new();
     private readonly Mock<IGameProcessManager> _processManagerMock = new();
     private readonly Mock<IContentManifestPool> _manifestPoolMock = new();
+    private readonly Mock<IDependencyResolver> _dependencyResolverMock = new();
     private readonly Mock<ILaunchRegistry> _launchRegistryMock = new();
     private readonly Mock<ILogger<GameLauncher>> _loggerMock = new();
     private readonly Mock<IGameInstallationService> _gameInstallationServiceMock = new();
@@ -38,6 +41,7 @@ public class GameLauncherTests
     private readonly Mock<ICasService> _casServiceMock = new();
     private readonly Mock<IGameSettingsService> _gameSettingsServiceMock = new();
     private readonly Mock<IStorageLocationService> _storageLocationServiceMock = new();
+    private readonly Mock<IProfileContentLinker> _profileContentLinkerMock = new();
     private readonly GameLauncher _gameLauncher;
 
     /// <summary>
@@ -47,7 +51,7 @@ public class GameLauncherTests
     {
         // Setup configuration provider mock
         _configurationProviderServiceMock.Setup(x => x.GetWorkspacePath()).Returns(@"C:\Workspaces");
-        _configurationProviderServiceMock.Setup(x => x.GetContentStoragePath()).Returns(@"C:\Content");
+        _configurationProviderServiceMock.Setup(x => x.GetApplicationDataPath()).Returns(@"C:\Content");
 
         // Setup game installation service mock
         var testInstallation = new GameInstallation(@"C:\Games\CommandAndConquer", GameInstallationType.Steam);
@@ -80,17 +84,49 @@ public class GameLauncherTests
         _storageLocationServiceMock.Setup(x => x.GetCasPoolPath(It.IsAny<GameInstallation>()))
             .Returns(@"C:\CAS");
 
+        // Setup profile content linker mock
+        _profileContentLinkerMock.Setup(x => x.PrepareProfileUserDataAsync(
+                It.IsAny<string>(),
+                It.IsAny<IEnumerable<ContentManifest>>(),
+                It.IsAny<GameType>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+
+        _profileContentLinkerMock.Setup(x => x.SwitchProfileUserDataAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<IEnumerable<ContentManifest>>(),
+                It.IsAny<GameType>(),
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+
+        _profileContentLinkerMock.Setup(x => x.GetActiveProfileId())
+            .Returns((string?)null);
+
+        // Setup dependency resolver mock - returns resolved manifests including dependencies
+        _dependencyResolverMock.Setup(x => x.ResolveDependenciesWithManifestsAsync(
+                It.IsAny<IEnumerable<string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IEnumerable<string> ids, CancellationToken _) =>
+            {
+                var idList = ids.ToList();
+                return DependencyResolutionResult.CreateSuccess(idList, [], []);
+            });
+
         _gameLauncher = new GameLauncher(
             _loggerMock.Object,
             _profileManagerMock.Object,
             _workspaceManagerMock.Object,
             _processManagerMock.Object,
             _manifestPoolMock.Object,
+            _dependencyResolverMock.Object,
             _launchRegistryMock.Object,
             _gameInstallationServiceMock.Object,
             _casServiceMock.Object,
             _storageLocationServiceMock.Object,
-            _gameSettingsServiceMock.Object);
+            _gameSettingsServiceMock.Object,
+            _profileContentLinkerMock.Object);
     }
 
     /// <summary>
@@ -117,7 +153,15 @@ public class GameLauncherTests
         _manifestPoolMock.Setup(x => x.GetManifestAsync("1.0.genhub.mod.test", It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(manifest));
 
-        _workspaceManagerMock.Setup(x => x.PrepareWorkspaceAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<IProgress<WorkspacePreparationProgress>>(), It.IsAny<CancellationToken>()))
+        _dependencyResolverMock.Setup(x => x.ResolveDependenciesWithManifestsAsync(
+                It.Is<IEnumerable<string>>(ids => ids.SequenceEqual(TestContentIds)),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(DependencyResolutionResult.CreateSuccess(
+                TestContentIds,
+                [manifest],
+                []));
+
+        _workspaceManagerMock.Setup(x => x.PrepareWorkspaceAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<IProgress<WorkspacePreparationProgress>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<WorkspaceInfo>.CreateSuccess(workspaceInfo));
 
         _processManagerMock.Setup(x => x.StartProcessAsync(It.IsAny<GameLaunchConfiguration>(), It.IsAny<CancellationToken>()))
@@ -166,15 +210,19 @@ public class GameLauncherTests
         var profile = CreateTestProfile();
         _profileManagerMock.Setup(x => x.GetProfileAsync(profile.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
-        _manifestPoolMock.Setup(x => x.GetManifestAsync("1.0.genhub.mod.test", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(OperationResult<ContentManifest?>.CreateFailure("Manifest not found"));
+
+        // Mock dependency resolver to return failure when manifest is not found
+        _dependencyResolverMock.Setup(x => x.ResolveDependenciesWithManifestsAsync(
+                It.IsAny<IEnumerable<string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(DependencyResolutionResult.CreateFailure("Missing or invalid content IDs: 1.0.genhub.mod.test"));
 
         // Act
         var result = await _gameLauncher.LaunchProfileAsync(profile.Id);
 
         // Assert
         Assert.False(result.Success);
-        Assert.Contains("Failed to resolve content", result.FirstError!);
+        Assert.Contains("Failed to resolve content dependencies", result.FirstError!);
     }
 
     /// <summary>
@@ -188,15 +236,19 @@ public class GameLauncherTests
         var profile = CreateTestProfile();
         _profileManagerMock.Setup(x => x.GetProfileAsync(profile.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
-        _manifestPoolMock.Setup(x => x.GetManifestAsync("1.0.genhub.mod.test", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(null));
+
+        // Mock dependency resolver to return failure when manifest returns null
+        _dependencyResolverMock.Setup(x => x.ResolveDependenciesWithManifestsAsync(
+                It.IsAny<IEnumerable<string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(DependencyResolutionResult.CreateFailure("Missing or invalid content IDs: 1.0.genhub.mod.test"));
 
         // Act
         var result = await _gameLauncher.LaunchProfileAsync(profile.Id);
 
         // Assert
         Assert.False(result.Success);
-        Assert.Contains("Content manifest '1.0.genhub.mod.test' not found", result.FirstError!);
+        Assert.Contains("Failed to resolve content dependencies", result.FirstError!);
     }
 
     /// <summary>
@@ -213,7 +265,7 @@ public class GameLauncherTests
             .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
         _manifestPoolMock.Setup(x => x.GetManifestAsync("1.0.genhub.mod.test", It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(manifest));
-        _workspaceManagerMock.Setup(x => x.PrepareWorkspaceAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<IProgress<WorkspacePreparationProgress>>(), It.IsAny<CancellationToken>()))
+        _workspaceManagerMock.Setup(x => x.PrepareWorkspaceAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<IProgress<WorkspacePreparationProgress>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<WorkspaceInfo>.CreateFailure("Workspace prep failed"));
 
         // Act
@@ -239,7 +291,14 @@ public class GameLauncherTests
             .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
         _manifestPoolMock.Setup(x => x.GetManifestAsync("1.0.genhub.mod.test", It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(manifest));
-        _workspaceManagerMock.Setup(x => x.PrepareWorkspaceAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<IProgress<WorkspacePreparationProgress>>(), It.IsAny<CancellationToken>()))
+        _dependencyResolverMock.Setup(x => x.ResolveDependenciesWithManifestsAsync(
+                It.Is<IEnumerable<string>>(ids => ids.SequenceEqual(TestContentIds)),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(DependencyResolutionResult.CreateSuccess(
+                TestContentIds,
+                [manifest],
+                []));
+        _workspaceManagerMock.Setup(x => x.PrepareWorkspaceAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<IProgress<WorkspacePreparationProgress>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<WorkspaceInfo>.CreateSuccess(workspaceInfo));
         _processManagerMock.Setup(x => x.StartProcessAsync(It.IsAny<GameLaunchConfiguration>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<GameProcessInfo>.CreateFailure("Process start failed"));
@@ -323,8 +382,16 @@ public class GameLauncherTests
         _manifestPoolMock.Setup(x => x.GetManifestAsync("1.0.genhub.mod.test", It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(manifest));
 
-        _workspaceManagerMock.Setup(x => x.PrepareWorkspaceAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<IProgress<WorkspacePreparationProgress>>(), It.IsAny<CancellationToken>()))
-            .Callback<WorkspaceConfiguration, IProgress<WorkspacePreparationProgress>, CancellationToken>((_, p, _) =>
+        _dependencyResolverMock.Setup(x => x.ResolveDependenciesWithManifestsAsync(
+                It.Is<IEnumerable<string>>(ids => ids.SequenceEqual(TestContentIds)),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(DependencyResolutionResult.CreateSuccess(
+                TestContentIds,
+                [manifest],
+                []));
+
+        _workspaceManagerMock.Setup(x => x.PrepareWorkspaceAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<IProgress<WorkspacePreparationProgress>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .Callback<WorkspaceConfiguration, IProgress<WorkspacePreparationProgress>, bool, CancellationToken>((_, p, _, _) =>
             {
                 // Simulate workspace progress reporting that will trigger launcher progress updates
                 p?.Report(new WorkspacePreparationProgress { FilesProcessed = 1, TotalFiles = 4, CurrentOperation = "Copying", CurrentFile = "test.exe" });
@@ -360,7 +427,7 @@ public class GameLauncherTests
         List<LaunchProgress> reports;
         lock (progressLock)
         {
-            reports = progressReports.ToList(); // Create a copy for safe enumeration
+            reports = [.. progressReports]; // Create a copy for safe enumeration
         }
 
         Assert.NotEmpty(reports);
@@ -414,14 +481,14 @@ public class GameLauncherTests
     {
         // Arrange
         var profile = CreateTestProfile();
-        profile.EnabledContentIds = new List<string>(); // Empty content
+        profile.EnabledContentIds = []; // Empty content
         var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = @"C:\workspace" };
         var processInfo = new GameProcessInfo { ProcessId = 123, ProcessName = "generals.exe" };
 
         _profileManagerMock.Setup(x => x.GetProfileAsync(profile.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
 
-        _workspaceManagerMock.Setup(x => x.PrepareWorkspaceAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<IProgress<WorkspacePreparationProgress>>(), It.IsAny<CancellationToken>()))
+        _workspaceManagerMock.Setup(x => x.PrepareWorkspaceAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<IProgress<WorkspacePreparationProgress>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<WorkspaceInfo>.CreateSuccess(workspaceInfo));
 
         _processManagerMock.Setup(x => x.StartProcessAsync(It.IsAny<GameLaunchConfiguration>(), It.IsAny<CancellationToken>()))
@@ -536,22 +603,27 @@ public class GameLauncherTests
     {
         // Arrange
         var profile = CreateTestProfile();
-        profile.EnabledContentIds = new List<string> { "1.0.genhub.mod.manifest1mod", "1.0.genhub.mod.manifest2mod", "1.0.genhub.mod.manifest3mod" };
+        profile.EnabledContentIds = ["1.0.genhub.mod.manifest1mod", "1.0.genhub.mod.manifest2mod", "1.0.genhub.mod.manifest3mod"];
         var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = @"C:\workspace" };
         var processInfo = new GameProcessInfo { ProcessId = 123, ProcessName = "generals.exe" };
 
         _profileManagerMock.Setup(x => x.GetProfileAsync(profile.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
 
-        // Setup multiple manifests
-        _manifestPoolMock.Setup(x => x.GetManifestAsync(It.Is<ManifestId>(id => id.Value == "1.0.genhub.mod.manifest1mod"), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(new ContentManifest { Id = "1.0.genhub.mod.manifest1mod" }));
-        _manifestPoolMock.Setup(x => x.GetManifestAsync(It.Is<ManifestId>(id => id.Value == "1.0.genhub.mod.manifest2mod"), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(new ContentManifest { Id = "1.0.genhub.mod.manifest2mod" }));
-        _manifestPoolMock.Setup(x => x.GetManifestAsync(It.Is<ManifestId>(id => id.Value == "1.0.genhub.mod.manifest3mod"), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(new ContentManifest { Id = "1.0.genhub.mod.manifest3mod" }));
+        // Setup dependency resolver to return all manifests
+        var manifest1 = new ContentManifest { Id = "1.0.genhub.mod.manifest1mod" };
+        var manifest2 = new ContentManifest { Id = "1.0.genhub.mod.manifest2mod" };
+        var manifest3 = new ContentManifest { Id = "1.0.genhub.mod.manifest3mod" };
 
-        _workspaceManagerMock.Setup(x => x.PrepareWorkspaceAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<IProgress<WorkspacePreparationProgress>>(), It.IsAny<CancellationToken>()))
+        _dependencyResolverMock.Setup(x => x.ResolveDependenciesWithManifestsAsync(
+                It.IsAny<IEnumerable<string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(DependencyResolutionResult.CreateSuccess(
+                profile.EnabledContentIds,
+                [manifest1, manifest2, manifest3],
+                []));
+
+        _workspaceManagerMock.Setup(x => x.PrepareWorkspaceAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<IProgress<WorkspacePreparationProgress>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<WorkspaceInfo>.CreateSuccess(workspaceInfo));
 
         _processManagerMock.Setup(x => x.StartProcessAsync(It.IsAny<GameLaunchConfiguration>(), It.IsAny<CancellationToken>()))
@@ -562,9 +634,11 @@ public class GameLauncherTests
 
         // Assert
         Assert.True(result.Success);
-        _manifestPoolMock.Verify(x => x.GetManifestAsync(It.Is<ManifestId>(id => id.Value == "1.0.genhub.mod.manifest1mod"), It.IsAny<CancellationToken>()), Times.Once);
-        _manifestPoolMock.Verify(x => x.GetManifestAsync(It.Is<ManifestId>(id => id.Value == "1.0.genhub.mod.manifest2mod"), It.IsAny<CancellationToken>()), Times.Once);
-        _manifestPoolMock.Verify(x => x.GetManifestAsync(It.Is<ManifestId>(id => id.Value == "1.0.genhub.mod.manifest3mod"), It.IsAny<CancellationToken>()), Times.Once);
+        _dependencyResolverMock.Verify(
+            x => x.ResolveDependenciesWithManifestsAsync(
+                It.Is<IEnumerable<string>>(ids => ids.Count() == 3),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     /// <summary>
@@ -591,7 +665,15 @@ public class GameLauncherTests
         _manifestPoolMock.Setup(x => x.GetManifestAsync(It.IsAny<ManifestId>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(new ContentManifest { Id = "1.0.genhub.mod.test" }));
 
-        _workspaceManagerMock.Setup(x => x.PrepareWorkspaceAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<IProgress<WorkspacePreparationProgress>>(), It.IsAny<CancellationToken>()))
+        _dependencyResolverMock.Setup(x => x.ResolveDependenciesWithManifestsAsync(
+                It.Is<IEnumerable<string>>(ids => ids.SequenceEqual(TestContentIds)),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(DependencyResolutionResult.CreateSuccess(
+                TestContentIds,
+                [new ContentManifest { Id = "1.0.genhub.mod.test" }],
+                []));
+
+        _workspaceManagerMock.Setup(x => x.PrepareWorkspaceAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<IProgress<WorkspacePreparationProgress>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<WorkspaceInfo>.CreateSuccess(workspaceInfo));
 
         _processManagerMock.Setup(x => x.StartProcessAsync(It.IsAny<GameLaunchConfiguration>(), It.IsAny<CancellationToken>()))
@@ -642,7 +724,15 @@ public class GameLauncherTests
         _manifestPoolMock.Setup(x => x.GetManifestAsync(It.IsAny<ManifestId>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(new ContentManifest { Id = "1.0.genhub.mod.test" }));
 
-        _workspaceManagerMock.Setup(x => x.PrepareWorkspaceAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<IProgress<WorkspacePreparationProgress>>(), It.IsAny<CancellationToken>()))
+        _dependencyResolverMock.Setup(x => x.ResolveDependenciesWithManifestsAsync(
+                It.Is<IEnumerable<string>>(ids => ids.SequenceEqual(TestContentIds)),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(DependencyResolutionResult.CreateSuccess(
+                TestContentIds,
+                [new ContentManifest { Id = "1.0.genhub.mod.test" }],
+                []));
+
+        _workspaceManagerMock.Setup(x => x.PrepareWorkspaceAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<IProgress<WorkspacePreparationProgress>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<WorkspaceInfo>.CreateSuccess(workspaceInfo));
 
         _processManagerMock.Setup(x => x.StartProcessAsync(It.IsAny<GameLaunchConfiguration>(), It.IsAny<CancellationToken>()))
@@ -666,11 +756,12 @@ public class GameLauncherTests
     }
 
     /// <summary>
-    /// Tests that launching without profile settings skips Options.ini write.
+    /// Tests that launching a profile without custom settings still saves Options.ini
+    /// to preserve TheSuperHackers/GeneralsOnline settings.
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task LaunchProfileAsync_WithoutProfileSettings_ShouldSkipIniOptionsWrite()
+    public async Task LaunchProfileAsync_WithoutProfileSettings_ShouldStillSaveOptionsIni()
     {
         // Arrange
         var profile = CreateTestProfile();
@@ -684,7 +775,7 @@ public class GameLauncherTests
         _manifestPoolMock.Setup(x => x.GetManifestAsync(It.IsAny<ManifestId>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(new ContentManifest { Id = "1.0.genhub.mod.test" }));
 
-        _workspaceManagerMock.Setup(x => x.PrepareWorkspaceAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<IProgress<WorkspacePreparationProgress>>(), It.IsAny<CancellationToken>()))
+        _workspaceManagerMock.Setup(x => x.PrepareWorkspaceAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<IProgress<WorkspacePreparationProgress>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<WorkspaceInfo>.CreateSuccess(workspaceInfo));
 
         _processManagerMock.Setup(x => x.StartProcessAsync(It.IsAny<GameLaunchConfiguration>(), It.IsAny<CancellationToken>()))
@@ -696,17 +787,17 @@ public class GameLauncherTests
         // Assert
         Assert.True(result.Success);
 
-        // Verify that SaveOptionsAsync was NOT called since profile has no settings
+        // Should still save Options.ini to preserve TheSuperHackers/GeneralsOnline settings
         _gameSettingsServiceMock.Verify(
             x => x.SaveOptionsAsync(It.IsAny<GameType>(), It.IsAny<IniOptions>()),
-            Times.Never);
+            Times.Once);
     }
 
     /// <summary>
     /// Creates a test <see cref="GameProfile"/> with required members set.
     /// </summary>
     /// <returns>A valid <see cref="GameProfile"/>.</returns>
-    private GameProfile CreateTestProfile()
+    private static GameProfile CreateTestProfile()
     {
         return new GameProfile
         {
@@ -714,7 +805,7 @@ public class GameLauncherTests
             Name = "Test Profile",
             GameInstallationId = "install-1",
             GameClient = new GameClient { Id = "version-1", ExecutablePath = @"C:\Games\generals.exe", GameType = GameType.Generals },
-            EnabledContentIds = new List<string> { "1.0.genhub.mod.test" },
+            EnabledContentIds = ["1.0.genhub.mod.test"],
         };
     }
 }

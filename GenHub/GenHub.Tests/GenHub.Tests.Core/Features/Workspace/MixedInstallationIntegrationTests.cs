@@ -70,7 +70,7 @@ public class MixedInstallationIntegrationTests : IDisposable
         });
 
         var mockConfigProvider = new Mock<IConfigurationProviderService>();
-        mockConfigProvider.Setup(x => x.GetContentStoragePath()).Returns(_tempContentStorage);
+        mockConfigProvider.Setup(x => x.GetApplicationDataPath()).Returns(_tempContentStorage);
         mockConfigProvider.Setup(x => x.GetWorkspacePath()).Returns(_tempWorkspaceRoot);
         services.AddSingleton<IConfigurationProviderService>(mockConfigProvider.Object);
 
@@ -121,7 +121,7 @@ public class MixedInstallationIntegrationTests : IDisposable
         };
 
         // Act
-        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, CancellationToken.None);
+        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, skipCleanup: false, CancellationToken.None);
 
         // Assert
         Assert.True(result.Success, $"Workspace preparation failed: {result.FirstError}");
@@ -174,7 +174,7 @@ public class MixedInstallationIntegrationTests : IDisposable
         };
 
         // Act
-        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, CancellationToken.None);
+        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, skipCleanup: false, CancellationToken.None);
 
         // Assert
         Assert.True(result.Success, $"Mixed workspace preparation failed: {result.FirstError}");
@@ -256,7 +256,7 @@ public class MixedInstallationIntegrationTests : IDisposable
         };
 
         // Act
-        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, CancellationToken.None);
+        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, skipCleanup: false, CancellationToken.None);
 
         // Assert
         Assert.True(result.Success, $"Full stack workspace preparation failed: {result.FirstError}");
@@ -332,7 +332,7 @@ public class MixedInstallationIntegrationTests : IDisposable
         };
 
         // Act - workspace preparation should succeed (it doesn't validate dependencies)
-        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, CancellationToken.None);
+        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, skipCleanup: false, CancellationToken.None);
 
         // Assert - workspace created, but dependency validation would catch this at launch time
         Assert.True(result.Success, "Workspace preparation should succeed - dependency validation happens at launch");
@@ -389,7 +389,7 @@ public class MixedInstallationIntegrationTests : IDisposable
         };
 
         // Act
-        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, CancellationToken.None);
+        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, skipCleanup: false, CancellationToken.None);
 
         // Assert
         Assert.True(result.Success, $"Conflict resolution workspace preparation failed: {result.FirstError}");

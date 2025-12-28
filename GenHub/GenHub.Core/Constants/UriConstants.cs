@@ -40,7 +40,7 @@ public static class UriConstants
     /// <summary>
     /// Base path for icon assets.
     /// </summary>
-    public const string IconsBasePath = "Assets/Icons";
+    public const string IconsBasePath = "/Assets/Icons";
 
     /// <summary>
     /// Filename for Generals icon.
@@ -66,4 +66,21 @@ public static class UriConstants
     /// Filename for EA App platform icon.
     /// </summary>
     public const string EaAppIconFilename = "eaapp-icon.png";
+
+    // Cover Path Constants
+
+    /// <summary>
+    /// Base path for cover assets.
+    /// </summary>
+    public const string CoversBasePath = "/Assets/Covers";
+
+    /// <summary>
+    /// Filename for Generals cover.
+    /// </summary>
+    public const string GeneralsCoverFilename = "generals-cover.png";
+
+    /// <summary>
+    /// Filename for Zero Hour cover.
+    /// </summary>
+    public const string ZeroHourCoverFilename = "zerohour-cover.png";
 }

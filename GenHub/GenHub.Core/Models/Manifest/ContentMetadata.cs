@@ -13,7 +13,7 @@ public class ContentMetadata
     /// <summary>
     /// Gets or sets the content tags.
     /// </summary>
-    public List<string> Tags { get; set; } = new();
+    public List<string> Tags { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the icon URL.
@@ -21,9 +21,14 @@ public class ContentMetadata
     public string? IconUrl { get; set; }
 
     /// <summary>
+    /// Gets or sets the cover image URL.
+    /// </summary>
+    public string? CoverUrl { get; set; }
+
+    /// <summary>
     /// Gets or sets the screenshot URLs.
     /// </summary>
-    public List<string> ScreenshotUrls { get; set; } = new();
+    public List<string> ScreenshotUrls { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the release date.

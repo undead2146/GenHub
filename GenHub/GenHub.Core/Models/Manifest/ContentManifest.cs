@@ -34,19 +34,19 @@ public class ContentManifest
     public ContentMetadata Metadata { get; set; } = new();
 
     /// <summary>Gets or sets the dependencies required for this content to function.</summary>
-    public List<ContentDependency> Dependencies { get; set; } = new();
+    public List<ContentDependency> Dependencies { get; set; } = [];
 
     /// <summary>Gets or sets content references for cross-publisher linking.</summary>
-    public List<ContentReference> ContentReferences { get; set; } = new();
+    public List<ContentReference> ContentReferences { get; set; } = [];
 
     /// <summary>Gets or sets the list of known addons for this game (manifest-driven, not hardcoded).</summary>
-    public List<string> KnownAddons { get; set; } = new();
+    public List<string> KnownAddons { get; set; } = [];
 
     /// <summary>Gets or sets all files included in this content package.</summary>
-    public List<ManifestFile> Files { get; set; } = new();
+    public List<ManifestFile> Files { get; set; } = [];
 
     /// <summary>Gets or sets the required directory structure.</summary>
-    public List<string> RequiredDirectories { get; set; } = new();
+    public List<string> RequiredDirectories { get; set; } = [];
 
     /// <summary>Gets or sets the installation instructions and hooks.</summary>
     public InstallationInstructions InstallationInstructions { get; set; } = new();

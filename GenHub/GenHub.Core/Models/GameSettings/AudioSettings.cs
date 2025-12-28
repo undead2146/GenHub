@@ -22,4 +22,7 @@ public class AudioSettings
 
     /// <summary>Gets or sets the number of sounds (typically 2-32).</summary>
     public int NumSounds { get; set; } = 16;
+
+    /// <summary>Gets or sets additional audio properties not explicitly defined. Used to preserve game-specific settings.</summary>
+    public Dictionary<string, string> AdditionalProperties { get; set; } = [];
 }

@@ -78,19 +78,19 @@ public class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabsMapDisco
 
             var results = discoveredMaps.Select(map => new ContentSearchResult
             {
-                Id = string.Format(CNCLabsConstants.MapIdFormat, map.id),
-                Name = map.name,
+                Id = string.Format(CNCLabsConstants.MapIdFormat, map.Id),
+                Name = map.Name,
                 Description = CNCLabsConstants.MapDescriptionTemplate,
-                AuthorName = map.author,
-                ContentType = map.contentType ?? ContentType.UnknownContentType,
-                TargetGame = map.targetGame ?? GameType.Unknown,
+                AuthorName = map.Author,
+                ContentType = map.ContentType ?? ContentType.UnknownContentType,
+                TargetGame = map.TargetGame ?? GameType.Unknown,
                 ProviderName = SourceName,
                 RequiresResolution = true,
                 ResolverId = CNCLabsConstants.ResolverId,
-                SourceUrl = map.detailUrl,
+                SourceUrl = map.DetailUrl,
                 ResolverMetadata =
                 {
-                    [CNCLabsConstants.MapIdMetadataKey] = map.id.ToString(),
+                    [CNCLabsConstants.MapIdMetadataKey] = map.Id.ToString(),
                 },
             });
             return OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(results);
@@ -194,7 +194,7 @@ public class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabsMapDisco
         var url = CNCLabsHelper.BuildSearchUrl(query);
         if (string.IsNullOrWhiteSpace(url))
         {
-            throw new ArgumentNullException(nameof(url));
+            throw new ArgumentNullException(nameof(query));
         }
 
         if (!Uri.TryCreate(url, UriKind.Absolute, out _))
@@ -322,12 +322,12 @@ public class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabsMapDisco
     /// <summary>
     /// Small immutable record used internally to shuttle minimal map info between parsing and projection.
     /// </summary>
-    /// <param name="id">Map numeric identifier.</param>
-    /// <param name="name">Map display name.</param>
-    /// <param name="description">Short description text.</param>
-    /// <param name="author">Author display name.</param>
-    /// <param name="detailUrl">Absolute detail page URL.</param>
-    /// <param name="targetGame">Target game.</param>
-    /// <param name="contentType">Content type.</param>
-    private sealed record MapListItem(int id, string name, string description, string author, string detailUrl, GameType? targetGame, ContentType? contentType);
+    /// <param name="Id">Map numeric identifier.</param>
+    /// <param name="Name">Map display name.</param>
+    /// <param name="Description">Short description text.</param>
+    /// <param name="Author">Author display name.</param>
+    /// <param name="DetailUrl">Absolute detail page URL.</param>
+    /// <param name="TargetGame">Target game.</param>
+    /// <param name="ContentType">Content type.</param>
+    private sealed record MapListItem(int Id, string Name, string Description, string Author, string DetailUrl, GameType? TargetGame, ContentType? ContentType);
 }

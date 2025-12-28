@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Interfaces.GameProfiles;
@@ -24,6 +27,7 @@ public class GameProfileRepository(
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = { new JsonStringEnumConverter() },
     };
 
     /// <inheritdoc/>

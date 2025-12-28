@@ -28,11 +28,13 @@ public interface IContentStorageService
     /// </summary>
     /// <param name="manifest">The game manifest describing the content.</param>
     /// <param name="sourceDirectory">The temporary directory containing the content files.</param>
+    /// <param name="progress">Optional progress reporter for tracking storage operations.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A result indicating success or failure with the updated manifest.</returns>
     Task<OperationResult<ContentManifest>> StoreContentAsync(
         ContentManifest manifest,
         string sourceDirectory,
+        IProgress<ContentStorageProgress>? progress = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

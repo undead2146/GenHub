@@ -17,8 +17,10 @@ namespace GenHub.Features.GameSettings;
 /// <summary>
 /// Service for managing game settings (Options.ini) for Generals and Zero Hour.
 /// </summary>
-public class GameSettingsService : IGameSettingsService
+public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathProvider? pathProvider = null) : IGameSettingsService
 {
+    private static readonly JsonSerializerOptions _jsonSerializerOptions = new() { WriteIndented = true };
+
     /// <summary>
     /// Static semaphore to serialize Options.ini writes across all game launches.
     /// This prevents race conditions when multiple profiles launch concurrently
@@ -26,19 +28,8 @@ public class GameSettingsService : IGameSettingsService
     /// </summary>
     private static readonly SemaphoreSlim _optionsIniWriteSemaphore = new(1, 1);
 
-    private readonly ILogger<GameSettingsService> _logger;
-    private readonly IGamePathProvider _pathProvider;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="GameSettingsService"/> class.
-    /// </summary>
-    /// <param name="logger">Logger instance.</param>
-    /// <param name="pathProvider">Game path provider.</param>
-    public GameSettingsService(ILogger<GameSettingsService> logger, IGamePathProvider? pathProvider = null)
-    {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _pathProvider = pathProvider ?? new WindowsGamePathProvider();
-    }
+    private readonly ILogger<GameSettingsService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly IGamePathProvider _pathProvider = pathProvider ?? new WindowsGamePathProvider();
 
     /// <inheritdoc/>
     public virtual string GetOptionsFilePath(GameType gameType)
@@ -235,8 +226,7 @@ public class GameSettingsService : IGameSettingsService
                 Directory.CreateDirectory(directory);
             }
 
-            var options = new JsonSerializerOptions { WriteIndented = true };
-            var json = JsonSerializer.Serialize(settings, options);
+            var json = JsonSerializer.Serialize(settings, _jsonSerializerOptions);
             await File.WriteAllTextAsync(settingsPath, json, Encoding.UTF8);
 
             _logger.LogInformation("Saved GeneralsOnline settings to {SettingsPath}", settingsPath);
@@ -254,23 +244,24 @@ public class GameSettingsService : IGameSettingsService
         var options = new IniOptions();
         var currentSection = string.Empty;
         var currentDict = new Dictionary<string, string>();
+        var rootDict = new Dictionary<string, string>(); // For flat format
 
         foreach (var rawLine in lines)
         {
             var line = rawLine.Trim();
 
             // Skip empty lines and comments
-            if (string.IsNullOrWhiteSpace(line) || line.StartsWith(";") || line.StartsWith("#"))
+            if (string.IsNullOrWhiteSpace(line) || line.StartsWith(';') || line.StartsWith('#'))
                 continue;
 
             // Section header [SectionName]
-            if (line.StartsWith("[") && line.EndsWith("]"))
+            if (line.StartsWith('[') && line.EndsWith(']'))
             {
                 // Save previous section
                 if (!string.IsNullOrEmpty(currentSection))
                 {
                     ProcessSection(options, currentSection, currentDict);
-                    currentDict = new Dictionary<string, string>();
+                    currentDict = [];
                 }
 
                 currentSection = line[1..^1].Trim();
@@ -283,17 +274,132 @@ public class GameSettingsService : IGameSettingsService
             {
                 var key = line[..separatorIndex].Trim();
                 var value = line[(separatorIndex + 1)..].Trim();
-                currentDict[key] = value;
+
+                if (string.IsNullOrEmpty(currentSection))
+                {
+                    // Flat format - store in root dict
+                    rootDict[key] = value;
+                }
+                else
+                {
+                    // Sectioned format - store in current section
+                    currentDict[key] = value;
+                }
             }
         }
 
-        // Process last section
+        // Process last section if any
         if (!string.IsNullOrEmpty(currentSection))
         {
             ProcessSection(options, currentSection, currentDict);
         }
 
+        // Process root dict (flat format) - categorize by key name
+        if (rootDict.Count > 0)
+        {
+            CategorizeRootSettings(options, rootDict);
+        }
+
         return options;
+    }
+
+    /// <summary>
+    /// Categorizes settings from a flat root dictionary into their respective sections.
+    /// </summary>
+    /// <param name="options">The options object to populate.</param>
+    /// <param name="rootDict">The flat dictionary containing all settings.</param>
+    private static void CategorizeRootSettings(IniOptions options, Dictionary<string, string> rootDict)
+    {
+        var audioKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "SFXVolume", "SFX3DVolume", "VoiceVolume", "MusicVolume", "AudioEnabled", "NumSounds",
+        };
+
+        var videoKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Resolution", "Windowed", "TextureReduction", "AntiAliasing",
+            "UseShadowVolumes", "UseShadowDecals", "ExtraAnimations", "Gamma",
+            "IdealStaticGameLOD", "StaticGameLOD",
+        };
+
+        var networkKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "GameSpyIPAddress", "IPAddress",
+        };
+
+        // TheSuperHackers / GeneralsOnline specific keys that appear in flat format
+        var theSuperHackersKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "ArchiveReplays", "BuildingOcclusion", "CursorCaptureEnabledInFullscreenGame",
+            "CursorCaptureEnabledInFullscreenMenu", "CursorCaptureEnabledInWindowedGame",
+            "CursorCaptureEnabledInWindowedMenu", "DrawScrollAnchor", "DynamicLOD",
+            "GameTimeFontSize", "HeatEffects", "LanguageFilter", "MaxParticleCount",
+            "MoneyTransactionVolume", "MoveScrollAnchor", "NetworkLatencyFontSize",
+            "PlayerObserverEnabled", "RenderFpsFontSize", "ResolutionFontAdjustment",
+            "Retaliation", "ScreenEdgeScrollEnabledInFullscreenApp",
+            "ScreenEdgeScrollEnabledInWindowedApp", "ScrollFactor", "SendDelay",
+            "ShowMoneyPerMinute", "ShowSoftWaterEdge", "ShowTrees", "SystemTimeFontSize",
+            "UseAlternateMouse", "UseCloudMap", "UseDoubleClickAttackMove", "UseLightMap",
+        };
+
+        var audioDict = new Dictionary<string, string>();
+        var videoDict = new Dictionary<string, string>();
+        var networkDict = new Dictionary<string, string>();
+        var theSuperHackersDict = new Dictionary<string, string>();
+
+        foreach (var kvp in rootDict)
+        {
+            // Skip duplicate keys (e.g., duplicate SFXVolume at end with BOM)
+            if (string.IsNullOrWhiteSpace(kvp.Key))
+                continue;
+
+            if (audioKeys.Contains(kvp.Key))
+            {
+                // Only set if not already set (prevents BOM duplicates)
+                if (!audioDict.ContainsKey(kvp.Key))
+                    audioDict[kvp.Key] = kvp.Value;
+            }
+            else if (videoKeys.Contains(kvp.Key))
+            {
+                if (!videoDict.ContainsKey(kvp.Key))
+                    videoDict[kvp.Key] = kvp.Value;
+            }
+            else if (networkKeys.Contains(kvp.Key))
+            {
+                if (!networkDict.ContainsKey(kvp.Key))
+                    networkDict[kvp.Key] = kvp.Value;
+            }
+            else if (theSuperHackersKeys.Contains(kvp.Key))
+            {
+                if (!theSuperHackersDict.ContainsKey(kvp.Key))
+                    theSuperHackersDict[kvp.Key] = kvp.Value;
+            }
+            else
+            {
+                // Unknown keys go to video AdditionalProperties by default
+                if (!videoDict.ContainsKey(kvp.Key))
+                    videoDict[kvp.Key] = kvp.Value;
+            }
+        }
+
+        if (audioDict.Count > 0)
+        {
+            ParseAudioSection(options.Audio, audioDict);
+        }
+
+        if (videoDict.Count > 0)
+        {
+            ParseVideoSection(options.Video, videoDict);
+        }
+
+        if (networkDict.Count > 0)
+        {
+            ParseNetworkSection(options.Network, networkDict);
+        }
+
+        // Store TheSuperHackers settings in AdditionalSections to preserve them
+        if (theSuperHackersDict.Count > 0)
+            options.AdditionalSections["TheSuperHackers"] = theSuperHackersDict;
     }
 
     private static void ProcessSection(IniOptions options, string sectionName, Dictionary<string, string> values)
@@ -306,6 +412,9 @@ public class GameSettingsService : IGameSettingsService
             case "VIDEO":
                 ParseVideoSection(options.Video, values);
                 break;
+            case "NETWORK":
+                ParseNetworkSection(options.Network, values);
+                break;
             default:
                 options.AdditionalSections[sectionName] = new Dictionary<string, string>(values);
                 break;
@@ -314,60 +423,114 @@ public class GameSettingsService : IGameSettingsService
 
     private static void ParseAudioSection(AudioSettings audio, Dictionary<string, string> values)
     {
-        if (values.TryGetValue("SFXVolume", out var sfxVolume) && int.TryParse(sfxVolume, out var sv))
-            audio.SFXVolume = sv;
+        var knownKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "SFXVolume", "SFX3DVolume", "VoiceVolume", "MusicVolume", "AudioEnabled", "NumSounds",
+        };
 
-        if (values.TryGetValue("SFX3DVolume", out var sfx3DVolume) && int.TryParse(sfx3DVolume, out var s3v))
-            audio.SFX3DVolume = s3v;
+        foreach (var kvp in values)
+        {
+            if (!knownKeys.Contains(kvp.Key))
+            {
+                // Preserve unknown settings
+                audio.AdditionalProperties[kvp.Key] = kvp.Value;
+                continue;
+            }
 
-        if (values.TryGetValue("VoiceVolume", out var voiceVolume) && int.TryParse(voiceVolume, out var vv))
-            audio.VoiceVolume = vv;
-
-        if (values.TryGetValue("MusicVolume", out var musicVolume) && int.TryParse(musicVolume, out var mv))
-            audio.MusicVolume = mv;
-
-        if (values.TryGetValue("AudioEnabled", out var audioEnabled))
-            audio.AudioEnabled = ParseBool(audioEnabled);
-
-        if (values.TryGetValue("NumSounds", out var numSounds) && int.TryParse(numSounds, out var ns))
-            audio.NumSounds = ns;
+            switch (kvp.Key)
+            {
+                case "SFXVolume" when int.TryParse(kvp.Value, out var sv):
+                    audio.SFXVolume = sv;
+                    break;
+                case "SFX3DVolume" when int.TryParse(kvp.Value, out var s3v):
+                    audio.SFX3DVolume = s3v;
+                    break;
+                case "VoiceVolume" when int.TryParse(kvp.Value, out var vv):
+                    audio.VoiceVolume = vv;
+                    break;
+                case "MusicVolume" when int.TryParse(kvp.Value, out var mv):
+                    audio.MusicVolume = mv;
+                    break;
+                case "AudioEnabled":
+                    audio.AudioEnabled = ParseBool(kvp.Value);
+                    break;
+                case "NumSounds" when int.TryParse(kvp.Value, out var ns):
+                    audio.NumSounds = ns;
+                    break;
+            }
+        }
     }
 
     private static void ParseVideoSection(VideoSettings video, Dictionary<string, string> values)
     {
-        // Resolution format is "width height" (e.g., "1920 1080")
-        if (values.TryGetValue("Resolution", out var resolution))
+        var knownKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            var parts = resolution.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length == 2 &&
-                int.TryParse(parts[0], out var width) &&
-                int.TryParse(parts[1], out var height))
+            "Resolution", "Windowed", "TextureReduction", "AntiAliasing",
+            "UseShadowVolumes", "UseShadowDecals", "ExtraAnimations", "Gamma",
+        };
+
+        foreach (var kvp in values)
+        {
+            if (!knownKeys.Contains(kvp.Key))
             {
-                video.ResolutionWidth = width;
-                video.ResolutionHeight = height;
+                // Preserve unknown settings
+                video.AdditionalProperties[kvp.Key] = kvp.Value;
+                continue;
+            }
+
+            switch (kvp.Key)
+            {
+                case "Resolution":
+                    var parts = kvp.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length == 2 &&
+                        int.TryParse(parts[0], out var width) &&
+                        int.TryParse(parts[1], out var height))
+                    {
+                        video.ResolutionWidth = width;
+                        video.ResolutionHeight = height;
+                    }
+
+                    break;
+                case "Windowed":
+                    video.Windowed = ParseBool(kvp.Value);
+                    break;
+                case "TextureReduction" when int.TryParse(kvp.Value, out var tr):
+                    video.TextureReduction = tr;
+                    break;
+                case "AntiAliasing" when int.TryParse(kvp.Value, out var aa):
+                    video.AntiAliasing = aa;
+                    break;
+                case "UseShadowVolumes":
+                    video.UseShadowVolumes = ParseBool(kvp.Value);
+                    break;
+                case "UseShadowDecals":
+                    video.UseShadowDecals = ParseBool(kvp.Value);
+                    break;
+                case "ExtraAnimations":
+                    video.ExtraAnimations = ParseBool(kvp.Value);
+                    break;
+                case "Gamma" when int.TryParse(kvp.Value, out var g):
+                    video.Gamma = g;
+                    break;
             }
         }
+    }
 
-        if (values.TryGetValue("Windowed", out var windowed))
-            video.Windowed = ParseBool(windowed);
-
-        if (values.TryGetValue("TextureReduction", out var textureReduction) && int.TryParse(textureReduction, out var tr))
-            video.TextureReduction = tr;
-
-        if (values.TryGetValue("AntiAliasing", out var antiAliasing) && int.TryParse(antiAliasing, out var aa))
-            video.AntiAliasing = aa;
-
-        if (values.TryGetValue("UseShadowVolumes", out var useShadowVolumes))
-            video.UseShadowVolumes = ParseBool(useShadowVolumes);
-
-        if (values.TryGetValue("UseShadowDecals", out var useShadowDecals))
-            video.UseShadowDecals = ParseBool(useShadowDecals);
-
-        if (values.TryGetValue("ExtraAnimations", out var extraAnims))
-            video.ExtraAnimations = ParseBool(extraAnims);
-
-        if (values.TryGetValue("Gamma", out var gamma) && int.TryParse(gamma, out var g))
-            video.Gamma = g;
+    private static void ParseNetworkSection(NetworkSettings network, Dictionary<string, string> values)
+    {
+        foreach (var kvp in values)
+        {
+            switch (kvp.Key)
+            {
+                case "GameSpyIPAddress":
+                    network.GameSpyIPAddress = kvp.Value;
+                    break;
+                default:
+                    // Preserve unknown settings
+                    network.AdditionalProperties[kvp.Key] = kvp.Value;
+                    break;
+            }
+        }
     }
 
     private static bool ParseBool(string value)
@@ -379,33 +542,67 @@ public class GameSettingsService : IGameSettingsService
 
     private static string[] SerializeOptionsIni(IniOptions options)
     {
-        var lines = new List<string>
-        {
-            "; Command & Conquer Generals/Zero Hour Options",
-            "; Generated by GenHub",
-            string.Empty,
-            "[AUDIO]",
-            $"SFXVolume={options.Audio.SFXVolume}",
-            $"SFX3DVolume={options.Audio.SFX3DVolume}",
-            $"VoiceVolume={options.Audio.VoiceVolume}",
-            $"MusicVolume={options.Audio.MusicVolume}",
-            $"AudioEnabled={BoolToString(options.Audio.AudioEnabled)}",
-            $"NumSounds={options.Audio.NumSounds}",
-            string.Empty,
-            "[VIDEO]",
-            $"Resolution={options.Video.ResolutionWidth} {options.Video.ResolutionHeight}",
-            $"Windowed={BoolToString(options.Video.Windowed)}",
-            $"TextureReduction={options.Video.TextureReduction}",
-            $"AntiAliasing={options.Video.AntiAliasing}",
-            $"UseShadowVolumes={BoolToString(options.Video.UseShadowVolumes)}",
-            $"UseShadowDecals={BoolToString(options.Video.UseShadowDecals)}",
-            $"ExtraAnimations={BoolToString(options.Video.ExtraAnimations)}",
-            $"Gamma={options.Video.Gamma}",
-        };
+        var lines = new List<string>();
 
-        // Add additional sections
+        // Write all settings in flat format (no sections) as the game expects
+        // Audio settings
+        lines.Add($"SFXVolume={options.Audio.SFXVolume}");
+        lines.Add($"SFX3DVolume={options.Audio.SFX3DVolume}");
+        lines.Add($"VoiceVolume={options.Audio.VoiceVolume}");
+        lines.Add($"MusicVolume={options.Audio.MusicVolume}");
+        lines.Add($"AudioEnabled={BoolToString(options.Audio.AudioEnabled)}");
+        lines.Add($"NumSounds={options.Audio.NumSounds}");
+
+        // Add additional audio properties
+        foreach (var kvp in options.Audio.AdditionalProperties)
+        {
+            lines.Add($"{kvp.Key}={kvp.Value}");
+        }
+
+        // Video settings
+        lines.Add($"Resolution={options.Video.ResolutionWidth} {options.Video.ResolutionHeight}");
+        lines.Add($"Windowed={BoolToString(options.Video.Windowed)}");
+        lines.Add($"TextureReduction={options.Video.TextureReduction}");
+        lines.Add($"AntiAliasing={options.Video.AntiAliasing}");
+        lines.Add($"UseShadowVolumes={BoolToString(options.Video.UseShadowVolumes)}");
+        lines.Add($"UseShadowDecals={BoolToString(options.Video.UseShadowDecals)}");
+        lines.Add($"ExtraAnimations={BoolToString(options.Video.ExtraAnimations)}");
+        lines.Add($"Gamma={options.Video.Gamma}");
+
+        // Add additional video properties
+        foreach (var kvp in options.Video.AdditionalProperties)
+        {
+            lines.Add($"{kvp.Key}={kvp.Value}");
+        }
+
+        // TheSuperHackers/GeneralsOnline settings (flat, no section header)
+        if (options.AdditionalSections.TryGetValue("TheSuperHackers", out var tshSettings))
+        {
+            foreach (var kvp in tshSettings)
+            {
+                lines.Add($"{kvp.Key}={kvp.Value}");
+            }
+        }
+
+        // Network settings
+        if (!string.IsNullOrEmpty(options.Network.GameSpyIPAddress))
+        {
+            lines.Add($"GameSpyIPAddress={options.Network.GameSpyIPAddress}");
+        }
+
+        // Add additional network properties
+        foreach (var kvp in options.Network.AdditionalProperties)
+        {
+            lines.Add($"{kvp.Key}={kvp.Value}");
+        }
+
+        // Add any other additional sections with section headers (for future extensibility)
         foreach (var section in options.AdditionalSections)
         {
+            // Skip TheSuperHackers - already written flat above
+            if (section.Key.Equals("TheSuperHackers", StringComparison.OrdinalIgnoreCase))
+                continue;
+
             lines.Add(string.Empty);
             lines.Add($"[{section.Key}]");
             foreach (var kvp in section.Value)
@@ -414,7 +611,7 @@ public class GameSettingsService : IGameSettingsService
             }
         }
 
-        return lines.ToArray();
+        return [.. lines];
     }
 
     private static string BoolToString(bool value) => value ? "yes" : "no";
@@ -485,7 +682,7 @@ public class GameSettingsService : IGameSettingsService
         };
     }
 
-    private string GetGeneralsOnlineSettingsPath()
+    private static string GetGeneralsOnlineSettingsPath()
     {
         var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         var zeroHourDataPath = Path.Combine(documentsPath, GameSettingsConstants.FolderNames.ZeroHour);

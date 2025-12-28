@@ -1,11 +1,19 @@
-using System;
 using GenHub.Common.ViewModels;
+using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Interfaces.Storage;
+using GenHub.Core.Interfaces.Workspace;
+using GenHub.Features.AppUpdate.Interfaces;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.ViewModels;
 using GenHub.Features.Settings.ViewModels;
 using GenHub.Features.Tools.ViewModels;
+using System;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace GenHub.Infrastructure.DependencyInjection;
 
@@ -28,7 +36,17 @@ public static class SharedViewModelModule
         services.AddSingleton<GameProfileLauncherViewModel>();
         services.AddSingleton<DownloadsViewModel>();
         services.AddSingleton<ToolsViewModel>();
-        services.AddSingleton<SettingsViewModel>();
+        services.AddSingleton<SettingsViewModel>(sp => new SettingsViewModel(
+            sp.GetRequiredService<IUserSettingsService>(),
+            sp.GetRequiredService<ILogger<SettingsViewModel>>(),
+            sp.GetRequiredService<ICasService>(),
+            sp.GetRequiredService<IGameProfileManager>(),
+            sp.GetRequiredService<IWorkspaceManager>(),
+            sp.GetRequiredService<IContentManifestPool>(),
+            sp.GetRequiredService<IVelopackUpdateManager>(),
+            sp.GetRequiredService<INotificationService>(),
+            sp.GetRequiredService<IConfigurationProviderService>(),
+            sp.GetRequiredService<IGameInstallationService>()));
         services.AddSingleton<GameProfileSettingsViewModel>();
 
         // Register PublisherCardViewModel as transient

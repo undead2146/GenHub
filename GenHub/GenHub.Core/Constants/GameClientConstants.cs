@@ -13,6 +13,9 @@ public static class GameClientConstants
     /// <summary>Zero Hour executable filename.</summary>
     public const string ZeroHourExecutable = "generals.exe";
 
+    /// <summary>Steam game.dat executable (alternative to generals.exe for Steam-free launch).</summary>
+    public const string SteamGameDatExecutable = "game.dat";
+
     // ===== SuperHackers Client Detection =====
 
     /// <summary>SuperHackers Generals executable filename.</summary>
@@ -20,6 +23,12 @@ public static class GameClientConstants
 
     /// <summary>Super Hackers Zero Hour executable filename.</summary>
     public const string SuperHackersZeroHourExecutable = "generalszh.exe";
+
+    /// <summary>Display name for SuperHackers Generals client.</summary>
+    public const string SuperHackersGeneralsDisplayName = "SuperHackers Generals";
+
+    /// <summary>Display name for SuperHackers Zero Hour client.</summary>
+    public const string SuperHackersZeroHourDisplayName = "SuperHackers Zero Hour";
 
     // ===== Game Directory Names =====
 
@@ -159,5 +168,15 @@ public static class GameClientConstants
     {
         GeneralsOnline30HzExecutable,
         GeneralsOnline60HzExecutable,
+    };
+
+    /// <summary>
+    /// List of SuperHackers executable names to detect.
+    /// SuperHackers releases weekly game client builds for Generals and Zero Hour.
+    /// </summary>
+    public static readonly IReadOnlyList<string> SuperHackersExecutableNames = new[]
+    {
+        SuperHackersGeneralsExecutable,  // generalsv.exe
+        SuperHackersZeroHourExecutable,  // generalszh.exe
     };
 }

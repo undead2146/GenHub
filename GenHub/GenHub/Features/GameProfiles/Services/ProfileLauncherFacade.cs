@@ -55,7 +55,7 @@ public class ProfileLauncherFacade(
     private static readonly TimeSpan GameSettingsApplicationTimeout = TimeSpan.FromSeconds(5);
 
     /// <inheritdoc/>
-    public async Task<ProfileOperationResult<GameLaunchInfo>> LaunchProfileAsync(string profileId, CancellationToken cancellationToken = default)
+    public async Task<ProfileOperationResult<GameLaunchInfo>> LaunchProfileAsync(string profileId, bool skipUserDataCleanup = false, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -213,7 +213,7 @@ public class ProfileLauncherFacade(
             // Launch the game using the profile
             logger.LogDebug("[Launch] Step 6: Delegating to GameLauncher for workspace prep and process start");
 
-            var launchResult = await gameLauncher.LaunchProfileAsync(profile, cancellationToken: cancellationToken);
+            var launchResult = await gameLauncher.LaunchProfileAsync(profile, progress: null, skipUserDataCleanup: skipUserDataCleanup, cancellationToken: cancellationToken);
 
             if (launchResult.Failed)
             {

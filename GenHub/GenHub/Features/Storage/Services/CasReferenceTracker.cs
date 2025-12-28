@@ -40,8 +40,8 @@ public class CasReferenceTracker(
         // Validate parameters before acquiring semaphore
         if (string.IsNullOrWhiteSpace(manifestId))
             throw new ArgumentException("Manifest ID cannot be null or empty", nameof(manifestId));
-        if (manifest == null)
-            throw new ArgumentNullException(nameof(manifest));
+
+        ArgumentNullException.ThrowIfNull(manifest);
 
         EnsureRefsDirectory();
         await _writeSemaphore.WaitAsync(cancellationToken);
@@ -68,7 +68,7 @@ public class CasReferenceTracker(
                     ManifestId = manifestId,
                     References = references,
                     TrackedAt = DateTime.UtcNow,
-                    ManifestVersion = manifest.ManifestVersion,
+                    manifest.ManifestVersion,
                 };
 
                 var json = JsonSerializer.Serialize(refData, JsonOptions);
@@ -106,8 +106,8 @@ public class CasReferenceTracker(
     {
         if (string.IsNullOrWhiteSpace(workspaceId))
             throw new ArgumentException("Workspace ID cannot be null or empty", nameof(workspaceId));
-        if (referencedHashes == null)
-            throw new ArgumentNullException(nameof(referencedHashes));
+
+        ArgumentNullException.ThrowIfNull(referencedHashes);
 
         try
         {
@@ -123,7 +123,7 @@ public class CasReferenceTracker(
             var refData = new
             {
                 WorkspaceId = workspaceId,
-                References = referencedHashes as HashSet<string> ?? referencedHashes.ToHashSet(),
+                References = referencedHashes.ToHashSet(),
                 TrackedAt = DateTime.UtcNow,
             };
 

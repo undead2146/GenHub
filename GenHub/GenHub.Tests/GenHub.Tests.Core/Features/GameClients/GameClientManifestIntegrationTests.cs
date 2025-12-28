@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using GenHub.Common.Services;
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.Content;
+using GenHub.Core.Interfaces.GameClients;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
@@ -53,6 +55,7 @@ public class GameClientManifestIntegrationTests : IDisposable
             _manifestPoolMock.Object,
             _hashProvider,
             new GameClientHashRegistry(),
+            Enumerable.Empty<IGameClientIdentifier>(),
             NullLogger<GameClientDetector>.Instance);
     }
 

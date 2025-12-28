@@ -52,7 +52,7 @@ public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstal
     public string ZeroHourPath { get; private set; } = string.Empty;
 
     /// <inheritdoc/>
-    public List<GameClient> AvailableGameClients { get; } = new();
+    public List<GameClient> AvailableGameClients { get; } = [];
 
     /// <summary>
     /// Gets a value indicating whether the EA App is installed successfully.
@@ -114,10 +114,10 @@ public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstal
                 {
                     // Check for any common Generals executable (generals.exe, generalsv.exe, etc.)
                     string[] generalsExecutables =
-                    {
+                    [
                         GameClientConstants.GeneralsExecutable,
                         GameClientConstants.SuperHackersGeneralsExecutable,
-                    };
+                    ];
 
                     if (HasAnyExecutable(gamePath, generalsExecutables))
                     {
@@ -271,8 +271,7 @@ public class EaAppInstallation(ILogger<EaAppInstallation>? logger) : IGameInstal
                 return false;
             }
 
-            var successValue = key.GetValue("InstallSuccessful") as string;
-            if (successValue == null)
+            if (key.GetValue("InstallSuccessful") is not string successValue)
             {
                 logger?.LogDebug("EA App InstallSuccessful value not found in registry");
                 return false;

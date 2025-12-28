@@ -1,5 +1,6 @@
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Content;
+using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GeneralsOnline;
 using GenHub.Core.Models.Results;
@@ -18,23 +19,12 @@ namespace GenHub.Features.Content.Services.GeneralsOnline;
 /// Discovers Generals Online releases by querying the CDN API.
 /// Supports both manifest.json API and latest.txt polling for release discovery.
 /// </summary>
-public class GeneralsOnlineDiscoverer : IContentDiscoverer
+public class GeneralsOnlineDiscoverer(
+    ILogger<GeneralsOnlineDiscoverer> logger,
+    IHttpClientFactory httpClientFactory) : IContentDiscoverer
 {
-    private readonly ILogger<GeneralsOnlineDiscoverer> _logger;
-    private readonly HttpClient _httpClient;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="GeneralsOnlineDiscoverer"/> class.
-    /// </summary>
-    /// <param name="logger">The logger for diagnostic information.</param>
-    /// <param name="httpClientFactory">Factory for creating HTTP clients.</param>
-    public GeneralsOnlineDiscoverer(
-        ILogger<GeneralsOnlineDiscoverer> logger,
-        IHttpClientFactory httpClientFactory)
-    {
-        _logger = logger;
-        _httpClient = httpClientFactory.CreateClient(GeneralsOnlineConstants.PublisherType);
-    }
+    private readonly ILogger<GeneralsOnlineDiscoverer> _logger = logger;
+    private readonly HttpClient _httpClient = httpClientFactory.CreateClient(GeneralsOnlineConstants.PublisherType);
 
     /// <inheritdoc />
     public string SourceName => GeneralsOnlineConstants.PublisherType;
@@ -88,8 +78,7 @@ public class GeneralsOnlineDiscoverer : IContentDiscoverer
             if (release == null)
             {
                 _logger.LogInformation("No Generals Online releases available");
-                return OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(
-                    Enumerable.Empty<ContentSearchResult>());
+                return OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess([]);
             }
 
             // Filter by search query if provided
@@ -97,14 +86,13 @@ public class GeneralsOnlineDiscoverer : IContentDiscoverer
                 !release.Version.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase) &&
                 !GeneralsOnlineConstants.ContentName.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase))
             {
-                return OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(
-                    Enumerable.Empty<ContentSearchResult>());
+                return OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess([]);
             }
 
             var searchResult = CreateSearchResult(release);
 
             return OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(
-                new[] { searchResult });
+                [searchResult]);
         }
         catch (Exception ex)
         {
@@ -228,7 +216,7 @@ public class GeneralsOnlineDiscoverer : IContentDiscoverer
         try
         {
             // Split on underscore to separate date from QFE portion
-            var parts = version.Split(new[] { GeneralsOnlineConstants.QfeSeparator }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var parts = version.Split([GeneralsOnlineConstants.QfeSeparator], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (parts.Length < 1)
             {
                 _logger.LogWarning("Failed to parse version date from: {Version} - invalid format", version);
@@ -242,9 +230,9 @@ public class GeneralsOnlineDiscoverer : IContentDiscoverer
                 return null;
             }
 
-            var month = int.Parse(datePart.Substring(0, 2));
-            var day = int.Parse(datePart.Substring(2, 2));
-            var year = 2000 + int.Parse(datePart.Substring(4, 2));
+            var month = int.Parse(datePart[0..2]);
+            var day = int.Parse(datePart[2..4]);
+            var year = 2000 + int.Parse(datePart[4..6]);
 
             return new DateTime(year, month, day);
         }

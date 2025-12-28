@@ -62,6 +62,12 @@ public class CasMaintenanceService(
         _logger.LogInformation("CAS maintenance service stopped");
     }
 
+    private static bool ShouldRunIntegrityValidation()
+    {
+        // Run integrity validation once per week
+        return DateTime.UtcNow.DayOfWeek == DayOfWeek.Sunday;
+    }
+
     private async Task RunMaintenanceTasksAsync(CancellationToken cancellationToken)
     {
         using var scope = _serviceProvider.CreateScope();
@@ -70,7 +76,7 @@ public class CasMaintenanceService(
         _logger.LogDebug("Starting CAS maintenance tasks");
 
         // Run garbage collection
-        var gcResult = await casService.RunGarbageCollectionAsync(cancellationToken);
+        var gcResult = await casService.RunGarbageCollectionAsync(cancellationToken: cancellationToken);
 
         if (gcResult.Success)
         {
@@ -96,11 +102,5 @@ public class CasMaintenanceService(
                 _logger.LogWarning("CAS integrity validation found {IssueCount} issues in {ObjectsValidated} objects", validationResult.ObjectsWithIssues, validationResult.ObjectsValidated);
             }
         }
-    }
-
-    private bool ShouldRunIntegrityValidation()
-    {
-        // Run integrity validation once per week
-        return DateTime.UtcNow.DayOfWeek == DayOfWeek.Sunday;
     }
 }

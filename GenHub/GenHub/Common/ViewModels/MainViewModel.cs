@@ -14,6 +14,7 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Features.AppUpdate.Interfaces;
 using GenHub.Features.Downloads.ViewModels;
+using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.ViewModels;
 using GenHub.Features.Notifications.ViewModels;
 using GenHub.Features.Settings.ViewModels;
@@ -33,6 +34,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IUserSettingsService _userSettingsService;
     private readonly IProfileEditorFacade _profileEditorFacade;
     private readonly IVelopackUpdateManager _velopackUpdateManager;
+    private readonly ProfileResourceService _profileResourceService;
     private readonly CancellationTokenSource _initializationCts = new();
 
     [ObservableProperty]
@@ -54,6 +56,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <param name="userSettingsService">User settings service for persistence operations.</param>
     /// <param name="profileEditorFacade">Profile editor facade for automatic profile creation.</param>
     /// <param name="velopackUpdateManager">The Velopack update manager for checking updates.</param>
+    /// <param name="profileResourceService">Service for accessing profile resources.</param>
     /// <param name="logger">Logger instance.</param>
     public MainViewModel(
         GameProfileLauncherViewModel gameProfilesViewModel,
@@ -66,6 +69,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IUserSettingsService userSettingsService,
         IProfileEditorFacade profileEditorFacade,
         IVelopackUpdateManager velopackUpdateManager,
+        ProfileResourceService profileResourceService,
         ILogger<MainViewModel>? logger = null)
     {
         GameProfilesViewModel = gameProfilesViewModel;
@@ -78,13 +82,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _userSettingsService = userSettingsService;
         _profileEditorFacade = profileEditorFacade ?? throw new ArgumentNullException(nameof(profileEditorFacade));
         _velopackUpdateManager = velopackUpdateManager ?? throw new ArgumentNullException(nameof(velopackUpdateManager));
+        _profileResourceService = profileResourceService ?? throw new ArgumentNullException(nameof(profileResourceService));
         _logger = logger;
 
         // Load initial settings using unified configuration
         try
         {
             _selectedTab = _configurationProvider.GetLastSelectedTab();
-            _logger?.LogDebug($"Initial settings loaded, selected tab: {_selectedTab}");
+            if (_selectedTab == NavigationTab.Tools)
+            {
+                _selectedTab = NavigationTab.GameProfiles;
+            }
+
+            _logger?.LogDebug("Initial settings loaded, selected tab: {Tab}", _selectedTab);
         }
         catch (Exception ex)
         {
@@ -123,18 +133,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Gets the collection of detected game installations.
     /// </summary>
-    public ObservableCollection<string> GameInstallations { get; } = new();
+    public ObservableCollection<string> GameInstallations { get; } = [];
 
     /// <summary>
     /// Gets the available navigation tabs.
     /// </summary>
     public NavigationTab[] AvailableTabs { get; } =
-    {
+    [
         NavigationTab.GameProfiles,
         NavigationTab.Downloads,
-        NavigationTab.Tools,
         NavigationTab.Settings,
-    };
+    ];
 
     /// <summary>
     /// Gets the current tab's ViewModel for ContentControl binding.
@@ -252,49 +261,67 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 try
                 {
                     // Skip installations that don't have available game clients
-                    if (!installation.AvailableGameClients.Any())
+                    if (installation.AvailableGameClients.Count == 0)
                     {
                         _logger?.LogWarning("Skipping installation {InstallationId} - no available GameClients found", installation.Id);
                         continue;
                     }
 
-                    // Use the first available game client for profile creation
-                    var gameClient = installation.AvailableGameClients.First();
-                    if (!gameClient.IsValid)
+                    // Create profiles for ALL available game clients (standard, GeneralsOnline, SuperHackers, etc.)
+                    foreach (var gameClient in installation.AvailableGameClients)
                     {
-                        _logger?.LogWarning("Skipping installation {InstallationId} - GameClient {ClientId} is not valid", installation.Id, gameClient.Id);
-                        continue;
-                    }
+                        if (!gameClient.IsValid)
+                        {
+                            _logger?.LogWarning("Skipping GameClient {ClientId} in installation {InstallationId} - not valid", gameClient.Id, installation.Id);
+                            continue;
+                        }
 
-                    var gameClientId = gameClient.Id;
+                        var gameClientId = gameClient.Id;
 
-                    // Create a profile request from the installation
-                    var createRequest = new CreateProfileRequest
-                    {
-                        Name = $"{installation.InstallationType} Profile",
-                        GameInstallationId = installation.Id,
-                        GameClientId = gameClientId,
-                        Description = $"Auto-created profile for {installation.InstallationType} installation at {installation.InstallationPath}",
-                        PreferredStrategy = WorkspaceStrategy.HybridCopySymlink,
-                    };
+                        // Determine assets based on game type using ProfileResourceService
+                        var gameTypeStr = gameClient.GameType.ToString();
+                        var iconPath = _profileResourceService.GetDefaultIconPath(gameTypeStr);
+                        var coverPath = _profileResourceService.GetDefaultCoverPath(gameTypeStr);
 
-                    var profileResult = await _profileEditorFacade.CreateProfileWithWorkspaceAsync(createRequest);
+                        // Create a profile request for this game client
+                        var createRequest = new CreateProfileRequest
+                        {
+                            Name = $"{installation.InstallationType} {gameClient.Name}",
+                            GameInstallationId = installation.Id,
+                            GameClientId = gameClientId,
+                            Description = $"Auto-created profile for {gameClient.Name} in {installation.InstallationType} installation",
+                            PreferredStrategy = WorkspaceStrategy.HybridCopySymlink,
+                            IconPath = iconPath,
+                            CoverPath = coverPath,
+                        };
 
-                    if (profileResult.Success)
-                    {
-                        createdCount++;
-                        _logger?.LogInformation(
-                            "Created profile '{ProfileName}' for installation {InstallationId}",
-                            profileResult.Data?.Name,
-                            installation.Id);
-                    }
-                    else
-                    {
-                        failedCount++;
-                        _logger?.LogWarning(
-                            "Failed to create profile for installation {InstallationId}: {Errors}",
-                            installation.Id,
-                            string.Join(", ", profileResult.Errors));
+                        var profileResult = await _profileEditorFacade.CreateProfileWithWorkspaceAsync(createRequest);
+
+                        if (profileResult.Success)
+                        {
+                            createdCount++;
+                            _logger?.LogInformation(
+                                "Created profile '{ProfileName}' for {GameClientName}",
+                                profileResult.Data?.Name,
+                                gameClient.Name);
+                        }
+                        else
+                        {
+                            // Profile might already exist - don't count as failure
+                            var errors = string.Join(", ", profileResult.Errors);
+                            if (errors.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+                            {
+                                _logger?.LogDebug("Profile already exists for {GameClientName}", gameClient.Name);
+                            }
+                            else
+                            {
+                                failedCount++;
+                                _logger?.LogWarning(
+                                    "Failed to create profile for {GameClientName}: {Errors}",
+                                    gameClient.Name,
+                                    errors);
+                            }
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -345,6 +372,58 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         try
         {
+            // Check if subscribed to a PR - if so, check for PR artifact updates instead
+            var settings = _userSettingsService.Get();
+            if (settings.SubscribedPrNumber.HasValue)
+            {
+                _logger?.LogDebug("User subscribed to PR #{PrNumber}, checking for PR artifact updates", settings.SubscribedPrNumber);
+                _velopackUpdateManager.SubscribedPrNumber = settings.SubscribedPrNumber;
+
+                // Fetch PR list to populate artifact info
+                var prs = await _velopackUpdateManager.GetOpenPullRequestsAsync(cancellationToken);
+                var subscribedPr = prs.FirstOrDefault(p => p.Number == settings.SubscribedPrNumber);
+
+                if (subscribedPr?.LatestArtifact != null)
+                {
+                    // Compare versions (strip build metadata)
+                    var currentVersionBase = AppConstants.AppVersion.Split('+')[0];
+                    var prVersionBase = subscribedPr.LatestArtifact.Version.Split('+')[0];
+
+                    if (!string.Equals(prVersionBase, currentVersionBase, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Check if this PR version was dismissed
+                        var dismissedVersionBase = settings.DismissedUpdateVersion?.Split('+')[0];
+
+                        if (string.IsNullOrEmpty(dismissedVersionBase) ||
+                            !string.Equals(prVersionBase, dismissedVersionBase, StringComparison.OrdinalIgnoreCase))
+                        {
+                            _logger?.LogInformation("PR #{PrNumber} artifact update available: {Version}", subscribedPr.Number, prVersionBase);
+                            HasUpdateAvailable = true;
+                            return;
+                        }
+                        else
+                        {
+                            _logger?.LogDebug("PR #{PrNumber} artifact update {Version} was dismissed", subscribedPr.Number, prVersionBase);
+                            HasUpdateAvailable = false;
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        _logger?.LogDebug("Already on latest PR #{PrNumber} artifact version", subscribedPr.Number);
+                        HasUpdateAvailable = false;
+                        return;
+                    }
+                }
+                else
+                {
+                    _logger?.LogDebug("PR #{PrNumber} has no artifacts or PR not found", settings.SubscribedPrNumber);
+
+                    // Fall through to check main branch updates
+                }
+            }
+
+            // Check main branch updates (if not subscribed to PR or PR has no artifacts)
             var updateInfo = await _velopackUpdateManager.CheckForUpdatesAsync(cancellationToken);
 
             // Check both UpdateInfo (from installed app) and GitHub API flag (works in debug too)
@@ -352,16 +431,45 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             if (hasUpdate)
             {
+                string? latestVersion = null;
+
                 if (updateInfo != null)
                 {
-                    _logger?.LogInformation("Update available: {Current} → {Latest}", AppConstants.AppVersion, updateInfo.TargetFullRelease.Version);
+                    latestVersion = updateInfo.TargetFullRelease.Version.ToString();
+                    _logger?.LogInformation("Update available: {Current} → {Latest}", AppConstants.AppVersion, latestVersion);
                 }
                 else if (_velopackUpdateManager.LatestVersionFromGitHub != null)
                 {
-                    _logger?.LogInformation("Update available from GitHub API: {Version}", _velopackUpdateManager.LatestVersionFromGitHub);
+                    latestVersion = _velopackUpdateManager.LatestVersionFromGitHub;
+                    _logger?.LogInformation("Update available from GitHub API: {Version}", latestVersion);
                 }
 
-                HasUpdateAvailable = true;
+                // Strip build metadata for comparison (everything after '+')
+                var latestVersionBase = latestVersion?.Split('+')[0];
+                var currentVersionBase = AppConstants.AppVersion.Split('+')[0];
+
+                // Check if this version was dismissed by the user
+                var settings2 = _userSettingsService.Get();
+                var dismissedVersionBase = settings2.DismissedUpdateVersion?.Split('+')[0];
+
+                if (!string.IsNullOrEmpty(latestVersionBase) &&
+                    string.Equals(latestVersionBase, dismissedVersionBase, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger?.LogDebug("Update {Version} was dismissed by user, hiding notification", latestVersionBase);
+                    HasUpdateAvailable = false;
+                }
+
+                // Also check if we're already on this version (ignoring build metadata)
+                else if (!string.IsNullOrEmpty(latestVersionBase) &&
+                         string.Equals(latestVersionBase, currentVersionBase, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger?.LogDebug("Already on version {Version} (ignoring build metadata), hiding notification", latestVersionBase);
+                    HasUpdateAvailable = false;
+                }
+                else
+                {
+                    HasUpdateAvailable = true;
+                }
             }
             else
             {
@@ -402,7 +510,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             });
 
             _ = _userSettingsService.SaveAsync();
-            _logger?.LogDebug($"Updated last selected tab to: {selectedTab}");
+            _logger?.LogDebug("Updated last selected tab to: {Tab}", selectedTab);
         }
         catch (Exception ex)
         {

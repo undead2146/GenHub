@@ -26,6 +26,12 @@ public class ManifestGenerationService(
     IFileHashProvider hashProvider,
     IManifestIdService manifestIdService) : IManifestGenerationService
 {
+    private static readonly JsonSerializerOptions _jsonSerializerOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
     private int _fileCount = 0;
 
     /// <summary>
@@ -115,7 +121,7 @@ public class ManifestGenerationService(
     /// <param name="targetGame">Target game type.</param>
     /// <param name="dependencies">Dependencies for this content.</param>
     /// <returns>A <see cref="Task"/> that returns a configured manifest builder.</returns>
-    public Task<IContentManifestBuilder> CreateContentManifestAsync(
+    public async Task<IContentManifestBuilder> CreateContentManifestAsync(
         string contentDirectory,
         string publisherId,
         string contentName,
@@ -148,7 +154,17 @@ public class ManifestGenerationService(
                     dependency.InstallBehavior);
             }
 
-            return Task.FromResult(builder);
+            // Add files from content directory
+            if (!string.IsNullOrEmpty(contentDirectory) && Directory.Exists(contentDirectory))
+            {
+                await builder.AddFilesFromDirectoryAsync(contentDirectory, ContentSourceType.ContentAddressable);
+            }
+            else
+            {
+                logger.LogWarning("Content directory {ContentDirectory} not found or empty. Manifest will have no files.", contentDirectory);
+            }
+
+            return builder;
         }
         catch (Exception ex)
         {
@@ -188,7 +204,7 @@ public class ManifestGenerationService(
                 Id = bundleId,
                 Name = bundleName,
                 Version = manifestVersion.ToString(),
-                Items = items.ToList(),
+                Items = [.. items],
             };
 
             return await Task.FromResult(bundle);
@@ -308,11 +324,7 @@ public class ManifestGenerationService(
                 Directory.CreateDirectory(directory);
             }
 
-            var options = new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            };
+            var options = _jsonSerializerOptions;
 
             await using var stream = File.Create(outputPath);
             await JsonSerializer.SerializeAsync(stream, manifest, options);
@@ -360,9 +372,9 @@ public class ManifestGenerationService(
             var builderLogger = NullLogger<ContentManifestBuilder>.Instance;
 
             // Determine publisher name using user-friendly display format matching InstallationTypeDisplayConverter
-            var publisherName = clientName.ToLowerInvariant().Contains("steam") ? "Steam" :
-                                clientName.ToLowerInvariant().Contains("ea") ? "EA App" :
-                                "Retail Installation";
+            var publisherName = clientName.Contains("steam", StringComparison.InvariantCultureIgnoreCase) ? PublisherInfoConstants.Steam.Name :
+                                clientName.Contains("ea", StringComparison.InvariantCultureIgnoreCase) ? PublisherInfoConstants.EaApp.Name :
+                                PublisherInfoConstants.Retail.Name;
             var publisher = new PublisherInfo { Name = publisherName };
             var contentName = gameType.ToString().ToLowerInvariant();
             var builder = new ContentManifestBuilder(builderLogger, hashProvider, manifestIdService)
@@ -801,11 +813,22 @@ public class ManifestGenerationService(
                 }
             }
 
+            // For Steam installations, also add game.dat as an alternative executable
+            // This allows launching without Steam integration
+            var gameDatPath = Path.Combine(installationPath, GameClientConstants.SteamGameDatExecutable);
+            if (File.Exists(gameDatPath))
+            {
+                await builder.AddGameInstallationFileAsync(GameClientConstants.SteamGameDatExecutable, gameDatPath, isExecutable: false);
+                logger.LogDebug("Added game.dat to GameClient manifest (non-executable, for Steam-free launch)");
+            }
+
+            var gameDatExists = File.Exists(Path.Combine(installationPath, GameClientConstants.SteamGameDatExecutable));
             logger.LogInformation(
-                "Added GameClient files to manifest for {GameType}: executable + {DllCount} DLLs + {ConfigCount} configs",
+                "Added GameClient files to manifest for {GameType}: executable + {DllCount} DLLs + {ConfigCount} configs{GameDat}",
                 gameType,
                 requiredDlls.Count(dll => File.Exists(Path.Combine(executableDirectory ?? string.Empty, dll))),
-                configFiles.Count(cfg => File.Exists(Path.Combine(installationPath, cfg))));
+                configFiles.Count(cfg => File.Exists(Path.Combine(installationPath, cfg))),
+                gameDatExists ? " + game.dat" : string.Empty);
         }
         catch (Exception ex)
         {

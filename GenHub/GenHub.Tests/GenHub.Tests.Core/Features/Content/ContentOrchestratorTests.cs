@@ -53,13 +53,13 @@ public class ContentOrchestratorTests
         provider2Mock.Setup(p => p.SearchAsync(It.IsAny<ContentSearchQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(results2));
 
-        var providers = new[] { provider1Mock.Object, provider2Mock.Object };
+        var providers = (IContentProvider[])[provider1Mock.Object, provider2Mock.Object];
 
         var orchestrator = new ContentOrchestrator(
             _loggerMock.Object,
             providers,
-            new List<IContentDiscoverer>(),
-            new List<IContentResolver>(),
+            [],
+            [],
             _cacheMock.Object,
             _contentValidatorMock.Object,
             _manifestPoolMock.Object);
@@ -70,8 +70,8 @@ public class ContentOrchestratorTests
         // Assert
         Assert.True(result.Success);
         Assert.Equal(2, result.Data?.Count() ?? 0);
-        Assert.Contains(result.Data ?? Enumerable.Empty<ContentSearchResult>(), r => r.Id == "p1.mod1");
-        Assert.Contains(result.Data ?? Enumerable.Empty<ContentSearchResult>(), r => r.Id == "p2.mod2");
+        Assert.Contains(result.Data ?? [], r => r.Id == "p1.mod1");
+        Assert.Contains(result.Data ?? [], r => r.Id == "p2.mod2");
     }
 
     /// <summary>
@@ -94,24 +94,31 @@ public class ContentOrchestratorTests
         providerMock.Setup(p => p.SourceName).Returns("TestProvider");
         providerMock.Setup(p => p.GetValidatedContentAsync(searchResult.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<ContentManifest>.CreateSuccess(manifest));
+
         providerMock.Setup(p => p.PrepareContentAsync(manifest, It.IsAny<string>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<ContentManifest>.CreateSuccess(manifest));
 
+        _cacheMock.Setup(c => c.GetAsync<ContentManifest>(manifest.Id.Value, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ContentManifest?)null);
+
         _contentValidatorMock.Setup(v => v.ValidateManifestAsync(manifest, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ValidationResult(manifest.Id, new List<ValidationIssue>()));
+            .ReturnsAsync(new ValidationResult(manifest.Id, []));
 
         _contentValidatorMock.Setup(v => v.ValidateAllAsync(It.IsAny<string>(), manifest, It.IsAny<IProgress<ValidationProgress>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ValidationResult(manifest.Id, new List<ValidationIssue>()));
+            .ReturnsAsync(new ValidationResult(manifest.Id, []));
 
         // Mock IsManifestAcquiredAsync to return false so AddManifestAsync will be called
         _manifestPoolMock.Setup(m => m.IsManifestAcquiredAsync(manifest.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<bool>.CreateSuccess(false));
 
+        _manifestPoolMock.Setup(m => m.AddManifestAsync(manifest, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+
         var orchestrator = new ContentOrchestrator(
             _loggerMock.Object,
-            new[] { providerMock.Object },
-            new List<IContentDiscoverer>(),
-            new List<IContentResolver>(),
+            [providerMock.Object],
+            [],
+            [],
             _cacheMock.Object,
             _contentValidatorMock.Object,
             _manifestPoolMock.Object);

@@ -8,16 +8,18 @@ using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
 using GenHub.Features.GameProfiles.ViewModels;
+using GenHub.Features.Notifications.ViewModels;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 using ContentDisplayItem = GenHub.Core.Models.Content.ContentDisplayItem;
 
-namespace GenHub.Tests.Core.ViewModels;
+namespace GenHub.Tests.Core.Features.GameProfiles.ViewModels;
 
 /// <summary>
 /// Contains tests for <see cref="GameProfileSettingsViewModel"/>.
@@ -38,14 +40,14 @@ public class GameProfileSettingsViewModelTests
 
         var availableInstallations = new ObservableCollection<ContentDisplayItem>
        {
-           new ContentDisplayItem
+           new()
            {
                Id = "1.108.steam.gameinstallation.generals",
                ManifestId = "1.108.steam.gameinstallation.generals",
                DisplayName = "Command & Conquer: Generals",
                ContentType = GenHub.Core.Models.Enums.ContentType.GameInstallation,
            },
-           new ContentDisplayItem
+           new()
            {
                Id = "1.108.steam.gameinstallation.zh",
                ManifestId = "1.108.steam.gameinstallation.zh",
@@ -63,7 +65,7 @@ public class GameProfileSettingsViewModelTests
                 It.IsAny<GenHub.Core.Models.Enums.ContentType>(),
                 It.IsAny<ObservableCollection<ContentDisplayItem>>(),
                 It.IsAny<IReadOnlyList<string>>()))
-            .ReturnsAsync(new ObservableCollection<ContentDisplayItem>());
+            .ReturnsAsync([]);
 
         mockConfigProvider
             .Setup(x => x.GetDefaultWorkspaceStrategy())
@@ -73,11 +75,15 @@ public class GameProfileSettingsViewModelTests
         var gameSettingsLogger = NullLogger<GameSettingsViewModel>.Instance;
 
         var vm = new GameProfileSettingsViewModel(
-            null,
+            null!,
             mockGameSettingsService.Object,
             mockConfigProvider.Object,
             mockContentLoader.Object,
             null, // ProfileResourceService
+            null, // INotificationService
+            null, // IContentManifestPool
+            null, // IContentStorageService
+            null, // ILocalContentService
             nullLogger,
             gameSettingsLogger);
 
@@ -109,11 +115,15 @@ public class GameProfileSettingsViewModelTests
         var gameSettingsLogger = NullLogger<GameSettingsViewModel>.Instance;
 
         var vm = new GameProfileSettingsViewModel(
-            null,
+            null!,
             mockGameSettingsService.Object,
             null,
             null,
             null, // ProfileResourceService
+            null, // INotificationService
+            null, // IContentManifestPool
+            null, // IContentStorageService
+            null, // ILocalContentService
             nullLogger,
             gameSettingsLogger);
 

@@ -88,11 +88,11 @@ public class GameProcessManagerTests
     }
 
     /// <summary>
-    /// Tests that StartProcessAsync with a valid executable path returns success.
+    /// Tests that TerminateProcessAsync with a real running process returns success.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task StartProcessAsync_WithValidExecutablePath_ShouldReturnSuccess()
+    public async Task TerminateProcessAsync_WithRunningProcess_ShouldReturnSuccess()
     {
         // Arrange - Use cross-platform approach
         string tempExe;
@@ -101,12 +101,12 @@ public class GameProcessManagerTests
         if (OperatingSystem.IsWindows())
         {
             tempExe = Path.GetTempFileName() + ".bat";
-            scriptContent = "@echo off\ntimeout /t 2 >nul\n";
+            scriptContent = "@echo off\nping -n 6 127.0.0.1 >nul\n";
         }
         else
         {
             tempExe = Path.GetTempFileName() + ".sh";
-            scriptContent = "#!/bin/bash\nsleep 2\n";
+            scriptContent = "#!/bin/bash\nping -c 5 127.0.0.1 > /dev/null\n";
         }
 
         await File.WriteAllTextAsync(tempExe, scriptContent);
@@ -127,23 +127,90 @@ public class GameProcessManagerTests
             chmod.WaitForExit();
         }
 
+        var config = new GameLaunchConfiguration
+        {
+            ExecutablePath = tempExe,
+        };
+
         try
         {
-            var config = new GameLaunchConfiguration
-            {
-                ExecutablePath = tempExe,
-            };
+            var startResult = await _processManager.StartProcessAsync(config);
+            Assert.True(startResult.Success);
+            Assert.NotNull(startResult.Data);
 
             // Act
-            var result = await _processManager.StartProcessAsync(config);
+            var terminateResult = await _processManager.TerminateProcessAsync(startResult.Data!.ProcessId);
 
             // Assert
-            Assert.True(result.Success);
-            Assert.NotNull(result.Data);
-            Assert.True(result.Data.ProcessId > 0);
+            Assert.True(terminateResult.Success);
+        }
+        finally
+        {
+            File.Delete(tempExe);
+        }
+    }
+
+    /// <summary>
+    /// Tests that GetActiveProcessesAsync returns running processes.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Fact]
+    public async Task GetActiveProcessesAsync_WithRunningProcess_ShouldReturnNonEmptyList()
+    {
+        // Arrange - Use cross-platform approach
+        string tempExe;
+        string scriptContent;
+
+        if (OperatingSystem.IsWindows())
+        {
+            tempExe = Path.GetTempFileName() + ".bat";
+            scriptContent = "@echo off\nping -n 6 127.0.0.1 >nul\n";
+        }
+        else
+        {
+            tempExe = Path.GetTempFileName() + ".sh";
+            scriptContent = "#!/bin/bash\nping -c 5 127.0.0.1 > /dev/null\n";
+        }
+
+        await File.WriteAllTextAsync(tempExe, scriptContent);
+
+        if (!OperatingSystem.IsWindows())
+        {
+            // Make script executable on Unix systems
+            var chmod = new System.Diagnostics.Process
+            {
+                StartInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "chmod",
+                    Arguments = "+x " + tempExe,
+                    UseShellExecute = false,
+                },
+            };
+            chmod.Start();
+            chmod.WaitForExit();
+        }
+
+        var config = new GameLaunchConfiguration
+        {
+            ExecutablePath = tempExe,
+        };
+
+        try
+        {
+            var startResult = await _processManager.StartProcessAsync(config);
+            Assert.True(startResult.Success);
+            Assert.NotNull(startResult.Data);
+
+            // Act
+            var activeResult = await _processManager.GetActiveProcessesAsync();
+
+            // Assert
+            Assert.True(activeResult.Success);
+            Assert.NotNull(activeResult.Data);
+            Assert.Contains(activeResult.Data, p => p.ProcessId == startResult.Data!.ProcessId);
 
             // Cleanup
-            await _processManager.TerminateProcessAsync(result.Data.ProcessId);
+            await _processManager.TerminateProcessAsync(startResult.Data.ProcessId);
         }
         finally
         {

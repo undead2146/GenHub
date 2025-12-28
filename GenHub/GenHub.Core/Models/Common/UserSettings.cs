@@ -60,8 +60,8 @@ public class UserSettings : ICloneable
     /// <summary>Gets or sets the cache directory path.</summary>
     public string? CachePath { get; set; }
 
-    /// <summary>Gets or sets the content storage path.</summary>
-    public string? ContentStoragePath { get; set; }
+    /// <summary>Gets or sets the application data directory path where metadata is stored.</summary>
+    public string? ApplicationDataPath { get; set; }
 
     /// <summary>Gets or sets the list of content directories for local discovery.</summary>
     public List<string>? ContentDirectories { get; set; }
@@ -101,6 +101,21 @@ public class UserSettings : ICloneable
         return ExplicitlySetProperties.Contains(propertyName);
     }
 
+    /// <summary>
+    /// Gets or sets the preferred update channel.
+    /// </summary>
+    public UpdateChannel UpdateChannel { get; set; } = UpdateChannel.Prerelease;
+
+    /// <summary>
+    /// Gets or sets the subscribed PR number for update notifications.
+    /// </summary>
+    public int? SubscribedPrNumber { get; set; }
+
+    /// <summary>
+    /// Gets or sets the last dismissed update version to prevent repeated notifications.
+    /// </summary>
+    public string? DismissedUpdateVersion { get; set; }
+
     /// <summary>Creates a deep copy of the current UserSettings instance.</summary>
     /// <returns>A new UserSettings instance with all properties deeply copied.</returns>
     public object Clone()
@@ -125,7 +140,10 @@ public class UserSettings : ICloneable
             DownloadUserAgent = DownloadUserAgent,
             SettingsFilePath = SettingsFilePath,
             CachePath = CachePath,
-            ContentStoragePath = ContentStoragePath,
+            ApplicationDataPath = ApplicationDataPath,
+            UpdateChannel = UpdateChannel,
+            SubscribedPrNumber = SubscribedPrNumber,
+            DismissedUpdateVersion = DismissedUpdateVersion,
             ContentDirectories = ContentDirectories != null ? new List<string>(ContentDirectories) : null,
             GitHubDiscoveryRepositories = GitHubDiscoveryRepositories != null ? new List<string>(GitHubDiscoveryRepositories) : null,
             InstalledToolAssemblyPaths = InstalledToolAssemblyPaths != null ? new List<string>(InstalledToolAssemblyPaths) : null,

@@ -229,7 +229,7 @@ public class ConfigurationProviderService(
             SettingsFilePath = _userSettings.Get().SettingsFilePath,
             ContentDirectories = GetContentDirectories(),
             GitHubDiscoveryRepositories = GetGitHubDiscoveryRepositories(),
-            ContentStoragePath = GetContentStoragePath(),
+            ApplicationDataPath = GetApplicationDataPath(),
             CachePath = GetCachePath(),
             CasConfiguration = GetCasConfiguration(),
         };
@@ -241,17 +241,19 @@ public class ConfigurationProviderService(
         var settings = _userSettings.Get();
         if (settings.IsExplicitlySet(nameof(UserSettings.ContentDirectories)) &&
             settings.ContentDirectories != null && settings.ContentDirectories.Count > 0)
-            return settings.ContentDirectories;
-
-        return new List<string>
         {
+            return settings.ContentDirectories;
+        }
+
+        return
+        [
             Path.Combine(_appConfig.GetConfiguredDataPath(), FileTypes.ManifestsDirectory),
             Path.Combine(_appConfig.GetConfiguredDataPath(), "CustomManifests"),
             Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
                 "Command and Conquer Generals Zero Hour Data",
                 "Mods"),
-        };
+        ];
     }
 
     /// <inheritdoc />
@@ -262,17 +264,17 @@ public class ConfigurationProviderService(
             settings.GitHubDiscoveryRepositories != null && settings.GitHubDiscoveryRepositories.Count > 0)
             return settings.GitHubDiscoveryRepositories;
 
-        return new List<string> { "TheSuperHackers/GeneralsGameCode" };
+        return ["TheSuperHackers/GeneralsGameCode"];
     }
 
     /// <inheritdoc />
-    public string GetContentStoragePath()
+    public string GetApplicationDataPath()
     {
         var settings = _userSettings.Get();
-        if (settings.IsExplicitlySet(nameof(UserSettings.ContentStoragePath)) &&
-            !string.IsNullOrWhiteSpace(settings.ContentStoragePath))
+        if (settings.IsExplicitlySet(nameof(UserSettings.ApplicationDataPath)) &&
+            !string.IsNullOrWhiteSpace(settings.ApplicationDataPath))
         {
-            return settings.ContentStoragePath;
+            return settings.ApplicationDataPath;
         }
 
         return Path.Combine(_appConfig.GetConfiguredDataPath(), "Content");
@@ -312,5 +314,14 @@ public class ConfigurationProviderService(
         }
 
         return casConfig;
+    }
+
+    /// <inheritdoc />
+    public string GetLogsPath()
+    {
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            AppConstants.AppName,
+            DirectoryNames.Logs.ToLowerInvariant());
     }
 }

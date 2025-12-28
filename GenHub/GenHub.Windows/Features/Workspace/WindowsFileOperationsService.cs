@@ -15,7 +15,7 @@ namespace GenHub.Windows.Features.Workspace;
 /// <summary>
 /// Windows-specific implementation of <see cref="IFileOperationsService"/> for file operations.
 /// </summary>
-public class WindowsFileOperationsService(
+public partial class WindowsFileOperationsService(
     FileOperationsService baseService,
     ICasService casService,
     ILogger<WindowsFileOperationsService> logger) : IFileOperationsService
@@ -33,7 +33,7 @@ public class WindowsFileOperationsService(
         => baseService.VerifyFileHashAsync(filePath, expectedHash, cancellationToken);
 
     /// <inheritdoc/>
-    public Task DownloadFileAsync(string url, string destinationPath, IProgress<DownloadProgress>? progress = null, CancellationToken cancellationToken = default)
+    public Task DownloadFileAsync(Uri url, string destinationPath, IProgress<DownloadProgress>? progress = null, CancellationToken cancellationToken = default)
         => baseService.DownloadFileAsync(url, destinationPath, progress, cancellationToken);
 
     /// <inheritdoc/>
@@ -68,19 +68,46 @@ public class WindowsFileOperationsService(
 
             if (useHardLink)
             {
-                await CreateHardLinkAsync(destinationPath, pathResult.Data, cancellationToken).ConfigureAwait(false);
+                // Check if source and destination are on the same volume
+                var sourceRoot = Path.GetPathRoot(pathResult.Data);
+                var destRoot = Path.GetPathRoot(destinationPath);
+                var sameVolume = string.Equals(sourceRoot, destRoot, StringComparison.OrdinalIgnoreCase);
+
+                if (!sameVolume)
+                {
+                    // Different volumes - hard links won't work, fall back to copy silently
+                    logger.LogDebug(
+                        "Hard link requested but source ({SourceDrive}) and destination ({DestDrive}) are on different volumes, falling back to copy",
+                        sourceRoot,
+                        destRoot);
+                    await CopyFileAsync(pathResult.Data, destinationPath, cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    // Same volume - attempt hard link
+                    try
+                    {
+                        await CreateHardLinkAsync(destinationPath, pathResult.Data, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (IOException ex) when (ex.Message.Contains("different volumes", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Hard link failed due to cross-volume, fall back to copy
+                        logger.LogDebug("Hard link failed (cross-volume), falling back to copy for hash {Hash}", hash);
+                        await CopyFileAsync(pathResult.Data, destinationPath, cancellationToken).ConfigureAwait(false);
+                    }
+                }
             }
             else
             {
-                await CreateSymlinkAsync(destinationPath, pathResult.Data, useHardLink ? false : true, cancellationToken).ConfigureAwait(false);
+                await CreateSymlinkAsync(destinationPath, pathResult.Data, !useHardLink, cancellationToken).ConfigureAwait(false);
             }
 
-            logger.LogDebug("Created {LinkType} from CAS hash {Hash} to {DestinationPath}", useHardLink ? "hard link" : "symlink", hash, destinationPath);
+            logger.LogDebug("Created {LinkType} from CAS hash {Hash} to {DestinationPath}", useHardLink ? "hard link/copy" : "symlink", hash, destinationPath);
             return true;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to create {LinkType} from CAS hash {Hash} to {DestinationPath}", useHardLink ? "hard link" : "symlink", hash, destinationPath);
+            logger.LogError(ex, "Failed to create {LinkType} from CAS hash {Hash} to {DestinationPath}", useHardLink ? "hard link/copy" : "symlink", hash, destinationPath);
             return false;
         }
     }
@@ -143,12 +170,9 @@ public class WindowsFileOperationsService(
     /// <param name="lpExistingFileName">The name of the existing file.</param>
     /// <param name="lpSecurityAttributes">Reserved, must be IntPtr.Zero.</param>
     /// <returns>True if successful, otherwise false.</returns>
-    [DllImport(
-        "kernel32.dll",
-        SetLastError = true,
-        CharSet = CharSet.Unicode,
-        EntryPoint = "CreateHardLinkW")]
-    private static extern bool CreateHardLinkW(
+    [LibraryImport("kernel32.dll", EntryPoint = "CreateHardLinkW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool CreateHardLinkW(
         string lpFileName,
         string lpExistingFileName,
         IntPtr lpSecurityAttributes);
