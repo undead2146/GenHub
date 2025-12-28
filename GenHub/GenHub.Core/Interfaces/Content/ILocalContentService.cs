@@ -1,3 +1,4 @@
+using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
@@ -24,7 +25,7 @@ public interface ILocalContentService
         string name,
         ContentType contentType,
         GameType targetGame,
-        IProgress<GenHub.Core.Models.Content.ContentStorageProgress>? progress = null,
+        IProgress<ContentStorageProgress>? progress = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

@@ -43,7 +43,7 @@ public class GameProfileLauncherViewModelTests
                 CreateProfileResourceService(),
                 new Mock<INotificationService>().Object,
                 null,
-                null, // IContentStorageService
+                new Mock<IContentStorageService>().Object,
                 null, // ILocalContentService
                 NullLogger<GameProfileSettingsViewModel>.Instance,
                 NullLogger<GameSettingsViewModel>.Instance),
@@ -84,7 +84,7 @@ public class GameProfileLauncherViewModelTests
                 CreateProfileResourceService(),
                 new Mock<INotificationService>().Object,
                 null,
-                null, // IContentStorageService
+                new Mock<IContentStorageService>().Object,
                 null, // ILocalContentService
                 NullLogger<GameProfileSettingsViewModel>.Instance,
                 NullLogger<GameSettingsViewModel>.Instance),
