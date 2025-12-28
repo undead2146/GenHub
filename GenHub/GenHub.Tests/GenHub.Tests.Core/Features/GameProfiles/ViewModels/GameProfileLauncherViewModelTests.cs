@@ -6,6 +6,7 @@ using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Steam;
+using GenHub.Core.Interfaces.UserData;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.GameProfile;
@@ -43,6 +44,7 @@ public class GameProfileLauncherViewModelTests
                 new Mock<INotificationService>().Object,
                 null,
                 new Mock<IContentStorageService>().Object,
+                null, // ILocalContentService
                 NullLogger<GameProfileSettingsViewModel>.Instance,
                 NullLogger<GameSettingsViewModel>.Instance),
             new Mock<IProfileEditorFacade>().Object,
@@ -83,6 +85,7 @@ public class GameProfileLauncherViewModelTests
                 new Mock<INotificationService>().Object,
                 null,
                 new Mock<IContentStorageService>().Object,
+                null, // ILocalContentService
                 NullLogger<GameProfileSettingsViewModel>.Instance,
                 NullLogger<GameSettingsViewModel>.Instance),
             new Mock<IProfileEditorFacade>().Object,
@@ -194,12 +197,12 @@ public class GameProfileLauncherViewModelTests
 
         var vm = new GameProfileLauncherViewModel(
             installationService.Object,
-            null!,
-            null!,
-            null!,
-            null!,
-            null!,
-            null!,
+            new Mock<IGameProfileManager>().Object,
+            new Mock<IProfileLauncherFacade>().Object,
+            null!, // SettingsVM
+            new Mock<IProfileEditorFacade>().Object,
+            new Mock<IConfigurationProviderService>().Object,
+            new Mock<IGameProcessManager>().Object,
             shortcutService.Object,
             new Mock<IPublisherProfileOrchestrator>().Object,
             new Mock<ISteamManifestPatcher>().Object,

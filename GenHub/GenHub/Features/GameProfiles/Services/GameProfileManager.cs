@@ -5,8 +5,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Models.GameClients;
@@ -24,12 +26,14 @@ public class GameProfileManager(
     IGameProfileRepository profileRepository,
     IGameInstallationService installationService,
     IContentManifestPool manifestPool,
+    IGameSettingsService gameSettingsService,
     INotificationService? notificationService,
     ILogger<GameProfileManager> logger) : IGameProfileManager
 {
     private readonly IGameProfileRepository _profileRepository = profileRepository ?? throw new ArgumentNullException(nameof(profileRepository));
     private readonly IGameInstallationService _installationService = installationService ?? throw new ArgumentNullException(nameof(installationService));
     private readonly IContentManifestPool _manifestPool = manifestPool ?? throw new ArgumentNullException(nameof(manifestPool));
+    private readonly IGameSettingsService _gameSettingsService = gameSettingsService ?? throw new ArgumentNullException(nameof(gameSettingsService));
     private readonly INotificationService? _notificationService = notificationService;
     private readonly ILogger<GameProfileManager> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -90,12 +94,17 @@ public class GameProfileManager(
                 GameInstallationId = gameInstallation.Id,
                 GameClient = gameClient,
                 WorkspaceStrategy = request.PreferredStrategy,
-                EnabledContentIds = request.EnabledContentIds ?? new List<string>(),
+                EnabledContentIds = request.EnabledContentIds ?? [],
                 ThemeColor = request.ThemeColor,
                 IconPath = request.IconPath,
                 CoverPath = request.CoverPath,
                 CommandLineArguments = request.CommandLineArguments ?? string.Empty,
+                GameSpyIPAddress = request.GameSpyIPAddress,
             };
+
+            // Load existing Options.ini settings and populate the profile
+            // This ensures new profiles inherit existing TheSuperHackers/GeneralsOnline settings
+            await LoadExistingSettingsIntoProfileAsync(profile, gameClient.GameType);
 
             var saveResult = await _profileRepository.SaveProfileAsync(profile, cancellationToken);
 
@@ -205,6 +214,8 @@ public class GameProfileManager(
                 profile.AudioNumSounds = request.AudioNumSounds;
             if (request.UseSteamLaunch.HasValue)
                 profile.UseSteamLaunch = request.UseSteamLaunch;
+            if (request.GameSpyIPAddress != null)
+                profile.GameSpyIPAddress = request.GameSpyIPAddress;
 
             var saveResult = await _profileRepository.SaveProfileAsync(profile, cancellationToken);
             if (saveResult.Success)
@@ -322,7 +333,7 @@ public class GameProfileManager(
     /// <param name="name">The profile name to validate.</param>
     /// <param name="errorMessage">The error message if invalid; null if valid.</param>
     /// <returns>True if valid, false otherwise.</returns>
-    private bool TryValidateProfileName(string name, out string? errorMessage)
+    private static bool TryValidateProfileName(string name, out string? errorMessage)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -339,5 +350,37 @@ public class GameProfileManager(
         // TODO: Add more rules as needed (e.g., invalid characters)
         errorMessage = null;
         return true;
+    }
+
+    /// <summary>
+    /// Loads existing Options.ini settings and populates the profile with them.
+    /// This ensures new profiles inherit existing game settings.
+    /// </summary>
+    private async Task LoadExistingSettingsIntoProfileAsync(GameProfile profile, Core.Models.Enums.GameType gameType)
+    {
+        try
+        {
+            _logger.LogDebug("Loading existing Options.ini for {GameType} to populate new profile {ProfileName}", gameType, profile.Name);
+
+            var loadResult = await _gameSettingsService.LoadOptionsAsync(gameType);
+            if (loadResult.Success && loadResult.Data != null)
+            {
+                var options = loadResult.Data;
+
+                // Map Options.ini settings to profile
+                GameSettingsMapper.ApplyFromOptions(options, profile);
+
+                _logger.LogInformation("Populated profile {ProfileName} with existing Options.ini settings", profile.Name);
+            }
+            else
+            {
+                _logger.LogDebug("No existing Options.ini found for {GameType}, profile {ProfileName} will use defaults", gameType, profile.Name);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Don't fail profile creation if settings loading fails
+            _logger.LogWarning(ex, "Failed to load existing Options.ini for profile {ProfileName}, using defaults", profile.Name);
+        }
     }
 }

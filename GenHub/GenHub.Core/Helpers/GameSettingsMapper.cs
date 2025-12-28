@@ -7,10 +7,45 @@ using Microsoft.Extensions.Logging;
 namespace GenHub.Core.Helpers;
 
 /// <summary>
-/// Helper class for mapping game profile settings to IniOptions.
+/// Helper class for mapping between game profiles and INI options.
 /// </summary>
 public static class GameSettingsMapper
 {
+    /// <summary>
+    /// Applies settings from IniOptions to a GameProfile.
+    /// Used when creating new profiles to inherit existing game settings.
+    /// </summary>
+    /// <param name="options">The IniOptions containing the settings.</param>
+    /// <param name="profile">The GameProfile to populate.</param>
+    public static void ApplyFromOptions(IniOptions options, GameProfile profile)
+    {
+        // Video settings
+        profile.VideoResolutionWidth = options.Video.ResolutionWidth;
+        profile.VideoResolutionHeight = options.Video.ResolutionHeight;
+        profile.VideoWindowed = options.Video.Windowed;
+
+        // Convert TextureReduction back to TextureQuality (inverse of ApplyToOptions)
+        if (options.Video.TextureReduction >= 0 && options.Video.TextureReduction <= 2)
+        {
+            profile.VideoTextureQuality = (TextureQuality)(2 - options.Video.TextureReduction);
+        }
+
+        profile.EnableVideoShadows = options.Video.UseShadowVolumes;
+        profile.VideoExtraAnimations = options.Video.ExtraAnimations;
+        profile.VideoGamma = options.Video.Gamma;
+
+        // Audio settings
+        profile.AudioSoundVolume = options.Audio.SFXVolume;
+        profile.AudioThreeDSoundVolume = options.Audio.SFX3DVolume;
+        profile.AudioSpeechVolume = options.Audio.VoiceVolume;
+        profile.AudioMusicVolume = options.Audio.MusicVolume;
+        profile.AudioEnabled = options.Audio.AudioEnabled;
+        profile.AudioNumSounds = options.Audio.NumSounds;
+
+        // Network settings
+        profile.GameSpyIPAddress = options.Network.GameSpyIPAddress;
+    }
+
     /// <summary>
     /// Applies profile settings to IniOptions with validation.
     /// </summary>
@@ -63,15 +98,17 @@ public static class GameSettingsMapper
 
         if (profile.VideoTextureQuality.HasValue)
         {
+            // VeryHigh (3) is only valid for TheSuperHackers client, but we allow it here
+            // The game will handle it appropriately based on the client
             if (profile.VideoTextureQuality.Value >= TextureQuality.Low &&
-                profile.VideoTextureQuality.Value <= TextureQuality.High)
+                profile.VideoTextureQuality.Value <= TextureQuality.VeryHigh)
             {
                 options.Video.TextureReduction = 2 - (int)profile.VideoTextureQuality.Value;
             }
             else
             {
                 logger?.LogWarning(
-                    "Invalid VideoTextureQuality {Quality} for profile {ProfileId}, must be 0-2",
+                    "Invalid VideoTextureQuality {Quality} for profile {ProfileId}, must be 0-3",
                     profile.VideoTextureQuality.Value,
                     profile.Id);
             }
@@ -200,6 +237,11 @@ public static class GameSettingsMapper
                     GameSettingsConstants.Audio.MinNumSounds,
                     GameSettingsConstants.Audio.MaxNumSounds);
             }
+        }
+
+        if (profile.GameSpyIPAddress != null)
+        {
+            options.Network.GameSpyIPAddress = profile.GameSpyIPAddress;
         }
     }
 }

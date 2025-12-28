@@ -51,6 +51,7 @@ public class GameProfileSettingsViewModelDependencyTests
             _mockNotificationService.Object,
             _mockManifestPool.Object,
             null, // IContentStorageService
+            null, // ILocalContentService
             NullLogger<GameProfileSettingsViewModel>.Instance,
             NullLogger<GameSettingsViewModel>.Instance);
 
@@ -222,5 +223,95 @@ public class GameProfileSettingsViewModelDependencyTests
 
         // Assert
         _mockGameProfileManager.Verify(x => x.CreateProfileAsync(It.IsAny<CreateProfileRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Verifies that saving a profile succeeds when a mod has an optional dependency that is missing.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Fact]
+    public async Task Save_Succeeds_WhenOptionalDependencyIsMissing()
+    {
+        // Arrange
+        var modManifestId = new ManifestId("1.0.0.mod.example");
+        var optionalDepId = new ManifestId("1.0.0.addon.optional");
+        var installationId = new ManifestId("1.0.0.gameinstallation.example");
+
+        var modManifest = new ContentManifest
+        {
+            Id = modManifestId,
+            Name = "Example Mod",
+            ContentType = ContentType.Mod,
+            Dependencies =
+            [
+                new()
+                {
+                    Id = optionalDepId,
+                    Name = "Optional Addon",
+                    DependencyType = ContentType.Addon,
+                    IsOptional = true,
+                },
+                new()
+                {
+                    Id = installationId,
+                    DependencyType = ContentType.GameInstallation,
+                    IsOptional = false,
+                },
+            ],
+        };
+
+        // Setup manifest pool
+        _mockManifestPool.Setup(x => x.GetManifestAsync(It.Is<ManifestId>(id => id.Value == modManifestId.Value), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(modManifest));
+
+        // Mock the installation manifest too
+        _mockManifestPool.Setup(x => x.GetManifestAsync(It.Is<ManifestId>(id => id.Value == installationId.Value), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(new ContentManifest { Id = installationId, Name = "Installation", ContentType = ContentType.GameInstallation }));
+
+        _viewModel.Name = "Test Profile";
+
+        var installationItem = new ViewModelContentDisplayItem
+        {
+            ManifestId = installationId,
+            DisplayName = "Installation",
+            ContentType = ContentType.GameInstallation,
+            SourceId = "source_a",
+            GameType = GameType.Generals,
+            InstallationType = GameInstallationType.Steam,
+        };
+        _viewModel.AvailableGameInstallations = [installationItem];
+        _viewModel.SelectedGameInstallation = installationItem;
+
+        var modDisplayItem = new ViewModelContentDisplayItem
+        {
+            ManifestId = modManifestId,
+            DisplayName = "Example Mod",
+            ContentType = ContentType.Mod,
+            GameType = GameType.Generals,
+            InstallationType = GameInstallationType.Unknown,
+            IsEnabled = true,
+        };
+        _viewModel.EnabledContent.Add(modDisplayItem);
+
+        var installDisplayItem = new ViewModelContentDisplayItem
+        {
+            ManifestId = installationId,
+            DisplayName = "Installation",
+            ContentType = ContentType.GameInstallation,
+            GameType = GameType.Generals,
+            InstallationType = GameInstallationType.Steam,
+            IsEnabled = true,
+        };
+        _viewModel.EnabledContent.Add(installDisplayItem);
+
+        _mockGameProfileManager.Setup(x => x.CreateProfileAsync(It.IsAny<CreateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(new GameProfile()));
+
+        // Act
+        await _viewModel.SaveCommand.ExecuteAsync(null);
+
+        // Assert
+        _mockGameProfileManager.Verify(x => x.CreateProfileAsync(It.IsAny<CreateProfileRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.DoesNotMatch("Error: Missing required dependencies", _viewModel.StatusMessage);
     }
 }

@@ -90,7 +90,7 @@ public class ContentManifestPoolTests : IDisposable
         var sourceDirectory = Path.Combine(_tempDirectory, "source");
         Directory.CreateDirectory(sourceDirectory);
 
-        _storageServiceMock.Setup(x => x.StoreContentAsync(manifest, sourceDirectory, default))
+        _storageServiceMock.Setup(x => x.StoreContentAsync(manifest, sourceDirectory, It.IsAny<IProgress<ContentStorageProgress>?>(), default))
             .ReturnsAsync(OperationResult<ContentManifest>.CreateSuccess(manifest));
 
         // Act
@@ -99,7 +99,7 @@ public class ContentManifestPoolTests : IDisposable
         // Assert
         Assert.True(result.Success);
         Assert.True(result.Data);
-        _storageServiceMock.Verify(x => x.StoreContentAsync(manifest, sourceDirectory, default), Times.Once);
+        _storageServiceMock.Verify(x => x.StoreContentAsync(manifest, sourceDirectory, It.IsAny<IProgress<ContentStorageProgress>?>(), default), Times.Once);
     }
 
     /// <summary>
@@ -381,6 +381,8 @@ public class ContentManifestPoolTests : IDisposable
         {
             // Ignore cleanup errors
         }
+
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>
@@ -391,7 +393,7 @@ public class ContentManifestPoolTests : IDisposable
     /// <param name="contentType">The content type.</param>
     /// <param name="targetGame">The target game.</param>
     /// <returns>A <see cref="ContentManifest"/> instance.</returns>
-    private ContentManifest CreateTestManifest(
+    private static ContentManifest CreateTestManifest(
         string id = "1.0.genhub.mod.mod",
         string name = "Test Manifest",
         ContentType contentType = ContentType.Mod,
@@ -408,10 +410,10 @@ public class ContentManifestPoolTests : IDisposable
             {
                 Description = "Test manifest for unit tests",
             },
-            Files = new List<ManifestFile>
-                {
-                    new() { RelativePath = "test.txt", Size = 100, SourceType = ContentSourceType.LocalFile, },
-                },
+            Files =
+            [
+                new() { RelativePath = "test.txt", Size = 100, SourceType = ContentSourceType.LocalFile, },
+            ],
         };
     }
 

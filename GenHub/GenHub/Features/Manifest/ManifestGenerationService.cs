@@ -26,6 +26,12 @@ public class ManifestGenerationService(
     IFileHashProvider hashProvider,
     IManifestIdService manifestIdService) : IManifestGenerationService
 {
+    private static readonly JsonSerializerOptions _jsonSerializerOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
     private int _fileCount = 0;
 
     /// <summary>
@@ -115,7 +121,7 @@ public class ManifestGenerationService(
     /// <param name="targetGame">Target game type.</param>
     /// <param name="dependencies">Dependencies for this content.</param>
     /// <returns>A <see cref="Task"/> that returns a configured manifest builder.</returns>
-    public Task<IContentManifestBuilder> CreateContentManifestAsync(
+    public async Task<IContentManifestBuilder> CreateContentManifestAsync(
         string contentDirectory,
         string publisherId,
         string contentName,
@@ -148,7 +154,17 @@ public class ManifestGenerationService(
                     dependency.InstallBehavior);
             }
 
-            return Task.FromResult(builder);
+            // Add files from content directory
+            if (!string.IsNullOrEmpty(contentDirectory) && Directory.Exists(contentDirectory))
+            {
+                await builder.AddFilesFromDirectoryAsync(contentDirectory, ContentSourceType.ContentAddressable);
+            }
+            else
+            {
+                logger.LogWarning("Content directory {ContentDirectory} not found or empty. Manifest will have no files.", contentDirectory);
+            }
+
+            return builder;
         }
         catch (Exception ex)
         {
@@ -188,7 +204,7 @@ public class ManifestGenerationService(
                 Id = bundleId,
                 Name = bundleName,
                 Version = manifestVersion.ToString(),
-                Items = items.ToList(),
+                Items = [.. items],
             };
 
             return await Task.FromResult(bundle);
@@ -308,11 +324,7 @@ public class ManifestGenerationService(
                 Directory.CreateDirectory(directory);
             }
 
-            var options = new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            };
+            var options = _jsonSerializerOptions;
 
             await using var stream = File.Create(outputPath);
             await JsonSerializer.SerializeAsync(stream, manifest, options);
@@ -360,8 +372,8 @@ public class ManifestGenerationService(
             var builderLogger = NullLogger<ContentManifestBuilder>.Instance;
 
             // Determine publisher name using user-friendly display format matching InstallationTypeDisplayConverter
-            var publisherName = clientName.ToLowerInvariant().Contains("steam") ? PublisherInfoConstants.Steam.Name :
-                                clientName.ToLowerInvariant().Contains("ea") ? PublisherInfoConstants.EaApp.Name :
+            var publisherName = clientName.Contains("steam", StringComparison.InvariantCultureIgnoreCase) ? PublisherInfoConstants.Steam.Name :
+                                clientName.Contains("ea", StringComparison.InvariantCultureIgnoreCase) ? PublisherInfoConstants.EaApp.Name :
                                 PublisherInfoConstants.Retail.Name;
             var publisher = new PublisherInfo { Name = publisherName };
             var contentName = gameType.ToString().ToLowerInvariant();

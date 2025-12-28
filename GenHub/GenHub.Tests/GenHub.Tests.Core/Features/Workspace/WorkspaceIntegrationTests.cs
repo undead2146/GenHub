@@ -179,12 +179,12 @@ public class WorkspaceIntegrationTests : IDisposable
         // Create WorkspaceReconciler
         var workspaceReconciler = new WorkspaceReconciler(mockReconcilerLogger);
 
-        var manager = new WorkspaceManager([strategy], mockConfigProvider.Object, mockLogger, casReferenceTracker, mockWorkspaceValidator.Object);
+        var manager = new WorkspaceManager([strategy], mockConfigProvider.Object, mockLogger, casReferenceTracker, mockWorkspaceValidator.Object, workspaceReconciler);
 
         var config = CreateTestConfiguration(WorkspaceStrategy.FullCopy);
 
         // Act
-        var result = await manager.PrepareWorkspaceAsync(config, null, CancellationToken.None);
+        var result = await manager.PrepareWorkspaceAsync(config, null, false, CancellationToken.None);
 
         // Assert
         Assert.True(result.Success, $"Workspace preparation failed: {(result.HasErrors ? result.FirstError : "An unknown error occurred.")}");

@@ -33,6 +33,23 @@ public partial class GameProfileSettingsWindow : Window
     }
 
     /// <summary>
+    /// Handles pointer pressed on the header to enable window dragging and maximizing.
+    /// </summary>
+    /// <param name="sender">The sender.</param>
+    /// <param name="e">The event arguments.</param>
+    public void OnHeaderPointerPressed(object sender, Avalonia.Input.PointerPressedEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        }
+        else
+        {
+            BeginMoveDrag(e);
+        }
+    }
+
+    /// <summary>
     /// Override to unsubscribe from events when window is closed.
     /// </summary>
     /// <param name="e">The event arguments.</param>
@@ -107,7 +124,8 @@ public partial class GameProfileSettingsWindow : Window
     /// </summary>
     private void SaveWindowSize()
     {
-        if (Width > 0 && Height > 0)
+        // Only save size if window is in normal state (not maximized or minimized)
+        if (WindowState == WindowState.Normal && Width > 0 && Height > 0)
         {
             _savedWidth = Width;
             _savedHeight = Height;

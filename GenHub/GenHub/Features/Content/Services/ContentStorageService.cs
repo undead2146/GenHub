@@ -25,7 +25,7 @@ namespace GenHub.Features.Content.Services;
 /// </summary>
 public class ContentStorageService : IContentStorageService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, };
     private readonly string _storageRoot;
     private readonly ILogger<ContentStorageService> _logger;
     private readonly ICasService _casService;
@@ -81,6 +81,7 @@ public class ContentStorageService : IContentStorageService
     public async Task<OperationResult<ContentManifest>> StoreContentAsync(
         ContentManifest manifest,
         string sourceDirectory,
+        IProgress<ContentStorageProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(sourceDirectory) || !Directory.Exists(sourceDirectory))
@@ -121,7 +122,7 @@ public class ContentStorageService : IContentStorageService
             _logger.LogInformation("Storing content for manifest {ManifestId} from {SourceDirectory}", manifest.Id, sourceDirectory);
 
             // Store content files in CAS with integrity verification
-            var updatedManifest = await StoreContentFilesAsync(manifest, sourceDirectory, cancellationToken);
+            var updatedManifest = await StoreContentFilesAsync(manifest, sourceDirectory, progress, cancellationToken);
 
             // Track CAS references to ensure files are not prematurely garbage collected
             await _referenceTracker.TrackManifestReferencesAsync(updatedManifest.Id, updatedManifest, cancellationToken);
@@ -461,11 +462,13 @@ public class ContentStorageService : IContentStorageService
     /// </summary>
     /// <param name="manifest">The content manifest.</param>
     /// <param name="sourceDirectory">Source directory containing content files.</param>
+    /// <param name="progress">Optional progress reporter for tracking storage operations.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The updated manifest with storage information.</returns>
     private async Task<ContentManifest> StoreContentFilesAsync(
         ContentManifest manifest,
         string sourceDirectory,
+        IProgress<ContentStorageProgress>? progress,
         CancellationToken cancellationToken)
     {
         if (!Directory.Exists(sourceDirectory))
@@ -488,6 +491,22 @@ public class ContentStorageService : IContentStorageService
             manifest.Id);
 
         var updatedFiles = new List<ManifestFile>();
+        int processedCount = 0;
+        int totalFiles = manifest.Files.Count;
+
+        // Initialize progress report
+        progress?.Report(new ContentStorageProgress
+        {
+            ProcessedCount = 0,
+            TotalCount = totalFiles,
+            CurrentFileName = "Initializing...",
+        });
+
+        // Show notification for large file operations (>100 files) to inform user
+        if (totalFiles > 100)
+        {
+            _logger.LogInformation("Starting storage of {FileCount} files - this may take a while", totalFiles);
+        }
 
         foreach (var manifestFile in manifest.Files)
         {
@@ -505,8 +524,23 @@ public class ContentStorageService : IContentStorageService
                         "File {RelativePath} not found at source path {SourcePath} or computed path",
                         manifestFile.RelativePath,
                         sourcePath);
+                    processedCount++;
+                    progress?.Report(new ContentStorageProgress
+                    {
+                        ProcessedCount = processedCount,
+                        TotalCount = totalFiles,
+                        CurrentFileName = manifestFile.RelativePath,
+                    });
                     continue;
                 }
+
+                // Update progress before starting heavy CAS operation
+                progress?.Report(new ContentStorageProgress
+                {
+                    ProcessedCount = processedCount,
+                    TotalCount = totalFiles,
+                    CurrentFileName = manifestFile.RelativePath,
+                });
 
                 // Store file based on its SourceType
                 string hash;
@@ -575,6 +609,15 @@ public class ContentStorageService : IContentStorageService
                 };
 
                 updatedFiles.Add(updatedFile);
+                processedCount++;
+
+                // Update progress after completion
+                progress?.Report(new ContentStorageProgress
+                {
+                    ProcessedCount = processedCount,
+                    TotalCount = totalFiles,
+                    CurrentFileName = manifestFile.RelativePath,
+                });
             }
             catch (Exception ex)
             {
@@ -583,6 +626,14 @@ public class ContentStorageService : IContentStorageService
                     "Failed to store file {RelativePath} for manifest {ManifestId}",
                     manifestFile.RelativePath,
                     manifest.Id);
+
+                processedCount++;
+                progress?.Report(new ContentStorageProgress
+                {
+                    ProcessedCount = processedCount,
+                    TotalCount = totalFiles,
+                    CurrentFileName = manifestFile.RelativePath,
+                });
             }
         }
 

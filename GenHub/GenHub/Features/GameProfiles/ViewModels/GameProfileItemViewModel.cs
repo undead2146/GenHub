@@ -308,6 +308,30 @@ public partial class GameProfileItemViewModel : ViewModelBase
     public IGameProfile Profile { get; }
 
     /// <summary>
+    /// Gets or sets the user data switch information when switching to this profile.
+    /// </summary>
+    [ObservableProperty]
+    private GenHub.Core.Models.UserData.UserDataSwitchInfo? _userDataSwitchInfo;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to show the user data confirmation prompt.
+    /// </summary>
+    [ObservableProperty]
+    private bool _showUserDataConfirmation;
+
+    /// <summary>
+    /// Gets or sets the message to display in the user data confirmation prompt.
+    /// </summary>
+    [ObservableProperty]
+    private string? _userDataConfirmationMessage;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether many maps are being switched, warranting a warning.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isLargeMapCount;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="GameProfileItemViewModel"/> class.
     /// </summary>
     /// <param name="profileId">The profile ID.</param>
@@ -502,6 +526,15 @@ public partial class GameProfileItemViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsWorkspacePrepared));
         OnPropertyChanged(nameof(WorkspaceStatus));
         OnPropertyChanged(nameof(ActiveWorkspaceId));
+    }
+
+    /// <summary>
+    /// Explicitly notifies that the CanLaunch and CanEdit properties may have changed.
+    /// </summary>
+    public void NotifyCanLaunchChanged()
+    {
+        OnPropertyChanged(nameof(CanLaunch));
+        OnPropertyChanged(nameof(CanEdit));
     }
 
     /// <summary>

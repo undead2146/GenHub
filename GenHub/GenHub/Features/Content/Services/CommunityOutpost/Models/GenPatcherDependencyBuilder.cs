@@ -108,7 +108,7 @@ public static class GenPatcherDependencyBuilder
             InstallBehavior = DependencyInstallBehavior.RequireExisting,
             IsOptional = false,
             StrictPublisher = false, // Any publisher's ZH installation will work (EA, Steam, etc.)
-            CompatibleGameTypes = new List<GameType> { GameType.ZeroHour },
+            CompatibleGameTypes = [GameType.ZeroHour],
         };
     }
 
@@ -131,7 +131,7 @@ public static class GenPatcherDependencyBuilder
             InstallBehavior = DependencyInstallBehavior.RequireExisting,
             IsOptional = false,
             StrictPublisher = false, // Any publisher's Generals installation will work
-            CompatibleGameTypes = new List<GameType> { GameType.Generals },
+            CompatibleGameTypes = [GameType.Generals],
         };
     }
 
@@ -151,7 +151,7 @@ public static class GenPatcherDependencyBuilder
             InstallBehavior = DependencyInstallBehavior.RequireExisting,
             IsOptional = false,
             StrictPublisher = false,
-            CompatibleGameTypes = new List<GameType> { GameType.ZeroHour },
+            CompatibleGameTypes = [GameType.ZeroHour],
         };
     }
 
@@ -171,7 +171,7 @@ public static class GenPatcherDependencyBuilder
             InstallBehavior = DependencyInstallBehavior.RequireExisting,
             IsOptional = false,
             StrictPublisher = false,
-            CompatibleGameTypes = new List<GameType> { GameType.Generals },
+            CompatibleGameTypes = [GameType.Generals],
         };
     }
 
@@ -241,7 +241,7 @@ public static class GenPatcherDependencyBuilder
                 "ewba", "ewbi", "hlde", "hleg", "hlei", "hlen",
             }.FindAll(c => !c.Equals(contentCode, StringComparison.OrdinalIgnoreCase)),
 
-            _ => new List<string>(),
+            _ => [],
         };
     }
 

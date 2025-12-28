@@ -11,6 +11,9 @@ public enum LaunchPhase
     /// <summary>Resolving content manifests and dependencies.</summary>
     ResolvingContent,
 
+    /// <summary>Awaiting user confirmation for workspace cleanup.</summary>
+    AwaitingCleanupConfirmation,
+
     /// <summary>Preparing the workspace for launch.</summary>
     PreparingWorkspace,
 

@@ -20,6 +20,7 @@ public interface IUserDataTracker
     /// <param name="targetGame">The target game type.</param>
     /// <param name="files">The manifest files to install (only non-workspace targets will be processed).</param>
     /// <param name="manifestVersion">The version of the manifest being installed.</param>
+    /// <param name="manifestName">The human-readable name of the content manifest.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The created UserDataManifest tracking the installation.</returns>
     Task<OperationResult<UserDataManifest>> InstallUserDataAsync(
@@ -28,6 +29,7 @@ public interface IUserDataTracker
         GameType targetGame,
         IEnumerable<ManifestFile> files,
         string manifestVersion,
+        string? manifestName = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

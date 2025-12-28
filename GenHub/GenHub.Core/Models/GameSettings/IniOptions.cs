@@ -18,7 +18,12 @@ public class IniOptions
     public VideoSettings Video { get; set; } = new();
 
     /// <summary>
+    /// Gets or sets the network settings section.
+    /// </summary>
+    public NetworkSettings Network { get; set; } = new();
+
+    /// <summary>
     /// Gets or sets additional key-value pairs not covered by structured settings.
     /// </summary>
-    public Dictionary<string, Dictionary<string, string>> AdditionalSections { get; set; } = new();
+    public Dictionary<string, Dictionary<string, string>> AdditionalSections { get; set; } = [];
 }

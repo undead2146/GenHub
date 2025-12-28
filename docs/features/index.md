@@ -47,9 +47,19 @@ installable content packages and their dependencies.
 
 ### [Storage & CAS](./storage)
 
-Content Addressable Storage (CAS) system for efficient file storage,
-deduplication, and integrity verification. Provides atomic operations, garbage
-collection, and concurrent access safety.
+Multi-pool Content Addressable Storage (CAS) system for efficient file storage,
+deduplication, and integrity verification. Features separate pools for user content
+(Primary) and game installations (Installation) to support cross-drive scenarios
+and hard-link optimization. Provides atomic operations, garbage collection, and
+concurrent access safety.
+
+---
+
+### [Game Settings](./game-settings)
+
+Comprehensive game configuration management supporting all Options.ini settings
+including video, audio, network, and gameplay options. Features profile-specific
+settings, validation, and seamless integration with game launches.
 
 ---
 
@@ -78,9 +88,36 @@ flexibility and performance.
 Advanced game launching system with:
 
 - Profile switching  
+- **User data safety confirmation** (prevents unintended data loss when switching profiles)
 - Mod and add-on loading  
 - Process monitoring and error handling  
 - Runtime performance tracking  
+
+---
+
+### [User Data Management](./userdata)
+
+Comprehensive system for managing user-generated content (maps, replays, save games) across game profiles. Ensures data integrity and prevents accidental loss when switching between profiles.
+
+**Core Capabilities:**
+- **Profile Isolation**: Each profile maintains its own set of active user data
+- **Hard Link Efficiency**: Uses hard links to avoid duplicating files on disk
+- **Automatic Tracking**: Monitors which files belong to which profiles
+- **Smart Switching**: Analyzes data impact before profile switches
+- **Data Retention**: Option to transfer user data between profiles
+
+**Profile Lifecycle:**
+- **Preparation**: Installs and activates user data when launching a profile
+- **Switching**: Deactivates old profile data, activates new profile data
+- **Updates**: Adds/removes user data when profile content changes
+- **Cleanup**: Removes all user data when a profile is deleted
+
+**Safety Features:**
+- **Switch Analysis**: Pre-flight check identifies data that would be removed
+- **User Confirmation**: Non-blocking prompt with "Add to Profile" or "Remove" options
+- **Visual Feedback**: Shows file count and total size of affected data
+- **Large Transfer Warning**: Alerts when linking >100 files (potential performance impact)
+- **Semi-transparent Overlay**: Confirmation appears directly on profile card
 
 ---
 

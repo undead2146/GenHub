@@ -9,12 +9,12 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Manifest;
@@ -54,7 +54,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Gets the current application version for display.
     /// </summary>
-    public string CurrentVersion => AppConstants.FullDisplayVersion;
+    public static string CurrentVersion => AppConstants.FullDisplayVersion;
 
     private readonly IUserSettingsService _userSettingsService;
     private readonly ICasService _casService;
@@ -68,6 +68,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     private readonly Timer _memoryUpdateTimer;
     private readonly Timer _dangerZoneUpdateTimer;
     private readonly IConfigurationProviderService _configurationProvider;
+    private readonly IGameInstallationService _installationService;
 
     private bool _isViewVisible;
     private bool _disposed;
@@ -214,6 +215,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     /// <param name="updateManager">The update manager service.</param>
     /// <param name="notificationService">The notification service.</param>
     /// <param name="configurationProvider">The configuration provider service.</param>
+    /// <param name="installationService">The game installation service.</param>
     /// <param name="gitHubTokenStorage">Optional GitHub token storage for PAT management.</param>
     public SettingsViewModel(
         IUserSettingsService userSettingsService,
@@ -225,6 +227,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         IVelopackUpdateManager updateManager,
         INotificationService notificationService,
         IConfigurationProviderService configurationProvider,
+        IGameInstallationService installationService,
         IGitHubTokenStorage? gitHubTokenStorage = null)
     {
         _userSettingsService = userSettingsService ?? throw new ArgumentNullException(nameof(userSettingsService));
@@ -236,6 +239,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         _updateManager = updateManager ?? throw new ArgumentNullException(nameof(updateManager));
         _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
         _configurationProvider = configurationProvider ?? throw new ArgumentNullException(nameof(configurationProvider));
+        _installationService = installationService ?? throw new ArgumentNullException(nameof(installationService));
         _gitHubTokenStorage = gitHubTokenStorage;
 
         LoadSettings();
@@ -360,7 +364,6 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             }
 
             _disposed = true;
-            GC.SuppressFinalize(this);
         }
     }
 
@@ -1086,6 +1089,9 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         _logger.LogInformation("Forcing CAS storage cleanup as part of DeleteAllData");
         var result = await _casService.RunGarbageCollectionAsync(force: true, CancellationToken.None);
         _logger.LogInformation("CAS cleanup completed: {Deleted} objects deleted", result.ObjectsDeleted);
+
+        // Invalidate installation cache to force re-generation of manifests on next scan
+        _installationService.InvalidateCache();
 
         await UpdateDangerZoneDataAsync();
         _notificationService.ShowSuccess("Data Deleted", "All application data has been deleted successfully.", 5000);

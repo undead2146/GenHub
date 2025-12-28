@@ -26,7 +26,8 @@ public class WorkspaceManager(
     IConfigurationProviderService configurationProvider,
     ILogger<WorkspaceManager> logger,
     CasReferenceTracker casReferenceTracker,
-    IWorkspaceValidator workspaceValidator
+    IWorkspaceValidator workspaceValidator,
+    WorkspaceReconciler reconciler
 ) : IWorkspaceManager
 {
     private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
@@ -39,9 +40,10 @@ public class WorkspaceManager(
     /// </summary>
     /// <param name="configuration">The workspace configuration.</param>
     /// <param name="progress">Optional progress reporter.</param>
+    /// <param name="skipCleanup">If true, skip removal of files not in manifests.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>The prepared workspace information.</returns>
-    public async Task<OperationResult<WorkspaceInfo>> PrepareWorkspaceAsync(WorkspaceConfiguration configuration, IProgress<WorkspacePreparationProgress>? progress = null, CancellationToken cancellationToken = default)
+    public async Task<OperationResult<WorkspaceInfo>> PrepareWorkspaceAsync(WorkspaceConfiguration configuration, IProgress<WorkspacePreparationProgress>? progress = null, bool skipCleanup = false, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("[Workspace] === Preparing workspace {Id} with strategy {Strategy} ===", configuration.Id, configuration.Strategy);
         logger.LogDebug("[Workspace] Manifests: {Count}, ForceRecreate: {Force}", configuration.Manifests?.Count ?? 0, configuration.ForceRecreate);
@@ -198,7 +200,10 @@ public class WorkspaceManager(
             await CleanupWorkspaceAsync(configuration.Id, cancellationToken);
         }
 
-        logger.LogInformation("[Workspace] Executing strategy preparation");
+        // Propagate skipCleanup to configuration for strategies to use
+        configuration.SkipCleanup = skipCleanup;
+
+        logger.LogInformation("[Workspace] Executing strategy preparation (skipCleanup: {SkipCleanup})", skipCleanup);
         var workspaceInfo = await strategy.PrepareAsync(configuration, progress, cancellationToken);
 
         if (!workspaceInfo.IsPrepared)
@@ -206,7 +211,7 @@ public class WorkspaceManager(
             var messages = workspaceInfo.ValidationIssues?.Select(i => i.Message)
                            ?? ["Workspace preparation failed"];
             logger.LogError("[Workspace] Strategy preparation failed: {Errors}", string.Join(", ", messages));
-            return OperationResult<WorkspaceInfo>.CreateFailure(string.Join(", ", messages) ?? "Workspace preparation failed");
+            return OperationResult<WorkspaceInfo>.CreateFailure(string.Join(", ", messages));
         }
 
         logger.LogDebug("[Workspace] Strategy preparation completed successfully");
@@ -226,9 +231,7 @@ public class WorkspaceManager(
         }
 
         // Store manifest IDs for future reuse comparison
-        workspaceInfo.ManifestIds = (configuration.Manifests ?? [])
-            .Select(m => m.Id.Value)
-            .ToList();
+        workspaceInfo.ManifestIds = [.. (configuration.Manifests ?? []).Select(m => m.Id.Value)];
 
         logger.LogDebug("[Workspace] Saving workspace metadata");
         await SaveWorkspaceMetadataAsync(workspaceInfo, cancellationToken);
@@ -319,6 +322,96 @@ public class WorkspaceManager(
         {
             logger.LogError(ex, "Failed to cleanup workspace {Id}", workspaceId);
             return OperationResult<bool>.CreateFailure($"Failed to cleanup workspace: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Analyzes what cleanup operations would be needed when switching to a new workspace configuration.
+    /// </summary>
+    /// <param name="currentWorkspaceId">The ID of the current workspace (null if no workspace exists).</param>
+    /// <param name="newConfiguration">The new workspace configuration.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>An operation result containing cleanup confirmation data, or null if no cleanup needed.</returns>
+    public async Task<OperationResult<WorkspaceCleanupConfirmation?>> AnalyzeCleanupAsync(
+        string? currentWorkspaceId,
+        WorkspaceConfiguration newConfiguration,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // If no current workspace, no cleanup needed
+            if (string.IsNullOrEmpty(currentWorkspaceId))
+            {
+                return OperationResult<WorkspaceCleanupConfirmation?>.CreateSuccess(null);
+            }
+
+            // Get current workspace info
+            var workspacesResult = await GetAllWorkspacesAsync(cancellationToken);
+            if (!workspacesResult.Success || workspacesResult.Data == null)
+            {
+                return OperationResult<WorkspaceCleanupConfirmation?>.CreateSuccess(null);
+            }
+
+            var currentWorkspace = workspacesResult.Data.FirstOrDefault(w => w.Id == currentWorkspaceId);
+            if (currentWorkspace == null || !Directory.Exists(currentWorkspace.WorkspacePath))
+            {
+                return OperationResult<WorkspaceCleanupConfirmation?>.CreateSuccess(null);
+            }
+
+            // Analyze deltas using the reconciler
+            var deltas = await reconciler.AnalyzeWorkspaceDeltaAsync(currentWorkspace, newConfiguration, cancellationToken);
+
+            // Filter to only removal operations
+            var removalDeltas = deltas.Where(d => d.Operation == WorkspaceDeltaOperation.Remove).ToList();
+
+            if (removalDeltas.Count == 0)
+            {
+                return OperationResult<WorkspaceCleanupConfirmation?>.CreateSuccess(null);
+            }
+
+            // Calculate total size of files to be removed
+            long totalSize = 0;
+            foreach (var delta in removalDeltas)
+            {
+                if (File.Exists(delta.WorkspacePath))
+                {
+                    try
+                    {
+                        var fileInfo = new FileInfo(delta.WorkspacePath);
+                        totalSize += fileInfo.Length;
+                    }
+                    catch
+                    {
+                        // Ignore file access errors
+                    }
+                }
+            }
+
+            // Identify affected manifests (manifests that have files being removed)
+            var affectedManifests = currentWorkspace.ManifestIds?
+                .Except(newConfiguration.Manifests?.Select(m => m.Id.Value) ?? [])
+                .ToList() ?? [];
+
+            var confirmation = new WorkspaceCleanupConfirmation
+            {
+                FilesToRemove = removalDeltas.Count,
+                TotalSizeBytes = totalSize,
+                AffectedManifests = affectedManifests,
+                RemovalDeltas = removalDeltas,
+            };
+
+            logger.LogInformation(
+                "[Workspace] Cleanup analysis: {FileCount} files ({Size:N0} bytes) would be removed from {ManifestCount} manifests",
+                confirmation.FilesToRemove,
+                confirmation.TotalSizeBytes,
+                confirmation.AffectedManifests.Count);
+
+            return OperationResult<WorkspaceCleanupConfirmation?>.CreateSuccess(confirmation);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[Workspace] Failed to analyze cleanup for workspace {WorkspaceId}", currentWorkspaceId);
+            return OperationResult<WorkspaceCleanupConfirmation?>.CreateFailure($"Failed to analyze cleanup: {ex.Message}");
         }
     }
 

@@ -11,14 +11,15 @@ public static class GameSettingsConstants
     public static class TextureQuality
     {
         /// <summary>
-        /// Maximum texture quality value (0-2, where 0 is highest quality).
+        /// Maximum texture quality value (0-3, where 0 is lowest and 3 is VeryHigh for TheSuperHackers).
         /// </summary>
-        public const int MaxQuality = 2;
+        public const int MaxQuality = 3;
 
         /// <summary>
-        /// Offset used to convert between TextureQuality (0-2) and TextureReduction (0-3).
+        /// Offset used to convert between TextureQuality (0-3) and TextureReduction (-1 to 3).
+        /// VeryHigh (3) maps to TextureReduction -1 (TheSuperHackers only).
         /// </summary>
-        public const int ReductionOffset = 2;
+        public const int ReductionOffset = 3;
     }
 
     /// <summary>
@@ -144,8 +145,8 @@ public static class GameSettingsConstants
         /// <summary>
         /// Gets the list of standard resolution presets in "WIDTHxHEIGHT" format.
         /// </summary>
-        public static IReadOnlyList<string> StandardResolutions { get; } = new List<string>
-        {
+        public static IReadOnlyList<string> StandardResolutions { get; } =
+        [
             "800x600",
             "1024x768",
             "1152x864",
@@ -172,6 +173,6 @@ public static class GameSettingsConstants
             "3840x2160",   // 4K
             "5120x2880",   // 5K
             "7680x4320",   // 8K
-        };
+        ];
     }
 }

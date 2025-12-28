@@ -313,7 +313,7 @@ public class GameClientDetector(
             if (addResult.Success)
             {
                 gameClient.Id = manifest.Id.ToString();
-                logger.LogDebug("Generated GameClient manifest ID {Id} for {VersionName}", gameClient.Id, gameClient.Name);
+                logger.LogInformation("Generated GameClient manifest ID {Id} for {VersionName}", gameClient.Id, gameClient.Name);
             }
             else
             {
@@ -611,6 +611,7 @@ public class GameClientDetector(
                     InstallationId = installation.Id,
                     WorkingDirectory = installationPath,
                     SourceType = ContentType.GameClient,
+                    PublisherType = PublisherTypeConstants.GeneralsOnline,
                 };
 
                 // Generate manifest for this GeneralsOnline client
@@ -869,7 +870,7 @@ public class GameClientDetector(
     }
 
     /// <summary>
-    /// Checks manifest pool for existing DOWNLOADED GameClient content from a specific publisher.
+    /// Checks manifest pool for existing downloaded GameClient content from a specific publisher.
     /// Filters out local detection manifests (version "Auto-Updated" or 0) - only returns
     /// manifests that were downloaded from the publisher's CDN with real version numbers.
     /// </summary>

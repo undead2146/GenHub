@@ -20,6 +20,7 @@ public class WorkspaceManagerTests : IDisposable
     private readonly Mock<IWorkspaceValidator> _mockWorkspaceValidator;
     private readonly IWorkspaceStrategy[] _strategies;
     private readonly CasReferenceTracker _casReferenceTracker;
+    private readonly WorkspaceReconciler _reconciler;
     private readonly WorkspaceManager _manager;
 
     /// <summary>
@@ -40,7 +41,11 @@ public class WorkspaceManagerTests : IDisposable
         var mockCasLogger = new Mock<ILogger<CasReferenceTracker>>();
         _casReferenceTracker = new CasReferenceTracker(mockCasConfig.Object, mockCasLogger.Object);
 
-        _manager = new WorkspaceManager(_strategies, _mockConfigProvider.Object, _mockLogger.Object, _casReferenceTracker, _mockWorkspaceValidator.Object);
+        // Create WorkspaceReconciler
+        var mockReconcilerLogger = new Mock<ILogger<WorkspaceReconciler>>();
+        _reconciler = new WorkspaceReconciler(mockReconcilerLogger.Object);
+
+        _manager = new WorkspaceManager(_strategies, _mockConfigProvider.Object, _mockLogger.Object, _casReferenceTracker, _mockWorkspaceValidator.Object, _reconciler);
     }
 
     /// <summary>

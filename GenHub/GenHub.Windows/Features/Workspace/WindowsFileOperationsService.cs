@@ -68,19 +68,46 @@ public partial class WindowsFileOperationsService(
 
             if (useHardLink)
             {
-                await CreateHardLinkAsync(destinationPath, pathResult.Data, cancellationToken).ConfigureAwait(false);
+                // Check if source and destination are on the same volume
+                var sourceRoot = Path.GetPathRoot(pathResult.Data);
+                var destRoot = Path.GetPathRoot(destinationPath);
+                var sameVolume = string.Equals(sourceRoot, destRoot, StringComparison.OrdinalIgnoreCase);
+
+                if (!sameVolume)
+                {
+                    // Different volumes - hard links won't work, fall back to copy silently
+                    logger.LogDebug(
+                        "Hard link requested but source ({SourceDrive}) and destination ({DestDrive}) are on different volumes, falling back to copy",
+                        sourceRoot,
+                        destRoot);
+                    await CopyFileAsync(pathResult.Data, destinationPath, cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    // Same volume - attempt hard link
+                    try
+                    {
+                        await CreateHardLinkAsync(destinationPath, pathResult.Data, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (IOException ex) when (ex.Message.Contains("different volumes", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Hard link failed due to cross-volume, fall back to copy
+                        logger.LogDebug("Hard link failed (cross-volume), falling back to copy for hash {Hash}", hash);
+                        await CopyFileAsync(pathResult.Data, destinationPath, cancellationToken).ConfigureAwait(false);
+                    }
+                }
             }
             else
             {
                 await CreateSymlinkAsync(destinationPath, pathResult.Data, !useHardLink, cancellationToken).ConfigureAwait(false);
             }
 
-            logger.LogDebug("Created {LinkType} from CAS hash {Hash} to {DestinationPath}", useHardLink ? "hard link" : "symlink", hash, destinationPath);
+            logger.LogDebug("Created {LinkType} from CAS hash {Hash} to {DestinationPath}", useHardLink ? "hard link/copy" : "symlink", hash, destinationPath);
             return true;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to create {LinkType} from CAS hash {Hash} to {DestinationPath}", useHardLink ? "hard link" : "symlink", hash, destinationPath);
+            logger.LogError(ex, "Failed to create {LinkType} from CAS hash {Hash} to {DestinationPath}", useHardLink ? "hard link/copy" : "symlink", hash, destinationPath);
             return false;
         }
     }

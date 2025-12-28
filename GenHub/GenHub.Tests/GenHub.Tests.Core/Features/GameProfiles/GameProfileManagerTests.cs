@@ -1,6 +1,8 @@
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
@@ -21,6 +23,8 @@ public class GameProfileManagerTests
     private readonly Mock<IGameProfileRepository> _profileRepositoryMock = new();
     private readonly Mock<IGameInstallationService> _installationServiceMock = new();
     private readonly Mock<IContentManifestPool> _manifestPoolMock = new();
+    private readonly Mock<IGameSettingsService> _gameSettingsServiceMock = new();
+    private readonly Mock<INotificationService> _notificationServiceMock = new();
     private readonly Mock<ILogger<GameProfileManager>> _loggerMock = new();
     private readonly GameProfileManager _profileManager;
 
@@ -33,7 +37,8 @@ public class GameProfileManagerTests
             _profileRepositoryMock.Object,
             _installationServiceMock.Object,
             _manifestPoolMock.Object,
-            null,
+            _gameSettingsServiceMock.Object,
+            _notificationServiceMock.Object,
             _loggerMock.Object);
     }
 
@@ -370,11 +375,11 @@ public class GameProfileManagerTests
             Name = "Test Profile",
             GameInstallationId = "install-1",
             GameClient = new GameClient { Id = "client-1", Version = "1.0" },
-            EnabledContentIds = new List<string> { "content1" },
+            EnabledContentIds = ["content1"],
         };
         var request = new UpdateProfileRequest
         {
-            EnabledContentIds = new List<string> { "content1", "content2", "content3" },
+            EnabledContentIds = ["content1", "content2", "content3"],
         };
 
         _profileRepositoryMock.Setup(x => x.LoadProfileAsync(profileId, default))
@@ -390,15 +395,12 @@ public class GameProfileManagerTests
         _profileRepositoryMock.Verify(x => x.SaveProfileAsync(It.Is<GameProfile>(p => p.EnabledContentIds.Count == 3), default), Times.Once);
     }
 
-    /// <summary>
-    /// Creates a test installation with a specific client.
-    /// </summary>
-    private GameInstallation CreateTestInstallation(string clientId)
+    private static GameInstallation CreateTestInstallation(string clientId)
     {
-        return new GameInstallation("C:\\Games\\TestGame", GameInstallationType.Steam, new Mock<ILogger<GameInstallation>>().Object)
+        return new GameInstallation("C:\\Games\\Generals", GameInstallationType.Retail)
         {
             Id = Guid.NewGuid().ToString(),
-            AvailableGameClients = new List<GameClient> { new GameClient { Id = clientId, Version = "1.0" }, },
+            AvailableGameClients = [new GameClient { Id = clientId, Version = "1.0", GameType = GameType.Generals }],
         };
     }
 }

@@ -49,4 +49,11 @@ public class WorkspaceConfiguration
     /// Used internally by WorkspaceManager to pass delta information to strategies.
     /// </summary>
     public List<WorkspaceDelta>? ReconciliationDeltas { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to skip cleanup of files that are no longer in manifests.
+    /// When true, files that exist in workspace but not in new manifests will be preserved.
+    /// This is useful when switching profiles to avoid deleting large map packs.
+    /// </summary>
+    public bool SkipCleanup { get; set; }
 }

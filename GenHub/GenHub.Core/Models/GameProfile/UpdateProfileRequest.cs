@@ -225,4 +225,65 @@ public class UpdateProfileRequest
 
     /// <summary>Gets or sets a value indicating whether to launch using Steam integration (generals.exe) or standalone (game.dat).</summary>
     public bool? UseSteamLaunch { get; set; }
+
+    // Camera settings
+
+    /// <summary>Gets or sets the camera maximum height when lobby host (GO).</summary>
+    public float? GoCameraMaxHeightOnlyWhenLobbyHost { get; set; }
+
+    /// <summary>Gets or sets the camera minimum height (GO).</summary>
+    public float? GoCameraMinHeight { get; set; }
+
+    /// <summary>Gets or sets the camera move speed ratio (GO).</summary>
+    public float? GoCameraMoveSpeedRatio { get; set; }
+
+    // Chat settings
+
+    /// <summary>Gets or sets the chat duration in seconds until fade out (GO).</summary>
+    public int? GoChatDurationSecondsUntilFadeOut { get; set; }
+
+    // Debug settings
+
+    /// <summary>Gets or sets a value indicating whether verbose logging is enabled (GO).</summary>
+    public bool? GoDebugVerboseLogging { get; set; }
+
+    // Render settings
+
+    /// <summary>Gets or sets the FPS limit (GO).</summary>
+    public int? GoRenderFpsLimit { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to limit framerate (GO).</summary>
+    public bool? GoRenderLimitFramerate { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to show stats overlay (GO).</summary>
+    public bool? GoRenderStatsOverlay { get; set; }
+
+    // Social notification settings
+
+    /// <summary>Gets or sets a value indicating whether to notify when friend comes online during gameplay (GO).</summary>
+    public bool? GoSocialNotificationFriendComesOnlineGameplay { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to notify when friend comes online in menus (GO).</summary>
+    public bool? GoSocialNotificationFriendComesOnlineMenus { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to notify when friend goes offline during gameplay (GO).</summary>
+    public bool? GoSocialNotificationFriendGoesOfflineGameplay { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to notify when friend goes offline in menus (GO).</summary>
+    public bool? GoSocialNotificationFriendGoesOfflineMenus { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to notify when player accepts request during gameplay (GO).</summary>
+    public bool? GoSocialNotificationPlayerAcceptsRequestGameplay { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to notify when player accepts request in menus (GO).</summary>
+    public bool? GoSocialNotificationPlayerAcceptsRequestMenus { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to notify when player sends request during gameplay (GO).</summary>
+    public bool? GoSocialNotificationPlayerSendsRequestGameplay { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to notify when player sends request in menus (GO).</summary>
+    public bool? GoSocialNotificationPlayerSendsRequestMenus { get; set; }
+
+    /// <summary>Gets or sets the IP address for GameSpy/Networking services.</summary>
+    public string? GameSpyIPAddress { get; set; }
 }

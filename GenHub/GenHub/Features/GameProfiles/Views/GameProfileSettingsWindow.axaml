@@ -16,7 +16,10 @@
         CanResize="True"
         WindowStartupLocation="CenterOwner"
         Background="#0F0F0F"
-        Icon="avares://GenHub/Assets/Icons/generalshub-icon.png">
+        Icon="avares://GenHub/Assets/Icons/generalshub-icon.png"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="-1">
     
     <Window.Resources>
         <conv:ContrastTextColorConverter x:Key="ContrastTextColorConverter" />
@@ -86,29 +89,37 @@
         
         <!-- Content action buttons -->
         <Style Selector="Button.btn-add">
-            <Setter Property="Background" Value="#1976D2" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="CornerRadius" Value="5" />
-            <Setter Property="Padding" Value="10,5" />
-            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Background" Value="#15FFFFFF" />
+            <Setter Property="BorderBrush" Value="#40FFFFFF" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#4FC3F7" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="14,6" />
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Cursor" Value="Hand" />
         </Style>
         <Style Selector="Button.btn-add:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="#1565C0" />
+            <Setter Property="Background" Value="#4FC3F7" />
+            <Setter Property="BorderBrush" Value="#4FC3F7" />
+            <Setter Property="Foreground" Value="#000000" />
         </Style>
         
         <Style Selector="Button.btn-remove">
-            <Setter Property="Background" Value="#C62828" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="Background" Value="#15FFFFFF" />
+            <Setter Property="BorderBrush" Value="#FF5252" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#FF5252" />
+            <Setter Property="CornerRadius" Value="6" />
             <Setter Property="Padding" Value="8,5" />
-            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Cursor" Value="Hand" />
         </Style>
         <Style Selector="Button.btn-remove:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="#B71C1C" />
+            <Setter Property="Background" Value="#FF5252" />
+            <Setter Property="BorderBrush" Value="#FF5252" />
+            <Setter Property="Foreground" Value="White" />
         </Style>
         
         <!-- Content filter pills -->
@@ -175,7 +186,7 @@
     </Window.Styles>
 
     <Border Background="{Binding ColorValue, Converter={StaticResource ThemeBackgroundConverter}, Mode=OneWay}">
-        <Grid RowDefinitions="Auto,Auto,*">
+        <Grid RowDefinitions="Auto,Auto,*,Auto">
             <!-- Cover Image Backdrop -->
             <Image Grid.RowSpan="3"
                    Source="{Binding CoverPath, Mode=OneWay, Converter={StaticResource StringToImageConverter}}"
@@ -188,7 +199,8 @@
                 Background="{Binding ColorValue, Converter={StaticResource ColorToBrushConverter}, Mode=OneWay}" 
                 CornerRadius="0,0,16,16" 
                 Height="70"
-                Opacity="0.35">
+                Opacity="0.7"
+                PointerPressed="OnHeaderPointerPressed">
             <Grid ColumnDefinitions="Auto,*,Auto" Margin="16,0">
                 <!-- Profile Icon -->
                 <Border Grid.Column="0"
@@ -219,25 +231,25 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <Button Content="Cancel" 
                             Command="{Binding ExecuteCancelCommand}"  
-                            Background="#25000000"
-                            Foreground="{Binding ColorValue, Converter={StaticResource ContrastTextColorConverter}, Mode=OneWay}"
-                            BorderBrush="{Binding ColorValue, Converter={StaticResource ContrastTextColorConverter}, Mode=OneWay}"
-                            BorderThickness="1"
-                            Width="80" Height="34"
-                            CornerRadius="17"
-                            FontWeight="Medium"
-                            FontSize="12"
+                            Background="#40000000"
+                            Foreground="White"
+                            BorderBrush="#80FFFFFF"
+                            BorderThickness="2"
+                            Width="90" Height="38"
+                            CornerRadius="19"
+                            FontWeight="SemiBold"
+                            FontSize="13"
                             HorizontalContentAlignment="Center"
                             VerticalContentAlignment="Center" />
                     
                     <Button Content="💾 Save" 
                             Command="{Binding SaveCommand}"
-                            Background="{Binding ColorValue, Converter={StaticResource ContrastTextColorConverter}, Mode=OneWay}"
-                            Foreground="{Binding ColorValue, Converter={StaticResource ColorToBrushConverter}, Mode=OneWay}"
-                            Width="90" Height="34"
-                            CornerRadius="17"
+                            Background="White"
+                            Foreground="#1976D2"
+                            Width="100" Height="38"
+                            CornerRadius="19"
                             FontWeight="Bold"
-                            FontSize="13"
+                            FontSize="14"
                             HorizontalContentAlignment="Center"
                             VerticalContentAlignment="Center"
                             ToolTip.Tip="Save profile changes (Ctrl+S)" />
@@ -363,24 +375,29 @@
                             
                             <!-- Enabled content list -->
                             <ItemsControl ItemsSource="{Binding EnabledContent}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="2" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Background="#12FFFFFF" CornerRadius="6" Padding="10" Margin="0,0,0,6">
+                                        <Border Background="#08FFFFFF" BorderBrush="#15FFFFFF" BorderThickness="1" CornerRadius="8" Padding="12" Margin="4">
                                             <Grid ColumnDefinitions="*,Auto">
-                                                <StackPanel Grid.Column="0" Spacing="4">
+                                                <StackPanel Grid.Column="0" Spacing="6">
                                                     <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" />
-                                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                                        <Border Background="#FF6B6B" CornerRadius="3" Padding="5,2"
+                                                    <WrapPanel Orientation="Horizontal" Margin="0,0,8,0">
+                                                        <Border Background="#20FF5252" BorderBrush="#FF5252" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,4,4"
                                                                 IsVisible="{Binding Publisher, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                                            <TextBlock Text="{Binding Publisher}" FontSize="10" Foreground="White" FontWeight="SemiBold" />
+                                                            <TextBlock Text="{Binding Publisher}" FontSize="10" Foreground="#FF8A80" FontWeight="SemiBold" />
                                                         </Border>
-                                                        <Border Background="{Binding GameType, Converter={x:Static conv:GameTypeToBrushConverter.Instance}}" CornerRadius="3" Padding="5,2">
-                                                            <TextBlock Text="{Binding GameType, Converter={x:Static conv:GameTypeDisplayConverter.Instance}}" FontSize="10" Foreground="White" />
+                                                        <Border Background="#20FFFFFF" BorderBrush="#40FFFFFF" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,4,4">
+                                                            <TextBlock Text="{Binding GameType, Converter={x:Static conv:GameTypeDisplayConverter.Instance}}" FontSize="10" Foreground="#E0E0E0" />
                                                         </Border>
-                                                        <Border Background="#757575" CornerRadius="3" Padding="5,2">
-                                                            <TextBlock Text="{Binding ContentType, Converter={x:Static conv:ContentTypeDisplayConverter.Instance}}" FontSize="10" Foreground="White" />
+                                                        <Border Background="#20FFFFFF" BorderBrush="#40FFFFFF" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,4,4">
+                                                            <TextBlock Text="{Binding ContentType, Converter={x:Static conv:ContentTypeDisplayConverter.Instance}}" FontSize="10" Foreground="#E0E0E0" />
                                                         </Border>
-                                                    </StackPanel>
+                                                    </WrapPanel>
                                                 </StackPanel>
                                                 <Button Grid.Column="1" Content="✕" Classes="btn-remove"
                                                         Command="{Binding $parent[ItemsControl].((vm:GameProfileSettingsViewModel)DataContext).DisableContentCommand}"
@@ -402,7 +419,7 @@
                             <TextBlock Classes="section-title" Text="Add Content" />
                             
                             <!-- Content type filter pills -->
-                            <WrapPanel Margin="0,0,0,12">
+                            <WrapPanel Margin="0,0,0,12" HorizontalAlignment="Center">
                                 <Button Classes="filter-pill" Margin="0,0,8,8"
                                         Classes.selected="{Binding SelectedContentType, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:ContentType.GameInstallation}}"
                                         Command="{Binding SelectContentTypeFilterCommand}"
@@ -464,30 +481,41 @@
                                 </Button>
                             </WrapPanel>
                             
+                            <!-- Add Local Content Button -->
+                            <Button Classes="filter-pill" Content="📁 Add Local"
+                                    Command="{Binding AddLocalContentCommand}"
+                                    ToolTip.Tip="Add content from a local folder"
+                                    HorizontalAlignment="Left"
+                                    Margin="0,0,0,12" />
+                            
                             <!-- Available content list -->
                             <Border Background="#0A000000" BorderBrush="#20FFFFFF" BorderThickness="1" 
-                                    CornerRadius="6" Padding="8" MinHeight="120" MaxHeight="250">
+                                    CornerRadius="6" Padding="8" MinHeight="120">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                     <ItemsControl ItemsSource="{Binding AvailableContent}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <UniformGrid Columns="2" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Background="#10FFFFFF" CornerRadius="4" Padding="10" Margin="0,3"
-                                                        x:Name="ContentItemBorder">
+                                                <Border Background="#08FFFFFF" BorderBrush="#15FFFFFF" BorderThickness="1" CornerRadius="8" Padding="12" Margin="4">
                                                     <Border.IsVisible>
                                                         <Binding Path="IsEnabled" Converter="{x:Static conv:InvertedBoolToVisibilityConverter.Instance}" />
                                                     </Border.IsVisible>
                                                     <Grid ColumnDefinitions="*,Auto,Auto">
-                                                        <StackPanel Grid.Column="0" Spacing="3">
-                                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="12" />
-                                                            <StackPanel Orientation="Horizontal" Spacing="5">
-                                                                <Border Background="#FF6B6B" CornerRadius="2" Padding="4,1"
+                                                         <StackPanel Grid.Column="0" Spacing="6">
+                                                             <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" />
+                                                             <WrapPanel Orientation="Horizontal" Margin="0,0,8,0">
+                                                                 <Border Background="#20FF6B6B" BorderBrush="#FF6B6B" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,4,4"
                                                                         IsVisible="{Binding Publisher, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                                                    <TextBlock Text="{Binding Publisher}" FontSize="9" Foreground="White" FontWeight="SemiBold" />
+                                                                    <TextBlock Text="{Binding Publisher}" FontSize="10" Foreground="#FF8A80" FontWeight="SemiBold" />
                                                                 </Border>
-                                                                <Border Background="{Binding GameType, Converter={x:Static conv:GameTypeToBrushConverter.Instance}}" CornerRadius="2" Padding="4,1">
-                                                                    <TextBlock Text="{Binding GameType, Converter={x:Static conv:GameTypeShortDisplayConverter.Instance}}" FontSize="9" Foreground="White" />
+                                                                <Border Background="#20FFFFFF" BorderBrush="#40FFFFFF" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,4,4">
+                                                                    <TextBlock Text="{Binding GameType, Converter={x:Static conv:GameTypeShortDisplayConverter.Instance}}" FontSize="10" Foreground="#E0E0E0" />
                                                                 </Border>
-                                                            </StackPanel>
+                                                            </WrapPanel>
                                                         </StackPanel>
                                                         
                                                         <!-- Delete button - always visible -->
@@ -775,7 +803,88 @@
                           HorizontalScrollBarVisibility="Disabled">
                 <views:GameSettingsView DataContext="{Binding GameSettingsViewModel}" />
             </ScrollViewer>
+
         </Grid>
+
+        <!-- Add Local Content Dialog -->
+        <Border Grid.RowSpan="3"
+                IsVisible="{Binding IsAddLocalContentDialogOpen}"
+                Background="#CC000000"
+                ZIndex="1002">
+            <Border Background="{Binding ColorValue, Converter={StaticResource ThemeBackgroundConverter}, Mode=OneWay}"
+                    BorderBrush="{Binding ColorValue, Converter={StaticResource ThemeBorderConverter}, Mode=OneWay}"
+                    BorderThickness="2"
+                    CornerRadius="16"
+                    Width="420"
+                    Padding="24"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Center">
+                <StackPanel Spacing="16">
+                    <!-- Header -->
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <TextBlock Text="📁" FontSize="24" VerticalAlignment="Center" />
+                        <TextBlock Text="Add Local Content" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </StackPanel>
+                    
+                    <!-- Selected Folder -->
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Selected Folder" FontSize="12" Opacity="0.8" />
+                        <Border Background="#15FFFFFF" CornerRadius="6" Padding="10,8">
+                            <TextBlock Text="{Binding LocalContentDirectoryPath}" 
+                                       FontSize="11" 
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip.Tip="{Binding LocalContentDirectoryPath}" />
+                        </Border>
+                    </StackPanel>
+                    
+                    <!-- Content Name -->
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Content Name" FontSize="12" Opacity="0.8" />
+                        <TextBox Text="{Binding LocalContentName, Mode=TwoWay}"
+                                 Watermark="Enter a name for this content"
+                                 MinHeight="36" />
+                    </StackPanel>
+                    
+                    <!-- Content Type -->
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Content Type" FontSize="12" Opacity="0.8" />
+                        <ComboBox ItemsSource="{x:Static vm:GameProfileSettingsViewModel.AllowedLocalContentTypes}"
+                                  SelectedItem="{Binding SelectedLocalContentType}"
+                                  HorizontalAlignment="Stretch"
+                                  MinHeight="36">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Converter={x:Static conv:ContentTypeDisplayConverter.Instance}}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBlock Text="Publisher will be set to 'GenHub (Local)' for local content"
+                                   FontSize="10" Opacity="0.6" FontStyle="Italic" />
+                    </StackPanel>
+                    
+                    <!-- Action Buttons -->
+                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,8,0,0">
+                        <Button Grid.Column="1" Content="Cancel"
+                                Command="{Binding CancelAddLocalContentCommand}"
+                                Background="#25000000"
+                                Foreground="White"
+                                BorderBrush="#40FFFFFF"
+                                BorderThickness="1"
+                                Width="90" Height="36"
+                                CornerRadius="8"
+                                FontWeight="Medium"
+                                Margin="0,0,12,0" />
+                        <Button Grid.Column="2" Content="✓ Add Content"
+                                Command="{Binding ConfirmAddLocalContentCommand}"
+                                Background="{Binding ColorValue, Converter={StaticResource ColorToBrushConverter}, Mode=OneWay}"
+                                Foreground="White"
+                                Width="120" Height="36"
+                                CornerRadius="8"
+                                FontWeight="Bold" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Border>
 
         <!-- Loading overlay -->
         <Border Grid.RowSpan="3" 
