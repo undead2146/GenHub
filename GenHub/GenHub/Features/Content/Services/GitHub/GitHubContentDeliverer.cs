@@ -16,7 +16,7 @@ using GenHub.Core.Models.Results;
 using GenHub.Features.Content.Services.Publishers;
 using Microsoft.Extensions.Logging;
 
-namespace GenHub.Features.Content.Services.ContentDeliverers;
+namespace GenHub.Features.Content.Services.GitHub;
 
 /// <summary>
 /// Delivers GitHub content with special handling for releases containing ZIP archives.
@@ -70,7 +70,7 @@ public class GitHubContentDeliverer(
                 .Select(g => g.Key)
                 .ToList();
 
-            if (duplicatePaths.Any())
+            if (duplicatePaths.Count > 0)
             {
                 logger.LogError(
                     "Manifest {ManifestId} contains duplicate relative paths: {Duplicates}. This would cause data loss.",
@@ -107,7 +107,7 @@ public class GitHubContentDeliverer(
             // Check if this is GameClient content with ZIP files
             var zipFiles = downloadedFiles.Where(f => Path.GetExtension(f).Equals(".zip", StringComparison.OrdinalIgnoreCase)).ToList();
 
-            if (packageManifest.ContentType == ContentType.GameClient && zipFiles.Any())
+            if (packageManifest.ContentType == ContentType.GameClient && zipFiles.Count > 0)
             {
                 logger.LogInformation(
                     "GameClient content detected with {Count} ZIP files. Extracting...",

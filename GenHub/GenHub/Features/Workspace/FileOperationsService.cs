@@ -192,19 +192,19 @@ public class FileOperationsService(
                 // Safely try to copy timestamps/attributes but do not fail copy if this part fails
                 try
                 {
-                    var sourceInfo = new FileInfo(sourcePath);
-                    var destInfo = new FileInfo(destinationPath);
+                    FileInfo sourceInfo = new(sourcePath);
+                    FileInfo destInfo = new(destinationPath)
+                    {
+                        // Timestamps
+                        CreationTime = sourceInfo.CreationTime,
+                        LastWriteTime = sourceInfo.LastWriteTime,
 
-                    // Timestamps
-                    destInfo.CreationTime = sourceInfo.CreationTime;
-                    destInfo.LastWriteTime = sourceInfo.LastWriteTime;
-
-                    // Attributes - avoid reparse/read-only/system flags
-                    var sanitizedAttributes = sourceInfo.Attributes
+                        // Attributes - avoid reparse/read-only/system flags
+                        Attributes = sourceInfo.Attributes
                         & ~FileAttributes.ReparsePoint
                         & ~FileAttributes.ReadOnly
-                        & ~FileAttributes.System;
-                    destInfo.Attributes = sanitizedAttributes;
+                        & ~FileAttributes.System,
+                    };
                 }
                 catch (Exception attrEx)
                 {
@@ -628,7 +628,7 @@ public class FileOperationsService(
             }
             else
             {
-                await CreateSymlinkAsync(destinationPath, pathResult.Data, useHardLink ? false : true, cancellationToken).ConfigureAwait(false);
+                await CreateSymlinkAsync(destinationPath, pathResult.Data, !useHardLink, cancellationToken).ConfigureAwait(false);
             }
 
             _logger.LogDebug("Created {LinkType} from CAS hash {Hash} to {DestinationPath}", useHardLink ? "hard link" : "symlink", hash, destinationPath);

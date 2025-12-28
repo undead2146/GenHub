@@ -12,27 +12,14 @@ namespace GenHub.Tests.Core.Features.Workspace;
 /// A test-specific implementation of FileOperationsService that supports HardLinks on Windows.
 /// This mimics the behavior of WindowsFileOperationsService but avoids referencing the WinExe project.
 /// </summary>
-public class TestFileOperationsService : IFileOperationsService
+public partial class TestFileOperationsService(
+    ILogger<FileOperationsService> logger,
+    IDownloadService downloadService,
+    ICasService casService) : IFileOperationsService
 {
-    private readonly FileOperationsService _innerService;
-    private readonly ILogger<FileOperationsService> _logger;
-    private readonly ICasService _casService;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="TestFileOperationsService"/> class.
-    /// </summary>
-    /// <param name="logger">The logger.</param>
-    /// <param name="downloadService">The download service.</param>
-    /// <param name="casService">The CAS service.</param>
-    public TestFileOperationsService(
-        ILogger<FileOperationsService> logger,
-        IDownloadService downloadService,
-        ICasService casService)
-    {
-        _logger = logger;
-        _casService = casService;
-        _innerService = new FileOperationsService(logger, downloadService, casService);
-    }
+    private readonly FileOperationsService _innerService = new(logger, downloadService, casService);
+    private readonly ILogger<FileOperationsService> _logger = logger;
+    private readonly ICasService _casService = casService;
 
     /// <inheritdoc/>
     public async Task CreateHardLinkAsync(
@@ -148,6 +135,7 @@ public class TestFileOperationsService : IFileOperationsService
     public Task<Stream?> OpenCasContentAsync(string hash, CancellationToken cancellationToken = default)
         => _innerService.OpenCasContentAsync(hash, cancellationToken);
 
-    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    private static extern bool CreateHardLink(string lpFileName, string lpExistingFileName, IntPtr lpSecurityAttributes);
+    [LibraryImport("kernel32.dll", EntryPoint = "CreateHardLinkW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool CreateHardLink(string lpFileName, string lpExistingFileName, IntPtr lpSecurityAttributes);
 }

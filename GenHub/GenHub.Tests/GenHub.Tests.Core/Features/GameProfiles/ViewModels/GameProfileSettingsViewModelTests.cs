@@ -82,6 +82,7 @@ public class GameProfileSettingsViewModelTests
             null, // ProfileResourceService
             null, // INotificationService
             null, // IContentManifestPool
+            null, // IContentStorageService
             nullLogger,
             gameSettingsLogger);
 
@@ -120,6 +121,7 @@ public class GameProfileSettingsViewModelTests
             null, // ProfileResourceService
             null, // INotificationService
             null, // IContentManifestPool
+            null, // IContentStorageService
             nullLogger,
             gameSettingsLogger);
 

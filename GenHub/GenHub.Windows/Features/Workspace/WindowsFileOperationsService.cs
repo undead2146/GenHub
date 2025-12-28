@@ -15,7 +15,7 @@ namespace GenHub.Windows.Features.Workspace;
 /// <summary>
 /// Windows-specific implementation of <see cref="IFileOperationsService"/> for file operations.
 /// </summary>
-public class WindowsFileOperationsService(
+public partial class WindowsFileOperationsService(
     FileOperationsService baseService,
     ICasService casService,
     ILogger<WindowsFileOperationsService> logger) : IFileOperationsService
@@ -72,7 +72,7 @@ public class WindowsFileOperationsService(
             }
             else
             {
-                await CreateSymlinkAsync(destinationPath, pathResult.Data, useHardLink ? false : true, cancellationToken).ConfigureAwait(false);
+                await CreateSymlinkAsync(destinationPath, pathResult.Data, !useHardLink, cancellationToken).ConfigureAwait(false);
             }
 
             logger.LogDebug("Created {LinkType} from CAS hash {Hash} to {DestinationPath}", useHardLink ? "hard link" : "symlink", hash, destinationPath);
@@ -143,12 +143,9 @@ public class WindowsFileOperationsService(
     /// <param name="lpExistingFileName">The name of the existing file.</param>
     /// <param name="lpSecurityAttributes">Reserved, must be IntPtr.Zero.</param>
     /// <returns>True if successful, otherwise false.</returns>
-    [DllImport(
-        "kernel32.dll",
-        SetLastError = true,
-        CharSet = CharSet.Unicode,
-        EntryPoint = "CreateHardLinkW")]
-    private static extern bool CreateHardLinkW(
+    [LibraryImport("kernel32.dll", EntryPoint = "CreateHardLinkW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool CreateHardLinkW(
         string lpFileName,
         string lpExistingFileName,
         IntPtr lpSecurityAttributes);

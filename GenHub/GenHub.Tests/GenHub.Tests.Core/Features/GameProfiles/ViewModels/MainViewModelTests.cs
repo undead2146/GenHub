@@ -334,6 +334,7 @@ public class MainViewModelTests
             null,
             null, // INotificationService
             null, // IContentManifestPool
+            null, // IContentStorageService
             NullLogger<GameProfileSettingsViewModel>.Instance,
             NullLogger<GameSettingsViewModel>.Instance);
         var profileEditorFacade = new Mock<IProfileEditorFacade>();

@@ -123,12 +123,32 @@ public partial class GameProfileLauncherViewModel(
                         profile.Id,
                         profile,
                         iconPath,
-                        coverPath);
-                    Profiles.Add(item);
+                        coverPath)
+                    {
+                        LaunchAction = LaunchProfileAsync,
+                        EditProfileAction = EditProfile,
+                        DeleteProfileAction = DeleteProfile,
+                        CreateShortcutAction = CreateShortcut
+                    };
+
+                    // Add to collection before the "Add New Profile" button (which is always at the end)
+                    // If the last item is AddProfileItemViewModel, insert before it
+                    if (Profiles.Count > 0 && Profiles[^1] is AddProfileItemViewModel)
+                    {
+                        Profiles.Insert(Profiles.Count - 1, item);
+                    }
+                    else
+                    {
+                        Profiles.Add(item);
+                    }
                 }
 
-                StatusMessage = $"Loaded {Profiles.Count} profiles";
-                logger.LogInformation("Loaded {Count} game profiles", Profiles.Count);
+                // Add "Add New Profile" item at the end
+                Profiles.Add(new AddProfileItemViewModel());
+
+                var profileCount = Profiles.Count - 1;
+                StatusMessage = $"Loaded {profileCount} profiles";
+                logger.LogInformation("Loaded {Count} game profiles", profileCount);
             }
             else
             {
@@ -282,7 +302,7 @@ public partial class GameProfileLauncherViewModel(
             if (profileResult.Success && profileResult.Data != null)
             {
                 var profile = profileResult.Data;
-                var existingItem = Profiles.FirstOrDefault(p => p.ProfileId == profileId);
+                var existingItem = Profiles.OfType<GameProfileItemViewModel>().FirstOrDefault(p => p.ProfileId == profileId);
 
                 if (existingItem != null)
                 {
@@ -306,7 +326,13 @@ public partial class GameProfileLauncherViewModel(
                         profile.Id,
                         profile,
                         iconPath,
-                        coverPath);
+                        coverPath)
+                    {
+                        LaunchAction = LaunchProfileAsync,
+                        EditProfileAction = EditProfile,
+                        DeleteProfileAction = DeleteProfile,
+                        CreateShortcutAction = CreateShortcut
+                    };
 
                     // Restore the running state
                     if (wasRunning)
@@ -712,7 +738,7 @@ public partial class GameProfileLauncherViewModel(
         try
         {
             // Check if profile already exists in UI
-            if (Profiles.Any(p => p.ProfileId.Equals(profile.Id, StringComparison.OrdinalIgnoreCase)))
+            if (Profiles.OfType<GameProfileItemViewModel>().Any(p => p.ProfileId.Equals(profile.Id, StringComparison.OrdinalIgnoreCase)))
             {
                 logger.LogDebug("Profile {ProfileId} already in UI, skipping add", profile.Id);
                 return;
@@ -730,10 +756,24 @@ public partial class GameProfileLauncherViewModel(
                 profile.Id,
                 profile,
                 iconPath,
-                coverPath);
+                coverPath)
+            {
+                LaunchAction = LaunchProfileAsync,
+                EditProfileAction = EditProfile,
+                DeleteProfileAction = DeleteProfile,
+                CreateShortcutAction = CreateShortcut,
+            };
 
-            // Add to collection (Avalonia will update UI automatically)
-            Profiles.Add(item);
+            // Add to collection before the "Add New Profile" button (which is always at the end)
+            // If the last item is not AddProfileItemViewModel, just Add
+            if (Profiles.Count > 0 && Profiles[^1] is AddProfileItemViewModel)
+            {
+                Profiles.Insert(Profiles.Count - 1, item);
+            }
+            else
+            {
+                Profiles.Add(item);
+            }
 
             logger.LogDebug("Added profile {ProfileName} to UI (Total: {Count})", profile.Name, Profiles.Count);
         }
@@ -1163,7 +1203,7 @@ public partial class GameProfileLauncherViewModel(
             logger.LogInformation("Game process {ProcessId} exited with code {ExitCode}", e.ProcessId, e.ExitCode);
 
             // Find the profile that was running this process
-            var profile = Profiles.FirstOrDefault(p => p.ProcessId == e.ProcessId);
+            var profile = Profiles.OfType<GameProfileItemViewModel>().FirstOrDefault(p => p.ProcessId == e.ProcessId);
             if (profile != null)
             {
                 profile.IsProcessRunning = false;

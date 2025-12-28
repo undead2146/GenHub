@@ -471,11 +471,12 @@
                                     <ItemsControl ItemsSource="{Binding AvailableContent}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Background="#10FFFFFF" CornerRadius="4" Padding="10" Margin="0,3">
+                                                <Border Background="#10FFFFFF" CornerRadius="4" Padding="10" Margin="0,3"
+                                                        x:Name="ContentItemBorder">
                                                     <Border.IsVisible>
                                                         <Binding Path="IsEnabled" Converter="{x:Static conv:InvertedBoolToVisibilityConverter.Instance}" />
                                                     </Border.IsVisible>
-                                                    <Grid ColumnDefinitions="*,Auto">
+                                                    <Grid ColumnDefinitions="*,Auto,Auto">
                                                         <StackPanel Grid.Column="0" Spacing="3">
                                                             <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="12" />
                                                             <StackPanel Orientation="Horizontal" Spacing="5">
@@ -488,7 +489,30 @@
                                                                 </Border>
                                                             </StackPanel>
                                                         </StackPanel>
-                                                        <Button Grid.Column="1" Content="+ Add" Classes="btn-add"
+                                                        
+                                                        <!-- Delete button - always visible -->
+                                                        <Button Grid.Column="1" 
+                                                                Content="🗑️" 
+                                                                Background="#C62828" 
+                                                                Foreground="White"
+                                                                CornerRadius="3" 
+                                                                Padding="6,3" 
+                                                                Margin="0,0,6,0"
+                                                                FontSize="11" 
+                                                                FontWeight="SemiBold" 
+                                                                Cursor="Hand"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip.Tip="Delete this downloaded content from storage (does not affect game installations)"
+                                                                Command="{Binding $parent[ItemsControl].((vm:GameProfileSettingsViewModel)DataContext).DeleteContentCommand}"
+                                                                CommandParameter="{Binding}">
+                                                            <Button.Styles>
+                                                                <Style Selector="Button:pointerover /template/ ContentPresenter">
+                                                                    <Setter Property="Background" Value="#B71C1C" />
+                                                                </Style>
+                                                            </Button.Styles>
+                                                        </Button>
+                                                        
+                                                        <Button Grid.Column="2" Content="+ Add" Classes="btn-add"
                                                                 Command="{Binding $parent[ItemsControl].((vm:GameProfileSettingsViewModel)DataContext).EnableContentCommand}"
                                                                 CommandParameter="{Binding}"
                                                                 VerticalAlignment="Center" />
@@ -663,6 +687,17 @@
                                 <ComboBox ItemsSource="{x:Static vm:GameProfileSettingsViewModel.AvailableWorkspaceStrategies}"
                                           SelectedItem="{Binding SelectedWorkspaceStrategy}"
                                           HorizontalAlignment="Stretch">
+                                    <ComboBox.Styles>
+                                        <Style Selector="ComboBoxItem">
+                                            <Setter Property="ToolTip.Tip">
+                                                <Binding Path="Content" RelativeSource="{RelativeSource Self}">
+                                                    <Binding.Converter>
+                                                        <conv:WorkspaceStrategyTooltipConverter />
+                                                    </Binding.Converter>
+                                                </Binding>
+                                            </Setter>
+                                        </Style>
+                                    </ComboBox.Styles>
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
                                             <TextBlock Text="{Binding .}" />

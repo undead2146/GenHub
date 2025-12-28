@@ -1,6 +1,8 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.GameProfiles;
@@ -14,6 +16,83 @@ namespace GenHub.Features.GameProfiles.ViewModels;
 /// </summary>
 public partial class GameProfileItemViewModel : ViewModelBase
 {
+    /// <summary>
+    /// Gets or sets the action to launch the profile.
+    /// </summary>
+    public Func<GameProfileItemViewModel, Task>? LaunchAction { get; set; }
+
+    /// <summary>
+    /// Gets or sets the action to edit the profile.
+    /// </summary>
+    public Func<GameProfileItemViewModel, Task>? EditProfileAction { get; set; }
+
+    /// <summary>
+    /// Gets or sets the action to delete the profile.
+    /// </summary>
+    public Func<GameProfileItemViewModel, Task>? DeleteProfileAction { get; set; }
+
+    /// <summary>
+    /// Gets or sets the action to create a shortcut for the profile.
+    /// </summary>
+    public Func<GameProfileItemViewModel, Task>? CreateShortcutAction { get; set; }
+
+    /// <summary>
+    /// Launches the profile using the injected action.
+    /// </summary>
+    [RelayCommand]
+    private async Task LaunchProfile()
+    {
+        if (LaunchAction != null)
+        {
+            await LaunchAction(this);
+        }
+    }
+
+    /// <summary>
+    /// Edits the profile using the injected action.
+    /// </summary>
+    [RelayCommand]
+    private async Task EditProfile()
+    {
+        if (EditProfileAction != null)
+        {
+            await EditProfileAction(this);
+        }
+    }
+
+    /// <summary>
+    /// Deletes the profile using the injected action.
+    /// </summary>
+    [RelayCommand]
+    private async Task DeleteProfile()
+    {
+        if (DeleteProfileAction != null)
+        {
+            await DeleteProfileAction(this);
+        }
+    }
+
+    /// <summary>
+    /// Creates a shortcut for the profile using the injected action.
+    /// </summary>
+    [RelayCommand]
+    private async Task CreateShortcut()
+    {
+        if (CreateShortcutAction != null)
+        {
+            await CreateShortcutAction(this);
+        }
+    }
+
+    /// <summary>
+    /// Toggles the edit mode for this specific profile.
+    /// </summary>
+    [RelayCommand]
+    private void ToggleEditMode()
+    {
+        IsEditMode = !IsEditMode;
+    }
+
     /// <summary>
     /// Gets or sets the name of the game profile.
     /// </summary>
@@ -210,6 +289,12 @@ public partial class GameProfileItemViewModel : ViewModelBase
     /// </summary>
     [ObservableProperty]
     private bool _useSteamLaunch = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this profile is in edit mode.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isEditMode;
 
     /// <summary>
     /// Gets or sets a value indicating whether this profile is from a Steam installation.

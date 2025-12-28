@@ -3,7 +3,6 @@ using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GameSettings;
-using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Steam;
@@ -13,7 +12,6 @@ using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Results;
 using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.ViewModels;
-using GenHub.Features.Manifest;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -44,6 +42,7 @@ public class GameProfileLauncherViewModelTests
                 CreateProfileResourceService(),
                 new Mock<INotificationService>().Object,
                 null,
+                new Mock<IContentStorageService>().Object,
                 NullLogger<GameProfileSettingsViewModel>.Instance,
                 NullLogger<GameSettingsViewModel>.Instance),
             new Mock<IProfileEditorFacade>().Object,
@@ -83,6 +82,7 @@ public class GameProfileLauncherViewModelTests
                 CreateProfileResourceService(),
                 new Mock<INotificationService>().Object,
                 null,
+                new Mock<IContentStorageService>().Object,
                 NullLogger<GameProfileSettingsViewModel>.Instance,
                 NullLogger<GameSettingsViewModel>.Instance),
             new Mock<IProfileEditorFacade>().Object,

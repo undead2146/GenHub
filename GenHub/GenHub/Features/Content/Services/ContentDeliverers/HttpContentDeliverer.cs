@@ -153,7 +153,7 @@ public class HttpContentDeliverer(IDownloadService downloadService, IContentMani
             }
 
             // Add required directories
-            deliveredManifest.AddRequiredDirectories(packageManifest.RequiredDirectories.ToArray());
+            deliveredManifest.AddRequiredDirectories([.. packageManifest.RequiredDirectories]);
 
             // Add installation instructions if present
             if (packageManifest.InstallationInstructions != null)

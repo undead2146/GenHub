@@ -11,6 +11,7 @@ using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Features.Content.Services.ContentDiscoverers;
 using GenHub.Features.Content.Services.GeneralsOnline;
+using GenHub.Features.Content.Services.GitHub;
 using GenHub.Features.Content.ViewModels;
 using Microsoft.Extensions.Logging;
 
@@ -273,7 +274,7 @@ public partial class DownloadsViewModel(
 
             // Query for all configured GitHub releases
             var query = new ContentSearchQuery();
-            if (serviceProvider.GetService(typeof(GenHub.Features.Content.Services.ContentDiscoverers.GitHubReleasesDiscoverer)) is not GenHub.Features.Content.Services.ContentDiscoverers.GitHubReleasesDiscoverer gitHubDiscoverer)
+            if (serviceProvider.GetService(typeof(GitHubReleasesDiscoverer)) is not GitHubReleasesDiscoverer gitHubDiscoverer)
             {
                 logger.LogWarning("GitHubReleasesDiscoverer not available for SuperHackers card");
                 return;
@@ -618,7 +619,7 @@ public partial class DownloadsViewModel(
     {
         try
         {
-            if (serviceProvider.GetService(typeof(GenHub.Features.Content.Services.ContentDiscoverers.GitHubReleasesDiscoverer)) is GenHub.Features.Content.Services.ContentDiscoverers.GitHubReleasesDiscoverer discoverer)
+            if (serviceProvider.GetService(typeof(GitHubReleasesDiscoverer)) is GitHubReleasesDiscoverer discoverer)
             {
                 var result = await discoverer.DiscoverAsync(new ContentSearchQuery());
                 if (result.Success && result.Data?.Any() == true)

@@ -13,7 +13,7 @@ using GenHub.Core.Models.Results;
 using GenHub.Features.Content.Services.Helpers;
 using Microsoft.Extensions.Logging;
 
-namespace GenHub.Features.Content.Services.ContentDiscoverers;
+namespace GenHub.Features.Content.Services.GitHub;
 
 /// <summary>
 /// Discovers content from GitHub releases.
@@ -103,12 +103,12 @@ public class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILogger<Git
             }
         }
 
-        if (errors.Any())
+        if (errors.Count > 0)
         {
             logger.LogWarning("Encountered {ErrorCount} errors during discovery: {Errors}", errors.Count, string.Join("; ", errors));
         }
 
-        return errors.Any() && !results.Any()
+        return errors.Count > 0 && results.Count == 0
             ? OperationResult<IEnumerable<ContentSearchResult>>.CreateFailure(errors)
             : OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(results);
     }

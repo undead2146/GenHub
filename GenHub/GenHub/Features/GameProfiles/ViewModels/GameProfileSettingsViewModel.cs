@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Extensions;
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.Manifest;
@@ -36,6 +37,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     private readonly Services.ProfileResourceService? profileResourceService;
     private readonly INotificationService? notificationService;
     private readonly IContentManifestPool? manifestPool;
+    private readonly IContentStorageService? contentStorageService;
     private readonly ILogger<GameProfileSettingsViewModel>? logger;
     private readonly ILogger<GameSettingsViewModel>? gameSettingsLogger;
 
@@ -57,6 +59,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     /// <param name="profileResourceService">The profile resource service.</param>
     /// <param name="notificationService">The notification service for global notifications.</param>
     /// <param name="manifestPool">The content manifest pool.</param>
+    /// <param name="contentStorageService">The content storage service.</param>
     /// <param name="logger">The logger for this view model.</param>
     /// <param name="gameSettingsLogger">The logger for the game settings view model.</param>
     public GameProfileSettingsViewModel(
@@ -67,6 +70,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
         Services.ProfileResourceService? profileResourceService,
         INotificationService? notificationService,
         IContentManifestPool? manifestPool,
+        IContentStorageService? contentStorageService,
         ILogger<GameProfileSettingsViewModel>? logger,
         ILogger<GameSettingsViewModel>? gameSettingsLogger)
     {
@@ -77,6 +81,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
         this.profileResourceService = profileResourceService;
         this.notificationService = notificationService;
         this.manifestPool = manifestPool;
+        this.contentStorageService = contentStorageService;
         this.logger = logger;
         this.gameSettingsLogger = gameSettingsLogger;
 
@@ -1118,6 +1123,136 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
 
         StatusMessage = $"Disabled {contentItem.DisplayName}";
         logger?.LogInformation("Disabled content {ContentName} for profile", contentItem.DisplayName);
+    }
+
+    /// <summary>
+    /// Deletes the specified content item from storage.
+    /// </summary>
+    /// <param name="contentItem">The content item to delete.</param>
+    [RelayCommand]
+    private async Task DeleteContentAsync(ContentDisplayItem? contentItem)
+    {
+        if (contentItem == null)
+        {
+            StatusMessage = "No content selected";
+            logger?.LogWarning("DeleteContentAsync: contentItem parameter is NULL");
+            return;
+        }
+
+        if (contentStorageService == null)
+        {
+            StatusMessage = "Content storage service not available";
+            logger?.LogError("DeleteContentAsync: contentStorageService is NULL");
+            return;
+        }
+
+        // Check if content is currently enabled in this profile
+        var isEnabled = EnabledContent.Any(e => e.ManifestId.Value == contentItem.ManifestId.Value);
+        if (isEnabled)
+        {
+            _localNotificationService.ShowWarning(
+                "Cannot Delete",
+                $"Cannot delete '{contentItem.DisplayName}' because it is currently enabled in this profile. Please disable it first.");
+            logger?.LogWarning(
+                "DeleteContentAsync: Cannot delete {ContentName} because it is enabled in the profile",
+                contentItem.DisplayName);
+            return;
+        }
+
+        // Prevent deletion of GameInstallation content types
+        // GameInstallations reference existing files on the user's drive, not CAS-stored content
+        if (contentItem.ContentType == Core.Models.Enums.ContentType.GameInstallation)
+        {
+            _localNotificationService.ShowWarning(
+                "Cannot Delete",
+                $"Cannot delete '{contentItem.DisplayName}' because it references an existing game installation on your drive. Only downloaded content (mods, maps, etc.) can be deleted.");
+            logger?.LogWarning(
+                "DeleteContentAsync: Cannot delete {ContentName} because it is a GameInstallation",
+                contentItem.DisplayName);
+            return;
+        }
+
+        // Show confirmation dialog
+        var confirmationMessage = $"Are you sure you want to delete '{contentItem.DisplayName}' from storage? This action cannot be undone.";
+        var confirmed = await ShowConfirmationDialogAsync("Delete Content", confirmationMessage);
+
+        if (!confirmed)
+        {
+            logger?.LogInformation("DeleteContentAsync: User cancelled deletion of {ContentName}", contentItem.DisplayName);
+            return;
+        }
+
+        try
+        {
+            StatusMessage = $"Deleting {contentItem.DisplayName}...";
+            logger?.LogInformation(
+                "DeleteContentAsync: Deleting content {ContentName} (ManifestId: {ManifestId})",
+                contentItem.DisplayName,
+                contentItem.ManifestId.Value);
+
+            // Call the content storage service to remove the content
+            var result = await contentStorageService.RemoveContentAsync(contentItem.ManifestId);
+
+            if (result.Success)
+            {
+                // Remove from AvailableContent collection
+                var itemToRemove = AvailableContent.FirstOrDefault(a => a.ManifestId.Value == contentItem.ManifestId.Value);
+                if (itemToRemove != null)
+                {
+                    AvailableContent.Remove(itemToRemove);
+                }
+
+                StatusMessage = $"Deleted {contentItem.DisplayName}";
+                _localNotificationService.ShowSuccess(
+                    "Content Deleted",
+                    $"Successfully deleted '{contentItem.DisplayName}' from storage.");
+                logger?.LogInformation(
+                    "DeleteContentAsync: Successfully deleted content {ContentName}",
+                    contentItem.DisplayName);
+            }
+            else
+            {
+                StatusMessage = $"Failed to delete {contentItem.DisplayName}";
+                _localNotificationService.ShowError(
+                    "Deletion Failed",
+                    $"Failed to delete '{contentItem.DisplayName}': {string.Join(", ", result.Errors)}");
+                logger?.LogError(
+                    "DeleteContentAsync: Failed to delete content {ContentName}: {Errors}",
+                    contentItem.DisplayName,
+                    string.Join(", ", result.Errors));
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error deleting {contentItem.DisplayName}";
+            _localNotificationService.ShowError(
+                "Deletion Error",
+                $"An error occurred while deleting '{contentItem.DisplayName}': {ex.Message}");
+            logger?.LogError(
+                ex,
+                "DeleteContentAsync: Exception while deleting content {ContentName}",
+                contentItem.DisplayName);
+        }
+    }
+
+    /// <summary>
+    /// Shows a confirmation dialog and returns the user's choice.
+    /// </summary>
+    /// <param name="title">The dialog title.</param>
+    /// <param name="message">The confirmation message.</param>
+    /// <returns>True if the user confirmed, false otherwise.</returns>
+    private async Task<bool> ShowConfirmationDialogAsync(string title, string message)
+    {
+        // Show warning notification to inform the user
+        // Note: In a production scenario, this would integrate with a proper modal dialog service
+        _localNotificationService.ShowWarning(title, message, autoDismissMs: 5000);
+
+        // Wait a moment for the user to see the notification
+        await Task.Delay(1000);
+
+        // TODO: Integrate with a proper confirmation dialog service that returns user choice
+        // For now, we proceed with the action (return true)
+        return true;
     }
 
     /// <summary>

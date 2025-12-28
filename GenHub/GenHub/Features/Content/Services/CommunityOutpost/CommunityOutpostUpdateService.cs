@@ -52,8 +52,8 @@ public class CommunityOutpostUpdateService(
             logger.LogInformation("Latest Community Outpost version discovered: {Version}", latestVersion);
 
             // Check if we already have this version in the manifest pool
-            var manifestsResult = await manifestPool.GetAllManifestsAsync();
-            var existingCommunityPatches = (manifestsResult.Data ?? Enumerable.Empty<GenHub.Core.Models.Manifest.ContentManifest>())
+            var manifestsResult = await manifestPool.GetAllManifestsAsync(cancellationToken);
+            var existingCommunityPatches = (manifestsResult.Data ?? [])
                 .Where(m => m.Publisher?.PublisherType == CommunityOutpostConstants.PublisherType)
                 .OrderByDescending(m => m.ManifestVersion)
                 .ToList();
@@ -76,7 +76,7 @@ public class CommunityOutpostUpdateService(
             }
 
             // Add to manifest pool
-            var addResult = await manifestPool.AddManifestAsync(resolveResult.Data);
+            var addResult = await manifestPool.AddManifestAsync(resolveResult.Data, cancellationToken);
 
             if (!addResult.Success)
             {
