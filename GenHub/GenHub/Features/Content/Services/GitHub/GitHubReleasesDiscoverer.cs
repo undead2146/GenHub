@@ -7,12 +7,13 @@ using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GitHub;
+using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Results;
 using GenHub.Features.Content.Services.Helpers;
 using Microsoft.Extensions.Logging;
 
-namespace GenHub.Features.Content.Services.ContentDiscoverers;
+namespace GenHub.Features.Content.Services.GitHub;
 
 /// <summary>
 /// Discovers content from GitHub releases.
@@ -47,12 +48,12 @@ public class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILogger<Git
                 if (parts.Length != ContentConstants.GitHubRepoPartsCount)
                 {
                     logger.LogWarning("Invalid repository format: {Repository}. Expected 'owner/repo'", r);
-                    return (owner: string.Empty, repo: string.Empty);
+                    return (Owner: string.Empty, Repo: string.Empty);
                 }
 
-                return (owner: parts[0].Trim(), repo: parts[1].Trim());
+                return (Owner: parts[0].Trim(), Repo: parts[1].Trim());
             })
-            .Where(t => !string.IsNullOrEmpty(t.owner) && !string.IsNullOrEmpty(t.repo));
+            .Where(t => !string.IsNullOrEmpty(t.Owner) && !string.IsNullOrEmpty(t.Repo));
         foreach (var (owner, repo) in relevantRepos)
         {
             try
@@ -76,9 +77,9 @@ public class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILogger<Git
                                 Description = release.Body ?? "GitHub release - full details available after resolution",
                                 Version = release.TagName,
                                 AuthorName = release.Author,
-                                ContentType = inferredContentType.type,
-                                TargetGame = inferredGame.type,
-                                IsInferred = inferredContentType.isInferred || inferredGame.isInferred,
+                                ContentType = inferredContentType.Type,
+                                TargetGame = inferredGame.Type,
+                                IsInferred = inferredContentType.IsInferred || inferredGame.IsInferred,
                                 ProviderName = SourceName,
                                 RequiresResolution = true,
                                 ResolverId = ContentSourceNames.GitHubResolverId,
@@ -102,12 +103,12 @@ public class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILogger<Git
             }
         }
 
-        if (errors.Any())
+        if (errors.Count > 0)
         {
             logger.LogWarning("Encountered {ErrorCount} errors during discovery: {Errors}", errors.Count, string.Join("; ", errors));
         }
 
-        return errors.Any() && !results.Any()
+        return errors.Count > 0 && results.Count == 0
             ? OperationResult<IEnumerable<ContentSearchResult>>.CreateFailure(errors)
             : OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(results);
     }

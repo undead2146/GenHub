@@ -13,7 +13,7 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Providers;
 using GenHub.Core.Models.Results;
-using GenHub.Features.Content.Services.CommunityOutpost.Models;
+using GenHub.Core.Models.CommunityOutpost;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Content.Services.CommunityOutpost;

@@ -22,6 +22,12 @@ namespace GenHub.Tests.Core.Features.Workspace;
 /// </summary>
 public class MixedInstallationIntegrationTests : IDisposable
 {
+    private static async Task CreateTestFile(string path, string content)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await File.WriteAllTextAsync(path, content);
+    }
+
     private readonly string _tempSteamInstall;
     private readonly string _tempCommunityClient;
     private readonly string _tempModsFolder;
@@ -64,7 +70,7 @@ public class MixedInstallationIntegrationTests : IDisposable
         });
 
         var mockConfigProvider = new Mock<IConfigurationProviderService>();
-        mockConfigProvider.Setup(x => x.GetContentStoragePath()).Returns(_tempContentStorage);
+        mockConfigProvider.Setup(x => x.GetApplicationDataPath()).Returns(_tempContentStorage);
         mockConfigProvider.Setup(x => x.GetWorkspacePath()).Returns(_tempWorkspaceRoot);
         services.AddSingleton<IConfigurationProviderService>(mockConfigProvider.Object);
 
@@ -107,7 +113,7 @@ public class MixedInstallationIntegrationTests : IDisposable
         var config = new WorkspaceConfiguration
         {
             Id = Guid.NewGuid().ToString(),
-            Manifests = new List<ContentManifest> { gameInstallManifest, gameClientManifest },
+            Manifests = [gameInstallManifest, gameClientManifest],
             GameClient = new GameClient { Name = "Zero Hour", ExecutablePath = "generals.exe" },
             Strategy = WorkspaceStrategy.FullCopy,
             WorkspaceRootPath = _tempWorkspaceRoot,
@@ -115,7 +121,7 @@ public class MixedInstallationIntegrationTests : IDisposable
         };
 
         // Act
-        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, CancellationToken.None);
+        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, skipCleanup: false, CancellationToken.None);
 
         // Assert
         Assert.True(result.Success, $"Workspace preparation failed: {result.FirstError}");
@@ -155,7 +161,7 @@ public class MixedInstallationIntegrationTests : IDisposable
         var config = new WorkspaceConfiguration
         {
             Id = Guid.NewGuid().ToString(),
-            Manifests = new List<ContentManifest> { gameInstallManifest, communityClientManifest },
+            Manifests = [gameInstallManifest, communityClientManifest],
             GameClient = new GameClient { Name = "GenTool", ExecutablePath = "generals.exe" },
             Strategy = WorkspaceStrategy.FullCopy,
             WorkspaceRootPath = _tempWorkspaceRoot,
@@ -168,7 +174,7 @@ public class MixedInstallationIntegrationTests : IDisposable
         };
 
         // Act
-        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, CancellationToken.None);
+        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, skipCleanup: false, CancellationToken.None);
 
         // Assert
         Assert.True(result.Success, $"Mixed workspace preparation failed: {result.FirstError}");
@@ -235,7 +241,7 @@ public class MixedInstallationIntegrationTests : IDisposable
         var config = new WorkspaceConfiguration
         {
             Id = Guid.NewGuid().ToString(),
-            Manifests = new List<ContentManifest> { gameInstallManifest, communityClientManifest, modManifest, mapPackManifest },
+            Manifests = [gameInstallManifest, communityClientManifest, modManifest, mapPackManifest],
             GameClient = new GameClient { Name = "GenTool", ExecutablePath = "generals.exe" },
             Strategy = WorkspaceStrategy.FullCopy,
             WorkspaceRootPath = _tempWorkspaceRoot,
@@ -250,7 +256,7 @@ public class MixedInstallationIntegrationTests : IDisposable
         };
 
         // Act
-        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, CancellationToken.None);
+        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, skipCleanup: false, CancellationToken.None);
 
         // Assert
         Assert.True(result.Success, $"Full stack workspace preparation failed: {result.FirstError}");
@@ -290,9 +296,9 @@ public class MixedInstallationIntegrationTests : IDisposable
             Version = "2.1.0",
             ContentType = ContentType.GameClient,
             TargetGame = GameType.ZeroHour,
-            Files = new List<ManifestFile>
-            {
-                new ManifestFile
+            Files =
+            [
+                new()
                 {
                     RelativePath = "generals.exe",
                     SourcePath = Path.Combine(_tempCommunityClient, "generals.exe"),
@@ -301,10 +307,10 @@ public class MixedInstallationIntegrationTests : IDisposable
                     SourceType = ContentSourceType.LocalFile,
                     IsRequired = true,
                 },
-            },
-            Dependencies = new List<ContentDependency>
-            {
-                new ContentDependency
+            ],
+            Dependencies =
+            [
+                new()
                 {
                     Name = "Zero Hour Installation Required",
                     DependencyType = ContentType.GameInstallation,
@@ -312,13 +318,13 @@ public class MixedInstallationIntegrationTests : IDisposable
                     // Note: In real usage, ProfileLauncherFacade validates TargetGame compatibility
                     // This test demonstrates workspace can be created but would fail at launch validation
                 },
-            },
+            ],
         };
 
         var config = new WorkspaceConfiguration
         {
             Id = Guid.NewGuid().ToString(),
-            Manifests = new List<ContentManifest> { generalsInstall, zerohourClientManifest },
+            Manifests = [generalsInstall, zerohourClientManifest],
             GameClient = new GameClient { Name = "GenTool", ExecutablePath = "generals.exe" },
             Strategy = WorkspaceStrategy.FullCopy,
             WorkspaceRootPath = _tempWorkspaceRoot,
@@ -326,7 +332,7 @@ public class MixedInstallationIntegrationTests : IDisposable
         };
 
         // Act - workspace preparation should succeed (it doesn't validate dependencies)
-        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, CancellationToken.None);
+        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, skipCleanup: false, CancellationToken.None);
 
         // Assert - workspace created, but dependency validation would catch this at launch time
         Assert.True(result.Success, "Workspace preparation should succeed - dependency validation happens at launch");
@@ -369,7 +375,7 @@ public class MixedInstallationIntegrationTests : IDisposable
         var config = new WorkspaceConfiguration
         {
             Id = Guid.NewGuid().ToString(),
-            Manifests = new List<ContentManifest> { gameInstallManifest, gameClientManifest, modManifest },
+            Manifests = [gameInstallManifest, gameClientManifest, modManifest],
             GameClient = new GameClient { Name = "GenTool", ExecutablePath = "generals.exe" },
             Strategy = WorkspaceStrategy.FullCopy,
             WorkspaceRootPath = _tempWorkspaceRoot,
@@ -383,7 +389,7 @@ public class MixedInstallationIntegrationTests : IDisposable
         };
 
         // Act
-        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, CancellationToken.None);
+        var result = await _workspaceManager.PrepareWorkspaceAsync(config, null, skipCleanup: false, CancellationToken.None);
 
         // Assert
         Assert.True(result.Success, $"Conflict resolution workspace preparation failed: {result.FirstError}");
@@ -406,6 +412,8 @@ public class MixedInstallationIntegrationTests : IDisposable
     public void Dispose()
     {
         if (_disposed) return;
+
+        GC.SuppressFinalize(this);
 
         try
         {
@@ -442,13 +450,7 @@ public class MixedInstallationIntegrationTests : IDisposable
         File.WriteAllText(Path.Combine(_tempModsFolder, "ShockWave", "Data", "Scripts", "CustomScript.scb"), "[ShockWave] Custom script");
     }
 
-    private async Task CreateTestFile(string path, string content)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(path) !);
-        await File.WriteAllTextAsync(path, content);
-    }
-
-    private ContentManifest CreateManifest(string id, string name, ContentType contentType, (string relativePath, string sourcePath)[] files)
+    private ContentManifest CreateManifest(string id, string name, ContentType contentType, (string RelativePath, string SourcePath)[] files)
     {
         var manifest = new ContentManifest
         {
@@ -457,7 +459,7 @@ public class MixedInstallationIntegrationTests : IDisposable
             Version = "1.0.0",
             ContentType = contentType,
             TargetGame = GameType.ZeroHour,
-            Files = new List<ManifestFile>(),
+            Files = [],
         };
 
         foreach (var (relativePath, sourcePath) in files)

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Providers;
+using GenHub.Core.Models.CommunityOutpost;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Providers;
@@ -19,18 +20,23 @@ namespace GenHub.Features.Content.Services.CommunityOutpost;
 /// <summary>
 /// Discovers content from Community Outpost (legi.cc) using the GenPatcher dl.dat catalog.
 /// Uses data-driven configuration from provider.json for endpoints, timeouts, and mirrors.
-/// Metadata is sourced from <see cref="Models.GenPatcherContentRegistry"/>.
+/// Metadata is sourced from <see cref="GenPatcherContentRegistry"/>.
 /// </summary>
 /// <param name="httpClientFactory">HTTP client factory.</param>
 /// <param name="providerLoader">Provider definition loader.</param>
 /// <param name="catalogParserFactory">Factory for getting catalog parsers.</param>
 /// <param name="logger">Logger instance.</param>
-public class CommunityOutpostDiscoverer(
+public partial class CommunityOutpostDiscoverer(
     IHttpClientFactory httpClientFactory,
     IProviderDefinitionLoader providerLoader,
     ICatalogParserFactory catalogParserFactory,
     ILogger<CommunityOutpostDiscoverer> logger) : IContentDiscoverer
 {
+    /// <summary>
+    /// Gets the provider ID for registration.
+    /// </summary>
+    public static string ProviderId => CommunityOutpostConstants.PublisherId;
+
     /// <inheritdoc/>
     public string SourceName => CommunityOutpostConstants.PublisherType;
 
@@ -44,11 +50,6 @@ public class CommunityOutpostDiscoverer(
     public ContentSourceCapabilities Capabilities =>
         ContentSourceCapabilities.RequiresDiscovery |
         ContentSourceCapabilities.SupportsPackageAcquisition;
-
-    /// <summary>
-    /// Gets the provider ID for registration.
-    /// </summary>
-    public string ProviderId => CommunityOutpostConstants.PublisherId;
 
     /// <inheritdoc/>
     public Task<OperationResult<IEnumerable<ContentSearchResult>>> DiscoverAsync(
@@ -162,6 +163,72 @@ public class CommunityOutpostDiscoverer(
     }
 
     /// <summary>
+    /// Gets tags for a content category.
+    /// </summary>
+    private static string[] GetTagsForCategory(GenPatcherContentCategory category)
+    {
+        return category switch
+        {
+            GenPatcherContentCategory.CommunityPatch => ["community-patch", "thesuperhackers", "weekly", "game-client"],
+            GenPatcherContentCategory.OfficialPatch => CommunityOutpostConstants.OfficialPatchTags,
+            GenPatcherContentCategory.BaseGame => ["base-game", "vanilla"],
+            GenPatcherContentCategory.ControlBar => ["addon", "control-bar", "ui"],
+            GenPatcherContentCategory.Hotkeys => ["addon", "hotkeys", "keyboard"],
+            GenPatcherContentCategory.Camera => ["addon", "camera"],
+            GenPatcherContentCategory.Tools => CommunityOutpostConstants.ToolsTags,
+            GenPatcherContentCategory.Maps => ["maps", "missions"],
+            GenPatcherContentCategory.Visuals => ["addon", "visuals", "graphics"],
+            GenPatcherContentCategory.Prerequisites => ["prerequisite", "system"],
+            _ => CommunityOutpostConstants.AddonTags,
+        };
+    }
+
+    /// <summary>
+    /// Checks if a search result matches the query filters.
+    /// </summary>
+    private static bool MatchesQuery(ContentSearchResult result, ContentSearchQuery query)
+    {
+        // If no filters specified, include all
+        if (string.IsNullOrWhiteSpace(query.SearchTerm) &&
+            !query.ContentType.HasValue &&
+            !query.TargetGame.HasValue)
+        {
+            return true;
+        }
+
+        // Check search term
+        if (!string.IsNullOrWhiteSpace(query.SearchTerm))
+        {
+            var term = query.SearchTerm.ToLowerInvariant();
+            var nameMatches = result.Name?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false;
+            var descMatches = result.Description?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false;
+            var tagMatches = result.Tags.Any(t => t.Contains(term, StringComparison.OrdinalIgnoreCase));
+
+            if (!nameMatches && !descMatches && !tagMatches)
+            {
+                return false;
+            }
+        }
+
+        // Check content type filter
+        if (query.ContentType.HasValue && result.ContentType != query.ContentType.Value)
+        {
+            return false;
+        }
+
+        // Check target game filter
+        if (query.TargetGame.HasValue && result.TargetGame != query.TargetGame.Value)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    [GeneratedRegex(@"href=[""']([^""']*generalszh-weekly-(\d{4}-\d{2}-\d{2})[^""']*\.zip)[""']", RegexOptions.IgnoreCase)]
+    private static partial Regex CommunityPatchRegex();
+
+    /// <summary>
     /// Discovers the Community Patch (TheSuperHackers Patch Build) from legi.cc/patch.
     /// </summary>
     private async Task<ContentSearchResult?> DiscoverCommunityPatchAsync(
@@ -177,10 +244,7 @@ public class CommunityOutpostDiscoverer(
             var pageContent = await client.GetStringAsync(patchPageUrl, cancellationToken);
 
             // Look for the download link pattern: generalszh-weekly-YYYY-MM-DD*.zip
-            var downloadUrlMatch = Regex.Match(
-                pageContent,
-                @"href=[""']([^""']*generalszh-weekly-(\d{4}-\d{2}-\d{2})[^""']*\.zip)[""']",
-                RegexOptions.IgnoreCase);
+            var downloadUrlMatch = CommunityPatchRegex().Match(pageContent);
 
             if (!downloadUrlMatch.Success)
             {
@@ -249,47 +313,5 @@ public class CommunityOutpostDiscoverer(
             logger.LogWarning(ex, "Failed to discover Community Patch from {Url}", patchPageUrl);
             return null;
         }
-    }
-
-    /// <summary>
-    /// Checks if a search result matches the query filters.
-    /// </summary>
-    private bool MatchesQuery(ContentSearchResult result, ContentSearchQuery query)
-    {
-        // If no filters specified, include all
-        if (string.IsNullOrWhiteSpace(query.SearchTerm) &&
-            !query.ContentType.HasValue &&
-            !query.TargetGame.HasValue)
-        {
-            return true;
-        }
-
-        // Check search term
-        if (!string.IsNullOrWhiteSpace(query.SearchTerm))
-        {
-            var term = query.SearchTerm.ToLowerInvariant();
-            var nameMatches = result.Name?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false;
-            var descMatches = result.Description?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false;
-            var tagMatches = result.Tags.Any(t => t.Contains(term, StringComparison.OrdinalIgnoreCase));
-
-            if (!nameMatches && !descMatches && !tagMatches)
-            {
-                return false;
-            }
-        }
-
-        // Check content type filter
-        if (query.ContentType.HasValue && result.ContentType != query.ContentType.Value)
-        {
-            return false;
-        }
-
-        // Check target game filter
-        if (query.TargetGame.HasValue && result.TargetGame != query.TargetGame.Value)
-        {
-            return false;
-        }
-
-        return true;
     }
 }

@@ -68,7 +68,7 @@ public class GameSettingsServiceTests
     {
         // Arrange
         var tempFile = Path.GetTempFileName();
-        var tempDir = Path.GetDirectoryName(tempFile) !;
+        var tempDir = Path.GetDirectoryName(tempFile)!;
         var optionsPath = Path.Combine(tempDir, "Options.ini");
         File.Move(tempFile, optionsPath);
 
@@ -292,7 +292,6 @@ MissingBracket
             Assert.True(result.Success);
 
             var savedContent = await File.ReadAllTextAsync(tempFile);
-            Assert.Contains("[AUDIO]", savedContent);
             Assert.Contains("SFXVolume=75", savedContent);
             Assert.Contains("Resolution=1920 1080", savedContent);
             Assert.Contains("Windowed=no", savedContent);

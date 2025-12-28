@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Storage;
+using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Results.CAS;
 using GenHub.Core.Models.Storage;
@@ -21,7 +22,8 @@ public class CasService(
     ILogger<CasService> logger,
     IOptions<CasConfiguration> config,
     IFileHashProvider fileHashProvider,
-    IStreamHashProvider streamHashProvider) : ICasService
+    IStreamHashProvider streamHashProvider,
+    ICasPoolManager? poolManager = null) : ICasService
 {
     private readonly ICasStorage _storage = storage;
     private readonly CasReferenceTracker _referenceTracker = referenceTracker;
@@ -29,6 +31,7 @@ public class CasService(
     private readonly CasConfiguration _config = config.Value;
     private readonly IFileHashProvider _fileHashProvider = fileHashProvider;
     private readonly IStreamHashProvider _streamHashProvider = streamHashProvider;
+    private readonly ICasPoolManager? _poolManager = poolManager;
 
     /// <inheritdoc/>
     public async Task<OperationResult<string>> StoreContentAsync(string sourcePath, string? expectedHash = null, CancellationToken cancellationToken = default)
@@ -200,14 +203,14 @@ public class CasService(
     }
 
     /// <inheritdoc/>
-    public async Task<CasGarbageCollectionResult> RunGarbageCollectionAsync(CancellationToken cancellationToken = default)
+    public async Task<CasGarbageCollectionResult> RunGarbageCollectionAsync(bool force = false, CancellationToken cancellationToken = default)
     {
         var startTime = DateTime.UtcNow;
         var result = new CasGarbageCollectionResult(true, (string?)null);
 
         try
         {
-            _logger.LogInformation("Starting CAS garbage collection");
+            _logger.LogInformation("Starting CAS garbage collection (force={Force})", force);
 
             // Get all objects in CAS
             var allHashes = await _storage.GetAllObjectHashesAsync(cancellationToken);
@@ -220,8 +223,8 @@ public class CasService(
             // Find unreferenced objects
             var unreferencedHashes = System.Linq.Enumerable.Except(allHashes, referencedHashes);
 
-            // Use configurable grace period
-            var gracePeriod = _config.GcGracePeriod;
+            // Use configurable grace period unless forced
+            var gracePeriod = force ? TimeSpan.Zero : _config.GcGracePeriod;
             long bytesFreed = 0;
             int objectsDeleted = 0;
 
@@ -230,7 +233,7 @@ public class CasService(
                 try
                 {
                     var creationTime = await _storage.GetObjectCreationTimeAsync(hash, cancellationToken);
-                    if (creationTime == null || DateTime.UtcNow - creationTime.Value > gracePeriod)
+                    if (force || creationTime == null || DateTime.UtcNow - creationTime.Value > gracePeriod)
                     {
                         // Get size before deletion
                         var objectPath = _storage.GetObjectPath(hash);
@@ -372,6 +375,200 @@ public class CasService(
         {
             _logger.LogError(ex, "Failed to get CAS statistics");
             return new CasStats();
+        }
+    }
+
+    // ===== Pool-Aware Operations =====
+
+    /// <inheritdoc/>
+    public async Task<OperationResult<string>> StoreContentAsync(
+        string sourcePath,
+        ContentType contentType,
+        string? expectedHash = null,
+        CancellationToken cancellationToken = default)
+    {
+        // Use pool manager if available, otherwise fall back to default storage
+        if (_poolManager == null)
+        {
+            return await StoreContentAsync(sourcePath, expectedHash, cancellationToken);
+        }
+
+        try
+        {
+            if (!File.Exists(sourcePath))
+            {
+                return OperationResult<string>.CreateFailure($"Source file not found: {sourcePath}");
+            }
+
+            var storage = _poolManager.GetStorage(contentType);
+
+            // Compute hash
+            string hash;
+            if (!string.IsNullOrEmpty(expectedHash))
+            {
+                var actualHash = await _fileHashProvider.ComputeFileHashAsync(sourcePath, cancellationToken);
+                if (!string.Equals(expectedHash, actualHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    return OperationResult<string>.CreateFailure($"Hash mismatch: expected {expectedHash}, but got {actualHash}");
+                }
+
+                hash = expectedHash;
+            }
+            else
+            {
+                hash = await _fileHashProvider.ComputeFileHashAsync(sourcePath, cancellationToken);
+            }
+
+            // Check if content already exists in the pool
+            if (await storage.ObjectExistsAsync(hash, cancellationToken))
+            {
+                _logger.LogDebug("Content already exists in CAS pool ({ContentType}): {Hash}", contentType, hash);
+                return OperationResult<string>.CreateSuccess(hash);
+            }
+
+            // Store content in the appropriate pool
+            await using var sourceStream = File.OpenRead(sourcePath);
+            var storedPath = await storage.StoreObjectAsync(sourceStream, hash, cancellationToken);
+
+            if (storedPath == null)
+            {
+                return OperationResult<string>.CreateFailure("Failed to store content in CAS pool");
+            }
+
+            _logger.LogInformation("Stored content in CAS pool ({ContentType}): {Hash} from {SourcePath}", contentType, hash, sourcePath);
+            return OperationResult<string>.CreateSuccess(hash);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to store content in CAS pool ({ContentType}) from {SourcePath}", contentType, sourcePath);
+            return OperationResult<string>.CreateFailure($"Storage failed: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<OperationResult<string>> StoreContentAsync(
+        Stream contentStream,
+        ContentType contentType,
+        string? expectedHash = null,
+        CancellationToken cancellationToken = default)
+    {
+        // Use pool manager if available, otherwise fall back to default storage
+        if (_poolManager == null)
+        {
+            return await StoreContentAsync(contentStream, expectedHash, cancellationToken);
+        }
+
+        try
+        {
+            var storage = _poolManager.GetStorage(contentType);
+
+            // Compute hash from stream
+            string hash;
+            if (!string.IsNullOrEmpty(expectedHash))
+            {
+                if (!contentStream.CanSeek)
+                {
+                    return OperationResult<string>.CreateFailure("Stream must be seekable when expectedHash is provided");
+                }
+
+                var actualHash = await _streamHashProvider.ComputeStreamHashAsync(contentStream, cancellationToken);
+                contentStream.Position = 0;
+                if (!string.Equals(expectedHash, actualHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    return OperationResult<string>.CreateFailure($"Hash mismatch: expected {expectedHash}, but got {actualHash}");
+                }
+
+                hash = expectedHash;
+            }
+            else
+            {
+                if (!contentStream.CanSeek)
+                {
+                    return OperationResult<string>.CreateFailure("Stream must be seekable to compute hash");
+                }
+
+                hash = await _streamHashProvider.ComputeStreamHashAsync(contentStream, cancellationToken);
+                contentStream.Position = 0;
+            }
+
+            // Check if content already exists
+            if (await storage.ObjectExistsAsync(hash, cancellationToken))
+            {
+                _logger.LogDebug("Content already exists in CAS pool ({ContentType}): {Hash}", contentType, hash);
+                return OperationResult<string>.CreateSuccess(hash);
+            }
+
+            // Store content in the appropriate pool
+            var storedPath = await storage.StoreObjectAsync(contentStream, hash, cancellationToken);
+
+            if (storedPath == null)
+            {
+                return OperationResult<string>.CreateFailure("Failed to store content in CAS pool");
+            }
+
+            _logger.LogInformation("Stored content in CAS pool ({ContentType}): {Hash}", contentType, hash);
+            return OperationResult<string>.CreateSuccess(hash);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to store stream content in CAS pool ({ContentType})", contentType);
+            return OperationResult<string>.CreateFailure($"Storage failed: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<OperationResult<string>> GetContentPathAsync(
+        string hash,
+        ContentType contentType,
+        CancellationToken cancellationToken = default)
+    {
+        // Use pool manager if available, otherwise fall back to default storage
+        if (_poolManager == null)
+        {
+            return await GetContentPathAsync(hash, cancellationToken);
+        }
+
+        try
+        {
+            var storage = _poolManager.GetStorage(contentType);
+
+            if (await storage.ObjectExistsAsync(hash, cancellationToken))
+            {
+                var path = storage.GetObjectPath(hash);
+                return OperationResult<string>.CreateSuccess(path);
+            }
+
+            return OperationResult<string>.CreateFailure($"Content not found in CAS pool ({contentType}): {hash}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get content path for hash {Hash} in pool ({ContentType})", hash, contentType);
+            return OperationResult<string>.CreateFailure($"Path lookup failed: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<OperationResult<bool>> ExistsAsync(
+        string hash,
+        ContentType contentType,
+        CancellationToken cancellationToken = default)
+    {
+        // Use pool manager if available, otherwise fall back to default storage
+        if (_poolManager == null)
+        {
+            return await ExistsAsync(hash, cancellationToken);
+        }
+
+        try
+        {
+            var storage = _poolManager.GetStorage(contentType);
+            var exists = await storage.ObjectExistsAsync(hash, cancellationToken);
+            return OperationResult<bool>.CreateSuccess(exists);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to check existence of hash {Hash} in pool ({ContentType})", hash, contentType);
+            return OperationResult<bool>.CreateFailure($"Existence check failed: {ex.Message}");
         }
     }
 }

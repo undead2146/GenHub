@@ -38,7 +38,10 @@ public class ConfigurationProviderServiceTests
     [Fact]
     public void Constructor_WithValidDependencies_DoesNotThrow()
     {
-        var provider = new ConfigurationProviderService(_mockAppConfig.Object, _mockUserSettings.Object, _mockLogger.Object);
+        var provider = new ConfigurationProviderService(
+            _mockAppConfig.Object,
+            _mockUserSettings.Object,
+            _mockLogger.Object);
         Assert.NotNull(provider);
     }
 
@@ -49,7 +52,10 @@ public class ConfigurationProviderServiceTests
     public void Constructor_WithNullAppConfig_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() =>
-            new ConfigurationProviderService(null!, _mockUserSettings.Object, _mockLogger.Object));
+            new ConfigurationProviderService(
+                null!,
+                _mockUserSettings.Object,
+                _mockLogger.Object));
     }
 
     /// <summary>
@@ -59,7 +65,10 @@ public class ConfigurationProviderServiceTests
     public void Constructor_WithNullUserSettings_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() =>
-            new ConfigurationProviderService(_mockAppConfig.Object, null!, _mockLogger.Object));
+            new ConfigurationProviderService(
+                _mockAppConfig.Object,
+                null!,
+                _mockLogger.Object));
     }
 
     /// <summary>
@@ -69,7 +78,10 @@ public class ConfigurationProviderServiceTests
     public void Constructor_WithNullLogger_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() =>
-            new ConfigurationProviderService(_mockAppConfig.Object, _mockUserSettings.Object, null!));
+            new ConfigurationProviderService(
+                _mockAppConfig.Object,
+                _mockUserSettings.Object,
+                null!));
     }
 
     /// <summary>
@@ -624,42 +636,42 @@ public class ConfigurationProviderServiceTests
     }
 
     /// <summary>
-    /// Verifies that GetContentStoragePath returns user setting when available.
+    /// Verifies that GetApplicationDataPath returns user setting when available.
     /// </summary>
     [Fact]
-    public void GetContentStoragePath_WithValidUserSetting_ReturnsUserSetting()
+    public void GetApplicationDataPath_WithValidUserSetting_ReturnsUserSetting()
     {
         // Arrange
         var userPath = "/user/content/path";
-        var userSettings = new UserSettings { ContentStoragePath = userPath };
-        userSettings.MarkAsExplicitlySet(nameof(UserSettings.ContentStoragePath));
+        var userSettings = new UserSettings { ApplicationDataPath = userPath };
+        userSettings.MarkAsExplicitlySet(nameof(UserSettings.ApplicationDataPath));
         _mockUserSettings.Setup(x => x.Get()).Returns(userSettings);
 
         var provider = CreateProvider();
 
         // Act
-        var result = provider.GetContentStoragePath();
+        var result = provider.GetApplicationDataPath();
 
         // Assert
         Assert.Equal(userPath, result);
     }
 
     /// <summary>
-    /// Verifies that GetContentStoragePath returns default when user setting is null.
+    /// Verifies that GetApplicationDataPath returns default when user setting is null.
     /// </summary>
     [Fact]
-    public void GetContentStoragePath_WithNullUserSetting_ReturnsDefault()
+    public void GetApplicationDataPath_WithNullUserSetting_ReturnsDefault()
     {
         // Arrange
         var appDataPath = "/app/data/path";
-        var userSettings = new UserSettings { ContentStoragePath = null };
+        var userSettings = new UserSettings { ApplicationDataPath = null };
         _mockUserSettings.Setup(x => x.Get()).Returns(userSettings);
         _mockAppConfig.Setup(x => x.GetConfiguredDataPath()).Returns(appDataPath);
 
         var provider = CreateProvider();
 
         // Act
-        var result = provider.GetContentStoragePath();
+        var result = provider.GetApplicationDataPath();
 
         // Assert
         Assert.Equal(Path.Combine(appDataPath, "Content"), result);
@@ -756,6 +768,9 @@ public class ConfigurationProviderServiceTests
     /// <returns>A new ConfigurationProviderService instance.</returns>
     private ConfigurationProviderService CreateProvider()
     {
-        return new ConfigurationProviderService(_mockAppConfig.Object, _mockUserSettings.Object, _mockLogger.Object);
+        return new ConfigurationProviderService(
+            _mockAppConfig.Object,
+            _mockUserSettings.Object,
+            _mockLogger.Object);
     }
 }

@@ -29,7 +29,7 @@ public class GameProfile : IGameProfile
     public string GameInstallationId { get; set; } = string.Empty;
 
     /// <summary>Gets or sets the list of enabled content manifest IDs for this profile.</summary>
-    public List<string> EnabledContentIds { get; set; } = new();
+    public List<string> EnabledContentIds { get; set; } = [];
 
     /// <summary>Gets or sets the workspace strategy for this profile.</summary>
     public WorkspaceStrategy WorkspaceStrategy { get; set; } = WorkspaceStrategy.SymlinkOnly;
@@ -38,10 +38,10 @@ public class GameProfile : IGameProfile
     WorkspaceStrategy IGameProfile.PreferredStrategy => WorkspaceStrategy;
 
     /// <summary>Gets or sets launch options and parameters.</summary>
-    public Dictionary<string, string> LaunchOptions { get; set; } = new();
+    public Dictionary<string, string> LaunchOptions { get; set; } = [];
 
     /// <summary>Gets or sets environment variables for the profile.</summary>
-    public Dictionary<string, string> EnvironmentVariables { get; set; } = new();
+    public Dictionary<string, string> EnvironmentVariables { get; set; } = [];
 
     /// <summary>Gets or sets when this profile was created.</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -188,4 +188,68 @@ public class GameProfile : IGameProfile
 
     /// <summary>Gets or sets a value indicating whether to show player ranks (GO).</summary>
     public bool? GoShowPlayerRanks { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to launch using Steam integration (generals.exe) or standalone (game.dat). Only applicable for Steam installations.</summary>
+    public bool? UseSteamLaunch { get; set; } = true;
+
+    // Camera settings
+
+    /// <summary>Gets or sets the camera maximum height when lobby host (GO).</summary>
+    public float? GoCameraMaxHeightOnlyWhenLobbyHost { get; set; }
+
+    /// <summary>Gets or sets the camera minimum height (GO).</summary>
+    public float? GoCameraMinHeight { get; set; }
+
+    /// <summary>Gets or sets the camera move speed ratio (GO).</summary>
+    public float? GoCameraMoveSpeedRatio { get; set; }
+
+    // Chat settings
+
+    /// <summary>Gets or sets the chat duration in seconds until fade out (GO).</summary>
+    public int? GoChatDurationSecondsUntilFadeOut { get; set; }
+
+    // Debug settings
+
+    /// <summary>Gets or sets a value indicating whether verbose logging is enabled (GO).</summary>
+    public bool? GoDebugVerboseLogging { get; set; }
+
+    // Render settings
+
+    /// <summary>Gets or sets the FPS limit (GO).</summary>
+    public int? GoRenderFpsLimit { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to limit framerate (GO).</summary>
+    public bool? GoRenderLimitFramerate { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to show stats overlay (GO).</summary>
+    public bool? GoRenderStatsOverlay { get; set; }
+
+    // Social notification settings
+
+    /// <summary>Gets or sets a value indicating whether to notify when friend comes online during gameplay (GO).</summary>
+    public bool? GoSocialNotificationFriendComesOnlineGameplay { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to notify when friend comes online in menus (GO).</summary>
+    public bool? GoSocialNotificationFriendComesOnlineMenus { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to notify when friend goes offline during gameplay (GO).</summary>
+    public bool? GoSocialNotificationFriendGoesOfflineGameplay { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to notify when friend goes offline in menus (GO).</summary>
+    public bool? GoSocialNotificationFriendGoesOfflineMenus { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to notify when player accepts request during gameplay (GO).</summary>
+    public bool? GoSocialNotificationPlayerAcceptsRequestGameplay { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to notify when player accepts request in menus (GO).</summary>
+    public bool? GoSocialNotificationPlayerAcceptsRequestMenus { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to notify when player sends request during gameplay (GO).</summary>
+    public bool? GoSocialNotificationPlayerSendsRequestGameplay { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to notify when player sends request in menus (GO).</summary>
+    public bool? GoSocialNotificationPlayerSendsRequestMenus { get; set; }
+
+    /// <summary>Gets or sets the IP address for GameSpy/Networking services.</summary>
+    public string? GameSpyIPAddress { get; set; }
 }

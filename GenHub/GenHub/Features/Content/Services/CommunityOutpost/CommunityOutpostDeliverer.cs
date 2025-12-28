@@ -10,11 +10,11 @@ using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Models.CommunityOutpost;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
-using GenHub.Features.Content.Services.CommunityOutpost.Models;
 using Microsoft.Extensions.Logging;
 using SharpCompress.Archives;
 using SharpCompress.Archives.SevenZip;
@@ -34,6 +34,89 @@ public class CommunityOutpostDeliverer(
    ILogger<CommunityOutpostDeliverer> logger)
    : IContentDeliverer
 {
+    /// <summary>
+    /// Extracts a 7z archive asynchronously using SharpCompress.
+    /// </summary>
+    private static async Task ExtractSevenZipAsync(
+        string archivePath,
+        string extractPath,
+        CancellationToken cancellationToken)
+    {
+        await Task.Run(
+            () =>
+            {
+                using var archive = SevenZipArchive.Open(archivePath);
+                foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    entry.WriteToDirectory(
+                        extractPath,
+                        new ExtractionOptions
+                        {
+                            ExtractFullPath = true,
+                            Overwrite = true,
+                        });
+                }
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates a generic manifest when no specialized content types are detected.
+    /// </summary>
+    private static async Task<List<ContentManifest>> CreateGenericManifestAsync(
+        ContentManifest originalManifest,
+        string extractedDirectory,
+        CancellationToken cancellationToken)
+    {
+        var files = Directory.GetFiles(extractedDirectory, "*", SearchOption.AllDirectories);
+
+        if (files.Length == 0)
+        {
+            return [];
+        }
+
+        var manifestFiles = new List<ManifestFile>();
+
+        foreach (var file in files)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            var relativePath = Path.GetRelativePath(extractedDirectory, file);
+            var fileInfo = new FileInfo(file);
+
+            manifestFiles.Add(new ManifestFile
+            {
+                RelativePath = relativePath,
+                Size = fileInfo.Length,
+                IsRequired = true,
+                IsExecutable = relativePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase),
+                SourceType = ContentSourceType.ExtractedPackage,
+            });
+        }
+
+        var manifest = new ContentManifest
+        {
+            Id = originalManifest.Id,
+            Name = originalManifest.Name,
+            Version = originalManifest.Version,
+            ManifestVersion = originalManifest.ManifestVersion,
+            ContentType = originalManifest.ContentType,
+            TargetGame = originalManifest.TargetGame,
+            Publisher = originalManifest.Publisher,
+            Metadata = originalManifest.Metadata,
+            Dependencies = originalManifest.Dependencies,
+            Files = manifestFiles,
+            InstallationInstructions = originalManifest.InstallationInstructions,
+        };
+
+        return await Task.FromResult(new List<ContentManifest> { manifest });
+    }
+
     /// <inheritdoc />
     public string SourceName => CommunityOutpostConstants.PublisherId;
 
@@ -274,7 +357,7 @@ public class CommunityOutpostDeliverer(
         // Try primary URL first
         logger.LogDebug("Downloading from primary URL: {Url}", primaryUrl);
         var result = await downloadService.DownloadFileAsync(
-            primaryUrl,
+            new Uri(primaryUrl),
             targetPath,
             expectedHash: null,
             progress: null,
@@ -292,34 +375,6 @@ public class CommunityOutpostDeliverer(
         // to the original metadata here. In a future enhancement, we could
         // store mirror URLs in the manifest or pass them through.
         return OperationResult<bool>.CreateFailure($"Download failed: {result.FirstError}");
-    }
-
-    /// <summary>
-    /// Extracts a 7z archive asynchronously using SharpCompress.
-    /// </summary>
-    private async Task ExtractSevenZipAsync(
-        string archivePath,
-        string extractPath,
-        CancellationToken cancellationToken)
-    {
-        await Task.Run(
-            () =>
-            {
-                using var archive = SevenZipArchive.Open(archivePath);
-                foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    entry.WriteToDirectory(
-                        extractPath,
-                        new ExtractionOptions
-                        {
-                            ExtractFullPath = true,
-                            Overwrite = true,
-                        });
-                }
-            },
-            cancellationToken);
     }
 
     /// <summary>
@@ -357,60 +412,5 @@ public class CommunityOutpostDeliverer(
                 logger.LogWarning(ex, "Failed to delete extracted directory {Path}", extractPath);
             }
         });
-    }
-
-    /// <summary>
-    /// Creates a generic manifest when no specialized content types are detected.
-    /// </summary>
-    private async Task<List<ContentManifest>> CreateGenericManifestAsync(
-        ContentManifest originalManifest,
-        string extractedDirectory,
-        CancellationToken cancellationToken)
-    {
-        var files = Directory.GetFiles(extractedDirectory, "*", SearchOption.AllDirectories);
-
-        if (files.Length == 0)
-        {
-            return new List<ContentManifest>();
-        }
-
-        var manifestFiles = new List<ManifestFile>();
-
-        foreach (var file in files)
-        {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                break;
-            }
-
-            var relativePath = Path.GetRelativePath(extractedDirectory, file);
-            var fileInfo = new FileInfo(file);
-
-            manifestFiles.Add(new ManifestFile
-            {
-                RelativePath = relativePath,
-                Size = fileInfo.Length,
-                IsRequired = true,
-                IsExecutable = relativePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase),
-                SourceType = ContentSourceType.ExtractedPackage,
-            });
-        }
-
-        var manifest = new ContentManifest
-        {
-            Id = originalManifest.Id,
-            Name = originalManifest.Name,
-            Version = originalManifest.Version,
-            ManifestVersion = originalManifest.ManifestVersion,
-            ContentType = originalManifest.ContentType,
-            TargetGame = originalManifest.TargetGame,
-            Publisher = originalManifest.Publisher,
-            Metadata = originalManifest.Metadata,
-            Dependencies = originalManifest.Dependencies,
-            Files = manifestFiles,
-            InstallationInstructions = originalManifest.InstallationInstructions,
-        };
-
-        return await Task.FromResult(new List<ContentManifest> { manifest });
     }
 }

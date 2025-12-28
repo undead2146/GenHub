@@ -4,7 +4,7 @@ using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 
-namespace GenHub.Features.Content.Services.CommunityOutpost.Models;
+namespace GenHub.Core.Models.CommunityOutpost;
 
 /// <summary>
 /// Builds dependency specifications for GenPatcher content.
@@ -106,7 +106,7 @@ public static class GenPatcherDependencyBuilder
             InstallBehavior = DependencyInstallBehavior.RequireExisting,
             IsOptional = false,
             StrictPublisher = false, // Any publisher's ZH installation will work (EA, Steam, etc.)
-            CompatibleGameTypes = new List<GameType> { GameType.ZeroHour },
+            CompatibleGameTypes = [GameType.ZeroHour],
         };
     }
 
@@ -129,7 +129,7 @@ public static class GenPatcherDependencyBuilder
             InstallBehavior = DependencyInstallBehavior.RequireExisting,
             IsOptional = false,
             StrictPublisher = false, // Any publisher's Generals installation will work
-            CompatibleGameTypes = new List<GameType> { GameType.Generals },
+            CompatibleGameTypes = [GameType.Generals],
         };
     }
 
@@ -149,7 +149,7 @@ public static class GenPatcherDependencyBuilder
             InstallBehavior = DependencyInstallBehavior.RequireExisting,
             IsOptional = false,
             StrictPublisher = false,
-            CompatibleGameTypes = new List<GameType> { GameType.ZeroHour },
+            CompatibleGameTypes = [GameType.ZeroHour],
         };
     }
 
@@ -169,7 +169,7 @@ public static class GenPatcherDependencyBuilder
             InstallBehavior = DependencyInstallBehavior.RequireExisting,
             IsOptional = false,
             StrictPublisher = false,
-            CompatibleGameTypes = new List<GameType> { GameType.Generals },
+            CompatibleGameTypes = [GameType.Generals],
         };
     }
 
@@ -182,7 +182,7 @@ public static class GenPatcherDependencyBuilder
     {
         return new ContentDependency
         {
-            Id = ManifestId.Create($"1.0.{CommunityOutpostConstants.PublisherType}.addon.gent"),
+            Id = ManifestId.Create($"1.{ManifestConstants.DefaultManifestVersion}.{CommunityOutpostConstants.PublisherType}.addon.gent"),
             Name = "GenTool (Required)",
             DependencyType = ContentType.Addon,
             InstallBehavior = DependencyInstallBehavior.AutoInstall,
@@ -198,7 +198,7 @@ public static class GenPatcherDependencyBuilder
     {
         return new ContentDependency
         {
-            Id = ManifestId.Create($"1.0.{CommunityOutpostConstants.PublisherType}.addon.gent"),
+            Id = ManifestId.Create($"1.{ManifestConstants.DefaultManifestVersion}.{CommunityOutpostConstants.PublisherType}.addon.gent"),
             Name = "GenTool (Recommended)",
             DependencyType = ContentType.Addon,
             InstallBehavior = DependencyInstallBehavior.Suggest,
@@ -239,7 +239,7 @@ public static class GenPatcherDependencyBuilder
                 "ewba", "ewbi", "hlde", "hleg", "hlei", "hlen",
             }.FindAll(c => !c.Equals(contentCode, StringComparison.OrdinalIgnoreCase)),
 
-            _ => new List<string>(),
+            _ => [],
         };
     }
 

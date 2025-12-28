@@ -25,10 +25,7 @@ public class DownloadService(
         IProgress<DownloadProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        if (configuration == null)
-        {
-            throw new ArgumentNullException(nameof(configuration));
-        }
+        ArgumentNullException.ThrowIfNull(configuration);
 
         var destDir = Path.GetDirectoryName(configuration.DestinationPath);
         if (!string.IsNullOrWhiteSpace(destDir) && !Directory.Exists(destDir))
@@ -41,7 +38,7 @@ public class DownloadService(
 
     /// <inheritdoc/>
     public async Task<DownloadResult> DownloadFileAsync(
-        string url,
+        Uri url,
         string destinationPath,
         string? expectedHash = null,
         IProgress<DownloadProgress>? progress = null,
@@ -63,7 +60,7 @@ public class DownloadService(
         return await hashProvider.ComputeFileHashAsync(filePath, cancellationToken);
     }
 
-    private HttpRequestMessage CreateRequest(DownloadConfiguration configuration)
+    private static HttpRequestMessage CreateRequest(DownloadConfiguration configuration)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, configuration.Url);
         request.Headers.Add("User-Agent", configuration.UserAgent);
@@ -80,8 +77,7 @@ public class DownloadService(
         IProgress<DownloadProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var fileName = Path.GetFileName(configuration.DestinationPath);
-        Exception? lastException = null;
+        Exception? lastException;
 
         for (int attempt = 1; attempt <= configuration.MaxRetryAttempts; attempt++)
         {

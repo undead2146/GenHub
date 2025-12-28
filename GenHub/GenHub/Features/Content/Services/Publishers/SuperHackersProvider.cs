@@ -67,6 +67,44 @@ public class SuperHackersProvider(
     protected override IContentDeliverer Deliverer => _deliverer;
 
     /// <inheritdoc/>
+    public override async Task<OperationResult<IEnumerable<ContentSearchResult>>> SearchAsync(
+        ContentSearchQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        var baseResult = await base.SearchAsync(query, cancellationToken);
+        if (!baseResult.Success || baseResult.Data == null)
+        {
+            return baseResult;
+        }
+
+        // Filter results to only include TheSuperHackers publisher content
+        var filteredResults = baseResult.Data
+            .Where(r =>
+            {
+                var manifest = r.GetData<ContentManifest>();
+                if (manifest?.Publisher?.PublisherType != null)
+                {
+                    return manifest.Publisher.PublisherType.Equals(
+                        PublisherTypeConstants.TheSuperHackers,
+                        StringComparison.OrdinalIgnoreCase);
+                }
+
+                // Fallback to source URL check for unresolved content
+                var sourceUrl = r.SourceUrl ?? string.Empty;
+                return sourceUrl.Contains("/thesuperhackers/", StringComparison.OrdinalIgnoreCase)
+                    || sourceUrl.Contains("/genpatcher", StringComparison.OrdinalIgnoreCase);
+            })
+            .ToList();
+
+        logger.LogInformation(
+            "Filtered {OriginalCount} results to {FilteredCount} TheSuperHackers results",
+            baseResult.Data.Count(),
+            filteredResults.Count);
+
+        return OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(filteredResults);
+    }
+
+    /// <inheritdoc/>
     public override async Task<OperationResult<ContentManifest>> GetValidatedContentAsync(
         string contentId,
         CancellationToken cancellationToken = default)

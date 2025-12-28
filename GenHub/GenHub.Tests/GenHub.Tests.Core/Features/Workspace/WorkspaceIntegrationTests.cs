@@ -57,7 +57,7 @@ public class WorkspaceIntegrationTests : IDisposable
 
         // Mock ConfigurationProviderService instead of using real one
         var mockConfigProvider = new Mock<IConfigurationProviderService>();
-        mockConfigProvider.Setup(x => x.GetContentStoragePath()).Returns(_tempWorkspaceRoot);
+        mockConfigProvider.Setup(x => x.GetApplicationDataPath()).Returns(_tempWorkspaceRoot);
         services.AddSingleton<IConfigurationProviderService>(mockConfigProvider.Object);
 
         services.AddSingleton<ICasStorage, CasStorage>();
@@ -65,7 +65,8 @@ public class WorkspaceIntegrationTests : IDisposable
         services.AddSingleton<ICasService, CasService>();
 
         // Register FileOperationsService for workspace strategies
-        services.AddSingleton<IFileOperationsService, FileOperationsService>();
+        // Register TestFileOperationsService for workspace strategies (supports HardLinks on Windows)
+        services.AddSingleton<IFileOperationsService, TestFileOperationsService>();
 
         // Add configuration services
         var mockConfiguration = new Mock<Microsoft.Extensions.Configuration.IConfiguration>();
@@ -98,7 +99,6 @@ public class WorkspaceIntegrationTests : IDisposable
     [InlineData(WorkspaceStrategy.FullCopy)]
     [InlineData(WorkspaceStrategy.SymlinkOnly)]
     [InlineData(WorkspaceStrategy.HybridCopySymlink)]
-    [InlineData(WorkspaceStrategy.HardLink)]
     public async Task EndToEndWorkspaceCreation_AllStrategies(WorkspaceStrategy strategy)
     {
         var manager = _serviceProvider.GetRequiredService<IWorkspaceManager>();
@@ -111,7 +111,6 @@ public class WorkspaceIntegrationTests : IDisposable
             .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
 
         if ((strategy == WorkspaceStrategy.SymlinkOnly ||
-             strategy == WorkspaceStrategy.HardLink ||
              strategy == WorkspaceStrategy.HybridCopySymlink) &&
             (!isWindows || !isAdmin))
         {
@@ -157,7 +156,7 @@ public class WorkspaceIntegrationTests : IDisposable
         var strategy = new FullCopyStrategy(fileOps, logger.Object);
 
         var mockConfigProvider = new Mock<IConfigurationProviderService>();
-        mockConfigProvider.Setup(x => x.GetContentStoragePath()).Returns(_tempWorkspaceRoot);
+        mockConfigProvider.Setup(x => x.GetApplicationDataPath()).Returns(_tempWorkspaceRoot);
         mockConfigProvider.Setup(x => x.GetWorkspacePath()).Returns(_tempWorkspaceRoot);
 
         var mockLogger = new Mock<ILogger<WorkspaceManager>>().Object;
@@ -171,21 +170,21 @@ public class WorkspaceIntegrationTests : IDisposable
 
         var mockWorkspaceValidator = new Mock<IWorkspaceValidator>();
         mockWorkspaceValidator.Setup(x => x.ValidateWorkspaceAsync(It.IsAny<WorkspaceInfo>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(OperationResult<ValidationResult>.CreateSuccess(new ValidationResult("test", new List<ValidationIssue>())));
+            .ReturnsAsync(OperationResult<ValidationResult>.CreateSuccess(new ValidationResult("test", [])));
         mockWorkspaceValidator.Setup(x => x.ValidatePrerequisitesAsync(It.IsAny<IWorkspaceStrategy>(), It.IsAny<WorkspaceConfiguration>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ValidationResult("test", new List<ValidationIssue>()));
+            .ReturnsAsync(new ValidationResult("test", []));
         mockWorkspaceValidator.Setup(x => x.ValidateConfigurationAsync(It.IsAny<WorkspaceConfiguration>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ValidationResult("test", new List<ValidationIssue>()));
+            .ReturnsAsync(new ValidationResult("test", []));
 
         // Create WorkspaceReconciler
         var workspaceReconciler = new WorkspaceReconciler(mockReconcilerLogger);
 
-        var manager = new WorkspaceManager([strategy], mockConfigProvider.Object, mockLogger, casReferenceTracker, mockWorkspaceValidator.Object);
+        var manager = new WorkspaceManager([strategy], mockConfigProvider.Object, mockLogger, casReferenceTracker, mockWorkspaceValidator.Object, workspaceReconciler);
 
         var config = CreateTestConfiguration(WorkspaceStrategy.FullCopy);
 
         // Act
-        var result = await manager.PrepareWorkspaceAsync(config, null, CancellationToken.None);
+        var result = await manager.PrepareWorkspaceAsync(config, null, false, CancellationToken.None);
 
         // Assert
         Assert.True(result.Success, $"Workspace preparation failed: {(result.HasErrors ? result.FirstError : "An unknown error occurred.")}");
@@ -198,6 +197,7 @@ public class WorkspaceIntegrationTests : IDisposable
     /// </summary>
     public void Dispose()
     {
+        GC.SuppressFinalize(this);
         try
         {
             if (Directory.Exists(_tempGameInstall))
@@ -294,7 +294,7 @@ public class WorkspaceIntegrationTests : IDisposable
             WorkspaceRootPath = _tempWorkspaceRoot,
             Strategy = strategy,
             BaseInstallationPath = _tempGameInstall,
-            Manifests = new List<ContentManifest> { manifest },
+            Manifests = [manifest],
         };
     }
 

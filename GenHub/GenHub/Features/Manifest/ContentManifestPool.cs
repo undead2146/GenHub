@@ -98,7 +98,7 @@ public class ContentManifestPool(IContentStorageService storageService, ILogger<
             }
 
             // Delegate content storage to the storage service which may perform its own validation
-            var result = await _storageService.StoreContentAsync(manifest, sourceDirectory, cancellationToken);
+            var result = await _storageService.StoreContentAsync(manifest, sourceDirectory, null, cancellationToken);
             _logger.LogDebug("Storage service returned for {ManifestId}: success={Success} firstError={FirstError}", manifest.Id, result?.Success, result?.FirstError);
             if (result == null || !result.Success)
             {
@@ -183,7 +183,7 @@ public class ContentManifestPool(IContentStorageService storageService, ILogger<
             if (!allManifestsResult.Success)
                 return allManifestsResult;
 
-            var manifests = allManifestsResult.Data ?? Enumerable.Empty<ContentManifest>();
+            var manifests = allManifestsResult.Data ?? [];
             var filteredManifests = manifests.Where(manifest =>
             {
                 if (!string.IsNullOrWhiteSpace(query.SearchTerm) &&
@@ -281,7 +281,7 @@ public class ContentManifestPool(IContentStorageService storageService, ILogger<
     /// </summary>
     /// <param name="manifest">The manifest to validate.</param>
     /// <returns>A validation result.</returns>
-    private OperationResult<bool> ValidateManifest(ContentManifest manifest)
+    private static OperationResult<bool> ValidateManifest(ContentManifest manifest)
     {
         var errors = new List<string>();
 
@@ -294,8 +294,8 @@ public class ContentManifestPool(IContentStorageService storageService, ILogger<
         if (string.IsNullOrEmpty(manifest.Version))
             errors.Add("Manifest version is required");
 
-        var hasFiles = manifest.Files != null && manifest.Files.Any();
-        var hasDirs = manifest.RequiredDirectories != null && manifest.RequiredDirectories.Any();
+        var hasFiles = manifest.Files != null && manifest.Files.Count > 0;
+        var hasDirs = manifest.RequiredDirectories != null && manifest.RequiredDirectories.Count > 0;
         var isBase = manifest.ContentType == ContentType.GameInstallation || manifest.ContentType == ContentType.GameClient;
 
         if (!hasFiles && !hasDirs && !isBase)
@@ -332,7 +332,7 @@ public class ContentManifestPool(IContentStorageService storageService, ILogger<
             }
         }
 
-        return errors.Any()
+        return errors.Count > 0
             ? OperationResult<bool>.CreateFailure(string.Join(", ", errors))
             : OperationResult<bool>.CreateSuccess(true);
     }

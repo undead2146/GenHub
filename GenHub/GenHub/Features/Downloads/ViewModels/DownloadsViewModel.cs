@@ -7,9 +7,11 @@ using CommunityToolkit.Mvvm.Input;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Features.Content.Services.ContentDiscoverers;
 using GenHub.Features.Content.Services.GeneralsOnline;
+using GenHub.Features.Content.Services.GitHub;
 using GenHub.Features.Content.ViewModels;
 using Microsoft.Extensions.Logging;
 
@@ -55,7 +57,7 @@ public partial class DownloadsViewModel(
     private double _communityPatchProgress;
 
     [ObservableProperty]
-    private ObservableCollection<PublisherCardViewModel> _publisherCards = new();
+    private ObservableCollection<PublisherCardViewModel> _publisherCards = [];
 
     /// <summary>
     /// Performs asynchronous initialization for the Downloads tab.
@@ -105,11 +107,27 @@ public partial class DownloadsViewModel(
         }
     }
 
+    private static string GetContentTypeDisplayName(ContentType type)
+    {
+        return type switch
+        {
+            ContentType.GameClient => UiConstants.GameClientDisplayName,
+            ContentType.MapPack => UiConstants.MapPackDisplayName,
+            ContentType.Patch => UiConstants.PatchDisplayName,
+            ContentType.Addon => UiConstants.AddonDisplayName,
+            ContentType.Mod => UiConstants.ModDisplayName,
+            ContentType.Mission => UiConstants.MissionDisplayName,
+            ContentType.Map => UiConstants.MapDisplayName,
+            ContentType.LanguagePack => UiConstants.LanguagePackDisplayName,
+            ContentType.ContentBundle => UiConstants.ContentBundleDisplayName,
+            _ => type.ToString(),
+        };
+    }
+
     private void InitializePublisherCards()
     {
         // Create Generals Online publisher card (Feature 2)
-        var generalsOnlineCard = serviceProvider.GetService(typeof(PublisherCardViewModel)) as PublisherCardViewModel;
-        if (generalsOnlineCard != null)
+        if (serviceProvider.GetService(typeof(PublisherCardViewModel)) is PublisherCardViewModel generalsOnlineCard)
         {
             generalsOnlineCard.PublisherId = GeneralsOnlineConstants.PublisherType;
             generalsOnlineCard.DisplayName = GeneralsOnlineConstants.ContentName;
@@ -120,8 +138,7 @@ public partial class DownloadsViewModel(
         }
 
         // Create TheSuperHackers publisher card
-        var superHackersCard = serviceProvider.GetService(typeof(PublisherCardViewModel)) as PublisherCardViewModel;
-        if (superHackersCard != null)
+        if (serviceProvider.GetService(typeof(PublisherCardViewModel)) is PublisherCardViewModel superHackersCard)
         {
             superHackersCard.PublisherId = PublisherTypeConstants.TheSuperHackers;
             superHackersCard.DisplayName = SuperHackersConstants.PublisherName;
@@ -132,8 +149,7 @@ public partial class DownloadsViewModel(
         }
 
         // Create Community Outpost publisher card
-        var communityOutpostCard = serviceProvider.GetService(typeof(PublisherCardViewModel)) as PublisherCardViewModel;
-        if (communityOutpostCard != null)
+        if (serviceProvider.GetService(typeof(PublisherCardViewModel)) is PublisherCardViewModel communityOutpostCard)
         {
             communityOutpostCard.PublisherId = CommunityOutpostConstants.PublisherType;
             communityOutpostCard.DisplayName = CommunityOutpostConstants.PublisherName;
@@ -144,8 +160,7 @@ public partial class DownloadsViewModel(
         }
 
         // Create GitHub publisher card (topic-based discovery)
-        var githubCard = serviceProvider.GetService(typeof(PublisherCardViewModel)) as PublisherCardViewModel;
-        if (githubCard != null)
+        if (serviceProvider.GetService(typeof(PublisherCardViewModel)) is PublisherCardViewModel githubCard)
         {
             githubCard.PublisherId = GitHubTopicsConstants.PublisherType;
             githubCard.DisplayName = GitHubTopicsConstants.PublisherName;
@@ -156,8 +171,7 @@ public partial class DownloadsViewModel(
         }
 
         // Create CNC Labs publisher card
-        var cncLabsCard = serviceProvider.GetService(typeof(PublisherCardViewModel)) as PublisherCardViewModel;
-        if (cncLabsCard != null)
+        if (serviceProvider.GetService(typeof(PublisherCardViewModel)) is PublisherCardViewModel cncLabsCard)
         {
             cncLabsCard.PublisherId = CNCLabsConstants.PublisherType;
             cncLabsCard.DisplayName = CNCLabsConstants.PublisherName;
@@ -168,8 +182,7 @@ public partial class DownloadsViewModel(
         }
 
         // Create ModDB publisher card
-        var modDBCard = serviceProvider.GetService(typeof(PublisherCardViewModel)) as PublisherCardViewModel;
-        if (modDBCard != null)
+        if (serviceProvider.GetService(typeof(PublisherCardViewModel)) is PublisherCardViewModel modDBCard)
         {
             modDBCard.PublisherId = ModDBConstants.PublisherType;
             modDBCard.DisplayName = ModDBConstants.PublisherName;
@@ -201,8 +214,7 @@ public partial class DownloadsViewModel(
             var card = PublisherCards.FirstOrDefault(c => c.PublisherId == GeneralsOnlineConstants.PublisherType);
             if (card == null) return;
 
-            var discoverer = serviceProvider.GetService(typeof(GeneralsOnlineDiscoverer)) as GeneralsOnlineDiscoverer;
-            if (discoverer == null) return;
+            if (serviceProvider.GetService(typeof(GeneralsOnlineDiscoverer)) is not GeneralsOnlineDiscoverer discoverer) return;
 
             var result = await discoverer.DiscoverAsync(new ContentSearchQuery());
             if (result.Success && result.Data?.Any() == true)
@@ -261,8 +273,7 @@ public partial class DownloadsViewModel(
 
             // Query for all configured GitHub releases
             var query = new ContentSearchQuery();
-            var gitHubDiscoverer = serviceProvider.GetService(typeof(GenHub.Features.Content.Services.ContentDiscoverers.GitHubReleasesDiscoverer)) as GenHub.Features.Content.Services.ContentDiscoverers.GitHubReleasesDiscoverer;
-            if (gitHubDiscoverer == null)
+            if (serviceProvider.GetService(typeof(GitHubReleasesDiscoverer)) is not GitHubReleasesDiscoverer gitHubDiscoverer)
             {
                 logger.LogWarning("GitHubReleasesDiscoverer not available for SuperHackers card");
                 return;
@@ -340,8 +351,7 @@ public partial class DownloadsViewModel(
             var card = PublisherCards.FirstOrDefault(c => c.PublisherId == CommunityOutpostConstants.PublisherType);
             if (card == null) return;
 
-            var discoverer = serviceProvider.GetService(typeof(GenHub.Features.Content.Services.CommunityOutpost.CommunityOutpostDiscoverer)) as GenHub.Features.Content.Services.CommunityOutpost.CommunityOutpostDiscoverer;
-            if (discoverer == null) return;
+            if (serviceProvider.GetService(typeof(GenHub.Features.Content.Services.CommunityOutpost.CommunityOutpostDiscoverer)) is not GenHub.Features.Content.Services.CommunityOutpost.CommunityOutpostDiscoverer discoverer) return;
 
             var result = await discoverer.DiscoverAsync(new ContentSearchQuery());
             if (result.Success && result.Data?.Any() == true)
@@ -457,8 +467,7 @@ public partial class DownloadsViewModel(
             var card = PublisherCards.FirstOrDefault(c => c.PublisherId == CNCLabsConstants.PublisherType);
             if (card == null) return;
 
-            var discoverer = serviceProvider.GetService(typeof(GenHub.Features.Content.Services.ContentDiscoverers.CNCLabsMapDiscoverer)) as GenHub.Features.Content.Services.ContentDiscoverers.CNCLabsMapDiscoverer;
-            if (discoverer == null)
+            if (serviceProvider.GetService(typeof(GenHub.Features.Content.Services.ContentDiscoverers.CNCLabsMapDiscoverer)) is not GenHub.Features.Content.Services.ContentDiscoverers.CNCLabsMapDiscoverer discoverer)
             {
                 logger.LogWarning("CNCLabsMapDiscoverer not available for CNCLabs card");
                 card.LatestVersion = "Unavailable";
@@ -524,8 +533,7 @@ public partial class DownloadsViewModel(
             var card = PublisherCards.FirstOrDefault(c => c.PublisherId == ModDBConstants.PublisherType);
             if (card == null) return;
 
-            var discoverer = serviceProvider.GetService(typeof(GenHub.Features.Content.Services.ContentDiscoverers.ModDBDiscoverer)) as GenHub.Features.Content.Services.ContentDiscoverers.ModDBDiscoverer;
-            if (discoverer == null)
+            if (serviceProvider.GetService(typeof(GenHub.Features.Content.Services.ContentDiscoverers.ModDBDiscoverer)) is not GenHub.Features.Content.Services.ContentDiscoverers.ModDBDiscoverer discoverer)
             {
                 logger.LogWarning("ModDBDiscoverer not available for ModDB card");
                 card.LatestVersion = "Unavailable";
@@ -584,29 +592,11 @@ public partial class DownloadsViewModel(
         }
     }
 
-    private string GetContentTypeDisplayName(ContentType type)
-    {
-        return type switch
-        {
-            ContentType.GameClient => UiConstants.GameClientDisplayName,
-            ContentType.MapPack => UiConstants.MapPackDisplayName,
-            ContentType.Patch => UiConstants.PatchDisplayName,
-            ContentType.Addon => UiConstants.AddonDisplayName,
-            ContentType.Mod => UiConstants.ModDisplayName,
-            ContentType.Mission => UiConstants.MissionDisplayName,
-            ContentType.Map => UiConstants.MapDisplayName,
-            ContentType.LanguagePack => UiConstants.LanguagePackDisplayName,
-            ContentType.ContentBundle => UiConstants.ContentBundleDisplayName,
-            _ => type.ToString()
-        };
-    }
-
     private async Task FetchGeneralsOnlineVersionAsync()
     {
         try
         {
-            var discoverer = serviceProvider.GetService(typeof(GeneralsOnlineDiscoverer)) as GeneralsOnlineDiscoverer;
-            if (discoverer != null)
+            if (serviceProvider.GetService(typeof(GeneralsOnlineDiscoverer)) is GeneralsOnlineDiscoverer discoverer)
             {
                 var result = await discoverer.DiscoverAsync(new ContentSearchQuery());
                 if (result.Success && result.Data?.Any() == true)
@@ -628,8 +618,7 @@ public partial class DownloadsViewModel(
     {
         try
         {
-            var discoverer = serviceProvider.GetService(typeof(GenHub.Features.Content.Services.ContentDiscoverers.GitHubReleasesDiscoverer)) as GenHub.Features.Content.Services.ContentDiscoverers.GitHubReleasesDiscoverer;
-            if (discoverer != null)
+            if (serviceProvider.GetService(typeof(GitHubReleasesDiscoverer)) is GitHubReleasesDiscoverer discoverer)
             {
                 var result = await discoverer.DiscoverAsync(new ContentSearchQuery());
                 if (result.Success && result.Data?.Any() == true)
@@ -656,8 +645,7 @@ public partial class DownloadsViewModel(
     {
         try
         {
-            var discoverer = serviceProvider.GetService(typeof(GenHub.Features.Content.Services.CommunityOutpost.CommunityOutpostDiscoverer)) as GenHub.Features.Content.Services.CommunityOutpost.CommunityOutpostDiscoverer;
-            if (discoverer != null)
+            if (serviceProvider.GetService(typeof(GenHub.Features.Content.Services.CommunityOutpost.CommunityOutpostDiscoverer)) is GenHub.Features.Content.Services.CommunityOutpost.CommunityOutpostDiscoverer discoverer)
             {
                 var result = await discoverer.DiscoverAsync(new ContentSearchQuery());
                 if (result.Success && result.Data?.Any() == true)

@@ -26,19 +26,24 @@ public class WorkspaceManager(
     IConfigurationProviderService configurationProvider,
     ILogger<WorkspaceManager> logger,
     CasReferenceTracker casReferenceTracker,
-    IWorkspaceValidator workspaceValidator
+    IWorkspaceValidator workspaceValidator,
+    WorkspaceReconciler reconciler
 ) : IWorkspaceManager
 {
-    private readonly string _workspaceMetadataPath = Path.Combine(configurationProvider.GetContentStoragePath(), "workspaces.json");
+    private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
+
+    // Stores workspace metadata in the application data directory
+    private readonly string _workspaceMetadataPath = Path.Combine(configurationProvider.GetApplicationDataPath(), "workspaces.json");
 
     /// <summary>
     /// Prepares a workspace using the specified configuration and strategy.
     /// </summary>
     /// <param name="configuration">The workspace configuration.</param>
     /// <param name="progress">Optional progress reporter.</param>
+    /// <param name="skipCleanup">If true, skip removal of files not in manifests.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>The prepared workspace information.</returns>
-    public async Task<OperationResult<WorkspaceInfo>> PrepareWorkspaceAsync(WorkspaceConfiguration configuration, IProgress<WorkspacePreparationProgress>? progress = null, CancellationToken cancellationToken = default)
+    public async Task<OperationResult<WorkspaceInfo>> PrepareWorkspaceAsync(WorkspaceConfiguration configuration, IProgress<WorkspacePreparationProgress>? progress = null, bool skipCleanup = false, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("[Workspace] === Preparing workspace {Id} with strategy {Strategy} ===", configuration.Id, configuration.Strategy);
         logger.LogDebug("[Workspace] Manifests: {Count}, ForceRecreate: {Force}", configuration.Manifests?.Count ?? 0, configuration.ForceRecreate);
@@ -74,11 +79,11 @@ public class WorkspaceManager(
                             workspace.Strategy);
 
                         // Check if manifest IDs have changed
-                        var currentManifestIds = (configuration.Manifests ?? Enumerable.Empty<ContentManifest>())
+                        var currentManifestIds = (configuration.Manifests ?? [])
                             .Select(m => m.Id.Value)
                             .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
                             .ToList();
-                        var cachedManifestIds = (workspace.ManifestIds ?? new List<string>())
+                        var cachedManifestIds = (workspace.ManifestIds ?? [])
                             .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
                             .ToList();
 
@@ -96,8 +101,8 @@ public class WorkspaceManager(
                         {
                             // Quick check: compare expected file count from manifests with cached workspace file count
                             // Account for file deduplication - files with same relative path keep highest priority version only
-                            var allFiles = (configuration.Manifests ?? Enumerable.Empty<ContentManifest>())
-                                .SelectMany(m => (m.Files ?? Enumerable.Empty<ManifestFile>()).Select(f => new { File = f, Manifest = m }))
+                            var allFiles = (configuration.Manifests ?? [])
+                                .SelectMany(m => (m.Files ?? []).Select(f => new { File = f, Manifest = m }))
                                 .GroupBy(x => x.File.RelativePath, StringComparer.OrdinalIgnoreCase)
                                 .Select(g => g.OrderByDescending(x => ContentTypePriority.GetPriority(x.Manifest.ContentType)).First().File);
                             var expectedFileCount = allFiles.Count();
@@ -113,7 +118,7 @@ public class WorkspaceManager(
 
                             // Perform basic validation before reusing workspace
                             // Ensure workspace is not corrupted or incomplete
-                            if (!ValidateWorkspaceBasics(workspace, configuration))
+                            if (!ValidateWorkspaceBasics(workspace))
                             {
                                 logger.LogWarning(
                                     "[Workspace] Workspace {Id} validation failed, will recreate",
@@ -195,15 +200,18 @@ public class WorkspaceManager(
             await CleanupWorkspaceAsync(configuration.Id, cancellationToken);
         }
 
-        logger.LogInformation("[Workspace] Executing strategy preparation");
+        // Propagate skipCleanup to configuration for strategies to use
+        configuration.SkipCleanup = skipCleanup;
+
+        logger.LogInformation("[Workspace] Executing strategy preparation (skipCleanup: {SkipCleanup})", skipCleanup);
         var workspaceInfo = await strategy.PrepareAsync(configuration, progress, cancellationToken);
 
         if (!workspaceInfo.IsPrepared)
         {
             var messages = workspaceInfo.ValidationIssues?.Select(i => i.Message)
-                           ?? new[] { "Workspace preparation failed" };
+                           ?? ["Workspace preparation failed"];
             logger.LogError("[Workspace] Strategy preparation failed: {Errors}", string.Join(", ", messages));
-            return OperationResult<WorkspaceInfo>.CreateFailure(string.Join(", ", messages) ?? "Workspace preparation failed");
+            return OperationResult<WorkspaceInfo>.CreateFailure(string.Join(", ", messages));
         }
 
         logger.LogDebug("[Workspace] Strategy preparation completed successfully");
@@ -223,9 +231,7 @@ public class WorkspaceManager(
         }
 
         // Store manifest IDs for future reuse comparison
-        workspaceInfo.ManifestIds = (configuration.Manifests ?? Enumerable.Empty<ContentManifest>())
-            .Select(m => m.Id.Value)
-            .ToList();
+        workspaceInfo.ManifestIds = [.. (configuration.Manifests ?? []).Select(m => m.Id.Value)];
 
         logger.LogDebug("[Workspace] Saving workspace metadata");
         await SaveWorkspaceMetadataAsync(workspaceInfo, cancellationToken);
@@ -250,7 +256,7 @@ public class WorkspaceManager(
         {
             if (!File.Exists(_workspaceMetadataPath))
             {
-                return OperationResult<IEnumerable<WorkspaceInfo>>.CreateSuccess(Enumerable.Empty<WorkspaceInfo>());
+                return OperationResult<IEnumerable<WorkspaceInfo>>.CreateSuccess([]);
             }
 
             var json = await File.ReadAllTextAsync(_workspaceMetadataPath, cancellationToken);
@@ -319,6 +325,96 @@ public class WorkspaceManager(
         }
     }
 
+    /// <summary>
+    /// Analyzes what cleanup operations would be needed when switching to a new workspace configuration.
+    /// </summary>
+    /// <param name="currentWorkspaceId">The ID of the current workspace (null if no workspace exists).</param>
+    /// <param name="newConfiguration">The new workspace configuration.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>An operation result containing cleanup confirmation data, or null if no cleanup needed.</returns>
+    public async Task<OperationResult<WorkspaceCleanupConfirmation?>> AnalyzeCleanupAsync(
+        string? currentWorkspaceId,
+        WorkspaceConfiguration newConfiguration,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // If no current workspace, no cleanup needed
+            if (string.IsNullOrEmpty(currentWorkspaceId))
+            {
+                return OperationResult<WorkspaceCleanupConfirmation?>.CreateSuccess(null);
+            }
+
+            // Get current workspace info
+            var workspacesResult = await GetAllWorkspacesAsync(cancellationToken);
+            if (!workspacesResult.Success || workspacesResult.Data == null)
+            {
+                return OperationResult<WorkspaceCleanupConfirmation?>.CreateSuccess(null);
+            }
+
+            var currentWorkspace = workspacesResult.Data.FirstOrDefault(w => w.Id == currentWorkspaceId);
+            if (currentWorkspace == null || !Directory.Exists(currentWorkspace.WorkspacePath))
+            {
+                return OperationResult<WorkspaceCleanupConfirmation?>.CreateSuccess(null);
+            }
+
+            // Analyze deltas using the reconciler
+            var deltas = await reconciler.AnalyzeWorkspaceDeltaAsync(currentWorkspace, newConfiguration, cancellationToken);
+
+            // Filter to only removal operations
+            var removalDeltas = deltas.Where(d => d.Operation == WorkspaceDeltaOperation.Remove).ToList();
+
+            if (removalDeltas.Count == 0)
+            {
+                return OperationResult<WorkspaceCleanupConfirmation?>.CreateSuccess(null);
+            }
+
+            // Calculate total size of files to be removed
+            long totalSize = 0;
+            foreach (var delta in removalDeltas)
+            {
+                if (File.Exists(delta.WorkspacePath))
+                {
+                    try
+                    {
+                        var fileInfo = new FileInfo(delta.WorkspacePath);
+                        totalSize += fileInfo.Length;
+                    }
+                    catch
+                    {
+                        // Ignore file access errors
+                    }
+                }
+            }
+
+            // Identify affected manifests (manifests that have files being removed)
+            var affectedManifests = currentWorkspace.ManifestIds?
+                .Except(newConfiguration.Manifests?.Select(m => m.Id.Value) ?? [])
+                .ToList() ?? [];
+
+            var confirmation = new WorkspaceCleanupConfirmation
+            {
+                FilesToRemove = removalDeltas.Count,
+                TotalSizeBytes = totalSize,
+                AffectedManifests = affectedManifests,
+                RemovalDeltas = removalDeltas,
+            };
+
+            logger.LogInformation(
+                "[Workspace] Cleanup analysis: {FileCount} files ({Size:N0} bytes) would be removed from {ManifestCount} manifests",
+                confirmation.FilesToRemove,
+                confirmation.TotalSizeBytes,
+                confirmation.AffectedManifests.Count);
+
+            return OperationResult<WorkspaceCleanupConfirmation?>.CreateSuccess(confirmation);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[Workspace] Failed to analyze cleanup for workspace {WorkspaceId}", currentWorkspaceId);
+            return OperationResult<WorkspaceCleanupConfirmation?>.CreateFailure($"Failed to analyze cleanup: {ex.Message}");
+        }
+    }
+
     private async Task SaveAllWorkspacesAsync(IEnumerable<WorkspaceInfo> workspaces, CancellationToken cancellationToken)
     {
         var directory = Path.GetDirectoryName(_workspaceMetadataPath);
@@ -327,14 +423,14 @@ public class WorkspaceManager(
             Directory.CreateDirectory(directory);
         }
 
-        var json = JsonSerializer.Serialize(workspaces, new JsonSerializerOptions { WriteIndented = true });
+        var json = JsonSerializer.Serialize(workspaces, _jsonOptions);
         await File.WriteAllTextAsync(_workspaceMetadataPath, json, cancellationToken);
     }
 
     private async Task SaveWorkspaceMetadataAsync(WorkspaceInfo workspaceInfo, CancellationToken cancellationToken)
     {
         var workspacesResult = await GetAllWorkspacesAsync(cancellationToken);
-        var workspaces = workspacesResult.Data?.ToList() ?? new List<WorkspaceInfo>();
+        var workspaces = workspacesResult.Data?.ToList() ?? [];
         var existing = workspaces.FirstOrDefault(w => w.Id == workspaceInfo.Id);
 
         if (existing != null)
@@ -348,12 +444,12 @@ public class WorkspaceManager(
 
     private async Task TrackWorkspaceCasReferencesAsync(string workspaceId, IEnumerable<ContentManifest> manifests, CancellationToken cancellationToken)
     {
-        var casReferences = manifests.SelectMany(m => m.Files ?? Enumerable.Empty<ManifestFile>())
+        var casReferences = manifests.SelectMany(m => m.Files ?? [])
             .Where(f => f.SourceType == ContentSourceType.ContentAddressable && !string.IsNullOrEmpty(f.Hash))
             .Select(f => f.Hash!)
             .ToList();
 
-        if (casReferences.Any())
+        if (casReferences.Count > 0)
         {
             await casReferenceTracker.TrackWorkspaceReferencesAsync(workspaceId, casReferences, cancellationToken);
         }
@@ -364,9 +460,8 @@ public class WorkspaceManager(
     /// Checks if the workspace directory exists and contains expected structure.
     /// </summary>
     /// <param name="workspace">The workspace to validate.</param>
-    /// <param name="configuration">The current workspace configuration.</param>
     /// <returns>True if workspace passes basic validation, false otherwise.</returns>
-    private bool ValidateWorkspaceBasics(WorkspaceInfo workspace, WorkspaceConfiguration configuration)
+    private bool ValidateWorkspaceBasics(WorkspaceInfo workspace)
     {
         try
         {

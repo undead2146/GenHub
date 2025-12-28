@@ -189,6 +189,16 @@ Result of CAS integrity validation.
 - `ObjectsValidated`: Objects validated
 - `ObjectsWithIssues`: Objects with issues
 
+#### CasStats
+
+Summary of CAS system state.
+
+**Properties:**
+- `TotalObjects`: Number of objects in CAS
+- `TotalBytes`: Total disk space consumed
+- `LastGcTimestamp`: When garbage collection was last run
+- `IsGcPending`: Whether a cleanup is recommended
+
 ## Usage Examples
 
 ### Basic Operation Result

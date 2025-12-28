@@ -62,6 +62,11 @@ Platform‑specific modules that actually scan for game installations.
   - Reads `InstallSuccessful` and `InstallLocation`
   - Checks `SOFTWARE\WOW6432Node\EA Games\Command and Conquer Generals Zero Hour` for installation paths
 
+- **CD/ISO Detection**
+  - Uses registry lookup as a fallback method
+  - Checks `SOFTWARE\WOW6432Node\EA Games\Command and Conquer Generals Zero Hour` directly
+  - Does not require EA App or Steam to be installed
+
 #### LinuxInstallationDetector
 
 - **Steam Detection (Proton)**
@@ -79,15 +84,15 @@ Platform‑specific modules that actually scan for game installations.
   - Can detect different packaging types (binary, flatpak, snap soon)
 
 - **Wine/Proton Prefix Detection**
-  - Searches known Wine prefix locations:
-    - `~/.wine`
-    - `~/.local/share/wineprefixes`
-    - `~/.PlayOnLinux/wineprefix`
-    - `~/.var/app/com.usebottles.bottles/data/bottles/bottles`
-    - `/opt/wine`
+  - Searches known Wine prefix locations (`~/.wine`, `.local/share/wineprefixes`, PlayOnLinux, Bottles, etc.)
   - Validates prefix (`drive_c/windows/system32` must exist)
   - Looks for game directories under `Program Files*/EA Games` and `Program Files*/Command and Conquer`
   - Confirms via `generals.exe` presence
+
+- **CD/ISO Detection (Wine Registry)**
+  - Parses Wine registry files (`system.reg`, `user.reg`) within prefixes
+  - Extracts installation paths from `EA Games` registry entries
+  - Converts Windows registry paths to Unix-style paths for Linux compatibility
 
 ---
 
@@ -183,10 +188,10 @@ API Consumers → Structured Success/Failure with details
 
 ## Supported Platform Matrix
 
-| Platform | Steam | EA App | Wine / Proton |
-|----------|-------|--------|---------------|
-| Windows  | ✅ Registry + vdf | ✅ Registry keys | ❌ (not applicable) |
-| Linux    | ✅ vdf scan | ❌ (not available) | ✅ Prefix scanning |
+| Platform | Steam | EA App | CD/ISO | Wine / Proton |
+|----------|-------|--------|--------|---------------|
+| Windows  | ✅ Registry + vdf | ✅ Registry | ✅ Registry | ❌ (not applicable) |
+| Linux    | ✅ vdf scan | ❌ (not available) | ✅ Wine Reg | ✅ Prefix scanning |
 
 ---
 
@@ -215,7 +220,8 @@ else
 
 ## Summary
 
-- **Cross‑platform detection**: Windows (Steam, EA App) + Linux (Steam Proton, Wine)  
-- **Layered architecture** ensures separation of concerns  
-- **Structured results** with robust error handling and caching  
-- **Extensible design**: new detectors (e.g. Origin, CD installs) can be added without changing service API
+- **Cross‑platform detection**: Windows (Steam, EA App, CD/ISO) + Linux (Steam Proton, Lutris, Wine, CD/ISO)
+- **Layered architecture** ensures separation of concerns
+- **Structured results** with robust error handling and caching
+- **Extensible design**: new detectors can be added with minimal changes to the core logic
+- **Prioritized detection**: ensures the most reliable installation is used (Steam > EA App > CD/ISO > Retail)

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using GenHub.Core.Models.Enums;
 
-namespace GenHub.Features.Content.Services.CommunityOutpost.Models;
+namespace GenHub.Core.Models.CommunityOutpost;
 
 /// <summary>
 /// Registry that maps GenPatcher 4-character content codes to GenHub content metadata.

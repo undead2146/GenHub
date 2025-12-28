@@ -28,7 +28,12 @@ public static class CommunityOutpostConstants
     /// <summary>
     /// Publisher logo source path for UI display.
     /// </summary>
-    public const string LogoSource = "/Assets/Logos/communityoutpost-logo.png";
+    public const string LogoSource = "avares://GenHub/Assets/Logos/communityoutpost-logo.png";
+
+    /// <summary>
+    /// Cover image source path for UI display.
+    /// </summary>
+    public const string CoverSource = "avares://GenHub/Assets/Covers/generals-cover.png";
 
     /// <summary>
     /// Description for the content provider.

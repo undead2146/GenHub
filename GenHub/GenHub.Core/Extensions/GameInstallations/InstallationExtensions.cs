@@ -105,7 +105,7 @@ public static class InstallationExtensions
             GameInstallationType.Wine => "Wine/Proton",
             GameInstallationType.Retail => "Retail",
             GameInstallationType.Unknown => "Unknown",
-            _ => installationType.ToString()
+            _ => installationType.ToString(),
         };
     }
 
@@ -126,7 +126,7 @@ public static class InstallationExtensions
             GameInstallationType.Wine => "wine",
             GameInstallationType.Retail => "retail",
             GameInstallationType.Unknown => "unknown",
-            _ => throw new ArgumentOutOfRangeException(nameof(installationType), installationType, "Unknown installation type")
+            _ => throw new ArgumentOutOfRangeException(nameof(installationType), installationType, "Unknown installation type"),
         };
     }
 
@@ -144,7 +144,7 @@ public static class InstallationExtensions
             GameInstallationType.Wine => false,
             GameInstallationType.CDISO => false,
             GameInstallationType.Retail => false,
-            _ => false
+            _ => false,
         };
     }
 
@@ -207,7 +207,7 @@ public static class InstallationExtensions
             GameInstallationType.CDISO => "cdiso",
             GameInstallationType.Retail => "retail",
             GameInstallationType.Unknown => "unknown",
-            _ => "unknown"
+            _ => "unknown",
         };
     }
 

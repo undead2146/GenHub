@@ -78,6 +78,22 @@ public class WindowsInstallationDetector(ILogger<WindowsInstallationDetector> lo
                 logger.LogDebug("No valid EA App installation found");
             }
 
+            // Check CD/ISO installations
+            logger.LogDebug("Checking CD/ISO installations");
+            var cdiso = new CdisoInstallation(fetch: true, logger: logger as ILogger<CdisoInstallation>);
+            if (cdiso.IsCdisoInstalled && (cdiso.HasGenerals || cdiso.HasZeroHour))
+            {
+                installs.Add(cdiso.ToDomain(logger));
+                logger.LogInformation(
+                    "Detected CD/ISO installation with {GeneralsCount} Generals and {ZeroHourCount} Zero Hour installations",
+                    cdiso.HasGenerals ? 1 : 0,
+                    cdiso.HasZeroHour ? 1 : 0);
+            }
+            else
+            {
+                logger.LogDebug("No valid CD/ISO installation found");
+            }
+
             // Check Retail installations
             logger.LogDebug("Checking Retail installations");
             var retailInstalls = DetectRetailInstallations();
@@ -95,7 +111,7 @@ public class WindowsInstallationDetector(ILogger<WindowsInstallationDetector> lo
         }
 
         sw.Stop();
-        var result = errors.Any()
+        var result = errors.Count > 0
             ? DetectionResult<GameInstallation>.CreateFailure(string.Join(", ", errors))
             : DetectionResult<GameInstallation>.CreateSuccess(installs, sw.Elapsed);
 
@@ -147,8 +163,8 @@ public class WindowsInstallationDetector(ILogger<WindowsInstallationDetector> lo
         var seenZeroHourPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var deduplicated = new List<GameInstallation>();
 
-        // Define priority order: Steam > EA App > Retail
-        var priorityOrder = new[] { GameInstallationType.Steam, GameInstallationType.EaApp, GameInstallationType.Retail, GameInstallationType.TheFirstDecade };
+        // Define priority order: Steam > EA App > CDISO > Retail
+        var priorityOrder = new[] { GameInstallationType.Steam, GameInstallationType.EaApp, GameInstallationType.CDISO, GameInstallationType.Retail, GameInstallationType.TheFirstDecade };
         var orderedInstallations = installations.OrderBy(i => Array.IndexOf(priorityOrder, i.InstallationType)).ToList();
 
         foreach (var installation in orderedInstallations)
@@ -160,9 +176,8 @@ public class WindowsInstallationDetector(ILogger<WindowsInstallationDetector> lo
             if (installation.HasGenerals && !string.IsNullOrEmpty(installation.GeneralsPath))
             {
                 var normalizedGeneralsPath = Path.GetFullPath(installation.GeneralsPath);
-                if (!seenGeneralsPaths.Contains(normalizedGeneralsPath))
+                if (seenGeneralsPaths.Add(normalizedGeneralsPath))
                 {
-                    seenGeneralsPaths.Add(normalizedGeneralsPath);
                     hasUniqueGenerals = true;
                 }
                 else
@@ -178,9 +193,8 @@ public class WindowsInstallationDetector(ILogger<WindowsInstallationDetector> lo
             if (installation.HasZeroHour && !string.IsNullOrEmpty(installation.ZeroHourPath))
             {
                 var normalizedZeroHourPath = Path.GetFullPath(installation.ZeroHourPath);
-                if (!seenZeroHourPaths.Contains(normalizedZeroHourPath))
+                if (seenZeroHourPaths.Add(normalizedZeroHourPath))
                 {
-                    seenZeroHourPaths.Add(normalizedZeroHourPath);
                     hasUniqueZeroHour = true;
                 }
                 else

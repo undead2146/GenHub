@@ -22,31 +22,24 @@ public static class GeneralsOnlineConstants
     /// <summary>Content icon URL.</summary>
     public const string IconUrl = "https://www.playgenerals.online/logo.png";
 
-    /// <summary>Publisher logo source path for UI display.</summary>
-    public const string LogoSource = "/Assets/Logos/generalsonline-logo.png";
-
-    /// <summary>Publisher icon color.</summary>
-    public const string IconColor = "#4CAF50";
-
-    // ===== URLs =====
-
-    /// <summary>Publisher website URL.</summary>
+    /// <summary>Website URL for Generals Online.</summary>
     public const string WebsiteUrl = "https://www.playgenerals.online";
 
-    /// <summary>Support URL for help and documentation.</summary>
+    /// <summary>Support URL for Generals Online.</summary>
     public const string SupportUrl = "https://www.playgenerals.online/support";
 
-    /// <summary>Download page URL.</summary>
+    /// <summary>Download page URL for Generals Online.</summary>
     public const string DownloadPageUrl = "https://www.playgenerals.online/download";
 
-    /// <summary>Latest version API URL.</summary>
-    public const string LatestVersionUrl = "https://www.playgenerals.online/api/latest-version";
+    /// <summary>
+    /// Publisher logo source path for UI display.
+    /// </summary>
+    public const string LogoSource = "/Assets/Logos/generalsonline-logo.png";
 
-    /// <summary>Manifest API URL.</summary>
-    public const string ManifestApiUrl = "https://www.playgenerals.online/api/manifests";
-
-    /// <summary>Releases API URL.</summary>
-    public const string ReleasesUrl = "https://www.playgenerals.online/api/releases";
+    /// <summary>
+    /// Cover image source path for UI display.
+    /// </summary>
+    public const string CoverSource = "/Assets/Covers/zerohour-cover.png";
 
     // ===== Version Parsing =====
 
@@ -109,5 +102,5 @@ public static class GeneralsOnlineConstants
     // ===== Content Tags =====
 
     /// <summary>Content tags for search and categorization.</summary>
-    public static readonly string[] Tags = new[] { "multiplayer", "online", "community", "enhancement" };
+    public static readonly string[] Tags = ["multiplayer", "online", "community", "enhancement"];
 }

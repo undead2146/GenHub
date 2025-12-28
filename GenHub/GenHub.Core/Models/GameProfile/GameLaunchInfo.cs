@@ -6,16 +6,16 @@ namespace GenHub.Core.Models.GameProfile;
 public class GameLaunchInfo
 {
     /// <summary>Gets or sets the unique launch ID.</summary>
-    required public string LaunchId { get; set; }
+    public required string LaunchId { get; set; }
 
     /// <summary>Gets or sets the profile ID associated with this launch.</summary>
-    required public string ProfileId { get; set; }
+    public required string ProfileId { get; set; }
 
     /// <summary>Gets or sets the workspace ID used for this launch.</summary>
-    required public string WorkspaceId { get; set; }
+    public required string WorkspaceId { get; set; }
 
     /// <summary>Gets or sets the process information for the launched game.</summary>
-    required public GameProcessInfo ProcessInfo { get; set; }
+    public required GameProcessInfo ProcessInfo { get; set; }
 
     /// <summary>Gets or sets the UTC time when the game was launched.</summary>
     public DateTime LaunchedAt { get; set; } = DateTime.UtcNow;

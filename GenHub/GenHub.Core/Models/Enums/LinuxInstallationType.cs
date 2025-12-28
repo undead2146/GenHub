@@ -3,7 +3,7 @@ namespace GenHub.Core.Models.Enums;
 /// <summary>
 /// Different Linux Package Installation type.
 /// </summary>
-public enum LinuxPackageInstallationType
+public enum LinuxInstallationType
 {
     /// <summary>
     /// Binary Package Installation type aka installed by package manager.
@@ -26,7 +26,7 @@ public enum LinuxPackageInstallationType
     Snap = 2,
 
     /// <summary>
-    /// Unknown Package Installation type
+    /// Unknown Package Installation type.
     /// </summary>
     Unknown = 3,
 }

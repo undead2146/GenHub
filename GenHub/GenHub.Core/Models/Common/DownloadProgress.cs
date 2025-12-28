@@ -5,50 +5,37 @@ namespace GenHub.Core.Models.Common;
 /// <summary>
 /// Progress information for file downloads.
 /// </summary>
-public class DownloadProgress
+/// <param name="bytesReceived">Bytes received.</param>
+/// <param name="totalBytes">Total bytes.</param>
+/// <param name="fileName">File name.</param>
+/// <param name="url">Download URL.</param>
+/// <param name="bytesPerSecond">Current download speed.</param>
+/// <param name="elapsedTime">Elapsed download time.</param>
+public class DownloadProgress(
+    long bytesReceived,
+    long totalBytes,
+    string fileName,
+    Uri url,
+    long bytesPerSecond,
+    TimeSpan elapsedTime = default)
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="DownloadProgress"/> class.
-    /// </summary>
-    /// <param name="bytesReceived">Bytes received.</param>
-    /// <param name="totalBytes">Total bytes.</param>
-    /// <param name="fileName">File name.</param>
-    /// <param name="url">Download URL.</param>
-    /// <param name="bytesPerSecond">Current download speed.</param>
-    /// <param name="elapsedTime">Elapsed download time.</param>
-    public DownloadProgress(
-        long bytesReceived,
-        long totalBytes,
-        string fileName,
-        string url,
-        long bytesPerSecond,
-        TimeSpan elapsedTime = default)
-    {
-        BytesReceived = bytesReceived;
-        TotalBytes = totalBytes;
-        FileName = fileName;
-        Url = url;
-        BytesPerSecond = bytesPerSecond;
-        ElapsedTime = elapsedTime;
-    }
-
     /// <summary>Gets the bytes received.</summary>
-    public long BytesReceived { get; }
+    public long BytesReceived { get; } = bytesReceived;
 
     /// <summary>Gets the total bytes.</summary>
-    public long TotalBytes { get; }
+    public long TotalBytes { get; } = totalBytes;
 
     /// <summary>Gets the file name.</summary>
-    public string FileName { get; }
+    public string FileName { get; } = fileName;
 
     /// <summary>Gets the download URL.</summary>
-    public string Url { get; }
+    public Uri Url { get; } = url;
 
     /// <summary>Gets the current download speed in bytes per second.</summary>
-    public long BytesPerSecond { get; }
+    public long BytesPerSecond { get; } = bytesPerSecond;
 
     /// <summary>Gets the elapsed download time.</summary>
-    public TimeSpan ElapsedTime { get; }
+    public TimeSpan ElapsedTime { get; } = elapsedTime;
 
     /// <summary>Gets the download percentage (0-100).</summary>
     public double Percentage => TotalBytes > 0 ? (double)BytesReceived / TotalBytes * 100 : 0;

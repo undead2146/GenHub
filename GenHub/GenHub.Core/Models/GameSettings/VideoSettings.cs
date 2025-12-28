@@ -31,4 +31,7 @@ public class VideoSettings
 
     /// <summary>Gets or sets the gamma correction value (50-150 range).</summary>
     public int Gamma { get; set; } = 100;
+
+    /// <summary>Gets or sets additional video properties not explicitly defined. Used to preserve game-specific settings.</summary>
+    public Dictionary<string, string> AdditionalProperties { get; set; } = [];
 }

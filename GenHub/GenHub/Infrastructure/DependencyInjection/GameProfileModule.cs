@@ -36,10 +36,29 @@ public static class GameProfileModule
         services.AddScoped<IProfileLauncherFacade, ProfileLauncherFacade>();
         services.AddScoped<IProfileEditorFacade, ProfileEditorFacade>();
         services.AddScoped<IDependencyResolver, DependencyResolver>();
+        services.AddScoped<IProfileContentService, ProfileContentService>();
         services.AddSingleton<IGameSettingsService, GameSettingsService>();
         services.AddSingleton<IContentDisplayFormatter, ContentDisplayFormatter>();
         services.AddScoped<IProfileContentLoader, ProfileContentLoader>();
         services.AddSingleton<ProfileResourceService>();
+        services.AddScoped<IPublisherProfileOrchestrator, PublisherProfileOrchestrator>();
+
+        // Register GameClientProfileService
+        services.AddScoped<IGameClientProfileService>(sp =>
+        {
+            var profileManager = sp.GetRequiredService<IGameProfileManager>();
+            var installationService = sp.GetRequiredService<Core.Interfaces.GameInstallations.IGameInstallationService>();
+            var configService = sp.GetRequiredService<IConfigurationProviderService>();
+            var manifestPool = sp.GetRequiredService<Core.Interfaces.Manifest.IContentManifestPool>();
+            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<GameClientProfileService>>();
+
+            return new GameClientProfileService(
+                profileManager,
+                installationService,
+                configService,
+                manifestPool,
+                logger);
+        });
 
         return services;
     }
@@ -48,7 +67,7 @@ public static class GameProfileModule
     {
         try
         {
-            var appDataPath = configProvider.GetContentStoragePath();
+            var appDataPath = configProvider.GetApplicationDataPath();
             var parentDirectory = Path.GetDirectoryName(appDataPath);
             if (string.IsNullOrEmpty(parentDirectory))
             {

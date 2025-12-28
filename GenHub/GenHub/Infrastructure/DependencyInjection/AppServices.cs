@@ -27,15 +27,18 @@ public static class AppServices
         services.AddValidationServices();
         services.AddGameDetectionService();
         services.AddGameInstallation();
+        services.AddCasServices();
         services.AddContentPipelineServices();
         services.AddManifestServices();
         services.AddWorkspaceServices();
-        services.AddCasServices();
         services.AddDownloadServices();
 
         // Register GameProfile services (depends on above services)
         services.AddGameProfileServices();
         services.AddLaunchingServices();
+
+        // Register User Data services (depends on CAS and file operations)
+        services.AddUserDataServices();
 
         // Register Tools services
         services.AddToolsServices();

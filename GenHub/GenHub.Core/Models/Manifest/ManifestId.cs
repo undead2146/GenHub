@@ -60,6 +60,26 @@ public readonly struct ManifestId(string value)
         return new ManifestId(id);
     }
 
+    /// <summary>
+    /// Attempts to create a <see cref="ManifestId"/> from the specified string value.
+    /// </summary>
+    /// <param name="value">The string value to attempt to create a <see cref="ManifestId"/> from.</param>
+    /// <param name="manifestId">When this method returns, contains the created <see cref="ManifestId"/> if the conversion succeeded, or the default value if it failed.</param>
+    /// <returns><c>true</c> if the <see cref="ManifestId"/> was successfully created; otherwise, <c>false</c>.</returns>
+    public static bool TryCreate(string value, out ManifestId manifestId)
+    {
+        try
+        {
+            manifestId = Create(value);
+            return true;
+        }
+        catch
+        {
+            manifestId = default!;
+            return false;
+        }
+    }
+
     /// <inheritdoc/>
     public override string ToString() => Value;
 

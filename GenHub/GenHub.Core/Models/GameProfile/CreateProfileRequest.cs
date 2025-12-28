@@ -1,4 +1,5 @@
 using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.GameClients;
 
 namespace GenHub.Core.Models.GameProfile;
 
@@ -6,7 +7,7 @@ namespace GenHub.Core.Models.GameProfile;
 public class CreateProfileRequest
 {
     /// <summary>Gets or sets the profile name.</summary>
-    required public string Name { get; set; }
+    public required string Name { get; set; }
 
     /// <summary>Gets or sets the profile description.</summary>
     public string? Description { get; set; }
@@ -16,6 +17,13 @@ public class CreateProfileRequest
 
     /// <summary>Gets or sets the game version ID.</summary>
     public string? GameClientId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the game client directly. When provided, bypasses the lookup from
+    /// AvailableGameClients. Used for provider-based clients (GeneralsOnline, SuperHackers)
+    /// where the manifest ID is resolved at runtime.
+    /// </summary>
+    public GameClient? GameClient { get; set; }
 
     /// <summary>Gets or sets the preferred workspace strategy.</summary>
     public WorkspaceStrategy PreferredStrategy { get; set; } = WorkspaceStrategy.SymlinkOnly;
@@ -34,4 +42,7 @@ public class CreateProfileRequest
 
     /// <summary>Gets or sets the command line arguments to pass to the game executable.</summary>
     public string? CommandLineArguments { get; set; }
+
+    /// <summary>Gets or sets the IP address for GameSpy/Networking services.</summary>
+    public string? GameSpyIPAddress { get; set; }
 }

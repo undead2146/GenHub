@@ -19,7 +19,7 @@ namespace GenHub.Features.GameProfiles.ViewModels;
 /// ViewModel for the Game Settings tab in Profile Settings.
 /// Manages Options.ini for Generals and Zero Hour.
 /// </summary>
-public partial class GameSettingsViewModel : ViewModelBase
+public partial class GameSettingsViewModel(IGameSettingsService gameSettingsService, ILogger<GameSettingsViewModel> logger) : ViewModelBase
 {
     private const TextureQuality MaxTextureQuality = TextureQuality.High; // Will be VeryHigh when SH version supports 'very high' texture quality (see TheSuperHackers/GeneralsGameCode#1629)
     private const int TextureReductionOffset = GameSettingsConstants.TextureQuality.ReductionOffset;
@@ -38,19 +38,25 @@ public partial class GameSettingsViewModel : ViewModelBase
     private const int MinNumSounds = GameSettingsConstants.Audio.MinNumSounds;
     private const int MaxNumSounds = GameSettingsConstants.Audio.MaxNumSounds;
 
-    private readonly IGameSettingsService? _gameSettingsService;
-    private readonly ILogger<GameSettingsViewModel> _logger;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="GameSettingsViewModel"/> class.
-    /// </summary>
-    /// <param name="gameSettingsService">The game settings service.</param>
-    /// <param name="logger">The logger.</param>
-    public GameSettingsViewModel(IGameSettingsService gameSettingsService, ILogger<GameSettingsViewModel> logger)
+    private static bool TryParseResolution(string? preset, out int width, out int height)
     {
-        _gameSettingsService = gameSettingsService;
-        _logger = logger;
+        width = height = 0;
+        if (string.IsNullOrWhiteSpace(preset)) return false;
+
+        var parts = preset.Split('x', StringSplitOptions.TrimEntries);
+        if (parts.Length != 2) return false;
+
+        if (!int.TryParse(parts[0], out width) || width < MinResolutionWidth || width > MaxResolutionWidth)
+            return false;
+
+        if (!int.TryParse(parts[1], out height) || height < MinResolutionHeight || height > MaxResolutionHeight)
+            return false;
+
+        return true;
     }
+
+    private readonly IGameSettingsService? _gameSettingsService = gameSettingsService;
+    private readonly ILogger<GameSettingsViewModel> _logger = logger;
 
     [ObservableProperty]
     private GameType _selectedGameType;
@@ -123,14 +129,137 @@ public partial class GameSettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string? _selectedResolutionPreset;
 
+    // ===== TheSuperHackers Client Settings =====
+    [ObservableProperty]
+    private bool _tshArchiveReplays;
+
+    [ObservableProperty]
+    private bool _tshShowMoneyPerMinute;
+
+    [ObservableProperty]
+    private bool _tshPlayerObserverEnabled;
+
+    [ObservableProperty]
+    private int _tshSystemTimeFontSize = 8;
+
+    [ObservableProperty]
+    private int _tshNetworkLatencyFontSize = 8;
+
+    [ObservableProperty]
+    private int _tshRenderFpsFontSize;
+
+    [ObservableProperty]
+    private int _tshResolutionFontAdjustment;
+
+    [ObservableProperty]
+    private bool _tshCursorCaptureEnabledInFullscreenGame;
+
+    [ObservableProperty]
+    private bool _tshCursorCaptureEnabledInFullscreenMenu;
+
+    [ObservableProperty]
+    private bool _tshCursorCaptureEnabledInWindowedGame;
+
+    [ObservableProperty]
+    private bool _tshCursorCaptureEnabledInWindowedMenu;
+
+    [ObservableProperty]
+    private bool _tshScreenEdgeScrollEnabledInFullscreenApp;
+
+    [ObservableProperty]
+    private bool _tshScreenEdgeScrollEnabledInWindowedApp;
+
+    [ObservableProperty]
+    private int _tshMoneyTransactionVolume = 50;
+
+    // ===== GeneralsOnline Client Settings =====
+    [ObservableProperty]
+    private bool _goShowFps;
+
+    [ObservableProperty]
+    private bool _goShowPing;
+
+    [ObservableProperty]
+    private bool _goShowPlayerRanks;
+
+    [ObservableProperty]
+    private bool _goAutoLogin;
+
+    [ObservableProperty]
+    private bool _goRememberUsername;
+
+    [ObservableProperty]
+    private bool _goEnableNotifications;
+
+    [ObservableProperty]
+    private bool _goEnableSoundNotifications;
+
+    [ObservableProperty]
+    private int _goChatFontSize = 12;
+
+    // Camera settings
+    [ObservableProperty]
+    private float _goCameraMaxHeightOnlyWhenLobbyHost = 310.0f;
+
+    [ObservableProperty]
+    private float _goCameraMinHeight = 310.0f;
+
+    [ObservableProperty]
+    private float _goCameraMoveSpeedRatio = 1.5f;
+
+    // Chat settings
+    [ObservableProperty]
+    private int _goChatDurationSecondsUntilFadeOut = 30;
+
+    // Debug settings
+    [ObservableProperty]
+    private bool _goDebugVerboseLogging;
+
+    // Render settings
+    [ObservableProperty]
+    private int _goRenderFpsLimit = 144;
+
+    [ObservableProperty]
+    private bool _goRenderLimitFramerate = true;
+
+    [ObservableProperty]
+    private bool _goRenderStatsOverlay = true;
+
+    // Social notification settings
+    [ObservableProperty]
+    private bool _goSocialNotificationFriendComesOnlineGameplay = true;
+
+    [ObservableProperty]
+    private bool _goSocialNotificationFriendComesOnlineMenus = true;
+
+    [ObservableProperty]
+    private bool _goSocialNotificationFriendGoesOfflineGameplay = true;
+
+    [ObservableProperty]
+    private bool _goSocialNotificationFriendGoesOfflineMenus = true;
+
+    [ObservableProperty]
+    private bool _goSocialNotificationPlayerAcceptsRequestGameplay = true;
+
+    [ObservableProperty]
+    private bool _goSocialNotificationPlayerAcceptsRequestMenus = true;
+
+    [ObservableProperty]
+    private bool _goSocialNotificationPlayerSendsRequestGameplay = true;
+
+    [ObservableProperty]
+    private bool _goSocialNotificationPlayerSendsRequestMenus = true;
+
+    [ObservableProperty]
+    private string? _gameSpyIPAddress;
+
     /// <summary>
     /// Initializes the ViewModel and loads settings for a specific profile.
     /// </summary>
     /// <param name="profileId">The profile ID to load settings for.</param>
     /// <param name="profile">The game profile with settings.</param>
-    /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task InitializeForProfileAsync(string? profileId, Core.Models.GameProfile.GameProfile? profile = null, CancellationToken cancellationToken = default)
+    public async Task InitializeForProfileAsync(string? profileId, Core.Models.GameProfile.GameProfile? profile = null)
     {
         _initializationDepth++;
         IsLoading = true;  // Provide UI feedback for loading state
@@ -199,6 +328,59 @@ public partial class GameSettingsViewModel : ViewModelBase
             AudioMusicVolume = MusicVolume,
             AudioEnabled = AudioEnabled,
             AudioNumSounds = NumSounds,
+
+            // TheSuperHackers settings
+            TshArchiveReplays = TshArchiveReplays,
+            TshShowMoneyPerMinute = TshShowMoneyPerMinute,
+            TshPlayerObserverEnabled = TshPlayerObserverEnabled,
+            TshSystemTimeFontSize = TshSystemTimeFontSize,
+            TshNetworkLatencyFontSize = TshNetworkLatencyFontSize,
+            TshRenderFpsFontSize = TshRenderFpsFontSize,
+            TshResolutionFontAdjustment = TshResolutionFontAdjustment,
+            TshCursorCaptureEnabledInFullscreenGame = TshCursorCaptureEnabledInFullscreenGame,
+            TshCursorCaptureEnabledInFullscreenMenu = TshCursorCaptureEnabledInFullscreenMenu,
+            TshCursorCaptureEnabledInWindowedGame = TshCursorCaptureEnabledInWindowedGame,
+            TshCursorCaptureEnabledInWindowedMenu = TshCursorCaptureEnabledInWindowedMenu,
+            TshScreenEdgeScrollEnabledInFullscreenApp = TshScreenEdgeScrollEnabledInFullscreenApp,
+            TshScreenEdgeScrollEnabledInWindowedApp = TshScreenEdgeScrollEnabledInWindowedApp,
+            TshMoneyTransactionVolume = TshMoneyTransactionVolume,
+
+            // GeneralsOnline settings
+            GoShowFps = GoShowFps,
+            GoShowPing = GoShowPing,
+            GoShowPlayerRanks = GoShowPlayerRanks,
+            GoAutoLogin = GoAutoLogin,
+            GoRememberUsername = GoRememberUsername,
+            GoEnableNotifications = GoEnableNotifications,
+            GoEnableSoundNotifications = GoEnableSoundNotifications,
+            GoChatFontSize = GoChatFontSize,
+
+            // Camera settings
+            GoCameraMaxHeightOnlyWhenLobbyHost = GoCameraMaxHeightOnlyWhenLobbyHost,
+            GoCameraMinHeight = GoCameraMinHeight,
+            GoCameraMoveSpeedRatio = GoCameraMoveSpeedRatio,
+
+            // Chat settings
+            GoChatDurationSecondsUntilFadeOut = GoChatDurationSecondsUntilFadeOut,
+
+            // Debug settings
+            GoDebugVerboseLogging = GoDebugVerboseLogging,
+
+            // Render settings
+            GoRenderFpsLimit = GoRenderFpsLimit,
+            GoRenderLimitFramerate = GoRenderLimitFramerate,
+            GoRenderStatsOverlay = GoRenderStatsOverlay,
+
+            // Social notification settings
+            GoSocialNotificationFriendComesOnlineGameplay = GoSocialNotificationFriendComesOnlineGameplay,
+            GoSocialNotificationFriendComesOnlineMenus = GoSocialNotificationFriendComesOnlineMenus,
+            GoSocialNotificationFriendGoesOfflineGameplay = GoSocialNotificationFriendGoesOfflineGameplay,
+            GoSocialNotificationFriendGoesOfflineMenus = GoSocialNotificationFriendGoesOfflineMenus,
+            GoSocialNotificationPlayerAcceptsRequestGameplay = GoSocialNotificationPlayerAcceptsRequestGameplay,
+            GoSocialNotificationPlayerAcceptsRequestMenus = GoSocialNotificationPlayerAcceptsRequestMenus,
+            GoSocialNotificationPlayerSendsRequestGameplay = GoSocialNotificationPlayerSendsRequestGameplay,
+            GoSocialNotificationPlayerSendsRequestMenus = GoSocialNotificationPlayerSendsRequestMenus,
+            GameSpyIPAddress = GameSpyIPAddress,
         };
     }
 
@@ -305,6 +487,60 @@ public partial class GameSettingsViewModel : ViewModelBase
         if (profile.AudioEnabled.HasValue) AudioEnabled = profile.AudioEnabled.Value;
         if (profile.AudioNumSounds.HasValue) NumSounds = profile.AudioNumSounds.Value;
 
+        // TheSuperHackers settings
+        if (profile.TshArchiveReplays.HasValue) TshArchiveReplays = profile.TshArchiveReplays.Value;
+        if (profile.TshShowMoneyPerMinute.HasValue) TshShowMoneyPerMinute = profile.TshShowMoneyPerMinute.Value;
+        if (profile.TshPlayerObserverEnabled.HasValue) TshPlayerObserverEnabled = profile.TshPlayerObserverEnabled.Value;
+        if (profile.TshSystemTimeFontSize.HasValue) TshSystemTimeFontSize = profile.TshSystemTimeFontSize.Value;
+        if (profile.TshNetworkLatencyFontSize.HasValue) TshNetworkLatencyFontSize = profile.TshNetworkLatencyFontSize.Value;
+        if (profile.TshRenderFpsFontSize.HasValue) TshRenderFpsFontSize = profile.TshRenderFpsFontSize.Value;
+        if (profile.TshResolutionFontAdjustment.HasValue) TshResolutionFontAdjustment = profile.TshResolutionFontAdjustment.Value;
+        if (profile.TshCursorCaptureEnabledInFullscreenGame.HasValue) TshCursorCaptureEnabledInFullscreenGame = profile.TshCursorCaptureEnabledInFullscreenGame.Value;
+        if (profile.TshCursorCaptureEnabledInFullscreenMenu.HasValue) TshCursorCaptureEnabledInFullscreenMenu = profile.TshCursorCaptureEnabledInFullscreenMenu.Value;
+        if (profile.TshCursorCaptureEnabledInWindowedGame.HasValue) TshCursorCaptureEnabledInWindowedGame = profile.TshCursorCaptureEnabledInWindowedGame.Value;
+        if (profile.TshCursorCaptureEnabledInWindowedMenu.HasValue) TshCursorCaptureEnabledInWindowedMenu = profile.TshCursorCaptureEnabledInWindowedMenu.Value;
+        if (profile.TshScreenEdgeScrollEnabledInFullscreenApp.HasValue) TshScreenEdgeScrollEnabledInFullscreenApp = profile.TshScreenEdgeScrollEnabledInFullscreenApp.Value;
+        if (profile.TshScreenEdgeScrollEnabledInWindowedApp.HasValue) TshScreenEdgeScrollEnabledInWindowedApp = profile.TshScreenEdgeScrollEnabledInWindowedApp.Value;
+        if (profile.TshMoneyTransactionVolume.HasValue) TshMoneyTransactionVolume = profile.TshMoneyTransactionVolume.Value;
+
+        // GeneralsOnline settings
+        if (profile.GoShowFps.HasValue) GoShowFps = profile.GoShowFps.Value;
+        if (profile.GoShowPing.HasValue) GoShowPing = profile.GoShowPing.Value;
+        if (profile.GoShowPlayerRanks.HasValue) GoShowPlayerRanks = profile.GoShowPlayerRanks.Value;
+        if (profile.GoAutoLogin.HasValue) GoAutoLogin = profile.GoAutoLogin.Value;
+        if (profile.GoRememberUsername.HasValue) GoRememberUsername = profile.GoRememberUsername.Value;
+        if (profile.GoEnableNotifications.HasValue) GoEnableNotifications = profile.GoEnableNotifications.Value;
+        if (profile.GoEnableSoundNotifications.HasValue) GoEnableSoundNotifications = profile.GoEnableSoundNotifications.Value;
+        if (profile.GoChatFontSize.HasValue) GoChatFontSize = profile.GoChatFontSize.Value;
+
+        // Camera settings
+        if (profile.GoCameraMaxHeightOnlyWhenLobbyHost.HasValue) GoCameraMaxHeightOnlyWhenLobbyHost = profile.GoCameraMaxHeightOnlyWhenLobbyHost.Value;
+        if (profile.GoCameraMinHeight.HasValue) GoCameraMinHeight = profile.GoCameraMinHeight.Value;
+        if (profile.GoCameraMoveSpeedRatio.HasValue) GoCameraMoveSpeedRatio = profile.GoCameraMoveSpeedRatio.Value;
+
+        // Chat settings
+        if (profile.GoChatDurationSecondsUntilFadeOut.HasValue) GoChatDurationSecondsUntilFadeOut = profile.GoChatDurationSecondsUntilFadeOut.Value;
+
+        // Debug settings
+        if (profile.GoDebugVerboseLogging.HasValue) GoDebugVerboseLogging = profile.GoDebugVerboseLogging.Value;
+
+        // Render settings
+        if (profile.GoRenderFpsLimit.HasValue) GoRenderFpsLimit = profile.GoRenderFpsLimit.Value;
+        if (profile.GoRenderLimitFramerate.HasValue) GoRenderLimitFramerate = profile.GoRenderLimitFramerate.Value;
+        if (profile.GoRenderStatsOverlay.HasValue) GoRenderStatsOverlay = profile.GoRenderStatsOverlay.Value;
+
+        // Social notification settings
+        if (profile.GoSocialNotificationFriendComesOnlineGameplay.HasValue) GoSocialNotificationFriendComesOnlineGameplay = profile.GoSocialNotificationFriendComesOnlineGameplay.Value;
+        if (profile.GoSocialNotificationFriendComesOnlineMenus.HasValue) GoSocialNotificationFriendComesOnlineMenus = profile.GoSocialNotificationFriendComesOnlineMenus.Value;
+        if (profile.GoSocialNotificationFriendGoesOfflineGameplay.HasValue) GoSocialNotificationFriendGoesOfflineGameplay = profile.GoSocialNotificationFriendGoesOfflineGameplay.Value;
+        if (profile.GoSocialNotificationFriendGoesOfflineMenus.HasValue) GoSocialNotificationFriendGoesOfflineMenus = profile.GoSocialNotificationFriendGoesOfflineMenus.Value;
+        if (profile.GoSocialNotificationPlayerAcceptsRequestGameplay.HasValue) GoSocialNotificationPlayerAcceptsRequestGameplay = profile.GoSocialNotificationPlayerAcceptsRequestGameplay.Value;
+        if (profile.GoSocialNotificationPlayerAcceptsRequestMenus.HasValue) GoSocialNotificationPlayerAcceptsRequestMenus = profile.GoSocialNotificationPlayerAcceptsRequestMenus.Value;
+        if (profile.GoSocialNotificationPlayerSendsRequestGameplay.HasValue) GoSocialNotificationPlayerSendsRequestGameplay = profile.GoSocialNotificationPlayerSendsRequestGameplay.Value;
+        if (profile.GoSocialNotificationPlayerSendsRequestMenus.HasValue) GoSocialNotificationPlayerSendsRequestMenus = profile.GoSocialNotificationPlayerSendsRequestMenus.Value;
+
+        if (profile.GameSpyIPAddress != null) GameSpyIPAddress = profile.GameSpyIPAddress;
+
         // Update selected preset if it matches
         var currentRes = $"{ResolutionWidth}x{ResolutionHeight}";
         SelectedResolutionPreset = ResolutionPresets.Contains(currentRes) ? currentRes : null;
@@ -387,30 +623,6 @@ public partial class GameSettingsViewModel : ViewModelBase
         }
     }
 
-    /// <summary>
-    /// Attempts to parse a resolution string in the format "WIDTHxHEIGHT".
-    /// </summary>
-    /// <param name="preset">The resolution string to parse.</param>
-    /// <param name="width">The parsed width.</param>
-    /// <param name="height">The parsed height.</param>
-    /// <returns>True if parsing succeeded and values are within valid ranges, false otherwise.</returns>
-    private bool TryParseResolution(string? preset, out int width, out int height)
-    {
-        width = height = 0;
-        if (string.IsNullOrWhiteSpace(preset)) return false;
-
-        var parts = preset.Split('x', StringSplitOptions.TrimEntries);
-        if (parts.Length != 2) return false;
-
-        if (!int.TryParse(parts[0], out width) || width < MinResolutionWidth || width > MaxResolutionWidth)
-            return false;
-
-        if (!int.TryParse(parts[1], out height) || height < MinResolutionHeight || height > MaxResolutionHeight)
-            return false;
-
-        return true;
-    }
-
     partial void OnSelectedResolutionPresetChanged(string? value)
     {
         if (!string.IsNullOrEmpty(value))
@@ -474,6 +686,8 @@ public partial class GameSettingsViewModel : ViewModelBase
         BuildingAnimations = true;
         Gamma = options.Video.Gamma;
 
+        GameSpyIPAddress = options.Network.GameSpyIPAddress;
+
         // Update selected preset if it matches
         var currentRes = $"{ResolutionWidth}x{ResolutionHeight}";
         SelectedResolutionPreset = ResolutionPresets.Contains(currentRes) ? currentRes : null;
@@ -504,6 +718,8 @@ public partial class GameSettingsViewModel : ViewModelBase
         // ParticleEffects and BuildingAnimations don't exist in Options.ini, skip
         options.Video.ExtraAnimations = ExtraAnimations;
         options.Video.Gamma = Gamma;
+
+        options.Network.GameSpyIPAddress = GameSpyIPAddress;
 
         return options;
     }

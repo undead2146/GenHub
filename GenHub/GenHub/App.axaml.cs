@@ -122,10 +122,7 @@ public partial class App : Application
         catch (Exception ex)
         {
             var logger = _serviceProvider?.GetService<ILogger<App>>();
-            if (logger != null)
-            {
-                logger.LogError(ex, "Failed to apply window settings");
-            }
+            logger?.LogError(ex, "Failed to apply window settings");
         }
     }
 
@@ -157,10 +154,7 @@ public partial class App : Application
         catch (Exception ex)
         {
             var logger = _serviceProvider.GetService<ILogger<App>>();
-            if (logger != null)
-            {
-                logger.LogError(ex, "Failed to save settings on shutdown");
-            }
+            logger?.LogError(ex, "Failed to save settings on shutdown");
         }
         finally
         {

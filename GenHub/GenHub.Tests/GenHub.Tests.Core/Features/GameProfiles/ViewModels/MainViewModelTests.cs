@@ -8,13 +8,18 @@ using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Shortcuts;
+using GenHub.Core.Interfaces.Steam;
+using GenHub.Core.Interfaces.Storage;
 using GenHub.Core.Interfaces.Tools;
+using GenHub.Core.Interfaces.UserData;
+using GenHub.Core.Interfaces.Workspace;
 using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Notifications;
 using GenHub.Features.AppUpdate.Interfaces;
 using GenHub.Features.Content.Services.ContentDiscoverers;
 using GenHub.Features.Downloads.ViewModels;
+using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.ViewModels;
 using GenHub.Features.Notifications.ViewModels;
 using GenHub.Features.Settings.ViewModels;
@@ -23,7 +28,6 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using Xunit;
 
 namespace GenHub.Tests.Core.Features.GameProfiles.ViewModels;
 
@@ -64,6 +68,7 @@ public class MainViewModelTests
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
+            CreateProfileResourceService(),
             mockLogger.Object);
 
         // Assert
@@ -105,6 +110,7 @@ public class MainViewModelTests
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
+            CreateProfileResourceService(),
             mockLogger.Object);
         vm.SelectTabCommand.Execute(tab);
         Assert.Equal(tab, vm.SelectedTab);
@@ -141,6 +147,7 @@ public class MainViewModelTests
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
+            CreateProfileResourceService(),
             mockLogger.Object);
 
         // Act & Assert
@@ -181,6 +188,7 @@ public class MainViewModelTests
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
+            CreateProfileResourceService(),
             mockLogger.Object);
         await vm.InitializeAsync(); // Should not throw
         Assert.True(true);
@@ -220,6 +228,7 @@ public class MainViewModelTests
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
+            CreateProfileResourceService(),
             mockLogger.Object);
         vm.SelectTabCommand.Execute(tab);
         var currentViewModel = vm.CurrentTabViewModel;
@@ -255,12 +264,32 @@ public class MainViewModelTests
     /// <summary>
     /// Creates a default SettingsViewModel with mocked services for reuse.
     /// </summary>
-    private static (SettingsViewModel settingsVm, Mock<IUserSettingsService> userSettingsMock) CreateSettingsVm()
+    private static (SettingsViewModel SettingsVm, Mock<IUserSettingsService> UserSettingsMock) CreateSettingsVm()
     {
         var mockUserSettings = new Mock<IUserSettingsService>();
         mockUserSettings.Setup(x => x.Get()).Returns(new UserSettings());
         var mockLogger = new Mock<ILogger<SettingsViewModel>>();
-        var settingsVm = new SettingsViewModel(mockUserSettings.Object, mockLogger.Object);
+        var mockCasService = new Mock<ICasService>();
+        var mockProfileManager = new Mock<IGameProfileManager>();
+        var mockWorkspaceManager = new Mock<IWorkspaceManager>();
+        var mockManifestPool = new Mock<IContentManifestPool>();
+        var mockUpdateManager = new Mock<IVelopackUpdateManager>();
+        var mockNotificationService = new Mock<INotificationService>();
+        var mockNotificationServiceForSettings = new Mock<INotificationService>();
+        var mockConfigurationProvider = new Mock<IConfigurationProviderService>();
+        var mockInstallationService = new Mock<IGameInstallationService>();
+
+        var settingsVm = new SettingsViewModel(
+            mockUserSettings.Object,
+            mockLogger.Object,
+            mockCasService.Object,
+            mockProfileManager.Object,
+            mockWorkspaceManager.Object,
+            mockManifestPool.Object,
+            mockUpdateManager.Object,
+            mockNotificationServiceForSettings.Object,
+            mockConfigurationProvider.Object,
+            mockInstallationService.Object);
         return (settingsVm, mockUserSettings);
     }
 
@@ -309,13 +338,19 @@ public class MainViewModelTests
             new Mock<IGameSettingsService>().Object,
             new Mock<IConfigurationProviderService>().Object,
             new Mock<IProfileContentLoader>().Object,
-            null,
+            null, // ProfileResourceService
+            null, // INotificationService
+            null, // IContentManifestPool
+            null, // IContentStorageService
+            null, // ILocalContentService
             NullLogger<GameProfileSettingsViewModel>.Instance,
             NullLogger<GameSettingsViewModel>.Instance);
+
         var profileEditorFacade = new Mock<IProfileEditorFacade>();
         var configService = new Mock<IConfigurationProviderService>();
         var gameProcessManager = new Mock<IGameProcessManager>();
         var shortcutService = new Mock<IShortcutService>();
+        var notificationService = new Mock<INotificationService>();
 
         return new GameProfileLauncherViewModel(
             installationService.Object,
@@ -326,6 +361,10 @@ public class MainViewModelTests
             configService.Object,
             gameProcessManager.Object,
             shortcutService.Object,
+            new Mock<IPublisherProfileOrchestrator>().Object,
+            new Mock<ISteamManifestPatcher>().Object,
+            CreateProfileResourceService(),
+            notificationService.Object,
             NullLogger<GameProfileLauncherViewModel>.Instance);
     }
 
@@ -336,5 +375,10 @@ public class MainViewModelTests
         mock.Setup(x => x.DismissRequests).Returns(Observable.Empty<Guid>());
         mock.Setup(x => x.DismissAllRequests).Returns(Observable.Empty<bool>());
         return mock;
+    }
+
+    private static ProfileResourceService CreateProfileResourceService()
+    {
+        return new ProfileResourceService(NullLogger<ProfileResourceService>.Instance);
     }
 }

@@ -10,7 +10,7 @@ using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
-using GenHub.Features.Content.Services.CommunityOutpost.Models;
+using GenHub.Core.Models.CommunityOutpost;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Content.Services.CommunityOutpost;
@@ -57,7 +57,7 @@ public class CommunityOutpostManifestFactory(
         if (!Directory.Exists(extractedDirectory))
         {
             logger.LogError("Extracted directory does not exist: {Directory}", extractedDirectory);
-            return new List<ContentManifest>();
+            return [];
         }
 
         // Get the content code and install target from the original manifest metadata
@@ -81,7 +81,7 @@ public class CommunityOutpostManifestFactory(
         if (manifest == null)
         {
             logger.LogWarning("Failed to build manifest for {Name}", originalManifest.Name);
-            return new List<ContentManifest>();
+            return [];
         }
 
         logger.LogInformation(
@@ -89,7 +89,7 @@ public class CommunityOutpostManifestFactory(
             manifest.Id,
             manifest.Files.Count);
 
-        return new List<ContentManifest> { manifest };
+        return [manifest];
     }
 
     /// <inheritdoc />
@@ -134,12 +134,12 @@ public class CommunityOutpostManifestFactory(
 
         if (!string.IsNullOrEmpty(contentCodeTag))
         {
-            return contentCodeTag.Substring("contentCode:".Length);
+            return contentCodeTag["contentCode:".Length..];
         }
 
         // Try to extract from manifest ID
         // Format: 1.version.communityoutpost.contentType.contentName
-        var idParts = manifest.Id.Value?.Split('.') ?? Array.Empty<string>();
+        var idParts = manifest.Id.Value?.Split('.') ?? [];
         if (idParts.Length >= 5)
         {
             return idParts[4]; // The content name part
@@ -153,8 +153,7 @@ public class CommunityOutpostManifestFactory(
     /// </summary>
     private static ContentInstallTarget DetermineFileInstallTarget(
         string relativePath,
-        ContentInstallTarget defaultTarget,
-        ContentType contentType)
+        ContentInstallTarget defaultTarget)
     {
         // Normalize path separators
         var normalizedPath = relativePath.Replace('\\', '/').ToLowerInvariant();
@@ -232,8 +231,7 @@ public class CommunityOutpostManifestFactory(
                 // Determine install target for this file
                 var fileInstallTarget = DetermineFileInstallTarget(
                     relativePath,
-                    contentMetadata.InstallTarget,
-                    contentMetadata.ContentType);
+                    contentMetadata.InstallTarget);
 
                 fileEntries.Add(new ManifestFile
                 {
@@ -263,18 +261,47 @@ public class CommunityOutpostManifestFactory(
                 ContentType = originalManifest.ContentType,
                 TargetGame = originalManifest.TargetGame,
                 Files = fileEntries,
-                Dependencies = originalManifest.Dependencies,
+
+                // Always use the dependency builder to ensure correct dependencies (e.g., GameInstallation for Community Patch)
+                Dependencies = contentMetadata.GetDependencies(),
                 InstallationInstructions = originalManifest.InstallationInstructions ?? new InstallationInstructions(),
                 Publisher = originalManifest.Publisher,
-                Metadata = originalManifest.Metadata,
+                Metadata = new ContentMetadata
+                {
+                    Description = originalManifest.Metadata.Description,
+                    ReleaseDate = originalManifest.Metadata.ReleaseDate,
+                    IconUrl = CommunityOutpostConstants.LogoSource,
+                    CoverUrl = CommunityOutpostConstants.CoverSource,
+                    ScreenshotUrls = originalManifest.Metadata.ScreenshotUrls,
+                    Tags = originalManifest.Metadata.Tags,
+                    ChangelogUrl = originalManifest.Metadata.ChangelogUrl,
+                },
             };
 
             logger.LogInformation(
-                "Built manifest {ManifestId} for {ContentType} '{Name}' with {FileCount} files",
+                "Built manifest {ManifestId} for {ContentType} '{Name}' with {FileCount} files and {DependencyCount} dependencies",
                 manifest.Id,
                 manifest.ContentType,
                 manifest.Name,
-                fileEntries.Count);
+                fileEntries.Count,
+                manifest.Dependencies?.Count ?? 0);
+
+            // Log each dependency for debugging
+            if (manifest.Dependencies != null && manifest.Dependencies.Count > 0)
+            {
+                foreach (var dep in manifest.Dependencies)
+                {
+                    logger.LogDebug(
+                        "  Dependency: {DepName} ({DepId}) - Type: {DepType}",
+                        dep.Name,
+                        dep.Id,
+                        dep.DependencyType);
+                }
+            }
+            else
+            {
+                logger.LogWarning("Manifest {ManifestId} has NO dependencies! Category: {Category}", manifest.Id, contentMetadata.Category);
+            }
 
             return manifest;
         }

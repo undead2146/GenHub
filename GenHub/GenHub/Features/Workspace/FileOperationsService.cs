@@ -121,6 +121,26 @@ public class FileOperationsService(
     }
 
     /// <summary>
+    /// Checks if two paths are on the same volume/drive.
+    /// </summary>
+    /// <param name="path1">First path to compare.</param>
+    /// <param name="path2">Second path to compare.</param>
+    /// <returns>True if both paths are on the same volume.</returns>
+    public static bool AreSameVolume(string path1, string path2)
+    {
+        try
+        {
+            var root1 = Path.GetPathRoot(Path.GetFullPath(path1));
+            var root2 = Path.GetPathRoot(Path.GetFullPath(path2));
+            return string.Equals(root1, root2, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Copies a file from the source path to the destination path asynchronously.
     /// </summary>
     /// <param name="sourcePath">The source file path.</param>
@@ -172,19 +192,19 @@ public class FileOperationsService(
                 // Safely try to copy timestamps/attributes but do not fail copy if this part fails
                 try
                 {
-                    var sourceInfo = new FileInfo(sourcePath);
-                    var destInfo = new FileInfo(destinationPath);
+                    FileInfo sourceInfo = new(sourcePath);
+                    FileInfo destInfo = new(destinationPath)
+                    {
+                        // Timestamps
+                        CreationTime = sourceInfo.CreationTime,
+                        LastWriteTime = sourceInfo.LastWriteTime,
 
-                    // Timestamps
-                    destInfo.CreationTime = sourceInfo.CreationTime;
-                    destInfo.LastWriteTime = sourceInfo.LastWriteTime;
-
-                    // Attributes - avoid reparse/read-only/system flags
-                    var sanitizedAttributes = sourceInfo.Attributes
+                        // Attributes - avoid reparse/read-only/system flags
+                        Attributes = sourceInfo.Attributes
                         & ~FileAttributes.ReparsePoint
                         & ~FileAttributes.ReadOnly
-                        & ~FileAttributes.System;
-                    destInfo.Attributes = sanitizedAttributes;
+                        & ~FileAttributes.System,
+                    };
                 }
                 catch (Exception attrEx)
                 {
@@ -466,7 +486,7 @@ public class FileOperationsService(
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task representing the asynchronous download operation.</returns>
     public async Task DownloadFileAsync(
-        string url,
+        Uri url,
         string destinationPath,
         IProgress<DownloadProgress>? progress = null,
         CancellationToken cancellationToken = default)
@@ -488,7 +508,7 @@ public class FileOperationsService(
             _logger.LogInformation(
                 "Downloaded {Bytes} bytes from {Url} to {Destination}",
                 result.BytesDownloaded,
-                url,
+                url.ToString(),
                 destinationPath);
         }
         catch (Exception ex)
@@ -608,7 +628,7 @@ public class FileOperationsService(
             }
             else
             {
-                await CreateSymlinkAsync(destinationPath, pathResult.Data, useHardLink ? false : true, cancellationToken).ConfigureAwait(false);
+                await CreateSymlinkAsync(destinationPath, pathResult.Data, !useHardLink, cancellationToken).ConfigureAwait(false);
             }
 
             _logger.LogDebug("Created {LinkType} from CAS hash {Hash} to {DestinationPath}", useHardLink ? "hard link" : "symlink", hash, destinationPath);

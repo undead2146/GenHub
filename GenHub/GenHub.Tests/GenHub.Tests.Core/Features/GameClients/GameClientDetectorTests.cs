@@ -18,6 +18,7 @@ namespace GenHub.Tests.Core.Features.GameClients;
 /// </summary>
 public class GameClientDetectorTests : IDisposable
 {
+    private static readonly IReadOnlyList<string> PossibleExecutableNames = [GameClientConstants.GeneralsExecutable, GameClientConstants.GeneralsOnline30HzExecutable, GameClientConstants.GeneralsOnline60HzExecutable];
     private readonly Mock<IManifestGenerationService> _manifestGenerationServiceMock;
     private readonly Mock<IContentManifestPool> _contentManifestPoolMock;
     private readonly Mock<IFileHashProvider> _hashProviderMock;
@@ -37,12 +38,7 @@ public class GameClientDetectorTests : IDisposable
 
         // Setup hash registry to return possible executable names
         _hashRegistryMock.Setup(x => x.PossibleExecutableNames)
-            .Returns(new List<string>
-            {
-                "generals.exe",
-                "generalsonlinezh_30.exe",
-                "generalsonlinezh_60.exe",
-            }.AsReadOnly());
+            .Returns(PossibleExecutableNames);
 
         // Setup hash registry to return version from hash
         _hashRegistryMock.Setup(x => x.GetVersionFromHash(GameClientHashRegistry.Generals108HashPublic, GameType.Generals))
@@ -57,6 +53,7 @@ public class GameClientDetectorTests : IDisposable
             _contentManifestPoolMock.Object,
             _hashProviderMock.Object,
             _hashRegistryMock.Object,
+            [],
             NullLogger<GameClientDetector>.Instance);
         _tempDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(_tempDirectory);
@@ -81,7 +78,7 @@ public class GameClientDetectorTests : IDisposable
             GeneralsPath = generalsPath,
         };
 
-        var installations = new List<GameInstallation> { installation };
+        List<GameInstallation> installations = [installation];
 
         // Setup hash provider to return known Generals hash
         _hashProviderMock.Setup(x => x.ComputeFileHashAsync(executablePath, It.IsAny<CancellationToken>()))
@@ -93,7 +90,7 @@ public class GameClientDetectorTests : IDisposable
         manifestBuilderMock.Setup(x => x.Build()).Returns(manifest);
 
         _manifestGenerationServiceMock.Setup(x => x.CreateGameClientManifestAsync(
-                It.IsAny<string>(), It.IsAny<GameType>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+                generalsPath, GameType.Generals, It.IsAny<string>(), It.IsAny<string>(), executablePath))
             .ReturnsAsync(manifestBuilderMock.Object);
 
         _contentManifestPoolMock.Setup(x => x.AddManifestAsync(It.IsAny<ContentManifest>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -105,7 +102,7 @@ public class GameClientDetectorTests : IDisposable
         // Assert
         Assert.True(result.Success);
         Assert.Single(result.Items);
-        var client = result.Items.First();
+        var client = result.Items[0];
         Assert.Equal(GameType.Generals, client.GameType);
         Assert.Equal("1.08", client.Version);
         Assert.Equal(executablePath, client.ExecutablePath);
@@ -131,7 +128,7 @@ public class GameClientDetectorTests : IDisposable
             ZeroHourPath = zeroHourPath,
         };
 
-        var installations = new List<GameInstallation> { installation };
+        List<GameInstallation> installations = [installation];
 
         // Setup hash provider to return known Zero Hour hash
         _hashProviderMock.Setup(x => x.ComputeFileHashAsync(executablePath, It.IsAny<CancellationToken>()))
@@ -155,7 +152,7 @@ public class GameClientDetectorTests : IDisposable
         // Assert
         Assert.True(result.Success);
         Assert.Single(result.Items);
-        var client = result.Items.First();
+        var client = result.Items[0];
         Assert.Equal(GameType.ZeroHour, client.GameType);
         Assert.Equal("1.05", client.Version);
         Assert.Equal(executablePath, client.ExecutablePath);
@@ -197,7 +194,7 @@ public class GameClientDetectorTests : IDisposable
         // Assert
         Assert.True(result.Success);
         Assert.Single(result.Items);
-        var client = result.Items.First();
+        var client = result.Items[0];
         Assert.Equal(GameType.Generals, client.GameType);
         Assert.Equal("1.08", client.Version);
         Assert.Equal(executablePath, client.ExecutablePath);
@@ -219,7 +216,7 @@ public class GameClientDetectorTests : IDisposable
 
         // Assert
         Assert.False(result.Success);
-        Assert.Contains("Directory does not exist", result.Errors.First());
+        Assert.Contains("Directory does not exist", result.Errors[0]);
     }
 
     /// <summary>
@@ -300,7 +297,7 @@ public class GameClientDetectorTests : IDisposable
         // Assert
         Assert.True(result.Success);
         Assert.Single(result.Items);
-        var client = result.Items.First();
+        var client = result.Items[0];
         Assert.Equal(GameType.Generals, client.GameType); // Default assumption
         Assert.Equal("Unknown", client.Version);
         Assert.Equal(executablePath, client.ExecutablePath);
@@ -314,15 +311,35 @@ public class GameClientDetectorTests : IDisposable
     [Fact]
     public async Task DetectGameClientsFromInstallationsAsync_WithGeneralsOnline30HzExecutable_DetectsClient()
     {
-        // Arrange
+        // Arrange - Create identifier for GeneralsOnline 30Hz
+        var generalsOnlineIdentifierMock = new Mock<IGameClientIdentifier>();
+        generalsOnlineIdentifierMock.Setup(x => x.PublisherId).Returns(PublisherTypeConstants.GeneralsOnline);
+        generalsOnlineIdentifierMock.Setup(x => x.CanIdentify(It.Is<string>(p => p.Contains(GameClientConstants.GeneralsOnline30HzExecutable)))).Returns(true);
+        generalsOnlineIdentifierMock.Setup(x => x.CanIdentify(It.Is<string>(p => !p.Contains(GameClientConstants.GeneralsOnline30HzExecutable)))).Returns(false);
+        generalsOnlineIdentifierMock.Setup(x => x.Identify(It.IsAny<string>())).Returns(new GameClientIdentification(
+            PublisherTypeConstants.GeneralsOnline,
+            "30Hz",
+            "GeneralsOnline 30Hz",
+            GameType.Generals,
+            "Automatically added"));
+
+        // Create detector with the identifier
+        var detectorWith30HzIdentifier = new GameClientDetector(
+            _manifestGenerationServiceMock.Object,
+            _contentManifestPoolMock.Object,
+            _hashProviderMock.Object,
+            _hashRegistryMock.Object,
+            [generalsOnlineIdentifierMock.Object],
+            NullLogger<GameClientDetector>.Instance);
+
         var generalsPath = Path.Combine(_tempDirectory, "Generals");
         Directory.CreateDirectory(generalsPath);
 
-        var generalsOnlineExePath = Path.Combine(generalsPath, "generalsonlinezh_30.exe");
+        var generalsOnlineExePath = Path.Combine(generalsPath, GameClientConstants.GeneralsOnline30HzExecutable);
         await File.WriteAllTextAsync(generalsOnlineExePath, "dummy content");
 
         // Also create standard executable for the installation client
-        var standardExePath = Path.Combine(generalsPath, "generals.exe");
+        var standardExePath = Path.Combine(generalsPath, GameClientConstants.GeneralsExecutable);
         await File.WriteAllTextAsync(standardExePath, "dummy content");
 
         var installation = new GameInstallation("C:\\TestInstall", GameInstallationType.Steam)
@@ -331,7 +348,7 @@ public class GameClientDetectorTests : IDisposable
             GeneralsPath = generalsPath,
         };
 
-        var installations = new List<GameInstallation> { installation };
+        List<GameInstallation> installations = [installation];
 
         // Setup hash provider
         _hashProviderMock.Setup(x => x.ComputeFileHashAsync(standardExePath, It.IsAny<CancellationToken>()))
@@ -341,7 +358,11 @@ public class GameClientDetectorTests : IDisposable
 
         // Setup manifest generation
         var manifestBuilderMock = new Mock<IContentManifestBuilder>();
-        var generalsOnlineManifest = new ContentManifest { Id = ManifestId.Create("1.0.generalsonline.gameclient.generals-generalsonline-30hz") };
+        var generalsOnlineManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.0.generalsonline.gameclient.generals-generalsonline-30hz"),
+            Publisher = new PublisherInfo { PublisherType = PublisherTypeConstants.GeneralsOnline },
+        };
         manifestBuilderMock.Setup(x => x.Build()).Returns(generalsOnlineManifest);
 
         _manifestGenerationServiceMock.Setup(
@@ -353,6 +374,13 @@ public class GameClientDetectorTests : IDisposable
                     generalsOnlineExePath))
             .ReturnsAsync(manifestBuilderMock.Object);
 
+        var standardGeneralsManifestBuilder = new Mock<IContentManifestBuilder>();
+        var standardGeneralsManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.108.steam.gameclient.generals"),
+        };
+        standardGeneralsManifestBuilder.Setup(x => x.Build()).Returns(standardGeneralsManifest);
+
         _manifestGenerationServiceMock.Setup(
                 x => x.CreateGameClientManifestAsync(
                     generalsPath,
@@ -360,13 +388,13 @@ public class GameClientDetectorTests : IDisposable
                     It.IsAny<string>(),
                     It.IsAny<string>(),
                     standardExePath))
-            .ReturnsAsync(manifestBuilderMock.Object);
+            .ReturnsAsync(standardGeneralsManifestBuilder.Object);
 
         _contentManifestPoolMock.Setup(x => x.AddManifestAsync(It.IsAny<ContentManifest>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
 
         // Act
-        var result = await _detector.DetectGameClientsFromInstallationsAsync(installations);
+        var result = await detectorWith30HzIdentifier.DetectGameClientsFromInstallationsAsync(installations);
 
         // Assert
         Assert.True(result.Success);
@@ -375,8 +403,9 @@ public class GameClientDetectorTests : IDisposable
         var generalsOnlineClient = result.Items.FirstOrDefault(c => c.Name.Contains("GeneralsOnline"));
         Assert.NotNull(generalsOnlineClient);
         Assert.Equal(GameType.Generals, generalsOnlineClient.GameType);
-        Assert.Equal("Auto-Updated", generalsOnlineClient.Version); // GeneralsOnline clients auto-update
+        Assert.Equal("Automatically added", generalsOnlineClient.Version); // GeneralsOnline clients auto-update
         Assert.Equal(generalsOnlineExePath, generalsOnlineClient.ExecutablePath);
+
         Assert.Contains("30Hz", generalsOnlineClient.Name);
     }
 
@@ -387,7 +416,27 @@ public class GameClientDetectorTests : IDisposable
     [Fact]
     public async Task DetectGameClientsFromInstallationsAsync_WithGeneralsOnline60HzExecutable_DetectsClient()
     {
-        // Arrange
+        // Arrange - Create identifier for GeneralsOnline 60Hz
+        var generalsOnlineIdentifierMock = new Mock<IGameClientIdentifier>();
+        generalsOnlineIdentifierMock.Setup(x => x.PublisherId).Returns(PublisherTypeConstants.GeneralsOnline);
+        generalsOnlineIdentifierMock.Setup(x => x.CanIdentify(It.Is<string>(p => p.Contains("generalsonlinezh_60.exe")))).Returns(true);
+        generalsOnlineIdentifierMock.Setup(x => x.CanIdentify(It.Is<string>(p => !p.Contains("generalsonlinezh_60.exe")))).Returns(false);
+        generalsOnlineIdentifierMock.Setup(x => x.Identify(It.IsAny<string>())).Returns(new GameClientIdentification(
+            PublisherTypeConstants.GeneralsOnline,
+            "60Hz",
+            "GeneralsOnline 60Hz",
+            GameType.ZeroHour,
+            "Automatically added"));
+
+        // Create detector with the identifier
+        var detectorWith60HzIdentifier = new GameClientDetector(
+            _manifestGenerationServiceMock.Object,
+            _contentManifestPoolMock.Object,
+            _hashProviderMock.Object,
+            _hashRegistryMock.Object,
+            [generalsOnlineIdentifierMock.Object],
+            NullLogger<GameClientDetector>.Instance);
+
         var zeroHourPath = Path.Combine(_tempDirectory, "ZeroHour");
         Directory.CreateDirectory(zeroHourPath);
 
@@ -404,7 +453,7 @@ public class GameClientDetectorTests : IDisposable
             ZeroHourPath = zeroHourPath,
         };
 
-        var installations = new List<GameInstallation> { installation };
+        List<GameInstallation> installations = [installation];
 
         // Setup hash provider
         _hashProviderMock.Setup(x => x.ComputeFileHashAsync(standardExePath, It.IsAny<CancellationToken>()))
@@ -412,7 +461,7 @@ public class GameClientDetectorTests : IDisposable
 
         // Setup manifest generation
         var manifestBuilderMock = new Mock<IContentManifestBuilder>();
-        var generalsOnlineManifest = new ContentManifest { Id = ManifestId.Create("1.0.generalsonline.gameclient.zerohour-generalsonline-60hz") };
+        var generalsOnlineManifest = new ContentManifest { Id = ManifestId.Create("1.0.generalsonline.gameclient.zerohour-generalsonline-60hz"), Publisher = new PublisherInfo { PublisherType = PublisherTypeConstants.GeneralsOnline } };
         manifestBuilderMock.Setup(x => x.Build()).Returns(generalsOnlineManifest);
 
         _manifestGenerationServiceMock.Setup(
@@ -437,7 +486,7 @@ public class GameClientDetectorTests : IDisposable
             .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
 
         // Act
-        var result = await _detector.DetectGameClientsFromInstallationsAsync(installations);
+        var result = await detectorWith60HzIdentifier.DetectGameClientsFromInstallationsAsync(installations);
 
         // Assert
         Assert.True(result.Success);
@@ -446,7 +495,7 @@ public class GameClientDetectorTests : IDisposable
         var generalsOnlineClient = result.Items.FirstOrDefault(c => c.Name.Contains("GeneralsOnline"));
         Assert.NotNull(generalsOnlineClient);
         Assert.Equal(GameType.ZeroHour, generalsOnlineClient.GameType);
-        Assert.Equal("Auto-Updated", generalsOnlineClient.Version); // GeneralsOnline clients auto-update
+        Assert.Equal("Automatically added", generalsOnlineClient.Version); // GeneralsOnline clients auto-update
         Assert.Equal(generalsOnlineExePath, generalsOnlineClient.ExecutablePath);
         Assert.Contains("60Hz", generalsOnlineClient.Name);
     }
@@ -458,13 +507,44 @@ public class GameClientDetectorTests : IDisposable
     [Fact]
     public async Task DetectGameClientsFromInstallationsAsync_WithMultipleGeneralsOnlineVariants_DetectsAllClients()
     {
-        // Arrange
+        // Arrange - Create identifiers for both 30Hz and 60Hz
+        var identifier30HzMock = new Mock<IGameClientIdentifier>();
+        identifier30HzMock.Setup(x => x.PublisherId).Returns(PublisherTypeConstants.GeneralsOnline);
+        identifier30HzMock.Setup(x => x.CanIdentify(It.Is<string>(p => p.Contains(GameClientConstants.GeneralsOnline30HzExecutable)))).Returns(true);
+        identifier30HzMock.Setup(x => x.CanIdentify(It.Is<string>(p => !p.Contains(GameClientConstants.GeneralsOnline30HzExecutable)))).Returns(false);
+        identifier30HzMock.Setup(x => x.Identify(It.IsAny<string>())).Returns(new GameClientIdentification(
+            PublisherTypeConstants.GeneralsOnline,
+            "30Hz",
+            "GeneralsOnline 30Hz",
+            GameType.Generals,
+            "Automatically added"));
+
+        var identifier60HzMock = new Mock<IGameClientIdentifier>();
+        identifier60HzMock.Setup(x => x.PublisherId).Returns(PublisherTypeConstants.GeneralsOnline);
+        identifier60HzMock.Setup(x => x.CanIdentify(It.Is<string>(p => p.Contains(GameClientConstants.GeneralsOnline60HzExecutable)))).Returns(true);
+        identifier60HzMock.Setup(x => x.CanIdentify(It.Is<string>(p => !p.Contains(GameClientConstants.GeneralsOnline60HzExecutable)))).Returns(false);
+        identifier60HzMock.Setup(x => x.Identify(It.IsAny<string>())).Returns(new GameClientIdentification(
+            PublisherTypeConstants.GeneralsOnline,
+            "60Hz",
+            "GeneralsOnline 60Hz",
+            GameType.Generals,
+            "Automatically added"));
+
+        // Create detector with both identifiers
+        var detectorWithMultipleIdentifiers = new GameClientDetector(
+            _manifestGenerationServiceMock.Object,
+            _contentManifestPoolMock.Object,
+            _hashProviderMock.Object,
+            _hashRegistryMock.Object,
+            [identifier30HzMock.Object, identifier60HzMock.Object],
+            NullLogger<GameClientDetector>.Instance);
+
         var generalsPath = Path.Combine(_tempDirectory, "GeneralsMultiple");
         Directory.CreateDirectory(generalsPath);
 
-        var generalsonline30HzPath = Path.Combine(generalsPath, "generalsonlinezh_30.exe");
-        var generalsonline60HzPath = Path.Combine(generalsPath, "generalsonlinezh_60.exe");
-        var standardExePath = Path.Combine(generalsPath, "generals.exe");
+        var generalsonline30HzPath = Path.Combine(generalsPath, GameClientConstants.GeneralsOnline30HzExecutable);
+        var generalsonline60HzPath = Path.Combine(generalsPath, GameClientConstants.GeneralsOnline60HzExecutable);
+        var standardExePath = Path.Combine(generalsPath, GameClientConstants.GeneralsExecutable);
 
         await File.WriteAllTextAsync(generalsonline30HzPath, "dummy");
         await File.WriteAllTextAsync(generalsonline60HzPath, "dummy");
@@ -476,7 +556,7 @@ public class GameClientDetectorTests : IDisposable
             GeneralsPath = generalsPath,
         };
 
-        var installations = new List<GameInstallation> { installation };
+        List<GameInstallation> installations = [installation];
 
         // Setup hash provider
         _hashProviderMock.Setup(x => x.ComputeFileHashAsync(standardExePath, It.IsAny<CancellationToken>()))
@@ -484,7 +564,7 @@ public class GameClientDetectorTests : IDisposable
 
         // Setup manifest generation for all variants
         var manifestBuilderMock = new Mock<IContentManifestBuilder>();
-        var manifest = new ContentManifest { Id = ManifestId.Create("1.108.steam.gameclient.generalsonline") };
+        var manifest = new ContentManifest { Id = ManifestId.Create("1.108.steam.gameclient.generalsonline"), Publisher = new PublisherInfo { PublisherType = PublisherTypeConstants.GeneralsOnline } };
         manifestBuilderMock.Setup(x => x.Build()).Returns(manifest);
 
         _manifestGenerationServiceMock.Setup(
@@ -502,14 +582,14 @@ public class GameClientDetectorTests : IDisposable
                     GameType.Generals,
                     It.IsAny<string>(),
                     It.IsAny<string>(),
-                    standardExePath))
+                    It.IsAny<string>()))
             .ReturnsAsync(manifestBuilderMock.Object);
 
         _contentManifestPoolMock.Setup(x => x.AddManifestAsync(It.IsAny<ContentManifest>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
 
         // Act
-        var result = await _detector.DetectGameClientsFromInstallationsAsync(installations);
+        var result = await detectorWithMultipleIdentifiers.DetectGameClientsFromInstallationsAsync(installations);
 
         // Assert
         Assert.True(result.Success);
@@ -520,83 +600,6 @@ public class GameClientDetectorTests : IDisposable
 
         Assert.Single(generalsOnlineClients, c => c.Name.Contains("30Hz"));
         Assert.Single(generalsOnlineClients, c => c.Name.Contains("60Hz"));
-    }
-
-    /// <summary>
-    /// Tests that GeneralsOnline manifest is generated with correct publisher info.
-    /// </summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
-    [Fact]
-    public async Task DetectGameClientsFromInstallationsAsync_GeneralsOnlineManifestHasCorrectPublisher_VerifiesPublisherInfo()
-    {
-        // Arrange
-        var generalsPath = Path.Combine(_tempDirectory, "GeneralsPublisher");
-        Directory.CreateDirectory(generalsPath);
-
-        var generalsOnlineExePath = Path.Combine(generalsPath, "generalsonlinezh_30.exe");
-        await File.WriteAllTextAsync(generalsOnlineExePath, "dummy");
-
-        var standardExePath = Path.Combine(generalsPath, "generals.exe");
-        await File.WriteAllTextAsync(standardExePath, "dummy");
-
-        var installation = new GameInstallation("C:\\TestInstall", GameInstallationType.Steam)
-        {
-            HasGenerals = true,
-            GeneralsPath = generalsPath,
-        };
-
-        var installations = new List<GameInstallation> { installation };
-
-        // Setup hash provider
-        _hashProviderMock.Setup(x => x.ComputeFileHashAsync(standardExePath, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(GameClientHashRegistry.Generals108HashPublic);
-
-        // Setup manifest generation to capture the call
-        var manifestBuilderMock = new Mock<IContentManifestBuilder>();
-        var manifest = new ContentManifest
-        {
-            Id = ManifestId.Create("1.0.generalsonline.gameclient.generals-generalsonline-30hz"),
-            Publisher = new PublisherInfo { Name = PublisherTypeConstants.GeneralsOnline, },
-        };
-        manifestBuilderMock.Setup(x => x.Build()).Returns(manifest);
-
-        _manifestGenerationServiceMock.Setup(
-                x => x.CreateGeneralsOnlineClientManifestAsync(
-                    generalsPath,
-                    GameType.Generals,
-                    It.IsAny<string>(),
-                    It.IsAny<string>(),
-                    generalsOnlineExePath))
-            .ReturnsAsync(manifestBuilderMock.Object);
-
-        _manifestGenerationServiceMock.Setup(
-                x => x.CreateGameClientManifestAsync(
-                    generalsPath,
-                    GameType.Generals,
-                    It.IsAny<string>(),
-                    It.IsAny<string>(),
-                    standardExePath))
-            .ReturnsAsync(manifestBuilderMock.Object);
-
-        _contentManifestPoolMock.Setup(x => x.AddManifestAsync(It.IsAny<ContentManifest>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
-
-        // Act
-        var result = await _detector.DetectGameClientsFromInstallationsAsync(installations);
-
-        // Assert
-        Assert.True(result.Success);
-        Assert.NotEmpty(result.Items);
-
-        // Verify CreateGeneralsOnlineClientManifestAsync was called with correct parameters
-        _manifestGenerationServiceMock.Verify(
-            x => x.CreateGeneralsOnlineClientManifestAsync(
-                generalsPath,
-                GameType.Generals,
-                It.IsAny<string>(),
-                "Auto-Updated", // GeneralsOnline clients auto-update
-                generalsOnlineExePath),
-            Times.Once);
     }
 
     /// <summary>
@@ -619,7 +622,7 @@ public class GameClientDetectorTests : IDisposable
             GeneralsPath = generalsPath,
         };
 
-        var installations = new List<GameInstallation> { installation };
+        List<GameInstallation> installations = [installation];
 
         // Setup hash provider
         _hashProviderMock.Setup(x => x.ComputeFileHashAsync(standardExePath, It.IsAny<CancellationToken>()))
@@ -636,7 +639,7 @@ public class GameClientDetectorTests : IDisposable
                     GameType.Generals,
                     It.IsAny<string>(),
                     It.IsAny<string>(),
-                    standardExePath))
+                    It.IsAny<string>()))
             .ReturnsAsync(manifestBuilderMock.Object);
 
         _contentManifestPoolMock.Setup(x => x.AddManifestAsync(It.IsAny<ContentManifest>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -668,5 +671,7 @@ public class GameClientDetectorTests : IDisposable
         {
             Directory.Delete(_tempDirectory, true);
         }
+
+        GC.SuppressFinalize(this);
     }
 }

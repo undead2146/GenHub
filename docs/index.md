@@ -22,7 +22,7 @@ hero:
 
 features:
   - title: Universal Game Support
-    details: Supports multiple game versions, forks, and community builds from Steam, EA App, Origin, and manual installations.
+    details: Supports multiple game versions, forks, and community builds from Steam, EA App, CD/ISO, and manual installations.
     icon: 🎮
   - title: Content Discovery
     details: Automated discovery and installation of mods, patches, and add-ons from GitHub, ModDB, CNCLabs, and local sources.
@@ -30,12 +30,18 @@ features:
   - title: Isolated Workspaces
     details: Each game profile runs in its own isolated workspace, preventing conflicts between different configurations.
     icon: 📁
+  - title: User Data Management
+    details: Intelligent tracking and isolation of user-generated content (maps, replays, saves) across profiles with hard-link efficiency and smart switching to prevent data loss.
+    icon: 🛡️
   - title: Cross-Platform
     details: Native support for Windows and Linux with platform-specific optimizations.
     icon: 🌐
   - title: Three-Tier Architecture
     details: Sophisticated content pipeline with orchestrator, providers, and specialized pipeline components.
     icon: 🏗️
+  - title: Maintenance Tools
+    details: Built-in "Danger Zone" for deep cleaning of CAS storage, workspaces, and metadata.
+    icon: 🛡️
   - title: Developer Friendly
     details: Clean architecture, comprehensive testing, and extensive documentation for contributors.
     icon: 👥

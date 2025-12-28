@@ -65,7 +65,7 @@ public class GameProfileWorkspaceIntegrationTest : IDisposable
 
         // Mock ConfigurationProviderService - required by WorkspaceManager
         var mockConfigProvider = new Mock<IConfigurationProviderService>();
-        mockConfigProvider.Setup(x => x.GetContentStoragePath()).Returns(_tempContentStorage);
+        mockConfigProvider.Setup(x => x.GetApplicationDataPath()).Returns(_tempContentStorage);
         services.AddSingleton<IConfigurationProviderService>(mockConfigProvider.Object);
 
         // Register CAS reference tracker (required by WorkspaceManager)
@@ -316,8 +316,16 @@ public class GameProfileWorkspaceIntegrationTest : IDisposable
                 System.Security.Principal.WindowsIdentity.GetCurrent())
             .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
 
+        // Skip symlink strategies when not admin on Windows
         if ((strategy == WorkspaceStrategy.SymlinkOnly || strategy == WorkspaceStrategy.HybridCopySymlink) &&
             (!isWindows || !isAdmin))
+        {
+            return;
+        }
+
+        // Skip HardLink strategy on Windows in Core tests - the base FileOperationsService
+        // doesn't support hard links on Windows, use WindowsFileOperationsService instead
+        if (strategy == WorkspaceStrategy.HardLink && isWindows)
         {
             return;
         }
@@ -701,7 +709,7 @@ public class GameProfileWorkspaceIntegrationTest : IDisposable
         foreach (var file in testFiles)
         {
             var fullPath = Path.Combine(_tempGameInstall, file);
-            Directory.CreateDirectory(Path.GetDirectoryName(fullPath) !);
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
             File.WriteAllText(fullPath, $"Test content for {file}");
         }
     }
