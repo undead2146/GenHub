@@ -29,6 +29,7 @@ public class UserDataTrackerService(
     ILogger<UserDataTrackerService> logger) : IUserDataTracker
 {
     private static readonly SemaphoreSlim IndexLock = new(1, 1);
+    private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
     private readonly string _userDataTrackingPath = Path.Combine(configProvider.GetApplicationDataPath(), "UserData");
     private readonly string _manifestsPath = Path.Combine(configProvider.GetApplicationDataPath(), "UserData", "manifests");
@@ -44,6 +45,7 @@ public class UserDataTrackerService(
         GameType targetGame,
         IEnumerable<ManifestFile> files,
         string manifestVersion,
+        string? manifestName = null,
         CancellationToken cancellationToken = default)
     {
         EnsureDirectoriesExist();
@@ -62,7 +64,7 @@ public class UserDataTrackerService(
                            f.InstallTarget != ContentInstallTarget.System)
                 .ToList();
 
-            if (!userDataFiles.Any())
+            if (userDataFiles.Count == 0)
             {
                 logger.LogDebug("[UserData] No user data files to install");
                 return OperationResult<UserDataManifest>.CreateFailure("No user data files to install");
@@ -76,6 +78,7 @@ public class UserDataTrackerService(
                 ProfileId = profileId,
                 TargetGame = targetGame,
                 ManifestVersion = manifestVersion,
+                ManifestName = manifestName,
                 InstalledAt = DateTime.UtcNow,
                 IsActive = true,
             };
@@ -414,7 +417,7 @@ public class UserDataTrackerService(
             var index = await LoadIndexAsync(cancellationToken);
             if (!index.ProfileInstallations.TryGetValue(profileId, out var installationKeys))
             {
-                return OperationResult<IReadOnlyList<UserDataManifest>>.CreateSuccess(Array.Empty<UserDataManifest>());
+                return OperationResult<IReadOnlyList<UserDataManifest>>.CreateSuccess([]);
             }
 
             var manifests = new List<UserDataManifest>();
@@ -704,7 +707,7 @@ public class UserDataTrackerService(
     {
         EnsureDirectoriesExist();
         var filePath = GetManifestFilePath(manifest.InstallationKey);
-        var json = JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true });
+        var json = JsonSerializer.Serialize(manifest, _jsonOptions);
         await File.WriteAllTextAsync(filePath, json, cancellationToken);
     }
 
@@ -784,7 +787,7 @@ public class UserDataTrackerService(
     private async Task SaveIndexAsync(UserDataIndex index, CancellationToken cancellationToken)
     {
         index.LastUpdatedAt = DateTime.UtcNow;
-        var json = JsonSerializer.Serialize(index, new JsonSerializerOptions { WriteIndented = true });
+        var json = JsonSerializer.Serialize(index, _jsonOptions);
         await File.WriteAllTextAsync(_indexPath, json, cancellationToken);
         _cachedIndex = index;
     }

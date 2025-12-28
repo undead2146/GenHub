@@ -79,7 +79,7 @@ public class PublisherProfileOrchestrator(
             var profilesCreated = 0;
             foreach (var manifest in existingManifests)
             {
-                var profileResult = await gameClientProfileService.CreateProfileFromManifestAsync(manifest);
+                var profileResult = await gameClientProfileService.CreateProfileFromManifestAsync(manifest, cancellationToken);
                 if (profileResult.Success && profileResult.Data != null)
                 {
                     profilesCreated++;
@@ -132,12 +132,36 @@ public class PublisherProfileOrchestrator(
                 return [];
             }
 
-            return allManifestsResult.Data
+            return [.. allManifestsResult.Data
                 .Where(m =>
-                    m.ContentType == ContentType.GameClient &&
-                    string.Equals(m.Publisher?.PublisherType, publisherType, StringComparison.OrdinalIgnoreCase) &&
-                    ManifestHelper.IsDownloadedManifest(m))
-                .ToList();
+                {
+                    // Must be a GameClient from the specified publisher that has been downloaded
+                    if (m.ContentType != ContentType.GameClient ||
+                        !string.Equals(m.Publisher?.PublisherType, publisherType, StringComparison.OrdinalIgnoreCase) ||
+                        !ManifestHelper.IsDownloadedManifest(m))
+                    {
+                        return false;
+                    }
+
+                    // For Community Outpost, exclude base game content (10gn, 10zh)
+                    // Base games should only be created as fallback when user explicitly declines Community Patch
+                    if (string.Equals(publisherType, CommunityOutpostConstants.PublisherType, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Check for 'basegame' tag in metadata (added by CommunityOutpostResolver)
+                        var hasBaseGameTag = m.Metadata?.Tags?.Any(t =>
+                            t.Equals("basegame", StringComparison.OrdinalIgnoreCase)) ?? false;
+
+                        if (hasBaseGameTag)
+                        {
+                            logger.LogDebug(
+                                "Skipping base game manifest {ManifestId} - base games should only be created when user declines Community Patch",
+                                m.Id);
+                            return false;
+                        }
+                    }
+
+                    return true;
+                })];
         }
         catch (Exception ex)
         {
@@ -151,18 +175,30 @@ public class PublisherProfileOrchestrator(
         try
         {
             var publisherType = gameClient.PublisherType!;
-            var publisherDisplayName = publisherType.Equals(PublisherTypeConstants.GeneralsOnline, StringComparison.OrdinalIgnoreCase)
-                ? "Generals Online" : "TheSuperHackers";
 
+            // TODO: Localization - Move these strings to localization system when implemented
             logger.LogInformation(
-                "Acquiring content from provider for publisher client: {ClientName} ({PublisherType})",
+                "Acquiring content from provider for publisher client: {ClientName} (PublisherType: '{PublisherType}')",
                 gameClient.Name,
                 publisherType);
 
-            notificationService.ShowInfo(
-                $"Acquiring {publisherDisplayName}",
-                $"Downloading latest {publisherDisplayName} content...",
-                null);
+            string publisherDisplayName;
+            if (publisherType.Equals(PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase))
+            {
+                publisherDisplayName = SuperHackersConstants.PublisherName;
+            }
+            else if (publisherType.Equals(PublisherTypeConstants.GeneralsOnline, StringComparison.OrdinalIgnoreCase))
+            {
+                publisherDisplayName = "Generals Online";
+            }
+            else if (publisherType.Equals(CommunityOutpostConstants.PublisherType, StringComparison.OrdinalIgnoreCase))
+            {
+                publisherDisplayName = CommunityOutpostConstants.PublisherName;
+            }
+            else
+            {
+                publisherDisplayName = publisherType;
+            }
 
             var searchQuery = new ContentSearchQuery
             {
@@ -187,11 +223,6 @@ public class PublisherProfileOrchestrator(
                 publisherType,
                 contentToAcquire.Name,
                 contentToAcquire.Version);
-
-            notificationService.ShowInfo(
-                $"Downloading {publisherDisplayName}",
-                $"Downloading {contentToAcquire.Name} v{contentToAcquire.Version}...",
-                null);
 
             var acquireResult = await contentOrchestrator.AcquireContentAsync(contentToAcquire, cancellationToken: cancellationToken);
             if (acquireResult.Success && acquireResult.Data != null)

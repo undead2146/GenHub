@@ -205,9 +205,10 @@ public class GameLauncher(
     /// </summary>
     /// <param name="profileId">The ID of the game profile to launch.</param>
     /// <param name="progress">Optional progress reporter for launch progress.</param>
+    /// <param name="skipUserDataCleanup">Whether to skip cleanup of user data files (maps, etc.) from other profiles.</param>
     /// <param name="cancellationToken">A cancellation token to observe while waiting for the task to complete.</param>
-    /// <returns>A <see cref="LaunchOperationResult{GameLaunchInfo}"/> representing the result of the launch operation.</returns>
-    public async Task<LaunchOperationResult<GameLaunchInfo>> LaunchProfileAsync(string profileId, IProgress<LaunchProgress>? progress = null, CancellationToken cancellationToken = default)
+    /// <returns>A <see cref="LaunchOperationResult{T}"/> representing the result of the launch operation.</returns>
+    public async Task<LaunchOperationResult<GameLaunchInfo>> LaunchProfileAsync(string profileId, IProgress<LaunchProgress>? progress = null, bool skipUserDataCleanup = false, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(profileId);
 
@@ -222,7 +223,7 @@ public class GameLauncher(
         }
 
         var profile = profileResult.Data;
-        return await LaunchProfileAsync(profile, progress, cancellationToken);
+        return await LaunchProfileAsync(profile, progress, skipUserDataCleanup, cancellationToken);
     }
 
     /// <summary>
@@ -230,9 +231,10 @@ public class GameLauncher(
     /// </summary>
     /// <param name="profile">The game profile to launch.</param>
     /// <param name="progress">Optional progress reporter for launch progress.</param>
+    /// <param name="skipUserDataCleanup">Whether to skip cleanup of user data files (maps, etc.) from other profiles.</param>
     /// <param name="cancellationToken">A cancellation token to observe while waiting for the task to complete.</param>
-    /// <returns>A <see cref="LaunchOperationResult{GameLaunchInfo}"/> representing the result of the launch operation.</returns>
-    public async Task<LaunchOperationResult<GameLaunchInfo>> LaunchProfileAsync(GameProfile profile, IProgress<LaunchProgress>? progress = null, CancellationToken cancellationToken = default)
+    /// <returns>A <see cref="LaunchOperationResult{T}"/> representing the result of the launch operation.</returns>
+    public async Task<LaunchOperationResult<GameLaunchInfo>> LaunchProfileAsync(GameProfile profile, IProgress<LaunchProgress>? progress = null, bool skipUserDataCleanup = false, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
 
@@ -284,7 +286,7 @@ public class GameLauncher(
             await launchRegistry.RegisterLaunchAsync(placeholderLaunchInfo);
             logger.LogDebug("Registered placeholder launch {LaunchId} for profile {ProfileId} to prevent deletion during launch", launchId, profile.Id);
 
-            return await LaunchProfileAsync(profile, progress, launchId, cancellationToken);
+            return await LaunchProfileAsync(profile, skipUserDataCleanup, progress, launchId, cancellationToken);
         }
         finally
         {
@@ -442,7 +444,7 @@ public class GameLauncher(
         return true;
     }
 
-    private async Task<LaunchOperationResult<GameLaunchInfo>> LaunchProfileAsync(GameProfile profile, IProgress<LaunchProgress>? progress, string launchId, CancellationToken cancellationToken)
+    private async Task<LaunchOperationResult<GameLaunchInfo>> LaunchProfileAsync(GameProfile profile, bool skipUserDataCleanup, IProgress<LaunchProgress>? progress, string launchId, CancellationToken cancellationToken)
     {
         try
         {
@@ -610,7 +612,7 @@ public class GameLauncher(
                     progress?.Report(new LaunchProgress { Phase = LaunchPhase.PreparingWorkspace, PercentComplete = Math.Min(percentComplete, 80) });
                 });
 
-            var workspaceResult = await workspaceManager.PrepareWorkspaceAsync(workspaceConfig, workspaceProgress, cancellationToken);
+            var workspaceResult = await workspaceManager.PrepareWorkspaceAsync(workspaceConfig, workspaceProgress, skipCleanup: false, cancellationToken);
             if (!workspaceResult.Success || workspaceResult.Data == null)
             {
                 logger.LogError("[GameLauncher] Workspace preparation failed: {Error}", workspaceResult.FirstError);
@@ -623,28 +625,44 @@ public class GameLauncher(
             // Prepare user data content (maps, replays, etc.) for this profile
             // This creates hard links from CAS to user's Documents folder for content with UserMapsDirectory, etc. install targets
             // Uses SwitchProfileUserDataAsync to deactivate any other profile's user data first (unlinks their maps)
+            // Prepare user data content (maps, replays, etc.) for this profile in the background
+            // to ensure instant launch as requested by the user.
             progress?.Report(new LaunchProgress { Phase = LaunchPhase.PreparingUserData, PercentComplete = 82 });
             var previousActiveProfileId = profileContentLinker.GetActiveProfileId();
-            logger.LogDebug(
-                "[GameLauncher] Switching user data from profile {OldProfile} to {NewProfile}",
-                previousActiveProfileId ?? "(none)",
-                profile.Id);
-            var userDataResult = await profileContentLinker.SwitchProfileUserDataAsync(
-                previousActiveProfileId,
-                profile.Id,
-                manifests,
-                profile.GameClient?.GameType ?? GameType.ZeroHour,
+
+            _ = Task.Run(
+                async () =>
+            {
+                try
+                {
+                    logger.LogDebug(
+                        "[GameLauncher] Background: Switching user data from profile {OldProfile} to {NewProfile}",
+                        previousActiveProfileId ?? "(none)",
+                        profile.Id);
+
+                    var userDataResult = await profileContentLinker.SwitchProfileUserDataAsync(
+                        previousActiveProfileId,
+                        profile.Id,
+                        manifests,
+                        profile.GameClient?.GameType ?? GameType.ZeroHour,
+                        skipUserDataCleanup,
+                        CancellationToken.None); // Don't cancel background linkage if launch process finishes
+
+                    if (!userDataResult.Success)
+                    {
+                        logger.LogWarning("[GameLauncher] Background user data preparation had issues: {Error}", userDataResult.FirstError);
+                    }
+                    else
+                    {
+                        logger.LogInformation("[GameLauncher] Background user data content prepared for profile {ProfileId}", profile.Id);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "[GameLauncher] Unexpected error in background user data linkage for profile {ProfileId}", profile.Id);
+                }
+            },
                 cancellationToken);
-            if (!userDataResult.Success)
-            {
-                // User data preparation failures are warnings, not fatal errors - the game can still launch
-                // Maps/replays just won't be available until content is fixed
-                logger.LogWarning("[GameLauncher] User data preparation had issues: {Error}", userDataResult.FirstError);
-            }
-            else
-            {
-                logger.LogInformation("[GameLauncher] User data content prepared for profile {ProfileId}", profile.Id);
-            }
 
             // Start the process
             progress?.Report(new LaunchProgress { Phase = LaunchPhase.Starting, PercentComplete = 90 });
@@ -831,25 +849,27 @@ public class GameLauncher(
                 return;
             }
 
-            // Check if the profile has any custom settings defined
-            if (!profile.HasCustomSettings())
-            {
-                logger.LogInformation("Profile {ProfileId} has no custom settings, skipping Options.ini write", profile.Id);
-                return;
-            }
+            logger.LogDebug("Loading existing Options.ini for {GameType} to preserve TheSuperHackers/GeneralsOnline settings", gameType);
 
-            logger.LogInformation("Applying profile settings to Options.ini for {GameType}", gameType);
-
-            // Load the current Options.ini or create a new one
+            // ALWAYS load the current Options.ini to preserve TheSuperHackers/GeneralsOnline settings
+            // Even if profile has no custom settings, we need to re-save to ensure the file exists
             var loadResult = await gameSettingsService.LoadOptionsAsync(gameType);
             var options = loadResult.Success && loadResult.Data != null
                 ? loadResult.Data
                 : new IniOptions();
 
-            // Apply profile settings to the options object
-            GameSettingsMapper.ApplyToOptions(profile, options);
+            // Apply profile settings to the options object (only overwrites settings that are configured in profile)
+            if (profile.HasCustomSettings())
+            {
+                logger.LogInformation("Applying profile custom settings to Options.ini for {GameType}", gameType);
+                GameSettingsMapper.ApplyToOptions(profile, options);
+            }
+            else
+            {
+                logger.LogDebug("Profile {ProfileId} has no custom settings, preserving existing Options.ini as-is", profile.Id);
+            }
 
-            // Save the updated Options.ini
+            // Save the updated Options.ini (preserves TheSuperHackers settings in AdditionalSections)
             var saveResult = await gameSettingsService.SaveOptionsAsync(gameType, options);
             if (!saveResult.Success)
             {
@@ -857,7 +877,7 @@ public class GameLauncher(
             }
             else
             {
-                logger.LogInformation("Successfully wrote profile settings to Options.ini for {GameType}", gameType);
+                logger.LogInformation("Successfully wrote Options.ini for {GameType}", gameType);
             }
         }
         catch (Exception ex)

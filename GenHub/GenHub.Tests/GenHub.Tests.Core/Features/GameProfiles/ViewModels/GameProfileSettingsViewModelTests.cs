@@ -75,7 +75,7 @@ public class GameProfileSettingsViewModelTests
         var gameSettingsLogger = NullLogger<GameSettingsViewModel>.Instance;
 
         var vm = new GameProfileSettingsViewModel(
-            null,
+            null!,
             mockGameSettingsService.Object,
             mockConfigProvider.Object,
             mockContentLoader.Object,
@@ -83,6 +83,7 @@ public class GameProfileSettingsViewModelTests
             null, // INotificationService
             null, // IContentManifestPool
             null, // IContentStorageService
+            null, // ILocalContentService
             nullLogger,
             gameSettingsLogger);
 
@@ -114,7 +115,7 @@ public class GameProfileSettingsViewModelTests
         var gameSettingsLogger = NullLogger<GameSettingsViewModel>.Instance;
 
         var vm = new GameProfileSettingsViewModel(
-            null,
+            null!,
             mockGameSettingsService.Object,
             null,
             null,
@@ -122,6 +123,7 @@ public class GameProfileSettingsViewModelTests
             null, // INotificationService
             null, // IContentManifestPool
             null, // IContentStorageService
+            null, // ILocalContentService
             nullLogger,
             gameSettingsLogger);
 

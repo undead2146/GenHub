@@ -120,6 +120,150 @@ public class ValidationIssue
 }
 ```
 
+### User Data Models
+
+Models for managing user-generated content across game profiles.
+
+#### UserDataSwitchInfo
+
+Analysis results for user data impact when switching profiles.
+
+```csharp
+public class UserDataSwitchInfo
+{
+    public string OldProfileId { get; set; }
+    public string NewProfileId { get; set; }
+    public int FileCount { get; set; }
+    public long TotalSizeBytes { get; set; }
+}
+```
+
+**Purpose**: Provides information to the UI about what user data would be affected by a profile switch, enabling informed user decisions.
+
+#### UserDataManifest
+
+Tracks installed user data files for a specific profile.
+
+```csharp
+public class UserDataManifest
+{
+    public string ManifestId { get; set; }
+    public string ProfileId { get; set; }
+    public List<InstalledFile> InstalledFiles { get; set; }
+    public bool IsActive { get; set; }
+    public DateTime InstalledAt { get; set; }
+}
+```
+
+**Purpose**: Maintains the relationship between content manifests and the files they install, enabling activation/deactivation and cleanup operations.
+
+#### InstalledFile
+
+Represents a single user data file installed by a manifest.
+
+```csharp
+public class InstalledFile
+{
+    public string SourcePath { get; set; }
+    public string TargetPath { get; set; }
+    public string Hash { get; set; }
+    public long SizeBytes { get; set; }
+    public bool IsHardLink { get; set; }
+}
+```
+
+**Purpose**: Tracks individual file installations, supporting verification, cleanup, and efficient storage via hard links.
+
+### WorkspaceCleanupConfirmation
+
+Contains information about workspace cleanup operations requiring user confirmation.
+
+```csharp
+public class WorkspaceCleanupConfirmation
+{
+    public int FilesToRemove { get; set; }
+    public long TotalSizeBytes { get; set; }
+    public List<string> AffectedManifests { get; set; }
+    public List<WorkspaceDelta> RemovalDeltas { get; set; }
+    public bool IsCleanupNeeded => FilesToRemove > 0;
+}
+```
+
+**Purpose**: Provides information to the UI about workspace cleanup impact, enabling informed user decisions before removing files.
+
+### WorkspaceConfiguration
+
+Configuration for workspace preparation operations.
+
+```csharp
+public class WorkspaceConfiguration
+{
+    public string Id { get; set; }
+    public List<ContentManifest> Manifests { get; set; }
+    public GameClient GameClient { get; set; }
+    public string WorkspaceRootPath { get; set; }
+    public string BaseInstallationPath { get; set; }
+    public Dictionary<string, string> ManifestSourcePaths { get; set; }
+    public WorkspaceStrategy Strategy { get; set; }
+    public bool ForceRecreate { get; set; }
+    public bool ValidateAfterPreparation { get; set; }
+    public List<WorkspaceDelta>? ReconciliationDeltas { get; set; }
+    public bool SkipCleanup { get; set; }  // NEW: Preserve files when switching profiles
+}
+```
+
+**New Property**: `SkipCleanup` - When `true`, files that exist in workspace but not in new manifests will be preserved. This is useful when switching profiles to avoid deleting large map packs.
+
+### NetworkSettings
+
+Represents network-related settings in Options.ini.
+
+```csharp
+public class NetworkSettings
+{
+    public string? GameSpyIPAddress { get; set; }  // NEW: IP for LAN/online play
+    public Dictionary<string, string> AdditionalProperties { get; set; }
+}
+```
+
+**New Property**: `GameSpyIPAddress` - IP address for GameSpy/networking services, used for LAN and online multiplayer. See [Game Settings](../features/game-settings/) for details.
+
+### LaunchPhase
+
+Represents the phases of a game launch operation.
+
+```csharp
+public enum LaunchPhase
+{
+    ValidatingProfile,
+    ResolvingContent,
+    AwaitingCleanupConfirmation,
+    PreparingWorkspace,
+    PreparingUserData,  // NEW: User data preparation via hard links from CAS
+    Starting,
+    Running,
+    Completed,
+    Failed
+}
+```
+
+**New Phase**: `PreparingUserData` - Indicates the launcher is preparing user data content (maps, replays, etc.) via hard links from CAS.
+
+### LaunchProgress
+
+Represents the progress of a game launch operation.
+
+```csharp
+public class LaunchProgress
+{
+    public LaunchPhase Phase { get; set; }
+    public int PercentComplete { get; set; }
+    public WorkspaceCleanupConfirmation? CleanupConfirmation { get; set; }  // NEW
+}
+```
+
+**New Property**: `CleanupConfirmation` - Workspace cleanup confirmation data when awaiting user decision.
+
 ## Configuration Models
 
 ### AppUpdateOptions
@@ -151,6 +295,36 @@ public class CasOptions
 ```
 
 ## Enumerations
+
+### CasPoolType
+
+Identifies which CAS (Content-Addressable Storage) pool to use for content storage.
+
+```csharp
+public enum CasPoolType
+{
+    Primary,      // Maps, mods, user content (app data drive)
+    Installation  // Game clients and installations (game drive)
+}
+```
+
+**Purpose**: Enables multi-pool CAS architecture for cross-drive optimization and hard-link support. See [Storage & CAS](../features/storage.md) for details.
+
+### TextureQuality
+
+Represents texture quality levels for game settings.
+
+```csharp
+public enum TextureQuality
+{
+    Low = 0,
+    Medium = 1,
+    High = 2,
+    VeryHigh = 3  // TheSuperHackers client only
+}
+```
+
+**Note**: The `VeryHigh` option is only available when using the TheSuperHackers game client.
 
 ### ValidationSeverity
 

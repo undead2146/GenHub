@@ -14,6 +14,11 @@ public class UserDataManifest
     public string ManifestId { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the human-readable name of the content manifest.
+    /// </summary>
+    public string? ManifestName { get; set; }
+
+    /// <summary>
     /// Gets or sets the game profile ID that installed this content.
     /// Content is tracked per-profile to support different map configurations.
     /// </summary>
@@ -28,7 +33,7 @@ public class UserDataManifest
     /// <summary>
     /// Gets or sets the list of files installed by this manifest.
     /// </summary>
-    public List<UserDataFileEntry> InstalledFiles { get; set; } = new();
+    public List<UserDataFileEntry> InstalledFiles { get; set; } = [];
 
     /// <summary>
     /// Gets or sets when this content was installed.

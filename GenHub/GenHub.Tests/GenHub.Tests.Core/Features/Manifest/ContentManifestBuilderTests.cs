@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using ContentType = GenHub.Core.Models.Enums.ContentType;
 
-namespace GenHub.Tests.Features.Manifest;
+namespace GenHub.Tests.Core.Features.Manifest;
 
 /// <summary>
 /// Unit tests for the <see cref="ContentManifestBuilder"/> class.
@@ -135,9 +135,9 @@ public class ContentManifestBuilderTests
                 installBehavior: DependencyInstallBehavior.AutoInstall,
                 minVersion: "1.0",
                 maxVersion: "2.0",
-                compatibleVersions: new List<string> { "1.1", "1.2" },
+                compatibleVersions: ["1.1", "1.2"],
                 isExclusive: true,
-                conflictsWith: new List<ManifestId> { ManifestId.Create("1.0.genhub.mod.conflict") })
+                conflictsWith: [ManifestId.Create("1.0.genhub.mod.conflict")])
             .Build();
 
         // Assert
@@ -148,9 +148,9 @@ public class ContentManifestBuilderTests
         Assert.Equal(ContentType.GameInstallation, dependency.DependencyType);
         Assert.Equal("1.0", dependency.MinVersion);
         Assert.Equal("2.0", dependency.MaxVersion);
-        Assert.Equal(new List<string> { "1.1", "1.2" }, dependency.CompatibleVersions);
+        Assert.Equal(["1.1", "1.2"], dependency.CompatibleVersions);
         Assert.True(dependency.IsExclusive);
-        Assert.Equal(new List<ManifestId> { ManifestId.Create("1.0.genhub.mod.conflict") }, dependency.ConflictsWith);
+        Assert.Equal([ManifestId.Create("1.0.genhub.mod.conflict")], dependency.ConflictsWith);
         Assert.Equal(DependencyInstallBehavior.AutoInstall, dependency.InstallBehavior);
     }
 
@@ -209,5 +209,72 @@ public class ContentManifestBuilderTests
         Assert.NotNull(result.Dependencies);
         Assert.NotNull(result.Files);
         Assert.NotNull(result.RequiredDirectories);
+    }
+
+    /// <summary>
+    /// Tests that AddFilesFromDirectoryAsync sets the correct InstallTarget based on file extensions.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task AddFilesFromDirectoryAsync_SetsCorrectInstallTargets()
+    {
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), "GenHubTest_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempDir);
+        var mapsDir = Path.Combine(tempDir, "Maps");
+        Directory.CreateDirectory(mapsDir);
+        var replaysDir = Path.Combine(tempDir, "Replays");
+        Directory.CreateDirectory(replaysDir);
+        var screenshotsDir = Path.Combine(tempDir, "Screenshots");
+        Directory.CreateDirectory(screenshotsDir);
+
+        try
+        {
+            // Create test files
+            File.WriteAllText(Path.Combine(tempDir, "readme.txt"), "readme"); // Workspace
+            File.WriteAllText(Path.Combine(mapsDir, "map1.map"), "map data"); // UserMapsDirectory
+            File.WriteAllText(Path.Combine(mapsDir, "map_preview.tga"), "tga data"); // UserMapsDirectory (due to Maps folder)
+            File.WriteAllText(Path.Combine(replaysDir, "replay1.rep"), "replay data"); // UserReplaysDirectory
+            File.WriteAllText(Path.Combine(screenshotsDir, "shot1.bmp"), "bmp data"); // UserScreenshotsDirectory
+            File.WriteAllText(Path.Combine(tempDir, "other.bmp"), "bmp data"); // Workspace (not in Screenshots folder)
+
+            // Setup hash mock
+            _hashProviderMock.Setup(x => x.ComputeFileHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync("test-hash");
+
+            // Act
+            var result = await _builder
+                .WithBasicInfo("Test Publisher", "Test Content", "1")
+                .AddFilesFromDirectoryAsync(tempDir) as ContentManifestBuilder;
+
+            var manifest = result!.Build();
+
+            // Assert
+            var textFile = manifest.Files.Single(f => f.RelativePath == "readme.txt");
+            Assert.Equal(ContentInstallTarget.Workspace, textFile.InstallTarget);
+
+            var mapFile = manifest.Files.Single(f => f.RelativePath == Path.Combine("Maps", "map1.map"));
+            Assert.Equal(ContentInstallTarget.UserMapsDirectory, mapFile.InstallTarget);
+
+            var mapTgaFile = manifest.Files.Single(f => f.RelativePath == Path.Combine("Maps", "map_preview.tga"));
+            Assert.Equal(ContentInstallTarget.UserMapsDirectory, mapTgaFile.InstallTarget);
+
+            var replayFile = manifest.Files.Single(f => f.RelativePath == Path.Combine("Replays", "replay1.rep"));
+            Assert.Equal(ContentInstallTarget.UserReplaysDirectory, replayFile.InstallTarget);
+
+            var screenshotFile = manifest.Files.Single(f => f.RelativePath == Path.Combine("Screenshots", "shot1.bmp"));
+            Assert.Equal(ContentInstallTarget.UserScreenshotsDirectory, screenshotFile.InstallTarget);
+
+            var otherBmpFile = manifest.Files.Single(f => f.RelativePath == "other.bmp");
+            Assert.Equal(ContentInstallTarget.Workspace, otherBmpFile.InstallTarget);
+        }
+        finally
+        {
+            // Cleanup
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
     }
 }

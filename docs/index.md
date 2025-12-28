@@ -30,6 +30,9 @@ features:
   - title: Isolated Workspaces
     details: Each game profile runs in its own isolated workspace, preventing conflicts between different configurations.
     icon: 📁
+  - title: User Data Management
+    details: Intelligent tracking and isolation of user-generated content (maps, replays, saves) across profiles with hard-link efficiency and smart switching to prevent data loss.
+    icon: 🛡️
   - title: Cross-Platform
     details: Native support for Windows and Linux with platform-specific optimizations.
     icon: 🌐

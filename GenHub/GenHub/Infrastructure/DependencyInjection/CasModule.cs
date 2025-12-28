@@ -18,6 +18,10 @@ public static class CasModule
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddCasServices(this IServiceCollection services)
     {
+        // Pool management services (must be registered first for CasService to use)
+        services.AddSingleton<ICasPoolResolver, CasPoolResolver>();
+        services.AddSingleton<ICasPoolManager, CasPoolManager>();
+
         // CAS integration services
         services.AddSingleton<ICasService, CasService>();
         services.AddSingleton<ICasStorage, CasStorage>();
@@ -29,6 +33,7 @@ public static class CasModule
             var userCasConfig = configProvider.GetCasConfiguration();
             config.EnableAutomaticGc = userCasConfig.EnableAutomaticGc;
             config.CasRootPath = userCasConfig.CasRootPath;
+            config.InstallationPoolRootPath = userCasConfig.InstallationPoolRootPath;
             config.HashAlgorithm = userCasConfig.HashAlgorithm;
             config.GcGracePeriod = userCasConfig.GcGracePeriod;
             config.MaxCacheSizeBytes = userCasConfig.MaxCacheSizeBytes;

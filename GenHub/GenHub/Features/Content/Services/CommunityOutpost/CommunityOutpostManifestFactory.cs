@@ -261,9 +261,9 @@ public class CommunityOutpostManifestFactory(
                 ContentType = originalManifest.ContentType,
                 TargetGame = originalManifest.TargetGame,
                 Files = fileEntries,
-                Dependencies = originalManifest.Dependencies?.Count > 0
-                    ? originalManifest.Dependencies
-                    : contentMetadata.GetDependencies(),
+
+                // Always use the dependency builder to ensure correct dependencies (e.g., GameInstallation for Community Patch)
+                Dependencies = contentMetadata.GetDependencies(),
                 InstallationInstructions = originalManifest.InstallationInstructions ?? new InstallationInstructions(),
                 Publisher = originalManifest.Publisher,
                 Metadata = new ContentMetadata
@@ -279,11 +279,29 @@ public class CommunityOutpostManifestFactory(
             };
 
             logger.LogInformation(
-                "Built manifest {ManifestId} for {ContentType} '{Name}' with {FileCount} files",
+                "Built manifest {ManifestId} for {ContentType} '{Name}' with {FileCount} files and {DependencyCount} dependencies",
                 manifest.Id,
                 manifest.ContentType,
                 manifest.Name,
-                fileEntries.Count);
+                fileEntries.Count,
+                manifest.Dependencies?.Count ?? 0);
+
+            // Log each dependency for debugging
+            if (manifest.Dependencies != null && manifest.Dependencies.Count > 0)
+            {
+                foreach (var dep in manifest.Dependencies)
+                {
+                    logger.LogDebug(
+                        "  Dependency: {DepName} ({DepId}) - Type: {DepType}",
+                        dep.Name,
+                        dep.Id,
+                        dep.DependencyType);
+                }
+            }
+            else
+            {
+                logger.LogWarning("Manifest {ManifestId} has NO dependencies! Category: {Category}", manifest.Id, contentMetadata.Category);
+            }
 
             return manifest;
         }

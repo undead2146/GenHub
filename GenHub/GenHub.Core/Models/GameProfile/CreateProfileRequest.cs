@@ -42,4 +42,7 @@ public class CreateProfileRequest
 
     /// <summary>Gets or sets the command line arguments to pass to the game executable.</summary>
     public string? CommandLineArguments { get; set; }
+
+    /// <summary>Gets or sets the IP address for GameSpy/Networking services.</summary>
+    public string? GameSpyIPAddress { get; set; }
 }

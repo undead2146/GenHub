@@ -1,3 +1,5 @@
+using GenHub.Core.Models.Workspace;
+
 namespace GenHub.Core.Models.GameProfile;
 
 /// <summary>Represents the progress of a game launch operation.</summary>
@@ -19,4 +21,7 @@ public class LaunchProgress
             _percentComplete = value;
         }
     }
+
+    /// <summary>Gets or sets the workspace cleanup confirmation data when awaiting user decision.</summary>
+    public WorkspaceCleanupConfirmation? CleanupConfirmation { get; set; }
 }

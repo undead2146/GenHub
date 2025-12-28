@@ -28,6 +28,12 @@ public class CasConfiguration : ICloneable
     public string CasRootPath { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the root path for the installation CAS pool (same drive as game).
+    /// If empty, falls back to the primary CasRootPath.
+    /// </summary>
+    public string InstallationPoolRootPath { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the hash algorithm to use for content addressing.
     /// </summary>
     public HashAlgorithm HashAlgorithm { get; set; } = HashAlgorithm.Sha256;
@@ -114,6 +120,7 @@ public class CasConfiguration : ICloneable
         {
             EnableAutomaticGc = EnableAutomaticGc,
             CasRootPath = CasRootPath,
+            InstallationPoolRootPath = InstallationPoolRootPath,
             HashAlgorithm = HashAlgorithm,
             GcGracePeriod = GcGracePeriod,
             MaxCacheSizeBytes = MaxCacheSizeBytes,

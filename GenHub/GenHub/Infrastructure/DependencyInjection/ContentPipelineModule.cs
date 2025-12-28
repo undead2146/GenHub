@@ -7,6 +7,7 @@ using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Storage;
+using GenHub.Core.Services.Content;
 using GenHub.Features.Content.Services;
 using GenHub.Features.Content.Services.CommunityOutpost;
 using GenHub.Features.Content.Services.ContentDeliverers;
@@ -103,6 +104,9 @@ public static class ContentPipelineModule
 
         // Register GitHub API client
         services.AddSingleton<IGitHubApiClient, OctokitGitHubApiClient>();
+
+        // Register Local Content Service
+        services.AddTransient<ILocalContentService, LocalContentService>();
     }
 
     /// <summary>

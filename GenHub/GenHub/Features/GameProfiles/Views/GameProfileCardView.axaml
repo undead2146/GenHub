@@ -29,8 +29,8 @@
             <Setter Property="MinWidth" Value="280" />
             <Setter Property="MaxWidth" Value="400" />
             <!-- Width will be determined by available space in the layout -->
-            <Setter Property="MinHeight" Value="220" />
-            <Setter Property="MaxHeight" Value="320" />
+            <Setter Property="MinHeight" Value="320" />
+            <Setter Property="MaxHeight" Value="450" />
             <Setter Property="BoxShadow" Value="0 4 12 0 #40000000" />
             <Setter Property="ClipToBounds" Value="True" />
             <Setter Property="Transitions">
@@ -85,6 +85,7 @@
             <Setter Property="Height" Value="40" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="FontSize" Value="15" />
         </Style>
 
@@ -548,6 +549,90 @@
                             Foreground="White"
                             Width="16" Height="16" />
                     </Button>
+                </StackPanel>
+            </Grid>
+
+            <!-- User Data Confirmation Overlay -->
+            <Grid Grid.Row="0" Grid.RowSpan="3"
+                  IsVisible="{Binding ShowUserDataConfirmation}"
+                  Background="#E0000000" 
+                  RowDefinitions="*,Auto"
+                  ClipToBounds="True">
+                <StackPanel VerticalAlignment="Center" Margin="24" Spacing="16">
+                    <PathIcon Data="M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z"
+                              Foreground="White" Width="40" Height="40" HorizontalAlignment="Center" />
+                    
+                    <TextBlock Text="User Data Conflict" 
+                               Foreground="White" 
+                               FontSize="20" 
+                               FontWeight="Bold" 
+                               HorizontalAlignment="Center" />
+                    
+                    <TextBlock Text="{Binding UserDataConfirmationMessage}" 
+                               Foreground="#E0FFFFFF" 
+                               TextWrapping="Wrap" 
+                               TextAlignment="Center" 
+                               FontSize="14" 
+                               LineHeight="20" />
+                    
+                    <!-- Large map count warning -->
+                    <Border Background="#40FF9800" 
+                            BorderBrush="#80FF9800"
+                            BorderThickness="1"
+                            CornerRadius="8" 
+                            Padding="12,10"
+                            IsVisible="{Binding IsLargeMapCount}"
+                            Margin="0,8,0,0">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <PathIcon Grid.Column="0" 
+                                      Data="M12,2L1,21H23L12,2M12,6L19.53,19H4.47L12,6M11,10V14H13V10H11M11,16V18H13V16H11Z"
+                                      Foreground="#FF9800" Width="18" Height="18" VerticalAlignment="Top" Margin="0,2,10,0" />
+                            <TextBlock Grid.Column="1" 
+                                       Text="Adding many maps may take a while to load." 
+                                       Foreground="#FF9800" 
+                                       FontSize="12" 
+                                       FontWeight="Medium"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+                
+                <StackPanel Grid.Row="1" Margin="20,20,20,48" Spacing="10">
+                    <Button Classes="profile-launch-button" 
+                            Content="Add to Profile (Keep Data)" 
+                            Command="{Binding $parent[ItemsControl].((vm:GameProfileLauncherViewModel)DataContext).ConfirmUserDataKeepCommand}"
+                            CommandParameter="{Binding}"
+                            Background="#22C55E"
+                            Foreground="White"
+                            Height="44" 
+                            VerticalContentAlignment="Center" />
+                    
+                    <Grid ColumnDefinitions="*,*">
+                        <Button Grid.Column="0"
+                                Classes="profile-launch-button" 
+                                Content="Remove Data" 
+                                Command="{Binding $parent[ItemsControl].((vm:GameProfileLauncherViewModel)DataContext).ConfirmUserDataRemoveCommand}"
+                                CommandParameter="{Binding}"
+                                Background="#EF4444"
+                                Foreground="White"
+                                Margin="0,0,5,0"
+                                Height="40"
+                                FontSize="13" 
+                                VerticalContentAlignment="Center" />
+                                
+                        <Button Grid.Column="1"
+                                Classes="profile-launch-button" 
+                                Content="Cancel" 
+                                Command="{Binding $parent[ItemsControl].((vm:GameProfileLauncherViewModel)DataContext).CancelUserDataConfirmationCommand}"
+                                CommandParameter="{Binding}"
+                                Background="#4B5563"
+                                Foreground="White"
+                                Margin="5,0,0,0"
+                                Height="40"
+                                FontSize="13" 
+                                VerticalContentAlignment="Center" />
+                    </Grid>
                 </StackPanel>
             </Grid>
         </Grid>

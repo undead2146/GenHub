@@ -1,6 +1,7 @@
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
+using GenHub.Core.Models.UserData;
 
 namespace GenHub.Core.Interfaces.UserData;
 
@@ -34,6 +35,7 @@ public interface IProfileContentLinker
     /// <param name="newProfileId">The profile being switched to.</param>
     /// <param name="newManifests">The content manifests defining the desired state for the new profile.</param>
     /// <param name="targetGame">The target game type.</param>
+    /// <param name="skipCleanup">Whether to skip cleanup of files from the old profile (user maps, etc.) and instead add them to the new profile.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Success if switch completed.</returns>
     Task<OperationResult<bool>> SwitchProfileUserDataAsync(
@@ -41,6 +43,7 @@ public interface IProfileContentLinker
         string newProfileId,
         IEnumerable<ContentManifest> newManifests,
         GameType targetGame,
+        bool skipCleanup = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -82,4 +85,21 @@ public interface IProfileContentLinker
     /// <param name="profileId">The profile ID to check.</param>
     /// <returns>True if the profile's user data is active.</returns>
     bool IsProfileActive(string profileId);
+
+    /// <summary>
+    /// Analyzes what user data would be affected when switching from one profile to another.
+    /// Returns information about files that would be removed.
+    /// </summary>
+    /// <param name="oldProfileId">The profile being switched away from.</param>
+    /// <param name="newProfileId">The profile being switched to.</param>
+    /// <param name="targetNativeManifestIds">Manifest IDs that are natively part of the new profile (should be ignored).</param>
+    /// <param name="sourceNativeManifestIds">Manifest IDs that are natively part of the old profile (should be ignored for removal).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Information about user data that would be removed.</returns>
+    Task<OperationResult<UserDataSwitchInfo>> AnalyzeUserDataSwitchAsync(
+        string? oldProfileId,
+        string newProfileId,
+        IEnumerable<string> targetNativeManifestIds,
+        IEnumerable<string> sourceNativeManifestIds,
+        CancellationToken cancellationToken = default);
 }

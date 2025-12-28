@@ -19,4 +19,9 @@ public enum TextureQuality
     /// High texture quality (lowest performance).
     /// </summary>
     High = 2,
+
+    /// <summary>
+    /// Very High texture quality (TheSuperHackers client only).
+    /// </summary>
+    VeryHigh = 3,
 }

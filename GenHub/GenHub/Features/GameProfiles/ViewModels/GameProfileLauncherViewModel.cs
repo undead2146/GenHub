@@ -128,7 +128,7 @@ public partial class GameProfileLauncherViewModel(
                         LaunchAction = LaunchProfileAsync,
                         EditProfileAction = EditProfile,
                         DeleteProfileAction = DeleteProfile,
-                        CreateShortcutAction = CreateShortcut
+                        CreateShortcutAction = CreateShortcut,
                     };
 
                     // Add to collection before the "Add New Profile" button (which is always at the end)
@@ -203,16 +203,16 @@ public partial class GameProfileLauncherViewModel(
     {
         logger.LogInformation("Profile updated notification received for {ProfileName}, refreshing list", message.Profile.Name);
 
-        // Refresh profiles on UI thread
+        // Refresh specific profile on UI thread to preserve state of others
         Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
         {
             try
             {
-                await InitializeAsync();
+                await RefreshSingleProfileAsync(message.Profile.Id);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Error refreshing profiles after profile update");
+                logger.LogError(ex, "Error refreshing profile after update");
             }
         });
     }
@@ -331,7 +331,7 @@ public partial class GameProfileLauncherViewModel(
                         LaunchAction = LaunchProfileAsync,
                         EditProfileAction = EditProfile,
                         DeleteProfileAction = DeleteProfile,
-                        CreateShortcutAction = CreateShortcut
+                        CreateShortcutAction = CreateShortcut,
                     };
 
                     // Restore the running state
@@ -395,6 +395,10 @@ public partial class GameProfileLauncherViewModel(
 
                 int profilesCreated = 0;
 
+                // Track user preference for publisher clients during this scan to avoid multiple prompts
+                bool? wantsGeneralsOnline = null;
+                bool? wantsSuperHackers = null;
+
                 foreach (var installation in installations.Data)
                 {
                     if (installation.AvailableGameClients == null || installation.AvailableGameClients.Count == 0)
@@ -404,6 +408,10 @@ public partial class GameProfileLauncherViewModel(
 
                     // Check if this installation has any publisher clients (GeneralsOnline, TheSuperHackers)
                     bool hasPublisherClients = HasPublisherClients(installation);
+
+                    // Track if GeneralsOnline was already detected in this installation
+                    bool hasGeneralsOnline = installation.AvailableGameClients.Any(c =>
+                        c.PublisherType?.Equals(PublisherTypeConstants.GeneralsOnline, StringComparison.OrdinalIgnoreCase) == true);
 
                     if (hasPublisherClients)
                     {
@@ -421,6 +429,78 @@ public partial class GameProfileLauncherViewModel(
                         {
                             if (gameClient.IsPublisherClient)
                             {
+                                logger.LogInformation(
+                                    "Processing publisher client: {ClientName} (PublisherType: '{PublisherType}')",
+                                    gameClient.Name,
+                                    gameClient.PublisherType ?? "null");
+
+                                // Special handling for GeneralsOnline:
+                                // If profiles don't exist, PROMPT the user instead of auto-creating.
+                                // This handles the case where Community Patch installs GO files but the user declined the GO profile.
+                                if (gameClient.PublisherType == PublisherTypeConstants.GeneralsOnline)
+                                {
+                                    bool profileExists = await ProfileExistsAsync(installation, gameClient);
+                                    if (!profileExists)
+                                    {
+                                        // If user already declined during this scan, skip
+                                        if (wantsGeneralsOnline == false)
+                                        {
+                                            continue;
+                                        }
+
+                                        // If not yet asked, prompt
+                                        if (wantsGeneralsOnline == null)
+                                        {
+                                            // TODO: Localization - Move these strings to localization system when implemented
+                                            logger.LogInformation("GeneralsOnline files detected but no profile exists. Prompting user.");
+                                            wantsGeneralsOnline = await ShowPromptAsync(
+                                                "GeneralsOnline Detected",
+                                                "GeneralsOnline files were found in your installation. Do you want to create profiles for them?",
+                                                installation);
+                                        }
+
+                                        // If declined, skip
+                                        if (wantsGeneralsOnline == false)
+                                        {
+                                            logger.LogInformation("User declined GeneralsOnline profile creation during scan.");
+                                            continue;
+                                        }
+                                    }
+                                }
+
+                                // Special handling for TheSuperHackers:
+                                // If profiles don't exist, PROMPT the user instead of auto-creating.
+                                else if (gameClient.PublisherType == PublisherTypeConstants.TheSuperHackers)
+                                {
+                                    bool profileExists = await ProfileExistsAsync(installation, gameClient);
+                                    if (!profileExists)
+                                    {
+                                        // If user already declined during this scan, skip
+                                        if (wantsSuperHackers == false)
+                                        {
+                                            continue;
+                                        }
+
+                                        // If not yet asked, prompt
+                                        if (wantsSuperHackers == null)
+                                        {
+                                            // TODO: Localization - Move these strings to localization system when implemented
+                                            logger.LogInformation("SuperHackers files detected but no profile exists. Prompting user.");
+                                            wantsSuperHackers = await ShowPromptAsync(
+                                                "SuperHackers Weekly Release Detected",
+                                                "SuperHackers weekly release files were found in your installation. Do you want to create profiles for them?",
+                                                installation);
+                                        }
+
+                                        // If declined, skip
+                                        if (wantsSuperHackers == false)
+                                        {
+                                            logger.LogInformation("User declined SuperHackers profile creation during scan.");
+                                            continue;
+                                        }
+                                    }
+                                }
+
                                 var profileCreated = await TryCreateProfileForGameClientAsync(installation, gameClient);
                                 if (profileCreated) profilesCreated++;
                             }
@@ -439,6 +519,7 @@ public partial class GameProfileLauncherViewModel(
                             "Installation {InstallationId} has no publisher clients, prompting for Community Patch",
                             installation.Id);
 
+                        // TODO: Localization - Move these strings to localization system when implemented
                         var wantsCommunityPatch = await ShowPromptAsync(
                             "Install Community Patch?",
                             "Would you like to install the Community Patch? This includes the latest fixes and improvements and is recommended over base game profiles.",
@@ -471,36 +552,46 @@ public partial class GameProfileLauncherViewModel(
                                 profilesCreated += cpResult.Data;
                                 logger.LogInformation("Community Patch installed, created {Count} profiles", cpResult.Data);
 
-                                // Now prompt for GeneralsOnline
-                                var wantsGeneralsOnline = await ShowPromptAsync(
-                                    "Install GeneralsOnline?",
-                                    "Would you also like to install GeneralsOnline for online multiplayer?",
-                                    installation);
-
-                                if (wantsGeneralsOnline)
+                                // Only prompt for GeneralsOnline if it wasn't already detected in the installation
+                                // This prevents duplicate prompts when GO files already exist
+                                if (!hasGeneralsOnline)
                                 {
-                                    notificationService.ShowInfo(
-                                        "Installing GeneralsOnline",
-                                        "Downloading and installing GeneralsOnline...",
-                                        null);
+                                    // Check global preference before prompting
+                                    // TODO: Localization - Move these strings to localization system when implemented
+                                    wantsGeneralsOnline ??= await ShowPromptAsync(
+                                        "Install GeneralsOnline?",
+                                        "Would you also like to install GeneralsOnline for online multiplayer?",
+                                        installation);
 
-                                    var goClient = new GameClient
+                                    if (wantsGeneralsOnline == true)
                                     {
-                                        Id = $"generalsonline.gameclient",
-                                        Name = "GeneralsOnline",
-                                        PublisherType = PublisherTypeConstants.GeneralsOnline,
-                                        GameType = GameType.ZeroHour,
-                                        InstallationId = installation.Id,
-                                    };
+                                        notificationService.ShowInfo(
+                                            "Installing GeneralsOnline",
+                                            "Downloading and installing GeneralsOnline...",
+                                            null);
 
-                                    var goResult = await publisherProfileOrchestrator.CreateProfilesForPublisherClientAsync(
-                                        installation, goClient);
+                                        var goClient = new GameClient
+                                        {
+                                            Id = $"generalsonline.gameclient",
+                                            Name = "GeneralsOnline",
+                                            PublisherType = PublisherTypeConstants.GeneralsOnline,
+                                            GameType = GameType.ZeroHour,
+                                            InstallationId = installation.Id,
+                                        };
 
-                                    if (goResult.Success && goResult.Data > 0)
-                                    {
-                                        profilesCreated += goResult.Data;
-                                        logger.LogInformation("GeneralsOnline installed, created {Count} profiles", goResult.Data);
+                                        var goResult = await publisherProfileOrchestrator.CreateProfilesForPublisherClientAsync(
+                                            installation, goClient);
+
+                                        if (goResult.Success && goResult.Data > 0)
+                                        {
+                                            profilesCreated += goResult.Data;
+                                            logger.LogInformation("GeneralsOnline installed, created {Count} profiles", goResult.Data);
+                                        }
                                     }
+                                }
+                                else
+                                {
+                                    logger.LogInformation("GeneralsOnline already detected in installation, skipping installation prompt");
                                 }
                             }
                             else
@@ -624,61 +715,32 @@ public partial class GameProfileLauncherViewModel(
                 }
             }
 
-            // Get user's preferred workspace strategy or default
             var preferredStrategy = configService.GetDefaultWorkspaceStrategy();
 
-            // Use the detected version from the game client for the GameInstallation manifest ID
-            // This must match the version used in ProfileContentLoader and ManifestGenerationService
-            int manifestVersionInt;
+            // Generate the GameInstallation manifest ID
+            // Logic must match GameInstallationService.GenerateAndPoolManifestForGameTypeAsync to ensure ID alignment
+            string installationManifestId;
             if (string.IsNullOrEmpty(gameClient.Version) ||
                 gameClient.Version.Equals("Unknown", StringComparison.OrdinalIgnoreCase) ||
                 gameClient.Version.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase) ||
                 gameClient.Version.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase))
             {
-                // For unknown/auto versions, use manifest constants as fallback
-                var fallbackVersion = gameClient.GameType == GameType.ZeroHour
-                    ? ManifestConstants.ZeroHourManifestVersion
-                    : ManifestConstants.GeneralsManifestVersion;
-
-                // Normalize the fallback version (remove dots): "1.04" → 104, "1.08" → 108
-                // Ensure "1.0" is treated as "1" to avoid "v10" display issue
-                string normalizedFallback;
-                if (fallbackVersion == "1.0")
-                {
-                    normalizedFallback = "1";
-                }
-                else
-                {
-                    normalizedFallback = fallbackVersion.Replace(".", string.Empty);
-                }
-
-                manifestVersionInt = int.TryParse(normalizedFallback, out var v) ? v : 0;
-            }
-            else if (gameClient.Version.Contains('.'))
-            {
-                // Normalize dotted version ("1.04" → 104, "1.08" → 108)
-                // Ensure "1.0" is treated as "1" to avoid "v10" display issue as requested by user
-                string normalized;
-                if (gameClient.Version == "1.0")
-                {
-                    normalized = "1";
-                }
-                else
-                {
-                    normalized = gameClient.Version.Replace(".", string.Empty);
-                }
-
-                manifestVersionInt = int.TryParse(normalized, out var v) ? v : 0;
+                // For unknown/auto versions, GameInstallationService uses version 0
+                installationManifestId = ManifestIdGenerator.GenerateGameInstallationId(installation, gameClient.GameType, 0);
             }
             else
             {
-                // Try to parse version as int directly
-                manifestVersionInt = int.TryParse(gameClient.Version, out var parsed) ? parsed : 0;
+                try
+                {
+                    // Use string overload which handles normalization (e.g. "1.0" -> "100") consistent with ManifestIdGenerator rules
+                    installationManifestId = ManifestIdGenerator.GenerateGameInstallationId(installation, gameClient.GameType, gameClient.Version);
+                }
+                catch (ArgumentException)
+                {
+                    // If normalization fails (invalid format), fallback to 0
+                    installationManifestId = ManifestIdGenerator.GenerateGameInstallationId(installation, gameClient.GameType, 0);
+                }
             }
-
-            // Generate the GameInstallation manifest ID for this specific game type
-            // This must match what ManifestProvider generates
-            var installationManifestId = ManifestIdGenerator.GenerateGameInstallationId(installation, gameClient.GameType, manifestVersionInt);
 
             // Create enabled content list: GameInstallation manifest + GameClient manifest
             var enabledContentIds = new List<string>
@@ -731,6 +793,63 @@ public partial class GameProfileLauncherViewModel(
     }
 
     /// <summary>
+    /// Checks if a profile already exists for a game client.
+    /// Handles special matching for publisher clients (e.g., GeneralsOnline)
+    /// when the profile name differs slightly from the detected client name (e.g., "GeneralsOnline" vs "GeneralsOnline 30Hz").
+    /// </summary>
+    private async Task<bool> ProfileExistsAsync(GameInstallation installation, GameClient gameClient)
+    {
+        try
+        {
+            var profileName = $"{installation.InstallationType} {gameClient.Name}";
+            var existingProfiles = await gameProfileManager.GetAllProfilesAsync();
+
+            if (existingProfiles.Success && existingProfiles.Data != null)
+            {
+                // For publisher clients, check if any profile exists for this publisher type
+                if (gameClient.IsPublisherClient && !string.IsNullOrEmpty(gameClient.PublisherType))
+                {
+                    bool publisherProfileExists = existingProfiles.Data.Any(p =>
+                        p.GameInstallationId.Equals(installation.Id, StringComparison.OrdinalIgnoreCase) &&
+                        p.GameClient != null &&
+                        p.GameClient.PublisherType?.Equals(gameClient.PublisherType, StringComparison.OrdinalIgnoreCase) == true);
+
+                    if (publisherProfileExists)
+                    {
+                        logger.LogDebug(
+                            "Profile already exists for publisher {PublisherType} in installation {InstallationId} (looser match)",
+                            gameClient.PublisherType,
+                            installation.Id);
+                        return true;
+                    }
+                }
+
+                // Standard matching: Check by name AND installation ID
+                bool profileExists = existingProfiles.Data.Any(p =>
+                    p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase) &&
+                    p.GameInstallationId.Equals(installation.Id, StringComparison.OrdinalIgnoreCase));
+
+                if (profileExists) return true;
+
+                // Standard matching: Check by name and game client ID
+                bool profileExistsByClient = existingProfiles.Data.Any(p =>
+                    p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase) &&
+                    p.GameClient != null &&
+                    p.GameClient.Id.Equals(gameClient.Id, StringComparison.OrdinalIgnoreCase));
+
+                if (profileExistsByClient) return true;
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error checking if profile exists for {ClientName}", gameClient.Name);
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Adds a newly created profile to the UI immediately (without waiting for full refresh).
     /// </summary>
     private void AddProfileToUI(Core.Models.GameProfile.GameProfile profile)
@@ -746,7 +865,7 @@ public partial class GameProfileLauncherViewModel(
 
             var iconPath = !string.IsNullOrEmpty(profile.IconPath)
                 ? profile.IconPath
-                : Core.Constants.UriConstants.DefaultIconUri;
+                : UriConstants.DefaultIconUri;
 
             var coverPath = !string.IsNullOrEmpty(profile.CoverPath)
                 ? profile.CoverPath
@@ -802,46 +921,21 @@ public partial class GameProfileLauncherViewModel(
             try
             {
                 IsLaunching = true;
-                StatusMessage = $"Launching {profile.Name}...";
+                StatusMessage = $"Validating {profile.Name}...";
                 ErrorMessage = string.Empty;
 
-                var launchResult = await profileLauncherFacade.LaunchProfileAsync(profile.ProfileId);
+                // With CAS hardlinks, profile switching is instant - maps are just symlinks
+                logger.LogDebug("[Launch] Launching profile {ProfileName} (ID: {ProfileId})", profile.Name, profile.ProfileId);
 
-                if (launchResult.Success && launchResult.Data != null)
-                {
-                    profile.IsProcessRunning = true;
-                    profile.ProcessId = launchResult.Data.ProcessInfo.ProcessId;
-                    OnPropertyChanged(nameof(profile.CanLaunch));
-                    OnPropertyChanged(nameof(profile.CanEdit));
-
-                    StatusMessage = $"{profile.Name} launched successfully (Process ID: {launchResult.Data.ProcessInfo.ProcessId})";
-                    logger.LogInformation(
-                        "Profile {ProfileName} launched successfully with process ID {ProcessId}",
-                        profile.Name,
-                        launchResult.Data.ProcessInfo.ProcessId);
-                }
-                else
-                {
-                    var errors = string.Join(", ", launchResult.Errors);
-                    StatusMessage = $"Failed to launch {profile.Name}: {errors}";
-                    ErrorMessage = errors;
-
-                    // Show error notification to user
-                    notificationService.ShowError(
-                        "Launch Failed",
-                        $"Failed to launch {profile.Name}: {errors}");
-
-                    logger.LogWarning(
-                        "Failed to launch profile {ProfileName}: {Errors}",
-                        profile.Name,
-                        errors);
-                }
+                // Normal launch
+                await ExecuteLaunchAsync(profile, skipUserDataCleanup: false);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Error launching profile {ProfileName}", profile.Name);
+                logger.LogError(ex, "Error starting launch process for {ProfileName}", profile.Name);
                 StatusMessage = $"Error launching {profile.Name}";
                 ErrorMessage = ex.Message;
+                notificationService.ShowError("Launch Error", $"Error starting launch for {profile.Name}: {ex.Message}");
             }
             finally
             {
@@ -852,6 +946,122 @@ public partial class GameProfileLauncherViewModel(
         {
             _launchSemaphore.Release();
         }
+    }
+
+    /// <summary>
+    /// Executes the actual launch operation.
+    /// </summary>
+    private async Task ExecuteLaunchAsync(GameProfileItemViewModel profile, bool skipUserDataCleanup)
+    {
+        StatusMessage = $"Launching {profile.Name}...";
+
+        // Show "taking a while" message if many maps are being linked
+        if (skipUserDataCleanup && profile.IsLargeMapCount)
+        {
+            StatusMessage = "Adding maps to profile (this might take a while)...";
+            notificationService.ShowInfo("Loading Maps", "Adding many maps to this profile. This may take a moment...", NotificationDurations.Long);
+        }
+
+        var launchResult = await profileLauncherFacade.LaunchProfileAsync(profile.ProfileId, skipUserDataCleanup);
+
+        if (launchResult.Success && launchResult.Data != null)
+        {
+            // Look up the profile in the collection in case it was replaced by an update during launch
+            var liveProfile = Profiles.FirstOrDefault(p => p.ProfileId == profile.ProfileId) ?? profile;
+
+            liveProfile.IsProcessRunning = true;
+            liveProfile.ProcessId = launchResult.Data.ProcessInfo.ProcessId;
+            liveProfile.ShowUserDataConfirmation = false; // Hide confirmation if it was shown
+
+            // Ensure notifications are sent for binding updates
+            liveProfile.NotifyCanLaunchChanged();
+
+            StatusMessage = $"{liveProfile.Name} launched successfully (Process ID: {launchResult.Data.ProcessInfo.ProcessId})";
+        }
+        else
+        {
+            var errors = string.Join(", ", launchResult.Errors);
+            StatusMessage = $"Failed to launch {profile.Name}: {errors}";
+            ErrorMessage = errors;
+            notificationService.ShowError("Launch Failed", $"Failed to launch {profile.Name}: {errors}");
+        }
+    }
+
+    /// <summary>
+    /// Confirms that user data should be kept and added to the new profile.
+    /// </summary>
+    [RelayCommand]
+    private async Task ConfirmUserDataKeepAsync(GameProfileItemViewModel profile)
+    {
+        profile.ShowUserDataConfirmation = false;
+
+        if (!await _launchSemaphore.WaitAsync(0))
+        {
+            StatusMessage = "A profile is already launching...";
+            return;
+        }
+
+        try
+        {
+            IsLaunching = true;
+            await ExecuteLaunchAsync(profile, skipUserDataCleanup: true);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error during confirmed launch (Keep) for {ProfileName}", profile.Name);
+            StatusMessage = $"Error launching {profile.Name}";
+            ErrorMessage = ex.Message;
+            notificationService.ShowError("Launch Error", $"Error launching {profile.Name}: {ex.Message}");
+        }
+        finally
+        {
+            IsLaunching = false;
+            _launchSemaphore.Release();
+        }
+    }
+
+    /// <summary>
+    /// Confirms that user data should be removed (normal switch).
+    /// </summary>
+    [RelayCommand]
+    private async Task ConfirmUserDataRemoveAsync(GameProfileItemViewModel profile)
+    {
+        profile.ShowUserDataConfirmation = false;
+
+        if (!await _launchSemaphore.WaitAsync(0))
+        {
+            StatusMessage = "A profile is already launching...";
+            return;
+        }
+
+        try
+        {
+            IsLaunching = true;
+            await ExecuteLaunchAsync(profile, skipUserDataCleanup: false);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error during confirmed launch (Remove) for {ProfileName}", profile.Name);
+            StatusMessage = $"Error launching {profile.Name}";
+            ErrorMessage = ex.Message;
+            notificationService.ShowError("Launch Error", $"Error launching {profile.Name}: {ex.Message}");
+        }
+        finally
+        {
+            IsLaunching = false;
+            _launchSemaphore.Release();
+        }
+    }
+
+    /// <summary>
+    /// Cancels the user data confirmation and stops the launch.
+    /// </summary>
+    [RelayCommand]
+    private void CancelUserDataConfirmation(GameProfileItemViewModel profile)
+    {
+        profile.ShowUserDataConfirmation = false;
+        profile.UserDataSwitchInfo = null;
+        StatusMessage = "Launch cancelled";
     }
 
     /// <summary>

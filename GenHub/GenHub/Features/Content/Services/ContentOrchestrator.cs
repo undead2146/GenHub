@@ -114,7 +114,6 @@ public class ContentOrchestrator : IContentOrchestrator
         }
 
         var searchTasks = providersToSearch.ToList();
-
         if (searchTasks.Count == 0)
         {
             _logger.LogWarning("No enabled providers available for search");

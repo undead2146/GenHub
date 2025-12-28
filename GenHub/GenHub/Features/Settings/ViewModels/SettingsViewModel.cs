@@ -14,6 +14,7 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
@@ -42,6 +43,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     private readonly Timer _memoryUpdateTimer;
     private readonly Timer _dangerZoneUpdateTimer;
     private readonly IConfigurationProviderService _configurationProvider;
+    private readonly IGameInstallationService _installationService;
 
     /// <summary>
     /// Gets the available themes for selection in the UI.
@@ -175,6 +177,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     /// <param name="updateManager">The update manager service.</param>
     /// <param name="notificationService">The notification service.</param>
     /// <param name="configurationProvider">The configuration provider service.</param>
+    /// <param name="installationService">The game installation service.</param>
     public SettingsViewModel(
         IUserSettingsService userSettingsService,
         ILogger<SettingsViewModel> logger,
@@ -184,7 +187,8 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         IContentManifestPool manifestPool,
         IVelopackUpdateManager updateManager,
         INotificationService notificationService,
-        IConfigurationProviderService configurationProvider)
+        IConfigurationProviderService configurationProvider,
+        IGameInstallationService installationService)
     {
         _userSettingsService = userSettingsService ?? throw new ArgumentNullException(nameof(userSettingsService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -195,6 +199,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         _updateManager = updateManager ?? throw new ArgumentNullException(nameof(updateManager));
         _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
         _configurationProvider = configurationProvider ?? throw new ArgumentNullException(nameof(configurationProvider));
+        _installationService = installationService ?? throw new ArgumentNullException(nameof(installationService));
 
         LoadSettings();
 
@@ -827,6 +832,9 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         _logger.LogInformation("Forcing CAS storage cleanup as part of DeleteAllData");
         var result = await _casService.RunGarbageCollectionAsync(force: true, CancellationToken.None);
         _logger.LogInformation("CAS cleanup completed: {Deleted} objects deleted", result.ObjectsDeleted);
+
+        // Invalidate installation cache to force re-generation of manifests on next scan
+        _installationService.InvalidateCache();
 
         await UpdateDangerZoneDataAsync();
         _notificationService.ShowSuccess("Data Deleted", "All application data has been deleted successfully.", 5000);

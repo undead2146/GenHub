@@ -22,4 +22,9 @@ public interface IGameInstallationService
     /// <param name="cancellationToken">A cancellation token to observe while waiting for the task to complete.</param>
     /// <returns>An operation result containing all game installations.</returns>
     Task<OperationResult<IReadOnlyList<GameInstallation>>> GetAllInstallationsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Invalidates the installation cache, forcing re-detection on next access.
+    /// </summary>
+    void InvalidateCache();
 }

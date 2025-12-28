@@ -11,6 +11,7 @@ using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Steam;
 using GenHub.Core.Interfaces.Storage;
 using GenHub.Core.Interfaces.Tools;
+using GenHub.Core.Interfaces.UserData;
 using GenHub.Core.Interfaces.Workspace;
 using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
@@ -276,6 +277,7 @@ public class MainViewModelTests
         var mockNotificationService = new Mock<INotificationService>();
         var mockNotificationServiceForSettings = new Mock<INotificationService>();
         var mockConfigurationProvider = new Mock<IConfigurationProviderService>();
+        var mockInstallationService = new Mock<IGameInstallationService>();
 
         var settingsVm = new SettingsViewModel(
             mockUserSettings.Object,
@@ -286,7 +288,8 @@ public class MainViewModelTests
             mockManifestPool.Object,
             mockUpdateManager.Object,
             mockNotificationServiceForSettings.Object,
-            mockConfigurationProvider.Object);
+            mockConfigurationProvider.Object,
+            mockInstallationService.Object);
         return (settingsVm, mockUserSettings);
     }
 
@@ -331,12 +334,14 @@ public class MainViewModelTests
             new Mock<IGameSettingsService>().Object,
             new Mock<IConfigurationProviderService>().Object,
             new Mock<IProfileContentLoader>().Object,
-            null,
+            null, // ProfileResourceService
             null, // INotificationService
             null, // IContentManifestPool
             null, // IContentStorageService
+            null, // ILocalContentService
             NullLogger<GameProfileSettingsViewModel>.Instance,
             NullLogger<GameSettingsViewModel>.Instance);
+
         var profileEditorFacade = new Mock<IProfileEditorFacade>();
         var configService = new Mock<IConfigurationProviderService>();
         var gameProcessManager = new Mock<IGameProcessManager>();

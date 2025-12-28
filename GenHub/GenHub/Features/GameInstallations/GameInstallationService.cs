@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -38,7 +39,7 @@ public class GameInstallationService(
     private readonly IContentManifestPool? _contentManifestPool = contentManifestPool;
     private readonly ILogger<GameInstallationService> _logger = logger ?? NullLogger<GameInstallationService>.Instance;
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
-    private IReadOnlyList<GameInstallation>? _cachedInstallations;
+    private ReadOnlyCollection<GameInstallation>? _cachedInstallations;
     private bool _disposed = false;
 
     /// <summary>
@@ -57,7 +58,7 @@ public class GameInstallationService(
         var initResult = await TryInitializeCacheAsync(cancellationToken);
         if (!initResult.Success)
         {
-            return OperationResult<GameInstallation>.CreateFailure(initResult.Errors.First());
+            return OperationResult<GameInstallation>.CreateFailure(initResult.Errors[0]);
         }
 
         if (_cachedInstallations == null)
@@ -87,7 +88,7 @@ public class GameInstallationService(
             var initResult = await TryInitializeCacheAsync(cancellationToken);
             if (!initResult.Success)
             {
-                return OperationResult<IReadOnlyList<GameInstallation>>.CreateFailure(initResult.Errors.First());
+                return OperationResult<IReadOnlyList<GameInstallation>>.CreateFailure(initResult.Errors[0]);
             }
 
             if (_cachedInstallations == null)
@@ -100,6 +101,21 @@ public class GameInstallationService(
         catch (Exception ex)
         {
             return OperationResult<IReadOnlyList<GameInstallation>>.CreateFailure($"Error retrieving installations: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc/>
+    public void InvalidateCache()
+    {
+        _cacheLock.Wait();
+        try
+        {
+            _cachedInstallations = null;
+            _logger.LogInformation("Installation cache invalidated");
+        }
+        finally
+        {
+            _cacheLock.Release();
         }
     }
 
@@ -212,11 +228,11 @@ public class GameInstallationService(
         manifest.Id = manifestId;
 
         var addResult = await _contentManifestPool!.AddManifestAsync(
-            manifest, gamePath);
+            manifest, gamePath, cancellationToken);
 
         if (addResult.Success)
         {
-            _logger.LogDebug(
+            _logger.LogInformation(
                 "Pooled GameInstallation manifest {Id} for {InstallationId} ({GameType})",
                 manifest.Id,
                 installation.Id,

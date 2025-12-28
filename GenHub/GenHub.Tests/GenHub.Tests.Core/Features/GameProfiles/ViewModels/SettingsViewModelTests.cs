@@ -1,4 +1,5 @@
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
@@ -32,6 +33,7 @@ public class SettingsViewModelTests
     private readonly Mock<IVelopackUpdateManager> _mockUpdateManager;
     private readonly Mock<INotificationService> _mockNotificationService;
     private readonly Mock<IConfigurationProviderService> _mockConfigurationProvider;
+    private readonly Mock<IGameInstallationService> _mockInstallationService; // Added
     private readonly UserSettings _defaultSettings;
 
     /// <summary>
@@ -48,6 +50,7 @@ public class SettingsViewModelTests
         _mockUpdateManager = new Mock<IVelopackUpdateManager>();
         _mockNotificationService = new Mock<INotificationService>();
         _mockConfigurationProvider = new Mock<IConfigurationProviderService>();
+        _mockInstallationService = new Mock<IGameInstallationService>(); // Added
         _defaultSettings = new UserSettings();
 
         _mockConfigService.Setup(x => x.Get()).Returns(_defaultSettings);
@@ -80,7 +83,8 @@ public class SettingsViewModelTests
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
             _mockNotificationService.Object,
-            _mockConfigurationProvider.Object);
+            _mockConfigurationProvider.Object,
+            _mockInstallationService.Object);
 
         // Assert
         Assert.Equal("Light", viewModel.Theme);
@@ -106,7 +110,8 @@ public class SettingsViewModelTests
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
             _mockNotificationService.Object,
-            _mockConfigurationProvider.Object)
+            _mockConfigurationProvider.Object,
+            _mockInstallationService.Object)
         {
             Theme = "Light",
             MaxConcurrentDownloads = 5,
@@ -137,7 +142,8 @@ public class SettingsViewModelTests
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
             _mockNotificationService.Object,
-            _mockConfigurationProvider.Object)
+            _mockConfigurationProvider.Object,
+            _mockInstallationService.Object)
         {
             Theme = "Light",
             MaxConcurrentDownloads = 10,
@@ -170,7 +176,8 @@ public class SettingsViewModelTests
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
             _mockNotificationService.Object,
-            _mockConfigurationProvider.Object)
+            _mockConfigurationProvider.Object,
+            _mockInstallationService.Object)
         {
             // Act & Assert - Test lower bound
             MaxConcurrentDownloads = 0,
@@ -202,7 +209,8 @@ public class SettingsViewModelTests
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
             _mockNotificationService.Object,
-            _mockConfigurationProvider.Object);
+            _mockConfigurationProvider.Object,
+            _mockInstallationService.Object);
 
         // Act
         var themes = SettingsViewModel.AvailableThemes.ToList();
@@ -228,7 +236,8 @@ public class SettingsViewModelTests
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
             _mockNotificationService.Object,
-            _mockConfigurationProvider.Object);
+            _mockConfigurationProvider.Object,
+            _mockInstallationService.Object);
 
         // Act
         var strategies = SettingsViewModel.AvailableWorkspaceStrategies.ToList();
@@ -257,7 +266,8 @@ public class SettingsViewModelTests
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
             _mockNotificationService.Object,
-            _mockConfigurationProvider.Object);
+            _mockConfigurationProvider.Object,
+            _mockInstallationService.Object);
 
         // Act
         await Task.Run(() => viewModel.SaveSettingsCommand.Execute(null));
@@ -292,7 +302,8 @@ public class SettingsViewModelTests
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
             _mockNotificationService.Object,
-            _mockConfigurationProvider.Object);
+            _mockConfigurationProvider.Object,
+            _mockInstallationService.Object);
 
         // Assert - Should not throw and use defaults
         Assert.Equal("Dark", viewModel.Theme);
@@ -326,7 +337,8 @@ public class SettingsViewModelTests
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
             _mockNotificationService.Object,
-            _mockConfigurationProvider.Object);
+            _mockConfigurationProvider.Object,
+            _mockInstallationService.Object);
 
         // Act
         await viewModel.DeleteCasStorageCommand.ExecuteAsync(null);
@@ -352,7 +364,8 @@ public class SettingsViewModelTests
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
             _mockNotificationService.Object,
-            _mockConfigurationProvider.Object);
+            _mockConfigurationProvider.Object,
+            _mockInstallationService.Object);
 
         // Act
         await viewModel.UninstallGenHubCommand.ExecuteAsync(null);

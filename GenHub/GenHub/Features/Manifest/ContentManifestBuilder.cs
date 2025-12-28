@@ -15,7 +15,7 @@ namespace GenHub.Features.Manifest;
 /// <summary>
 /// Fluent builder for creating comprehensive game manifests.
 /// </summary>
-public class ContentManifestBuilder(
+public partial class ContentManifestBuilder(
     ILogger<ContentManifestBuilder> logger,
     IFileHashProvider hashProvider,
     IManifestIdService manifestIdService) : IContentManifestBuilder
@@ -268,9 +268,9 @@ public class ContentManifestBuilder(
         _manifest.Metadata = new ContentMetadata
         {
             Description = description,
-            Tags = tags ?? new List<string>(),
+            Tags = tags ?? [],
             IconUrl = iconUrl,
-            ScreenshotUrls = screenshotUrls ?? new List<string>(),
+            ScreenshotUrls = screenshotUrls ?? [],
             ChangelogUrl = changelogUrl,
             ReleaseDate = DateTime.UtcNow,
         };
@@ -309,9 +309,9 @@ public class ContentManifestBuilder(
             DependencyType = dependencyType,
             MinVersion = minVersion,
             MaxVersion = maxVersion,
-            CompatibleVersions = compatibleVersions ?? new List<string>(),
+            CompatibleVersions = compatibleVersions ?? [],
             IsExclusive = isExclusive,
-            ConflictsWith = conflictsWith ?? new List<ManifestId>(),
+            ConflictsWith = conflictsWith ?? [],
             InstallBehavior = installBehavior,
         };
         _manifest.Dependencies.Add(dependency);
@@ -396,6 +396,8 @@ public class ContentManifestBuilder(
                 hash = await _hashProvider.ComputeFileHashAsync(filePath);
             }
 
+            var installTarget = DetermineInstallTarget(relativePath);
+
             var manifestFile = new ManifestFile
             {
                 RelativePath = relativePath,
@@ -403,6 +405,7 @@ public class ContentManifestBuilder(
                 Hash = hash ?? string.Empty, // Empty for GameInstallation files (CSV authority planned)
                 SourceType = sourceType,
                 SourcePath = sourceDirectory, // Set the source directory path for workspace preparation
+                InstallTarget = installTarget,
                 IsExecutable = isExecutable || IsExecutableFile(filePath),
                 Permissions = new FilePermissions
                 {
@@ -633,7 +636,7 @@ public class ContentManifestBuilder(
         {
             Name = name,
             Command = command,
-            Arguments = arguments ?? new List<string>(),
+            Arguments = arguments ?? [],
             WorkingDirectory = workingDirectory,
             RequiresElevation = requiresElevation,
         };
@@ -662,7 +665,7 @@ public class ContentManifestBuilder(
         {
             Name = name,
             Command = command,
-            Arguments = arguments ?? new List<string>(),
+            Arguments = arguments ?? [],
             WorkingDirectory = workingDirectory,
             RequiresElevation = requiresElevation,
         };
@@ -738,8 +741,40 @@ public class ContentManifestBuilder(
         // single-token publisher id (no dots). This avoids creating extra
         // dot-separated segments when the ID is constructed.
         var lower = input.ToLowerInvariant().Trim();
-        var cleaned = System.Text.RegularExpressions.Regex.Replace(lower, "[^a-z0-9]", string.Empty);
+        var cleaned = PublisherIdRegex().Replace(lower, string.Empty);
         return string.IsNullOrEmpty(cleaned) ? "unknown" : cleaned;
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex("[^a-z0-9]")]
+    private static partial System.Text.RegularExpressions.Regex PublisherIdRegex();
+
+    /// <summary>
+    /// Determines the installation target based on file extension or path.
+    /// </summary>
+    /// <param name="relativePath">The relative path of the file.</param>
+    /// <returns>The determined installation target.</returns>
+    private static ContentInstallTarget DetermineInstallTarget(string relativePath)
+    {
+        var extension = Path.GetExtension(relativePath).ToLowerInvariant();
+
+        if (extension == ".map" ||
+            (extension == ".tga" && relativePath.Contains("maps", StringComparison.OrdinalIgnoreCase)) ||
+            (extension == ".wak" && relativePath.Contains("maps", StringComparison.OrdinalIgnoreCase)))
+        {
+            return ContentInstallTarget.UserMapsDirectory;
+        }
+
+        if (extension == ".rep")
+        {
+            return ContentInstallTarget.UserReplaysDirectory;
+        }
+
+        if (extension == ".bmp" && relativePath.Contains("screenshots", StringComparison.OrdinalIgnoreCase))
+        {
+            return ContentInstallTarget.UserScreenshotsDirectory;
+        }
+
+        return ContentInstallTarget.Workspace;
     }
 
     /// <summary>
@@ -760,6 +795,8 @@ public class ContentManifestBuilder(
         bool isExecutable = false,
         FilePermissions? permissions = null)
     {
+        var installTarget = DetermineInstallTarget(relativePath);
+
         var manifestFile = new ManifestFile
         {
             RelativePath = relativePath,
@@ -767,6 +804,7 @@ public class ContentManifestBuilder(
             SourceType = sourceType,
             IsExecutable = isExecutable,
             DownloadUrl = downloadUrl,
+            InstallTarget = installTarget,
             Permissions = permissions ?? new FilePermissions { UnixPermissions = isExecutable ? "755" : "644", },
         };
 
