@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -383,9 +385,32 @@ public partial class GameProfileLauncherViewModel(
             var installations = await installationService.GetAllInstallationsAsync();
             if (installations.Success && installations.Data != null)
             {
-                var installationCount = installations.Data.Count;
-                var generalsCount = installations.Data.Count(i => i.HasGenerals);
-                var zeroHourCount = installations.Data.Count(i => i.HasZeroHour);
+                // Convert to mutable list to allow adding manual installations
+                var installationsList = installations.Data.ToList();
+
+                // Check if no installations were found and prompt for manual selection
+                if (installationsList.Count == 0)
+                {
+                    logger.LogInformation("No game installations found, prompting user for manual directory selection");
+
+                    var manualInstallation = await PromptForManualGameDirectoryAsync();
+                    if (manualInstallation != null)
+                    {
+                        // Add the manually selected installation to the list
+                        installationsList.Add(manualInstallation);
+                        logger.LogInformation("User provided manual installation, proceeding with profile creation");
+                    }
+                    else
+                    {
+                        logger.LogInformation("User cancelled manual directory selection");
+                        StatusMessage = "No installations found. Scan cancelled.";
+                        return;
+                    }
+                }
+
+                var installationCount = installationsList.Count;
+                var generalsCount = installationsList.Count(i => i.HasGenerals);
+                var zeroHourCount = installationsList.Count(i => i.HasZeroHour);
 
                 logger.LogInformation(
                     "Game scan completed. Found {Count} installations ({GeneralsCount} Generals, {ZeroHourCount} Zero Hour)",
@@ -399,7 +424,7 @@ public partial class GameProfileLauncherViewModel(
                 bool? wantsGeneralsOnline = null;
                 bool? wantsSuperHackers = null;
 
-                foreach (var installation in installations.Data)
+                foreach (var installation in installationsList)
                 {
                     if (installation.AvailableGameClients == null || installation.AvailableGameClients.Count == 0)
                     {
@@ -627,7 +652,7 @@ public partial class GameProfileLauncherViewModel(
                     }
                 }
 
-                StatusMessage = $"Scan complete. Found {installations.Data.Count} installations, created {profilesCreated} profiles";
+                StatusMessage = $"Scan complete. Found {installationsList.Count} installations, created {profilesCreated} profiles";
 
                 notificationService.ShowSuccess(
                     "Scan Complete",
@@ -1459,5 +1484,125 @@ public partial class GameProfileLauncherViewModel(
         IsShowingPatchPrompt = true;
 
         return await _promptCompletionSource.Task;
+    }
+
+    /// <summary>
+    /// Prompts the user to manually select a game directory when auto-detection fails.
+    /// </summary>
+    /// <returns>A GameInstallation if user selects a valid directory, otherwise null.</returns>
+    private async Task<GameInstallation?> PromptForManualGameDirectoryAsync()
+    {
+        try
+        {
+            var mainWindow = GetMainWindow();
+            if (mainWindow == null)
+            {
+                logger.LogWarning("Cannot show folder picker - main window not found");
+                return null;
+            }
+
+            var folderPickerOptions = new FolderPickerOpenOptions
+            {
+                Title = $"Select {GameClientConstants.ZeroHourFullName} Installation Directory",
+                AllowMultiple = false,
+            };
+
+            var result = await mainWindow.StorageProvider.OpenFolderPickerAsync(folderPickerOptions);
+
+            if (result.Count == 0)
+            {
+                return null; // User cancelled
+            }
+
+            var selectedPath = result[0].Path.LocalPath;
+            logger.LogInformation("User selected directory: {Path}", selectedPath);
+
+            // Validate the selected directory contains game executables
+            string[] zeroHourExecutables =
+            [
+                GameClientConstants.ZeroHourExecutable,
+                GameClientConstants.GeneralsExecutable,
+                GameClientConstants.SuperHackersZeroHourExecutable,
+            ];
+
+            string[] generalsExecutables =
+            [
+                GameClientConstants.GeneralsExecutable,
+                GameClientConstants.SuperHackersGeneralsExecutable,
+            ];
+
+            bool hasZeroHour = zeroHourExecutables.Any(exe => File.Exists(Path.Combine(selectedPath, exe)));
+            bool hasGenerals = generalsExecutables.Any(exe => File.Exists(Path.Combine(selectedPath, exe)));
+
+            // Check if it's a parent directory with subdirectories
+            if (!hasZeroHour && !hasGenerals)
+            {
+                var generalsSubdir = Path.Combine(selectedPath, GameClientConstants.GeneralsDirectoryName);
+                var zeroHourSubdir = Path.Combine(selectedPath, GameClientConstants.ZeroHourDirectoryName);
+
+                if (Directory.Exists(generalsSubdir))
+                {
+                    hasGenerals = generalsExecutables.Any(exe => File.Exists(Path.Combine(generalsSubdir, exe)));
+                }
+
+                if (Directory.Exists(zeroHourSubdir))
+                {
+                    hasZeroHour = zeroHourExecutables.Any(exe => File.Exists(Path.Combine(zeroHourSubdir, exe)));
+                }
+
+                if (hasGenerals || hasZeroHour)
+                {
+                    // Use parent directory as base path
+                    var installation = new GameInstallation(
+                        selectedPath,
+                        GameInstallationType.Retail,
+                        null);
+
+                    installation.SetPaths(
+                        hasGenerals ? generalsSubdir : null,
+                        hasZeroHour ? zeroHourSubdir : null);
+
+                    logger.LogInformation(
+                        "Created manual Retail installation from parent directory: Generals={HasGenerals}, ZeroHour={HasZeroHour}",
+                        hasGenerals,
+                        hasZeroHour);
+
+                    return installation;
+                }
+            }
+            else
+            {
+                // Selected directory IS the game directory
+                var installation = new GameInstallation(
+                    selectedPath,
+                    GameInstallationType.Retail,
+                    null);
+
+                installation.SetPaths(
+                    hasGenerals ? selectedPath : null,
+                    hasZeroHour ? selectedPath : null);
+
+                logger.LogInformation(
+                    "Created manual Retail installation from selected directory: Generals={HasGenerals}, ZeroHour={HasZeroHour}",
+                    hasGenerals,
+                    hasZeroHour);
+
+                return installation;
+            }
+
+            logger.LogWarning("Selected directory does not contain valid game executables: {Path}", selectedPath);
+            notificationService.ShowWarning(
+                "Invalid Directory",
+                "The selected directory does not contain valid game executables.");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error occurred during manual directory selection");
+            notificationService.ShowError(
+                "Error",
+                $"Failed to process selected directory: {ex.Message}");
+            return null;
+        }
     }
 }

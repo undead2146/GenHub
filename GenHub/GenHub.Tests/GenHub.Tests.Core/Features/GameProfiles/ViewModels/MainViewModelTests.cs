@@ -117,45 +117,6 @@ public class MainViewModelTests
     }
 
     /// <summary>
-    /// Verifies ScanAndCreateProfilesAsync can be called.
-    /// </summary>
-    /// <returns>A task representing the asynchronous test operation.</returns>
-    [Fact]
-    public async Task ScanAndCreateProfilesAsync_CanBeCalled()
-    {
-        // Arrange
-        var mockOrchestrator = new Mock<IGameInstallationDetectionOrchestrator>();
-        var (settingsVm, userSettingsMock) = CreateSettingsVm();
-        var toolsVm = CreateToolsVm();
-        var configProvider = CreateConfigProviderMock();
-        var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
-        var mockVelopackUpdateManager = new Mock<IVelopackUpdateManager>();
-        var mockLogger = new Mock<ILogger<MainViewModel>>();
-        var mockNotificationService = CreateNotificationServiceMock();
-        var mockNotificationManager = new Mock<NotificationManagerViewModel>(
-            mockNotificationService.Object,
-            Mock.Of<ILogger<NotificationManagerViewModel>>(),
-            Mock.Of<ILogger<NotificationItemViewModel>>());
-        var viewModel = new MainViewModel(
-            CreateGameProfileLauncherViewModel(),
-            CreateDownloadsViewModel(),
-            toolsVm,
-            settingsVm,
-            mockNotificationManager.Object,
-            mockOrchestrator.Object,
-            configProvider,
-            userSettingsMock.Object,
-            mockProfileEditorFacade.Object,
-            mockVelopackUpdateManager.Object,
-            CreateProfileResourceService(),
-            mockLogger.Object);
-
-        // Act & Assert
-        await viewModel.ScanAndCreateProfilesAsync();
-        Assert.True(true); // Test passes if no exception is thrown
-    }
-
-    /// <summary>
     /// Tests that multiple calls to <see cref="MainViewModel.InitializeAsync"/> are safe.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>

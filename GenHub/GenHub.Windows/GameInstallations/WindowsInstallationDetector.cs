@@ -118,19 +118,66 @@ public class WindowsInstallationDetector(ILogger<WindowsInstallationDetector> lo
         return Task.FromResult(result);
     }
 
+    /// <summary>
+    /// Checks if any of the specified executables exist in the given directory.
+    /// </summary>
+    /// <param name="directory">The directory to check.</param>
+    /// <param name="executableNames">The list of executable names to look for.</param>
+    /// <returns>True if any of the executables exist.</returns>
+    private static bool HasAnyExecutable(string directory, string[] executableNames)
+    {
+        foreach (var exe in executableNames)
+        {
+            if (File.Exists(Path.Combine(directory, exe)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private List<GameInstallation> DetectRetailInstallations()
     {
         var retailInstalls = new List<GameInstallation>();
+
+        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+
         var possiblePaths = new[]
         {
-            @"C:\Program Files\EA Games\Command & Conquer Generals",
-            @"C:\Program Files (x86)\EA Games\Command & Conquer Generals",
+            Path.Combine(programFiles, GameClientConstants.EaGamesParentDirectoryName, GameClientConstants.GeneralsRetailDirectoryName),
+            Path.Combine(programFilesX86, GameClientConstants.EaGamesParentDirectoryName, GameClientConstants.GeneralsRetailDirectoryName),
+            Path.Combine(programFiles, GameClientConstants.EaGamesParentDirectoryName, GameClientConstants.ZeroHourRetailDirectoryName),
+            Path.Combine(programFilesX86, GameClientConstants.EaGamesParentDirectoryName, GameClientConstants.ZeroHourRetailDirectoryName),
         };
 
         foreach (var basePath in possiblePaths)
         {
             if (Directory.Exists(basePath))
             {
+                // Check if this is a Zero Hour-only installation (base path IS the game directory)
+                if (basePath.EndsWith(GameClientConstants.ZeroHourRetailDirectoryName, StringComparison.OrdinalIgnoreCase))
+                {
+                    // Check if Zero Hour executables exist directly in this directory
+                    var zeroHourExecutables = new[]
+                    {
+                        GameClientConstants.ZeroHourExecutable,
+                        GameClientConstants.GeneralsExecutable,
+                        GameClientConstants.SuperHackersZeroHourExecutable,
+                    };
+
+                    if (HasAnyExecutable(basePath, zeroHourExecutables))
+                    {
+                        var installation = new GameInstallation(basePath, GameInstallationType.Retail, null);
+                        installation.SetPaths(null, basePath);
+                        retailInstalls.Add(installation);
+                        logger.LogInformation("Detected standalone Zero Hour Retail installation at {BasePath}", basePath);
+                        continue;
+                    }
+                }
+
+                // Standard detection: check for subdirectories
                 var generalsPath = Path.Combine(basePath, GameClientConstants.GeneralsDirectoryName);
                 var zeroHourPath = Path.Combine(basePath, GameClientConstants.ZeroHourDirectoryName);
 

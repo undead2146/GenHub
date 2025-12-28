@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace GenHub.Core.Constants;
 
 /// <summary>
@@ -46,6 +48,15 @@ public static class GameClientConstants
 
     /// <summary>Zero Hour directory name abbreviated form.</summary>
     public const string ZeroHourDirectoryNameAbbreviated = "C&C Generals Zero Hour";
+
+    /// <summary>EA Games parent directory name.</summary>
+    public const string EaGamesParentDirectoryName = "EA Games";
+
+    /// <summary>Standard retail Generals directory name.</summary>
+    public const string GeneralsRetailDirectoryName = "Command & Conquer Generals";
+
+    /// <summary>Standard retail Zero Hour directory name.</summary>
+    public const string ZeroHourRetailDirectoryName = "Command & Conquer Generals Zero Hour";
 
     // ===== GeneralsOnline Client Detection =====
 
@@ -113,24 +124,23 @@ public static class GameClientConstants
     /// </summary>
     public const string ZeroHourShortName = "Zero Hour";
 
-    // ===== Required DLLs =====
-
     /// <summary>
     /// DLLs required for standard game installations.
     /// </summary>
-    public static readonly string[] RequiredDlls = new[]
-    {
+    public static readonly string[] RequiredDlls =
+    [
         "steam_api.dll",      // Steam integration
         "binkw32.dll",        // Bink video codec
         "mss32.dll",          // Miles Sound System
         "eauninstall.dll",    // EA App integration
-    };
+    ];
 
     /// <summary>
     /// DLLs specific to GeneralsOnline installations.
     /// </summary>
-    public static readonly string[] GeneralsOnlineDlls = new[]
-    {
+    public static readonly string[] GeneralsOnlineDlls =
+    [
+
         // Core runtime DLLs (required for GeneralsOnline client)
         "abseil_dll.dll",          // Abseil C++ library for networking
         "GameNetworkingSockets.dll", // Valve networking library
@@ -145,38 +155,48 @@ public static class GameClientConstants
         "binkw32.dll",             // Bink video codec
         "mss32.dll",               // Miles Sound System
         "wsock32.dll",             // Network socket library
-    };
+    ];
+
+    /// <summary>Common registry value names for installation paths.</summary>
+    public static readonly string[] InstallationPathRegistryValues =
+    [
+        "Install Dir",
+        "InstallPath",
+        "Install Path",
+        "Folder",
+        "Path"
+    ];
 
     // ===== Configuration Files =====
 
     /// <summary>
     /// Configuration files used by game installations.
     /// </summary>
-    public static readonly string[] ConfigFiles = new[]
-    {
+    public static readonly string[] ConfigFiles =
+    [
         "options.ini",     // Legacy game options
         "skirmish.ini",    // Skirmish settings
         "network.ini",     // Network configuration
-    };
+    ];
 
     /// <summary>
     /// List of GeneralsOnline executable names to detect.
     /// Only includes 30Hz and 60Hz variants as these are the primary clients.
     /// GeneralsOnline provides auto-updated clients for Command &amp; Conquer Generals and Zero Hour.
     /// </summary>
-    public static readonly IReadOnlyList<string> GeneralsOnlineExecutableNames = new[]
-    {
+    public static readonly IReadOnlyList<string> GeneralsOnlineExecutableNames =
+    [
         GeneralsOnline30HzExecutable,
         GeneralsOnline60HzExecutable,
-    };
+    ];
 
     /// <summary>
     /// List of SuperHackers executable names to detect.
     /// SuperHackers releases weekly game client builds for Generals and Zero Hour.
     /// </summary>
-    public static readonly IReadOnlyList<string> SuperHackersExecutableNames = new[]
-    {
+    public static readonly IReadOnlyList<string> SuperHackersExecutableNames =
+    [
         SuperHackersGeneralsExecutable,  // generalsv.exe
         SuperHackersZeroHourExecutable,  // generalszh.exe
-    };
+    ];
 }
