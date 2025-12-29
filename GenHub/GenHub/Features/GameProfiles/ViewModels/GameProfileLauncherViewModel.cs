@@ -5,7 +5,9 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -14,6 +16,7 @@ using GenHub.Common.ViewModels;
 using GenHub.Core.Constants;
 using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.GameClients;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Notifications;
@@ -46,7 +49,9 @@ public partial class GameProfileLauncherViewModel(
     IPublisherProfileOrchestrator publisherProfileOrchestrator,
     ISteamManifestPatcher steamManifestPatcher,
     ProfileResourceService profileResourceService,
+    IGameClientDetector gameClientDetector,
     INotificationService notificationService,
+    ISetupWizardService setupWizardService,
     ILogger<GameProfileLauncherViewModel> logger) : ViewModelBase,
     IRecipient<ProfileCreatedMessage>,
     IRecipient<ProfileUpdatedMessage>,
@@ -241,6 +246,16 @@ public partial class GameProfileLauncherViewModel(
         });
     }
 
+    private static Window? GetMainWindow()
+    {
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            return desktop.MainWindow;
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Gets the default theme color for a game type.
     /// </summary>
@@ -279,17 +294,6 @@ public partial class GameProfileLauncherViewModel(
     private static bool IsStandardGameClient(GameClient client)
     {
         return !client.IsPublisherClient;
-    }
-
-    /// <summary>
-    /// Gets the main window for opening dialogs.
-    /// </summary>
-    private static Window? GetMainWindow()
-    {
-        return Avalonia.Application.Current?.ApplicationLifetime
-            is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
-            ? desktop.MainWindow
-            : null;
     }
 
     /// <summary>
@@ -396,6 +400,16 @@ public partial class GameProfileLauncherViewModel(
                     var manualInstallation = await PromptForManualGameDirectoryAsync();
                     if (manualInstallation != null)
                     {
+                        // Ensure paths are populated
+                        manualInstallation.Fetch();
+
+                        // Detect game clients for the manual installation (also generates GameClient manifests)
+                        var detectionResult = await gameClientDetector.DetectGameClientsFromInstallationsAsync([manualInstallation]);
+                        if (detectionResult.Success && detectionResult.Items?.Count > 0)
+                        {
+                            manualInstallation.PopulateGameClients(detectionResult.Items);
+                        }
+
                         // Add the manually selected installation to the list
                         installationsList.Add(manualInstallation);
                         logger.LogInformation("User provided manual installation, proceeding with profile creation");
@@ -418,12 +432,17 @@ public partial class GameProfileLauncherViewModel(
                     generalsCount,
                     zeroHourCount);
 
+                // Run Setup Wizard via Service
+                var wizardResult = await setupWizardService.RunSetupWizardAsync(installationsList);
+
+                var cpDecision = wizardResult.CommunityPatchAction;
+                var goDecision = wizardResult.GeneralsOnlineAction;
+                var shDecision = wizardResult.SuperHackersAction;
+
+                bool wizardConfirmed = wizardResult.Confirmed;
+
+                // 4. Execution Phase: Apply decisions per installation
                 int profilesCreated = 0;
-
-                // Track user preference for publisher clients during this scan to avoid multiple prompts
-                bool? wantsGeneralsOnline = null;
-                bool? wantsSuperHackers = null;
-
                 foreach (var installation in installationsList)
                 {
                     if (installation.AvailableGameClients == null || installation.AvailableGameClients.Count == 0)
@@ -431,223 +450,58 @@ public partial class GameProfileLauncherViewModel(
                         continue;
                     }
 
-                    // Check if this installation has any publisher clients (GeneralsOnline, TheSuperHackers)
-                    bool hasPublisherClients = HasPublisherClients(installation);
+                    logger.LogInformation("Processing installation: {InstallationId} ({Type})", installation.Id, installation.InstallationType);
+                    bool anyPatchHandled = false;
 
-                    // Track if GeneralsOnline was already detected in this installation
-                    bool hasGeneralsOnline = installation.AvailableGameClients.Any(c =>
-                        c.PublisherType?.Equals(PublisherTypeConstants.GeneralsOnline, StringComparison.OrdinalIgnoreCase) == true);
-
-                    if (hasPublisherClients)
+                    // Execute CP Decision
+                    if (cpDecision != GameClientConstants.WizardActionTypes.Decline && cpDecision != GameClientConstants.WizardActionTypes.None)
                     {
-                        // Publisher clients detected - create profiles only for publisher clients, skip base games
-                        logger.LogInformation(
-                            "Installation {InstallationId} has publisher clients, skipping base game profiles",
-                            installation.Id);
-
-                        notificationService.ShowInfo(
-                            "Existing Patches Found",
-                            "Creating profiles for existing patches...",
-                            null);
-
-                        foreach (var gameClient in installation.AvailableGameClients)
+                        var cpClient = installation.AvailableGameClients.FirstOrDefault(c => c.PublisherType == CommunityOutpostConstants.PublisherType);
+                        if (cpClient != null || cpDecision == GameClientConstants.WizardActionTypes.Install)
                         {
-                            if (gameClient.IsPublisherClient)
-                            {
-                                logger.LogInformation(
-                                    "Processing publisher client: {ClientName} (PublisherType: '{PublisherType}')",
-                                    gameClient.Name,
-                                    gameClient.PublisherType ?? "null");
-
-                                // Special handling for GeneralsOnline:
-                                // If profiles don't exist, PROMPT the user instead of auto-creating.
-                                // This handles the case where Community Patch installs GO files but the user declined the GO profile.
-                                if (gameClient.PublisherType == PublisherTypeConstants.GeneralsOnline)
-                                {
-                                    bool profileExists = await ProfileExistsAsync(installation, gameClient);
-                                    if (!profileExists)
-                                    {
-                                        // If user already declined during this scan, skip
-                                        if (wantsGeneralsOnline == false)
-                                        {
-                                            continue;
-                                        }
-
-                                        // If not yet asked, prompt
-                                        if (wantsGeneralsOnline == null)
-                                        {
-                                            // TODO: Localization - Move these strings to localization system when implemented
-                                            logger.LogInformation("GeneralsOnline files detected but no profile exists. Prompting user.");
-                                            wantsGeneralsOnline = await ShowPromptAsync(
-                                                "GeneralsOnline Detected",
-                                                "GeneralsOnline files were found in your installation. Do you want to create profiles for them?",
-                                                installation);
-                                        }
-
-                                        // If declined, skip
-                                        if (wantsGeneralsOnline == false)
-                                        {
-                                            logger.LogInformation("User declined GeneralsOnline profile creation during scan.");
-                                            continue;
-                                        }
-                                    }
-                                }
-
-                                // Special handling for TheSuperHackers:
-                                // If profiles don't exist, PROMPT the user instead of auto-creating.
-                                else if (gameClient.PublisherType == PublisherTypeConstants.TheSuperHackers)
-                                {
-                                    bool profileExists = await ProfileExistsAsync(installation, gameClient);
-                                    if (!profileExists)
-                                    {
-                                        // If user already declined during this scan, skip
-                                        if (wantsSuperHackers == false)
-                                        {
-                                            continue;
-                                        }
-
-                                        // If not yet asked, prompt
-                                        if (wantsSuperHackers == null)
-                                        {
-                                            // TODO: Localization - Move these strings to localization system when implemented
-                                            logger.LogInformation("SuperHackers files detected but no profile exists. Prompting user.");
-                                            wantsSuperHackers = await ShowPromptAsync(
-                                                "SuperHackers Weekly Release Detected",
-                                                "SuperHackers weekly release files were found in your installation. Do you want to create profiles for them?",
-                                                installation);
-                                        }
-
-                                        // If declined, skip
-                                        if (wantsSuperHackers == false)
-                                        {
-                                            logger.LogInformation("User declined SuperHackers profile creation during scan.");
-                                            continue;
-                                        }
-                                    }
-                                }
-
-                                var profileCreated = await TryCreateProfileForGameClientAsync(installation, gameClient);
-                                if (profileCreated) profilesCreated++;
-                            }
-                            else
-                            {
-                                logger.LogDebug(
-                                    "Skipping base game client {ClientName} - publisher clients exist",
-                                    gameClient.Name);
-                            }
+                            var clientToUse = cpClient ?? new GameClient { Id = GameClientConstants.SyntheticClientIds.CommunityPatch, Name = "Community Patch", PublisherType = CommunityOutpostConstants.PublisherType, GameType = GameType.ZeroHour, InstallationId = installation.Id };
+                            bool forceAttr = cpDecision == GameClientConstants.WizardActionTypes.Update;
+                            var result = await publisherProfileOrchestrator.CreateProfilesForPublisherClientAsync(installation, clientToUse, forceReacquireContent: forceAttr);
+                            if (result.Success && result.Data > 0) profilesCreated += result.Data;
+                            anyPatchHandled = true;
                         }
                     }
-                    else
+
+                    // Execute GO Decision
+                    if (goDecision != "Decline" && goDecision != "None")
                     {
-                        // No publisher clients - prompt for Community Patch installation
-                        logger.LogInformation(
-                            "Installation {InstallationId} has no publisher clients, prompting for Community Patch",
-                            installation.Id);
-
-                        // TODO: Localization - Move these strings to localization system when implemented
-                        var wantsCommunityPatch = await ShowPromptAsync(
-                            "Install Community Patch?",
-                            "Would you like to install the Community Patch? This includes the latest fixes and improvements and is recommended over base game profiles.",
-                            installation);
-
-                        if (wantsCommunityPatch)
+                        var goClient = installation.AvailableGameClients.FirstOrDefault(c => c.PublisherType == PublisherTypeConstants.GeneralsOnline);
+                        if (goClient != null || goDecision == "Install")
                         {
-                            // User wants Community Patch - use the orchestrator to acquire and create profiles
-                            logger.LogInformation("User accepted Community Patch installation");
-                            notificationService.ShowInfo(
-                                "Installing Community Patch",
-                                "Downloading and installing Community Patch...",
-                                null);
-
-                            // Create synthetic GameClient for Community Patch
-                            var communityPatchClient = new GameClient
-                            {
-                                Id = $"communityoutpost.gameclient.communitypatch",
-                                Name = "Community Patch",
-                                PublisherType = CommunityOutpostConstants.PublisherType,
-                                GameType = GameType.ZeroHour,
-                                InstallationId = installation.Id,
-                            };
-
-                            var cpResult = await publisherProfileOrchestrator.CreateProfilesForPublisherClientAsync(
-                                installation, communityPatchClient);
-
-                            if (cpResult.Success && cpResult.Data > 0)
-                            {
-                                profilesCreated += cpResult.Data;
-                                logger.LogInformation("Community Patch installed, created {Count} profiles", cpResult.Data);
-
-                                // Only prompt for GeneralsOnline if it wasn't already detected in the installation
-                                // This prevents duplicate prompts when GO files already exist
-                                if (!hasGeneralsOnline)
-                                {
-                                    // Check global preference before prompting
-                                    // TODO: Localization - Move these strings to localization system when implemented
-                                    wantsGeneralsOnline ??= await ShowPromptAsync(
-                                        "Install GeneralsOnline?",
-                                        "Would you also like to install GeneralsOnline for online multiplayer?",
-                                        installation);
-
-                                    if (wantsGeneralsOnline == true)
-                                    {
-                                        notificationService.ShowInfo(
-                                            "Installing GeneralsOnline",
-                                            "Downloading and installing GeneralsOnline...",
-                                            null);
-
-                                        var goClient = new GameClient
-                                        {
-                                            Id = $"generalsonline.gameclient",
-                                            Name = "GeneralsOnline",
-                                            PublisherType = PublisherTypeConstants.GeneralsOnline,
-                                            GameType = GameType.ZeroHour,
-                                            InstallationId = installation.Id,
-                                        };
-
-                                        var goResult = await publisherProfileOrchestrator.CreateProfilesForPublisherClientAsync(
-                                            installation, goClient);
-
-                                        if (goResult.Success && goResult.Data > 0)
-                                        {
-                                            profilesCreated += goResult.Data;
-                                            logger.LogInformation("GeneralsOnline installed, created {Count} profiles", goResult.Data);
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    logger.LogInformation("GeneralsOnline already detected in installation, skipping installation prompt");
-                                }
-                            }
-                            else
-                            {
-                                logger.LogWarning("Failed to create Community Patch profiles");
-                                notificationService.ShowWarning(
-                                    "Community Patch Failed",
-                                    "Community Patch installation failed. Creating base game profiles as fallback.");
-
-                                // Fallback to base profiles if acquisition failed
-                                foreach (var gameClient in installation.AvailableGameClients)
-                                {
-                                    var profileCreated = await TryCreateProfileForGameClientAsync(installation, gameClient);
-                                    if (profileCreated) profilesCreated++;
-                                }
-                            }
+                            var clientToUse = goClient ?? new GameClient { Id = "go.synth", Name = "GeneralsOnline", PublisherType = PublisherTypeConstants.GeneralsOnline, GameType = GameType.ZeroHour, InstallationId = installation.Id };
+                            bool forceAttr = goDecision == "Update";
+                            var result = await publisherProfileOrchestrator.CreateProfilesForPublisherClientAsync(installation, clientToUse, forceReacquireContent: forceAttr);
+                            if (result.Success && result.Data > 0) profilesCreated += result.Data;
+                            anyPatchHandled = true;
                         }
-                        else
-                        {
-                            // User declined - create base game profiles as fallback
-                            logger.LogInformation("User declined Community Patch, creating base game profiles");
-                            notificationService.ShowInfo(
-                                "Creating Base Profiles",
-                                "Creating profiles for base game installations...",
-                                null);
+                    }
 
-                            foreach (var gameClient in installation.AvailableGameClients)
-                            {
-                                var profileCreated = await TryCreateProfileForGameClientAsync(installation, gameClient);
-                                if (profileCreated) profilesCreated++;
-                            }
+                    // Execute SH Decision
+                    if (shDecision != "Decline" && shDecision != "None")
+                    {
+                        var shClient = installation.AvailableGameClients.FirstOrDefault(c => c.PublisherType == PublisherTypeConstants.TheSuperHackers);
+                        if (shClient != null || shDecision == "Install")
+                        {
+                            var clientToUse = shClient ?? new GameClient { Id = "sh.synth", Name = "SuperHackers", PublisherType = PublisherTypeConstants.TheSuperHackers, GameType = GameType.ZeroHour, InstallationId = installation.Id };
+                            bool forceAttr = shDecision == "Update";
+                            var result = await publisherProfileOrchestrator.CreateProfilesForPublisherClientAsync(installation, clientToUse, forceReacquireContent: forceAttr);
+                            if (result.Success && result.Data > 0) profilesCreated += result.Data;
+                            anyPatchHandled = true;
+                        }
+                    }
+
+                    // Fallback to base game profiles if no patches were handled
+                    if (!anyPatchHandled)
+                    {
+                        logger.LogInformation("No patches selected or found for {InstallationId}, creating base game profiles", installation.Id);
+                        foreach (var client in installation.AvailableGameClients.Where(c => !c.IsPublisherClient))
+                        {
+                            if (await TryCreateProfileForGameClientAsync(installation, client)) profilesCreated++;
                         }
                     }
                 }
@@ -656,7 +510,8 @@ public partial class GameProfileLauncherViewModel(
 
                 notificationService.ShowSuccess(
                     "Scan Complete",
-                    $"Created {profilesCreated} profile(s) for your game installations.");
+                    $"Created {profilesCreated} profile(s) for your game installations.",
+                    autoDismissMs: 10000);
             }
             else
             {
@@ -1473,20 +1328,6 @@ public partial class GameProfileLauncherViewModel(
     }
 
     /// <summary>
-    /// Shows a prompt to the user and waits for their response.
-    /// </summary>
-    private async Task<bool> ShowPromptAsync(string title, string message, GameInstallation installation)
-    {
-        _pendingInstallation = installation;
-        _promptCompletionSource = new TaskCompletionSource<bool>();
-        PromptTitle = title;
-        PromptMessage = message;
-        IsShowingPatchPrompt = true;
-
-        return await _promptCompletionSource.Task;
-    }
-
-    /// <summary>
     /// Prompts the user to manually select a game directory when auto-detection fails.
     /// </summary>
     /// <returns>A GameInstallation if user selects a valid directory, otherwise null.</returns>
@@ -1534,45 +1375,9 @@ public partial class GameProfileLauncherViewModel(
             bool hasZeroHour = zeroHourExecutables.Any(exe => File.Exists(Path.Combine(selectedPath, exe)));
             bool hasGenerals = generalsExecutables.Any(exe => File.Exists(Path.Combine(selectedPath, exe)));
 
-            // Check if it's a parent directory with subdirectories
-            if (!hasZeroHour && !hasGenerals)
+            if (hasZeroHour || hasGenerals)
             {
-                var generalsSubdir = Path.Combine(selectedPath, GameClientConstants.GeneralsDirectoryName);
-                var zeroHourSubdir = Path.Combine(selectedPath, GameClientConstants.ZeroHourDirectoryName);
-
-                if (Directory.Exists(generalsSubdir))
-                {
-                    hasGenerals = generalsExecutables.Any(exe => File.Exists(Path.Combine(generalsSubdir, exe)));
-                }
-
-                if (Directory.Exists(zeroHourSubdir))
-                {
-                    hasZeroHour = zeroHourExecutables.Any(exe => File.Exists(Path.Combine(zeroHourSubdir, exe)));
-                }
-
-                if (hasGenerals || hasZeroHour)
-                {
-                    // Use parent directory as base path
-                    var installation = new GameInstallation(
-                        selectedPath,
-                        GameInstallationType.Retail,
-                        null);
-
-                    installation.SetPaths(
-                        hasGenerals ? generalsSubdir : null,
-                        hasZeroHour ? zeroHourSubdir : null);
-
-                    logger.LogInformation(
-                        "Created manual Retail installation from parent directory: Generals={HasGenerals}, ZeroHour={HasZeroHour}",
-                        hasGenerals,
-                        hasZeroHour);
-
-                    return installation;
-                }
-            }
-            else
-            {
-                // Selected directory IS the game directory
+                // Selected directory is the game directory
                 var installation = new GameInstallation(
                     selectedPath,
                     GameInstallationType.Retail,
@@ -1584,6 +1389,40 @@ public partial class GameProfileLauncherViewModel(
 
                 logger.LogInformation(
                     "Created manual Retail installation from selected directory: Generals={HasGenerals}, ZeroHour={HasZeroHour}",
+                    hasGenerals,
+                    hasZeroHour);
+
+                return installation;
+            }
+
+            // Check if it's a parent directory with subdirectories
+            var generalsSubdir = Path.Combine(selectedPath, GameClientConstants.GeneralsDirectoryName);
+            var zeroHourSubdir = Path.Combine(selectedPath, GameClientConstants.ZeroHourDirectoryName);
+
+            if (Directory.Exists(generalsSubdir))
+            {
+                hasGenerals = generalsExecutables.Any(exe => File.Exists(Path.Combine(generalsSubdir, exe)));
+            }
+
+            if (Directory.Exists(zeroHourSubdir))
+            {
+                hasZeroHour = zeroHourExecutables.Any(exe => File.Exists(Path.Combine(zeroHourSubdir, exe)));
+            }
+
+            if (hasGenerals || hasZeroHour)
+            {
+                // Use parent directory as base path
+                var installation = new GameInstallation(
+                    selectedPath,
+                    GameInstallationType.Retail,
+                    null);
+
+                installation.SetPaths(
+                    hasGenerals ? generalsSubdir : null,
+                    hasZeroHour ? zeroHourSubdir : null);
+
+                logger.LogInformation(
+                    "Created manual Retail installation from parent directory: Generals={HasGenerals}, ZeroHour={HasZeroHour}",
                     hasGenerals,
                     hasZeroHour);
 

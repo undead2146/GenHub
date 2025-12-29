@@ -60,6 +60,9 @@ public static class GameProfileModule
                 logger);
         });
 
+        // Register SetupWizardService
+        services.AddScoped<ISetupWizardService, SetupWizardService>();
+
         return services;
     }
 

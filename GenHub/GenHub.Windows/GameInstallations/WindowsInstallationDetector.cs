@@ -118,25 +118,6 @@ public class WindowsInstallationDetector(ILogger<WindowsInstallationDetector> lo
         return Task.FromResult(result);
     }
 
-    /// <summary>
-    /// Checks if any of the specified executables exist in the given directory.
-    /// </summary>
-    /// <param name="directory">The directory to check.</param>
-    /// <param name="executableNames">The list of executable names to look for.</param>
-    /// <returns>True if any of the executables exist.</returns>
-    private static bool HasAnyExecutable(string directory, string[] executableNames)
-    {
-        foreach (var exe in executableNames)
-        {
-            if (File.Exists(Path.Combine(directory, exe)))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private List<GameInstallation> DetectRetailInstallations()
     {
         var retailInstalls = new List<GameInstallation>();
@@ -167,7 +148,7 @@ public class WindowsInstallationDetector(ILogger<WindowsInstallationDetector> lo
                         GameClientConstants.SuperHackersZeroHourExecutable,
                     };
 
-                    if (HasAnyExecutable(basePath, zeroHourExecutables))
+                    if (zeroHourExecutables.Any(exe => File.Exists(Path.Combine(basePath, exe))))
                     {
                         var installation = new GameInstallation(basePath, GameInstallationType.Retail, null);
                         installation.SetPaths(null, basePath);

@@ -92,6 +92,11 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     private string _errorMessage = string.Empty;
 
     /// <summary>
+    /// Gets the current application version.
+    /// </summary>
+    public static string CurrentAppVersion => AppConstants.AppVersion;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="UpdateNotificationViewModel"/> class.
     /// </summary>
     /// <param name="velopackUpdateManager">The Velopack update manager.</param>
@@ -122,11 +127,6 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     /// Gets the command to dismiss the update notification.
     /// </summary>
     public ICommand DismissCommand { get; }
-
-    /// <summary>
-    /// Gets the current application version.
-    /// </summary>
-    public string CurrentAppVersion => AppConstants.AppVersion;
 
     /// <summary>
     /// Gets a value indicating whether an update is available and can be downloaded.

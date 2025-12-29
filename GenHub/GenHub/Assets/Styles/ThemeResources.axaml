@@ -47,5 +47,6 @@
     <SolidColorBrush x:Key="CardBackground" Color="#333333" />
     <SolidColorBrush x:Key="AccentColor" Color="#7B1FA2" />
     
+    <StreamGeometry x:Key="CheckmarkIcon">M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z</StreamGeometry>
     <Color x:Key="SystemAccentColor">#7B1FA2</Color>
 </ResourceDictionary>

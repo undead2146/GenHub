@@ -89,7 +89,7 @@ public static class GameClientConstants
     // ===== Version Strings =====
 
     /// <summary>Version string used for automatically detected clients.</summary>
-    public const string AutoDetectedVersion = "Automatically added";
+    public const string AutoDetectedVersion = "Unknown";
 
     /// <summary>Version string used for unknown/unrecognized clients.</summary>
     public const string UnknownVersion = "Unknown";
@@ -199,4 +199,40 @@ public static class GameClientConstants
         SuperHackersGeneralsExecutable,  // generalsv.exe
         SuperHackersZeroHourExecutable,  // generalszh.exe
     ];
+
+    /// <summary>
+    /// Action types used in the Setup Wizard.
+    /// </summary>
+    public static class WizardActionTypes
+    {
+        /// <summary>Update an existing component.</summary>
+        public const string Update = "Update";
+
+        /// <summary>Install a new component.</summary>
+        public const string Install = "Install";
+
+        /// <summary>Create a profile for an existing installation.</summary>
+        public const string CreateProfile = "CreateProfile";
+
+        /// <summary>Decline the component.</summary>
+        public const string Decline = "Decline";
+
+        /// <summary>No action taken.</summary>
+        public const string None = "None";
+    }
+
+    /// <summary>
+    /// Deterministic IDs for synthetic game clients used during initial setup.
+    /// </summary>
+    public static class SyntheticClientIds
+    {
+        /// <summary>Synthetic ID for Community Patch.</summary>
+        public const string CommunityPatch = "cp.synth";
+
+        /// <summary>Synthetic ID for Generals Online.</summary>
+        public const string GeneralsOnline = "go.synth";
+
+        /// <summary>Synthetic ID for Super Hackers.</summary>
+        public const string SuperHackers = "sh.synth";
+    }
 }

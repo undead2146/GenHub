@@ -1,6 +1,11 @@
+using System.Collections.Generic;
+using System.Net.Http;
 using System.Reactive.Linq;
+using System.Threading.Tasks;
+using Avalonia.Controls;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GameSettings;
@@ -17,7 +22,11 @@ using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Notifications;
 using GenHub.Features.AppUpdate.Interfaces;
+using GenHub.Features.Content.Services.CommunityOutpost;
 using GenHub.Features.Content.Services.ContentDiscoverers;
+using GenHub.Features.Content.Services.ContentProviders;
+using GenHub.Features.Content.Services.GeneralsOnline;
+using GenHub.Features.Content.Services.Publishers;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.ViewModels;
@@ -321,8 +330,31 @@ public class MainViewModelTests
             new Mock<IPublisherProfileOrchestrator>().Object,
             new Mock<ISteamManifestPatcher>().Object,
             CreateProfileResourceService(),
+            new Mock<GenHub.Core.Interfaces.GameClients.IGameClientDetector>().Object,
             notificationService.Object,
+            new Mock<ISetupWizardService>().Object,
             NullLogger<GameProfileLauncherViewModel>.Instance);
+    }
+
+    private static SuperHackersProvider CreateSuperHackersProvider()
+    {
+        var discovererMock = new Mock<IContentDiscoverer>();
+        discovererMock.Setup(x => x.SourceName).Returns("GitHubReleasesDiscoverer");
+
+        var resolverMock = new Mock<IContentResolver>();
+        resolverMock.Setup(x => x.ResolverId).Returns(GenHub.Core.Constants.SuperHackersConstants.ResolverId);
+
+        var delivererMock = new Mock<IContentDeliverer>();
+        delivererMock.Setup(x => x.SourceName).Returns(GenHub.Core.Constants.ContentSourceNames.GitHubDeliverer);
+
+        var gitHubApiClientMock = new Mock<IGitHubApiClient>();
+
+        return new SuperHackersProvider(
+            gitHubApiClientMock.Object,
+            [resolverMock.Object],
+            [delivererMock.Object],
+            new Mock<GenHub.Core.Interfaces.Content.IContentValidator>().Object,
+            NullLogger<SuperHackersProvider>.Instance);
     }
 
     private static Mock<INotificationService> CreateNotificationServiceMock()
