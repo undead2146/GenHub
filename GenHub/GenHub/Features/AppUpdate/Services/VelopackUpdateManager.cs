@@ -597,19 +597,80 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
     }
 
     /// <inheritdoc/>
-    public async Task InstallPrArtifactAsync(
-        PullRequestInfo prInfo,
-        IProgress<UpdateProgress>? progress = null,
-        CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<string>> GetBranchesAsync(CancellationToken cancellationToken = default)
     {
-        if (prInfo.LatestArtifact == null)
-        {
-            throw new InvalidOperationException($"PR #{prInfo.Number} has no artifacts available");
-        }
+        _logger.LogInformation("Fetching available branches");
+        List<string> results = [];
 
         if (_gitHubTokenStorage == null || !_gitHubTokenStorage.HasToken())
         {
-            throw new InvalidOperationException("GitHub PAT required to download PR artifacts");
+            _logger.LogDebug("No GitHub PAT available, skipping branch list fetch");
+
+            // Return at least main & development as defaults if we can't fetch real ones
+            return ["main", "development"];
+        }
+
+        try
+        {
+            var token = await _gitHubTokenStorage.LoadTokenAsync();
+            if (token == null)
+            {
+                return ["main", "development"];
+            }
+
+            using var client = CreateConfiguredHttpClientWithToken(token);
+            var owner = AppConstants.GitHubRepositoryOwner;
+            var repo = AppConstants.GitHubRepositoryName;
+            var branchesUrl = $"https://api.github.com/repos/{owner}/{repo}/branches?per_page=100";
+
+            var response = await client.GetAsync(branchesUrl, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Failed to fetch branches: {Status}", response.StatusCode);
+                return ["main", "development"];
+            }
+
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            var branches = JsonSerializer.Deserialize<JsonElement>(json);
+
+            if (branches.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var branch in branches.EnumerateArray())
+                {
+                    var name = branch.GetProperty("name").GetString();
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        results.Add(name);
+                    }
+                }
+            }
+
+            _logger.LogInformation("Found {Count} branches", results.Count);
+
+            // Ensure main and development are always present if not found
+            if (!results.Contains("main")) results.Add("main");
+            if (!results.Contains("development")) results.Add("development");
+
+            return [.. results.OrderBy(b => b)];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch branches");
+            return ["main", "development"];
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task InstallArtifactAsync(
+        ArtifactUpdateInfo artifactInfo,
+        IProgress<UpdateProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(artifactInfo);
+
+        if (_gitHubTokenStorage == null || !_gitHubTokenStorage.HasToken())
+        {
+            throw new InvalidOperationException("GitHub PAT required to download artifacts");
         }
 
         SimpleHttpServer? server = null;
@@ -617,7 +678,11 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
 
         try
         {
-            progress?.Report(new UpdateProgress { Status = "Downloading PR artifact...", PercentComplete = 0 });
+            var label = artifactInfo.PullRequestNumber.HasValue
+                ? $"PR #{artifactInfo.PullRequestNumber}"
+                : $"Branch {artifactInfo.ArtifactName}";
+
+            progress?.Report(new UpdateProgress { Status = $"Downloading artifact for {label}...", PercentComplete = 0 });
 
             if (await _gitHubTokenStorage.LoadTokenAsync() is not { } token)
             {
@@ -627,24 +692,29 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
             using var client = CreateConfiguredHttpClientWithToken(token);
             var owner = AppConstants.GitHubRepositoryOwner;
             var repo = AppConstants.GitHubRepositoryName;
-            var artifactId = prInfo.LatestArtifact.ArtifactId;
+            var artifactId = artifactInfo.ArtifactId;
 
             // Download artifact
-            var downloadUrl = string.Format(ApiConstants.GitHubApiArtifactDownloadFormat, owner, repo, artifactId);
-            _logger.LogInformation("Downloading PR #{Number} artifact from {Url}", prInfo.Number, downloadUrl);
-
-            var response = await client.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            response.EnsureSuccessStatusCode();
+            var downloadUrl = $"https://api.github.com/repos/{owner}/{repo}/actions/artifacts/{artifactId}/zip";
+            _logger.LogInformation("Downloading {Label} artifact from {Url}", label, downloadUrl);
 
             // Create temp directory
-            tempDir = Path.Combine(Path.GetTempPath(), $"genhub-pr{prInfo.Number}-{Guid.NewGuid():N}");
+            tempDir = Path.Combine(Path.GetTempPath(), $"genhub-art-{Guid.NewGuid():N}");
             Directory.CreateDirectory(tempDir);
 
             var zipPath = Path.Combine(tempDir, "artifact.zip");
-            using (var fileStream = File.Create(zipPath))
+
+            // Download artifact
+            var downloadProgress = new Progress<double>(p =>
             {
-                await response.Content.CopyToAsync(fileStream, cancellationToken);
-            }
+                progress?.Report(new UpdateProgress
+                {
+                    Status = $"Downloading artifact for {label}...",
+                    PercentComplete = (int)(p * 0.3), // Scale 0-100% download to 0-30% total progress
+                });
+            });
+
+            await DownloadFileWithProgressAsync(client, downloadUrl, zipPath, downloadProgress, cancellationToken);
 
             progress?.Report(new UpdateProgress { Status = "Extracting artifact...", PercentComplete = 30 });
 
@@ -656,7 +726,7 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
 
             if (nupkgFiles.Length == 0)
             {
-                throw new FileNotFoundException("No .nupkg file found in PR artifact");
+                throw new FileNotFoundException("No .nupkg file found in artifact");
             }
 
             var nupkgFile = nupkgFiles[0];
@@ -671,7 +741,7 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
 
             // Extract version from nupkg filename
             var versionMatch = NupkgVersionRegex().Match(nupkgFileName);
-            var fileVersion = versionMatch.Success ? versionMatch.Groups[1].Value : prInfo.LatestArtifact.Version;
+            var fileVersion = versionMatch.Success ? versionMatch.Groups[1].Value : artifactInfo.Version;
 
             var releasesJson = new
             {
@@ -703,17 +773,6 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
 
             progress?.Report(new UpdateProgress { Status = "Preparing update...", PercentComplete = 60 });
 
-            var asset = new VelopackAsset
-            {
-                PackageId = AppConstants.AppName,
-                Version = NuGet.Versioning.SemanticVersion.Parse(fileVersion),
-                Type = VelopackAssetType.Full,
-                FileName = nupkgFileName,
-                SHA1 = sha1,
-                SHA256 = sha256,
-                Size = fileInfo.Length,
-            };
-
             progress?.Report(new UpdateProgress { Status = "Downloading update...", PercentComplete = 70 });
 
             // Point Velopack to localhost
@@ -730,25 +789,19 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                     var targetVersionStr = fileVersion.Split('+')[0];
 
                     _logger.LogWarning(
-                        "Cannot install PR artifact: current version ({Current}) >= target ({Target})",
+                        "Cannot install artifact: current version ({Current}) >= target ({Target})",
                         currentVersionStr,
                         targetVersionStr);
-                    _logger.LogInformation(
-                        "Full versions: current={CurrentFull}, target={TargetFull}",
-                        AppConstants.AppVersion,
-                        fileVersion);
 
                     if (currentVersionStr.Equals(targetVersionStr, StringComparison.OrdinalIgnoreCase))
                     {
                         throw new InvalidOperationException(
-                            $"PR build {fileVersion} is already installed (current: {AppConstants.AppVersion}). " +
-                            $"This is the same version with different build metadata.");
+                            $"Build {fileVersion} is already installed (current: {AppConstants.AppVersion}).");
                     }
                     else
                     {
                         throw new InvalidOperationException(
-                            $"Cannot install PR build {fileVersion}: Current version ({AppConstants.AppVersion}) is newer. " +
-                            $"To install this older PR build, uninstall GenHub first, then run Setup.exe from the PR artifact.");
+                            $"Cannot install build {fileVersion}: Current version ({AppConstants.AppVersion}) is newer.");
                     }
                 }
 
@@ -767,28 +820,15 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
 
                 progress?.Report(new UpdateProgress { Status = "Installing update...", PercentComplete = 90 });
 
-                _logger.LogInformation("Applying PR #{Number} update and restarting", prInfo.Number);
-                _logger.LogInformation("Update version: {Version}", updateInfo.TargetFullRelease.Version);
-                _logger.LogInformation("Update package: {Package}", updateInfo.TargetFullRelease.FileName);
+                _logger.LogInformation("Applying {Label} update and restarting", label);
 
-                try
-                {
-                    _logger.LogInformation("Using ApplyUpdatesAndRestart for PR artifact installation");
-                    localUpdateManager.ApplyUpdatesAndRestart(updateInfo.TargetFullRelease);
+                localUpdateManager.ApplyUpdatesAndRestart(updateInfo.TargetFullRelease);
 
-                    _logger.LogWarning("ApplyUpdatesAndRestart returned without exiting - waiting for exit...");
-                    await Task.Delay(PostUpdateExitDelay, cancellationToken);
+                _logger.LogWarning("ApplyUpdatesAndRestart returned without exiting - waiting for exit...");
+                await Task.Delay(PostUpdateExitDelay, cancellationToken);
 
-                    _logger.LogError("Application did not exit after ApplyUpdatesAndRestart. Update may have failed.");
-                    throw new InvalidOperationException("Application did not exit after applying update");
-                }
-                catch (Exception restartEx)
-                {
-                    _logger.LogError(restartEx, "Failed to apply PR artifact update");
-                    _logger.LogError("Update file: {File}", updateInfo.TargetFullRelease.FileName);
-                    _logger.LogError("Update version: {Version}", updateInfo.TargetFullRelease.Version);
-                    throw;
-                }
+                _logger.LogError("Application did not exit after ApplyUpdatesAndRestart. Update may have failed.");
+                throw new InvalidOperationException("Application did not exit after applying update");
             }
             finally
             {
@@ -797,7 +837,7 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to install PR artifact");
+            _logger.LogError(ex, "Failed to install artifact");
             progress?.Report(new UpdateProgress { Status = "Installation failed", HasError = true, ErrorMessage = ex.Message });
             throw;
         }
@@ -818,6 +858,20 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                 }
             }
         }
+    }
+
+    /// <inheritdoc/>
+    public async Task InstallPrArtifactAsync(
+        PullRequestInfo prInfo,
+        IProgress<UpdateProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (prInfo.LatestArtifact == null)
+        {
+            throw new InvalidOperationException($"PR #{prInfo.Number} has no artifacts available");
+        }
+
+        await InstallArtifactAsync(prInfo.LatestArtifact, progress, cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -918,6 +972,56 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
         var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
         listener.Stop();
         return port;
+    }
+
+    /// <summary>
+    /// Downloads a file with progress reporting.
+    /// </summary>
+    private static async Task DownloadFileWithProgressAsync(
+        HttpClient client,
+        string requestUrl,
+        string destinationPath,
+        IProgress<double>? progress,
+        CancellationToken cancellationToken)
+    {
+        using var response = await client.GetAsync(requestUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var totalBytes = response.Content.Headers.ContentLength ?? -1L;
+        var canReportProgress = totalBytes != -1L;
+
+        // Create temp directory if it doesn't exist (handle case where this method creates the file)
+        var directory = Path.GetDirectoryName(destinationPath);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var fileStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
+
+        var totalRead = 0L;
+        var buffer = new byte[8192];
+        var isMoreToRead = true;
+
+        while (isMoreToRead)
+        {
+            var read = await contentStream.ReadAsync(buffer, cancellationToken);
+            if (read == 0)
+            {
+                isMoreToRead = false;
+            }
+            else
+            {
+                await fileStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+
+                totalRead += read;
+                if (canReportProgress && progress != null)
+                {
+                    progress.Report((double)totalRead / totalBytes * 100);
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -1149,6 +1253,8 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
             var repo = AppConstants.GitHubRepositoryName;
 
             string runsUrl;
+
+            // Always request multiple runs to ensure we can find one with artifacts if the latest failed/expired
             if (!string.IsNullOrEmpty(branch))
             {
                 _logger.LogInformation("Searching for latest workflow success on branch: {Branch}", branch);
@@ -1157,7 +1263,9 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
             else
             {
                 _logger.LogInformation("Searching for overall latest workflow success");
-                runsUrl = string.Format(ApiConstants.GitHubApiLatestWorkflowRunsFormat, owner, repo);
+
+                // Use the same format but without branch param, creating a custom URL since Constant has per_page=1
+                runsUrl = $"https://api.github.com/repos/{owner}/{repo}/actions/runs?status=success&event=push&per_page=10";
             }
 
             var runsResponse = await client.GetAsync(runsUrl, cancellationToken);
@@ -1177,69 +1285,146 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                 return null;
             }
 
-            // GitHubApiWorkflowRunsFormat (with branch) returns up to 10 runs, we want the most recent one
-            // GitHubApiLatestWorkflowRunsFormat returns exactly 1 (per_page=1)
-            var latestRun = runs.EnumerateArray().FirstOrDefault();
-            var runId = latestRun.GetProperty("id").GetInt64();
-            var runUrl = latestRun.GetProperty("html_url").GetString() ?? string.Empty;
-            var headSha = latestRun.GetProperty("head_sha").GetString() ?? string.Empty;
-            var shortHash = headSha.Length >= GitShortHashLength ? headSha[..GitShortHashLength] : headSha;
-            var actualBranch = latestRun.TryGetProperty("head_branch", out var b) ? b.GetString() : branch ?? "unknown";
-
-            DateTime createdAt;
-            try
+            // Iterate through runs to find the first one with valid artifacts
+            foreach (var run in runs.EnumerateArray())
             {
-                createdAt = latestRun.GetProperty("created_at").GetDateTime();
-            }
-            catch (FormatException)
-            {
-                createdAt = DateTime.MinValue;
-            }
+                var runId = run.GetProperty("id").GetInt64();
+                var runUrl = run.GetProperty("html_url").GetString() ?? string.Empty;
+                var eventType = run.TryGetProperty("event", out var e) ? e.GetString() : "unknown";
+                var headSha = run.GetProperty("head_sha").GetString() ?? string.Empty;
+                var shortHash = headSha.Length >= GitShortHashLength ? headSha[..GitShortHashLength] : headSha;
+                var actualBranch = run.TryGetProperty("head_branch", out var b) ? b.GetString() : branch ?? "unknown";
 
-            _logger.LogInformation("Found run {RunId} on branch {Branch} with hash {Hash}. Fetching artifacts...", runId, actualBranch, shortHash);
-
-            var artifactsUrl = string.Format(ApiConstants.GitHubApiRunArtifactsFormat, owner, repo, runId);
-            var artifactsResponse = await client.GetAsync(artifactsUrl, cancellationToken);
-
-            if (!artifactsResponse.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("Failed to fetch artifacts for run {RunId}: {Status}", runId, artifactsResponse.StatusCode);
-                return null;
-            }
-
-            var artifactsJson = await artifactsResponse.Content.ReadAsStringAsync(cancellationToken);
-            var artifactsData = JsonSerializer.Deserialize<JsonElement>(artifactsJson);
-
-            if (!artifactsData.TryGetProperty("artifacts", out var artifacts))
-            {
-                _logger.LogWarning("No artifacts property in response for run {RunId}", runId);
-                return null;
-            }
-
-            foreach (var artifact in artifacts.EnumerateArray())
-            {
-                var artifactName = artifact.GetProperty("name").GetString() ?? string.Empty;
-
-                if (!artifactName.Contains("velopack", StringComparison.OrdinalIgnoreCase))
+                // CRITICAL FIX: Only accept 'push' events for branch/latest updates.
+                // 'pull_request' events should ONLY be handled by specific PR subscriptions.
+                if (!string.Equals(eventType, "push", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogDebug("Skipping run {RunId} ({EventType}) - only 'push' events are valid for branch subscriptions", runId, eventType);
                     continue;
+                }
 
-                var artifactId = artifact.GetProperty("id").GetInt64();
-                var version = ExtractVersionFromArtifactName(artifactName) ?? "unknown";
+                // Double-check branch name if specified
+                if (!string.IsNullOrEmpty(branch) && !string.Equals(actualBranch, branch, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogDebug("Skipping run {RunId} ({ActualBranch}) - does not match requested branch {Branch}", runId, actualBranch, branch);
+                    continue;
+                }
 
-                _logger.LogInformation("Found artifact: {Name} (ID: {Id})", artifactName, artifactId);
+                DateTime createdAt;
+                try
+                {
+                    createdAt = run.GetProperty("created_at").GetDateTime();
+                }
+                catch (FormatException)
+                {
+                    createdAt = DateTime.MinValue;
+                }
 
-                return new ArtifactUpdateInfo(
-                    version: version,
-                    gitHash: shortHash,
-                    pullRequestNumber: null,
-                    workflowRunId: runId,
-                    workflowRunUrl: runUrl,
-                    artifactId: artifactId,
-                    artifactName: artifactName,
-                    createdAt: createdAt);
+                _logger.LogDebug("Checking run {RunId} on branch {Branch} ({Hash}) for artifacts...", runId, actualBranch, shortHash);
+
+                var artifactsUrl = string.Format(ApiConstants.GitHubApiRunArtifactsFormat, owner, repo, runId);
+                var artifactsResponse = await client.GetAsync(artifactsUrl, cancellationToken);
+
+                if (!artifactsResponse.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("Failed to fetch artifacts for run {RunId}: {Status}", runId, artifactsResponse.StatusCode);
+                    continue;
+                }
+
+                var artifactsJson = await artifactsResponse.Content.ReadAsStringAsync(cancellationToken);
+                var artifactsData = JsonSerializer.Deserialize<JsonElement>(artifactsJson);
+
+                if (!artifactsData.TryGetProperty("artifacts", out var artifacts) || artifacts.GetArrayLength() == 0)
+                {
+                    _logger.LogDebug("No artifacts found in run {RunId}, checking next run", runId);
+                    continue;
+                }
+
+                // Filter artifacts by platform to prevent cross-platform installation
+                ArtifactUpdateInfo? windowsArtifact = null;
+                ArtifactUpdateInfo? linuxArtifact = null;
+                ArtifactUpdateInfo? fallbackArtifact = null;
+
+                foreach (var artifact in artifacts.EnumerateArray())
+                {
+                    var artifactName = artifact.GetProperty("name").GetString() ?? string.Empty;
+
+                    if (!artifactName.Contains("velopack", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogDebug("Skipping artifact {Name} - doesn't contain 'velopack'", artifactName);
+                        continue;
+                    }
+
+                    _logger.LogInformation("Found Velopack artifact: {Name} (ID: {Id}) in run {RunId}", artifactName, artifact.GetProperty("id").GetInt64(), runId);
+
+                    var artifactId = artifact.GetProperty("id").GetInt64();
+                    var version = ExtractVersionFromArtifactName(artifactName) ?? "unknown";
+
+                    var artifactInfo = new ArtifactUpdateInfo(
+                        version: version,
+                        gitHash: shortHash,
+                        pullRequestNumber: null,
+                        workflowRunId: runId,
+                        workflowRunUrl: runUrl,
+                        artifactId: artifactId,
+                        artifactName: artifactName,
+                        createdAt: createdAt);
+
+                    // Categorize by platform
+                    if (artifactName.Contains("windows", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogDebug("Found Windows artifact: {Name}", artifactName);
+                        windowsArtifact = artifactInfo;
+                    }
+                    else if (artifactName.Contains("linux", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogDebug("Found Linux artifact: {Name}", artifactName);
+                        linuxArtifact = artifactInfo;
+                    }
+                    else if (fallbackArtifact == null)
+                    {
+                        _logger.LogDebug("Found platform-agnostic artifact: {Name}", artifactName);
+                        fallbackArtifact = artifactInfo;
+                    }
+                }
+
+                // Select the appropriate artifact based on current platform
+                ArtifactUpdateInfo? selectedArtifact = null;
+
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    selectedArtifact = windowsArtifact ?? fallbackArtifact;
+                    if (selectedArtifact != null)
+                    {
+                        _logger.LogInformation("Selected Windows artifact: {Name} (ID: {Id})", selectedArtifact.ArtifactName, selectedArtifact.ArtifactId);
+                    }
+                }
+                else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                {
+                    selectedArtifact = linuxArtifact ?? fallbackArtifact;
+                    if (selectedArtifact != null)
+                    {
+                        _logger.LogInformation("Selected Linux artifact: {Name} (ID: {Id})", selectedArtifact.ArtifactName, selectedArtifact.ArtifactId);
+                    }
+                }
+                else
+                {
+                    selectedArtifact = fallbackArtifact;
+                    if (selectedArtifact != null)
+                    {
+                        _logger.LogWarning("Unknown platform, using fallback artifact: {Name} (ID: {Id})", selectedArtifact.ArtifactName, selectedArtifact.ArtifactId);
+                    }
+                }
+
+                if (selectedArtifact != null)
+                {
+                    return selectedArtifact;
+                }
+
+                _logger.LogDebug("No suitable Velopack artifacts found for current platform in run {RunId}, checking next run", runId);
             }
 
-            _logger.LogWarning("No Velopack artifacts found in run {RunId}", runId);
+            _logger.LogWarning("No suitable artifacts found in the last 10 'push' runs for branch {Branch}", branch ?? "any");
             return null;
         }
         catch (Exception ex)

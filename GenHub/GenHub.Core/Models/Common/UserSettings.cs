@@ -112,6 +112,11 @@ public class UserSettings : ICloneable
     public int? SubscribedPrNumber { get; set; }
 
     /// <summary>
+    /// Gets or sets the subscribed branch name for update notifications (e.g. "development").
+    /// </summary>
+    public string? SubscribedBranch { get; set; }
+
+    /// <summary>
     /// Gets or sets the last dismissed update version to prevent repeated notifications.
     /// </summary>
     public string? DismissedUpdateVersion { get; set; }
@@ -143,6 +148,7 @@ public class UserSettings : ICloneable
             ApplicationDataPath = ApplicationDataPath,
             UpdateChannel = UpdateChannel,
             SubscribedPrNumber = SubscribedPrNumber,
+            SubscribedBranch = SubscribedBranch,
             DismissedUpdateVersion = DismissedUpdateVersion,
             ContentDirectories = ContentDirectories != null ? new List<string>(ContentDirectories) : null,
             GitHubDiscoveryRepositories = GitHubDiscoveryRepositories != null ? new List<string>(GitHubDiscoveryRepositories) : null,

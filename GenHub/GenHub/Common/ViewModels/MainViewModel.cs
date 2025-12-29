@@ -4,14 +4,17 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
+using GenHub.Core.Models.Notifications;
 using GenHub.Features.AppUpdate.Interfaces;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.Services;
@@ -35,13 +38,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IProfileEditorFacade _profileEditorFacade;
     private readonly IVelopackUpdateManager _velopackUpdateManager;
     private readonly ProfileResourceService _profileResourceService;
+    private readonly INotificationService _notificationService;
     private readonly CancellationTokenSource _initializationCts = new();
 
     [ObservableProperty]
     private NavigationTab _selectedTab = NavigationTab.GameProfiles;
 
-    [ObservableProperty]
-    private bool _hasUpdateAvailable;
+
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainViewModel"/> class.
@@ -57,6 +60,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <param name="profileEditorFacade">Profile editor facade for automatic profile creation.</param>
     /// <param name="velopackUpdateManager">The Velopack update manager for checking updates.</param>
     /// <param name="profileResourceService">Service for accessing profile resources.</param>
+    /// <param name="notificationService">Service for showing notifications.</param>
     /// <param name="logger">Logger instance.</param>
     public MainViewModel(
         GameProfileLauncherViewModel gameProfilesViewModel,
@@ -70,6 +74,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IProfileEditorFacade profileEditorFacade,
         IVelopackUpdateManager velopackUpdateManager,
         ProfileResourceService profileResourceService,
+        INotificationService notificationService,
         ILogger<MainViewModel>? logger = null)
     {
         GameProfilesViewModel = gameProfilesViewModel;
@@ -83,6 +88,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _profileEditorFacade = profileEditorFacade ?? throw new ArgumentNullException(nameof(profileEditorFacade));
         _velopackUpdateManager = velopackUpdateManager ?? throw new ArgumentNullException(nameof(velopackUpdateManager));
         _profileResourceService = profileResourceService ?? throw new ArgumentNullException(nameof(profileResourceService));
+        _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
         _logger = logger;
 
         // Load initial settings using unified configuration
@@ -181,30 +187,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         SelectedTab = tab;
     }
 
-    /// <summary>
-    /// Shows the update notification dialog.
-    /// </summary>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    [RelayCommand]
-    public async Task ShowUpdateDialogAsync()
-    {
-        try
-        {
-            var mainWindow = GetMainWindow();
-            if (mainWindow != null)
-            {
-                await GenHub.Features.AppUpdate.Views.UpdateNotificationWindow.ShowAsync(mainWindow);
-            }
-            else
-            {
-                _logger?.LogWarning("Cannot show update dialog - main window not found");
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "Failed to show update dialog");
-        }
-    }
+
 
     /// <summary>
     /// Performs asynchronous initialization for the shell and all tabs.
@@ -372,115 +355,58 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         try
         {
-            // Check if subscribed to a PR - if so, check for PR artifact updates instead
             var settings = _userSettingsService.Get();
+
+            // Push settings to update manager (important context for other components)
             if (settings.SubscribedPrNumber.HasValue)
             {
-                _logger?.LogDebug("User subscribed to PR #{PrNumber}, checking for PR artifact updates", settings.SubscribedPrNumber);
                 _velopackUpdateManager.SubscribedPrNumber = settings.SubscribedPrNumber;
+            }
 
-                // Fetch PR list to populate artifact info
-                var prs = await _velopackUpdateManager.GetOpenPullRequestsAsync(cancellationToken);
-                var subscribedPr = prs.FirstOrDefault(p => p.Number == settings.SubscribedPrNumber);
+            // Check if subscribed to a specific branch
+            if (!string.IsNullOrEmpty(settings.SubscribedBranch))
+            {
+                _logger?.LogDebug("User subscribed to branch '{Branch}', checking for artifact updates", settings.SubscribedBranch);
+                _velopackUpdateManager.SubscribedBranch = settings.SubscribedBranch;
 
-                if (subscribedPr?.LatestArtifact != null)
+                // Ensure PR number is cleared to avoid ambiguity
+                _velopackUpdateManager.SubscribedPrNumber = null;
+
+                var artifactUpdate = await _velopackUpdateManager.CheckForArtifactUpdatesAsync(cancellationToken);
+
+                if (artifactUpdate != null)
                 {
-                    // Compare versions (strip build metadata)
-                    var currentVersionBase = AppConstants.AppVersion.Split('+')[0];
-                    var prVersionBase = subscribedPr.LatestArtifact.Version.Split('+')[0];
+                    var newVersionBase = artifactUpdate.Version.Split('+')[0];
+                    var dismissedVersionBase = settings.DismissedUpdateVersion?.Split('+')[0];
 
-                    if (!string.Equals(prVersionBase, currentVersionBase, StringComparison.OrdinalIgnoreCase))
+                    if (string.IsNullOrEmpty(dismissedVersionBase) ||
+                        !string.Equals(newVersionBase, dismissedVersionBase, StringComparison.OrdinalIgnoreCase))
                     {
-                        // Check if this PR version was dismissed
-                        var dismissedVersionBase = settings.DismissedUpdateVersion?.Split('+')[0];
+                        _logger?.LogInformation("Branch '{Branch}' artifact update available: {Version}", settings.SubscribedBranch, newVersionBase);
 
-                        if (string.IsNullOrEmpty(dismissedVersionBase) ||
-                            !string.Equals(prVersionBase, dismissedVersionBase, StringComparison.OrdinalIgnoreCase))
+                        await Dispatcher.UIThread.InvokeAsync(() =>
                         {
-                            _logger?.LogInformation("PR #{PrNumber} artifact update available: {Version}", subscribedPr.Number, prVersionBase);
-                            HasUpdateAvailable = true;
-                            return;
-                        }
-                        else
-                        {
-                            _logger?.LogDebug("PR #{PrNumber} artifact update {Version} was dismissed", subscribedPr.Number, prVersionBase);
-                            HasUpdateAvailable = false;
-                            return;
-                        }
+                            _notificationService.Show(new NotificationMessage(
+                                NotificationType.Info,
+                                "Update Available",
+                                $"A new version ({newVersionBase}) is available on branch '{settings.SubscribedBranch}'.",
+                                null,
+                                "View Updates",
+                                () => { SettingsViewModel.OpenUpdateWindowCommand.Execute(null); }));
+                        });
+                        return;
                     }
                     else
                     {
-                        _logger?.LogDebug("Already on latest PR #{PrNumber} artifact version", subscribedPr.Number);
-                        HasUpdateAvailable = false;
+                        _logger?.LogDebug("Branch '{Branch}' artifact update {Version} was dismissed", settings.SubscribedBranch, newVersionBase);
                         return;
                     }
                 }
-                else
-                {
-                    _logger?.LogDebug("PR #{PrNumber} has no artifacts or PR not found", settings.SubscribedPrNumber);
-
-                    // Fall through to check main branch updates
-                }
-            }
-
-            // Check main branch updates (if not subscribed to PR or PR has no artifacts)
-            var updateInfo = await _velopackUpdateManager.CheckForUpdatesAsync(cancellationToken);
-
-            // Check both UpdateInfo (from installed app) and GitHub API flag (works in debug too)
-            var hasUpdate = updateInfo != null || _velopackUpdateManager.HasUpdateAvailableFromGitHub;
-
-            if (hasUpdate)
-            {
-                string? latestVersion = null;
-
-                if (updateInfo != null)
-                {
-                    latestVersion = updateInfo.TargetFullRelease.Version.ToString();
-                    _logger?.LogInformation("Update available: {Current} → {Latest}", AppConstants.AppVersion, latestVersion);
-                }
-                else if (_velopackUpdateManager.LatestVersionFromGitHub != null)
-                {
-                    latestVersion = _velopackUpdateManager.LatestVersionFromGitHub;
-                    _logger?.LogInformation("Update available from GitHub API: {Version}", latestVersion);
-                }
-
-                // Strip build metadata for comparison (everything after '+')
-                var latestVersionBase = latestVersion?.Split('+')[0];
-                var currentVersionBase = AppConstants.AppVersion.Split('+')[0];
-
-                // Check if this version was dismissed by the user
-                var settings2 = _userSettingsService.Get();
-                var dismissedVersionBase = settings2.DismissedUpdateVersion?.Split('+')[0];
-
-                if (!string.IsNullOrEmpty(latestVersionBase) &&
-                    string.Equals(latestVersionBase, dismissedVersionBase, StringComparison.OrdinalIgnoreCase))
-                {
-                    _logger?.LogDebug("Update {Version} was dismissed by user, hiding notification", latestVersionBase);
-                    HasUpdateAvailable = false;
-                }
-
-                // Also check if we're already on this version (ignoring build metadata)
-                else if (!string.IsNullOrEmpty(latestVersionBase) &&
-                         string.Equals(latestVersionBase, currentVersionBase, StringComparison.OrdinalIgnoreCase))
-                {
-                    _logger?.LogDebug("Already on version {Version} (ignoring build metadata), hiding notification", latestVersionBase);
-                    HasUpdateAvailable = false;
-                }
-                else
-                {
-                    HasUpdateAvailable = true;
-                }
-            }
-            else
-            {
-                _logger?.LogDebug("No updates available");
-                HasUpdateAvailable = false;
             }
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Exception in CheckForUpdatesAsync");
-            HasUpdateAvailable = false;
         }
     }
 

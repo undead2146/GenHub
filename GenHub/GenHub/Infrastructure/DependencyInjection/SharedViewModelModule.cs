@@ -1,5 +1,6 @@
 using GenHub.Common.ViewModels;
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Manifest;
@@ -46,7 +47,8 @@ public static class SharedViewModelModule
             sp.GetRequiredService<IVelopackUpdateManager>(),
             sp.GetRequiredService<INotificationService>(),
             sp.GetRequiredService<IConfigurationProviderService>(),
-            sp.GetRequiredService<IGameInstallationService>()));
+            sp.GetRequiredService<IGameInstallationService>(),
+            sp.GetService<IGitHubTokenStorage>()));
         services.AddSingleton<GameProfileSettingsViewModel>();
 
         // Register PublisherCardViewModel as transient

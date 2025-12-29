@@ -29,6 +29,14 @@ public interface IVelopackUpdateManager
     Task<ArtifactUpdateInfo?> CheckForArtifactUpdatesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets a list of available branches from the repository.
+    /// Requires a GitHub PAT with repo access.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>List of branch names.</returns>
+    Task<IReadOnlyList<string>> GetBranchesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets a list of open pull requests with available CI artifacts.
     /// Requires a GitHub PAT with repo access.
     /// </summary>
@@ -103,6 +111,15 @@ public interface IVelopackUpdateManager
     /// Used to trigger fallback to MAIN branch.
     /// </summary>
     bool IsPrMergedOrClosed { get; }
+
+    /// <summary>
+    /// Downloads and installs a specific artifact.
+    /// </summary>
+    /// <param name="artifactInfo">The artifact information to install.</param>
+    /// <param name="progress">Progress reporter.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task representing the installation operation.</returns>
+    Task InstallArtifactAsync(ArtifactUpdateInfo artifactInfo, IProgress<UpdateProgress>? progress = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Downloads and installs a PR artifact.
