@@ -217,7 +217,8 @@ public class SettingsViewModelTests
 
         // Assert
         Assert.Contains("Dark", themes);
-        Assert.Single(themes);
+        Assert.Contains("Light", themes);
+        Assert.Equal(2, themes.Count);
     }
 
     /// <summary>

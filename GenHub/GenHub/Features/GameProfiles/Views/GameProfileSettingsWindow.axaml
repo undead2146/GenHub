@@ -505,10 +505,10 @@
                                                         <Binding Path="IsEnabled" Converter="{x:Static conv:InvertedBoolToVisibilityConverter.Instance}" />
                                                     </Border.IsVisible>
                                                     <Grid ColumnDefinitions="*,Auto,Auto">
-                                                        <StackPanel Grid.Column="0" Spacing="6">
-                                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" />
-                                                            <WrapPanel Orientation="Horizontal" Margin="0,0,8,0">
-                                                                <Border Background="#20FF6B6B" BorderBrush="#FF6B6B" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,4,4"
+                                                         <StackPanel Grid.Column="0" Spacing="6">
+                                                             <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" />
+                                                             <WrapPanel Orientation="Horizontal" Margin="0,0,8,0">
+                                                                 <Border Background="#20FF6B6B" BorderBrush="#FF6B6B" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,4,4"
                                                                         IsVisible="{Binding Publisher, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                                                                     <TextBlock Text="{Binding Publisher}" FontSize="10" Foreground="#FF8A80" FontWeight="SemiBold" />
                                                                 </Border>

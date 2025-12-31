@@ -724,6 +724,7 @@ public class GameClientDetector(
     /// </summary>
     /// <param name="gameClient">The game client to generate manifest for.</param>
     /// <param name="clientPath">The client installation path.</param>
+
     /// <param name="gameType">The game type.</param>
     /// <param name="identification">The identification metadata from the identifier.</param>
     /// <returns>A task representing the asynchronous operation.</returns>

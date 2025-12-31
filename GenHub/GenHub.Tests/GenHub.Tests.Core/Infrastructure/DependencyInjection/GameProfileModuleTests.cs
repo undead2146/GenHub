@@ -269,6 +269,7 @@ public class GameProfileModuleTests
         services.AddSingleton<ILaunchRegistry>(new Mock<ILaunchRegistry>().Object);
         services.AddSingleton<ICasService>(new Mock<ICasService>().Object);
         services.AddSingleton<INotificationService>(new Mock<INotificationService>().Object);
+        services.AddSingleton<GenHub.Core.Interfaces.Shortcuts.IShortcutService>(new Mock<GenHub.Core.Interfaces.Shortcuts.IShortcutService>().Object);
 
         // Act
         services.AddGameProfileServices();
