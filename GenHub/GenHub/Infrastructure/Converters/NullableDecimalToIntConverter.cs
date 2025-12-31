@@ -55,7 +55,9 @@ public class NullableDecimalToIntConverter : IValueConverter
                 {
                     return System.Convert.ChangeType(parameter, targetType, culture);
                 }
-                catch { }
+                catch
+                {
+                }
             }
 
             try

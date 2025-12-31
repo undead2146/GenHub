@@ -50,6 +50,8 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
     {
         using var scope = _logger.BeginScope(new Dictionary<string, object> { ["GameType"] = gameType, ["Section"] = "OptionsIni" });
 
+        // Acquire semaphore to prevent reading while writing
+        await _optionsIniWriteSemaphore.WaitAsync();
         try
         {
             var filePath = GetOptionsFilePath(gameType);
@@ -73,6 +75,10 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
         {
             _logger.LogError(ex, "Failed to load Options.ini for {GameType}", gameType);
             return OperationResult<IniOptions>.CreateFailure($"Failed to load options: {ex.Message}");
+        }
+        finally
+        {
+            _optionsIniWriteSemaphore.Release();
         }
     }
 
@@ -243,8 +249,8 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
     {
         var options = new IniOptions();
         var currentSection = string.Empty;
-        var currentDict = new Dictionary<string, string>();
-        var rootDict = new Dictionary<string, string>(); // For flat format
+        Dictionary<string, string> currentDict = [];
+        Dictionary<string, string> rootDict = []; // For flat format
 
         foreach (var rawLine in lines)
         {
@@ -274,6 +280,9 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
             {
                 var key = line[..separatorIndex].Trim();
                 var value = line[(separatorIndex + 1)..].Trim();
+
+                // Sanitize key (remove BOM and other invisible characters)
+                key = SanitizeKey(key);
 
                 if (string.IsNullOrEmpty(currentSection))
                 {
@@ -342,10 +351,10 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
             "UseAlternateMouse", "UseCloudMap", "UseDoubleClickAttackMove", "UseLightMap",
         };
 
-        var audioDict = new Dictionary<string, string>();
-        var videoDict = new Dictionary<string, string>();
-        var networkDict = new Dictionary<string, string>();
-        var theSuperHackersDict = new Dictionary<string, string>();
+        Dictionary<string, string> audioDict = [];
+        Dictionary<string, string> videoDict = [];
+        Dictionary<string, string> networkDict = [];
+        Dictionary<string, string> theSuperHackersDict = [];
 
         foreach (var kvp in rootDict)
         {
@@ -542,7 +551,7 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
 
     private static string[] SerializeOptionsIni(IniOptions options)
     {
-        var lines = new List<string>();
+        List<string> lines = [];
 
         // Write all settings in flat format (no sections) as the game expects
         // Audio settings
@@ -688,5 +697,19 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
         var zeroHourDataPath = Path.Combine(documentsPath, GameSettingsConstants.FolderNames.ZeroHour);
         var generalsOnlineDataPath = Path.Combine(zeroHourDataPath, GameSettingsConstants.FolderNames.GeneralsOnlineData);
         return Path.Combine(generalsOnlineDataPath, GameSettingsGeneralsOnlineConstants.SettingsFileName);
+    }
+
+    private static string SanitizeKey(string key)
+    {
+        if (string.IsNullOrEmpty(key)) return key;
+
+        // Remove BOM if present
+        if (key.StartsWith('\uFEFF'))
+        {
+            key = key[1..];
+        }
+
+        // Remove any other control characters or non-printable chars if needed
+        return key.Trim();
     }
 }
