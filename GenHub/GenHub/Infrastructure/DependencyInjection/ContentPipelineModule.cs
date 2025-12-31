@@ -118,7 +118,8 @@ public static class ContentPipelineModule
         services.AddTransient<IContentProvider, GitHubContentProvider>();
 
         // Register SuperHackers provider (uses GitHub discoverer/resolver/deliverer)
-        services.AddTransient<IContentProvider, SuperHackersProvider>();
+        services.AddTransient<SuperHackersProvider>();
+        services.AddTransient<IContentProvider>(sp => sp.GetRequiredService<SuperHackersProvider>());
 
         // Register GitHub discoverers (both concrete and interface registrations)
         services.AddTransient<GitHubDiscoverer>();

@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Extensions.GameInstallations;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameClients;
 using GenHub.Core.Interfaces.Manifest;
@@ -97,6 +98,9 @@ public class GameClientDetector(
                 var zhPublisherClients = await DetectPublisherClientsAsync(inst, inst.ZeroHourPath, GameType.ZeroHour, cancellationToken);
                 gameClients.AddRange(zhPublisherClients);
             }
+
+            // Manifest generation is now handled exclusively by GameInstallationService
+            // to avoid race conditions and duplicate work during detection.
         }
 
         stopwatch.Stop();
@@ -155,37 +159,6 @@ public class GameClientDetector(
     {
         var isValid = !string.IsNullOrEmpty(gameClient.ExecutablePath) && File.Exists(gameClient.ExecutablePath);
         return Task.FromResult(isValid);
-    }
-
-    /// <summary>
-    /// Converts a version string to normalized integer format.
-    /// Examples: "1.04" → 104, "1.08" → 108, "Unknown" → 0.
-    /// </summary>
-    /// <param name="version">The version string to convert.</param>
-    /// <returns>The normalized version as an integer.</returns>
-    private static int ConvertVersionToNormalized(string version)
-    {
-        if (string.IsNullOrWhiteSpace(version) || version.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
-            return 0;
-
-        // Handle dotted versions like "1.04" or "1.08"
-        if (version.Contains('.'))
-        {
-            var parts = version.Split('.');
-            if (parts.Length == 2 &&
-                int.TryParse(parts[0], out int major) &&
-                int.TryParse(parts[1], out int minor))
-            {
-                // Convert "1.04" to 104, "1.08" to 108
-                return (major * 100) + minor;
-            }
-        }
-
-        // Try parsing as direct integer
-        if (int.TryParse(version, out int result))
-            return result;
-
-        return 0;
     }
 
     /// <summary>
@@ -297,7 +270,7 @@ public class GameClientDetector(
                 var contentName = gameType == GameType.ZeroHour ? "zerohour" : "generals";
 
                 // Convert version string to normalized integer format (e.g., "1.04" → 104, "1.08" → 108)
-                int normalizedVersion = ConvertVersionToNormalized(gameClient.Version);
+                int normalizedVersion = GameVersionHelper.NormalizeVersion(gameClient.Version);
                 var clientIdResult = ManifestIdGenerator.GeneratePublisherContentId(publisherId, ContentType.GameClient, contentName, userVersion: normalizedVersion);
                 manifest.Id = ManifestId.Create(clientIdResult);
             }
@@ -325,6 +298,109 @@ public class GameClientDetector(
         {
             logger.LogError(ex, "Failed to generate manifest for {VersionName}", gameClient.Name);
             gameClient.Id = Guid.NewGuid().ToString(); // Fallback
+        }
+    }
+
+    private async Task GenerateInstallationManifestsAsync(GameInstallation installation, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (installation.HasGenerals && !string.IsNullOrEmpty(installation.GeneralsPath) && Directory.Exists(installation.GeneralsPath))
+            {
+                await GenerateAndPoolManifestForGameTypeAsync(
+                    installation,
+                    GameType.Generals,
+                    installation.GeneralsPath,
+                    installation.GeneralsClient,
+                    ManifestConstants.GeneralsManifestVersion,
+                    cancellationToken);
+            }
+
+            if (installation.HasZeroHour && !string.IsNullOrEmpty(installation.ZeroHourPath) && Directory.Exists(installation.ZeroHourPath))
+            {
+                await GenerateAndPoolManifestForGameTypeAsync(
+                    installation,
+                    GameType.ZeroHour,
+                    installation.ZeroHourPath,
+                    installation.ZeroHourClient,
+                    ManifestConstants.ZeroHourManifestVersion,
+                    cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to generate installation manifests for {InstallationId}", installation.Id);
+        }
+    }
+
+    private async Task GenerateAndPoolManifestForGameTypeAsync(
+        GameInstallation installation,
+        GameType gameType,
+        string gamePath,
+        GameClient? gameClient,
+        string defaultManifestVersion,
+        CancellationToken cancellationToken)
+    {
+        var detectedVersion = gameClient?.Version;
+        int versionForId;
+        string versionForManifest;
+
+        if (string.IsNullOrEmpty(detectedVersion) ||
+            detectedVersion.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            versionForId = 0;
+            versionForManifest = defaultManifestVersion;
+        }
+        else
+        {
+            versionForId = GameVersionHelper.NormalizeVersion(detectedVersion);
+            versionForManifest = detectedVersion;
+        }
+
+        var idResult = ManifestIdGenerator.GenerateGameInstallationId(
+            installation, gameType, versionForId);
+        var manifestId = ManifestId.Create(idResult);
+
+        var existingManifest = await contentManifestPool.GetManifestAsync(
+            manifestId, cancellationToken);
+
+        if (existingManifest.Success && existingManifest.Data != null)
+        {
+            logger.LogDebug(
+                "Manifest {Id} already exists in pool, skipping generation",
+                manifestId);
+            return;
+        }
+
+        var manifestBuilder = await manifestGenerationService
+            .CreateGameInstallationManifestAsync(
+                gamePath,
+                gameType,
+                installation.InstallationType,
+                versionForManifest);
+
+        var manifest = manifestBuilder.Build();
+        manifest.ContentType = ContentType.GameInstallation;
+        manifest.Id = manifestId;
+
+        var addResult = await contentManifestPool.AddManifestAsync(
+            manifest, gamePath, cancellationToken);
+
+        if (addResult.Success)
+        {
+            logger.LogInformation(
+                "Pooled GameInstallation manifest {Id} for {InstallationId} ({GameType})",
+                manifest.Id,
+                installation.Id,
+                gameType);
+        }
+        else
+        {
+            logger.LogWarning(
+                "Failed to pool {GameType} GameInstallation manifest for {InstallationId}: {Errors}",
+                gameType,
+                installation.Id,
+                string.Join(", ", addResult.Errors));
         }
     }
 
@@ -514,7 +590,7 @@ public class GameClientDetector(
                     {
                         Name = identification.DisplayName,
                         Id = string.Empty,
-                        Version = identification.LocalVersion ?? GameClientConstants.AutoDetectedVersion,
+                        Version = identification.LocalVersion ?? GameClientConstants.UnknownVersion,
                         ExecutablePath = executablePath,
                         GameType = gameType,
                         InstallationId = installation.Id,

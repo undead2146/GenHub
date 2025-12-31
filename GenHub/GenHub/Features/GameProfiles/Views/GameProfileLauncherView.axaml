@@ -275,53 +275,5 @@
                 </ItemsControl>
             </StackPanel>
         </ScrollViewer>
-        <!-- Patch Installation Prompt Overlay -->
-        <Grid Grid.Row="0" Grid.RowSpan="2" 
-              Background="#CC000000"
-              IsVisible="{Binding IsShowingPatchPrompt}">
-            <Border Background="#252525" 
-                    BorderBrush="#444444"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Width="450"
-                    VerticalAlignment="Center"
-                    HorizontalAlignment="Center"
-                    BoxShadow="0 4 20 0 #80000000"
-                    Padding="24">
-                <StackPanel Spacing="16">
-                    <TextBlock Text="{Binding PromptTitle}" 
-                               FontSize="20" 
-                               FontWeight="SemiBold" 
-                               Foreground="White"/>
-                    
-                    <TextBlock Text="{Binding PromptMessage}" 
-                               FontSize="14" 
-                               TextWrapping="Wrap" 
-                               Foreground="#CCCCCC"/>
-                    
-                    <StackPanel Orientation="Horizontal" 
-                                Spacing="12" 
-                                HorizontalAlignment="Right"
-                                Margin="0,8,0,0">
-                        <Button Content="No, Thanks"
-                                Command="{Binding DeclinePatchPromptCommand}"
-                                Background="Transparent"
-                                BorderThickness="1"
-                                BorderBrush="#666666"
-                                Foreground="#CCCCCC"
-                                Padding="16,8"
-                                CornerRadius="4"/>
-                                
-                        <Button Content="Yes, Install"
-                                Command="{Binding AcceptPatchPromptCommand}"
-                                Background="#1E88E5"
-                                Foreground="White"
-                                Padding="16,8"
-                                CornerRadius="4"
-                                FontWeight="SemiBold"/>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-        </Grid>
     </Grid>
 </UserControl>
