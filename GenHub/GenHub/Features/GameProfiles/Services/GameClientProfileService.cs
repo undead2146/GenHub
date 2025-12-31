@@ -345,10 +345,20 @@ public class GameClientProfileService(
         if (gameClient.Version.Contains('.'))
         {
             var normalized = gameClient.Version.Replace(".", string.Empty);
-            return int.TryParse(normalized, out var v) ? v : 0;
+            return int.TryParse(normalized, out var v) ? v : GetDefaultVersion(gameClient.GameType);
         }
 
-        return int.TryParse(gameClient.Version, out var parsed) ? parsed : 0;
+        return int.TryParse(gameClient.Version, out var parsed) ? parsed : GetDefaultVersion(gameClient.GameType);
+    }
+
+    private static int GetDefaultVersion(GameType gameType)
+    {
+        var fallbackVersion = gameType == GameType.ZeroHour
+            ? ManifestConstants.ZeroHourManifestVersion
+            : ManifestConstants.GeneralsManifestVersion;
+
+        var normalizedFallback = fallbackVersion.Replace(".", string.Empty);
+        return int.TryParse(normalizedFallback, out var v) ? v : 0;
     }
 
     private static string GetThemeColorForGameType(GameType gameType)

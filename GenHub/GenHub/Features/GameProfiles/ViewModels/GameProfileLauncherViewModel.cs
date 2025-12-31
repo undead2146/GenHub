@@ -19,6 +19,7 @@ using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameClients;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Steam;
@@ -52,6 +53,8 @@ public partial class GameProfileLauncherViewModel(
     IGameClientDetector gameClientDetector,
     INotificationService notificationService,
     ISetupWizardService setupWizardService,
+    IManifestGenerationService manifestGenerationService,
+    IContentManifestPool contentManifestPool,
     ILogger<GameProfileLauncherViewModel> logger) : ViewModelBase,
     IRecipient<ProfileCreatedMessage>,
     IRecipient<ProfileUpdatedMessage>,
@@ -82,18 +85,6 @@ public partial class GameProfileLauncherViewModel(
 
     [ObservableProperty]
     private bool _isScanning;
-
-    [ObservableProperty]
-    private bool _isShowingPatchPrompt;
-
-    [ObservableProperty]
-    private string _promptMessage = string.Empty;
-
-    [ObservableProperty]
-    private string _promptTitle = string.Empty;
-
-    private GameInstallation? _pendingInstallation;
-    private TaskCompletionSource<bool>? _promptCompletionSource;
 
     /// <summary>
     /// Performs asynchronous initialization for the GameProfileLauncherViewModel.
@@ -409,6 +400,12 @@ public partial class GameProfileLauncherViewModel(
                         {
                             manualInstallation.PopulateGameClients(detectionResult.Items);
                         }
+
+                        // Create and register GameInstallation manifests to the pool
+                        await CreateAndRegisterManualInstallationManifestsAsync(manualInstallation);
+
+                        // Register the manual installation with the service so it's available globally (e.g. for profile creation)
+                        await installationService.RegisterManualInstallationAsync(manualInstallation);
 
                         // Add the manually selected installation to the list
                         installationsList.Add(manualInstallation);
@@ -1305,26 +1302,6 @@ public partial class GameProfileLauncherViewModel(
         {
             logger.LogError(ex, "Error handling process exit event for process {ProcessId}", e.ProcessId);
         }
-    }
-
-    /// <summary>
-    /// User accepts the patch installation prompt.
-    /// </summary>
-    [RelayCommand]
-    private void AcceptPatchPrompt()
-    {
-        IsShowingPatchPrompt = false;
-        _promptCompletionSource?.TrySetResult(true);
-    }
-
-    /// <summary>
-    /// User declines the patch installation prompt.
-    /// </summary>
-    [RelayCommand]
-    private void DeclinePatchPrompt()
-    {
-        IsShowingPatchPrompt = false;
-        _promptCompletionSource?.TrySetResult(false);
     }
 
     /// <summary>

@@ -5,6 +5,7 @@ using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.GitHub;
+using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Steam;
@@ -59,6 +60,8 @@ public class GameProfileLauncherViewModelTests
             new Mock<IGameClientDetector>().Object,
             new Mock<INotificationService>().Object,
             new Mock<ISetupWizardService>().Object,
+            new Mock<IManifestGenerationService>().Object,
+            new Mock<IContentManifestPool>().Object,
             NullLogger<GameProfileLauncherViewModel>.Instance);
 
         Assert.NotNull(vm);
@@ -102,6 +105,8 @@ public class GameProfileLauncherViewModelTests
             new Mock<IGameClientDetector>().Object,
             new Mock<INotificationService>().Object,
             new Mock<ISetupWizardService>().Object,
+            new Mock<IManifestGenerationService>().Object,
+            new Mock<IContentManifestPool>().Object,
             NullLogger<GameProfileLauncherViewModel>.Instance);
 
         await vm.InitializeAsync();
@@ -151,6 +156,8 @@ public class GameProfileLauncherViewModelTests
             new Mock<IGameClientDetector>().Object,
             notificationService.Object,
             setupWizardService.Object,
+            new Mock<IManifestGenerationService>().Object,
+            new Mock<IContentManifestPool>().Object,
             NullLogger<GameProfileLauncherViewModel>.Instance);
 
         await vm.ScanForGamesCommand.ExecuteAsync(null);
@@ -189,6 +196,8 @@ public class GameProfileLauncherViewModelTests
             new Mock<IGameClientDetector>().Object,
             new Mock<INotificationService>().Object,
             new Mock<ISetupWizardService>().Object,
+            new Mock<IManifestGenerationService>().Object,
+            new Mock<IContentManifestPool>().Object,
             NullLogger<GameProfileLauncherViewModel>.Instance);
 
         await vm.ScanForGamesCommand.ExecuteAsync(null);
@@ -224,6 +233,8 @@ public class GameProfileLauncherViewModelTests
             new Mock<IGameClientDetector>().Object,
             new Mock<INotificationService>().Object,
             new Mock<ISetupWizardService>().Object,
+            new Mock<IManifestGenerationService>().Object,
+            new Mock<IContentManifestPool>().Object,
             NullLogger<GameProfileLauncherViewModel>.Instance);
 
         await vm.ScanForGamesCommand.ExecuteAsync(null);
@@ -261,6 +272,8 @@ public class GameProfileLauncherViewModelTests
             new Mock<IGameClientDetector>().Object,
             new Mock<INotificationService>().Object,
             new Mock<ISetupWizardService>().Object,
+            new Mock<IManifestGenerationService>().Object,
+            new Mock<IContentManifestPool>().Object,
             NullLogger<GameProfileLauncherViewModel>.Instance);
 
         await vm.ScanForGamesCommand.ExecuteAsync(null);

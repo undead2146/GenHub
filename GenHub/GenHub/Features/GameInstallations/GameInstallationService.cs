@@ -88,7 +88,20 @@ public class GameInstallationService(
             var initResult = await TryInitializeCacheAsync(cancellationToken);
             if (!initResult.Success)
             {
-                return OperationResult<IReadOnlyList<GameInstallation>>.CreateFailure(initResult.Errors[0]);
+                // Even if detection failing (e.g. no auto-detect), we might have manual installs.
+                // But TryInitializeCacheAsync returns Failure if detect fails?
+                // Looking at TryInitializeCacheAsync, it returns Failure if detection error.
+                // But we should probably allow failure if we have a cache?
+                // For now, let's stick to existing logic but maybe we need to be careful.
+                // If init failed, we might still want to proceed if we manually injected?
+                // But let's assume detection usually succeeds (returns empty list if none found?).
+                // "Failed to detect" usually means exception.
+
+                // If cache is null, we can't do much.
+                if (_cachedInstallations == null)
+                {
+                     return OperationResult<IReadOnlyList<GameInstallation>>.CreateFailure(initResult.Errors[0]);
+                }
             }
 
             if (_cachedInstallations == null)
@@ -101,6 +114,65 @@ public class GameInstallationService(
         catch (Exception ex)
         {
             return OperationResult<IReadOnlyList<GameInstallation>>.CreateFailure($"Error retrieving installations: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<OperationResult<bool>> RegisterManualInstallationAsync(GameInstallation installation, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(installation);
+
+        await _cacheLock.WaitAsync(cancellationToken);
+        try
+        {
+            // Ensure cache is initialized (or at least exists)
+            if (_cachedInstallations == null)
+            {
+                // Try to initialize standard way first
+                try
+                {
+                    // logic from TryInitializeCacheAsync but without the lock since we hold it
+                    var detectionResult = await _detectionOrchestrator.DetectAllInstallationsAsync(cancellationToken);
+                    if (detectionResult.Success)
+                    {
+                        var installations = detectionResult.Items.ToList();
+                        await PopulateGameClientsAndManifestsAsync(installations, cancellationToken);
+                        _cachedInstallations = installations.AsReadOnly();
+                    }
+                    else
+                    {
+                        // Fallback to empty list
+                        _cachedInstallations = new List<GameInstallation>().AsReadOnly();
+                    }
+                }
+                catch
+                {
+                     _cachedInstallations = new List<GameInstallation>().AsReadOnly();
+                }
+            }
+
+            var currentList = _cachedInstallations.ToList();
+
+            // Update existing or add new
+            var existingIndex = currentList.FindIndex(i => i.Id == installation.Id);
+            if (existingIndex >= 0)
+            {
+                currentList[existingIndex] = installation;
+            }
+            else
+            {
+                currentList.Add(installation);
+            }
+            
+            _cachedInstallations = currentList.AsReadOnly();
+
+            _logger.LogInformation("Registered manual installation: {Id} ({Path})", installation.Id, installation.InstallationPath);
+
+            return OperationResult<bool>.CreateSuccess(true);
+        }
+        finally
+        {
+            _cacheLock.Release();
         }
     }
 
