@@ -282,6 +282,18 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     [ObservableProperty]
     private ContentType _selectedLocalContentType = ContentType.Addon;
 
+    [ObservableProperty]
+    private Core.Models.Enums.GameType _selectedLocalGameType = Core.Models.Enums.GameType.Generals;
+
+    /// <summary>
+    /// Gets available local game types for selection.
+    /// </summary>
+    public static Core.Models.Enums.GameType[] AvailableLocalGameTypes { get; } =
+    [
+        Core.Models.Enums.GameType.Generals,
+        Core.Models.Enums.GameType.ZeroHour,
+    ];
+
     /// <summary>
     /// Event that is raised when the window should be closed.
     /// </summary>
@@ -2089,6 +2101,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                 LocalContentDirectoryPath = selectedFolder.Path.LocalPath;
                 LocalContentName = System.IO.Path.GetFileName(LocalContentDirectoryPath);
                 SelectedLocalContentType = ContentType.Addon; // Default
+                SelectedLocalGameType = Core.Models.Enums.GameType.Generals; // Reset default
                 IsAddLocalContentDialogOpen = true;
 
                 logger?.LogInformation("Selected local content folder: {Path}", LocalContentDirectoryPath);
@@ -2122,8 +2135,18 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             }
 
             // Determine the game type from enabled content or default to Generals
-            var firstContent = EnabledContent.FirstOrDefault();
-            Core.Models.Enums.GameType targetGameType = (firstContent != null) ? firstContent.GameType : Core.Models.Enums.GameType.Generals;
+            Core.Models.Enums.GameType targetGameType;
+
+            // If it's a game client, use the user-selected game type
+            if (SelectedLocalContentType == ContentType.GameClient)
+            {
+                targetGameType = SelectedLocalGameType;
+            }
+            else
+            {
+                var firstContent = EnabledContent.FirstOrDefault();
+                targetGameType = (firstContent != null) ? firstContent.GameType : Core.Models.Enums.GameType.Generals;
+            }
 
             // Call local content service to create manifest and store content
             IsLoadingContent = true;
@@ -2187,25 +2210,24 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                 IsEnabled = true,
             };
 
-            EnabledContent.Add(localContentItem);
-
-            // Add to AvailableContent if it matches the current filter to update UI immediately
-            if (localContentItem.ContentType == SelectedContentType)
+            // Add to AvailableContent first to ensure it's tracked properly
+            if (!AvailableContent.Any(a => a.ManifestId.Value == localContentItem.ManifestId.Value))
             {
-                // Check if not already in available list (shouldn't be, but defensive)
-                if (!AvailableContent.Any(a => a.ManifestId.Value == localContentItem.ManifestId.Value))
-                {
-                    AvailableContent.Add(localContentItem);
-                    logger?.LogDebug("Added local content to AvailableContent for immediate UI update");
-                }
+                AvailableContent.Add(localContentItem);
+                logger?.LogDebug("Added local content to AvailableContent");
             }
 
+            // Status message before enabling (EnableContent might overwrite it)
             StatusMessage = $"Added local content: {LocalContentName}";
             logger?.LogInformation(
                 "Added local content '{Name}' as {ContentType} from {Path}",
                 LocalContentName,
                 SelectedLocalContentType,
                 LocalContentDirectoryPath);
+
+            // Use EnableContent to handle validation, dependency resolution, and conflict management
+            // This ensures we don't have multiple Game Clients enabled or missing dependencies
+            EnableContent(localContentItem);
 
             // Notify user that content is stored in CAS
             _localNotificationService?.ShowSuccess(
