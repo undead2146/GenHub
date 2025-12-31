@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Extensions;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameProfiles;
@@ -373,6 +374,16 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
 
             // Initialize game settings with defaults for new profile
             GameSettingsViewModel.ColorValue = ColorValue;
+
+            // Ensure the correct game type is selected so we load the correct Options.ini defaults
+            if (SelectedGameInstallation != null)
+            {
+                GameSettingsViewModel.SelectedGameType = SelectedGameInstallation.GameType;
+                logger?.LogInformation(
+                    "Set GameSettingsViewModel.SelectedGameType to {GameType} before initialization",
+                    SelectedGameInstallation.GameType);
+            }
+
             await GameSettingsViewModel.InitializeForProfileAsync(null, null);
 
             StatusMessage = $"Found {AvailableGameInstallations.Count} installations and {AvailableContent.Count} content items";
@@ -532,6 +543,21 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Populates game settings into a CreateProfileRequest.
+    /// </summary>
+    /// <param name="request">The create request to populate.</param>
+    /// <param name="gameSettings">The game settings to apply, or null to skip.</param>
+    private static void PopulateGameSettings(
+        CreateProfileRequest request,
+        UpdateProfileRequest? gameSettings)
+    {
+        if (gameSettings == null)
+            return;
+
+        GameSettingsMapper.PopulateRequest(request, gameSettings);
+    }
+
+    /// <summary>
     /// Populates game settings into an UpdateProfileRequest.
     /// </summary>
     /// <param name="request">The update request to populate.</param>
@@ -543,74 +569,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
         if (gameSettings == null)
             return;
 
-        request.VideoResolutionWidth = gameSettings.VideoResolutionWidth;
-        request.VideoResolutionHeight = gameSettings.VideoResolutionHeight;
-        request.VideoWindowed = gameSettings.VideoWindowed;
-        request.VideoTextureQuality = gameSettings.VideoTextureQuality;
-        request.EnableVideoShadows = gameSettings.EnableVideoShadows;
-        request.VideoParticleEffects = gameSettings.VideoParticleEffects;
-        request.VideoExtraAnimations = gameSettings.VideoExtraAnimations;
-        request.VideoBuildingAnimations = gameSettings.VideoBuildingAnimations;
-        request.VideoGamma = gameSettings.VideoGamma;
-        request.AudioSoundVolume = gameSettings.AudioSoundVolume;
-        request.AudioThreeDSoundVolume = gameSettings.AudioThreeDSoundVolume;
-        request.AudioSpeechVolume = gameSettings.AudioSpeechVolume;
-        request.AudioMusicVolume = gameSettings.AudioMusicVolume;
-        request.AudioEnabled = gameSettings.AudioEnabled;
-        request.AudioNumSounds = gameSettings.AudioNumSounds;
-
-        // TheSuperHackers settings
-        request.TshArchiveReplays = gameSettings.TshArchiveReplays;
-        request.TshShowMoneyPerMinute = gameSettings.TshShowMoneyPerMinute;
-        request.TshPlayerObserverEnabled = gameSettings.TshPlayerObserverEnabled;
-        request.TshSystemTimeFontSize = gameSettings.TshSystemTimeFontSize;
-        request.TshNetworkLatencyFontSize = gameSettings.TshNetworkLatencyFontSize;
-        request.TshRenderFpsFontSize = gameSettings.TshRenderFpsFontSize;
-        request.TshResolutionFontAdjustment = gameSettings.TshResolutionFontAdjustment;
-        request.TshCursorCaptureEnabledInFullscreenGame = gameSettings.TshCursorCaptureEnabledInFullscreenGame;
-        request.TshCursorCaptureEnabledInFullscreenMenu = gameSettings.TshCursorCaptureEnabledInFullscreenMenu;
-        request.TshCursorCaptureEnabledInWindowedGame = gameSettings.TshCursorCaptureEnabledInWindowedGame;
-        request.TshCursorCaptureEnabledInWindowedMenu = gameSettings.TshCursorCaptureEnabledInWindowedMenu;
-        request.TshScreenEdgeScrollEnabledInFullscreenApp = gameSettings.TshScreenEdgeScrollEnabledInFullscreenApp;
-        request.TshScreenEdgeScrollEnabledInWindowedApp = gameSettings.TshScreenEdgeScrollEnabledInWindowedApp;
-        request.TshMoneyTransactionVolume = gameSettings.TshMoneyTransactionVolume;
-
-        // GeneralsOnline settings
-        request.GoShowFps = gameSettings.GoShowFps;
-        request.GoShowPing = gameSettings.GoShowPing;
-        request.GoShowPlayerRanks = gameSettings.GoShowPlayerRanks;
-        request.GoAutoLogin = gameSettings.GoAutoLogin;
-        request.GoRememberUsername = gameSettings.GoRememberUsername;
-        request.GoEnableNotifications = gameSettings.GoEnableNotifications;
-        request.GoEnableSoundNotifications = gameSettings.GoEnableSoundNotifications;
-        request.GoChatFontSize = gameSettings.GoChatFontSize;
-
-        // Camera settings
-        request.GoCameraMaxHeightOnlyWhenLobbyHost = gameSettings.GoCameraMaxHeightOnlyWhenLobbyHost;
-        request.GoCameraMinHeight = gameSettings.GoCameraMinHeight;
-        request.GoCameraMoveSpeedRatio = gameSettings.GoCameraMoveSpeedRatio;
-
-        // Chat settings
-        request.GoChatDurationSecondsUntilFadeOut = gameSettings.GoChatDurationSecondsUntilFadeOut;
-
-        // Debug settings
-        request.GoDebugVerboseLogging = gameSettings.GoDebugVerboseLogging;
-
-        // Render settings
-        request.GoRenderFpsLimit = gameSettings.GoRenderFpsLimit;
-        request.GoRenderLimitFramerate = gameSettings.GoRenderLimitFramerate;
-        request.GoRenderStatsOverlay = gameSettings.GoRenderStatsOverlay;
-
-        // Social notification settings
-        request.GoSocialNotificationFriendComesOnlineGameplay = gameSettings.GoSocialNotificationFriendComesOnlineGameplay;
-        request.GoSocialNotificationFriendComesOnlineMenus = gameSettings.GoSocialNotificationFriendComesOnlineMenus;
-        request.GoSocialNotificationFriendGoesOfflineGameplay = gameSettings.GoSocialNotificationFriendGoesOfflineGameplay;
-        request.GoSocialNotificationFriendGoesOfflineMenus = gameSettings.GoSocialNotificationFriendGoesOfflineMenus;
-        request.GoSocialNotificationPlayerAcceptsRequestGameplay = gameSettings.GoSocialNotificationPlayerAcceptsRequestGameplay;
-        request.GoSocialNotificationPlayerAcceptsRequestMenus = gameSettings.GoSocialNotificationPlayerAcceptsRequestMenus;
-        request.GoSocialNotificationPlayerSendsRequestGameplay = gameSettings.GoSocialNotificationPlayerSendsRequestGameplay;
-        request.GoSocialNotificationPlayerSendsRequestMenus = gameSettings.GoSocialNotificationPlayerSendsRequestMenus;
-        request.GameSpyIPAddress = gameSettings.GameSpyIPAddress;
+        GameSettingsMapper.PopulateRequest(request, gameSettings);
     }
 
     /// <summary>
@@ -1495,9 +1454,19 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                     CoverPath = CoverPath,
                 };
 
+                // Populate settings into create request
+                var gameSettings = GameSettingsViewModel.GetProfileSettings();
+                PopulateGameSettings(createRequest, gameSettings);
+
                 var result = await gameProfileManager.CreateProfileAsync(createRequest);
                 if (result.Success && result.Data != null)
                 {
+                    // Explicitly save settings to Options.ini/Settings.json so they become the new "defaults"
+                    if (GameSettingsViewModel.SaveSettingsCommand.CanExecute(null))
+                    {
+                        await GameSettingsViewModel.SaveSettingsCommand.ExecuteAsync(null);
+                    }
+
                     StatusMessage = "Profile created successfully";
                     logger?.LogInformation("Created new profile {ProfileName} with {ContentCount} enabled content items", Name, enabledContentIds.Count);
 
@@ -1517,7 +1486,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             else
             {
                 // Update existing profile
-                var gameSettings = GameSettingsViewModel?.GetProfileSettings();
+                var gameSettings = GameSettingsViewModel.GetProfileSettings();
 
                 var updateRequest = new UpdateProfileRequest
                 {
@@ -1541,6 +1510,13 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                 var result = await gameProfileManager.UpdateProfileAsync(_currentProfileId, updateRequest);
                 if (result.Success && result.Data != null)
                 {
+                    // Explicitly save settings to Options.ini/Settings.json so they become the new "defaults"/baseline
+                    // This ensures that if the user immediately creates a new profile, it inherits these settings
+                    if (GameSettingsViewModel.SaveSettingsCommand.CanExecute(null))
+                    {
+                        await GameSettingsViewModel.SaveSettingsCommand.ExecuteAsync(null);
+                    }
+
                     StatusMessage = "Profile updated successfully";
                     logger?.LogInformation("Updated profile {ProfileId} with {ContentCount} enabled content items", _currentProfileId, enabledContentIds.Count);
 

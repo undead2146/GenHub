@@ -89,9 +89,10 @@ public class GameProfileManager(
 
             var profile = new GameProfile
             {
+                Id = Guid.NewGuid().ToString("N"),
                 Name = request.Name,
                 Description = request.Description ?? string.Empty,
-                GameInstallationId = gameInstallation.Id,
+                GameInstallationId = request.GameInstallationId,
                 GameClient = gameClient,
                 WorkspaceStrategy = request.PreferredStrategy,
                 EnabledContentIds = request.EnabledContentIds ?? [],
@@ -102,9 +103,15 @@ public class GameProfileManager(
                 GameSpyIPAddress = request.GameSpyIPAddress,
             };
 
-            // Load existing Options.ini settings and populate the profile
-            // This ensures new profiles inherit existing TheSuperHackers/GeneralsOnline settings
+            // Populate settings into new profile
+            GameSettingsMapper.PopulateGameProfile(profile, request);
+
+            // Load existing Options.ini settings only if they weren't explicitly provided in the request
+            // This ensures we still have a baseline for unset fields but respect wizard selections.
             await LoadExistingSettingsIntoProfileAsync(profile, gameClient.GameType);
+
+            // Re-apply request settings over the loaded ones (in case LoadExistingSettingsIntoProfileAsync overwrote them)
+            GameSettingsMapper.PatchGameProfile(profile, request);
 
             var saveResult = await _profileRepository.SaveProfileAsync(profile, cancellationToken);
 
@@ -182,40 +189,7 @@ public class GameProfileManager(
             }
 
             // Update game settings
-            if (request.VideoResolutionWidth.HasValue)
-                profile.VideoResolutionWidth = request.VideoResolutionWidth;
-            if (request.VideoResolutionHeight.HasValue)
-                profile.VideoResolutionHeight = request.VideoResolutionHeight;
-            if (request.VideoWindowed.HasValue)
-                profile.VideoWindowed = request.VideoWindowed;
-            if (request.VideoTextureQuality.HasValue)
-                profile.VideoTextureQuality = request.VideoTextureQuality;
-            if (request.EnableVideoShadows.HasValue)
-                profile.EnableVideoShadows = request.EnableVideoShadows;
-            if (request.VideoParticleEffects.HasValue)
-                profile.VideoParticleEffects = request.VideoParticleEffects;
-            if (request.VideoExtraAnimations.HasValue)
-                profile.VideoExtraAnimations = request.VideoExtraAnimations;
-            if (request.VideoBuildingAnimations.HasValue)
-                profile.VideoBuildingAnimations = request.VideoBuildingAnimations;
-            if (request.VideoGamma.HasValue)
-                profile.VideoGamma = request.VideoGamma;
-            if (request.AudioSoundVolume.HasValue)
-                profile.AudioSoundVolume = request.AudioSoundVolume;
-            if (request.AudioThreeDSoundVolume.HasValue)
-                profile.AudioThreeDSoundVolume = request.AudioThreeDSoundVolume;
-            if (request.AudioSpeechVolume.HasValue)
-                profile.AudioSpeechVolume = request.AudioSpeechVolume;
-            if (request.AudioMusicVolume.HasValue)
-                profile.AudioMusicVolume = request.AudioMusicVolume;
-            if (request.AudioEnabled.HasValue)
-                profile.AudioEnabled = request.AudioEnabled;
-            if (request.AudioNumSounds.HasValue)
-                profile.AudioNumSounds = request.AudioNumSounds;
-            if (request.UseSteamLaunch.HasValue)
-                profile.UseSteamLaunch = request.UseSteamLaunch;
-            if (request.GameSpyIPAddress != null)
-                profile.GameSpyIPAddress = request.GameSpyIPAddress;
+            GameSettingsMapper.UpdateFromRequest(profile, request);
 
             var saveResult = await _profileRepository.SaveProfileAsync(profile, cancellationToken);
             if (saveResult.Success)
