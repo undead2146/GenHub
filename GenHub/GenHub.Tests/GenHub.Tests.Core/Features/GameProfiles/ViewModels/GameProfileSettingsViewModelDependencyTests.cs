@@ -315,7 +315,6 @@ public class GameProfileSettingsViewModelDependencyTests
         Assert.DoesNotMatch("Error: Missing required dependencies", _viewModel.StatusMessage);
     }
 
-
     /// <summary>
     /// Verifies that enabling content requiring a different Game Installation automatically switches the selected installation.
     /// </summary>
@@ -323,7 +322,6 @@ public class GameProfileSettingsViewModelDependencyTests
     [Fact]
     public async Task EnableContent_AutoSwitches_GameInstallation_When_Dependency_Requires_Different_Type()
     {
-
         // Arrange
         var modManifestId = new ManifestId("1.0.0.mod.generalsonline");
         var zeroHourInstallId = new ManifestId("1.0.0.gameinstallation.zerohour");
@@ -340,7 +338,7 @@ public class GameProfileSettingsViewModelDependencyTests
                 {
                     Id = zeroHourInstallId, // Specifically requires Zero Hour
                     DependencyType = ContentType.GameInstallation,
-                    CompatibleGameTypes = [GameType.ZeroHour]
+                    CompatibleGameTypes = [GameType.ZeroHour],
                 },
             ],
         };
@@ -357,7 +355,7 @@ public class GameProfileSettingsViewModelDependencyTests
             ContentType = ContentType.GameInstallation,
             GameType = GameType.Generals,
             InstallationType = GameInstallationType.Steam, // Added required property
-            IsEnabled = true // Initially selected/enabled
+            IsEnabled = true, // Initially selected/enabled
         };
 
         var zeroHourInstall = new ViewModelContentDisplayItem
@@ -367,7 +365,7 @@ public class GameProfileSettingsViewModelDependencyTests
             ContentType = ContentType.GameInstallation,
             GameType = GameType.ZeroHour,
             InstallationType = GameInstallationType.Steam, // Added required property
-            IsEnabled = false
+            IsEnabled = false,
         };
 
         _viewModel.AvailableGameInstallations = [generalsInstall, zeroHourInstall];
@@ -381,7 +379,7 @@ public class GameProfileSettingsViewModelDependencyTests
             ContentType = ContentType.GameClient,
             GameType = GameType.ZeroHour, // Added required property (assuming match)
             InstallationType = GameInstallationType.Unknown, // Added required property
-            IsEnabled = false
+            IsEnabled = false,
         };
         _viewModel.AvailableContent.Add(modDisplayItem);
 
@@ -425,7 +423,7 @@ public class GameProfileSettingsViewModelDependencyTests
             ContentType = ContentType.GameInstallation,
             GameType = GameType.Generals,
             InstallationType = GameInstallationType.EaApp,
-            IsEnabled = true
+            IsEnabled = true,
         };
 
         var zeroHourInstall = new ViewModelContentDisplayItem
@@ -435,7 +433,7 @@ public class GameProfileSettingsViewModelDependencyTests
             ContentType = ContentType.GameInstallation,
             GameType = GameType.ZeroHour,
             InstallationType = GameInstallationType.EaApp,
-            IsEnabled = false
+            IsEnabled = false,
         };
 
         _viewModel.AvailableGameInstallations = [generalsInstall, zeroHourInstall];
@@ -450,9 +448,10 @@ public class GameProfileSettingsViewModelDependencyTests
             ContentType = ContentType.GameClient,
             GameType = GameType.ZeroHour,
             InstallationType = GameInstallationType.EaApp,
+
             // CRITICAL: SourceId must point to the installation
             SourceId = zeroHourInstallId.Value,
-            IsEnabled = false
+            IsEnabled = false,
         };
         _viewModel.AvailableContent.Add(clientDisplayItem);
 
@@ -492,7 +491,7 @@ public class GameProfileSettingsViewModelDependencyTests
                     Id = mapPackId,
                     DependencyType = ContentType.MapPack,
                     IsOptional = false,
-                    Name = "QuickMatch MapPack"
+                    Name = "QuickMatch MapPack",
                 },
             ],
         };
@@ -525,7 +524,7 @@ public class GameProfileSettingsViewModelDependencyTests
             ContentType = ContentType.GameClient,
             GameType = GameType.ZeroHour, // Added required property
             InstallationType = GameInstallationType.Unknown, // Added required property
-            IsEnabled = false
+            IsEnabled = false,
         };
         _viewModel.AvailableContent.Add(clientDisplayItem);
 

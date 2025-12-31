@@ -368,7 +368,7 @@
                                     IsVisible="{Binding EnabledContent.Count, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=0}">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="⚠️" FontSize="14" />
-                                    <TextBlock Text="No content enabled. Add at least one Game Installation to launch this profile."
+                                    <TextBlock Text="No content enabled. Add at least one Game Client (Executable) to launch this profile."
                                                FontSize="12" Opacity="0.9" TextWrapping="Wrap" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Border>
@@ -420,15 +420,7 @@
                             
                             <!-- Content type filter pills -->
                             <WrapPanel Margin="0,0,0,12" HorizontalAlignment="Center">
-                                <Button Classes="filter-pill" Margin="0,0,8,8"
-                                        Classes.selected="{Binding SelectedContentType, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:ContentType.GameInstallation}}"
-                                        Command="{Binding SelectContentTypeFilterCommand}"
-                                        CommandParameter="{x:Static models:ContentType.GameInstallation}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <PathIcon Data="M19,20H4C2.89,20 2,19.1 2,18V6C2,4.89 2.89,4 4,4H10L12,6H19A2,2 0 0,1 21,8H21L4,8V18L6.14,10H23.21L20.93,18.5C20.7,19.37 19.92,20 19,20Z" Width="16" Height="16" />
-                                        <TextBlock Text="Installation" FontSize="12" />
-                                    </StackPanel>
-                                </Button>
+
                                 
                                 <Button Classes="filter-pill" Margin="0,0,8,8"
                                         Classes.selected="{Binding SelectedContentType, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:ContentType.GameClient}}"

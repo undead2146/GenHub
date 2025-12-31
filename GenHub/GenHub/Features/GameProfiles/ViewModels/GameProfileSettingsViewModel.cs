@@ -107,7 +107,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     private string _colorValue = "#1976D2";
 
     // Remove [ObservableProperty] for SelectedContentType to implement custom setter
-    private ContentType _selectedContentType = ContentType.GameInstallation;
+    private ContentType _selectedContentType = ContentType.GameClient;
 
     /// <summary>
     /// Gets or sets the selected content type for filtering available content.
@@ -304,7 +304,6 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     /// </summary>
     public static ContentType[] AvailableContentTypes { get; } =
     [
-        ContentType.GameInstallation,
         ContentType.GameClient,
         ContentType.Mod,
         ContentType.MapPack,
@@ -358,7 +357,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             Description = "A new game profile";
             ColorValue = "#1976D2";
             SelectedWorkspaceStrategy = GetDefaultWorkspaceStrategy();
-            SelectedContentType = ContentType.GameInstallation;
+            SelectedContentType = ContentType.GameClient;
 
             EnabledContent.Clear();
 
@@ -485,25 +484,18 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             await LoadAvailableGameInstallationsAsync();
             await LoadAvailableContentAsync();
 
-            // Auto-select the GameInstallation content type filter if there are enabled GameInstallations
-            var hasGameInstallation = EnabledContent.Any(c => c.ContentType == ContentType.GameInstallation);
-            if (hasGameInstallation)
+            // Sync SelectedGameInstallation with the enabled one in the profile
+            var enabledInstallation = EnabledContent.FirstOrDefault(c => c.ContentType == ContentType.GameInstallation);
+            if (enabledInstallation != null)
             {
-                SelectedContentType = ContentType.GameInstallation;
-                logger?.LogInformation("Auto-selected GameInstallation content type filter for editing");
+                // Find the matching item in AvailableGameInstallations
+                SelectedGameInstallation = AvailableGameInstallations
+                    .FirstOrDefault(a => a.ManifestId.Value == enabledInstallation.ManifestId.Value)
+                    ?? enabledInstallation;
 
-                var enabledInstallation = EnabledContent.FirstOrDefault(c => c.ContentType == ContentType.GameInstallation);
-                if (enabledInstallation != null)
-                {
-                    // Find the matching item in AvailableGameInstallations
-                    SelectedGameInstallation = AvailableGameInstallations
-                        .FirstOrDefault(a => a.ManifestId.Value == enabledInstallation.ManifestId.Value)
-                        ?? enabledInstallation;
-
-                    logger?.LogInformation(
-                        "Set SelectedGameInstallation to {DisplayName} from existing profile",
-                        SelectedGameInstallation.DisplayName);
-                }
+                logger?.LogInformation(
+                    "Set SelectedGameInstallation to {DisplayName} from existing profile",
+                    SelectedGameInstallation.DisplayName);
             }
 
             StatusMessage = $"Profile loaded with {EnabledContent.Count} enabled content items";
@@ -789,17 +781,22 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     /// </summary>
     /// <param name="contentItem">The content item to enable.</param>
     [RelayCommand]
-    private void EnableContent(ContentDisplayItem? contentItem)
+    private async Task EnableContent(ContentDisplayItem? contentItem)
+    {
+        await EnableContentInternal(contentItem, bypassLoadingGuard: false);
+    }
+
+    private async Task EnableContentInternal(ContentDisplayItem? contentItem, bool bypassLoadingGuard = false)
     {
         if (contentItem == null)
         {
             StatusMessage = "No content selected";
-            logger?.LogWarning("EnableContent: contentItem parameter is NULL");
+            logger?.LogWarning("EnableContent: contentItem parameter is null");
             return;
         }
 
-        // Prevent cascading calls during content loading
-        if (IsLoadingContent)
+        // Prevent cascading calls during content loading, unless bypassed
+        if (IsLoadingContent && !bypassLoadingGuard)
         {
             logger?.LogDebug("EnableContent: Blocked during content loading (guard flag set) - {DisplayName}", contentItem.DisplayName);
             return;
@@ -898,8 +895,8 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
         StatusMessage = $"Enabled {contentItem.DisplayName}";
         logger?.LogInformation("Enabled content {ContentName} for profile", contentItem.DisplayName);
 
-        // Auto-resolve dependencies (switch GameInstallation or enable other content)
-        _ = ResolveDependenciesAsync(contentItem);
+        // Auto-resolve dependencies (switch game installation or enable other content)
+        await ResolveDependenciesAsync(contentItem);
     }
 
     /// <summary>
@@ -923,6 +920,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             {
                 manifest = manifestResult.Data;
             }
+
             // Fallback: If no manifest exists but it's a GameClient, create a synthetic one
             // This handles standard GameInstallations/Clients detected at runtime
             else if (contentItem.ContentType == ContentType.GameClient && !string.IsNullOrEmpty(contentItem.SourceId))
@@ -944,9 +942,9 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                             DependencyType = ContentType.GameInstallation,
                             CompatibleGameTypes = [contentItem.GameType],
                             IsOptional = false,
-                            InstallBehavior = DependencyInstallBehavior.RequireExisting
+                            InstallBehavior = DependencyInstallBehavior.RequireExisting,
                         }
-                    ]
+                    ],
                 };
             }
             else
@@ -998,14 +996,30 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                         // Find a compatible one in AvailableGameInstallations
                         ContentDisplayItem? compatibleInstallation = null;
 
-                        // First try finding by specific ID
-                        if (dependency.Id.ToString() != Core.Constants.ManifestConstants.DefaultContentDependencyId)
+                        // First priority: Try finding the specific installation this content belongs to (via SourceId)
+                        // Only applicable if SourceId is a GUID (detected content). Local content has a path as SourceId.
+                        if (!string.IsNullOrEmpty(contentItem.SourceId) && Guid.TryParse(contentItem.SourceId, out _))
+                        {
+                            compatibleInstallation = AvailableGameInstallations
+                                .FirstOrDefault(x => x.ManifestId.Value == contentItem.SourceId);
+
+                            if (compatibleInstallation != null)
+                            {
+                                logger?.LogDebug(
+                                    compatibleInstallation.DisplayName,
+                                    contentItem.SourceId,
+                                    contentItem.DisplayName);
+                            }
+                        }
+
+                        // Second priority: Try finding by specific ID if indicated by dependency
+                        if (compatibleInstallation == null && dependency.Id.ToString() != Core.Constants.ManifestConstants.DefaultContentDependencyId)
                         {
                             compatibleInstallation = AvailableGameInstallations
                                 .FirstOrDefault(x => x.ManifestId.Value == dependency.Id.ToString());
                         }
 
-                        // If not found or no specific ID, try by compatible game type
+                        // Third priority: Try by compatible game type (any matching installation)
                         if (compatibleInstallation == null && dependency.CompatibleGameTypes != null)
                         {
                             compatibleInstallation = AvailableGameInstallations
@@ -1017,7 +1031,6 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                             // We found a compatible installation. We must ENABLE it properly so it gets added to EnabledContent
                             // and the previous one gets removed/disabled.
                             // Simply setting SelectedGameInstallation is NOT enough as validation relies on EnabledContent list.
-
                             logger?.LogInformation(
                                 "Auto-resolving dependency: Switching GameInstallation to {InstallationName} for {ContentName}",
                                 compatibleInstallation.DisplayName,
@@ -1028,10 +1041,11 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                                 $"Switched Game Installation to '{compatibleInstallation.DisplayName}' as required by '{contentItem.DisplayName}'.");
 
                             // Recursively call EnableContent to handle the full switch logic (disabling old, enabling new, setting property)
-                            EnableContent(compatibleInstallation);
+                            await EnableContentInternal(compatibleInstallation);
                         }
                     }
                 }
+
                 // 2. Handle Content Dependencies (MapPack, Addon, etc)
                 else
                 {
@@ -1051,7 +1065,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
 
                     if (!alreadyEnabled && !dependency.IsOptional)
                     {
-                        // Try to find it in "AvailableContent" first? 
+                        // Try to find it in "AvailableContent" first?
                         // It might not be in the visible list if filtered.
 
                         // Use loader to find the best match
@@ -1064,9 +1078,9 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                                     ManifestId = x.ManifestId.Value,
                                     DisplayName = x.DisplayName,
                                     ContentType = x.ContentType,
-                                    GameType = x.GameType
+                                    GameType = x.GameType,
                                 })),
-                            EnabledContent.Select(x => x.ManifestId.Value).ToList());
+                            EnabledContent.Select(x => x.ManifestId.Value));
 
                         Core.Models.Content.ContentDisplayItem? match = null;
 
@@ -1094,7 +1108,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
 
                                 // Call EnableContent to handle standard logic (moving from available, cardinality, etc.)
                                 // This is recursive but safe because we check IsEnabled
-                                EnableContent(viewModelItem);
+                                await EnableContent(viewModelItem);
                             }
                         }
                     }
@@ -1107,6 +1121,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
         catch (Exception ex)
         {
             logger?.LogError(ex, "Error resolving dependencies for {ContentName}", contentItem.DisplayName);
+
             // Fallback to standard validation
             _ = ValidateEnabledContentDependenciesAsync(contentItem.DisplayName);
         }
@@ -2207,7 +2222,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                 Publisher = manifest.Publisher?.Name ?? "GenHub (Local)",
                 Version = manifest.Version ?? "1.0.0",
                 SourceId = LocalContentDirectoryPath,
-                IsEnabled = true,
+                IsEnabled = false, // Set to false initially so EnableContent passes the "already enabled" check
             };
 
             // Add to AvailableContent first to ensure it's tracked properly
@@ -2226,8 +2241,9 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                 LocalContentDirectoryPath);
 
             // Use EnableContent to handle validation, dependency resolution, and conflict management
-            // This ensures we don't have multiple Game Clients enabled or missing dependencies
-            EnableContent(localContentItem);
+            // This ensures we don't have multiple game clients enabled or missing dependencies
+            // We pass bypassLoadingGuard: true because we are currently "loading" the local content
+            await EnableContentInternal(localContentItem, bypassLoadingGuard: true);
 
             // Notify user that content is stored in CAS
             _localNotificationService?.ShowSuccess(
