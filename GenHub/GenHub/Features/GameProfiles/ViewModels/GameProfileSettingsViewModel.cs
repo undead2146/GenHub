@@ -886,8 +886,218 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
         StatusMessage = $"Enabled {contentItem.DisplayName}";
         logger?.LogInformation("Enabled content {ContentName} for profile", contentItem.DisplayName);
 
-        // Fire async validation to check for dependency conflicts
-        _ = ValidateEnabledContentDependenciesAsync(contentItem.DisplayName);
+        // Auto-resolve dependencies (switch GameInstallation or enable other content)
+        _ = ResolveDependenciesAsync(contentItem);
+    }
+
+    /// <summary>
+    /// Resolves dependencies for the newly enabled content.
+    /// Automatically switches GameInstallation or enables other required content if needed.
+    /// </summary>
+    /// <param name="contentItem">The content item that was just enabled.</param>
+    private async Task ResolveDependenciesAsync(ContentDisplayItem contentItem)
+    {
+        try
+        {
+            if (manifestPool == null)
+            {
+                return;
+            }
+
+            ContentManifest? manifest = null;
+            var manifestResult = await manifestPool.GetManifestAsync(contentItem.ManifestId.Value);
+
+            if (manifestResult.Success && manifestResult.Data != null)
+            {
+                manifest = manifestResult.Data;
+            }
+            // Fallback: If no manifest exists but it's a GameClient, create a synthetic one
+            // This handles standard GameInstallations/Clients detected at runtime
+            else if (contentItem.ContentType == ContentType.GameClient && !string.IsNullOrEmpty(contentItem.SourceId))
+            {
+                logger?.LogDebug("Creating synthetic manifest for GameClient {ContentName} depending on {SourceId}", contentItem.DisplayName, contentItem.SourceId);
+
+                manifest = new ContentManifest
+                {
+                    Id = ManifestId.Create(contentItem.ManifestId.Value),
+                    Name = contentItem.DisplayName,
+                    ContentType = ContentType.GameClient,
+                    TargetGame = contentItem.GameType,
+                    Dependencies =
+                    [
+                        new ContentDependency
+                        {
+                            Id = ManifestId.Create(contentItem.SourceId),
+                            Name = "Required Game Installation",
+                            DependencyType = ContentType.GameInstallation,
+                            CompatibleGameTypes = [contentItem.GameType],
+                            IsOptional = false,
+                            InstallBehavior = DependencyInstallBehavior.RequireExisting
+                        }
+                    ]
+                };
+            }
+            else
+            {
+                // Valid manifest not found and not a handled dynamic type
+                return;
+            }
+
+            if (manifest.Dependencies == null || manifest.Dependencies.Count == 0)
+            {
+                // No dependencies to resolve
+                _ = ValidateEnabledContentDependenciesAsync(contentItem.DisplayName);
+                return;
+            }
+
+            foreach (var dependency in manifest.Dependencies)
+            {
+                // 1. Handle GameInstallation Dependency
+                if (dependency.DependencyType == ContentType.GameInstallation)
+                {
+                    // Check if current installation satisfies the dependency
+                    bool isSatisfied = false;
+
+                    // Check compatible game types
+                    if (dependency.CompatibleGameTypes != null && dependency.CompatibleGameTypes.Count > 0)
+                    {
+                        if (SelectedGameInstallation != null &&
+                            SelectedGameInstallation.IsEnabled &&
+                            dependency.CompatibleGameTypes.Contains(SelectedGameInstallation.GameType))
+                        {
+                            isSatisfied = true;
+                        }
+                    }
+
+                    // Check specific ID if not strictly just type-based
+                    if (!isSatisfied && dependency.Id.ToString() != Core.Constants.ManifestConstants.DefaultContentDependencyId)
+                    {
+                        if (SelectedGameInstallation != null &&
+                            SelectedGameInstallation.IsEnabled &&
+                            SelectedGameInstallation.ManifestId.Value == dependency.Id.ToString())
+                        {
+                            isSatisfied = true;
+                        }
+                    }
+
+                    if (!isSatisfied)
+                    {
+                        // Need to switch GameInstallation
+                        // Find a compatible one in AvailableGameInstallations
+                        ContentDisplayItem? compatibleInstallation = null;
+
+                        // First try finding by specific ID
+                        if (dependency.Id.ToString() != Core.Constants.ManifestConstants.DefaultContentDependencyId)
+                        {
+                            compatibleInstallation = AvailableGameInstallations
+                                .FirstOrDefault(x => x.ManifestId.Value == dependency.Id.ToString());
+                        }
+
+                        // If not found or no specific ID, try by compatible game type
+                        if (compatibleInstallation == null && dependency.CompatibleGameTypes != null)
+                        {
+                            compatibleInstallation = AvailableGameInstallations
+                                .FirstOrDefault(x => dependency.CompatibleGameTypes.Contains(x.GameType));
+                        }
+
+                        if (compatibleInstallation != null)
+                        {
+                            // We found a compatible installation. We must ENABLE it properly so it gets added to EnabledContent
+                            // and the previous one gets removed/disabled.
+                            // Simply setting SelectedGameInstallation is NOT enough as validation relies on EnabledContent list.
+
+                            logger?.LogInformation(
+                                "Auto-resolving dependency: Switching GameInstallation to {InstallationName} for {ContentName}",
+                                compatibleInstallation.DisplayName,
+                                contentItem.DisplayName);
+
+                            _localNotificationService.ShowSuccess(
+                                "Auto-Resolved",
+                                $"Switched Game Installation to '{compatibleInstallation.DisplayName}' as required by '{contentItem.DisplayName}'.");
+
+                            // Recursively call EnableContent to handle the full switch logic (disabling old, enabling new, setting property)
+                            EnableContent(compatibleInstallation);
+                        }
+                    }
+                }
+                // 2. Handle Content Dependencies (MapPack, Addon, etc)
+                else
+                {
+                    // Check if already enabled
+                    bool alreadyEnabled = false;
+
+                    // Check by ID
+                    if (dependency.Id.ToString() != Core.Constants.ManifestConstants.DefaultContentDependencyId)
+                    {
+                        alreadyEnabled = EnabledContent.Any(x => x.ManifestId.Value == dependency.Id.ToString());
+                    }
+                    else
+                    {
+                        // Check if any content of the required type is enabled
+                        alreadyEnabled = EnabledContent.Any(x => x.ContentType == dependency.DependencyType);
+                    }
+
+                    if (!alreadyEnabled && !dependency.IsOptional)
+                    {
+                        // Try to find it in "AvailableContent" first? 
+                        // It might not be in the visible list if filtered.
+
+                        // Use loader to find the best match
+                        var availableOfTargetType = await profileContentLoader!.LoadAvailableContentAsync(
+                            dependency.DependencyType,
+                            new ObservableCollection<Core.Models.Content.ContentDisplayItem>(
+                                AvailableGameInstallations.Select(x => new Core.Models.Content.ContentDisplayItem
+                                {
+                                    Id = x.ManifestId.Value,
+                                    ManifestId = x.ManifestId.Value,
+                                    DisplayName = x.DisplayName,
+                                    ContentType = x.ContentType,
+                                    GameType = x.GameType
+                                })),
+                            EnabledContent.Select(x => x.ManifestId.Value).ToList());
+
+                        Core.Models.Content.ContentDisplayItem? match = null;
+
+                        // Find specific match by ID
+                        if (dependency.Id.ToString() != Core.Constants.ManifestConstants.DefaultContentDependencyId)
+                        {
+                            match = availableOfTargetType.FirstOrDefault(x => x.ManifestId == dependency.Id.ToString());
+                        }
+
+                        if (match != null)
+                        {
+                            var viewModelItem = ConvertToViewModelContentDisplayItem(match);
+
+                            // Check clearly if it's already enabled to avoid recursion (though EnableContent handles it)
+                            if (!viewModelItem.IsEnabled)
+                            {
+                                logger?.LogInformation(
+                                    "Auto-resolved dependency: Found required content {DependencyName}. Enabling it.",
+                                    viewModelItem.DisplayName);
+
+                                // Show specific notification for this action
+                                _localNotificationService.ShowSuccess(
+                                    "Auto-Resolved",
+                                    $"Automatically enabled required content: '{viewModelItem.DisplayName}'");
+
+                                // Call EnableContent to handle standard logic (moving from available, cardinality, etc.)
+                                // This is recursive but safe because we check IsEnabled
+                                EnableContent(viewModelItem);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Finally, perform standard validation (shows warnings if anything is still missing)
+            await ValidateEnabledContentDependenciesAsync(contentItem.DisplayName);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Error resolving dependencies for {ContentName}", contentItem.DisplayName);
+            // Fallback to standard validation
+            _ = ValidateEnabledContentDependenciesAsync(contentItem.DisplayName);
+        }
     }
 
     /// <summary>
@@ -898,9 +1108,9 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     {
         try
         {
-            if (manifestPool == null || notificationService == null)
+            if (manifestPool == null)
             {
-                logger?.LogDebug("Skipping dependency validation - manifestPool or notificationService not available");
+                logger?.LogDebug("Skipping dependency validation - manifestPool not available");
                 return;
             }
 
@@ -1053,7 +1263,9 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             if (warnings.Count > 0)
             {
                 var warningMessage = string.Join("\n• ", warnings);
-                notificationService.ShowWarning(
+
+                // Use local notification service so it appears on the window
+                _localNotificationService.ShowWarning(
                     "Dependency Warning",
                     $"After enabling '{justEnabledContentName}':\n• {warningMessage}",
                     15000); // Show for 15 seconds since this is important info

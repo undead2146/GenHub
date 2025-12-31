@@ -289,6 +289,25 @@ public class GameClientDetector(
             var manifest = builder.Build();
             manifest.ContentType = ContentType.GameClient;
 
+            // Add game installation dependency if installation is provided (Fix for 1.04/1.08 auto-selection)
+            if (installation != null)
+            {
+                var dependencyName = gameType == GameType.ZeroHour
+                    ? GameClientConstants.ZeroHourInstallationDependencyName
+                    : GameClientConstants.GeneralsInstallationDependencyName;
+
+                var installDependency = new ContentDependency
+                {
+                    Id = ManifestId.Create(ManifestConstants.DefaultContentDependencyId),
+                    Name = dependencyName,
+                    DependencyType = ContentType.GameInstallation,
+                    InstallBehavior = DependencyInstallBehavior.RequireExisting,
+                    CompatibleGameTypes = [gameType],
+                    IsOptional = false,
+                };
+                manifest.Dependencies.Add(installDependency);
+            }
+
             // Use ManifestIdGenerator for deterministic client ID generation
             if (installation != null)
             {
