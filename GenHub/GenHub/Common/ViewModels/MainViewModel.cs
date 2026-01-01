@@ -93,10 +93,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         try
         {
             _selectedTab = _configurationProvider.GetLastSelectedTab();
-            if (_selectedTab == NavigationTab.Tools)
-            {
-                _selectedTab = NavigationTab.GameProfiles;
-            }
 
             _logger?.LogDebug("Initial settings loaded, selected tab: {Tab}", _selectedTab);
         }
@@ -146,6 +142,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [
         NavigationTab.GameProfiles,
         NavigationTab.Downloads,
+        NavigationTab.Tools,
         NavigationTab.Settings,
     ];
 

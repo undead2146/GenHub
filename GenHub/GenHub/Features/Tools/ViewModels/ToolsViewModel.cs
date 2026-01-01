@@ -76,7 +76,7 @@ public partial class ToolsViewModel(IToolManager toolService, ILogger<ToolsViewM
     /// <summary>
     /// Gets the collection of installed tools.
     /// </summary>
-    public ObservableCollection<IToolPlugin> InstalledTools { get; } = new();
+    public ObservableCollection<IToolPlugin> InstalledTools { get; } = [];
 
     /// <summary>
     /// Initializes the ViewModel by loading saved tools.
@@ -153,13 +153,13 @@ public partial class ToolsViewModel(IToolManager toolService, ILogger<ToolsViewM
             {
                 Title = "Select Tool Plugin Assembly",
                 AllowMultiple = false,
-                FileTypeFilter = new[]
-                {
+                FileTypeFilter =
+                [
                     new FilePickerFileType("Tool Plugin Assembly")
                     {
-                        Patterns = new[] { "*.dll" },
+                        Patterns = ["*.dll"],
                     },
-                },
+                ],
             });
 
             if (files.Count > 0)
@@ -205,6 +205,11 @@ public partial class ToolsViewModel(IToolManager toolService, ILogger<ToolsViewM
     {
         var toolToRemove = tool ?? SelectedTool;
         if (toolToRemove == null) return;
+        if (toolToRemove.Metadata.IsBundled)
+        {
+            ShowStatusMessage($"✗ Tool '{toolToRemove.Metadata.Name}' is a bundled tool and cannot be removed.", error: true);
+            return;
+        }
 
         try
         {

@@ -182,7 +182,7 @@ public class CommunityOutpostResolver(
             }
 
             // Store the content code for the factory to use
-            builtManifest.Metadata.Tags ??= new List<string>();
+            builtManifest.Metadata.Tags ??= [];
             builtManifest.Metadata.Tags.Add($"contentCode:{contentCode}");
             builtManifest.Metadata.Tags.Add($"installTarget:{contentMetadata.InstallTarget}");
 
@@ -235,7 +235,7 @@ public class CommunityOutpostResolver(
         if (metadata.Category == GenPatcherContentCategory.OfficialPatch && !string.IsNullOrEmpty(metadata.LanguageCode))
         {
             var languageName = GetLanguageDisplayName(metadata.LanguageCode);
-            var codePrefix = contentCode.Length >= 3 ? contentCode.Substring(0, 3) : contentCode;
+            var codePrefix = contentCode.Length >= 3 ? contentCode[..3] : contentCode;
             return $"patch{codePrefix}{languageName}".ToLowerInvariant();
         }
 
@@ -374,12 +374,12 @@ public class CommunityOutpostResolver(
 
         try
         {
-            return JsonSerializer.Deserialize<List<string>>(mirrorUrlsJson) ?? new List<string>();
+            return JsonSerializer.Deserialize<List<string>>(mirrorUrlsJson) ?? [];
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to deserialize mirror URLs");
-            return new List<string>();
+            return [];
         }
     }
 }

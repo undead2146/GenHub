@@ -59,6 +59,42 @@ public static class ApiConstants
     /// </summary>
     public const string GitHubApiRunArtifactsFormat = "https://api.github.com/repos/{0}/{1}/actions/runs/{2}/artifacts";
 
+    // UploadThing
+
+    /// <summary>
+    /// UploadThing API version.
+    /// </summary>
+    public const string UploadThingApiVersion = "7.7.4";
+
+    /// <summary>
+    /// UploadThing prepare upload URL.
+    /// </summary>
+    public const string UploadThingPrepareUrl = "https://api.uploadthing.com/v7/prepareUpload";
+
+    /// <summary>
+    /// UploadThing public file URL format.
+    /// </summary>
+    public const string UploadThingPublicUrlFormat = "https://utfs.io/f/{0}";
+
+    /// <summary>
+    /// UploadThing URL fragment for identification.
+    /// </summary>
+    public const string UploadThingUrlFragment = "utfs.io/f/";
+
+    // GenTool
+
+    /// <summary>
+    /// GenTool data URL fragment for identification.
+    /// </summary>
+    public const string GenToolUrlFragment = "gentool.net/data/";
+
+    // Generals Online
+
+    /// <summary>
+    /// Generals Online view match URL fragment.
+    /// </summary>
+    public const string GeneralsOnlineViewMatchFragment = "playgenerals.online/viewmatch";
+
     // User agents
 
     /// <summary>

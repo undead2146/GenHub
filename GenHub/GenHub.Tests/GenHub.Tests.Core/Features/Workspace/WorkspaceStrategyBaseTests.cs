@@ -128,8 +128,8 @@ public class WorkspaceStrategyBaseTests : IDisposable
 
         var config = new WorkspaceConfiguration
         {
-            Manifests = new List<ContentManifest>
-            {
+            Manifests =
+            [
                 new()
                 {
                     Files =
@@ -138,7 +138,7 @@ public class WorkspaceStrategyBaseTests : IDisposable
                         new() { RelativePath = "config.ini", Size = 500 },
                     ],
                 },
-            },
+            ],
             GameClient = new GameClient { ExecutablePath = "generals.exe" },
         };
 
@@ -195,6 +195,8 @@ public class WorkspaceStrategyBaseTests : IDisposable
         {
             Directory.Delete(_tempDir, true);
         }
+
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>
