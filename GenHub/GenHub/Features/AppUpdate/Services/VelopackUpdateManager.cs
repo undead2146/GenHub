@@ -47,9 +47,9 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
     private static readonly TimeSpan PostUpdateExitDelay = TimeSpan.FromSeconds(5);
 
     /// <summary>
-    /// Delay for showing completion message (1.5 seconds).
+    /// Cache duration for update checks (5 minutes).
     /// </summary>
-    private static readonly TimeSpan CompletionMessageDelay = TimeSpan.FromMilliseconds(1500);
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
 
     private readonly ILogger<VelopackUpdateManager> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -57,12 +57,20 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
     private readonly IUserSettingsService? _userSettingsService;
     private readonly UpdateManager? _updateManager;
     private readonly GithubSource _githubSource;
+
     private bool _hasUpdateFromGitHub;
     private string? _latestVersionFromGitHub;
     private ArtifactUpdateInfo? _latestArtifactUpdate;
 
-    /// <inheritdoc/>
-    public UpdateChannel CurrentChannel { get; set; }
+    // Caching fields
+    private DateTime _lastUpdateCheckTime = DateTime.MinValue;
+    private UpdateInfo? _cachedUpdateInfo;
+    private DateTime _lastArtifactCheckTime = DateTime.MinValue;
+    private ArtifactUpdateInfo? _cachedArtifactUpdateInfo;
+    private DateTime _lastPrListCheckTime = DateTime.MinValue;
+    private IReadOnlyList<PullRequestInfo>? _cachedPrList;
+    private DateTime _lastBranchListCheckTime = DateTime.MinValue;
+    private IReadOnlyList<string>? _cachedBranchList;
 
     /// <inheritdoc/>
     public bool HasArtifactUpdateAvailable => _latestArtifactUpdate != null;
@@ -96,9 +104,6 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         _gitHubTokenStorage = gitHubTokenStorage;
         _userSettingsService = userSettingsService;
-
-        // Initialize CurrentChannel from settings
-        CurrentChannel = userSettingsService?.Get()?.UpdateChannel ?? UpdateChannel.Stable;
 
         // Always initialize GithubSource for update checking
         _githubSource = new GithubSource(AppConstants.GitHubRepositoryUrl, string.Empty, true);
@@ -134,6 +139,13 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
     /// <inheritdoc/>
     public async Task<UpdateInfo?> CheckForUpdatesAsync(CancellationToken cancellationToken = default)
     {
+        // Check cache
+        if (DateTime.UtcNow - _lastUpdateCheckTime < CacheDuration)
+        {
+            _logger.LogInformation("Returning cached update info (checked {TimeLess} ago)", (DateTime.UtcNow - _lastUpdateCheckTime).ToString(@"mm\:ss"));
+            return _cachedUpdateInfo;
+        }
+
         _logger.LogInformation("Starting GitHub update check for repository: {Url}", AppConstants.GitHubRepositoryUrl);
 
         try
@@ -234,6 +246,8 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
             if (latestVersion <= currentVersion)
             {
                 _logger.LogInformation("No update available. Current version {Current} is up to date", currentVersion);
+                _cachedUpdateInfo = null;
+                _lastUpdateCheckTime = DateTime.UtcNow;
                 return null;
             }
 
@@ -262,6 +276,8 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                     if (updateInfo != null)
                     {
                         _logger.LogInformation("✅ UpdateManager also confirmed update is available and can be installed");
+                        _cachedUpdateInfo = updateInfo;
+                        _lastUpdateCheckTime = DateTime.UtcNow;
                         return updateInfo;
                     }
                     else
@@ -284,6 +300,8 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
             _logger.LogWarning("⚠️ Update detected via GitHub API but UpdateManager unavailable (running from debug)");
             _logger.LogWarning("   Install the app using Setup.exe to enable automatic updates");
 
+            _cachedUpdateInfo = null;
+            _lastUpdateCheckTime = DateTime.UtcNow;
             return null;
         }
         catch (Exception ex)
@@ -431,6 +449,13 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
     /// <inheritdoc/>
     public async Task<ArtifactUpdateInfo?> CheckForArtifactUpdatesAsync(CancellationToken cancellationToken = default)
     {
+        // Check cache
+        if (DateTime.UtcNow - _lastArtifactCheckTime < CacheDuration)
+        {
+            _logger.LogInformation("Returning cached artifact update info (checked {TimeLess} ago)", (DateTime.UtcNow - _lastArtifactCheckTime).ToString(@"mm\:ss"));
+            return _cachedArtifactUpdateInfo;
+        }
+
         _logger.LogInformation("Checking for artifact updates from GitHub Actions CI builds");
 
         if (_gitHubTokenStorage == null)
@@ -466,6 +491,8 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                 _latestArtifactUpdate = await FindLatestArtifactAsync(null, cancellationToken);
             }
 
+            _cachedArtifactUpdateInfo = _latestArtifactUpdate;
+            _lastArtifactCheckTime = DateTime.UtcNow;
             return _latestArtifactUpdate;
         }
         catch (Exception ex)
@@ -478,6 +505,13 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
     /// <inheritdoc/>
     public async Task<IReadOnlyList<PullRequestInfo>> GetOpenPullRequestsAsync(CancellationToken cancellationToken = default)
     {
+        // Check cache
+        if (DateTime.UtcNow - _lastPrListCheckTime < CacheDuration && _cachedPrList != null)
+        {
+            _logger.LogInformation("Returning cached PR list (checked {TimeAgo} ago)", (DateTime.UtcNow - _lastPrListCheckTime).ToString(@"mm\:ss"));
+            return _cachedPrList;
+        }
+
         _logger.LogInformation("Fetching open pull requests with artifacts");
 
         // Reset merged/closed tracking
@@ -525,47 +559,49 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
 
             // Track if subscribed PR is still open
             bool subscribedPrFound = false;
+            var prTasks = new List<Task<PullRequestInfo>>();
 
             foreach (var pr in prsData.EnumerateArray())
             {
-                var prNumber = pr.GetProperty("number").GetInt32();
-                var title = pr.GetProperty("title").GetString() ?? "Unknown";
-                var branchName = pr.TryGetProperty("head", out var head)
-                    ? head.GetProperty("ref").GetString() ?? "unknown"
-                    : "unknown";
-                var author = pr.TryGetProperty("user", out var user)
-                    ? user.GetProperty("login").GetString() ?? "unknown"
-                    : "unknown";
-                var state = pr.GetProperty("state").GetString() ?? "open";
-                var updatedAt = pr.TryGetProperty("updated_at", out var updatedAtProp)
-                    ? updatedAtProp.GetDateTimeOffset()
-                    : (DateTimeOffset?)null;
-
-                // Check if this is our subscribed PR
-                if (SubscribedPrNumber == prNumber)
+                var prJson = pr.Clone();
+                prTasks.Add(Task.Run(
+                    async () =>
                 {
-                    subscribedPrFound = true;
-                    IsPrMergedOrClosed = false;
-                }
+                    var prNumber = prJson.GetProperty("number").GetInt32();
+                    var title = prJson.GetProperty("title").GetString() ?? "Unknown";
+                    var branchName = prJson.TryGetProperty("head", out var head)
+                        ? head.GetProperty("ref").GetString() ?? "unknown"
+                        : "unknown";
+                    var author = prJson.TryGetProperty("user", out var user)
+                        ? user.GetProperty("login").GetString() ?? "unknown"
+                        : "unknown";
+                    var state = prJson.GetProperty("state").GetString() ?? "open";
+                    var updatedAt = prJson.TryGetProperty("updated_at", out var updatedAtProp)
+                        ? updatedAtProp.GetDateTimeOffset()
+                        : (DateTimeOffset?)null;
 
-                // Find latest artifact for this PR
-                ArtifactUpdateInfo? latestArtifact = await FindLatestArtifactForPrAsync(client, prNumber, cancellationToken);
+                    // Find latest artifact for this PR
+                    ArtifactUpdateInfo? latestArtifact = await FindLatestArtifactForPrAsync(client, prNumber, cancellationToken);
 
-                var prInfo = new PullRequestInfo
-                {
-                    Number = prNumber,
-                    Title = title,
-                    BranchName = branchName,
-                    Author = author,
-                    State = state,
-                    UpdatedAt = updatedAt,
-                    LatestArtifact = latestArtifact,
-                };
-
-                results.Add(prInfo);
+                    return new PullRequestInfo
+                    {
+                        Number = prNumber,
+                        Title = title,
+                        BranchName = branchName,
+                        Author = author,
+                        State = state,
+                        UpdatedAt = updatedAt,
+                        LatestArtifact = latestArtifact,
+                    };
+                },
+                    cancellationToken));
             }
 
-            // Update merged/closed status for subscribed PR
+            var prInfos = await Task.WhenAll(prTasks);
+            results.AddRange(prInfos);
+
+            // Check if subscribed PR is still open
+            subscribedPrFound = results.Any(p => p.Number == SubscribedPrNumber);
             if (SubscribedPrNumber.HasValue && !subscribedPrFound)
             {
                 // PR is no longer in open PRs list - check if merged or closed
@@ -587,6 +623,8 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
             }
 
             _logger.LogInformation("Found {Count} open PRs", results.Count);
+            _cachedPrList = results;
+            _lastPrListCheckTime = DateTime.UtcNow;
             return results;
         }
         catch (Exception ex)
@@ -599,6 +637,13 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
     /// <inheritdoc/>
     public async Task<IReadOnlyList<string>> GetBranchesAsync(CancellationToken cancellationToken = default)
     {
+        // Check cache
+        if (DateTime.UtcNow - _lastBranchListCheckTime < CacheDuration && _cachedBranchList != null)
+        {
+            _logger.LogInformation("Returning cached branch list (checked {TimeAgo} ago)", (DateTime.UtcNow - _lastBranchListCheckTime).ToString(@"mm\:ss"));
+            return _cachedBranchList;
+        }
+
         _logger.LogInformation("Fetching available branches");
         List<string> results = [];
 
@@ -651,7 +696,10 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
             if (!results.Contains("main")) results.Add("main");
             if (!results.Contains("development")) results.Add("development");
 
-            return [.. results.OrderBy(b => b)];
+            var sortedResults = results.OrderBy(b => b).ToList();
+            _cachedBranchList = sortedResults;
+            _lastBranchListCheckTime = DateTime.UtcNow;
+            return sortedResults;
         }
         catch (Exception ex)
         {
@@ -872,6 +920,22 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
         }
 
         await InstallArtifactAsync(prInfo.LatestArtifact, progress, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public void ClearCache()
+    {
+        _lastUpdateCheckTime = DateTime.MinValue;
+        _cachedUpdateInfo = null;
+        _lastArtifactCheckTime = DateTime.MinValue;
+        _cachedArtifactUpdateInfo = null;
+        _lastPrListCheckTime = DateTime.MinValue;
+        _cachedPrList = null;
+        _lastBranchListCheckTime = DateTime.MinValue;
+        _cachedBranchList = null;
+        _hasUpdateFromGitHub = false;
+        _latestVersionFromGitHub = null;
+        _logger.LogInformation("Update manager cache cleared");
     }
 
     /// <inheritdoc/>

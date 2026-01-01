@@ -37,13 +37,22 @@ URI scheme constants for handling different types of URIs and paths.
 
 Application-wide constants for GenHub.
 
-| Constant           | Value          | Description                  |
-| ------------------ | -------------- | ---------------------------- |
-| `ApplicationName`  | `"GenHub"`     | Application name             |
-| `Version`          | `"1.0"`        | Current version of GenHub    |
-| `DefaultTheme`     | `Theme.Dark`   | Default UI theme             |
-| `DefaultThemeName` | `"Dark"`       | Default theme name as string |
-| `DefaultUserAgent` | `"GenHub/1.0"` | Default user agent string    |
+| Constant                  | Value/Type          | Description                                      |
+| ------------------------- | ------------------- | ------------------------------------------------ |
+| `AppName`                 | `"GenHub"`          | The name of the application                      |
+| `AppVersion`              | Dynamic (lazy)      | Full semantic version from assembly              |
+| `DisplayVersion`          | `"v" + AppVersion`  | Display version for UI                           |
+| `GitShortHash`            | Dynamic             | Short git commit hash (7 chars)                  |
+| `PullRequestNumber`       | Dynamic             | PR number if PR build                            |
+| `BuildChannel`            | Dynamic             | Build channel (Dev, PR, CI, Release)             |
+| `IsCiBuild`               | bool                | Whether this is a CI/CD build                    |
+| `FullDisplayVersion`      | string              | Full display version with hash                   |
+| `GitHubRepositoryUrl`     | `"https://github.com/community-outpost/GenHub"` | GitHub repository URL                            |
+| `GitHubRepositoryOwner`   | `"community-outpost"` | GitHub repository owner                         |
+| `GitHubRepositoryName`    | `"GenHub"`          | GitHub repository name                           |
+| `DefaultTheme`            | `Theme.Dark`        | Default UI theme                                 |
+| `DefaultThemeName`        | `"Dark"`            | Default theme name as string                     |
+| `TokenFileName`           | `".ghtoken"`        | Default GitHub token file name                   |
 
 ---
 

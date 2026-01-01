@@ -47,11 +47,6 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     public static IEnumerable<WorkspaceStrategy> AvailableWorkspaceStrategies => Enum.GetValues<WorkspaceStrategy>();
 
     /// <summary>
-    /// Gets the available update channels for selection in the UI.
-    /// </summary>
-    public static IEnumerable<UpdateChannel> AvailableUpdateChannels => Enum.GetValues<UpdateChannel>();
-
-    /// <summary>
     /// Gets the current application version for display.
     /// </summary>
     public static string CurrentVersion => AppConstants.FullDisplayVersion;
@@ -176,10 +171,6 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private int _autoGcIntervalDays = StorageConstants.AutoGcIntervalDays;
-
-    // Update settings properties
-    [ObservableProperty]
-    private UpdateChannel _selectedUpdateChannel = UpdateChannel.Prerelease;
 
     [ObservableProperty]
     private string _subscribedBranchInput = string.Empty;
@@ -500,7 +491,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             // Load CAS settings
             CasRootPath = settings.CasConfiguration.CasRootPath;
             EnableAutomaticGc = settings.CasConfiguration.EnableAutomaticGc;
-            SelectedUpdateChannel = settings.UpdateChannel;
+
             SubscribedBranchInput = settings.SubscribedBranch ?? string.Empty;
             MaxCacheSizeGB = settings.CasConfiguration.MaxCacheSizeBytes / ConversionConstants.BytesPerGigabyte;
             CasMaxConcurrentOperations = settings.CasConfiguration.MaxConcurrentOperations;
@@ -542,7 +533,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
                 settings.AllowBackgroundDownloads = AllowBackgroundDownloads;
                 settings.EnableDetailedLogging = EnableDetailedLogging;
                 settings.DefaultWorkspaceStrategy = DefaultWorkspaceStrategy;
-                settings.UpdateChannel = SelectedUpdateChannel;
+
                 settings.SubscribedBranch = string.IsNullOrWhiteSpace(SubscribedBranchInput) ? null : SubscribedBranchInput;
                 settings.DownloadBufferSize = (int)(DownloadBufferSizeKB * ConversionConstants.BytesPerKilobyte); // Convert KB to bytes
                 settings.DownloadTimeoutSeconds = DownloadTimeoutSeconds;
@@ -814,12 +805,6 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             {
                 PatStatusMessage = "GitHub PAT configured ✓";
                 IsPatValid = true;
-
-                // If Artifacts channel is selected and we have a PAT, load available artifacts
-                if (SelectedUpdateChannel == UpdateChannel.Artifacts && _updateManager != null)
-                {
-                    await LoadArtifactsAsync();
-                }
             }
             else
             {
@@ -1010,12 +995,6 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             IsPatValid = false;
             PatStatusMessage = "GitHub PAT removed";
             AvailableArtifacts.Clear();
-
-            // Switch to Prerelease channel if on Artifacts
-            if (SelectedUpdateChannel == UpdateChannel.Artifacts)
-            {
-                SelectedUpdateChannel = UpdateChannel.Prerelease;
-            }
         }
         catch (Exception ex)
         {

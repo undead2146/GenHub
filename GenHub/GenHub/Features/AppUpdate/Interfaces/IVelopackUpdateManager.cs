@@ -82,11 +82,6 @@ public interface IVelopackUpdateManager
     string? LatestVersionFromGitHub { get; }
 
     /// <summary>
-    /// Gets or sets the current update channel.
-    /// </summary>
-    UpdateChannel CurrentChannel { get; set; }
-
-    /// <summary>
     /// Gets a value indicating whether artifact updates are available (requires PAT).
     /// </summary>
     bool HasArtifactUpdateAvailable { get; }
@@ -134,4 +129,9 @@ public interface IVelopackUpdateManager
     /// Uninstalls the application.
     /// </summary>
     void Uninstall();
+
+    /// <summary>
+    /// Clears all cached update and artifact information.
+    /// </summary>
+    void ClearCache();
 }

@@ -102,11 +102,6 @@ public class UserSettings : ICloneable
     }
 
     /// <summary>
-    /// Gets or sets the preferred update channel.
-    /// </summary>
-    public UpdateChannel UpdateChannel { get; set; } = UpdateChannel.Prerelease;
-
-    /// <summary>
     /// Gets or sets the subscribed PR number for update notifications.
     /// </summary>
     public int? SubscribedPrNumber { get; set; }
@@ -146,7 +141,7 @@ public class UserSettings : ICloneable
             SettingsFilePath = SettingsFilePath,
             CachePath = CachePath,
             ApplicationDataPath = ApplicationDataPath,
-            UpdateChannel = UpdateChannel,
+
             SubscribedPrNumber = SubscribedPrNumber,
             SubscribedBranch = SubscribedBranch,
             DismissedUpdateVersion = DismissedUpdateVersion,

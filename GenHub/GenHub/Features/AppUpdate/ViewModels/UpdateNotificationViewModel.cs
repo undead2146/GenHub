@@ -49,6 +49,18 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     private bool _isChecking;
 
     /// <summary>
+    /// Gets or sets a value indicating whether an update download is in progress.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isDownloading;
+
+    /// <summary>
+    /// Gets or sets the download progress percentage.
+    /// </summary>
+    [ObservableProperty]
+    private double _downloadProgress;
+
+    /// <summary>
     /// Gets or sets a value indicating whether an update is available.
     /// </summary>
     [ObservableProperty]
@@ -93,7 +105,7 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     /// Gets or sets the list of available pull requests with artifacts.
     /// </summary>
     [ObservableProperty]
-    private ObservableCollection<PullRequestInfo> _availablePullRequests = [];
+    private ObservableCollection<PullRequestInfo> _availablePullRequests = new();
 
     /// <summary>
     /// Gets or sets the currently subscribed PR.
@@ -113,7 +125,7 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     /// Gets or sets the list of available branches.
     /// </summary>
     [ObservableProperty]
-    private ObservableCollection<string> _availableBranches = [];
+    private ObservableCollection<string> _availableBranches = new();
 
     /// <summary>
     /// Gets or sets the currently subscribed branch.
@@ -147,6 +159,21 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     public bool IsSubscribedToAny => SubscribedPr != null || !string.IsNullOrEmpty(SubscribedBranch);
 
     /// <summary>
+    /// Gets the display string for the subscribed PR number.
+    /// </summary>
+    public string SubscribedPrNumberDisplay => SubscribedPr?.Number.ToString() ?? "N/A";
+
+    /// <summary>
+    /// Gets the display string for the subscribed PR title.
+    /// </summary>
+    public string SubscribedPrTitleDisplay => SubscribedPr?.Title ?? "N/A";
+
+    /// <summary>
+    /// Gets the display string for the subscribed PR latest version.
+    /// </summary>
+    public string SubscribedPrLatestVersionDisplay => SubscribedPr?.LatestArtifact?.DisplayVersion ?? "N/A";
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="UpdateNotificationViewModel"/> class.
     /// </summary>
     /// <param name="velopackUpdateManager">The Velopack update manager.</param>
@@ -165,6 +192,7 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
         _cancellationTokenSource = new CancellationTokenSource();
 
         CheckForUpdatesCommand = new AsyncRelayCommand(CheckForUpdatesAsync, () => !IsChecking);
+        ManualRefreshCommand = new AsyncRelayCommand(ManualRefreshAsync, () => !IsChecking);
         DismissCommand = new RelayCommand(DismissUpdate);
 
         // Check if PAT is available
@@ -212,6 +240,11 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     /// Gets the command to check for updates.
     /// </summary>
     public ICommand CheckForUpdatesCommand { get; }
+
+    /// <summary>
+    /// Gets the command to manually refresh all update data (clears cache).
+    /// </summary>
+    public ICommand ManualRefreshCommand { get; }
 
     /// <summary>
     /// Gets the command to dismiss the update notification.
@@ -303,34 +336,75 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
             _logger.LogInformation("Starting Velopack update check");
 
             // Check if subscribed to a PR
-            if (SubscribedPr?.LatestArtifact != null)
+            if (SubscribedPr != null)
             {
-                var currentVersionBase = CurrentAppVersion.Split('+')[0];
-                var prVersionBase = SubscribedPr.LatestArtifact.Version.Split('+')[0];
-
-                if (!string.Equals(prVersionBase, currentVersionBase, StringComparison.OrdinalIgnoreCase))
+                if (SubscribedPr.LatestArtifact != null)
                 {
-                    var settings = _userSettingsService.Get();
-                    if (!string.Equals(prVersionBase, settings.DismissedUpdateVersion, StringComparison.OrdinalIgnoreCase))
+                    var currentVersionBase = CurrentAppVersion.Split('+')[0];
+                    var prVersionBase = SubscribedPr.LatestArtifact.Version.Split('+')[0];
+
+                    if (!string.Equals(prVersionBase, currentVersionBase, StringComparison.OrdinalIgnoreCase))
                     {
-                        IsUpdateAvailable = true;
-                        LatestVersion = prVersionBase;
-                        ReleaseNotesUrl = $"{AppConstants.GitHubRepositoryUrl}/pull/{SubscribedPr.Number}";
-                        StatusMessage = $"New PR build available: {SubscribedPr.LatestArtifact.DisplayVersion}";
-                        _logger.LogInformation("Subscribed to PR #{PrNumber}, new build available: {Version}", SubscribedPr.Number, LatestVersion);
-                        return;
+                        var settings = _userSettingsService.Get();
+                        if (!string.Equals(prVersionBase, settings.DismissedUpdateVersion, StringComparison.OrdinalIgnoreCase))
+                        {
+                            IsUpdateAvailable = true;
+                            LatestVersion = prVersionBase;
+                            ReleaseNotesUrl = $"{AppConstants.GitHubRepositoryUrl}/pull/{SubscribedPr.Number}";
+                            StatusMessage = $"New PR build available: {SubscribedPr.LatestArtifact.DisplayVersion}";
+                            _logger.LogInformation("Subscribed to PR #{PrNumber}, new build available: {Version}", SubscribedPr.Number, LatestVersion);
+                            return;
+                        }
+                        else
+                        {
+                            StatusMessage = $"You dismissed the update for PR #{SubscribedPr.Number}";
+                            return;
+                        }
                     }
                     else
                     {
-                        StatusMessage = $"You dismissed the update for PR #{SubscribedPr.Number}";
+                        IsUpdateAvailable = false;
+                        StatusMessage = $"You are on the latest build for PR #{SubscribedPr.Number}";
                         return;
                     }
                 }
                 else
                 {
-                    IsUpdateAvailable = false;
-                    StatusMessage = $"You are on the latest build for PR #{SubscribedPr.Number}";
-                    return;
+                    // Try to fetch artifact for update check
+                    _logger.LogInformation("PR #{PrNumber} has no cached artifact, fetching for update check", SubscribedPr.Number);
+                    var prArtifact = await _velopackUpdateManager.CheckForArtifactUpdatesAsync(_cancellationTokenSource.Token);
+                    if (prArtifact != null)
+                    {
+                        var currentVersionBase = CurrentAppVersion.Split('+')[0];
+                        var prVersionBase = prArtifact.Version.Split('+')[0];
+
+                        if (!string.Equals(prVersionBase, currentVersionBase, StringComparison.OrdinalIgnoreCase))
+                        {
+                            var settings = _userSettingsService.Get();
+                            if (!string.Equals(prVersionBase, settings.DismissedUpdateVersion, StringComparison.OrdinalIgnoreCase))
+                            {
+                                IsUpdateAvailable = true;
+                                LatestVersion = prVersionBase;
+                                ReleaseNotesUrl = $"{AppConstants.GitHubRepositoryUrl}/pull/{SubscribedPr.Number}";
+                                StatusMessage = $"New PR build available: {prArtifact.DisplayVersion}";
+                                _logger.LogInformation("Fetched PR #{PrNumber} artifact, new build available: {Version}", SubscribedPr.Number, LatestVersion);
+                                return;
+                            }
+                            else
+                            {
+                                StatusMessage = $"You dismissed the update for PR #{SubscribedPr.Number}";
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            IsUpdateAvailable = false;
+                            StatusMessage = $"You are on the latest build for PR #{SubscribedPr.Number}";
+                            return;
+                        }
+                    }
+
+                    // If no artifact, fall through to branch/main
                 }
             }
 
@@ -426,6 +500,37 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Manually refreshes all update data, clearing the cache and dismissing status.
+    /// </summary>
+    private async Task ManualRefreshAsync()
+    {
+        if (IsChecking) return;
+
+        _logger.LogInformation("Manual refresh requested - clearing cache and dismissal status");
+
+        // Clear dismissal status in settings so the user can see the update again
+        var settings = _userSettingsService.Get();
+        if (!string.IsNullOrEmpty(settings.DismissedUpdateVersion))
+        {
+            _userSettingsService.Update(s => s.DismissedUpdateVersion = string.Empty);
+            await _userSettingsService.SaveAsync();
+        }
+
+        // Clear manager cache
+        _velopackUpdateManager.ClearCache();
+
+        // Reload data
+        if (HasPat)
+        {
+            await Task.WhenAll(
+                LoadPullRequestsAsync(),
+                LoadBranchesAsync());
+        }
+
+        await CheckForUpdatesAsync();
+    }
+
+    /// <summary>
     /// Opens the release notes in the default browser.
     /// </summary>
     [RelayCommand]
@@ -502,6 +607,7 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
                 {
                     InstallationProgress = p;
                     StatusMessage = p.Status;
+                    DownloadProgress = p.PercentComplete;
                 });
             });
 
@@ -549,15 +655,16 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanInstallPrArtifact))]
     private async Task InstallPrArtifactAsync()
     {
-        if (SubscribedPr == null || SubscribedPr.LatestArtifact == null)
+        if (SubscribedPr == null)
         {
-            _logger.LogWarning("Cannot install PR artifact - no PR subscribed or no artifact available");
+            _logger.LogWarning("Cannot install PR artifact - no PR subscribed");
             return;
         }
 
         IsInstalling = true;
         HasError = false;
         ErrorMessage = string.Empty;
+        DownloadProgress = 0;
 
         try
         {
@@ -569,10 +676,29 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
                 {
                     InstallationProgress = p;
                     StatusMessage = p.Status;
+                    DownloadProgress = p.PercentComplete;
                 });
             });
 
-            await _velopackUpdateManager.InstallPrArtifactAsync(SubscribedPr, progress, _cancellationTokenSource.Token);
+            ArtifactUpdateInfo? artifactToInstall = SubscribedPr.LatestArtifact;
+            if (artifactToInstall == null)
+            {
+                // Clear cache to force fresh check
+                _velopackUpdateManager.ClearCache();
+
+                // Try to fetch the latest artifact for the PR
+                artifactToInstall = await _velopackUpdateManager.CheckForArtifactUpdatesAsync(_cancellationTokenSource.Token);
+                if (artifactToInstall == null)
+                {
+                    _logger.LogWarning("No artifact found for PR #{Number}", SubscribedPr.Number);
+                    HasError = true;
+                    ErrorMessage = $"No artifact found for PR #{SubscribedPr.Number}";
+                    StatusMessage = "No artifact available";
+                    return;
+                }
+            }
+
+            await _velopackUpdateManager.InstallArtifactAsync(artifactToInstall, progress, _cancellationTokenSource.Token);
 
             // App will restart, this code won't execute
         }
@@ -598,7 +724,7 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Gets a value indicating whether the PR artifact can be installed.
     /// </summary>
-    public bool CanInstallPrArtifact => SubscribedPr?.LatestArtifact != null && !IsInstalling;
+    public bool CanInstallPrArtifact => SubscribedPr != null && !IsInstalling;
 
     /// <summary>
     /// Installs the subscribed branch artifact.
@@ -615,6 +741,7 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
         IsInstalling = true;
         HasError = false;
         ErrorMessage = string.Empty;
+        DownloadProgress = 0;
 
         try
         {
@@ -626,8 +753,12 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
                 {
                     InstallationProgress = p;
                     StatusMessage = p.Status;
+                    DownloadProgress = p.PercentComplete;
                 });
             });
+
+            // Clear cache to force fresh check
+            _velopackUpdateManager.ClearCache();
 
             // Check for latest artifact for the subscribed branch
             var artifactUpdate = await _velopackUpdateManager.CheckForArtifactUpdatesAsync(_cancellationTokenSource.Token);
@@ -752,7 +883,7 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
                 _logger.LogInformation("Subscribed PR has been merged/closed, showing warning");
             }
 
-            if (_velopackUpdateManager.SubscribedPrNumber.HasValue)
+            if (_velopackUpdateManager.SubscribedPrNumber.HasValue && SubscribedPr == null)
             {
                 SubscribedPr = AvailablePullRequests.FirstOrDefault(p => p.Number == _velopackUpdateManager.SubscribedPrNumber);
             }
@@ -808,6 +939,9 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
         SubscribedBranch = null;
         ShowPrMergedWarning = false;
 
+        // Clear artifact cache to force fresh check
+        _velopackUpdateManager.ClearCache();
+
         _userSettingsService.Update(settings =>
         {
             settings.SubscribedPrNumber = prNumber;
@@ -832,6 +966,9 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
         SubscribedPr = null;
         ShowPrMergedWarning = false;
 
+        // Clear artifact cache to force fresh check
+        _velopackUpdateManager.ClearCache();
+
         _userSettingsService.Update(settings =>
         {
             settings.SubscribedBranch = branchName;
@@ -852,6 +989,9 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     partial void OnSubscribedPrChanged(PullRequestInfo? value)
     {
         OnPropertyChanged(nameof(IsSubscribedToAny));
+        OnPropertyChanged(nameof(SubscribedPrNumberDisplay));
+        OnPropertyChanged(nameof(SubscribedPrTitleDisplay));
+        OnPropertyChanged(nameof(SubscribedPrLatestVersionDisplay));
         UpdateCommandStates();
     }
 

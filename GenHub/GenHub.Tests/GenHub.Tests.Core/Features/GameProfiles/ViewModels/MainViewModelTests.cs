@@ -127,8 +127,6 @@ public class MainViewModelTests
         Assert.Equal(tab, vm.SelectedTab);
     }
 
-
-
     /// <summary>
     /// Tests that multiple calls to <see cref="MainViewModel.InitializeAsync"/> are safe.
     /// </summary>

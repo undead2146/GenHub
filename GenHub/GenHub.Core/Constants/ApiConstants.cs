@@ -47,7 +47,7 @@ public static class ApiConstants
     /// <summary>
     /// Format string for GitHub API Workflow Runs endpoint (owner, repo, branch).
     /// </summary>
-    public const string GitHubApiWorkflowRunsFormat = "https://api.github.com/repos/{0}/{1}/actions/runs?status=success&branch={2}&event=push&per_page=10";
+    public const string GitHubApiWorkflowRunsFormat = "https://api.github.com/repos/{0}/{1}/actions/runs?status=success&branch={2}&per_page=10";
 
     /// <summary>
     /// Format string for GitHub API Latest Workflow Runs endpoint (owner, repo).

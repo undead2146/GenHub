@@ -198,8 +198,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         // Start background check with cancellation support
         _ = CheckForUpdatesInBackgroundAsync(_initializationCts.Token);
-
-        await Task.CompletedTask;
     }
 
     /// <summary>
@@ -229,44 +227,49 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 _velopackUpdateManager.SubscribedPrNumber = settings.SubscribedPrNumber;
             }
 
-            // Check if subscribed to a specific branch
-            if (!string.IsNullOrEmpty(settings.SubscribedBranch))
+            // 1. Check for standard GitHub releases (Default)
+            if (string.IsNullOrEmpty(settings.SubscribedBranch))
             {
+                var updateInfo = await _velopackUpdateManager.CheckForUpdatesAsync(cancellationToken);
+                if (updateInfo != null)
+                {
+                    _logger?.LogInformation("GitHub release update available: {Version}", updateInfo.TargetFullRelease.Version);
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        _notificationService.Show(new NotificationMessage(
+                            NotificationType.Info,
+                            "Update Available",
+                            $"A new version ({updateInfo.TargetFullRelease.Version}) is available.",
+                            null, // Persistent
+                            "View Updates",
+                            () => { SettingsViewModel.OpenUpdateWindowCommand.Execute(null); }));
+                    });
+                    return;
+                }
+            }
+            else
+            {
+                // 2. Check for Subscribed Branch Artifacts
                 _logger?.LogDebug("User subscribed to branch '{Branch}', checking for artifact updates", settings.SubscribedBranch);
                 _velopackUpdateManager.SubscribedBranch = settings.SubscribedBranch;
-
-                // Ensure PR number is cleared to avoid ambiguity
-                _velopackUpdateManager.SubscribedPrNumber = null;
+                _velopackUpdateManager.SubscribedPrNumber = null; // Clear PR to avoid ambiguity
 
                 var artifactUpdate = await _velopackUpdateManager.CheckForArtifactUpdatesAsync(cancellationToken);
 
                 if (artifactUpdate != null)
                 {
                     var newVersionBase = artifactUpdate.Version.Split('+')[0];
-                    var dismissedVersionBase = settings.DismissedUpdateVersion?.Split('+')[0];
 
-                    if (string.IsNullOrEmpty(dismissedVersionBase) ||
-                        !string.Equals(newVersionBase, dismissedVersionBase, StringComparison.OrdinalIgnoreCase))
+                    await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        _logger?.LogInformation("Branch '{Branch}' artifact update available: {Version}", settings.SubscribedBranch, newVersionBase);
-
-                        await Dispatcher.UIThread.InvokeAsync(() =>
-                        {
-                            _notificationService.Show(new NotificationMessage(
-                                NotificationType.Info,
-                                "Update Available",
-                                $"A new version ({newVersionBase}) is available on branch '{settings.SubscribedBranch}'.",
-                                null,
-                                "View Updates",
-                                () => { SettingsViewModel.OpenUpdateWindowCommand.Execute(null); }));
-                        });
-                        return;
-                    }
-                    else
-                    {
-                        _logger?.LogDebug("Branch '{Branch}' artifact update {Version} was dismissed", settings.SubscribedBranch, newVersionBase);
-                        return;
-                    }
+                        _notificationService.Show(new NotificationMessage(
+                            NotificationType.Info,
+                            "Branch Update Available",
+                            $"A new build ({newVersionBase}) is available on branch '{settings.SubscribedBranch}'.",
+                            null, // Persistent
+                            "View Updates",
+                            () => { SettingsViewModel.OpenUpdateWindowCommand.Execute(null); }));
+                    });
                 }
             }
         }
