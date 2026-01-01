@@ -168,6 +168,9 @@ public static class ContentPipelineModule
 
         // Register Generals Online update service
         services.AddSingleton<GeneralsOnlineUpdateService>();
+
+        // Register Generals Online profile reconciler
+        services.AddSingleton<IGeneralsOnlineProfileReconciler, GeneralsOnlineProfileReconciler>();
     }
 
     /// <summary>

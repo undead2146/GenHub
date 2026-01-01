@@ -618,8 +618,19 @@ public class GameClientDetector(
                         PublisherType = identification.PublisherId, // Store publisher type
                     };
 
-                    await GeneratePublisherClientManifestAsync(gameClient, installationPath, gameType, identification);
-                    detectedClients.Add(gameClient);
+                    // Check if this is one of the excluded game clients that should not generate manifests
+                    var exeName = Path.GetFileName(executablePath).ToLowerInvariant();
+                    if (exeName == "generalsv.exe" || exeName == "generalszh.exe" || exeName == "generalsonlinezh_30.exe" || exeName == "generalsonlinezh_60.exe")
+                    {
+                        // For these clients, only detect and prompt user, do not generate manifest or store in CAS
+                        gameClient.Id = Guid.NewGuid().ToString();
+                        detectedClients.Add(gameClient);
+                    }
+                    else
+                    {
+                        await GeneratePublisherClientManifestAsync(gameClient, installationPath, gameType, identification);
+                        detectedClients.Add(gameClient);
+                    }
                 }
                 catch (Exception ex)
                 {

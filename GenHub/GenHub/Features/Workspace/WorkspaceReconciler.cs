@@ -30,12 +30,10 @@ public class WorkspaceReconciler(ILogger<WorkspaceReconciler> logger)
     /// </summary>
     /// <param name="workspaceInfo">Existing workspace information (null if new workspace).</param>
     /// <param name="configuration">Target workspace configuration with manifests.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>List of delta operations needed to reconcile the workspace.</returns>
     public async Task<List<WorkspaceDelta>> AnalyzeWorkspaceDeltaAsync(
         WorkspaceInfo? workspaceInfo,
-        WorkspaceConfiguration configuration,
-        CancellationToken cancellationToken = default)
+        WorkspaceConfiguration configuration)
     {
         var deltas = new List<WorkspaceDelta>();
         var workspacePath = Path.Combine(configuration.WorkspaceRootPath, configuration.Id);
@@ -50,12 +48,13 @@ public class WorkspaceReconciler(ILogger<WorkspaceReconciler> logger)
             {
                 var relativePath = file.RelativePath.Replace('/', Path.DirectorySeparatorChar);
 
-                if (!fileOccurrences.ContainsKey(relativePath))
+                if (!fileOccurrences.TryGetValue(relativePath, out var list))
                 {
-                    fileOccurrences[relativePath] = new List<(ManifestFile, ContentType, string)>();
+                    list = [];
+                    fileOccurrences[relativePath] = list;
                 }
 
-                fileOccurrences[relativePath].Add((file, manifest.ContentType, manifest.Id.ToString()));
+                list.Add((file, manifest.ContentType, manifest.Id.ToString()));
             }
         }
 
@@ -144,7 +143,7 @@ public class WorkspaceReconciler(ILogger<WorkspaceReconciler> logger)
             else
             {
                 // File exists - check if it needs updating
-                var needsUpdate = await FileNeedsUpdateAsync(fullPath, manifestFile, configuration, cancellationToken);
+                var needsUpdate = await FileNeedsUpdateAsync(fullPath, manifestFile);
                 if (needsUpdate)
                 {
                     deltas.Add(new WorkspaceDelta
@@ -203,9 +202,7 @@ public class WorkspaceReconciler(ILogger<WorkspaceReconciler> logger)
     /// </summary>
     private Task<bool> FileNeedsUpdateAsync(
         string filePath,
-        ManifestFile manifestFile,
-        WorkspaceConfiguration configuration,
-        CancellationToken cancellationToken)
+        ManifestFile manifestFile)
     {
         try
         {

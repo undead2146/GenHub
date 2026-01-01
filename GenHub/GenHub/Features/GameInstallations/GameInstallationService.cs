@@ -163,7 +163,7 @@ public class GameInstallationService(
             {
                 currentList.Add(installation);
             }
-            
+
             _cachedInstallations = currentList.AsReadOnly();
 
             _logger.LogInformation("Registered manual installation: {Id} ({Path})", installation.Id, installation.InstallationPath);
