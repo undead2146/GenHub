@@ -965,6 +965,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                             if (compatibleInstallation != null)
                             {
                                 logger?.LogDebug(
+                                    "Found compatible installation {InstallationName} for content {ContentSourceId} ({ContentName})",
                                     compatibleInstallation.DisplayName,
                                     contentItem.SourceId,
                                     contentItem.DisplayName);
@@ -1691,6 +1692,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                     CommandLineArguments = CommandLineArguments,
                     IconPath = IconPath,
                     CoverPath = CoverPath,
+                    ThemeColor = ColorValue,
                 };
 
                 // Populate settings into create request

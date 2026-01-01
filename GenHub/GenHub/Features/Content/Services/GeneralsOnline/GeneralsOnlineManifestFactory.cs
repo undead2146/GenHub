@@ -415,10 +415,9 @@ public class GeneralsOnlineManifestFactory(
                     var fileName = Path.GetFileName(relativePath);
                     var isExecutable = false;
 
-                    // Handle map files - include them with UserMapsDirectory install target
+                    // Skip map files in GameClient manifests - they belong in the MapPack manifest
                     if (isMap)
                     {
-                        manifestFiles.Add(CreateMapManifestFile(relativePath, fileInfo, hash));
                         continue;
                     }
 
@@ -444,7 +443,7 @@ public class GeneralsOnlineManifestFactory(
                     });
                 }
 
-                logger.LogInformation("GameClient manifest '{Name}' updated with {Count} files (including maps)", manifest.Name, manifestFiles.Count);
+                logger.LogInformation("GameClient manifest '{Name}' updated with {Count} files", manifest.Name, manifestFiles.Count);
             }
 
             updatedManifests.Add(new ContentManifest

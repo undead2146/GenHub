@@ -17,6 +17,8 @@ public class GameClientHashRegistry : IGameClientHashRegistry
 {
     // Core Hash Constants - These are the foundational hashes for official EA/Steam releases
     private const string Generals108Hash = "1c96366ff6a99f40863f6bbcfa8bf7622e8df1f80a474201e0e95e37c6416255";
+    private const string SteamZeroHour104Hash = "7B075B9F0BAA9DF81651C0C9DD7D8C445454AE1B2452B928F4A1D9332E9CCECE";
+
     private const string ZeroHour104Hash = "f37a4929f8d697104e99c2bcf46f8d833122c943afcd87fd077df641d344495b";
     private const string ZeroHour105Hash = "420fba1dbdc4c14e2418c2b0d3010b9fac6f314eafa1f3a101805b8d98883ea1";
 
@@ -150,6 +152,7 @@ public class GameClientHashRegistry : IGameClientHashRegistry
     private void InitializeCoreHashes()
     {
         _knownHashes.TryAdd(Generals108Hash, new GameClientInfo(GameType.Generals, "1.08", "EA/Steam", "Official Generals 1.08 executable", true));
+        _knownHashes.TryAdd(SteamZeroHour104Hash, new GameClientInfo(GameType.ZeroHour, "1.04", "Steam", "Official Steam Zero Hour 1.04 executable", true));
         _knownHashes.TryAdd(ZeroHour104Hash, new GameClientInfo(GameType.ZeroHour, "1.04", "EA/Steam", "Official Zero Hour 1.04 executable", true));
         _knownHashes.TryAdd(ZeroHour105Hash, new GameClientInfo(GameType.ZeroHour, "1.05", "EA/Steam", "Official Zero Hour 1.05 executable", true));
     }

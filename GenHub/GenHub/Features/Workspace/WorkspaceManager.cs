@@ -359,7 +359,7 @@ public class WorkspaceManager(
             }
 
             // Analyze deltas using the reconciler
-            var deltas = await reconciler.AnalyzeWorkspaceDeltaAsync(currentWorkspace, newConfiguration, cancellationToken);
+            var deltas = await reconciler.AnalyzeWorkspaceDeltaAsync(currentWorkspace, newConfiguration);
 
             // Filter to only removal operations
             var removalDeltas = deltas.Where(d => d.Operation == WorkspaceDeltaOperation.Remove).ToList();

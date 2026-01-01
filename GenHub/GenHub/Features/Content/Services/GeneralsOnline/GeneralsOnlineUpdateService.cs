@@ -14,34 +14,21 @@ namespace GenHub.Features.Content.Services.GeneralsOnline;
 /// Background service for checking Generals Online updates.
 /// Polls CDN for new releases and notifies when updates are available.
 /// </summary>
-public class GeneralsOnlineUpdateService : ContentUpdateServiceBase
+public class GeneralsOnlineUpdateService(
+    ILogger<GeneralsOnlineUpdateService> logger,
+    IContentManifestPool manifestPool,
+    IHttpClientFactory httpClientFactory) : ContentUpdateServiceBase(logger)
 {
-    private readonly ILogger<GeneralsOnlineUpdateService> _logger;
-    private readonly IContentManifestPool _manifestPool;
-    private readonly HttpClient _httpClient;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="GeneralsOnlineUpdateService"/> class.
-    /// </summary>
-    /// <param name="logger">The logger for diagnostic information.</param>
-    /// <param name="manifestPool">The content manifest pool.</param>
-    /// <param name="httpClientFactory">Factory for creating HTTP clients.</param>
-    public GeneralsOnlineUpdateService(
-        ILogger<GeneralsOnlineUpdateService> logger,
-        IContentManifestPool manifestPool,
-        IHttpClientFactory httpClientFactory)
-        : base(logger)
-    {
-        _logger = logger;
-        _manifestPool = manifestPool;
-        _httpClient = httpClientFactory.CreateClient(GeneralsOnlineConstants.PublisherType);
-    }
+    private readonly ILogger<GeneralsOnlineUpdateService> _logger = logger;
+    private readonly IContentManifestPool _manifestPool = manifestPool;
+    private readonly HttpClient _httpClient = httpClientFactory.CreateClient(GeneralsOnlineConstants.PublisherType);
 
     /// <inheritdoc />
     public override void Dispose()
     {
         _httpClient?.Dispose();
         base.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     /// <inheritdoc />
@@ -128,7 +115,30 @@ public class GeneralsOnlineUpdateService : ContentUpdateServiceBase
                 return version?.Trim();
             }
 
-            _logger.LogWarning("latest.txt not available, status code: {StatusCode}", response.StatusCode);
+            _logger.LogWarning("latest.txt not available (status: {StatusCode}), falling back to manifest.json", response.StatusCode);
+
+            // Fallback: get version from manifest.json
+            var manifestResponse = await _httpClient.GetAsync(GeneralsOnlineConstants.ManifestApiUrl, cancellationToken);
+            if (manifestResponse.IsSuccessStatusCode)
+            {
+                var json = await manifestResponse.Content.ReadAsStringAsync(cancellationToken);
+
+                // Simple JSON parsing for "version" field
+                var versionStart = json.IndexOf("\"version\":", StringComparison.OrdinalIgnoreCase);
+                if (versionStart >= 0)
+                {
+                    versionStart += 10; // length of "version":
+                    var versionEnd = json.IndexOf('"', versionStart);
+                    if (versionEnd > versionStart)
+                    {
+                        var version = json[versionStart..versionEnd].Trim().Trim('"');
+                        _logger.LogInformation("Retrieved latest version from manifest.json: {Version}", version);
+                        return version;
+                    }
+                }
+            }
+
+            _logger.LogWarning("Failed to retrieve latest version from both latest.txt and manifest.json");
             return null;
         }
         catch (Exception ex)
@@ -188,9 +198,9 @@ public class GeneralsOnlineUpdateService : ContentUpdateServiceBase
                 return null;
             }
 
-            var month = int.Parse(datePart.Substring(0, 2));
-            var day = int.Parse(datePart.Substring(2, 2));
-            var year = 2000 + int.Parse(datePart.Substring(4, 2));
+            var month = int.Parse(datePart[0..2]);
+            var day = int.Parse(datePart[2..4]);
+            var year = int.Parse(datePart[4..6]);
 
             var date = new DateTime(year, month, day);
             return (date, qfe);

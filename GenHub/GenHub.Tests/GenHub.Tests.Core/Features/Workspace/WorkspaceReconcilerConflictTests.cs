@@ -55,7 +55,7 @@ public class WorkspaceReconcilerConflictTests : IDisposable
         };
 
         // Act
-        var result = await _reconciler.AnalyzeWorkspaceDeltaAsync(null, config, CancellationToken.None);
+        var result = await _reconciler.AnalyzeWorkspaceDeltaAsync(null, config);
 
         // Assert
         Assert.NotEmpty(result);
@@ -86,7 +86,7 @@ public class WorkspaceReconcilerConflictTests : IDisposable
         };
 
         // Act
-        var result = await _reconciler.AnalyzeWorkspaceDeltaAsync(null, config, CancellationToken.None);
+        var result = await _reconciler.AnalyzeWorkspaceDeltaAsync(null, config);
 
         // Assert
         Assert.NotEmpty(result);
@@ -117,7 +117,7 @@ public class WorkspaceReconcilerConflictTests : IDisposable
         };
 
         // Act
-        var result = await _reconciler.AnalyzeWorkspaceDeltaAsync(null, config, CancellationToken.None);
+        var result = await _reconciler.AnalyzeWorkspaceDeltaAsync(null, config);
 
         // Assert
         Assert.NotEmpty(result);
@@ -149,7 +149,7 @@ public class WorkspaceReconcilerConflictTests : IDisposable
         };
 
         // Act
-        var result = await _reconciler.AnalyzeWorkspaceDeltaAsync(null, config, CancellationToken.None);
+        var result = await _reconciler.AnalyzeWorkspaceDeltaAsync(null, config);
 
         // Assert
         Assert.NotEmpty(result);
@@ -180,7 +180,7 @@ public class WorkspaceReconcilerConflictTests : IDisposable
         };
 
         // Act
-        var result = await _reconciler.AnalyzeWorkspaceDeltaAsync(null, config, CancellationToken.None);
+        var result = await _reconciler.AnalyzeWorkspaceDeltaAsync(null, config);
 
         // Assert
         Assert.NotEmpty(result);
@@ -208,7 +208,7 @@ public class WorkspaceReconcilerConflictTests : IDisposable
         };
 
         // Act
-        await _reconciler.AnalyzeWorkspaceDeltaAsync(null, config, CancellationToken.None);
+        await _reconciler.AnalyzeWorkspaceDeltaAsync(null, config);
 
         // Assert
         _mockLogger.Verify(
