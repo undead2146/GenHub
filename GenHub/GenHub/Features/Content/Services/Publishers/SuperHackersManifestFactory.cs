@@ -146,7 +146,7 @@ public class SuperHackersManifestFactory(
             Id = ManifestId.Create(Guid.NewGuid().ToString()), // Temporary ID
             ManifestVersion = ManifestConstants.DefaultManifestVersion,
             Name = "SuperHackers (Local)",
-            Version = GameClientConstants.AutoDetectedVersion,
+            Version = GameClientConstants.UnknownVersion,
             ContentType = ContentType.GameClient,
             Publisher = new()
             {

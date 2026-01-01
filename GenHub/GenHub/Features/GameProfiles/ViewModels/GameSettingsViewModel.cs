@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Threading;
@@ -21,7 +22,7 @@ namespace GenHub.Features.GameProfiles.ViewModels;
 /// </summary>
 public partial class GameSettingsViewModel(IGameSettingsService gameSettingsService, ILogger<GameSettingsViewModel> logger) : ViewModelBase
 {
-    private const TextureQuality MaxTextureQuality = TextureQuality.High; // Will be VeryHigh when SH version supports 'very high' texture quality (see TheSuperHackers/GeneralsGameCode#1629)
+    private const TextureQuality MaxTextureQuality = TextureQuality.VeryHigh; // Will be VeryHigh when SH version supports 'very high' texture quality (see TheSuperHackers/GeneralsGameCode#1629)
     private const int TextureReductionOffset = GameSettingsConstants.TextureQuality.ReductionOffset;
 
     // Resolution validation constants
@@ -37,6 +38,13 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
     // NumSounds validation constants
     private const int MinNumSounds = GameSettingsConstants.Audio.MinNumSounds;
     private const int MaxNumSounds = GameSettingsConstants.Audio.MaxNumSounds;
+
+    private static bool ParseBool(string value) =>
+        value.Equals("yes", StringComparison.OrdinalIgnoreCase) ||
+        value.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+        value == "1";
+
+    private static string BoolToString(bool value) => value ? "yes" : "no";
 
     private static bool TryParseResolution(string? preset, out int width, out int height)
     {
@@ -140,16 +148,16 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
     private bool _tshPlayerObserverEnabled;
 
     [ObservableProperty]
-    private int _tshSystemTimeFontSize = 8;
+    private int _tshSystemTimeFontSize = 12;
 
     [ObservableProperty]
-    private int _tshNetworkLatencyFontSize = 8;
+    private int _tshNetworkLatencyFontSize = 12;
 
     [ObservableProperty]
-    private int _tshRenderFpsFontSize;
+    private int _tshRenderFpsFontSize = 12;
 
     [ObservableProperty]
-    private int _tshResolutionFontAdjustment;
+    private int _tshResolutionFontAdjustment = 0;
 
     [ObservableProperty]
     private bool _tshCursorCaptureEnabledInFullscreenGame;
@@ -279,9 +287,8 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
             }
             else
             {
-                // Default to Generals for new profiles
-                SelectedGameType = GameType.Generals;
-                _logger.LogInformation("Defaulted to Generals for new profile");
+                // Ensure we log what we're doing
+                _logger.LogInformation("Using pre-selected GameType {GameType} for new profile initialization", SelectedGameType);
             }
 
             // If profile has settings, load them
@@ -432,7 +439,7 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
 
             var result = await _gameSettingsService.LoadOptionsAsync(gameType);
 
-            if (result.Success && result.Data != null)
+            if (result?.Success == true && result.Data != null)
             {
                 _currentOptions = result.Data;
                 ApplyOptionsToViewModel(_currentOptions);
@@ -445,8 +452,22 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
             }
             else
             {
-                StatusMessage = $"Failed to load settings: {string.Join(", ", result.Errors)}";
-                _logger.LogWarning("Failed to load settings for {GameType}: {Errors}", gameType, string.Join(", ", result.Errors));
+                var errors = result?.Errors ?? new List<string> { "LoadOptions result was null" };
+                StatusMessage = $"Failed to load settings: {string.Join(", ", errors)}";
+                _logger.LogWarning("Failed to load settings for {GameType}: {Errors}", gameType, string.Join(", ", errors));
+            }
+
+            // Load GeneralsOnline settings separately
+            var goResult = await _gameSettingsService.LoadGeneralsOnlineSettingsAsync();
+            if (goResult?.Success == true && goResult.Data != null)
+            {
+                ApplyGeneralsOnlineSettings(goResult.Data);
+                _logger.LogInformation("Loaded GeneralsOnline settings");
+            }
+            else
+            {
+                var goErrors = goResult?.Errors ?? new List<string> { "LoadGeneralsOnlineSettings result was null" };
+                _logger.LogWarning("Failed to load GeneralsOnline settings: {Errors}", string.Join(", ", goErrors));
             }
         }
         catch (Exception ex)
@@ -573,7 +594,11 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
             var options = CreateOptionsFromViewModel();
             var result = await _gameSettingsService.SaveOptionsAsync(SelectedGameType, options);
 
-            if (result.Success)
+            // Save GeneralsOnline settings
+            var goSettings = CreateGeneralsOnlineSettings();
+            var goResult = await _gameSettingsService.SaveGeneralsOnlineSettingsAsync(goSettings);
+
+            if (result?.Success == true && goResult?.Success == true)
             {
                 _currentOptions = options;
                 OptionsFileExists = true;
@@ -582,8 +607,14 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
             }
             else
             {
-                StatusMessage = $"Failed to save settings: {string.Join(", ", result.Errors)}";
-                _logger.LogWarning("Failed to save settings for {GameType}: {Errors}", SelectedGameType, string.Join(", ", result.Errors));
+                var errors = new List<string>();
+                if (result?.Success == false) errors.AddRange(result.Errors);
+                if (goResult?.Success == false) errors.AddRange(goResult.Errors);
+                if (result == null) errors.Add("SaveOptions result was null");
+                if (goResult == null) errors.Add("SaveGeneralsOnlineSettings result was null");
+
+                StatusMessage = $"Failed to save settings: {string.Join(", ", errors)}";
+                _logger.LogWarning("Failed to save settings: {Errors}", string.Join(", ", errors));
             }
         }
         catch (Exception ex)
@@ -675,18 +706,47 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
         Windowed = options.Video.Windowed;
 
         // Map TextureReduction (0-3, inverted) to TextureQuality
-        TextureQuality = (TextureQuality)Math.Clamp(TextureReductionOffset - options.Video.TextureReduction, 0, (int)TextureQuality.High);
+        var rawTextureReduction = options.Video.TextureReduction;
+        var calculatedQuality = (TextureQuality)Math.Clamp(TextureReductionOffset - rawTextureReduction, 0, (int)TextureQuality.VeryHigh);
+
+        _logger.LogInformation(
+            "Mapping TextureQuality: Options.TR={TR}, Offset={Offset}, Calc={Calc}, Final={Final}",
+            rawTextureReduction,
+            TextureReductionOffset,
+            TextureReductionOffset - rawTextureReduction,
+            calculatedQuality);
+
+        TextureQuality = calculatedQuality;
         Shadows = options.Video.UseShadowVolumes;
 
-        // ParticleEffects doesn't exist in Options.ini, keep default
-        ParticleEffects = true;
+        // Retrieve custom ParticleEffects and BuildingAnimations settings
+        if (options.Video.AdditionalProperties.TryGetValue("GenHubParticleEffects", out var pe)) ParticleEffects = ParseBool(pe);
+
         ExtraAnimations = options.Video.ExtraAnimations;
 
-        // BuildingAnimations doesn't exist in Options.ini, keep default
-        BuildingAnimations = true;
+        if (options.Video.AdditionalProperties.TryGetValue("GenHubBuildingAnimations", out var ba)) BuildingAnimations = ParseBool(ba);
         Gamma = options.Video.Gamma;
 
         GameSpyIPAddress = options.Network.GameSpyIPAddress;
+
+        // TheSuperHackers settings map
+        if (options.AdditionalSections.TryGetValue("TheSuperHackers", out var tsh))
+        {
+            if (tsh.TryGetValue("ArchiveReplays", out var ar)) TshArchiveReplays = ParseBool(ar);
+            if (tsh.TryGetValue("ShowMoneyPerMinute", out var smpm)) TshShowMoneyPerMinute = ParseBool(smpm);
+            if (tsh.TryGetValue("PlayerObserverEnabled", out var poe)) TshPlayerObserverEnabled = ParseBool(poe);
+            if (tsh.TryGetValue("SystemTimeFontSize", out var stfs) && int.TryParse(stfs, out var stfsVal)) TshSystemTimeFontSize = stfsVal;
+            if (tsh.TryGetValue("NetworkLatencyFontSize", out var nlfs) && int.TryParse(nlfs, out var nlfsVal)) TshNetworkLatencyFontSize = nlfsVal;
+            if (tsh.TryGetValue("RenderFpsFontSize", out var rffs) && int.TryParse(rffs, out var rffsVal)) TshRenderFpsFontSize = rffsVal;
+            if (tsh.TryGetValue("ResolutionFontAdjustment", out var rfa) && int.TryParse(rfa, out var rfaVal)) TshResolutionFontAdjustment = rfaVal;
+            if (tsh.TryGetValue("CursorCaptureEnabledInFullscreenGame", out var ccefg)) TshCursorCaptureEnabledInFullscreenGame = ParseBool(ccefg);
+            if (tsh.TryGetValue("CursorCaptureEnabledInFullscreenMenu", out var ccefm)) TshCursorCaptureEnabledInFullscreenMenu = ParseBool(ccefm);
+            if (tsh.TryGetValue("CursorCaptureEnabledInWindowedGame", out var ccewg)) TshCursorCaptureEnabledInWindowedGame = ParseBool(ccewg);
+            if (tsh.TryGetValue("CursorCaptureEnabledInWindowedMenu", out var ccewm)) TshCursorCaptureEnabledInWindowedMenu = ParseBool(ccewm);
+            if (tsh.TryGetValue("ScreenEdgeScrollEnabledInFullscreenApp", out var sesefa)) TshScreenEdgeScrollEnabledInFullscreenApp = ParseBool(sesefa);
+            if (tsh.TryGetValue("ScreenEdgeScrollEnabledInWindowedApp", out var sesewa)) TshScreenEdgeScrollEnabledInWindowedApp = ParseBool(sesewa);
+            if (tsh.TryGetValue("MoneyTransactionVolume", out var mtv) && int.TryParse(mtv, out var mtvVal)) TshMoneyTransactionVolume = mtvVal;
+        }
 
         // Update selected preset if it matches
         var currentRes = $"{ResolutionWidth}x{ResolutionHeight}";
@@ -715,12 +775,94 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
         options.Video.UseShadowVolumes = Shadows;
         options.Video.UseShadowDecals = Shadows; // Enable decals when shadows are on
 
-        // ParticleEffects and BuildingAnimations don't exist in Options.ini, skip
+        // ParticleEffects and BuildingAnimations don't natively exist in Options.ini, so we persist them as custom properties
+        options.Video.AdditionalProperties["GenHubParticleEffects"] = BoolToString(ParticleEffects);
+        options.Video.AdditionalProperties["GenHubBuildingAnimations"] = BoolToString(BuildingAnimations);
+
         options.Video.ExtraAnimations = ExtraAnimations;
         options.Video.Gamma = Gamma;
 
         options.Network.GameSpyIPAddress = GameSpyIPAddress;
 
+        // TheSuperHackers settings
+        var tshDict = new Dictionary<string, string>
+        {
+            ["ArchiveReplays"] = BoolToString(TshArchiveReplays),
+            ["ShowMoneyPerMinute"] = BoolToString(TshShowMoneyPerMinute),
+            ["PlayerObserverEnabled"] = BoolToString(TshPlayerObserverEnabled),
+            ["SystemTimeFontSize"] = TshSystemTimeFontSize.ToString(),
+            ["NetworkLatencyFontSize"] = TshNetworkLatencyFontSize.ToString(),
+            ["RenderFpsFontSize"] = TshRenderFpsFontSize.ToString(),
+            ["ResolutionFontAdjustment"] = TshResolutionFontAdjustment.ToString(),
+            ["CursorCaptureEnabledInFullscreenGame"] = BoolToString(TshCursorCaptureEnabledInFullscreenGame),
+            ["CursorCaptureEnabledInFullscreenMenu"] = BoolToString(TshCursorCaptureEnabledInFullscreenMenu),
+            ["CursorCaptureEnabledInWindowedGame"] = BoolToString(TshCursorCaptureEnabledInWindowedGame),
+            ["CursorCaptureEnabledInWindowedMenu"] = BoolToString(TshCursorCaptureEnabledInWindowedMenu),
+            ["ScreenEdgeScrollEnabledInFullscreenApp"] = BoolToString(TshScreenEdgeScrollEnabledInFullscreenApp),
+            ["ScreenEdgeScrollEnabledInWindowedApp"] = BoolToString(TshScreenEdgeScrollEnabledInWindowedApp),
+            ["MoneyTransactionVolume"] = TshMoneyTransactionVolume.ToString(),
+        };
+        options.AdditionalSections["TheSuperHackers"] = tshDict;
+
         return options;
+    }
+
+    private void ApplyGeneralsOnlineSettings(GeneralsOnlineSettings settings)
+    {
+        GoShowFps = settings.ShowFps;
+        GoShowPing = settings.ShowPing;
+        GoShowPlayerRanks = settings.ShowPlayerRanks;
+        GoAutoLogin = settings.AutoLogin;
+        GoRememberUsername = settings.RememberUsername;
+        GoEnableNotifications = settings.EnableNotifications;
+        GoEnableSoundNotifications = settings.EnableSoundNotifications;
+        GoChatFontSize = settings.ChatFontSize;
+        GoCameraMaxHeightOnlyWhenLobbyHost = settings.CameraMaxHeightOnlyWhenLobbyHost;
+        GoCameraMinHeight = settings.CameraMinHeight;
+        GoCameraMoveSpeedRatio = settings.CameraMoveSpeedRatio;
+        GoChatDurationSecondsUntilFadeOut = settings.ChatDurationSecondsUntilFadeOut;
+        GoDebugVerboseLogging = settings.DebugVerboseLogging;
+        GoRenderFpsLimit = settings.RenderFpsLimit;
+        GoRenderLimitFramerate = settings.RenderLimitFramerate;
+        GoRenderStatsOverlay = settings.RenderStatsOverlay;
+        GoSocialNotificationFriendComesOnlineGameplay = settings.SocialNotificationFriendComesOnlineGameplay;
+        GoSocialNotificationFriendComesOnlineMenus = settings.SocialNotificationFriendComesOnlineMenus;
+        GoSocialNotificationFriendGoesOfflineGameplay = settings.SocialNotificationFriendGoesOfflineGameplay;
+        GoSocialNotificationFriendGoesOfflineMenus = settings.SocialNotificationFriendGoesOfflineMenus;
+        GoSocialNotificationPlayerAcceptsRequestGameplay = settings.SocialNotificationPlayerAcceptsRequestGameplay;
+        GoSocialNotificationPlayerAcceptsRequestMenus = settings.SocialNotificationPlayerAcceptsRequestMenus;
+        GoSocialNotificationPlayerSendsRequestGameplay = settings.SocialNotificationPlayerSendsRequestGameplay;
+        GoSocialNotificationPlayerSendsRequestMenus = settings.SocialNotificationPlayerSendsRequestMenus;
+    }
+
+    private GeneralsOnlineSettings CreateGeneralsOnlineSettings()
+    {
+        return new GeneralsOnlineSettings
+        {
+            ShowFps = GoShowFps,
+            ShowPing = GoShowPing,
+            ShowPlayerRanks = GoShowPlayerRanks,
+            AutoLogin = GoAutoLogin,
+            RememberUsername = GoRememberUsername,
+            EnableNotifications = GoEnableNotifications,
+            EnableSoundNotifications = GoEnableSoundNotifications,
+            ChatFontSize = GoChatFontSize,
+            CameraMaxHeightOnlyWhenLobbyHost = GoCameraMaxHeightOnlyWhenLobbyHost,
+            CameraMinHeight = GoCameraMinHeight,
+            CameraMoveSpeedRatio = GoCameraMoveSpeedRatio,
+            ChatDurationSecondsUntilFadeOut = GoChatDurationSecondsUntilFadeOut,
+            DebugVerboseLogging = GoDebugVerboseLogging,
+            RenderFpsLimit = GoRenderFpsLimit,
+            RenderLimitFramerate = GoRenderLimitFramerate,
+            RenderStatsOverlay = GoRenderStatsOverlay,
+            SocialNotificationFriendComesOnlineGameplay = GoSocialNotificationFriendComesOnlineGameplay,
+            SocialNotificationFriendComesOnlineMenus = GoSocialNotificationFriendComesOnlineMenus,
+            SocialNotificationFriendGoesOfflineGameplay = GoSocialNotificationFriendGoesOfflineGameplay,
+            SocialNotificationFriendGoesOfflineMenus = GoSocialNotificationFriendGoesOfflineMenus,
+            SocialNotificationPlayerAcceptsRequestGameplay = GoSocialNotificationPlayerAcceptsRequestGameplay,
+            SocialNotificationPlayerAcceptsRequestMenus = GoSocialNotificationPlayerAcceptsRequestMenus,
+            SocialNotificationPlayerSendsRequestGameplay = GoSocialNotificationPlayerSendsRequestGameplay,
+            SocialNotificationPlayerSendsRequestMenus = GoSocialNotificationPlayerSendsRequestMenus,
+        };
     }
 }

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.ObjectModel;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -16,6 +15,7 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Notifications;
 using GenHub.Features.AppUpdate.Interfaces;
+using GenHub.Features.AppUpdate.Views;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.ViewModels;
@@ -43,8 +43,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private NavigationTab _selectedTab = NavigationTab.GameProfiles;
-
-
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainViewModel"/> class.
@@ -187,8 +185,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         SelectedTab = tab;
     }
 
-
-
     /// <summary>
     /// Performs asynchronous initialization for the shell and all tabs.
     /// </summary>
@@ -207,128 +203,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Scans for game installations and automatically creates profiles.
-    /// </summary>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    [RelayCommand]
-    public async Task ScanAndCreateProfilesAsync()
-    {
-        _logger?.LogInformation("Starting automatic profile creation from game installations");
-
-        try
-        {
-            // First scan for installations
-            var scanResult = await _gameInstallationDetectionOrchestrator.DetectAllInstallationsAsync();
-
-            if (!scanResult.Success)
-            {
-                _logger?.LogWarning("Game installation scan failed: {Errors}", string.Join(", ", scanResult.Errors));
-                return;
-            }
-
-            if (scanResult.Items.Count == 0)
-            {
-                _logger?.LogInformation("No game installations found");
-                return;
-            }
-
-            _logger?.LogInformation("Found {Count} game installations, creating profiles", scanResult.Items.Count);
-
-            int createdCount = 0;
-            int failedCount = 0;
-
-            foreach (var installation in scanResult.Items)
-            {
-                if (installation == null) continue;
-
-                try
-                {
-                    // Skip installations that don't have available game clients
-                    if (installation.AvailableGameClients.Count == 0)
-                    {
-                        _logger?.LogWarning("Skipping installation {InstallationId} - no available GameClients found", installation.Id);
-                        continue;
-                    }
-
-                    // Create profiles for ALL available game clients (standard, GeneralsOnline, SuperHackers, etc.)
-                    foreach (var gameClient in installation.AvailableGameClients)
-                    {
-                        if (!gameClient.IsValid)
-                        {
-                            _logger?.LogWarning("Skipping GameClient {ClientId} in installation {InstallationId} - not valid", gameClient.Id, installation.Id);
-                            continue;
-                        }
-
-                        var gameClientId = gameClient.Id;
-
-                        // Determine assets based on game type using ProfileResourceService
-                        var gameTypeStr = gameClient.GameType.ToString();
-                        var iconPath = _profileResourceService.GetDefaultIconPath(gameTypeStr);
-                        var coverPath = _profileResourceService.GetDefaultCoverPath(gameTypeStr);
-
-                        // Create a profile request for this game client
-                        var createRequest = new CreateProfileRequest
-                        {
-                            Name = $"{installation.InstallationType} {gameClient.Name}",
-                            GameInstallationId = installation.Id,
-                            GameClientId = gameClientId,
-                            Description = $"Auto-created profile for {gameClient.Name} in {installation.InstallationType} installation",
-                            PreferredStrategy = WorkspaceStrategy.HybridCopySymlink,
-                            IconPath = iconPath,
-                            CoverPath = coverPath,
-                        };
-
-                        var profileResult = await _profileEditorFacade.CreateProfileWithWorkspaceAsync(createRequest);
-
-                        if (profileResult.Success)
-                        {
-                            createdCount++;
-                            _logger?.LogInformation(
-                                "Created profile '{ProfileName}' for {GameClientName}",
-                                profileResult.Data?.Name,
-                                gameClient.Name);
-                        }
-                        else
-                        {
-                            // Profile might already exist - don't count as failure
-                            var errors = string.Join(", ", profileResult.Errors);
-                            if (errors.Contains("already exists", StringComparison.OrdinalIgnoreCase))
-                            {
-                                _logger?.LogDebug("Profile already exists for {GameClientName}", gameClient.Name);
-                            }
-                            else
-                            {
-                                failedCount++;
-                                _logger?.LogWarning(
-                                    "Failed to create profile for {GameClientName}: {Errors}",
-                                    gameClient.Name,
-                                    errors);
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    failedCount++;
-                    _logger?.LogError(ex, "Error creating profile for installation {InstallationId}", installation.Id);
-                }
-            }
-
-            _logger?.LogInformation(
-                "Profile creation complete: {Created} created, {Failed} failed",
-                createdCount,
-                failedCount);
-
-            // Refresh the game profiles view model to show new profiles
-            await GameProfilesViewModel.InitializeAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "Error occurred during automatic profile creation");
-        }
-    }
-
-    /// <summary>
     /// Disposes of managed resources.
     /// </summary>
     public void Dispose()
@@ -336,14 +210,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _initializationCts?.Cancel();
         _initializationCts?.Dispose();
         GC.SuppressFinalize(this);
-    }
-
-    private static Window? GetMainWindow()
-    {
-        return Avalonia.Application.Current?.ApplicationLifetime
-            is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime dt
-            ? dt.MainWindow
-            : null;
     }
 
     /// <summary>

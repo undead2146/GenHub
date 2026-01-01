@@ -51,7 +51,7 @@ public abstract class BaseContentProvider(
     /// <summary>
     /// Gets the discoverer for this provider.
     /// </summary>
-    protected abstract IContentDiscoverer Discoverer { get; }
+    protected abstract IContentDiscoverer? Discoverer { get; }
 
     /// <summary>
     /// Gets the resolver for this provider.
@@ -71,6 +71,11 @@ public abstract class BaseContentProvider(
         Logger.LogDebug("Starting {ProviderName} search for: {SearchTerm}", SourceName, query.SearchTerm);
 
         // Step 1: Discovery
+        if (Discoverer == null)
+        {
+            return OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(Enumerable.Empty<ContentSearchResult>());
+        }
+
         var discoveryResult = await Discoverer.DiscoverAsync(query, cancellationToken);
         if (!discoveryResult.Success || discoveryResult.Data == null)
         {
@@ -153,7 +158,7 @@ public abstract class BaseContentProvider(
             if (!validationResult.IsValid)
             {
                 var errors = validationResult.Issues.Where(i => i.Severity == ValidationSeverity.Error).ToList();
-                if (errors.Any())
+                if (errors.Count > 0)
                 {
                     return OperationResult<ContentManifest>.CreateFailure(
                         errors.Select(e => $"Manifest validation failed: {e.Message}"));

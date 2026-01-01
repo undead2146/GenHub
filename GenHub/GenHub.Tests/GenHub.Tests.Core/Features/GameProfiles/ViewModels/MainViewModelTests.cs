@@ -1,6 +1,11 @@
+using System.Collections.Generic;
+using System.Net.Http;
 using System.Reactive.Linq;
+using System.Threading.Tasks;
+using Avalonia.Controls;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GameSettings;
@@ -17,7 +22,11 @@ using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Notifications;
 using GenHub.Features.AppUpdate.Interfaces;
+using GenHub.Features.Content.Services.CommunityOutpost;
 using GenHub.Features.Content.Services.ContentDiscoverers;
+using GenHub.Features.Content.Services.ContentProviders;
+using GenHub.Features.Content.Services.GeneralsOnline;
+using GenHub.Features.Content.Services.Publishers;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.ViewModels;
@@ -118,45 +127,7 @@ public class MainViewModelTests
         Assert.Equal(tab, vm.SelectedTab);
     }
 
-    /// <summary>
-    /// Verifies ScanAndCreateProfilesAsync can be called.
-    /// </summary>
-    /// <returns>A task representing the asynchronous test operation.</returns>
-    [Fact]
-    public async Task ScanAndCreateProfilesAsync_CanBeCalled()
-    {
-        // Arrange
-        var mockOrchestrator = new Mock<IGameInstallationDetectionOrchestrator>();
-        var (settingsVm, userSettingsMock) = CreateSettingsVm();
-        var toolsVm = CreateToolsVm();
-        var configProvider = CreateConfigProviderMock();
-        var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
-        var mockVelopackUpdateManager = new Mock<IVelopackUpdateManager>();
-        var mockLogger = new Mock<ILogger<MainViewModel>>();
-        var mockNotificationService = CreateNotificationServiceMock();
-        var mockNotificationManager = new Mock<NotificationManagerViewModel>(
-            mockNotificationService.Object,
-            Mock.Of<ILogger<NotificationManagerViewModel>>(),
-            Mock.Of<ILogger<NotificationItemViewModel>>());
-        var viewModel = new MainViewModel(
-            CreateGameProfileLauncherViewModel(),
-            CreateDownloadsViewModel(),
-            toolsVm,
-            settingsVm,
-            mockNotificationManager.Object,
-            mockOrchestrator.Object,
-            configProvider,
-            userSettingsMock.Object,
-            mockProfileEditorFacade.Object,
-            mockVelopackUpdateManager.Object,
-            CreateProfileResourceService(),
-            mockNotificationService.Object,
-            mockLogger.Object);
 
-        // Act & Assert
-        await viewModel.ScanAndCreateProfilesAsync();
-        Assert.True(true); // Test passes if no exception is thrown
-    }
 
     /// <summary>
     /// Tests that multiple calls to <see cref="MainViewModel.InitializeAsync"/> are safe.
@@ -365,8 +336,33 @@ public class MainViewModelTests
             new Mock<IPublisherProfileOrchestrator>().Object,
             new Mock<ISteamManifestPatcher>().Object,
             CreateProfileResourceService(),
+            new Mock<GenHub.Core.Interfaces.GameClients.IGameClientDetector>().Object,
             notificationService.Object,
+            new Mock<ISetupWizardService>().Object,
+            new Mock<IManifestGenerationService>().Object,
+            new Mock<IContentManifestPool>().Object,
             NullLogger<GameProfileLauncherViewModel>.Instance);
+    }
+
+    private static SuperHackersProvider CreateSuperHackersProvider()
+    {
+        var discovererMock = new Mock<IContentDiscoverer>();
+        discovererMock.Setup(x => x.SourceName).Returns("GitHubReleasesDiscoverer");
+
+        var resolverMock = new Mock<IContentResolver>();
+        resolverMock.Setup(x => x.ResolverId).Returns(GenHub.Core.Constants.SuperHackersConstants.ResolverId);
+
+        var delivererMock = new Mock<IContentDeliverer>();
+        delivererMock.Setup(x => x.SourceName).Returns(GenHub.Core.Constants.ContentSourceNames.GitHubDeliverer);
+
+        var gitHubApiClientMock = new Mock<IGitHubApiClient>();
+
+        return new SuperHackersProvider(
+            gitHubApiClientMock.Object,
+            [resolverMock.Object],
+            [delivererMock.Object],
+            new Mock<GenHub.Core.Interfaces.Content.IContentValidator>().Object,
+            NullLogger<SuperHackersProvider>.Instance);
     }
 
     private static Mock<INotificationService> CreateNotificationServiceMock()
