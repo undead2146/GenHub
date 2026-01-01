@@ -1,5 +1,6 @@
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Interfaces.Providers;
 using GenHub.Core.Models.Results.Content;
 using Microsoft.Extensions.Logging;
 using System;
@@ -13,14 +14,14 @@ namespace GenHub.Features.Content.Services.GeneralsOnline;
 /// <summary>
 /// Background service for checking Generals Online updates.
 /// Polls CDN for new releases and notifies when updates are available.
+/// Uses data-driven configuration from provider.json for endpoints.
 /// </summary>
 public class GeneralsOnlineUpdateService(
     ILogger<GeneralsOnlineUpdateService> logger,
     IContentManifestPool manifestPool,
-    IHttpClientFactory httpClientFactory) : ContentUpdateServiceBase(logger)
+    IHttpClientFactory httpClientFactory,
+    IProviderDefinitionLoader providerLoader) : ContentUpdateServiceBase(logger)
 {
-    private readonly ILogger<GeneralsOnlineUpdateService> _logger = logger;
-    private readonly IContentManifestPool _manifestPool = manifestPool;
     private readonly HttpClient _httpClient = httpClientFactory.CreateClient(GeneralsOnlineConstants.PublisherType);
 
     /// <inheritdoc />
@@ -42,7 +43,7 @@ public class GeneralsOnlineUpdateService(
     public override async Task<ContentUpdateCheckResult>
         CheckForUpdatesAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Checking for Generals Online updates");
+        logger.LogInformation("Checking for Generals Online updates");
 
         try
         {
@@ -54,7 +55,7 @@ public class GeneralsOnlineUpdateService(
 
             if (string.IsNullOrEmpty(latestVersion))
             {
-                _logger.LogWarning("Could not retrieve latest version from CDN");
+                logger.LogWarning("Could not retrieve latest version from CDN");
                 return ContentUpdateCheckResult.CreateFailure(
                     "Could not retrieve latest version from CDN",
                     currentVersion);
@@ -75,7 +76,7 @@ public class GeneralsOnlineUpdateService(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to check for Generals Online updates");
+            logger.LogError(ex, "Failed to check for Generals Online updates");
             throw;
         }
     }
@@ -84,7 +85,7 @@ public class GeneralsOnlineUpdateService(
     {
         try
         {
-            var manifests = await _manifestPool.GetAllManifestsAsync(cancellationToken);
+            var manifests = await manifestPool.GetAllManifestsAsync(cancellationToken);
             if (!manifests.Success || manifests.Data == null)
             {
                 return null;
@@ -97,7 +98,7 @@ public class GeneralsOnlineUpdateService(
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to get installed Generals Online version");
+            logger.LogWarning(ex, "Failed to get installed Generals Online version");
             return null;
         }
     }
@@ -106,8 +107,23 @@ public class GeneralsOnlineUpdateService(
     {
         try
         {
+            // Get provider definition
+            var provider = providerLoader.GetProvider(GeneralsOnlineConstants.PublisherType);
+            if (provider == null)
+            {
+                logger.LogError("Provider definition not found for {ProviderId}", GeneralsOnlineConstants.PublisherType);
+                return null;
+            }
+
+            var latestVersionUrl = provider.Endpoints.GetEndpoint("latestVersionUrl");
+            if (string.IsNullOrEmpty(latestVersionUrl))
+            {
+                logger.LogError("latestVersionUrl not configured in provider definition");
+                return null;
+            }
+
             // Try to get version from latest.txt
-            var response = await _httpClient.GetAsync(GeneralsOnlineConstants.LatestVersionUrl, cancellationToken);
+            var response = await _httpClient.GetAsync(latestVersionUrl, cancellationToken);
 
             if (response.IsSuccessStatusCode)
             {
@@ -115,10 +131,10 @@ public class GeneralsOnlineUpdateService(
                 return version?.Trim();
             }
 
-            _logger.LogWarning("latest.txt not available (status: {StatusCode}), falling back to manifest.json", response.StatusCode);
+            logger.LogWarning("latest.txt not available (status: {StatusCode}), falling back to manifest.json", response.StatusCode);
 
             // Fallback: get version from manifest.json
-            var manifestResponse = await _httpClient.GetAsync(GeneralsOnlineConstants.ManifestApiUrl, cancellationToken);
+            var manifestResponse = await _httpClient.GetAsync(provider.Endpoints.GetEndpoint("manifestUrl"), cancellationToken);
             if (manifestResponse.IsSuccessStatusCode)
             {
                 var json = await manifestResponse.Content.ReadAsStringAsync(cancellationToken);
@@ -132,18 +148,18 @@ public class GeneralsOnlineUpdateService(
                     if (versionEnd > versionStart)
                     {
                         var version = json[versionStart..versionEnd].Trim().Trim('"');
-                        _logger.LogInformation("Retrieved latest version from manifest.json: {Version}", version);
+                        logger.LogInformation("Retrieved latest version from manifest.json: {Version}", version);
                         return version;
                     }
                 }
             }
 
-            _logger.LogWarning("Failed to retrieve latest version from both latest.txt and manifest.json");
+            logger.LogWarning("Failed to retrieve latest version from both latest.txt and manifest.json");
             return null;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to get latest version from CDN");
+            logger.LogWarning(ex, "Failed to get latest version from CDN");
             return null;
         }
     }
@@ -207,7 +223,7 @@ public class GeneralsOnlineUpdateService(
         }
         catch
         {
-            _logger.LogWarning("Failed to parse version: {Version}", version);
+            logger.LogWarning("Failed to parse version: {Version}", version);
             return null;
         }
     }

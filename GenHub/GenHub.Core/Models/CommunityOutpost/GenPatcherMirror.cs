@@ -1,4 +1,4 @@
-namespace GenHub.Features.Content.Services.CommunityOutpost.Models;
+namespace GenHub.Core.Models.CommunityOutpost;
 
 /// <summary>
 /// Represents a download mirror for a GenPatcher content item.

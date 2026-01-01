@@ -3,7 +3,7 @@ using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 
-namespace GenHub.Features.Content.Services.CommunityOutpost.Models;
+namespace GenHub.Core.Models.CommunityOutpost;
 
 /// <summary>
 /// Represents metadata for a GenPatcher content code, providing mappings to GenHub content types.

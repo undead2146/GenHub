@@ -255,6 +255,11 @@ public static class CNCLabsConstants
     public const string PublisherType = "cnclabs";
 
     /// <summary>
+    /// Publisher ID for the CNC Labs service.
+    /// </summary>
+    public const string PublisherId = PublisherPrefix;
+
+    /// <summary>
     /// Official CNC Labs website URL.
     /// </summary>
     public const string PublisherWebsite = "https://www.cnclabs.com";
@@ -269,10 +274,18 @@ public static class CNCLabsConstants
     /// </summary>
     public const string LogoSource = "/Assets/Logos/cnclabs-logo.png";
 
-    /// <summary>
-    /// Short description for publisher card display.
-    /// </summary>
+    /// <summary>Short description for publisher card display.</summary>
     public const string ShortDescription = "Maps, mods, and community content from CNC Labs";
+
+    /// <summary>
+    /// Default filename for downloads when parsing fails.
+    /// </summary>
+    public const string DefaultDownloadFilename = "download.zip";
+
+    /// <summary>
+    /// Default name for CNC Labs content when title is missing.
+    /// </summary>
+    public const string DefaultContentName = "untitled";
 
     /// <summary>
     /// Manifest version for CNC Labs content. Always 0 per specification.
@@ -309,8 +322,14 @@ public static class CNCLabsConstants
     /// </summary>
     public const string VideosPagePath = "videos.aspx";
 
-    /// <summary>
-    /// Relative path for the Zero Hour replays list page.
-    /// </summary>
+    /// <summary>Relative path for the Zero Hour replays list page.</summary>
     public const string ZeroHourReplaysPagePath = "zerohour-replays.aspx";
+
+    /// <summary>Version string used when version information is missing.</summary>
+    public const string UnknownVersion = "unknown";
+
+    /// <summary>
+    /// Default tags for CNC Labs manifests.
+    /// </summary>
+    public static readonly string[] DefaultTags = ["cnclabs"];
 }

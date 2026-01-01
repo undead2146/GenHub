@@ -5,8 +5,6 @@ using GenHub.Features.Downloads.ViewModels;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Moq;
-using System.Threading.Tasks;
-using Xunit;
 
 namespace GenHub.Tests.Core.Features.GameProfiles.ViewModels;
 
@@ -26,15 +24,18 @@ public class DownloadsViewModelTests
         var serviceProviderMock = new Mock<IServiceProvider>();
         var loggerMock = new Mock<ILogger<DownloadsViewModel>>();
         var mockNotificationService = new Mock<INotificationService>();
-        var mockGitHubDiscoverer = new Mock<GitHubTopicsDiscoverer>(
-            It.IsAny<IGitHubApiClient>(),
-            It.IsAny<ILogger<GitHubTopicsDiscoverer>>(),
-            It.IsAny<IMemoryCache>());
+        var mockGitHubApiClient = new Mock<IGitHubApiClient>();
+        var mockLoggerGitHubDiscoverer = new Mock<ILogger<GitHubTopicsDiscoverer>>();
+        var mockMemoryCache = new Mock<IMemoryCache>();
 
-        // Act
+        var mockGitHubDiscoverer = new Mock<GitHubTopicsDiscoverer>(
+            mockGitHubApiClient.Object,
+            mockLoggerGitHubDiscoverer.Object,
+            mockMemoryCache.Object);
+
         var vm = new DownloadsViewModel(serviceProviderMock.Object, loggerMock.Object, mockNotificationService.Object, mockGitHubDiscoverer.Object);
 
-        // Assert
+        // Act & Assert (Smoke test to ensure no exceptions are thrown)
         await vm.InitializeAsync();
     }
 }

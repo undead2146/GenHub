@@ -172,8 +172,11 @@ public class VersionConstraint
             return "0";
         }
 
+        // Remove leading 'v' or 'V'
+        var normalized = version.TrimStart('v', 'V');
+
         // Remove any non-numeric characters except dots
-        var normalized = Regex.Replace(version, @"[^0-9.]", string.Empty);
+        normalized = Regex.Replace(normalized, @"[^0-9.]", string.Empty);
 
         return string.IsNullOrEmpty(normalized) ? "0" : normalized;
     }
@@ -212,22 +215,8 @@ public class VersionConstraint
 
     /// <summary>
     /// Evaluates a constraint expression against a version.
-    /// Supports: &gt;=, &gt;, &lt;=, &lt;, =, ^, ~.
+    /// Supports: >=, >, &lt;=, &lt;, =, ^, ~.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Constraint expressions support logical operators:
-    /// - Space-separated constraints are AND'ed together (all must match).
-    /// - "||" separates OR groups (at least one group must match).
-    /// </para>
-    /// <para>
-    /// Examples:
-    /// - "&gt;=1.0.0 &lt;2.0.0" → version must be &gt;= 1.0.0 AND &lt; 2.0.0.
-    /// - "^3.0.0" → version must be compatible with 3.x.x (same major version).
-    /// - "~1.2.0" → version must be approximately 1.2.x (same major.minor).
-    /// - "&gt;=1.0.0 &lt;2.0.0 || &gt;=3.0.0" → (&gt;= 1.0.0 AND &lt; 2.0.0) OR (&gt;= 3.0.0).
-    /// </para>
-    /// </remarks>
     private static bool EvaluateConstraintExpression(string version, string expression)
     {
         // Split by logical operators (space = AND, || = OR)
@@ -236,9 +225,18 @@ public class VersionConstraint
         foreach (var orPart in orParts)
         {
             var andParts = orPart.Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            var allMatch = true;
 
-            // Check if all AND constraints in this OR group are satisfied
-            if (andParts.All(constraint => EvaluateSingleConstraint(version, constraint.Trim())))
+            foreach (var constraint in andParts)
+            {
+                if (!EvaluateSingleConstraint(version, constraint.Trim()))
+                {
+                    allMatch = false;
+                    break;
+                }
+            }
+
+            if (allMatch)
             {
                 return true;
             }

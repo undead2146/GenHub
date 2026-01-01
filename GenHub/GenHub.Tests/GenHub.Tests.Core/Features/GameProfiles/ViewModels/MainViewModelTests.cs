@@ -1,8 +1,4 @@
-using System.Collections.Generic;
-using System.Net.Http;
 using System.Reactive.Linq;
-using System.Threading.Tasks;
-using Avalonia.Controls;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
@@ -12,20 +8,17 @@ using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Interfaces.Providers;
 using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Steam;
 using GenHub.Core.Interfaces.Storage;
 using GenHub.Core.Interfaces.Tools;
-using GenHub.Core.Interfaces.UserData;
 using GenHub.Core.Interfaces.Workspace;
 using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Notifications;
 using GenHub.Features.AppUpdate.Interfaces;
-using GenHub.Features.Content.Services.CommunityOutpost;
 using GenHub.Features.Content.Services.ContentDiscoverers;
-using GenHub.Features.Content.Services.ContentProviders;
-using GenHub.Features.Content.Services.GeneralsOnline;
 using GenHub.Features.Content.Services.Publishers;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.Services;
@@ -285,9 +278,9 @@ public class MainViewModelTests
         var mockLogger = new Mock<ILogger<DownloadsViewModel>>();
         var mockNotificationService = new Mock<INotificationService>();
         var mockGitHubDiscoverer = new Mock<GitHubTopicsDiscoverer>(
-            It.IsAny<IGitHubApiClient>(),
-            It.IsAny<ILogger<GitHubTopicsDiscoverer>>(),
-            It.IsAny<IMemoryCache>());
+            new Mock<IGitHubApiClient>().Object,
+            new Mock<ILogger<GitHubTopicsDiscoverer>>().Object,
+            new Mock<IMemoryCache>().Object);
         return new DownloadsViewModel(
             mockServiceProvider.Object,
             mockLogger.Object,
@@ -355,7 +348,10 @@ public class MainViewModelTests
 
         var gitHubApiClientMock = new Mock<IGitHubApiClient>();
 
+        var loaderMock = new Mock<IProviderDefinitionLoader>();
+
         return new SuperHackersProvider(
+            loaderMock.Object,
             gitHubApiClientMock.Object,
             [resolverMock.Object],
             [delivererMock.Object],

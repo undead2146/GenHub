@@ -7,6 +7,7 @@ using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Interfaces.Providers;
 using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Steam;
 using GenHub.Core.Models.Enums;
@@ -300,7 +301,10 @@ public class GameProfileLauncherViewModelTests
 
         var gitHubApiClientMock = new Mock<IGitHubApiClient>();
 
+        var loaderMock = new Mock<IProviderDefinitionLoader>();
+
         return new SuperHackersProvider(
+            loaderMock.Object,
             gitHubApiClientMock.Object,
             [resolverMock.Object],
             [delivererMock.Object],

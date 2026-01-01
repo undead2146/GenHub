@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace GenHub.Features.Content.Services.CommunityOutpost.Models;
+namespace GenHub.Core.Models.CommunityOutpost;
 
 /// <summary>
 /// Represents the parsed content catalog from dl.dat.

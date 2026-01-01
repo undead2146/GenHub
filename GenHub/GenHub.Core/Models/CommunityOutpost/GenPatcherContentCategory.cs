@@ -1,7 +1,7 @@
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 
-namespace GenHub.Features.Content.Services.CommunityOutpost.Models;
+namespace GenHub.Core.Models.CommunityOutpost;
 
 /// <summary>
 /// Categories for GenPatcher content to enable grouping in UI.

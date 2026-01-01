@@ -30,7 +30,7 @@ public class SuperHackersManifestFactory(
     /// </summary>
     private static int ExtractVersionFromManifestId(string manifestId)
     {
-        var parts = manifestId.Split('.');
+        var parts = manifestId.Split(SuperHackersConstants.VersionDelimiter);
         if (parts.Length >= 2 && int.TryParse(parts[1], out int version))
         {
             return version;
@@ -145,17 +145,17 @@ public class SuperHackersManifestFactory(
         {
             Id = ManifestId.Create(Guid.NewGuid().ToString()), // Temporary ID
             ManifestVersion = ManifestConstants.DefaultManifestVersion,
-            Name = "SuperHackers (Local)",
+            Name = SuperHackersConstants.LocalInstallDisplayName,
             Version = GameClientConstants.UnknownVersion,
             ContentType = ContentType.GameClient,
             Publisher = new()
             {
-                Name = "The Super Hackers",
+                Name = SuperHackersConstants.PublisherDisplayName,
                 PublisherType = PublisherTypeConstants.TheSuperHackers,
             },
             Metadata = new()
             {
-                Description = "Auto-detected local installation",
+                Description = SuperHackersConstants.LocalInstallDescription,
                 ReleaseDate = DateTime.Now,
             },
         };
