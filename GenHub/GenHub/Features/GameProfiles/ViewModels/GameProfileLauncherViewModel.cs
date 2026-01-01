@@ -61,9 +61,27 @@ public partial class GameProfileLauncherViewModel(
     IRecipient<ProfileListUpdatedMessage>
 {
     private readonly SemaphoreSlim _launchSemaphore = new(1, 1);
+    private readonly System.Timers.Timer _headerCollapseTimer = new(TimeIntervals.HeaderCollapseDelayMs);
 
     [ObservableProperty]
     private ObservableCollection<GameProfileItemViewModel> _profiles = [];
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(LaunchProfileCommand))]
+    [NotifyCanExecuteChangedFor(nameof(EditProfileCommand))]
+    private GameProfileItemViewModel? _selectedProfile;
+
+    /// <summary>
+    /// Gets a value indicating whether a profile can be edited.
+    /// </summary>
+    public bool CanEditProfile => SelectedProfile != null;
+
+    partial void OnSelectedProfileChanged(GameProfileItemViewModel? value)
+    {
+        OnPropertyChanged(nameof(CanEditProfile));
+        LaunchProfileCommand.NotifyCanExecuteChanged();
+        EditProfileCommand.NotifyCanExecuteChanged();
+    }
 
     [ObservableProperty]
     private bool _isLaunching;
@@ -86,6 +104,9 @@ public partial class GameProfileLauncherViewModel(
     [ObservableProperty]
     private bool _isScanning;
 
+    [ObservableProperty]
+    private bool _isHeaderExpanded = true;
+
     /// <summary>
     /// Performs asynchronous initialization for the GameProfileLauncherViewModel.
     /// Loads all game profiles and subscribes to process exit events.
@@ -93,8 +114,23 @@ public partial class GameProfileLauncherViewModel(
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     public virtual async Task InitializeAsync()
     {
+        // Reset header state on initialization/activation
+        ResetHeaderState();
+
         try
         {
+            // Set up timer
+            _headerCollapseTimer.AutoReset = false;
+            _headerCollapseTimer.Elapsed += (s, e) =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Invoke(() =>
+                {
+                    IsHeaderExpanded = false;
+                });
+            };
+
+            _headerCollapseTimer.Start();
+
             gameProcessManager.ProcessExited += OnProcessExited;
 
             StatusMessage = "Loading profiles...";
@@ -237,6 +273,25 @@ public partial class GameProfileLauncherViewModel(
         });
     }
 
+    /// <summary>
+    /// Called when the tab is activated/navigated to.
+    /// Resets the header state to expanded.
+    /// </summary>
+    public void OnTabActivated()
+    {
+        ResetHeaderState();
+    }
+
+    /// <summary>
+    /// Resets the header state to expanded and restarts the auto-collapse timer.
+    /// </summary>
+    public void ResetHeaderState()
+    {
+        IsHeaderExpanded = true;
+        _headerCollapseTimer.Stop();
+        _headerCollapseTimer.Start();
+    }
+
     private static Window? GetMainWindow()
     {
         if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
@@ -254,7 +309,7 @@ public partial class GameProfileLauncherViewModel(
     /// <returns>The hex color code.</returns>
     private static string GetThemeColorForGameType(GameType gameType)
     {
-        return gameType == GameType.Generals ? "#BD5A0F" : "#1B6575"; // Orange for Generals, Blue for Zero Hour
+        return gameType == GameType.Generals ? UiConstants.GeneralsThemeColor : UiConstants.ZeroHourThemeColor; // Orange for Generals, Blue for Zero Hour
     }
 
     /// <summary>
@@ -465,13 +520,13 @@ public partial class GameProfileLauncherViewModel(
                     }
 
                     // Execute GO Decision
-                    if (goDecision != "Decline" && goDecision != "None")
+                    if (goDecision != GameClientConstants.WizardActionTypes.Decline && goDecision != GameClientConstants.WizardActionTypes.None)
                     {
                         var goClient = installation.AvailableGameClients.FirstOrDefault(c => c.PublisherType == PublisherTypeConstants.GeneralsOnline);
-                        if (goClient != null || goDecision == "Install")
+                        if (goClient != null || goDecision == GameClientConstants.WizardActionTypes.Install)
                         {
-                            var clientToUse = goClient ?? new GameClient { Id = "go.synth", Name = "GeneralsOnline", PublisherType = PublisherTypeConstants.GeneralsOnline, GameType = GameType.ZeroHour, InstallationId = installation.Id };
-                            bool forceAttr = goDecision == "Update";
+                            var clientToUse = goClient ?? new GameClient { Id = GameClientConstants.SyntheticClientIds.GeneralsOnline, Name = "GeneralsOnline", PublisherType = PublisherTypeConstants.GeneralsOnline, GameType = GameType.ZeroHour, InstallationId = installation.Id };
+                            bool forceAttr = goDecision == GameClientConstants.WizardActionTypes.Update;
                             var result = await publisherProfileOrchestrator.CreateProfilesForPublisherClientAsync(installation, clientToUse, forceReacquireContent: forceAttr);
                             if (result.Success && result.Data > 0) profilesCreated += result.Data;
                             anyPatchHandled = true;
@@ -479,13 +534,13 @@ public partial class GameProfileLauncherViewModel(
                     }
 
                     // Execute SH Decision
-                    if (shDecision != "Decline" && shDecision != "None")
+                    if (shDecision != GameClientConstants.WizardActionTypes.Decline && shDecision != GameClientConstants.WizardActionTypes.None)
                     {
                         var shClient = installation.AvailableGameClients.FirstOrDefault(c => c.PublisherType == PublisherTypeConstants.TheSuperHackers);
-                        if (shClient != null || shDecision == "Install")
+                        if (shClient != null || shDecision == GameClientConstants.WizardActionTypes.Install)
                         {
-                            var clientToUse = shClient ?? new GameClient { Id = "sh.synth", Name = "SuperHackers", PublisherType = PublisherTypeConstants.TheSuperHackers, GameType = GameType.ZeroHour, InstallationId = installation.Id };
-                            bool forceAttr = shDecision == "Update";
+                            var clientToUse = shClient ?? new GameClient { Id = GameClientConstants.SyntheticClientIds.SuperHackers, Name = "SuperHackers", PublisherType = PublisherTypeConstants.TheSuperHackers, GameType = GameType.ZeroHour, InstallationId = installation.Id };
+                            bool forceAttr = shDecision == GameClientConstants.WizardActionTypes.Update;
                             var result = await publisherProfileOrchestrator.CreateProfilesForPublisherClientAsync(installation, clientToUse, forceReacquireContent: forceAttr);
                             if (result.Success && result.Data > 0) profilesCreated += result.Data;
                             anyPatchHandled = true;
@@ -508,7 +563,7 @@ public partial class GameProfileLauncherViewModel(
                 notificationService.ShowSuccess(
                     "Scan Complete",
                     $"Created {profilesCreated} profile(s) for your game installations.",
-                    autoDismissMs: 10000);
+                    autoDismissMs: NotificationDurations.VeryLong);
             }
             else
             {
@@ -528,6 +583,26 @@ public partial class GameProfileLauncherViewModel(
         {
             IsScanning = false;
         }
+    }
+
+    /// <summary>
+    /// Expands the header and stops the auto-collapse timer (user is interacting).
+    /// </summary>
+    [RelayCommand]
+    private void ExpandHeader()
+    {
+        IsHeaderExpanded = true;
+        _headerCollapseTimer.Stop();
+    }
+
+    /// <summary>
+    /// Restarts the auto-collapse timer (user finished interaction).
+    /// </summary>
+    [RelayCommand]
+    private void StartHeaderTimer()
+    {
+        _headerCollapseTimer.Stop();
+        _headerCollapseTimer.Start();
     }
 
     /// <summary>

@@ -6,6 +6,11 @@ namespace GenHub.Core.Constants;
 public static class TimeIntervals
 {
     /// <summary>
+    /// Delay before the Game Profiles header automatically collapses.
+    /// </summary>
+    public const int HeaderCollapseDelayMs = 500;
+
+    /// <summary>
     /// Default timeout for updater operations.
     /// </summary>
     public static readonly TimeSpan UpdaterTimeout = TimeSpan.FromMinutes(10);

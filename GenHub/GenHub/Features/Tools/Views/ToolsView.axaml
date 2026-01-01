@@ -5,8 +5,7 @@
              xmlns:vm="clr-namespace:GenHub.Features.Tools.ViewModels"
              mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
              x:Class="GenHub.Features.Tools.Views.ToolsView"
-             x:DataType="vm:ToolsViewModel"
-             Background="#1A1A1A">
+             x:DataType="vm:ToolsViewModel">
 
   <UserControl.Styles>
     <Style Selector="Border.tool-list-card">
