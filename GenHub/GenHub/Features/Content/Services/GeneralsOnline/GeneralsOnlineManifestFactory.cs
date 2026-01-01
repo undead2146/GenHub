@@ -178,7 +178,7 @@ public class GeneralsOnlineManifestFactory(
         // Create a synthetic release object
         var release = new GeneralsOnlineRelease
         {
-            Version = GameClientConstants.UnknownVersion,
+            Version = GameClientConstants.AutoDetectedVersion,
             VersionDate = DateTime.Now,
             ReleaseDate = DateTime.Now,
             PortableUrl = string.Empty,

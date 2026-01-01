@@ -78,6 +78,7 @@ public class MainViewModelTests
             mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
             CreateProfileResourceService(),
+            mockNotificationService.Object,
             mockLogger.Object);
 
         // Assert
@@ -120,6 +121,7 @@ public class MainViewModelTests
             mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
             CreateProfileResourceService(),
+            mockNotificationService.Object,
             mockLogger.Object);
         vm.SelectTabCommand.Execute(tab);
         Assert.Equal(tab, vm.SelectedTab);
@@ -159,6 +161,7 @@ public class MainViewModelTests
             mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
             CreateProfileResourceService(),
+            mockNotificationService.Object,
             mockLogger.Object);
         await vm.InitializeAsync(); // Should not throw
         Assert.True(true);
@@ -199,6 +202,7 @@ public class MainViewModelTests
             mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
             CreateProfileResourceService(),
+            mockNotificationService.Object,
             mockLogger.Object);
         vm.SelectTabCommand.Execute(tab);
         var currentViewModel = vm.CurrentTabViewModel;

@@ -102,14 +102,14 @@ public class UserSettings : ICloneable
     }
 
     /// <summary>
-    /// Gets or sets the preferred update channel.
-    /// </summary>
-    public UpdateChannel UpdateChannel { get; set; } = UpdateChannel.Prerelease;
-
-    /// <summary>
     /// Gets or sets the subscribed PR number for update notifications.
     /// </summary>
     public int? SubscribedPrNumber { get; set; }
+
+    /// <summary>
+    /// Gets or sets the subscribed branch name for update notifications (e.g. "development").
+    /// </summary>
+    public string? SubscribedBranch { get; set; }
 
     /// <summary>
     /// Gets or sets the last dismissed update version to prevent repeated notifications.
@@ -141,8 +141,9 @@ public class UserSettings : ICloneable
             SettingsFilePath = SettingsFilePath,
             CachePath = CachePath,
             ApplicationDataPath = ApplicationDataPath,
-            UpdateChannel = UpdateChannel,
+
             SubscribedPrNumber = SubscribedPrNumber,
+            SubscribedBranch = SubscribedBranch,
             DismissedUpdateVersion = DismissedUpdateVersion,
             ContentDirectories = ContentDirectories != null ? new List<string>(ContentDirectories) : null,
             GitHubDiscoveryRepositories = GitHubDiscoveryRepositories != null ? new List<string>(GitHubDiscoveryRepositories) : null,
