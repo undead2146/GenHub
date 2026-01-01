@@ -1256,6 +1256,46 @@ Predefined resolution options available in the game settings.
 
 ---
 
+## ToolConstants Class
+
+Constants for tool plugin metadata and configuration.
+
+### ReplayManager Subclass
+
+Constants specific to the Replay Manager tool plugin.
+
+| Constant     | Value                                      | Description                                      |
+| ------------ | ------------------------------------------ | ------------------------------------------------ |
+| `Id`         | `"genhub.tools.replaymanager"`             | Unique identifier for the Replay Manager tool    |
+| `Name`       | `"Replay Manager"`                         | Display name for the Replay Manager tool         |
+| `Version`    | `"1.0.0"`                                  | Version of the Replay Manager tool               |
+| `Author`     | `"GenHub Team"`                            | Author of the Replay Manager tool                |
+| `Description`| `"Manage, import, and share replay files for Command & Conquer: Generals and Zero Hour."` | Description of the Replay Manager tool |
+| `Tags`       | `["replays", "file-management", "sharing"]`| Tags associated with the Replay Manager tool     |
+| `IconPath`   | `"Assets/Icons/replay.png"`                | Icon path for the Replay Manager tool (placeholder) |
+| `IsBundled`  | `true`                                     | Whether the tool is bundled with the application |
+
+### Usage Example
+
+```csharp
+using GenHub.Core.Constants;
+
+// Create tool metadata using constants
+var metadata = new ToolMetadata
+{
+    Id = ToolConstants.ReplayManager.Id,
+    Name = ToolConstants.ReplayManager.Name,
+    Version = ToolConstants.ReplayManager.Version,
+    Author = ToolConstants.ReplayManager.Author,
+    Description = ToolConstants.ReplayManager.Description,
+    Tags = ToolConstants.ReplayManager.Tags,
+    IconPath = ToolConstants.ReplayManager.IconPath,
+    IsBundled = ToolConstants.ReplayManager.IsBundled,
+};
+```
+
+---
+
 ## Related Documentation
 
 - [Manifest ID System](manifest-id-system.md)  

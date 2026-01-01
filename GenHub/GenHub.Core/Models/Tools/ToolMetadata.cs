@@ -36,7 +36,12 @@ public class ToolMetadata
     public string? IconPath { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the tool is bundled with the application and cannot be removed.
+    /// </summary>
+    public bool IsBundled { get; set; }
+
+    /// <summary>
     /// Gets or sets the tags/categories for the tool.
     /// </summary>
-    public List<string> Tags { get; set; } = new();
+    public List<string> Tags { get; set; } = [];
 }
