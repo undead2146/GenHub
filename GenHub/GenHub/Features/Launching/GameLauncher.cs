@@ -183,12 +183,25 @@ public class GameLauncher(
             using var process = Process.GetProcessById(processId);
 
             // Try graceful termination first
-            if (!process.CloseMainWindow())
+            process.CloseMainWindow();
+
+            // Wait for process to exit with polling (max 5 seconds)
+            // This prevents blocking the UI thread for the full timeout period
+            const int maxWaitMs = 5000;
+            const int pollIntervalMs = 100;
+            int elapsedMs = 0;
+
+            while (!process.HasExited && elapsedMs < maxWaitMs)
             {
-                // If graceful close fails, wait a bit then force kill
-                await Task.Delay(2000, cancellationToken);
-                if (!process.HasExited)
-                    process.Kill();
+                await Task.Delay(pollIntervalMs, cancellationToken);
+                elapsedMs += pollIntervalMs;
+            }
+
+            // Force kill if still running after timeout
+            if (!process.HasExited)
+            {
+                logger.LogWarning("Process {ProcessId} did not exit gracefully after {Timeout}ms, forcing termination", processId, maxWaitMs);
+                process.Kill();
             }
 
             return true;
