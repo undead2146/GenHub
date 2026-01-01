@@ -39,4 +39,9 @@ public class ContentMetadata
     /// Gets or sets the changelog URL.
     /// </summary>
     public string? ChangelogUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets the theme color.
+    /// </summary>
+    public string? ThemeColor { get; set; }
 }

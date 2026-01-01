@@ -74,9 +74,10 @@ public class ContentManifestPool(IContentStorageService storageService, ILogger<
     /// </summary>
     /// <param name="manifest">The game manifest to store.</param>
     /// <param name="sourceDirectory">The directory containing the content files.</param>
+    /// <param name="progress">Optional progress reporter for storage operations.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task<OperationResult<bool>> AddManifestAsync(ContentManifest manifest, string sourceDirectory, CancellationToken cancellationToken = default)
+    public async Task<OperationResult<bool>> AddManifestAsync(ContentManifest manifest, string sourceDirectory, IProgress<ContentStorageProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -98,7 +99,7 @@ public class ContentManifestPool(IContentStorageService storageService, ILogger<
             }
 
             // Delegate content storage to the storage service which may perform its own validation
-            var result = await _storageService.StoreContentAsync(manifest, sourceDirectory, null, cancellationToken);
+            var result = await _storageService.StoreContentAsync(manifest, sourceDirectory, progress, cancellationToken);
             _logger.LogDebug("Storage service returned for {ManifestId}: success={Success} firstError={FirstError}", manifest.Id, result?.Success, result?.FirstError);
             if (result == null || !result.Success)
             {

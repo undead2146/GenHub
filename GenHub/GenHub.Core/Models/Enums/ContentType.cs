@@ -21,6 +21,9 @@ public enum ContentType
     /// <summary>Major gameplay changes.</summary>
     Mod,
 
+    /// <summary>Major gameplay changes (alias for Mod).</summary>
+    Mods,
+
     /// <summary>Balance/configuration changes.</summary>
     Patch,
 

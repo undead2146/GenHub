@@ -27,112 +27,99 @@ using Microsoft.Extensions.Logging;
 namespace GenHub.Common.ViewModels;
 
 /// <summary>
-/// Main view model for the application.
+/// Initializes a new instance of the <see cref="MainViewModel"/> class.
 /// </summary>
-public partial class MainViewModel : ObservableObject, IDisposable
+/// <param name="gameProfilesViewModel">Game profiles view model.</param>
+/// <param name="downloadsViewModel">Downloads view model.</param>
+/// <param name="toolsViewModel">Tools view model.</param>
+/// <param name="settingsViewModel">Settings view model.</param>
+/// <param name="notificationManager">Notification manager view model.</param>
+/// <param name="gameInstallationDetectionOrchestrator">Game installation orchestrator.</param>
+/// <param name="configurationProvider">Configuration provider service.</param>
+/// <param name="userSettingsService">User settings service for persistence operations.</param>
+/// <param name="profileEditorFacade">Profile editor facade for automatic profile creation.</param>
+/// <param name="velopackUpdateManager">The Velopack update manager for checking updates.</param>
+/// <param name="profileResourceService">Service for accessing profile resources.</param>
+/// <param name="notificationService">Service for showing notifications.</param>
+/// <param name="logger">Logger instance.</param>
+public partial class MainViewModel(
+    GameProfileLauncherViewModel gameProfilesViewModel,
+    DownloadsViewModel downloadsViewModel,
+    ToolsViewModel toolsViewModel,
+    SettingsViewModel settingsViewModel,
+    NotificationManagerViewModel notificationManager,
+    IGameInstallationDetectionOrchestrator gameInstallationDetectionOrchestrator,
+    IConfigurationProviderService configurationProvider,
+    IUserSettingsService userSettingsService,
+    IProfileEditorFacade profileEditorFacade,
+    IVelopackUpdateManager velopackUpdateManager,
+    ProfileResourceService profileResourceService,
+    INotificationService notificationService,
+    ILogger<MainViewModel>? logger = null) : ObservableObject, IDisposable
 {
-    private readonly ILogger<MainViewModel>? _logger;
-    private readonly IGameInstallationDetectionOrchestrator _gameInstallationDetectionOrchestrator;
-    private readonly IConfigurationProviderService _configurationProvider;
-    private readonly IUserSettingsService _userSettingsService;
-    private readonly IProfileEditorFacade _profileEditorFacade;
-    private readonly IVelopackUpdateManager _velopackUpdateManager;
-    private readonly ProfileResourceService _profileResourceService;
-    private readonly INotificationService _notificationService;
     private readonly CancellationTokenSource _initializationCts = new();
-
-    [ObservableProperty]
-    private NavigationTab _selectedTab = NavigationTab.GameProfiles;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MainViewModel"/> class.
-    /// </summary>
-    /// <param name="gameProfilesViewModel">Game profiles view model.</param>
-    /// <param name="downloadsViewModel">Downloads view model.</param>
-    /// <param name="toolsViewModel">Tools view model.</param>
-    /// <param name="settingsViewModel">Settings view model.</param>
-    /// <param name="notificationManager">Notification manager view model.</param>
-    /// <param name="gameInstallationDetectionOrchestrator">Game installation orchestrator.</param>
-    /// <param name="configurationProvider">Configuration provider service.</param>
-    /// <param name="userSettingsService">User settings service for persistence operations.</param>
-    /// <param name="profileEditorFacade">Profile editor facade for automatic profile creation.</param>
-    /// <param name="velopackUpdateManager">The Velopack update manager for checking updates.</param>
-    /// <param name="profileResourceService">Service for accessing profile resources.</param>
-    /// <param name="notificationService">Service for showing notifications.</param>
-    /// <param name="logger">Logger instance.</param>
-    public MainViewModel(
-        GameProfileLauncherViewModel gameProfilesViewModel,
-        DownloadsViewModel downloadsViewModel,
-        ToolsViewModel toolsViewModel,
-        SettingsViewModel settingsViewModel,
-        NotificationManagerViewModel notificationManager,
-        IGameInstallationDetectionOrchestrator gameInstallationDetectionOrchestrator,
-        IConfigurationProviderService configurationProvider,
-        IUserSettingsService userSettingsService,
-        IProfileEditorFacade profileEditorFacade,
-        IVelopackUpdateManager velopackUpdateManager,
-        ProfileResourceService profileResourceService,
-        INotificationService notificationService,
-        ILogger<MainViewModel>? logger = null)
-    {
-        GameProfilesViewModel = gameProfilesViewModel;
-        DownloadsViewModel = downloadsViewModel;
-        ToolsViewModel = toolsViewModel;
-        SettingsViewModel = settingsViewModel;
-        NotificationManager = notificationManager;
-        _gameInstallationDetectionOrchestrator = gameInstallationDetectionOrchestrator;
-        _configurationProvider = configurationProvider;
-        _userSettingsService = userSettingsService;
-        _profileEditorFacade = profileEditorFacade ?? throw new ArgumentNullException(nameof(profileEditorFacade));
-        _velopackUpdateManager = velopackUpdateManager ?? throw new ArgumentNullException(nameof(velopackUpdateManager));
-        _profileResourceService = profileResourceService ?? throw new ArgumentNullException(nameof(profileResourceService));
-        _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
-        _logger = logger;
-
-        // Load initial settings using unified configuration
-        try
-        {
-            _selectedTab = _configurationProvider.GetLastSelectedTab();
-            if (_selectedTab == NavigationTab.Tools)
-            {
-                _selectedTab = NavigationTab.GameProfiles;
-            }
-
-            _logger?.LogDebug("Initial settings loaded, selected tab: {Tab}", _selectedTab);
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "Failed to load initial settings");
-            _selectedTab = NavigationTab.GameProfiles;
-        }
-
-        // Tab change handled by ObservableProperty partial method
-    }
+    private readonly IGameInstallationDetectionOrchestrator _gameInstallationDetectionOrchestrator = gameInstallationDetectionOrchestrator;
 
     /// <summary>
     /// Gets the game profiles view model.
     /// </summary>
-    public GameProfileLauncherViewModel GameProfilesViewModel { get; }
+    public GameProfileLauncherViewModel GameProfilesViewModel { get; } = gameProfilesViewModel;
 
     /// <summary>
     /// Gets the downloads view model.
     /// </summary>
-    public DownloadsViewModel DownloadsViewModel { get; }
+    public DownloadsViewModel DownloadsViewModel { get; } = downloadsViewModel;
 
     /// <summary>
     /// Gets the tools view model.
     /// </summary>
-    public ToolsViewModel ToolsViewModel { get; }
+    public ToolsViewModel ToolsViewModel { get; } = toolsViewModel;
 
     /// <summary>
     /// Gets the settings view model.
     /// </summary>
-    public SettingsViewModel SettingsViewModel { get; }
+    public SettingsViewModel SettingsViewModel { get; } = settingsViewModel;
 
     /// <summary>
     /// Gets the notification manager view model.
     /// </summary>
-    public NotificationManagerViewModel NotificationManager { get; }
+    public NotificationManagerViewModel NotificationManager { get; } = notificationManager;
+
+    [ObservableProperty]
+    private NavigationTab _selectedTab = LoadInitialTab(configurationProvider, logger);
+
+    private static NavigationTab LoadInitialTab(IConfigurationProviderService configurationProvider, ILogger<MainViewModel>? logger)
+    {
+        try
+        {
+            var tab = configurationProvider.GetLastSelectedTab();
+            if (tab == NavigationTab.Tools)
+            {
+                tab = NavigationTab.GameProfiles;
+            }
+
+            logger?.LogDebug("Initial settings loaded, selected tab: {Tab}", tab);
+            return tab;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Failed to load initial settings");
+            return NavigationTab.GameProfiles;
+        }
+    }
+
+    // Static constructor for any static initialization
+    static MainViewModel()
+    {
+    }
+
+    private readonly IProfileEditorFacade _profileEditorFacade = profileEditorFacade ?? throw new ArgumentNullException(nameof(profileEditorFacade));
+    private readonly IVelopackUpdateManager _velopackUpdateManager = velopackUpdateManager ?? throw new ArgumentNullException(nameof(velopackUpdateManager));
+    private readonly ProfileResourceService _profileResourceService = profileResourceService ?? throw new ArgumentNullException(nameof(profileResourceService));
+    private readonly INotificationService _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
+    private readonly IUserSettingsService _userSettingsService = userSettingsService;
+    private readonly IConfigurationProviderService _configurationProvider = configurationProvider;
+    private readonly ILogger<MainViewModel>? _logger = logger;
 
     /// <summary>
     /// Gets the collection of detected game installations.
