@@ -5,11 +5,13 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Constants;
+using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Providers;
+using GenHub.Core.Models.CommunityOutpost;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Providers;
 using GenHub.Core.Models.Results;
-using GenHub.Core.Models.CommunityOutpost;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Content.Services.CommunityOutpost;
@@ -50,7 +52,7 @@ public class GenPatcherDatCatalogParser : ICatalogParser
     }
 
     /// <inheritdoc/>
-    public string CatalogFormat => "genpatcher-dat";
+    public string CatalogFormat => CommunityOutpostCatalogConstants.CatalogFormat;
 
     /// <inheritdoc/>
     public Task<OperationResult<IEnumerable<ContentSearchResult>>> ParseAsync(
@@ -112,13 +114,18 @@ public class GenPatcherDatCatalogParser : ICatalogParser
     /// <returns>An absolute URL.</returns>
     private static string MakeUrlAbsolute(string url, string baseUrl)
     {
-        if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-        {
-            return url;
-        }
+        if (string.IsNullOrWhiteSpace(url)) return url;
+        if (Uri.TryCreate(url, UriKind.Absolute, out _)) return url;
 
-        var trimmedBase = baseUrl.TrimEnd('/');
-        return $"{trimmedBase}/{url.TrimStart('/')}";
+        return $"{baseUrl.TrimEnd('/')}/{url.TrimStart('/')}";
+    }
+
+    /// <summary>
+    /// Gets a metadata value from a dictionary, returning null if not found.
+    /// </summary>
+    private static string? GetMetadataValue(Dictionary<string, string> metadata, string key)
+    {
+        return metadata.TryGetValue(key, out var value) ? value : null;
     }
 
     /// <summary>
@@ -232,7 +239,7 @@ public class GenPatcherDatCatalogParser : ICatalogParser
             }
 
             // Make URL absolute using provider's patchPageUrl
-            var baseUrl = provider.Endpoints.GetEndpoint("patchPageUrl") ?? "https://legi.cc/patch";
+            var baseUrl = provider.Endpoints.GetEndpoint(CommunityOutpostCatalogConstants.PatchPageUrlEndpoint) ?? CommunityOutpostCatalogConstants.DefaultBaseUrl;
             preferredUrl = MakeUrlAbsolute(preferredUrl, baseUrl);
 
             var result = new ContentSearchResult
@@ -240,7 +247,7 @@ public class GenPatcherDatCatalogParser : ICatalogParser
                 Id = $"{provider.ProviderId}.{item.ContentCode}",
                 Name = metadata.DisplayName,
                 Description = metadata.Description ?? string.Empty,
-                Version = metadata.Version ?? "1.0",
+                Version = metadata.Version ?? CommunityOutpostCatalogConstants.DefaultMetadataVersion,
                 ContentType = metadata.ContentType,
                 TargetGame = metadata.TargetGame,
                 ProviderName = provider.PublisherType,
@@ -271,18 +278,18 @@ public class GenPatcherDatCatalogParser : ICatalogParser
             }
 
             // Store metadata for resolver
-            result.ResolverMetadata["contentCode"] = item.ContentCode;
-            result.ResolverMetadata["catalogVersion"] = catalogVersion;
-            result.ResolverMetadata["fileSize"] = item.FileSize.ToString();
-            result.ResolverMetadata["category"] = metadata.Category.ToString();
-            result.ResolverMetadata["installTarget"] = metadata.InstallTarget.ToString();
+            result.ResolverMetadata[CommunityOutpostCatalogConstants.ContentCodeKey] = item.ContentCode;
+            result.ResolverMetadata[CommunityOutpostCatalogConstants.CatalogVersionKey] = catalogVersion;
+            result.ResolverMetadata[CommunityOutpostCatalogConstants.FileSizeKey] = item.FileSize.ToString();
+            result.ResolverMetadata[CommunityOutpostCatalogConstants.CategoryKey] = metadata.Category.ToString();
+            result.ResolverMetadata[CommunityOutpostCatalogConstants.InstallTargetKey] = metadata.InstallTarget.ToString();
 
             // Store all mirror URLs as JSON for fallback support
             var absoluteUrls = item.Mirrors
                 .Select(m => MakeUrlAbsolute(m.Url, baseUrl))
                 .ToList();
-            result.ResolverMetadata["mirrorUrls"] = JsonSerializer.Serialize(absoluteUrls);
-            result.ResolverMetadata["mirrors"] = string.Join(", ", item.Mirrors.Select(m => m.Name));
+            result.ResolverMetadata[CommunityOutpostCatalogConstants.MirrorUrlsKey] = JsonSerializer.Serialize(absoluteUrls);
+            result.ResolverMetadata[CommunityOutpostCatalogConstants.MirrorsKey] = string.Join(", ", item.Mirrors.Select(m => m.Name));
 
             _logger.LogDebug(
                 "Created ContentSearchResult for {Code}: {Name} ({ContentType}, {Game})",
@@ -353,7 +360,7 @@ public class GenPatcherDatCatalogParser : ICatalogParser
     /// </summary>
     private class ParsedCatalog
     {
-        public string CatalogVersion { get; set; } = "unknown";
+        public string CatalogVersion { get; set; } = CommunityOutpostCatalogConstants.UnknownVersion;
 
         public List<GenPatcherContentItem> Items { get; set; } = new();
     }

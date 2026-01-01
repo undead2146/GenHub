@@ -373,25 +373,17 @@ public class GameProcessManager(
                 return OperationResult<bool>.CreateSuccess(true);
             }
 
-            // Force kill immediately
+            // Force kill immediately - run on background thread to avoid blocking UI
+            // process.Kill(entireProcessTree: true) is a synchronous blocking operation
+            // that can take several seconds when terminating a process tree
             try
             {
                 _logger.LogInformation("[Terminate] Force killing process {ProcessId} and its process tree", processId);
-                process.Kill(entireProcessTree: true);
 
-                // Wait for the process to actually exit
-                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                cts.CancelAfter(TimeSpan.FromSeconds(5));
+                // Run Kill() on a background thread to prevent UI freeze
+                await Task.Run(() => process.Kill(entireProcessTree: true), cancellationToken);
 
-                try
-                {
-                    await process.WaitForExitAsync(cts.Token);
-                    _logger.LogInformation("[Terminate] Process {ProcessId} terminated successfully", processId);
-                }
-                catch (TaskCanceledException)
-                {
-                    _logger.LogWarning("[Terminate] Process {ProcessId} did not exit within 5 seconds after Kill()", processId);
-                }
+                _logger.LogInformation("[Terminate] Process {ProcessId} terminated successfully", processId);
             }
             catch (InvalidOperationException ex)
             {

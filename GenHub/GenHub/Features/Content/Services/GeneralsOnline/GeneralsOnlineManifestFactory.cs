@@ -34,11 +34,20 @@ public class GeneralsOnlineManifestFactory(
     /// <param name="variantSuffix">The suffix for the manifest ID (e.g., "30hz").</param>
     /// <param name="displayName">The display name for this variant (e.g., "GeneralsOnline 30Hz").</param>
     /// <returns>A content manifest for the specified variant.</returns>
-    public static ContentManifest CreateVariantManifest(
+    public ContentManifest CreateVariantManifest(
         GeneralsOnlineRelease release,
         string variantSuffix,
         string displayName)
     {
+        var provider = providerLoader.GetProvider(PublisherTypeConstants.GeneralsOnline);
+        var websiteUrl = provider?.Endpoints.WebsiteUrl ?? GeneralsOnlineConstants.WebsiteUrl;
+        var supportUrl = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.SupportUrl) ?? GeneralsOnlineConstants.SupportUrl;
+        var downloadPageUrl = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.DownloadPageUrl) ?? GeneralsOnlineConstants.DownloadPageUrl;
+        var iconUrl = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.IconUrl) ?? GeneralsOnlineConstants.IconUrl;
+        var coverSource = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.CoverUrl) ?? GeneralsOnlineConstants.CoverSource;
+        var description = provider?.Description ?? GeneralsOnlineConstants.ShortDescription;
+        var tags = provider?.DefaultTags ?? [.. GeneralsOnlineConstants.Tags];
+
         // Parse version to extract numeric version (remove dots and QFE markers)
         var userVersion = ParseVersionForManifestId(release.Version);
 
@@ -63,18 +72,18 @@ public class GeneralsOnlineManifestFactory(
             {
                 Name = GeneralsOnlineConstants.PublisherName,
                 PublisherType = PublisherTypeConstants.GeneralsOnline,
-                Website = GeneralsOnlineConstants.WebsiteUrl,
-                SupportUrl = GeneralsOnlineConstants.SupportUrl,
-                ContentIndexUrl = GeneralsOnlineConstants.DownloadPageUrl,
+                Website = websiteUrl,
+                SupportUrl = supportUrl,
+                ContentIndexUrl = downloadPageUrl,
                 UpdateCheckIntervalHours = GeneralsOnlineConstants.UpdateCheckIntervalHours,
             },
             Metadata = new ContentMetadata
             {
-                Description = GeneralsOnlineConstants.ShortDescription,
+                Description = description,
                 ReleaseDate = release.ReleaseDate,
-                IconUrl = GeneralsOnlineConstants.LogoSource,
-                CoverUrl = GeneralsOnlineConstants.CoverSource,
-                Tags = [.. GeneralsOnlineConstants.Tags],
+                IconUrl = iconUrl,
+                CoverUrl = coverSource,
+                Tags = [.. tags],
                 ChangelogUrl = release.Changelog,
             },
             Files =
@@ -103,7 +112,7 @@ public class GeneralsOnlineManifestFactory(
     /// </summary>
     /// <param name="release">The GeneralsOnlineRelease to create the manifests from.</param>
     /// <returns>A list containing three ContentManifest instances.</returns>
-    public static List<ContentManifest> CreateManifests(GeneralsOnlineRelease release)
+    public List<ContentManifest> CreateManifests(GeneralsOnlineRelease release)
     {
         List<ContentManifest> manifests = [];
 
@@ -213,7 +222,7 @@ public class GeneralsOnlineManifestFactory(
             }
 
             var datePart = parts[0]; // "101525"
-            var qfePart = parts[1].Replace("QFE", string.Empty, StringComparison.OrdinalIgnoreCase);
+            var qfePart = parts[1].Replace(GeneralsOnlineConstants.QfeMarkerPrefix, string.Empty, StringComparison.OrdinalIgnoreCase);
 
             if (!int.TryParse(datePart, out var dateValue) || !int.TryParse(qfePart, out var qfeValue))
             {
@@ -265,10 +274,14 @@ public class GeneralsOnlineManifestFactory(
     /// </summary>
     /// <param name="release">The Generals Online release information.</param>
     /// <returns>A content manifest for the QuickMatch MapPack.</returns>
-    private static ContentManifest CreateQuickMatchMapPackManifest(GeneralsOnlineRelease release)
+    private ContentManifest CreateQuickMatchMapPackManifest(GeneralsOnlineRelease release)
     {
+        var provider = providerLoader.GetProvider(PublisherTypeConstants.GeneralsOnline);
+        var websiteUrl = provider?.Endpoints.WebsiteUrl ?? GeneralsOnlineConstants.WebsiteUrl;
+        var supportUrl = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.SupportUrl) ?? GeneralsOnlineConstants.SupportUrl;
+        var downloadPageUrl = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.DownloadPageUrl) ?? GeneralsOnlineConstants.DownloadPageUrl;
+        var iconUrl = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.IconUrl) ?? GeneralsOnlineConstants.IconUrl;
         var userVersion = ParseVersionForManifestId(release.Version);
-
         var manifestId = ManifestId.Create(ManifestIdGenerator.GeneratePublisherContentId(
             PublisherTypeConstants.GeneralsOnline,
             ContentType.MapPack,
@@ -286,17 +299,17 @@ public class GeneralsOnlineManifestFactory(
             {
                 Name = GeneralsOnlineConstants.PublisherName,
                 PublisherType = PublisherTypeConstants.GeneralsOnline,
-                Website = GeneralsOnlineConstants.WebsiteUrl,
-                SupportUrl = GeneralsOnlineConstants.SupportUrl,
-                ContentIndexUrl = GeneralsOnlineConstants.DownloadPageUrl,
+                Website = websiteUrl,
+                SupportUrl = supportUrl,
+                ContentIndexUrl = downloadPageUrl,
                 UpdateCheckIntervalHours = GeneralsOnlineConstants.UpdateCheckIntervalHours,
             },
             Metadata = new ContentMetadata
             {
                 Description = GeneralsOnlineConstants.QuickMatchMapPackDescription,
                 ReleaseDate = release.ReleaseDate,
-                IconUrl = GeneralsOnlineConstants.IconUrl,
-                Tags = ["maps", "multiplayer", "quickmatch", "competitive"],
+                IconUrl = iconUrl,
+                Tags = [.. GeneralsOnlineConstants.MapPackTags],
                 ChangelogUrl = release.Changelog,
             },
             Files = [], // Files will be populated during extraction
@@ -318,15 +331,15 @@ public class GeneralsOnlineManifestFactory(
     private List<ContentManifest> CreateVariantManifestsFromOriginal(ContentManifest originalManifest)
     {
         var manifests = new List<ContentManifest>();
-        var version = originalManifest.Version ?? "unknown";
+        var version = originalManifest.Version ?? GeneralsOnlineConstants.UnknownVersion;
         var userVersion = ParseVersionForManifestId(version);
 
         // Get URLs from provider definition
         var provider = providerLoader.GetProvider(PublisherTypeConstants.GeneralsOnline);
         var websiteUrl = provider?.Endpoints.WebsiteUrl ?? string.Empty;
-        var supportUrl = provider?.Endpoints.SupportUrl ?? string.Empty;
-        var downloadPageUrl = provider?.Endpoints.GetEndpoint("downloadPageUrl") ?? string.Empty;
-        var iconUrl = provider?.Endpoints.GetEndpoint("iconUrl") ?? string.Empty;
+        var supportUrl = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.SupportUrl) ?? string.Empty;
+        var downloadPageUrl = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.DownloadPageUrl) ?? string.Empty;
+        var iconUrl = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.IconUrl) ?? string.Empty;
 
         // Create publisher info once (shared by all variants)
         var publisherInfo = new PublisherInfo
@@ -411,7 +424,7 @@ public class GeneralsOnlineManifestFactory(
                 Description = GeneralsOnlineConstants.QuickMatchMapPackDescription,
                 ReleaseDate = releaseDate,
                 IconUrl = iconUrl,
-                Tags = ["maps", "multiplayer", "quickmatch", "competitive"],
+                Tags = [.. GeneralsOnlineConstants.MapPackTags],
                 ChangelogUrl = changelogUrl,
             },
             Files = [],
@@ -510,10 +523,9 @@ public class GeneralsOnlineManifestFactory(
                     var fileName = Path.GetFileName(relativePath);
                     var isExecutable = false;
 
-                    // Handle map files - include them with UserMapsDirectory install target
+                    // Skip map files in GameClient manifests - they belong in the MapPack manifest
                     if (isMap)
                     {
-                        manifestFiles.Add(CreateMapManifestFile(relativePath, fileInfo, hash));
                         continue;
                     }
 
@@ -539,7 +551,7 @@ public class GeneralsOnlineManifestFactory(
                     });
                 }
 
-                logger.LogInformation("GameClient manifest '{Name}' updated with {Count} files (including maps)", manifest.Name, manifestFiles.Count);
+                logger.LogInformation("GameClient manifest '{Name}' updated with {Count} files", manifest.Name, manifestFiles.Count);
             }
 
             updatedManifests.Add(new ContentManifest

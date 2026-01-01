@@ -366,7 +366,7 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
             return string.Empty;
         }
 
-        var numericVersion = VersionHelper.ExtractVersionFromVersionString(version);
+        var numericVersion = GameVersionHelper.ExtractVersionFromVersionString(version);
         return numericVersion > 0 ? numericVersion.ToString() : string.Empty;
     }
 

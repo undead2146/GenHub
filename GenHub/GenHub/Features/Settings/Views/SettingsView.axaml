@@ -287,7 +287,7 @@
       </Border>
 
       <!-- Game Settings -->
-      <Expander IsExpanded="True" HorizontalAlignment="Stretch">
+      <Expander IsExpanded="False" HorizontalAlignment="Stretch">
         <Expander.Header>
             <StackPanel Orientation="Horizontal" Spacing="10">
                 <PathIcon Data="M7,5V19H17V5H7M7,3H17A2,2 0 0,1 19,5V19A2,2 0 0,1 17,21H7A2,2 0 0,1 5,19V5A2,2 0 0,1 7,3M9,7H15V9H9V7M9,11H15V13H9V11M9,15H15V17H9V15Z" 
@@ -651,87 +651,18 @@
           </StackPanel>
         </Border>
       </Expander>
-      
-      <!-- Danger Zone -->
+
+
+      <!-- Update Settings -->
       <Expander IsExpanded="False" HorizontalAlignment="Stretch">
         <Expander.Header>
             <StackPanel Orientation="Horizontal" Spacing="10">
-                <PathIcon Data="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z" 
-                          Width="16" Height="16" Foreground="#FF6B6B"/>
-                <TextBlock Text="Danger Zone" Classes="section-header" Margin="0" Foreground="#FF6B6B"/>
+                <TextBlock Text="🔄" FontSize="16" VerticalAlignment="Center"/>
+                <TextBlock Text="Updates" Classes="section-header" Margin="0"/>
             </StackPanel>
         </Expander.Header>
-          <Border Classes="settings-card danger-zone-card">
-            <StackPanel Spacing="20">
-              <TextBlock Text="⚠️ Danger Zone" Classes="section-header danger-header" />
-              
-              <!-- Real-time Stats -->
-              <StackPanel Spacing="10">
-                <TextBlock Text="Current Data Usage:" FontWeight="SemiBold" Foreground="#FF6B6B" />
-                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" Margin="10,0,0,0">
-                  <TextBlock Grid.Row="0" Grid.Column="0" Text="CAS Storage:" Width="150" Foreground="#AAAAAA" Margin="0,0,0,5"/>
-                  <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CasStorageInfo}" Foreground="#E0E0E0" Margin="0,0,0,5"/>
-                  
-                  <TextBlock Grid.Row="1" Grid.Column="0" Text="Manifests:" Foreground="#AAAAAA" Margin="0,0,0,5"/>
-                  <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ManifestsInfo}" Foreground="#E0E0E0" Margin="0,0,0,5"/>
-                  
-                  <TextBlock Grid.Row="2" Grid.Column="0" Text="Workspaces:" Foreground="#AAAAAA" Margin="0,0,0,5"/>
-                  <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding WorkspacesInfo}" Foreground="#E0E0E0" Margin="0,0,0,5"/>
-                  
-                  <TextBlock Grid.Row="3" Grid.Column="0" Text="Profiles:" Foreground="#AAAAAA" Margin="0,0,0,5"/>
-                  <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding ProfilesInfo}" Foreground="#E0E0E0" Margin="0,0,0,5"/>
-                </Grid>
-              </StackPanel>
-              
-              <!-- Deletion Buttons -->
-              <StackPanel Spacing="10">
-                <TextBlock Text="Destructive Actions:" FontWeight="SemiBold" Foreground="#FF6B6B" Margin="0,10,0,0" />
-                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" Margin="0,10">
-                    <Button Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" 
-                            Content="Uninstall GenHub (Keep Data)"
-                            Command="{Binding UninstallGenHubCommand}"
-                            ToolTip.Tip="Uninstall does not delete data only uninstalls GenHub"
-                            Classes="danger-button" Margin="0,0,0,10"/>
-
-                    <StackPanel Grid.Row="1" Grid.Column="0" Spacing="10" Margin="0,0,10,0">
-                        <Button Content="Delete CAS Storage" 
-                                Command="{Binding DeleteCasStorageCommand}"
-                                ToolTip.Tip="Deletes all cached game files"
-                                Classes="danger-button" />
-                        <Button Content="Delete Manifests" 
-                                Command="{Binding DeleteManifestsCommand}"
-                                ToolTip.Tip="Removes all content metadata"
-                                Classes="danger-button" />
-                    </StackPanel>
-                    <StackPanel Grid.Row="1" Grid.Column="1" Spacing="10" Margin="10,0,0,0">
-                        <Button Content="Delete Workspaces" 
-                                Command="{Binding DeleteWorkspacesCommand}"
-                                ToolTip.Tip="Cleans up all temporary game workspaces"
-                                Classes="danger-button" />
-                        <Button Content="Delete Profiles" 
-                                Command="{Binding DeleteProfilesCommand}"
-                                ToolTip.Tip="Permanently removes all user profiles"
-                                Classes="danger-button" />
-                    </StackPanel>
-                </Grid>
-                
-                <Separator Margin="0,10" Background="#DC143C" Height="1" Opacity="0.3"/>
-                
-                <Button Content="⚠️ DELETE ALL APPLICATION DATA ⚠️" 
-                        Command="{Binding DeleteAllDataCommand}"
-                        Classes="danger-button" 
-                        HorizontalAlignment="Stretch"
-                        FontWeight="Bold"
-                        FontSize="14"/>
-              </StackPanel>
-            </StackPanel>
-          </Border>
-      </Expander>
-
-      <!-- Update Settings -->
       <Border Classes="settings-card">
         <StackPanel Spacing="20">
-          <TextBlock Text="🔄 Updates" Classes="section-header" />
 
           <!-- Current Version -->
           <StackPanel Spacing="4">
@@ -739,18 +670,14 @@
             <TextBlock Text="{Binding CurrentVersion}" FontSize="14" Foreground="#67B26F" FontWeight="SemiBold" />
           </StackPanel>
 
-          <!-- Update Channel Selection -->
-          <StackPanel Spacing="8">
-            <TextBlock Text="Update Channel" Classes="setting-label" />
-            <ComboBox ItemsSource="{Binding AvailableUpdateChannels}"
-                      SelectedItem="{Binding SelectedUpdateChannel}"
-                      HorizontalAlignment="Left"
-                      MinWidth="200" />
-            <TextBlock Classes="setting-description">
-              <Run Text="Stable: Release builds only • " />
-              <Run Text="Prerelease: Alpha/Beta builds • " />
-              <Run Text="Artifacts: CI builds (requires PAT)" />
-            </TextBlock>
+
+
+            <!-- Subscribed Branch -->
+            <StackPanel Spacing="8">
+              <TextBlock Text="Subscribed Branch" Classes="setting-label" />
+              <TextBlock Text="Manage your branch subscription in the Updates &amp; PRs window." 
+                         Classes="setting-description" />
+            </StackPanel>
 
             <!-- Manage Updates & PRs Button -->
             <Button Content="Manage Updates &amp; PRs"
@@ -759,7 +686,7 @@
                     HorizontalAlignment="Left"
                     Margin="0,8,0,0"
                     ToolTip.Tip="Browse available updates and subscribe to Pull Requests" />
-          </StackPanel>
+
 
           <!-- GitHub PAT for Artifact Access -->
           <Border Background="#1E1E1E" CornerRadius="4" Padding="15" BorderBrush="#4E4E4E" BorderThickness="1">
@@ -852,6 +779,85 @@
           </StackPanel>
         </StackPanel>
       </Border>
+      </Expander>
+
+      <!-- Danger Zone -->
+      <Expander IsExpanded="False" HorizontalAlignment="Stretch" Margin="0,20,0,0">
+        <Expander.Header>
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <PathIcon Data="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z" 
+                          Width="16" Height="16" Foreground="#FF6B6B"/>
+                <TextBlock Text="Danger Zone" Classes="section-header" Margin="0" Foreground="#FF6B6B"/>
+            </StackPanel>
+        </Expander.Header>
+          <Border Classes="settings-card danger-zone-card">
+            <StackPanel Spacing="20">
+              <TextBlock Text="⚠️ Danger Zone" Classes="section-header danger-header" />
+              
+              <!-- Real-time Stats -->
+              <StackPanel Spacing="10">
+                <TextBlock Text="Current Data Usage:" FontWeight="SemiBold" Foreground="#FF6B6B" />
+                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" Margin="10,0,0,0">
+                  <TextBlock Grid.Row="0" Grid.Column="0" Text="CAS Storage:" Width="150" Foreground="#AAAAAA" Margin="0,0,0,5"/>
+                  <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CasStorageInfo}" Foreground="#E0E0E0" Margin="0,0,0,5"/>
+                  
+                  <TextBlock Grid.Row="1" Grid.Column="0" Text="Manifests:" Foreground="#AAAAAA" Margin="0,0,0,5"/>
+                  <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ManifestsInfo}" Foreground="#E0E0E0" Margin="0,0,0,5"/>
+                  
+                  <TextBlock Grid.Row="2" Grid.Column="0" Text="Workspaces:" Foreground="#AAAAAA" Margin="0,0,0,5"/>
+                  <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding WorkspacesInfo}" Foreground="#E0E0E0" Margin="0,0,0,5"/>
+                  
+                  <TextBlock Grid.Row="3" Grid.Column="0" Text="Profiles:" Foreground="#AAAAAA" Margin="0,0,0,5"/>
+                  <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding ProfilesInfo}" Foreground="#E0E0E0" Margin="0,0,0,5"/>
+                </Grid>
+              </StackPanel>
+              
+              <!-- Deletion Buttons -->
+              <StackPanel Spacing="10">
+                <TextBlock Text="Destructive Actions:" FontWeight="SemiBold" Foreground="#FF6B6B" Margin="0,10,0,0" />
+                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" Margin="0,10">
+                    <Button Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" 
+                            Content="Uninstall GenHub (Keep Data)"
+                            Command="{Binding UninstallGenHubCommand}"
+                            ToolTip.Tip="Uninstall does not delete data only uninstalls GenHub"
+                            Classes="danger-button" Margin="0,0,0,10"/>
+
+                    <StackPanel Grid.Row="1" Grid.Column="0" Spacing="10" Margin="0,0,10,0">
+                        <Button Content="Delete CAS Storage" 
+                                Command="{Binding DeleteCasStorageCommand}"
+                                ToolTip.Tip="Deletes all cached game files"
+                                Classes="danger-button" />
+                        <Button Content="Delete Manifests" 
+                                Command="{Binding DeleteManifestsCommand}"
+                                ToolTip.Tip="Removes all content metadata"
+                                Classes="danger-button" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Grid.Column="1" Spacing="10" Margin="10,0,0,0">
+                        <Button Content="Delete Workspaces" 
+                                Command="{Binding DeleteWorkspacesCommand}"
+                                ToolTip.Tip="Cleans up all temporary game workspaces"
+                                Classes="danger-button" />
+                        <Button Content="Delete Profiles" 
+                                Command="{Binding DeleteProfilesCommand}"
+                                ToolTip.Tip="Permanently removes all user profiles"
+                                Classes="danger-button" />
+                    </StackPanel>
+                </Grid>
+                
+                <Separator Margin="0,10" Background="#DC143C" Height="1" Opacity="0.3"/>
+                
+                <Button Content="⚠️ DELETE ALL APPLICATION DATA ⚠️" 
+                        Command="{Binding DeleteAllDataCommand}"
+                        Classes="danger-button" 
+                        HorizontalAlignment="Stretch"
+                        FontWeight="Bold"
+                        FontSize="14"/>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+      </Expander>
+
+
 
       <!-- Action Buttons -->
       <StackPanel Orientation="Horizontal" Spacing="15" HorizontalAlignment="Right" Margin="0,10,0,0">

@@ -185,7 +185,7 @@ public partial class DownloadsViewModel(
         if (serviceProvider.GetService(typeof(PublisherCardViewModel)) is PublisherCardViewModel modDBCard)
         {
             modDBCard.PublisherId = ModDBConstants.PublisherType;
-            modDBCard.DisplayName = ModDBConstants.PublisherName;
+            modDBCard.DisplayName = ModDBConstants.PublisherDisplayName;
             modDBCard.LogoSource = ModDBConstants.LogoSource;
             modDBCard.ReleaseNotes = ModDBConstants.ShortDescription;
             modDBCard.IsLoading = true;

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Interfaces.Providers;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.ModDB;
@@ -23,6 +24,7 @@ namespace GenHub.Features.Content.Services.Publishers;
 public partial class ModDBManifestFactory(
     IContentManifestBuilder manifestBuilder,
     IManifestIdService manifestIdService,
+    IProviderDefinitionLoader providerLoader,
     ILogger<ModDBManifestFactory> logger) : IPublisherManifestFactory
 {
     /// <inheritdoc />
@@ -85,7 +87,7 @@ public partial class ModDBManifestFactory(
 
         if (string.IsNullOrWhiteSpace(details.downloadUrl))
         {
-            throw new ArgumentException("Download URL cannot be empty", nameof(details));
+            throw new ArgumentException("Download URL is required to create a manifest", nameof(details));
         }
 
         // 1. Normalize author for publisher ID
@@ -96,7 +98,7 @@ public partial class ModDBManifestFactory(
         var contentName = SlugifyTitle(details.name);
 
         // 3. Format release date as YYYYMMDD for manifest ID
-        var releaseDate = details.submissionDate.ToString("yyyyMMdd");
+        var releaseDate = details.submissionDate.ToString(ModDBConstants.ReleaseDateFormat);
 
         // 4. Generate manifest ID with release date
         // Format: 1.YYYYMMDD.moddb-{author}.{contentType}.{contentName}
@@ -124,17 +126,22 @@ public partial class ModDBManifestFactory(
             releaseDate);
 
         // 5. Build manifest
+        var provider = providerLoader.GetProvider(ModDBConstants.PublisherPrefix);
+        var websiteUrl = provider?.Endpoints.WebsiteUrl ?? ModDBConstants.PublisherWebsite;
+        var publisherName = string.Format(System.Globalization.CultureInfo.InvariantCulture, ModDBConstants.PublisherNameFormat, details.author);
+        var supportUrl = provider?.Endpoints.SupportUrl ?? detailPageUrl;
+
         var manifest = manifestBuilder
             .WithBasicInfo(publisherId, details.name, int.Parse(releaseDate))
             .WithContentType(details.contentType, details.targetGame)
             .WithPublisher(
-                name: $"ModDB - {details.author}",
-                website: ModDBConstants.PublisherWebsite,
-                supportUrl: detailPageUrl,
+                name: publisherName,
+                website: websiteUrl,
+                supportUrl: supportUrl,
                 publisherType: publisherId)
             .WithMetadata(
                 description: details.description,
-                tags: GenerateTags(details),
+                tags: [.. GetTags(details)],
                 iconUrl: details.previewImage,
                 screenshotUrls: details.screenshots ?? []);
 
@@ -206,39 +213,32 @@ public partial class ModDBManifestFactory(
     /// </summary>
     /// <param name="details">The content details.</param>
     /// <returns>A list of tags.</returns>
-    private static List<string> GenerateTags(GenHub.Core.Models.ModDB.MapDetails details)
+    private static List<string> GetTags(MapDetails details)
     {
-        List<string> tags = ["ModDB", "Community"];
+        var tags = new List<string>(ModDBConstants.Tags);
 
         // Add game-specific tag
-        if (details.targetGame == GameType.Generals)
-        {
-            tags.Add("Generals");
-        }
-        else if (details.targetGame == GameType.ZeroHour)
-        {
-            tags.Add("Zero Hour");
-        }
+        tags.Add(details.targetGame == GameType.Generals ? GameClientConstants.GeneralsShortName : GameClientConstants.ZeroHourShortName);
 
         // Add content type tag
         tags.Add(details.contentType switch
         {
-            ContentType.Mod => "Mod",
-            ContentType.Patch => "Patch",
-            ContentType.Map => "Map",
-            ContentType.MapPack => "Map Pack",
-            ContentType.Skin => "Skin",
-            ContentType.Video => "Video",
-            ContentType.ModdingTool => "Modding Tool",
-            ContentType.LanguagePack => "Language Pack",
-            ContentType.Addon => "Addon",
-            _ => "Other",
+            ContentType.Mod => ManifestConstants.ModTag,
+            ContentType.Patch => ManifestConstants.PatchTag,
+            ContentType.Map => ManifestConstants.MapTag,
+            ContentType.MapPack => ManifestConstants.MapPackTag,
+            ContentType.Skin => ManifestConstants.SkinTag,
+            ContentType.Video => ManifestConstants.VideoTag,
+            ContentType.ModdingTool => ManifestConstants.ModdingToolTag,
+            ContentType.LanguagePack => ManifestConstants.LanguagePackTag,
+            ContentType.Addon => ManifestConstants.AddonTag,
+            _ => ManifestConstants.OtherTag,
         });
 
         // Add author tag
         if (!string.IsNullOrWhiteSpace(details.author) && details.author != ModDBConstants.DefaultAuthor)
         {
-            tags.Add($"by {details.author}");
+            tags.Add(string.Format(System.Globalization.CultureInfo.InvariantCulture, ModDBConstants.AuthorTagFormat, details.author));
         }
 
         return tags;
@@ -318,6 +318,6 @@ public partial class ModDBManifestFactory(
         }
 
         // Fallback: generate a generic filename
-        return "download.zip";
+        return ModDBConstants.DefaultDownloadFilename;
     }
 }

@@ -31,7 +31,6 @@ public class GeneralsOnlineProvider(
     ILogger<GeneralsOnlineProvider> logger)
     : BaseContentProvider(contentValidator, logger)
 {
-    private readonly IProviderDefinitionLoader _providerDefinitionLoader = providerDefinitionLoader;
     private ProviderDefinition? _cachedProviderDefinition;
 
     /// <inheritdoc />
@@ -172,7 +171,7 @@ public class GeneralsOnlineProvider(
         }
 
         // Try to get from the loader (it should already be loaded at startup)
-        _cachedProviderDefinition = _providerDefinitionLoader.GetProvider(GeneralsOnlineConstants.PublisherType);
+        _cachedProviderDefinition = providerDefinitionLoader.GetProvider(GeneralsOnlineConstants.PublisherType);
 
         if (_cachedProviderDefinition == null)
         {

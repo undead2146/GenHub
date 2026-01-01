@@ -76,13 +76,13 @@ public class ProviderDefinition
     /// Gets or sets the mirror preference order for downloads.
     /// </summary>
     [JsonPropertyName("mirrorPreference")]
-    public List<string> MirrorPreference { get; set; } = new();
+    public List<string> MirrorPreference { get; set; } = [];
 
     /// <summary>
     /// Gets or sets default content tags applied to all content from this provider.
     /// </summary>
     [JsonPropertyName("defaultTags")]
-    public List<string> DefaultTags { get; set; } = new();
+    public List<string> DefaultTags { get; set; } = [];
 
     /// <summary>
     /// Gets or sets a value indicating whether this provider is enabled by default.

@@ -11,6 +11,7 @@ using GenHub.Core.Constants;
 using GenHub.Core.Extensions;
 using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GameSettings;
@@ -47,13 +48,9 @@ public class ProfileLauncherFacade(
     IGameSettingsService gameSettingsService,
     IStorageLocationService storageLocationService,
     INotificationService notificationService,
+    IGeneralsOnlineProfileReconciler generalsOnlineReconciler,
     ILogger<ProfileLauncherFacade> logger) : IProfileLauncherFacade
 {
-    /// <summary>
-    /// Timeout for game settings application to prevent blocking the launch process.
-    /// </summary>
-    private static readonly TimeSpan GameSettingsApplicationTimeout = TimeSpan.FromSeconds(5);
-
     /// <inheritdoc/>
     public async Task<ProfileOperationResult<GameLaunchInfo>> LaunchProfileAsync(string profileId, bool skipUserDataCleanup = false, CancellationToken cancellationToken = default)
     {
@@ -109,6 +106,47 @@ public class ProfileLauncherFacade(
                 {
                     profile.GameInstallationId = resolvedInstallation.Id;
                     logger.LogInformation("Rebound profile {ProfileId} to installation {InstallationId}", profileId, resolvedInstallation.Id);
+                }
+            }
+
+            // Step 2.5: Check for GeneralsOnline updates if this is a GO profile
+            logger.LogInformation(
+                "Profile Publisher Debug: Client={Client}, Publisher={PublisherType}, IsGO={IsGO}",
+                profile.GameClient?.Name ?? "null",
+                profile.GameClient?.PublisherType ?? "null",
+                IsGeneralsOnlineProfile(profile));
+
+            if (IsGeneralsOnlineProfile(profile))
+            {
+                logger.LogDebug("[Launch] Step 2.5: Checking for GeneralsOnline updates");
+                var reconcileResult = await generalsOnlineReconciler.CheckAndReconcileIfNeededAsync(
+                    profileId,
+                    cancellationToken);
+
+                if (!reconcileResult.Success)
+                {
+                    logger.LogError(
+                        "[Launch] GeneralsOnline reconciliation failed: {Error}",
+                        reconcileResult.FirstError);
+                    return ProfileOperationResult<GameLaunchInfo>.CreateFailure(
+                        $"GeneralsOnline update failed: {reconcileResult.FirstError}");
+                }
+
+                if (reconcileResult.Data)
+                {
+                    // Profile was updated, reload it
+                    logger.LogInformation("[Launch] Profile was updated by GeneralsOnline reconciliation, reloading");
+                    profileResult = await profileManager.GetProfileAsync(profileId, cancellationToken);
+                    if (profileResult.Failed)
+                    {
+                        return ProfileOperationResult<GameLaunchInfo>.CreateFailure(
+                            string.Join(", ", profileResult.Errors));
+                    }
+
+                    profile = profileResult.Data!;
+                    logger.LogDebug(
+                        "[Launch] Profile reloaded after GeneralsOnline update - EnabledContent: {ContentCount} items",
+                        profile.EnabledContentIds?.Count ?? 0);
                 }
             }
 
@@ -754,6 +792,37 @@ public class ProfileLauncherFacade(
         }
 
         return parts.Count > 0 ? $"({string.Join(" and ", parts)})" : string.Empty;
+    }
+
+    /// <summary>
+    /// Checks if a profile uses a GeneralsOnline game client.
+    /// </summary>
+    /// <param name="profile">The profile to check.</param>
+    /// <returns>True if the profile uses GeneralsOnline, false otherwise.</returns>
+    private static bool IsGeneralsOnlineProfile(GameProfile profile)
+    {
+        // Check PublisherType first
+        if (profile.GameClient?.PublisherType?.Equals(
+            PublisherTypeConstants.GeneralsOnline,
+            StringComparison.OrdinalIgnoreCase) == true)
+        {
+            return true;
+        }
+
+        // Check if Name contains "GeneralsOnline" (for legacy or incomplete profiles)
+        if (profile.GameClient?.Name?.Contains("GeneralsOnline", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            return true;
+        }
+
+        // Final fallback: Check enabled content for GeneralsOnline manifests
+        if (profile.EnabledContentIds != null &&
+            profile.EnabledContentIds.Any(id => id.Contains("generalsonline", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>

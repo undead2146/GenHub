@@ -22,7 +22,7 @@ public abstract class BaseContentProvider(
     ILogger logger
 ) : IContentProvider
 {
-    private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly ILogger logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly IContentValidator _contentValidator = contentValidator ?? throw new ArgumentNullException(nameof(contentValidator));
 
     /// <inheritdoc />
@@ -132,7 +132,7 @@ public abstract class BaseContentProvider(
             if (!validationResult.IsValid)
             {
                 var errors = validationResult.Issues.Where(i => i.Severity == ValidationSeverity.Error).ToList();
-                if (errors.Any())
+                if (errors.Count > 0)
                 {
                     return OperationResult<ContentManifest>.CreateFailure(
                         errors.Select(e => $"Manifest validation failed: {e.Message}"));
@@ -199,7 +199,7 @@ public abstract class BaseContentProvider(
     /// <summary>
     /// Gets the logger for this provider.
     /// </summary>
-    protected ILogger Logger => _logger;
+    protected ILogger Logger => logger;
 
     /// <summary>
     /// Gets the content validator for manifest validation.

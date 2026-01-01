@@ -32,14 +32,14 @@ public static class GeneralsOnlineConstants
     public const string DownloadPageUrl = "https://www.playgenerals.online/download";
 
     /// <summary>
-    /// Publisher logo source path for UI display.
-    /// </summary>
-    public const string LogoSource = "/Assets/Logos/generalsonline-logo.png";
-
-    /// <summary>
     /// Cover image source path for UI display.
     /// </summary>
     public const string CoverSource = "/Assets/Covers/zerohour-cover.png";
+
+    /// <summary>
+    /// Publisher logo source path for UI display.
+    /// </summary>
+    public const string LogoSource = "/Assets/Logos/generalsonline-logo.png";
 
     // ===== Version Parsing =====
 
@@ -48,6 +48,12 @@ public static class GeneralsOnlineConstants
 
     /// <summary>Separator between date and QFE number in versions.</summary>
     public const string QfeSeparator = "_QFE";
+
+    /// <summary>Prefix for QFE markers in version strings.</summary>
+    public const string QfeMarkerPrefix = "QFE";
+
+    /// <summary>Version string used when version information is missing.</summary>
+    public const string UnknownVersion = "unknown";
 
     // ===== File Extensions =====
 
@@ -60,6 +66,9 @@ public static class GeneralsOnlineConstants
     public const int UpdateCheckIntervalHours = 24;
 
     // ===== Manifest Generation =====
+
+    /// <summary>Publisher ID for the Generals Online service.</summary>
+    public const string PublisherId = PublisherType;
 
     /// <summary>Publisher type identifier for GeneralsOnline.</summary>
     public const string PublisherType = "generalsonline";
@@ -103,4 +112,9 @@ public static class GeneralsOnlineConstants
 
     /// <summary>Content tags for search and categorization.</summary>
     public static readonly string[] Tags = ["multiplayer", "online", "community", "enhancement"];
+
+    /// <summary>
+    /// Default tags for MapPack manifests.
+    /// </summary>
+    public static readonly string[] MapPackTags = ["mappack", "generalsonline", "quickmatch", "competitive"];
 }

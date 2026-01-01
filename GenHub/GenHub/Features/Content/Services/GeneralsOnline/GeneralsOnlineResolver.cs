@@ -7,8 +7,6 @@ using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
 using Microsoft.Extensions.Logging;
 using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,7 +18,7 @@ namespace GenHub.Features.Content.Services.GeneralsOnline;
 /// Creates the initial manifest structure; post-extraction processing is handled by the factory.
 /// </summary>
 public class GeneralsOnlineResolver(
-    IProviderDefinitionLoader providerLoader,
+    GeneralsOnlineManifestFactory manifestFactory,
     ILogger<GeneralsOnlineResolver> logger) : IContentResolver
 {
     /// <inheritdoc />
@@ -48,8 +46,12 @@ public class GeneralsOnlineResolver(
                     "Release information not found in search result"));
             }
 
-            var manifests = GeneralsOnlineManifestFactory.CreateManifests(release);
-            var primaryManifest = manifests.FirstOrDefault();
+            var manifests = manifestFactory.CreateManifests(release);
+            if (manifests.FirstOrDefault() is not { } primaryManifest)
+            {
+                return Task.FromResult(OperationResult<ContentManifest>.CreateFailure(
+                    "Failed to create manifest from release"));
+            }
 
             logger.LogInformation(
                 "Successfully resolved Generals Online manifest ({Variant}) with download URL: {Url}",
