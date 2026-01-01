@@ -47,6 +47,7 @@
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="Padding" Value="16" />
             <Setter Property="Margin" Value="0,0,0,12" />
+            <Setter Property="TextElement.Foreground" Value="White" />
         </Style>
         
         <!-- Section title -->
@@ -75,6 +76,11 @@
             <Setter Property="Background" Value="#15FFFFFF" />
             <Setter Property="BorderBrush" Value="#30FFFFFF" />
             <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        
+        <Style Selector="TextBox">
+            <Setter Property="CaretBrush" Value="White" />
         </Style>
         
         <!-- Compact color button -->
@@ -137,6 +143,32 @@
         <Style Selector="Button.filter-pill:pointerover /template/ ContentPresenter">
             <Setter Property="Background" Value="#25FFFFFF" />
         </Style>
+        <Style Selector="Button.filter-pill.selected /template/ ContentPresenter" x:CompileBindings="False">
+            <Setter Property="Background" Value="{Binding $parent[Button].DataContext.ColorValue, Converter={StaticResource ColorToBrushConverter}}" />
+            <Setter Property="BorderBrush" Value="White" />
+        </Style>
+        <Style Selector="Button.filter-pill.selected">
+            <Setter Property="ZIndex" Value="1" />
+        </Style>
+        <Style Selector="Button.filter-pill.selected TextBlock">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.filter-pill.selected PathIcon">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+
+        <!-- Conjoined pills -->
+        <Style Selector="Button.filter-pill.left">
+            <Setter Property="CornerRadius" Value="8,0,0,8" />
+            <Setter Property="MinWidth" Value="90" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Margin" Value="0,0,-1,0" />
+        </Style>
+        <Style Selector="Button.filter-pill.right">
+            <Setter Property="CornerRadius" Value="0,8,8,0" />
+            <Setter Property="MinWidth" Value="90" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
         
         <!-- Tab icon button style -->
         <Style Selector="Button.tab-icon-btn">
@@ -183,6 +215,56 @@
             <Setter Property="MinHeight" Value="6" />
             <Setter Property="CornerRadius" Value="3" />
         </Style>
+
+        <!-- New Content Card Styles -->
+        <Style Selector="Button.content-card-btn">
+            <Setter Property="Background" Value="#08FFFFFF" />
+            <Setter Property="BorderBrush" Value="#15FFFFFF" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="12" />
+            <Setter Property="Margin" Value="4" />
+            <Setter Property="MinWidth" Value="250" />
+            <Setter Property="MaxWidth" Value="400" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.1" />
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.1" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button.content-card-btn:pointerover">
+            <Setter Property="Background" Value="#12FFFFFF" />
+            <Setter Property="BorderBrush" Value="#40FFFFFF" />
+        </Style>
+        <Style Selector="Button.content-card-btn:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#12FFFFFF" />
+            <Setter Property="BorderBrush" Value="#40FFFFFF" />
+        </Style>
+        
+        <!-- Style to show children on hover -->
+        <Style Selector="Button.delete-reveal-btn">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+        
+        <!-- When parent card is hovered, reveal the delete button -->
+        <Style Selector="Button.content-card-btn:pointerover Button.delete-reveal-btn">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        
+        <!-- Ensure the delete button itself reacts to its own hover -->
+        <Style Selector="Button.delete-reveal-btn:pointerover">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="Background" Value="#D32F2F" />
+        </Style>
     </Window.Styles>
 
     <Border Background="{Binding ColorValue, Converter={StaticResource ThemeBackgroundConverter}, Mode=OneWay}">
@@ -216,11 +298,11 @@
                 <!-- Profile Info -->
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0">
                     <TextBlock Text="{Binding Name, Mode=OneWay, FallbackValue='New Profile'}"
-                               Foreground="{Binding ColorValue, Converter={StaticResource ContrastTextColorConverter}, Mode=OneWay}"
+                               Foreground="White"
                                FontSize="16"
                                FontWeight="SemiBold" />
                     <TextBlock Text="{Binding Description, Mode=OneWay, FallbackValue=''}"
-                               Foreground="{Binding ColorValue, Converter={StaticResource ContrastTextColorConverter}, Mode=OneWay}"
+                               Foreground="White"
                                Opacity="0.75"
                                FontSize="11"
                                TextWrapping="Wrap"
@@ -256,7 +338,7 @@
                     
                     <Button Command="{Binding RandomizeColorCommand}"
                             Background="#25000000"
-                            BorderBrush="{Binding ColorValue, Converter={StaticResource ContrastTextColorConverter}, Mode=OneWay}"
+                            BorderBrush="White"
                             BorderThickness="1"
                             Width="34" Height="34"
                             CornerRadius="17"
@@ -265,7 +347,7 @@
                         <PathIcon
                             Data="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"
                             Width="16" Height="16"
-                            Foreground="{Binding ColorValue, Converter={StaticResource ContrastTextColorConverter}, Mode=OneWay}" />
+                            Foreground="White" />
                     </Button>
                 </StackPanel>
             </Grid>
@@ -377,15 +459,18 @@
                             <ItemsControl ItemsSource="{Binding EnabledContent}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
-                                        <UniformGrid Columns="2" />
+                                        <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center" />
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Background="#08FFFFFF" BorderBrush="#15FFFFFF" BorderThickness="1" CornerRadius="8" Padding="12" Margin="4">
+                                        <Button Classes="content-card-btn"
+                                                Command="{Binding $parent[ItemsControl].((vm:GameProfileSettingsViewModel)DataContext).DisableContentCommand}"
+                                                CommandParameter="{Binding}"
+                                                ToolTip.Tip="Click to remove from profile">
                                             <Grid ColumnDefinitions="*,Auto">
-                                                <StackPanel Grid.Column="0" Spacing="6">
-                                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" />
+                                                <StackPanel Grid.Column="0" Spacing="6" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
                                                     <WrapPanel Orientation="Horizontal" Margin="0,0,8,0">
                                                         <Border Background="#20FF5252" BorderBrush="#FF5252" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,4,4"
                                                                 IsVisible="{Binding Publisher, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
@@ -399,12 +484,15 @@
                                                         </Border>
                                                     </WrapPanel>
                                                 </StackPanel>
-                                                <Button Grid.Column="1" Content="✕" Classes="btn-remove"
-                                                        Command="{Binding $parent[ItemsControl].((vm:GameProfileSettingsViewModel)DataContext).DisableContentCommand}"
-                                                        CommandParameter="{Binding}"
-                                                        VerticalAlignment="Center" />
+                                                
+                                                <!-- Hover indicator -->
+                                                <PathIcon Grid.Column="1" 
+                                                          Data="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" 
+                                                          Width="12" Height="12" 
+                                                          Foreground="#60FFFFFF"
+                                                          VerticalAlignment="Center" Margin="8,0,4,0" />
                                             </Grid>
-                                        </Border>
+                                        </Button>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -473,12 +561,23 @@
                                 </Button>
                             </WrapPanel>
                             
-                            <!-- Add Local Content Button -->
-                            <Button Classes="filter-pill" Content="📁 Add Local"
-                                    Command="{Binding AddLocalContentCommand}"
-                                    ToolTip.Tip="Add content from a local folder"
-                                    HorizontalAlignment="Left"
-                                    Margin="0,0,0,12" />
+                            <!-- Action Row: Add Local and Game Type Toggle -->
+                            <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,12">
+                                <Button Grid.Column="0" Classes="filter-pill" Content="📁 Add Local"
+                                        Command="{Binding AddLocalContentCommand}"
+                                        ToolTip.Tip="Add content from a local folder" />
+
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button Classes="filter-pill left" Content="Generals"
+                                            Classes.selected="{Binding GameTypeFilter, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:GameType.Generals}}"
+                                            Command="{Binding SelectGameTypeFilterCommand}"
+                                            CommandParameter="{x:Static models:GameType.Generals}" />
+                                    <Button Classes="filter-pill right" Content="Zero Hour"
+                                            Classes.selected="{Binding GameTypeFilter, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:GameType.ZeroHour}}"
+                                            Command="{Binding SelectGameTypeFilterCommand}"
+                                            CommandParameter="{x:Static models:GameType.ZeroHour}" />
+                                </StackPanel>
+                            </Grid>
                             
                             <!-- Available content list -->
                             <Border Background="#0A000000" BorderBrush="#20FFFFFF" BorderThickness="1" 
@@ -487,57 +586,45 @@
                                     <ItemsControl ItemsSource="{Binding AvailableContent}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
-                                                <UniformGrid Columns="2" />
+                                                <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center" />
                                             </ItemsPanelTemplate>
                                         </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Background="#08FFFFFF" BorderBrush="#15FFFFFF" BorderThickness="1" CornerRadius="8" Padding="12" Margin="4">
-                                                    <Border.IsVisible>
-                                                        <Binding Path="IsEnabled" Converter="{x:Static conv:InvertedBoolToVisibilityConverter.Instance}" />
-                                                    </Border.IsVisible>
-                                                    <Grid ColumnDefinitions="*,Auto,Auto">
-                                                         <StackPanel Grid.Column="0" Spacing="6">
-                                                             <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" />
+                                                <Button Classes="content-card-btn"
+                                                        Command="{Binding $parent[ItemsControl].((vm:GameProfileSettingsViewModel)DataContext).EnableContentCommand}"
+                                                        CommandParameter="{Binding}"
+                                                        IsVisible="{Binding IsEnabled, Converter={x:Static conv:InvertedBoolToVisibilityConverter.Instance}}"
+                                                        ToolTip.Tip="Click to enable">
+                                                    <Grid ColumnDefinitions="*,Auto">
+                                                         <StackPanel Grid.Column="0" Spacing="6" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                             <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
                                                              <WrapPanel Orientation="Horizontal" Margin="0,0,8,0">
                                                                  <Border Background="#20FF6B6B" BorderBrush="#FF6B6B" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,4,4"
                                                                         IsVisible="{Binding Publisher, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                                                                     <TextBlock Text="{Binding Publisher}" FontSize="10" Foreground="#FF8A80" FontWeight="SemiBold" />
-                                                                </Border>
-                                                                <Border Background="#20FFFFFF" BorderBrush="#40FFFFFF" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,4,4">
-                                                                    <TextBlock Text="{Binding GameType, Converter={x:Static conv:GameTypeShortDisplayConverter.Instance}}" FontSize="10" Foreground="#E0E0E0" />
-                                                                </Border>
-                                                            </WrapPanel>
-                                                        </StackPanel>
-                                                        
-                                                        <!-- Delete button - always visible -->
-                                                        <Button Grid.Column="1" 
-                                                                Content="🗑️" 
-                                                                Background="#C62828" 
-                                                                Foreground="White"
-                                                                CornerRadius="3" 
-                                                                Padding="6,3" 
-                                                                Margin="0,0,6,0"
-                                                                FontSize="11" 
-                                                                FontWeight="SemiBold" 
-                                                                Cursor="Hand"
-                                                                VerticalAlignment="Center"
-                                                                ToolTip.Tip="Delete this downloaded content from storage (does not affect game installations)"
-                                                                Command="{Binding $parent[ItemsControl].((vm:GameProfileSettingsViewModel)DataContext).DeleteContentCommand}"
-                                                                CommandParameter="{Binding}">
-                                                            <Button.Styles>
-                                                                <Style Selector="Button:pointerover /template/ ContentPresenter">
-                                                                    <Setter Property="Background" Value="#B71C1C" />
-                                                                </Style>
-                                                            </Button.Styles>
-                                                        </Button>
-                                                        
-                                                        <Button Grid.Column="2" Content="+ Add" Classes="btn-add"
-                                                                Command="{Binding $parent[ItemsControl].((vm:GameProfileSettingsViewModel)DataContext).EnableContentCommand}"
-                                                                CommandParameter="{Binding}"
-                                                                VerticalAlignment="Center" />
+                                                                 </Border>
+                                                                 <Border Background="#20FFFFFF" BorderBrush="#40FFFFFF" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,4,4">
+                                                                     <TextBlock Text="{Binding GameType, Converter={x:Static conv:GameTypeShortDisplayConverter.Instance}}" FontSize="10" Foreground="#E0E0E0" />
+                                                                 </Border>
+                                                             </WrapPanel>
+                                                         </StackPanel>
+                                                         
+                                                         <!-- Delete Button (Revealed on hover) -->
+                                                         <Button Grid.Column="1" Classes="delete-reveal-btn"
+                                                                 Command="{Binding $parent[ItemsControl].((vm:GameProfileSettingsViewModel)DataContext).DeleteContentCommand}"
+                                                                 CommandParameter="{Binding}"
+                                                                 Background="Transparent"
+                                                                 BorderBrush="Transparent"
+                                                                 BorderThickness="0"
+                                                                 Padding="8"
+                                                                 Margin="8,0,0,0"
+                                                                 ToolTip.Tip="Delete from disk">
+                                                             <PathIcon Data="M9,3V4H4V6H5V19A2,2 0 0,0 7,21H17A2,2 0 0,0 19,19V6H20V4H15V3H9M7,6H17V19H7V6M9,8V17H11V8H9M13,8V17H15V8H13Z" 
+                                                                       Foreground="#FF5252" Width="16" Height="16" />
+                                                         </Button>
                                                     </Grid>
-                                                </Border>
+                                                </Button>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
@@ -810,7 +897,8 @@
                     Width="420"
                     Padding="24"
                     VerticalAlignment="Center"
-                    HorizontalAlignment="Center">
+                    HorizontalAlignment="Center"
+                    TextElement.Foreground="White">
                 <StackPanel Spacing="16">
                     <!-- Header -->
                     <StackPanel Orientation="Horizontal" Spacing="12">

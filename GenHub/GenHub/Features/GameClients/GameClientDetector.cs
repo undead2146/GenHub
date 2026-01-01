@@ -320,109 +320,6 @@ public class GameClientDetector(
         }
     }
 
-    private async Task GenerateInstallationManifestsAsync(GameInstallation installation, CancellationToken cancellationToken)
-    {
-        try
-        {
-            if (installation.HasGenerals && !string.IsNullOrEmpty(installation.GeneralsPath) && Directory.Exists(installation.GeneralsPath))
-            {
-                await GenerateAndPoolManifestForGameTypeAsync(
-                    installation,
-                    GameType.Generals,
-                    installation.GeneralsPath,
-                    installation.GeneralsClient,
-                    ManifestConstants.GeneralsManifestVersion,
-                    cancellationToken);
-            }
-
-            if (installation.HasZeroHour && !string.IsNullOrEmpty(installation.ZeroHourPath) && Directory.Exists(installation.ZeroHourPath))
-            {
-                await GenerateAndPoolManifestForGameTypeAsync(
-                    installation,
-                    GameType.ZeroHour,
-                    installation.ZeroHourPath,
-                    installation.ZeroHourClient,
-                    ManifestConstants.ZeroHourManifestVersion,
-                    cancellationToken);
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to generate installation manifests for {InstallationId}", installation.Id);
-        }
-    }
-
-    private async Task GenerateAndPoolManifestForGameTypeAsync(
-        GameInstallation installation,
-        GameType gameType,
-        string gamePath,
-        GameClient? gameClient,
-        string defaultManifestVersion,
-        CancellationToken cancellationToken)
-    {
-        var detectedVersion = gameClient?.Version;
-        int versionForId;
-        string versionForManifest;
-
-        if (string.IsNullOrEmpty(detectedVersion) ||
-            detectedVersion.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
-        {
-            versionForId = 0;
-            versionForManifest = defaultManifestVersion;
-        }
-        else
-        {
-            versionForId = GameVersionHelper.NormalizeVersion(detectedVersion);
-            versionForManifest = detectedVersion;
-        }
-
-        var idResult = ManifestIdGenerator.GenerateGameInstallationId(
-            installation, gameType, versionForId);
-        var manifestId = ManifestId.Create(idResult);
-
-        var existingManifest = await contentManifestPool.GetManifestAsync(
-            manifestId, cancellationToken);
-
-        if (existingManifest.Success && existingManifest.Data != null)
-        {
-            logger.LogDebug(
-                "Manifest {Id} already exists in pool, skipping generation",
-                manifestId);
-            return;
-        }
-
-        var manifestBuilder = await manifestGenerationService
-            .CreateGameInstallationManifestAsync(
-                gamePath,
-                gameType,
-                installation.InstallationType,
-                versionForManifest);
-
-        var manifest = manifestBuilder.Build();
-        manifest.ContentType = ContentType.GameInstallation;
-        manifest.Id = manifestId;
-
-        var addResult = await contentManifestPool.AddManifestAsync(
-            manifest, gamePath, cancellationToken);
-
-        if (addResult.Success)
-        {
-            logger.LogInformation(
-                "Pooled GameInstallation manifest {Id} for {InstallationId} ({GameType})",
-                manifest.Id,
-                installation.Id,
-                gameType);
-        }
-        else
-        {
-            logger.LogWarning(
-                "Failed to pool {GameType} GameInstallation manifest for {InstallationId}: {Errors}",
-                gameType,
-                installation.Id,
-                string.Join(", ", addResult.Errors));
-        }
-    }
-
     /// <summary>
     /// Detects the game version from the executable file using SHA-256 hash comparison.
     /// Supports multiple possible executable names that GenPatcher might create.
@@ -512,7 +409,18 @@ public class GameClientDetector(
         var detectedPublisherIds = await DetectPublisherExecutablesAsync(installationPath);
         var publishersHandledFromPool = await DetectPublisherClientsFromPoolAsync(installation, installationPath, gameType, detectedPublisherIds, detectedClients, cancellationToken);
 
-        // 2. Perform local detection for publishers NOT found in the pool
+        // 2. Special handling for GeneralsOnline (detects multiple variants)
+        if (!publishersHandledFromPool.Contains(PublisherTypeConstants.GeneralsOnline))
+        {
+            var goClients = await DetectGeneralsOnlineClientsAsync(installation, gameType);
+            if (goClients.Count > 0)
+            {
+                detectedClients.AddRange(goClients);
+                publishersHandledFromPool.Add(PublisherTypeConstants.GeneralsOnline);
+            }
+        }
+
+        // 3. Perform local detection for publishers NOT found in the pool
         await DetectPublisherClientsFromLocalFilesAsync(installation, installationPath, gameType, publishersHandledFromPool, detectedClients);
 
         if (detectedClients.Count > 0)
@@ -543,10 +451,7 @@ public class GameClientDetector(
 
         foreach (var publisherId in detectedPublisherIds)
         {
-            // For GeneralsOnline, only check ZeroHour game type (it's ZH-only)
-            var targetGameType = publisherId.Equals(PublisherTypeConstants.GeneralsOnline, StringComparison.OrdinalIgnoreCase)
-                ? GameType.ZeroHour
-                : gameType;
+            var targetGameType = gameType;
 
             var existingManifests = await GetExistingPublisherManifestsAsync(publisherId, targetGameType, cancellationToken);
 
@@ -608,29 +513,18 @@ public class GameClientDetector(
                     var gameClient = new GameClient
                     {
                         Name = identification.DisplayName,
-                        Id = string.Empty,
+                        Id = $"detected-{identification.PublisherId}-{identification.Variant}", // Temporary ID for detection only
                         Version = identification.LocalVersion ?? GameClientConstants.UnknownVersion,
                         ExecutablePath = executablePath,
                         GameType = gameType,
                         InstallationId = installation.Id,
                         WorkingDirectory = installationPath,
                         SourceType = ContentType.GameClient,
-                        PublisherType = identification.PublisherId, // Store publisher type
+                        PublisherType = identification.PublisherId,
                     };
 
-                    // Check if this is one of the excluded game clients that should not generate manifests
-                    var exeName = Path.GetFileName(executablePath).ToLowerInvariant();
-                    if (exeName == "generalsv.exe" || exeName == "generalszh.exe" || exeName == "generalsonlinezh_30.exe" || exeName == "generalsonlinezh_60.exe")
-                    {
-                        // For these clients, only detect and prompt user, do not generate manifest or store in CAS
-                        gameClient.Id = Guid.NewGuid().ToString();
-                        detectedClients.Add(gameClient);
-                    }
-                    else
-                    {
-                        await GeneratePublisherClientManifestAsync(gameClient, installationPath, gameType, identification);
-                        detectedClients.Add(gameClient);
-                    }
+                    // Note: Manifest generation removed - user will be prompted to install verified publisher version
+                    detectedClients.Add(gameClient);
                 }
                 catch (Exception ex)
                 {
@@ -667,7 +561,7 @@ public class GameClientDetector(
         }
 
         // GeneralsOnline clients auto-update, so we use a fixed version string
-        const string generalsOnlineVersion = "Auto-Updated";
+        const string generalsOnlineVersion = "Automatically added";
 
         var generalsOnlineExecutables = GameClientConstants.GeneralsOnlineExecutableNames;
 
@@ -710,7 +604,7 @@ public class GameClientDetector(
                 var gameClient = new GameClient
                 {
                     Name = displayName,
-                    Id = string.Empty, // Will be set by manifest generation
+                    Id = $"detected-{PublisherTypeConstants.GeneralsOnline}-{variantName}", // Temporary ID for detection only
                     Version = generalsOnlineVersion,
                     ExecutablePath = executablePath,
                     GameType = gameType,
@@ -720,8 +614,7 @@ public class GameClientDetector(
                     PublisherType = PublisherTypeConstants.GeneralsOnline,
                 };
 
-                // Generate manifest for this GeneralsOnline client
-                await GenerateGeneralsOnlineClientManifestAsync(gameClient, installationPath, gameType);
+                // Note: Manifest generation removed - user will be prompted to install verified publisher version
                 detectedClients.Add(gameClient);
 
                 logger.LogDebug(
@@ -747,195 +640,6 @@ public class GameClientDetector(
         }
 
         return detectedClients;
-    }
-
-    /// <summary>
-    /// Generates a manifest for a publisher game client using identification metadata.
-    /// </summary>
-    /// <param name="gameClient">The game client to generate manifest for.</param>
-    /// <param name="clientPath">The client installation path.</param>
-
-    /// <param name="gameType">The game type.</param>
-    /// <param name="identification">The identification metadata from the identifier.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    private async Task GeneratePublisherClientManifestAsync(
-        GameClient gameClient,
-        string clientPath,
-        GameType gameType,
-        GameClientIdentification identification)
-    {
-        try
-        {
-            // Validate that the GameClient has a valid executable path
-            if (string.IsNullOrWhiteSpace(gameClient.ExecutablePath))
-            {
-                logger.LogError("{PublisherId} client {ClientName} has no executable path - cannot generate manifest", identification.PublisherId, gameClient.Name);
-                gameClient.Id = Guid.NewGuid().ToString();
-                return;
-            }
-
-            if (!File.Exists(gameClient.ExecutablePath))
-            {
-                logger.LogError("{PublisherId} executable not found at {ExecutablePath} - cannot generate manifest", identification.PublisherId, gameClient.ExecutablePath);
-                gameClient.Id = Guid.NewGuid().ToString();
-                return;
-            }
-
-            // Generate game client manifest with executable included
-            var builder = await manifestGenerationService.CreateGameClientManifestAsync(
-                clientPath,
-                gameType,
-                gameClient.Name,
-                gameClient.Version,
-                gameClient.ExecutablePath);
-
-            var manifest = builder.Build();
-            manifest.ContentType = ContentType.GameClient;
-
-            // Add game installation dependency based on game type
-            var dependencyName = gameType == GameType.ZeroHour
-                ? GameClientConstants.ZeroHourInstallationDependencyName
-                : GameClientConstants.GeneralsInstallationDependencyName;
-
-            var installDependency = new ContentDependency
-            {
-                Id = ManifestId.Create(ManifestConstants.DefaultContentDependencyId),
-                Name = dependencyName,
-                DependencyType = ContentType.GameInstallation,
-                InstallBehavior = DependencyInstallBehavior.RequireExisting,
-                CompatibleGameTypes = [gameType],
-            };
-            manifest.Dependencies.Add(installDependency);
-
-            // Generate deterministic ID for publisher client
-            // Format: version.publisher.contentType.variant
-            var clientIdResult = ManifestIdGenerator.GeneratePublisherContentId(
-                identification.PublisherId,
-                ContentType.GameClient,
-                $"{gameType.ToString().ToLowerInvariant()}{identification.Variant}",
-                userVersion: 0); // Publisher clients auto-update, so use version 0
-            manifest.Id = ManifestId.Create(clientIdResult);
-
-            // Set publisher info on manifest
-            manifest.Publisher = new PublisherInfo
-            {
-                PublisherType = identification.PublisherId,
-                Name = identification.DisplayName,
-            };
-
-            // Add to pool
-            var addResult = await contentManifestPool.AddManifestAsync(manifest, clientPath);
-            if (addResult.Success)
-            {
-                gameClient.Id = manifest.Id.ToString();
-                logger.LogDebug("Generated {PublisherId} manifest ID {Id} for {ClientName}", identification.PublisherId, gameClient.Id, gameClient.Name);
-            }
-            else
-            {
-                logger.LogWarning("Failed to pool {PublisherId} manifest for {ClientName}: {Errors}", identification.PublisherId, gameClient.Name, string.Join(", ", addResult.Errors));
-                gameClient.Id = Guid.NewGuid().ToString();
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to generate manifest for {PublisherId} client {ClientName}", identification.PublisherId, gameClient.Name);
-            gameClient.Id = Guid.NewGuid().ToString();
-        }
-    }
-
-    /// <summary>
-    /// Generates a manifest for a GeneralsOnline game client with special handling.
-    /// </summary>
-    /// <param name="gameClient">The GeneralsOnline game client.</param>
-    /// <param name="clientPath">The client installation path.</param>
-
-    /// <param name="gameType">The game type.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    private async Task GenerateGeneralsOnlineClientManifestAsync(
-        GameClient gameClient,
-        string clientPath,
-        GameType gameType)
-    {
-        try
-        {
-            // Validate that the GameClient has a valid executable path
-            if (string.IsNullOrWhiteSpace(gameClient.ExecutablePath))
-            {
-                logger.LogError("GeneralsOnline client {ClientName} has no executable path - cannot generate manifest", gameClient.Name);
-                gameClient.Id = Guid.NewGuid().ToString(); // Fallback
-                return;
-            }
-
-            if (!File.Exists(gameClient.ExecutablePath))
-            {
-                logger.LogError("GeneralsOnline executable not found at {ExecutablePath} - cannot generate manifest", gameClient.ExecutablePath);
-                gameClient.Id = Guid.NewGuid().ToString(); // Fallback
-                return;
-            }
-
-            // Generate GeneralsOnline-specific manifest with executable included
-            var builder = await manifestGenerationService.CreateGeneralsOnlineClientManifestAsync(
-                clientPath,
-                gameType,
-                gameClient.Name,
-                gameClient.Version,
-                gameClient.ExecutablePath);
-
-            var manifest = builder.Build();
-            manifest.ContentType = ContentType.GameClient;
-
-            var manifestVersion = gameType == GameType.ZeroHour
-                ? ManifestConstants.ZeroHourManifestVersion
-                : ManifestConstants.GeneralsManifestVersion;
-
-            // Generate deterministic ID for GeneralsOnline client
-            // Use publisher-based content ID format: version.publisher.contentType.contentName
-            // This allows multiple GeneralsOnline variants (30Hz, 60Hz)
-            var executableName = Path.GetFileNameWithoutExtension(gameClient.ExecutablePath).ToLowerInvariant();
-
-            // Extract the variant (30hz or 60hz) from executable name
-            // generalsonlinezh_30 → 30hz, generalsonlinezh_60 → 60hz
-            string variantSuffix = executableName.Contains("30") ? "30hz" :
-                                   executableName.Contains("60") ? "60hz" :
-                                   "standard";
-
-            // Add both Zero Hour installation and QuickMatch MapPack dependencies
-            // using the GeneralsOnlineDependencyBuilder to ensure consistency
-            var dependencies = variantSuffix == "60hz"
-                ? GeneralsOnlineDependencyBuilder.GetDependenciesFor60Hz()
-                : GeneralsOnlineDependencyBuilder.GetDependenciesFor30Hz();
-            foreach (var dependency in dependencies)
-            {
-                manifest.Dependencies.Add(dependency);
-            }
-
-            // GeneralsOnline always uses version 0 since it auto-updates
-            var clientIdResult = ManifestIdGenerator.GeneratePublisherContentId(
-                PublisherTypeConstants.GeneralsOnline,
-                ContentType.GameClient,
-                $"{gameType.ToString().ToLowerInvariant()}{variantSuffix}",
-                userVersion: 0);
-
-            manifest.Id = ManifestId.Create(clientIdResult);
-
-            // Add to pool
-            var addResult = await contentManifestPool.AddManifestAsync(manifest, clientPath);
-            if (addResult.Success)
-            {
-                gameClient.Id = manifest.Id.ToString();
-                logger.LogDebug("Generated GeneralsOnline manifest ID {Id} for {ClientName}", gameClient.Id, gameClient.Name);
-            }
-            else
-            {
-                logger.LogWarning("Failed to pool GeneralsOnline manifest for {ClientName}: {Errors}", gameClient.Name, string.Join(", ", addResult.Errors));
-                gameClient.Id = Guid.NewGuid().ToString(); // Fallback
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to generate manifest for GeneralsOnline client {ClientName}", gameClient.Name);
-            gameClient.Id = Guid.NewGuid().ToString(); // Fallback
-        }
     }
 
     /// <summary>

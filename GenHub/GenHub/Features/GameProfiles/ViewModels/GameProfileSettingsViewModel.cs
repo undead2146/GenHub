@@ -270,6 +270,17 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isLoadingContent; // Guard flag to prevent cascading EnableContent calls AND UI loading state
 
+    [ObservableProperty]
+    private Core.Models.Enums.GameType _gameTypeFilter = Core.Models.Enums.GameType.ZeroHour;
+
+    /// <summary>
+    /// Called when the game type filter changes.
+    /// </summary>
+    partial void OnGameTypeFilterChanged(GameType value)
+    {
+        _ = LoadAvailableContentAsync();
+    }
+
     // ===== Local Content Dialog Properties =====
     [ObservableProperty]
     private bool _isAddLocalContentDialogOpen;
@@ -381,6 +392,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
 
                 // then load available icons and covers (so SelectedIcon/SelectedCoverItem get set correctly)
                 LoadAvailableIconsAndCovers(SelectedGameInstallation.GameType.ToString());
+                GameTypeFilter = SelectedGameInstallation.GameType;
             }
 
             // Initialize game settings with defaults for new profile
@@ -458,6 +470,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
 
             // Load available icons and covers for selection
             LoadAvailableIconsAndCovers(profile.GameClient.GameType.ToString());
+            GameTypeFilter = profile.GameClient.GameType;
 
             // Load game settings for this profile
             GameSettingsViewModel.ColorValue = ColorValue;
@@ -635,6 +648,12 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                         continue;
                     }
 
+                    // Skip items that don't match the current game type filter
+                    if (coreItem.GameType != GameTypeFilter)
+                    {
+                        continue;
+                    }
+
                     var viewModelItem = ConvertToViewModelContentDisplayItem(coreItem);
                     AvailableContent.Add(viewModelItem);
                 }
@@ -793,11 +812,19 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             var existingItems = EnabledContent.Where(e => e.ContentType == contentItem.ContentType).ToList();
             foreach (var existing in existingItems)
             {
+                // UX Improvement: If the existing item was the source of the name, reset it to "New Profile"
+                // so the new item can take over the name if it's the next one enabled.
+                if (existing.ContentType == ContentType.GameClient && Name == existing.DisplayName)
+                {
+                    Name = "New Profile";
+                    logger?.LogInformation("Reset profile name to 'New Profile' because its current name source ({ContentName}) is being replaced", existing.DisplayName);
+                }
+
                 existing.IsEnabled = false;
                 EnabledContent.Remove(existing);
 
                 // Re-add to AvailableContent if it matches the current filter
-                if (existing.ContentType == SelectedContentType)
+                if (existing.ContentType == SelectedContentType && existing.GameType == GameTypeFilter)
                 {
                     var alreadyInAvailable = AvailableContent.FirstOrDefault(a => a.ManifestId.Value == existing.ManifestId.Value);
                     if (alreadyInAvailable == null)
@@ -853,6 +880,13 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
 
         StatusMessage = $"Enabled {contentItem.DisplayName}";
         logger?.LogInformation("Enabled content {ContentName} for profile", contentItem.DisplayName);
+
+        // UX Improvement: Auto-rename "New Profile" when enabling a game client
+        if (contentItem.ContentType == ContentType.GameClient && Name == "New Profile")
+        {
+            Name = contentItem.DisplayName;
+            logger?.LogInformation("Auto-renamed profile from 'New Profile' to '{NewName}' based on enabled GameClient", Name);
+        }
 
         // Auto-resolve dependencies (switch game installation or enable other content)
         await ResolveDependenciesAsync(contentItem);
@@ -1404,8 +1438,8 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             EnabledContent.Remove(itemToRemove);
         }
 
-        // If the disabled content matches the current content type filter, add it back to AvailableContent
-        if (contentItem.ContentType == SelectedContentType)
+        // If the disabled content matches the current content type and game type filter, add it back to AvailableContent
+        if (contentItem.ContentType == SelectedContentType && contentItem.GameType == GameTypeFilter)
         {
             var alreadyInAvailable = AvailableContent.FirstOrDefault(a => a.ManifestId.Value == contentItem.ManifestId.Value);
             if (alreadyInAvailable == null)
@@ -1455,6 +1489,13 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             }
         }
 
+        // UX Improvement: Auto-rename back to "New Profile" if removing the game client that gave the name
+        if (contentItem.ContentType == ContentType.GameClient && Name == contentItem.DisplayName)
+        {
+            Name = "New Profile";
+            logger?.LogInformation("Auto-renamed profile back to 'New Profile' after disabling GameClient '{OldName}'", contentItem.DisplayName);
+        }
+
         StatusMessage = $"Disabled {contentItem.DisplayName}";
         logger?.LogInformation("Disabled content {ContentName} for profile", contentItem.DisplayName);
     }
@@ -1464,19 +1505,19 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     /// </summary>
     /// <param name="contentItem">The content item to delete.</param>
     [RelayCommand]
-    private async Task DeleteContentAsync(ContentDisplayItem? contentItem)
+    private void DeleteContent(ContentDisplayItem? contentItem)
     {
         if (contentItem == null)
         {
             StatusMessage = "No content selected";
-            logger?.LogWarning("DeleteContentAsync: contentItem parameter is NULL");
+            logger?.LogWarning("DeleteContent: contentItem parameter is NULL");
             return;
         }
 
         if (contentStorageService == null)
         {
             StatusMessage = "Content storage service not available";
-            logger?.LogError("DeleteContentAsync: contentStorageService is NULL");
+            logger?.LogError("DeleteContent: contentStorageService is NULL");
             return;
         }
 
@@ -1488,39 +1529,50 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                 "Cannot Delete",
                 $"Cannot delete '{contentItem.DisplayName}' because it is currently enabled in this profile. Please disable it first.");
             logger?.LogWarning(
-                "DeleteContentAsync: Cannot delete {ContentName} because it is enabled in the profile",
+                "DeleteContent: Cannot delete {ContentName} because it is enabled in the profile",
                 contentItem.DisplayName);
             return;
         }
 
         // Prevent deletion of GameInstallation content types
-        // GameInstallations reference existing files on the user's drive, not CAS-stored content
         if (contentItem.ContentType == Core.Models.Enums.ContentType.GameInstallation)
         {
             _localNotificationService.ShowWarning(
                 "Cannot Delete",
                 $"Cannot delete '{contentItem.DisplayName}' because it references an existing game installation on your drive. Only downloaded content (mods, maps, etc.) can be deleted.");
             logger?.LogWarning(
-                "DeleteContentAsync: Cannot delete {ContentName} because it is a GameInstallation",
+                "DeleteContent: Cannot delete {ContentName} because it is a GameInstallation",
                 contentItem.DisplayName);
             return;
         }
 
-        // Show confirmation dialog
-        var confirmationMessage = $"Are you sure you want to delete '{contentItem.DisplayName}' from storage? This action cannot be undone.";
-        var confirmed = await ShowConfirmationDialogAsync("Delete Content", confirmationMessage);
+        // Show actionable notification for confirmation
+        // using full namespace for NotificationMessage to avoid ambiguity if namespaces aren't imported
+        var notification = new Core.Models.Notifications.NotificationMessage(
+            Core.Models.Enums.NotificationType.Warning,
+            "Delete Content?",
+            $"Are you sure you want to delete '{contentItem.DisplayName}'? This action cannot be undone.",
+            autoDismissMilliseconds: null, // Persistent
+            actionText: "✓ Confirm Delete",
+            action: () => _ = PerformDeletionAsync(contentItem));
 
-        if (!confirmed)
-        {
-            logger?.LogInformation("DeleteContentAsync: User cancelled deletion of {ContentName}", contentItem.DisplayName);
-            return;
-        }
+        _localNotificationService.Show(notification);
+        logger?.LogInformation("DeleteContent: Shown confirmation notification for {ContentName}", contentItem.DisplayName);
+    }
+
+    /// <summary>
+    /// Performs the actual deletion of the content item.
+    /// </summary>
+    /// <param name="contentItem">The content item to delete.</param>
+    private async Task PerformDeletionAsync(ContentDisplayItem contentItem)
+    {
+        if (contentStorageService == null) return;
 
         try
         {
             StatusMessage = $"Deleting {contentItem.DisplayName}...";
             logger?.LogInformation(
-                "DeleteContentAsync: Deleting content {ContentName} (ManifestId: {ManifestId})",
+                "PerformDeletionAsync: Deleting content {ContentName} (ManifestId: {ManifestId})",
                 contentItem.DisplayName,
                 contentItem.ManifestId.Value);
 
@@ -1529,7 +1581,11 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
 
             if (result.Success)
             {
-                // Remove from AvailableContent collection
+                // Remove from AvailableContent collection (UI Update)
+                // We need to do this on the UI thread, which we should be on, but let's be safe if invoked from a callback
+                // Note: ObservableCollection isn't thread-safe, but NotificationService action is likely invoked on UI thread via command binding.
+                // However, since we are in async void (Action), we should ensure we are careful.
+                // Given Avalonia structure, the command invocation from the button is on UI thread.
                 var itemToRemove = AvailableContent.FirstOrDefault(a => a.ManifestId.Value == contentItem.ManifestId.Value);
                 if (itemToRemove != null)
                 {
@@ -1541,7 +1597,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                     "Content Deleted",
                     $"Successfully deleted '{contentItem.DisplayName}' from storage.");
                 logger?.LogInformation(
-                    "DeleteContentAsync: Successfully deleted content {ContentName}",
+                    "PerformDeletionAsync: Successfully deleted content {ContentName}",
                     contentItem.DisplayName);
             }
             else
@@ -1551,7 +1607,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                     "Deletion Failed",
                     $"Failed to delete '{contentItem.DisplayName}': {string.Join(", ", result.Errors)}");
                 logger?.LogError(
-                    "DeleteContentAsync: Failed to delete content {ContentName}: {Errors}",
+                    "PerformDeletionAsync: Failed to delete content {ContentName}: {Errors}",
                     contentItem.DisplayName,
                     string.Join(", ", result.Errors));
             }
@@ -1564,29 +1620,9 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                 $"An error occurred while deleting '{contentItem.DisplayName}': {ex.Message}");
             logger?.LogError(
                 ex,
-                "DeleteContentAsync: Exception while deleting content {ContentName}",
+                "PerformDeletionAsync: Exception while deleting content {ContentName}",
                 contentItem.DisplayName);
         }
-    }
-
-    /// <summary>
-    /// Shows a confirmation dialog and returns the user's choice.
-    /// </summary>
-    /// <param name="title">The dialog title.</param>
-    /// <param name="message">The confirmation message.</param>
-    /// <returns>True if the user confirmed, false otherwise.</returns>
-    private async Task<bool> ShowConfirmationDialogAsync(string title, string message)
-    {
-        // Show warning notification to inform the user
-        // Note: In a production scenario, this would integrate with a proper modal dialog service
-        _localNotificationService.ShowWarning(title, message, autoDismissMs: 5000);
-
-        // Wait a moment for the user to see the notification
-        await Task.Delay(1000);
-
-        // TODO: Integrate with a proper confirmation dialog service that returns user choice
-        // For now, we proceed with the action (return true)
-        return true;
     }
 
     /// <summary>
@@ -2035,6 +2071,20 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
         {
             SelectedContentType = contentType.Value;
             logger?.LogInformation("Content type filter changed to {ContentType}", contentType.Value);
+        }
+    }
+
+    /// <summary>
+    /// Changes the selected game type filter.
+    /// </summary>
+    /// <param name="gameType">The game type to filter by.</param>
+    [RelayCommand]
+    private void SelectGameTypeFilter(Core.Models.Enums.GameType gameType)
+    {
+        if (gameType != GameTypeFilter)
+        {
+            GameTypeFilter = gameType;
+            logger?.LogInformation("Game type filter changed to {GameType}", gameType);
         }
     }
 

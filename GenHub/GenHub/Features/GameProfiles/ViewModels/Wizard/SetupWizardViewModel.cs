@@ -44,17 +44,6 @@ public sealed partial class SetupWizardViewModel(IEnumerable<SetupWizardItemView
     /// </summary>
     public bool Confirmed => _confirmed;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="SetupWizardViewModel"/> class.
-    /// Default constructor for design time.
-    /// </summary>
-    [System.Obsolete("Design-time only", true)]
-    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-    public SetupWizardViewModel()
-        : this(System.Linq.Enumerable.Empty<SetupWizardItemViewModel>())
-    {
-    }
-
     [RelayCommand]
     private void ToggleSelection(SetupWizardItemViewModel item)
     {
