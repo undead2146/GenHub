@@ -94,8 +94,8 @@
             <Setter Property="Background">
                 <Setter.Value>
                     <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-                        <GradientStop Color="#2D2D2D" Offset="0" />
-                        <GradientStop Color="#202020" Offset="1" />
+                        <GradientStop Color="#992D2D2D" Offset="0" />
+                        <GradientStop Color="#99202020" Offset="1" />
                     </LinearGradientBrush>
                 </Setter.Value>
             </Setter>
@@ -128,8 +128,18 @@
             <settingsViews:SettingsView />
         </DataTemplate>
     </UserControl.DataTemplates>
-
+ 
     <Grid>
+        <!-- Global background image for all tabs -->
+        <Image Source="avares://GenHub/Assets/background.jpg" 
+               Stretch="UniformToFill" 
+               HorizontalAlignment="Stretch" 
+               VerticalAlignment="Stretch"
+               Grid.RowSpan="2"/>
+
+        <!-- Semi-transparent overlay to improve text readability -->
+        <Border Background="#F2141414" Grid.RowSpan="2" />
+
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -179,12 +189,12 @@
         </Border>
 
         <!-- Main content area -->
-        <Grid Grid.Row="1" Background="#1A1A1A">
+        <Grid Grid.Row="1">
             <ContentControl Content="{Binding CurrentTabViewModel}" />
             <!-- Version label in bottom right corner -->
             <TextBlock Text="{x:Static constants:AppConstants.DisplayVersion}"
                        FontSize="9"
-                       Foreground="#404040"
+                       Foreground="#808080"
                        HorizontalAlignment="Right"
                        VerticalAlignment="Bottom"
                        Margin="0,0,10,5" />

@@ -6,8 +6,7 @@
              xmlns:views="clr-namespace:GenHub.Features.Downloads.Views"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="GenHub.Features.Downloads.Views.DownloadsView"
-             x:DataType="vm:DownloadsViewModel"
-             Background="#1A1A1A">
+             x:DataType="vm:DownloadsViewModel">
 
     <UserControl.Styles>
         <Style Selector="Button.github-button">
