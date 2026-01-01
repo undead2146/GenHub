@@ -39,7 +39,7 @@ public static class GeneralsOnlineConstants
     /// <summary>
     /// Publisher logo source path for UI display.
     /// </summary>
-    public const string LogoSource = "/Assets/Logos/generalsonline-logo.png";
+    public const string LogoSource = UriConstants.GeneralsOnlineLogoUri;
 
     // ===== Version Parsing =====
 

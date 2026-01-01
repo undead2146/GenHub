@@ -15,6 +15,9 @@ public static class GameClientConstants
     /// <summary>Zero Hour executable filename.</summary>
     public const string ZeroHourExecutable = "generals.exe";
 
+    /// <summary>Game engine executable filename.</summary>
+    public const string GameExecutable = "game.exe";
+
     /// <summary>Steam game.dat executable (alternative to generals.exe for Steam-free launch).</summary>
     public const string SteamGameDatExecutable = "game.dat";
 
@@ -133,6 +136,9 @@ public static class GameClientConstants
         "binkw32.dll",        // Bink video codec
         "mss32.dll",          // Miles Sound System
         "eauninstall.dll",    // EA App integration
+        "P2XDLL.DLL",         // EA/Steam wrapper DLL
+        "patchw32.dll",       // Update/Patch engine DLL
+        "dbghelp.dll",        // Debugging help (often included)
     ];
 
     /// <summary>

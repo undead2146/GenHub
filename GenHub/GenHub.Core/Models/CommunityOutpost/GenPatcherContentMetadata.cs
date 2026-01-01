@@ -43,7 +43,7 @@ public class GenPatcherContentMetadata
     /// <summary>
     /// Gets or sets the version string derived from the content code.
     /// </summary>
-    public string Version { get; set; } = ManifestConstants.DefaultManifestVersion;
+    public string? Version { get; set; }
 
     /// <summary>
     /// Gets or sets the content category for grouping in UI.

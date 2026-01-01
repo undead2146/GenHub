@@ -377,17 +377,100 @@ public class GameClientDetector(
             }
         }
 
-        // If no recognized executable found, fall back to standard executable name for the game type
+        // If no recognized executable found, try to detect version from the default executable's file info
         var defaultExecutableName = gameType == GameType.Generals ? GameClientConstants.GeneralsExecutable : GameClientConstants.ZeroHourExecutable;
         var defaultPath = Path.Combine(installationPath, defaultExecutableName);
         var fallbackVersion = "Unknown";
 
+        if (File.Exists(defaultPath))
+        {
+            try
+            {
+                var versionInfo = System.Diagnostics.FileVersionInfo.GetVersionInfo(defaultPath);
+
+                // Try ProductVersion first, then FileVersion
+                var rawVersion = versionInfo.ProductVersion ?? versionInfo.FileVersion;
+
+                if (!string.IsNullOrWhiteSpace(rawVersion))
+                {
+                    // Clean up version string
+                    // 1. Remove build metadata (e.g., "+buildhash" or "-beta")
+                    var cleanVersion = rawVersion.Split('+')[0].Split('-')[0].Trim();
+
+                    // 2. Normalize separators
+                    cleanVersion = cleanVersion.Replace(", ", ".").Replace(",", ".");
+
+                    // 3. Ensure we have at most 2 components ("Major.Minor")
+                    var components = cleanVersion.Split('.');
+                    if (components.Length > 2)
+                    {
+                        if (components.Length >= 3 && components[0] == "1" && components[1] == "0" && components[2] != "0")
+                        {
+                            cleanVersion = $"1.0{components[2]}"; // 1.0.4 -> 1.04
+                        }
+                        else if (components.Length >= 2)
+                        {
+                            cleanVersion = $"{components[0]}.{components[1]}"; // 1.0.0.0 -> 1.0
+                        }
+                        else
+                        {
+                            cleanVersion = components[0];
+                        }
+                    }
+
+                    // 4. Final check
+                    if (cleanVersion.Count(c => c == '.') > 1)
+                    {
+                        cleanVersion = cleanVersion.Split('.')[0];
+                    }
+
+                    fallbackVersion = cleanVersion;
+
+                    logger.LogInformation(
+                        "Detected {GameType} version {Version} (raw: {RawVersion}) from FileVersionInfo for {ExecutableName}",
+                        gameType,
+                        cleanVersion,
+                        rawVersion,
+                        defaultExecutableName);
+
+                    fallbackVersion = cleanVersion;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to read FileVersionInfo from {ExecutablePath}", defaultPath);
+            }
+        }
+
+        // Apply smart defaults for generic/unknown versions
+        // If we detected "1.0" (common for EA App/Steam) or "Unknown", assume latest patch
+        if (fallbackVersion == "Unknown" || fallbackVersion == "1.0" || fallbackVersion == "1.00")
+        {
+            var oldVersion = fallbackVersion;
+            if (gameType == GameType.Generals)
+            {
+                fallbackVersion = "1.08";
+            }
+            else if (gameType == GameType.ZeroHour)
+            {
+                fallbackVersion = "1.04";
+            }
+
+            if (fallbackVersion != oldVersion)
+            {
+                logger.LogInformation(
+                    "Normalized generic version '{OldVersion}' to standard latest patch '{NewVersion}' for {GameType}",
+                    oldVersion,
+                    fallbackVersion,
+                    gameType);
+            }
+        }
+
         logger.LogInformation(
-            "No recognized executable found for {GameType} in {InstallationPath}, using default {ExecutableName} with version {Version}",
-            gameType,
-            installationPath,
+            "Using {ExecutableName} with version {Version} for {GameType}",
             defaultExecutableName,
-            fallbackVersion);
+            fallbackVersion,
+            gameType);
         return (fallbackVersion, defaultPath);
     }
 
@@ -476,7 +559,7 @@ public class GameClientDetector(
     /// <summary>
     /// Detects publisher game clients from local files for publishers not yet handled from the pool.
     /// </summary>
-    private async Task DetectPublisherClientsFromLocalFilesAsync(
+    private Task DetectPublisherClientsFromLocalFilesAsync(
         GameInstallation installation,
         string installationPath,
         GameType gameType,
@@ -513,7 +596,7 @@ public class GameClientDetector(
                     var gameClient = new GameClient
                     {
                         Name = identification.DisplayName,
-                        Id = $"detected-{identification.PublisherId}-{identification.Variant}", // Temporary ID for detection only
+                        Id = string.Empty, // No manifest ID - these are detected-only clients that should prompt for verified publisher download
                         Version = identification.LocalVersion ?? GameClientConstants.UnknownVersion,
                         ExecutablePath = executablePath,
                         GameType = gameType,
@@ -532,6 +615,8 @@ public class GameClientDetector(
                 }
             }
         }
+
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -548,7 +633,7 @@ public class GameClientDetector(
     /// which can invalidate hash verification. For now, we detect by filename only
     /// and skip hash validation until a dedicated publisher system is implemented.
     /// </remarks>
-    private async Task<List<GameClient>> DetectGeneralsOnlineClientsAsync(
+    private Task<List<GameClient>> DetectGeneralsOnlineClientsAsync(
         GameInstallation installation,
         GameType gameType)
     {
@@ -557,11 +642,11 @@ public class GameClientDetector(
 
         if (string.IsNullOrEmpty(installationPath) || !Directory.Exists(installationPath))
         {
-            return detectedClients;
+            return Task.FromResult(detectedClients);
         }
 
         // GeneralsOnline clients auto-update, so we use a fixed version string
-        const string generalsOnlineVersion = "Automatically added";
+        const string generalsOnlineVersion = GameClientConstants.UnknownVersion;
 
         var generalsOnlineExecutables = GameClientConstants.GeneralsOnlineExecutableNames;
 
@@ -604,7 +689,7 @@ public class GameClientDetector(
                 var gameClient = new GameClient
                 {
                     Name = displayName,
-                    Id = $"detected-{PublisherTypeConstants.GeneralsOnline}-{variantName}", // Temporary ID for detection only
+                    Id = string.Empty, // No manifest ID - these are detected-only clients that should prompt for verified publisher download
                     Version = generalsOnlineVersion,
                     ExecutablePath = executablePath,
                     GameType = gameType,
@@ -639,7 +724,7 @@ public class GameClientDetector(
                 installationPath);
         }
 
-        return detectedClients;
+        return Task.FromResult(detectedClients);
     }
 
     /// <summary>

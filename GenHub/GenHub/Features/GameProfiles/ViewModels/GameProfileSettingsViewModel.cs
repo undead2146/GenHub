@@ -990,8 +990,8 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                         ContentDisplayItem? compatibleInstallation = null;
 
                         // First priority: Try finding the specific installation this content belongs to (via SourceId)
-                        // Only applicable if SourceId is a GUID (detected content). Local content has a path as SourceId.
-                        if (!string.IsNullOrEmpty(contentItem.SourceId) && Guid.TryParse(contentItem.SourceId, out _))
+                        // Use SourceId directly (it tracks the parent installation ID)
+                        if (!string.IsNullOrEmpty(contentItem.SourceId))
                         {
                             compatibleInstallation = AvailableGameInstallations
                                 .FirstOrDefault(x => x.ManifestId.Value == contentItem.SourceId);
@@ -1013,11 +1013,17 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
                                 .FirstOrDefault(x => x.ManifestId.Value == dependency.Id.ToString());
                         }
 
-                        // Third priority: Try by compatible game type (any matching installation)
+                        // Third priority: Try by compatible game type
                         if (compatibleInstallation == null && dependency.CompatibleGameTypes != null)
                         {
+                            // prefer matching InstallationType (e.g. EA App Client -> EA App Installation)
                             compatibleInstallation = AvailableGameInstallations
-                                .FirstOrDefault(x => dependency.CompatibleGameTypes.Contains(x.GameType));
+                                .FirstOrDefault(x => dependency.CompatibleGameTypes.Contains(x.GameType) &&
+                                                     x.InstallationType == contentItem.InstallationType);
+
+                            // Fallback to any matching game type (e.g. Steam Client -> CD Installation, if only option)
+                            compatibleInstallation ??= AvailableGameInstallations
+                                    .FirstOrDefault(x => dependency.CompatibleGameTypes.Contains(x.GameType));
                         }
 
                         if (compatibleInstallation != null)

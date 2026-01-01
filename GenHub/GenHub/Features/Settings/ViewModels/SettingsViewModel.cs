@@ -65,6 +65,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     private readonly Timer _dangerZoneUpdateTimer;
     private readonly IConfigurationProviderService _configurationProvider;
     private readonly IGameInstallationService _installationService;
+    private readonly IStorageLocationService _storageLocationService;
     private readonly IUserDataTracker _userDataTracker;
 
     private bool _isViewVisible;
@@ -212,6 +213,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     /// <param name="notificationService">Notification service.</param>
     /// <param name="configurationProvider">Configuration provider.</param>
     /// <param name="installationService">Game installation service.</param>
+    /// <param name="storageLocationService">Storage location service.</param>
     /// <param name="userDataTracker">User data tracker service.</param>
     /// <param name="gitHubTokenStorage">GitHub token storage.</param>
     public SettingsViewModel(
@@ -225,6 +227,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         INotificationService notificationService,
         IConfigurationProviderService configurationProvider,
         IGameInstallationService installationService,
+        IStorageLocationService storageLocationService,
         IUserDataTracker userDataTracker,
         IGitHubTokenStorage? gitHubTokenStorage = null)
     {
@@ -238,6 +241,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
         _configurationProvider = configurationProvider ?? throw new ArgumentNullException(nameof(configurationProvider));
         _installationService = installationService ?? throw new ArgumentNullException(nameof(installationService));
+        _storageLocationService = storageLocationService ?? throw new ArgumentNullException(nameof(storageLocationService));
         _userDataTracker = userDataTracker ?? throw new ArgumentNullException(nameof(userDataTracker));
         _gitHubTokenStorage = gitHubTokenStorage;
 
@@ -1265,24 +1269,205 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         try
         {
             var logsPath = _configurationProvider.GetLogsPath();
-            if (Directory.Exists(logsPath))
+            _logger.LogInformation("Opening logs directory: {Path}", logsPath);
+
+            if (!Directory.Exists(logsPath))
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = logsPath,
-                    UseShellExecute = true,
-                    Verb = "open",
-                });
+                _logger.LogWarning("Logs directory not found at {Path}, creating it", logsPath);
+                Directory.CreateDirectory(logsPath);
             }
-            else
+
+            Process.Start(new ProcessStartInfo
             {
-                _notificationService.ShowError("Error", "Logs directory not found.", 3000);
-            }
+                FileName = logsPath,
+                UseShellExecute = true,
+                Verb = "open",
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to open logs directory");
-            _notificationService.ShowError("Error", "Failed to open logs directory.", 3000);
+            _notificationService.ShowError("Error", $"Failed to open logs directory: {ex.Message}", 5000);
+        }
+    }
+
+    [RelayCommand]
+    private void OpenAppDataDirectory()
+    {
+        try
+        {
+            var path = _configurationProvider.GetRootAppDataPath();
+            _logger.LogInformation("Opening AppData directory: {Path}", path);
+
+            if (!Directory.Exists(path))
+            {
+                _logger.LogWarning("AppData directory not found at {Path}, creating it", path);
+                Directory.CreateDirectory(path);
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true,
+                Verb = "open",
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open AppData directory");
+            _notificationService.ShowError("Error", $"Failed to open AppData directory: {ex.Message}", 5000);
+        }
+    }
+
+    [RelayCommand]
+    private void OpenProfilesDirectory()
+    {
+        try
+        {
+            var path = _configurationProvider.GetProfilesPath();
+            _logger.LogInformation("Opening profiles directory: {Path}", path);
+
+            if (!Directory.Exists(path))
+            {
+                _logger.LogWarning("Profiles directory not found at {Path}, creating it", path);
+                Directory.CreateDirectory(path);
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true,
+                Verb = "open",
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open profiles directory");
+            _notificationService.ShowError("Error", $"Failed to open profiles directory: {ex.Message}", 5000);
+        }
+    }
+
+    [RelayCommand]
+    private void OpenManifestsDirectory()
+    {
+        try
+        {
+            var path = _configurationProvider.GetManifestsPath();
+            _logger.LogInformation("Opening manifests directory: {Path}", path);
+
+            if (!Directory.Exists(path))
+            {
+                _logger.LogWarning("Manifests directory not found at {Path}, creating it", path);
+                Directory.CreateDirectory(path);
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true,
+                Verb = "open",
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open manifests directory");
+            _notificationService.ShowError("Error", $"Failed to open manifests directory: {ex.Message}", 5000);
+        }
+    }
+
+    [RelayCommand]
+    private async Task OpenWorkspacesDirectory()
+    {
+        try
+        {
+            var preferredInstallation = await _storageLocationService.GetPreferredInstallationAsync();
+            string path;
+
+            if (preferredInstallation != null)
+            {
+                path = _storageLocationService.GetWorkspacePath(preferredInstallation);
+            }
+            else
+            {
+                // Fallback to try to find any installation
+                var installations = await _installationService.GetAllInstallationsAsync();
+                if (installations.Success && installations.Data?.Any() == true)
+                {
+                    path = _storageLocationService.GetWorkspacePath(installations.Data.First());
+                }
+                else
+                {
+                    path = Path.Combine(_configurationProvider.GetApplicationDataPath(), DirectoryNames.Workspaces);
+                }
+            }
+
+            _logger.LogInformation("Opening workspaces directory: {Path}", path);
+
+            if (!Directory.Exists(path))
+            {
+                _logger.LogWarning("Workspaces directory not found at {Path}, creating it", path);
+                Directory.CreateDirectory(path);
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true,
+                Verb = "open",
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open workspaces directory");
+            _notificationService.ShowError("Error", $"Failed to open workspaces directory: {ex.Message}", 5000);
+        }
+    }
+
+    [RelayCommand]
+    private async Task OpenCasPoolDirectory()
+    {
+        try
+        {
+            var preferredInstallation = await _storageLocationService.GetPreferredInstallationAsync();
+            string path;
+
+            if (preferredInstallation != null)
+            {
+                path = _storageLocationService.GetCasPoolPath(preferredInstallation);
+            }
+            else
+            {
+                // Fallback to try to find any installation
+                var installations = await _installationService.GetAllInstallationsAsync();
+                if (installations.Success && installations.Data?.Any() == true)
+                {
+                    path = _storageLocationService.GetCasPoolPath(installations.Data.First());
+                }
+                else
+                {
+                    path = _configurationProvider.GetCasConfiguration().CasRootPath;
+                }
+            }
+
+            _logger.LogInformation("Opening CAS pool directory: {Path}", path);
+
+            if (!Directory.Exists(path))
+            {
+                _logger.LogWarning("CAS pool directory not found at {Path}, creating it", path);
+                Directory.CreateDirectory(path);
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true,
+                Verb = "open",
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open CAS pool directory");
+            _notificationService.ShowError("Error", $"Failed to open CAS pool directory: {ex.Message}", 5000);
         }
     }
 
@@ -1292,8 +1477,11 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         try
         {
             var logsPath = _configurationProvider.GetLogsPath();
+            _logger.LogInformation("Opening latest log from: {Path}", logsPath);
+
             if (!Directory.Exists(logsPath))
             {
+                _logger.LogWarning("Logs directory not found at {Path}", logsPath);
                 _notificationService.ShowError("Error", "Logs directory not found.", 3000);
                 return;
             }
@@ -1305,6 +1493,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
 
             if (latestLog != null)
             {
+                _logger.LogInformation("Opening log file: {LogFile}", latestLog.FullName);
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = latestLog.FullName,
@@ -1313,13 +1502,14 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             }
             else
             {
+                _logger.LogInformation("No log files found in {Path}", logsPath);
                 _notificationService.ShowInfo("Info", "No log files found.", 3000);
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to open latest log file");
-            _notificationService.ShowError("Error", "Failed to open latest log file.", 3000);
+            _notificationService.ShowError("Error", $"Failed to open latest log file: {ex.Message}", 5000);
         }
     }
 

@@ -34,7 +34,8 @@ public class SettingsViewModelTests
     private readonly Mock<IVelopackUpdateManager> _mockUpdateManager;
     private readonly Mock<INotificationService> _mockNotificationService;
     private readonly Mock<IConfigurationProviderService> _mockConfigurationProvider;
-    private readonly Mock<IGameInstallationService> _mockInstallationService; // Added
+    private readonly Mock<IGameInstallationService> _mockInstallationService;
+    private readonly Mock<IStorageLocationService> _mockStorageLocationService;
     private readonly Mock<IUserDataTracker> _mockUserDataTracker;
     private readonly UserSettings _defaultSettings;
 
@@ -52,7 +53,8 @@ public class SettingsViewModelTests
         _mockUpdateManager = new Mock<IVelopackUpdateManager>();
         _mockNotificationService = new Mock<INotificationService>();
         _mockConfigurationProvider = new Mock<IConfigurationProviderService>();
-        _mockInstallationService = new Mock<IGameInstallationService>(); // Added
+        _mockInstallationService = new Mock<IGameInstallationService>();
+        _mockStorageLocationService = new Mock<IStorageLocationService>();
         _mockUserDataTracker = new Mock<IUserDataTracker>();
         _defaultSettings = new UserSettings();
 
@@ -88,6 +90,7 @@ public class SettingsViewModelTests
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
+            _mockStorageLocationService.Object,
             _mockUserDataTracker.Object);
 
         // Assert
@@ -116,6 +119,7 @@ public class SettingsViewModelTests
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
+            _mockStorageLocationService.Object,
             _mockUserDataTracker.Object)
         {
             Theme = "Light",
@@ -149,6 +153,7 @@ public class SettingsViewModelTests
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
+            _mockStorageLocationService.Object,
             _mockUserDataTracker.Object)
         {
             Theme = "Light",
@@ -184,6 +189,7 @@ public class SettingsViewModelTests
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
+            _mockStorageLocationService.Object,
             _mockUserDataTracker.Object)
         {
             // Act & Assert - Test lower bound
@@ -218,6 +224,7 @@ public class SettingsViewModelTests
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
+            _mockStorageLocationService.Object,
             _mockUserDataTracker.Object);
 
         // Act
@@ -247,6 +254,7 @@ public class SettingsViewModelTests
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
+            _mockStorageLocationService.Object,
             _mockUserDataTracker.Object);
 
         // Act
@@ -278,6 +286,7 @@ public class SettingsViewModelTests
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
+            _mockStorageLocationService.Object,
             _mockUserDataTracker.Object);
 
         // Act
@@ -315,6 +324,7 @@ public class SettingsViewModelTests
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
+            _mockStorageLocationService.Object,
             _mockUserDataTracker.Object);
 
         // Assert - Should not throw and use defaults
@@ -351,6 +361,7 @@ public class SettingsViewModelTests
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
+            _mockStorageLocationService.Object,
             _mockUserDataTracker.Object);
 
         // Act
@@ -379,6 +390,7 @@ public class SettingsViewModelTests
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
+            _mockStorageLocationService.Object,
             _mockUserDataTracker.Object);
 
         // Act

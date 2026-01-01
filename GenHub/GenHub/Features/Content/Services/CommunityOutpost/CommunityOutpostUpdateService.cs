@@ -60,7 +60,7 @@ public class CommunityOutpostUpdateService(
 
             var currentVersion = existingCommunityPatches.FirstOrDefault()?.ManifestVersion;
 
-            if (existingCommunityPatches.Any(m => m.ManifestVersion == latestVersion))
+            if (existingCommunityPatches.Any(m => GenHub.Core.Helpers.VersionComparer.CompareVersions(m.ManifestVersion, latestVersion, CommunityOutpostConstants.PublisherType) == 0))
             {
                 logger.LogInformation("Community Outpost version {Version} already exists in manifest pool", latestVersion);
                 return ContentUpdateCheckResult.CreateNoUpdateAvailable(currentVersion, latestVersion);

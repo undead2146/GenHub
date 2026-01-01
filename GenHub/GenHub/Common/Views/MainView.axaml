@@ -78,7 +78,7 @@
             <Setter Property="Foreground" Value="White" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="BorderThickness" Value="0,0,0,2" />
-            <Setter Property="BorderBrush" Value="#4A9EFF" />
+            <Setter Property="BorderBrush" Value="#8A2BE2" />
         </Style>
 
         <Style Selector="Button.modern-tab.active:pointerover">
@@ -128,12 +128,12 @@
             <settingsViews:SettingsView />
         </DataTemplate>
     </UserControl.DataTemplates>
- 
+
     <Grid>
         <!-- Global background image for all tabs -->
-        <Image Source="avares://GenHub/Assets/background.jpg" 
-               Stretch="UniformToFill" 
-               HorizontalAlignment="Stretch" 
+        <Image Source="avares://GenHub/Assets/background.jpg"
+               Stretch="UniformToFill"
+               HorizontalAlignment="Stretch"
                VerticalAlignment="Stretch"
                Grid.RowSpan="2"/>
 
@@ -167,7 +167,6 @@
                         Command="{Binding SelectTabCommand}"
                         CommandParameter="{x:Static enums:NavigationTab.Tools}"
                         Content="Tools"
-                        IsVisible="False"
                         Name="Tab2Button" />
                     <Button Classes="modern-tab"
                         Classes.active="{Binding SelectedTab, Converter={x:Static conv:NavigationTabConverter.Instance}, ConverterParameter={x:Static enums:NavigationTab.Settings}}"

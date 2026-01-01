@@ -166,6 +166,7 @@ public class CommunityOutpostResolver(
 
             // Store additional metadata in the manifest for the deliverer
             var builtManifest = manifest.Build();
+            builtManifest.ManifestVersion = manifestVersion;
 
             // Store the install target from content metadata
             builtManifest.InstallationInstructions ??= new InstallationInstructions();
