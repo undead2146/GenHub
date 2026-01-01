@@ -245,6 +245,7 @@ public class MainViewModelTests
         var mockNotificationServiceForSettings = new Mock<INotificationService>();
         var mockConfigurationProvider = new Mock<IConfigurationProviderService>();
         var mockInstallationService = new Mock<IGameInstallationService>();
+        var mockUserDataTracker = new Mock<IUserDataTracker>();
 
         var settingsVm = new SettingsViewModel(
             mockUserSettings.Object,
@@ -256,7 +257,8 @@ public class MainViewModelTests
             mockUpdateManager.Object,
             mockNotificationServiceForSettings.Object,
             mockConfigurationProvider.Object,
-            mockInstallationService.Object);
+            mockInstallationService.Object,
+            mockUserDataTracker.Object);
         return (settingsVm, mockUserSettings);
     }
 

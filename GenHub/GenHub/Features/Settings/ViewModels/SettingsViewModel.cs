@@ -20,6 +20,7 @@ using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Storage;
+using GenHub.Core.Interfaces.UserData;
 using GenHub.Core.Interfaces.Workspace;
 using GenHub.Core.Messages;
 using GenHub.Core.Models.AppUpdate;
@@ -64,6 +65,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     private readonly Timer _dangerZoneUpdateTimer;
     private readonly IConfigurationProviderService _configurationProvider;
     private readonly IGameInstallationService _installationService;
+    private readonly IUserDataTracker _userDataTracker;
 
     private bool _isViewVisible;
     private bool _disposed;
@@ -207,10 +209,11 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     /// <param name="workspaceManager">The workspace manager.</param>
     /// <param name="manifestPool">The content manifest pool.</param>
     /// <param name="updateManager">The update manager service.</param>
-    /// <param name="notificationService">The notification service.</param>
-    /// <param name="configurationProvider">The configuration provider service.</param>
-    /// <param name="installationService">The game installation service.</param>
-    /// <param name="gitHubTokenStorage">Optional GitHub token storage for PAT management.</param>
+    /// <param name="notificationService">Notification service.</param>
+    /// <param name="configurationProvider">Configuration provider.</param>
+    /// <param name="installationService">Game installation service.</param>
+    /// <param name="userDataTracker">User data tracker service.</param>
+    /// <param name="gitHubTokenStorage">GitHub token storage.</param>
     public SettingsViewModel(
         IUserSettingsService userSettingsService,
         ILogger<SettingsViewModel> logger,
@@ -222,6 +225,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         INotificationService notificationService,
         IConfigurationProviderService configurationProvider,
         IGameInstallationService installationService,
+        IUserDataTracker userDataTracker,
         IGitHubTokenStorage? gitHubTokenStorage = null)
     {
         _userSettingsService = userSettingsService ?? throw new ArgumentNullException(nameof(userSettingsService));
@@ -234,6 +238,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
         _configurationProvider = configurationProvider ?? throw new ArgumentNullException(nameof(configurationProvider));
         _installationService = installationService ?? throw new ArgumentNullException(nameof(installationService));
+        _userDataTracker = userDataTracker ?? throw new ArgumentNullException(nameof(userDataTracker));
         _gitHubTokenStorage = gitHubTokenStorage;
 
         LoadSettings();
@@ -1068,6 +1073,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         await DeleteProfiles();
         await DeleteWorkspaces();
         await DeleteManifests();
+        await DeleteUserData(); // Add this call
 
         // Force CAS deletion when deleting all data to ensure immediate UI feedback
         _logger.LogInformation("Forcing CAS storage cleanup as part of DeleteAllData");
@@ -1178,6 +1184,24 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         {
             _logger.LogError(ex, "Failed to delete workspaces");
             _notificationService.ShowError("Deletion Failed", $"Failed to delete workspaces: {ex.Message}", 5000);
+        }
+    }
+
+    [RelayCommand]
+    private async Task DeleteUserData()
+    {
+        try
+        {
+            _logger.LogWarning("Deleting all user data");
+            await _userDataTracker.DeleteAllUserDataAsync();
+            _notificationService.ShowSuccess("User Data Deleted", "All user data deleted successfully.", 3000);
+
+            await UpdateDangerZoneDataAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete user data");
+            _notificationService.ShowError("Deletion Failed", $"Failed to delete user data: {ex.Message}", 5000);
         }
     }
 

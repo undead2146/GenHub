@@ -105,7 +105,7 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     /// Gets or sets the list of available pull requests with artifacts.
     /// </summary>
     [ObservableProperty]
-    private ObservableCollection<PullRequestInfo> _availablePullRequests = new();
+    private ObservableCollection<PullRequestInfo> _availablePullRequests = [];
 
     /// <summary>
     /// Gets or sets the currently subscribed PR.
@@ -125,7 +125,7 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     /// Gets or sets the list of available branches.
     /// </summary>
     [ObservableProperty]
-    private ObservableCollection<string> _availableBranches = new();
+    private ObservableCollection<string> _availableBranches = [];
 
     /// <summary>
     /// Gets or sets the currently subscribed branch.
