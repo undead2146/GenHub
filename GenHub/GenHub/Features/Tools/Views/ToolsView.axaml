@@ -9,34 +9,45 @@
 
   <UserControl.Styles>
     <Style Selector="Border.tool-list-card">
-      <Setter Property="Background" Value="#2D2D30" />
+      <Setter Property="Background" Value="#1E1E1E" />
       <Setter Property="CornerRadius" Value="8" />
-      <Setter Property="BorderBrush" Value="#3F3F46" />
+      <Setter Property="BorderBrush" Value="#333333" />
       <Setter Property="BorderThickness" Value="1" />
     </Style>
 
     <Style Selector="Border.tool-content-card">
-      <Setter Property="Background" Value="#2D2D30" />
+      <Setter Property="Background" Value="#1A1A1A" />
       <Setter Property="CornerRadius" Value="8" />
-      <Setter Property="BorderBrush" Value="#3F3F46" />
+      <Setter Property="BorderBrush" Value="#333333" />
       <Setter Property="BorderThickness" Value="1" />
     </Style>
 
     <Style Selector="ListBoxItem">
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="#E0E0E0" />
-      <Setter Property="Padding" Value="12,10" />
-      <Setter Property="Margin" Value="4,2" />
+      <Setter Property="Foreground" Value="#CCCCCC" />
+      <Setter Property="Padding" Value="12,12" />
+      <Setter Property="Margin" Value="0,2" />
       <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="ClipToBounds" Value="False" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.2" />
+        </Transitions>
+      </Setter>
     </Style>
 
     <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="#404040" />
+      <Setter Property="Background" Value="#333333" />
+      <Setter Property="Foreground" Value="White" />
     </Style>
 
     <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
-      <Setter Property="Background" Value="#0078D4" />
+      <Setter Property="Background" Value="#3D3D42" />
       <Setter Property="TextBlock.Foreground" Value="White" />
+    </Style>
+
+    <Style Selector="ListBoxItem:selected">
+      <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
     <Style Selector="Button.primary-button">
@@ -199,19 +210,59 @@
     </Border>
 
     <!-- Main Content -->
-    <Grid Grid.Row="2" ColumnDefinitions="300,*">
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,*">
       <!-- Left Panel: Tool List -->
-      <Border Grid.Column="0" Classes="tool-list-card" Margin="0,0,15,0">
+      <Border Grid.Column="0" 
+              Classes="tool-list-card" 
+              Margin="0,0,15,0"
+              Width="{Binding SidebarWidth}">
         <Grid RowDefinitions="Auto,*,Auto" Margin="15">
           <!-- Tool List Header -->
-          <StackPanel Grid.Row="0" Spacing="10" Margin="0,0,0,15">
-            <TextBlock Text="Installed Tools" Classes="section-title" />
-            <Button Content="➕ Add Tool"
-                    Command="{Binding AddToolCommand}"
-                    Classes="primary-button"
-                    HorizontalAlignment="Stretch"
-                    IsEnabled="{Binding !IsLoading}" />
-          </StackPanel>
+          <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,15">
+            <TextBlock Grid.Column="0" 
+                       Text="Installed Tools" 
+                       Classes="section-title"
+                       VerticalAlignment="Center"
+                       IsVisible="{Binding !IsSidebarCollapsed}" />
+            
+            <Button Grid.Column="1"
+                    Command="{Binding ToggleSidebarCommand}"
+                    Classes="icon-button"
+                    ToolTip.Tip="{Binding SidebarToggleTooltip}"
+                    Width="32" Height="32"
+                    Padding="0"
+                    Background="Transparent"
+                    BorderThickness="0">
+                <Path Fill="#AAAAAA"
+                      Stretch="Uniform"
+                      Width="12" Height="12">
+                    <Path.Styles>
+                        <Style Selector="Path">
+                            <Setter Property="Data" Value="M 8 0 L 0 5 L 8 10 Z" />
+                        </Style>
+                        <Style Selector="Path[Tag=True]">
+                            <Setter Property="Data" Value="M 0 0 L 8 5 L 0 10 Z" />
+                        </Style>
+                    </Path.Styles>
+                    <Path.Tag>
+                        <Binding Path="IsSidebarCollapsed" />
+                    </Path.Tag>
+                </Path>
+            </Button>
+          </Grid>
+
+          <!-- Add Tool Button (Full or Icon) -->
+          <Button Grid.Row="0"
+                  Margin="0,35,0,0"
+                  Command="{Binding AddToolCommand}"
+                  Classes="primary-button"
+                  HorizontalAlignment="Stretch"
+                  IsEnabled="{Binding !IsLoading}">
+              <Panel>
+                  <TextBlock Text="➕ Add Tool" IsVisible="{Binding !IsSidebarCollapsed}" />
+                  <TextBlock Text="➕" IsVisible="{Binding IsSidebarCollapsed}" />
+              </Panel>
+          </Button>
 
           <!-- Tool List -->
           <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
@@ -244,23 +295,27 @@
                        SelectedItem="{Binding SelectedTool}"
                        Background="Transparent"
                        BorderThickness="0"
+                       Padding="0"
                        IsVisible="{Binding HasTools}">
                 <ListBox.ItemTemplate>
                   <DataTemplate>
-                    <Grid ColumnDefinitions="*,Auto,Auto">
-                      <StackPanel Grid.Column="0" Spacing="4">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <StackPanel Grid.Column="0" Spacing="4" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Metadata.Name}" Classes="tool-name" />
                         <TextBlock Text="{Binding Metadata.Version, StringFormat='v{0}'}"
-                                   Classes="tool-version" />
+                                   Classes="tool-version"
+                                   IsVisible="{Binding !$parent[UserControl].((vm:ToolsViewModel)DataContext).IsSidebarCollapsed}" />
                       </StackPanel>
                       
                       <!-- Menu Button with Flyout -->
                       <Button Grid.Column="1"
                               Classes="icon-button"
-                              Width="32"
-                              Height="32"
-                              Padding="4"
-                              Margin="4,0,0,0">
+                              Width="24"
+                              Height="24"
+                              Padding="0"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              IsVisible="{Binding !$parent[UserControl].((vm:ToolsViewModel)DataContext).IsSidebarCollapsed}">
                         <Button.Flyout>
                           <MenuFlyout Placement="BottomEdgeAlignedRight">
                             <MenuItem Header="View Details"
@@ -272,14 +327,15 @@
                             </MenuItem>
                             <MenuItem Header="Remove Tool"
                                       Command="{Binding $parent[UserControl].((vm:ToolsViewModel)DataContext).RemoveToolCommand}"
-                                      CommandParameter="{Binding}">
+                                      CommandParameter="{Binding}"
+                                      IsVisible="{Binding !Metadata.IsBundled}">
                               <MenuItem.Icon>
                                 <TextBlock Text="🗑️" FontSize="14" />
                               </MenuItem.Icon>
                             </MenuItem>
                           </MenuFlyout>
                         </Button.Flyout>
-                        <TextBlock Text="…" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/>
+                        <TextBlock Text="⋮" FontSize="16" Foreground="#888888" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                       </Button>
                     </Grid>
                   </DataTemplate>
@@ -290,11 +346,15 @@
 
           <!-- Tool Actions -->
           <StackPanel Grid.Row="2" Spacing="8" Margin="0,15,0,0">
-            <Button Content="🔄 Refresh"
-                    Command="{Binding RefreshToolsCommand}"
+            <Button Command="{Binding RefreshToolsCommand}"
                     Classes="secondary-button"
                     HorizontalAlignment="Stretch"
-                    IsEnabled="{Binding !IsLoading}" />
+                    IsEnabled="{Binding !IsLoading}">
+                <Panel>
+                    <TextBlock Text="🔄 Refresh" IsVisible="{Binding !IsSidebarCollapsed}" />
+                    <TextBlock Text="🔄" IsVisible="{Binding IsSidebarCollapsed}" />
+                </Panel>
+            </Button>
           </StackPanel>
         </Grid>
       </Border>
@@ -308,7 +368,7 @@
                 Margin="0,0,0,20"
                 IsVisible="{Binding SelectedTool, Converter={x:Static ObjectConverters.IsNotNull}}">
             <TextBlock Grid.Column="0" 
-                       Text="{Binding SelectedTool.Metadata.Name}" 
+                       Text="{Binding SelectedTool.Metadata.Name, FallbackValue=''}" 
                        Classes="section-title" 
                        FontSize="20" 
                        VerticalAlignment="Center" />
@@ -318,11 +378,11 @@
                         VerticalAlignment="Center">
               <StackPanel Orientation="Horizontal" Spacing="5">
                 <TextBlock Text="version" Foreground="#AAAAAA" FontSize="14" />
-                <TextBlock Text="{Binding SelectedTool.Metadata.Version}" Foreground="#E0E0E0" FontSize="14" />
+                <TextBlock Text="{Binding SelectedTool.Metadata.Version, FallbackValue=''}" Foreground="#E0E0E0" FontSize="14" />
               </StackPanel>
               <StackPanel Orientation="Horizontal" Spacing="5">
                 <TextBlock Text="by" Foreground="#AAAAAA" FontSize="14" />
-                <TextBlock Text="{Binding SelectedTool.Metadata.Author}" Foreground="#E0E0E0" FontSize="14" />
+                <TextBlock Text="{Binding SelectedTool.Metadata.Author, FallbackValue=''}" Foreground="#E0E0E0" FontSize="14" />
               </StackPanel>
             </StackPanel>
           </Grid>
@@ -341,10 +401,8 @@
             </StackPanel>
 
             <!-- Tool Control Container -->
-            <ScrollViewer VerticalScrollBarVisibility="Auto"
-                          IsVisible="{Binding CurrentToolControl, Converter={x:Static ObjectConverters.IsNotNull}}">
-              <ContentControl Content="{Binding CurrentToolControl}" />
-            </ScrollViewer>
+            <ContentControl Content="{Binding CurrentToolControl}" 
+                            IsVisible="{Binding CurrentToolControl, Converter={x:Static ObjectConverters.IsNotNull}}" />
           </Panel>
         </Grid>
       </Border>
@@ -377,7 +435,7 @@
             <!-- Tool Name -->
             <StackPanel Spacing="5">
               <TextBlock Text="Name" FontSize="12" FontWeight="SemiBold" Foreground="#AAAAAA" />
-              <TextBlock Text="{Binding ToolForDetails.Metadata.Name}" 
+              <TextBlock Text="{Binding ToolForDetails.Metadata.Name, FallbackValue=''}" 
                          FontSize="16" 
                          FontWeight="SemiBold" 
                          Foreground="#FFFFFF" />
@@ -386,7 +444,7 @@
             <!-- Version -->
             <StackPanel Spacing="5">
               <TextBlock Text="Version" FontSize="12" FontWeight="SemiBold" Foreground="#AAAAAA" />
-              <TextBlock Text="{Binding ToolForDetails.Metadata.Version}" 
+              <TextBlock Text="{Binding ToolForDetails.Metadata.Version, FallbackValue=''}" 
                          FontSize="14" 
                          Foreground="#E0E0E0" />
             </StackPanel>
@@ -394,7 +452,7 @@
             <!-- Author -->
             <StackPanel Spacing="5">
               <TextBlock Text="Author" FontSize="12" FontWeight="SemiBold" Foreground="#AAAAAA" />
-              <TextBlock Text="{Binding ToolForDetails.Metadata.Author}" 
+              <TextBlock Text="{Binding ToolForDetails.Metadata.Author, FallbackValue=''}" 
                          FontSize="14" 
                          Foreground="#E0E0E0" />
             </StackPanel>
@@ -403,7 +461,7 @@
             <StackPanel Spacing="5" 
                         IsVisible="{Binding ToolForDetails.Metadata.Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
               <TextBlock Text="Description" FontSize="12" FontWeight="SemiBold" Foreground="#AAAAAA" />
-              <TextBlock Text="{Binding ToolForDetails.Metadata.Description}" 
+              <TextBlock Text="{Binding ToolForDetails.Metadata.Description, FallbackValue=''}" 
                          FontSize="14" 
                          Foreground="#E0E0E0"
                          TextWrapping="Wrap" />
@@ -412,7 +470,7 @@
             <!-- Tool ID -->
             <StackPanel Spacing="5">
               <TextBlock Text="Tool ID" FontSize="12" FontWeight="SemiBold" Foreground="#AAAAAA" />
-              <TextBlock Text="{Binding ToolForDetails.Metadata.Id}" 
+              <TextBlock Text="{Binding ToolForDetails.Metadata.Id, FallbackValue=''}" 
                          FontSize="14" 
                          Foreground="#E0E0E0"
                          TextWrapping="Wrap" />
