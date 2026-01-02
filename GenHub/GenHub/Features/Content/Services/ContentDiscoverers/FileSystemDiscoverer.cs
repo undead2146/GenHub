@@ -161,5 +161,7 @@ public class FileSystemDiscoverer : IContentDiscoverer
     {
         var userDefinedDirs = _configurationProvider.GetContentDirectories();
         _contentDirectories.AddRange(userDefinedDirs.Where(Directory.Exists));
+
+        _logger.LogInformation("FileSystemDiscoverer initialized with {Count} directories", _contentDirectories.Count);
     }
 }

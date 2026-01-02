@@ -24,7 +24,7 @@ public static class ReplayManagerModule
         services.AddSingleton<IUrlParserService, UrlParserService>();
         services.AddSingleton<IReplayImportService, ReplayImportService>();
         services.AddSingleton<IReplayExportService, ReplayExportService>();
-        services.AddSingleton<IUploadRateLimitService, UploadRateLimitService>();
+        services.AddSingleton<GenHub.Core.Interfaces.Common.IUploadHistoryService, GenHub.Features.Tools.Services.UploadHistoryService>();
         services.AddSingleton<IZipValidationService, ZipValidationService>();
 
         // ViewModel (Singleton to persist state across tool activations)

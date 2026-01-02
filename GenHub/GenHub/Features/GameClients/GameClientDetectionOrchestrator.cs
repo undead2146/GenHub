@@ -132,6 +132,6 @@ public sealed class GameClientDetectionOrchestrator(
     {
         logger.LogDebug("Getting detected clients");
         var result = await DetectAllClientsAsync(cancellationToken);
-        return result.Success ? [.. result.Items] : [];
+        return result.Success ? [..result.Items] : [];
     }
 }

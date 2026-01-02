@@ -781,8 +781,15 @@ public partial class ContentManifestBuilder(
     /// </summary>
     /// <param name="relativePath">The relative path of the file.</param>
     /// <returns>The determined installation target.</returns>
-    private static ContentInstallTarget DetermineInstallTarget(string relativePath)
+    private ContentInstallTarget DetermineInstallTarget(string relativePath)
     {
+        // If this is a Map or MapPack, all files should go to the UserMapsDirectory
+        // to comply with userdata.md and ensure proper linking by IProfileContentLinker.
+        if (_manifest.ContentType == ContentType.Map || _manifest.ContentType == ContentType.MapPack)
+        {
+            return ContentInstallTarget.UserMapsDirectory;
+        }
+
         var extension = Path.GetExtension(relativePath).ToLowerInvariant();
 
         if (extension == ".map" ||

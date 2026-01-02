@@ -6,7 +6,7 @@ using GenHub.Core.Models.Providers;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Results.Content;
 using GenHub.Core.Models.Validation;
-using GenHub.Features.Content.Services.ContentProviders;
+using GenHub.Features.Content.Services.GitHub;
 using Microsoft.Extensions.Logging;
 using Moq;
 

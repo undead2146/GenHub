@@ -5,10 +5,13 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Tools.ReplayManager;
+using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Tools.ReplayManager;
+using GenHub.Features.Tools.ViewModels;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -26,14 +29,14 @@ namespace GenHub.Features.Tools.ReplayManager.ViewModels;
 /// <param name="directoryService">The directory service.</param>
 /// <param name="importService">The import service.</param>
 /// <param name="exportService">The export service.</param>
-/// <param name="uploadRateLimitService">The upload rate limit service.</param>
+/// <param name="uploadHistoryService">The upload history and rate limit service.</param>
 /// <param name="notificationService">The notification service.</param>
 /// <param name="logger">The logger instance.</param>
 public partial class ReplayManagerViewModel(
     IReplayDirectoryService directoryService,
     IReplayImportService importService,
     IReplayExportService exportService,
-    IUploadRateLimitService uploadRateLimitService,
+    IUploadHistoryService uploadHistoryService,
     INotificationService notificationService,
     ILogger<ReplayManagerViewModel> logger) : ObservableObject
 {
@@ -95,7 +98,7 @@ public partial class ReplayManagerViewModel(
     {
         try
         {
-            var history = await uploadRateLimitService.GetUploadHistoryAsync();
+            var history = await uploadHistoryService.GetUploadHistoryAsync();
             UploadHistory.Clear();
 
             // Add items to collection
@@ -169,7 +172,7 @@ public partial class ReplayManagerViewModel(
     {
         try
         {
-            await uploadRateLimitService.RemoveHistoryItemAsync(item.Url);
+            await uploadHistoryService.RemoveHistoryItemAsync(item.Url);
             await LoadHistoryAsync();
             notificationService.ShowSuccess("Removed", "History item removed.");
         }
@@ -188,7 +191,7 @@ public partial class ReplayManagerViewModel(
     {
         try
         {
-            await uploadRateLimitService.ClearHistoryAsync();
+            await uploadHistoryService.ClearHistoryAsync();
             await LoadHistoryAsync();
             notificationService.ShowSuccess("Cleared", "All upload history cleared.");
         }
@@ -526,18 +529,27 @@ public partial class ReplayManagerViewModel(
         // Calculate total size of selected replays
         long totalSizeBytes = SelectedReplays.Sum(r => new FileInfo(r.FullPath).Length);
 
+        // Check file size limit
+        const long MaxReplayUploadSize = 10 * 1024 * 1024; // 10MB
+        if (totalSizeBytes > MaxReplayUploadSize)
+        {
+            notificationService.ShowError(
+               "File Too Large",
+               "File too large. Maximum upload size is 10MB.");
+            StatusMessage = "Upload too large (Max 10MB).";
+            return;
+        }
+
         // Check rate limit
-        var isAllowed = await uploadRateLimitService.CanUploadAsync(totalSizeBytes);
+        var isAllowed = await uploadHistoryService.CanUploadAsync(totalSizeBytes);
         if (!isAllowed)
         {
-            var usage = await uploadRateLimitService.GetUsageInfoAsync();
-            var limit = usage.LimitBytes;
-            var resetDate = usage.ResetDate;
-            var resetDateLocal = resetDate.ToLocalTime();
+            var usage = await uploadHistoryService.GetUsageInfoAsync();
+            var resetDateLocal = usage.ResetDate.ToLocalTime();
             notificationService.ShowError(
                 "Rate Limit Exceeded",
-                $"You have reached your 10MB weekly upload limit. Resets on {resetDateLocal:g}.");
-            StatusMessage = $"Upload limit reached. Resets {resetDateLocal:g}.";
+                "Upload limit exceeded for the current 3-day period. Please remove items from your Upload History to free up quota immediately.");
+            StatusMessage = $"Limited reached. Resets {resetDateLocal:g}.";
             return;
         }
 
@@ -559,7 +571,7 @@ public partial class ReplayManagerViewModel(
 
                 // Record successful upload
                 var fileName = SelectedReplays.Count == 1 ? SelectedReplays[0].FileName : "replays.zip";
-                uploadRateLimitService.RecordUpload(totalSizeBytes, url, fileName);
+                uploadHistoryService.RecordUpload(totalSizeBytes, url, fileName);
 
                 // Refresh history if open
                 if (IsHistoryOpen)
@@ -572,8 +584,8 @@ public partial class ReplayManagerViewModel(
             }
             else
             {
-                StatusMessage = "Upload failed. Check API key in .env or file size limits.";
-                notificationService.ShowError("Upload Failed", "Check API key or file sizes (Max 20MB total, 1MB per file).");
+                StatusMessage = "Upload failed. Check API key.";
+                notificationService.ShowError("Upload Failed", "Upload failed. Please check your API key and internet connection.");
             }
         }
         catch (Exception ex)
