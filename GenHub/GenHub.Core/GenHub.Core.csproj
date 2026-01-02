@@ -13,4 +13,8 @@
         <PackageReference Include="Microsoft.Extensions.Logging.Debug" />
         <PackageReference Include="CsvHelper" />
     </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="Assets\Manifests\*.csv" />
+    </ItemGroup>
 </Project>

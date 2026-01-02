@@ -15,23 +15,23 @@
         <conv:ContrastTextColorConverter x:Key="ContrastTextColorConverter" />
         <conv:ProfileCoverConverter x:Key="ProfileCoverConverter" />
         <conv:StringToImageConverter x:Key="StringToImageConverter" />
-        
+
         <x:Double x:Key="ExpandedHeight">100.0</x:Double>
         <x:Double x:Key="CollapsedHeight">0.0</x:Double>
         <x:Double x:Key="FullOpacity">1.0</x:Double>
         <x:Double x:Key="ZeroOpacity">0.0</x:Double>
 
-        <conv:BoolToValueConverter x:Key="HeaderMaxHeightConverter" 
-                                   TrueValue="{StaticResource ExpandedHeight}" 
+        <conv:BoolToValueConverter x:Key="HeaderMaxHeightConverter"
+                                   TrueValue="{StaticResource ExpandedHeight}"
                                    FalseValue="{StaticResource CollapsedHeight}" />
-        <conv:BoolToValueConverter x:Key="HeaderOpacityConverter" 
-                                   TrueValue="{StaticResource FullOpacity}" 
+        <conv:BoolToValueConverter x:Key="HeaderOpacityConverter"
+                                   TrueValue="{StaticResource FullOpacity}"
                                    FalseValue="{StaticResource ZeroOpacity}" />
-        
+
         <conv:BoolToValueConverter x:Key="BoolToVisibilityConverter"
             TrueValue="Visible"
             FalseValue="Collapsed" />
-            
+
         <conv:BoolToColorConverter x:Key="EditModeToggleBackgroundConverter" TrueColor="#1E88E5" FalseColor="#333333" />
         <conv:BoolToValueConverter x:Key="NotConverter" TrueValue="False" FalseValue="True" />
         <conv:NullSafePropertyConverter x:Key="NullSafeConverter"/>
@@ -197,13 +197,13 @@
 
     <Grid RowDefinitions="Auto, *">
         <!-- Row 0: Collapsible Header Container -->
-        <Grid Grid.Row="0" 
+        <Grid Grid.Row="0"
               Background="Transparent"
               PointerEntered="HeaderZone_PointerEntered"
               PointerExited="HeaderZone_PointerExited">
             <!-- Persistent hit-test area that ensures the Grid is Tall enough even when collapsed -->
-            <Panel Height="60" 
-                   VerticalAlignment="Top" 
+            <Panel Height="60"
+                   VerticalAlignment="Top"
                    IsHitTestVisible="False" />
 
             <!-- Animated Header Content -->
@@ -218,7 +218,7 @@
                         </Setter>
                     </Style>
                 </Border.Styles>
-                
+
                 <!-- Use HeaderMaxHeightConverter and HeaderOpacityConverter -->
                 <Border.MaxHeight>
                     <Binding Path="IsHeaderExpanded" Converter="{StaticResource HeaderMaxHeightConverter}" />
@@ -259,11 +259,29 @@
                                         IsVisible="{Binding IsEditMode, Mode=OneWay}" />
                                 </Grid>
                             </Button>
-                            
-                        <Button Grid.Column="2"
-                                Command="{Binding ScanForGamesCommand}"
-                                Content="SCAN"
-                                Classes="outline" />
+
+                        <Panel Grid.Column="2">
+                            <!-- Scan Button -->
+                            <Button Command="{Binding ScanForGamesCommand}"
+                                    Content="SCAN"
+                                    Classes="outline"
+                                    IsVisible="{Binding !IsScanning}" />
+
+                            <!-- Loading UI -->
+                            <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding IsScanning}">
+                                <TextBlock Text="Scanning..."
+                                           VerticalAlignment="Center"
+                                           Foreground="#DDDDDD"
+                                           FontWeight="SemiBold"
+                                           FontSize="14" />
+                                <ProgressBar IsIndeterminate="True"
+                                             Width="120"
+                                             Height="2"
+                                             VerticalAlignment="Center"
+                                             Background="#30FFFFFF"
+                                             Foreground="White" />
+                            </StackPanel>
+                        </Panel>
                         </StackPanel>
                     </Grid>
                 </StackPanel>

@@ -41,7 +41,17 @@ public static class DirectoryNames
     public const string Logs = "Logs";
 
     /// <summary>
-    /// Directory for backup files.
+    /// Directory for storing backup files.
     /// </summary>
     public const string Backups = "Backups";
+
+    /// <summary>
+    /// Directory for storing game profiles.
+    /// </summary>
+    public const string Profiles = "Profiles";
+
+    /// <summary>
+    /// Directory for storing workspaces.
+    /// </summary>
+    public const string Workspaces = "Workspaces";
 }

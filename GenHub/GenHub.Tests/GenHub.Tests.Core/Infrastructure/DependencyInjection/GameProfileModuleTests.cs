@@ -31,6 +31,7 @@ public class GameProfileModuleTests
 
         configProviderMock.Setup(x => x.GetWorkspacePath()).Returns(tempDir);
         configProviderMock.Setup(x => x.GetApplicationDataPath()).Returns(Path.Combine(tempDir, "Content"));
+        configProviderMock.Setup(x => x.GetProfilesPath()).Returns(Path.Combine(tempDir, "Profiles"));
 
         // Add required dependencies
         services.AddLogging();
@@ -110,6 +111,7 @@ public class GameProfileModuleTests
 
         configProviderMock.Setup(x => x.GetWorkspacePath()).Returns(tempDir);
         configProviderMock.Setup(x => x.GetApplicationDataPath()).Returns(Path.Combine(tempDir, "Content"));
+        configProviderMock.Setup(x => x.GetProfilesPath()).Returns(Path.Combine(tempDir, "Profiles"));
 
         services.AddLogging();
         services.AddSingleton<IConfigurationProviderService>(configProviderMock.Object);
@@ -171,6 +173,7 @@ public class GameProfileModuleTests
 
         configProviderMock.Setup(x => x.GetWorkspacePath()).Returns(tempDir);
         configProviderMock.Setup(x => x.GetApplicationDataPath()).Returns(Path.Combine(tempDir, "Content"));
+        configProviderMock.Setup(x => x.GetProfilesPath()).Returns(Path.Combine(tempDir, "Profiles"));
 
         // Add required dependencies
         services.AddLogging();
@@ -214,6 +217,7 @@ public class GameProfileModuleTests
 
         configProviderMock.Setup(x => x.GetWorkspacePath()).Returns(tempDir);
         configProviderMock.Setup(x => x.GetApplicationDataPath()).Returns(Path.Combine(tempDir, "Content"));
+        configProviderMock.Setup(x => x.GetProfilesPath()).Returns(Path.Combine(tempDir, "Profiles"));
 
         services.AddLogging();
         services.AddSingleton<IConfigurationProviderService>(configProviderMock.Object);
@@ -255,6 +259,7 @@ public class GameProfileModuleTests
 
         configProviderMock.Setup(x => x.GetWorkspacePath()).Returns(tempDir);
         configProviderMock.Setup(x => x.GetApplicationDataPath()).Returns(Path.Combine(tempDir, "Content"));
+        configProviderMock.Setup(x => x.GetProfilesPath()).Returns(Path.Combine(tempDir, "Profiles"));
 
         services.AddLogging();
         services.AddSingleton<IConfigurationProviderService>(configProviderMock.Object);
@@ -298,6 +303,7 @@ public class GameProfileModuleTests
 
         configProviderMock.Setup(x => x.GetWorkspacePath()).Returns(tempDir);
         configProviderMock.Setup(x => x.GetApplicationDataPath()).Returns(Path.Combine(tempDir, "Content"));
+        configProviderMock.Setup(x => x.GetProfilesPath()).Returns(Path.Combine(tempDir, "Profiles"));
 
         services.AddLogging();
         services.AddSingleton<IConfigurationProviderService>(configProviderMock.Object);

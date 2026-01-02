@@ -19,9 +19,9 @@ public static class WorkspaceConfigurationExtensions
         this WorkspaceConfiguration configuration)
     {
         return configuration.Manifests
-            .SelectMany(m => m.Files ?? [])
-            .DistinctBy(
-                f => f.RelativePath,
-                StringComparer.OrdinalIgnoreCase);
+            .SelectMany(m => (m.Files ?? []).Select(f => new { File = f, Manifest = m }))
+            .GroupBy(x => x.File.RelativePath, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.OrderByDescending(x => ContentTypePriority.GetPriority(x.Manifest.ContentType))
+                          .First().File);
     }
 }

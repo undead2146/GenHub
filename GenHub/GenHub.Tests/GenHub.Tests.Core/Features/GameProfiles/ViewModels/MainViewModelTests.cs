@@ -13,6 +13,7 @@ using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Steam;
 using GenHub.Core.Interfaces.Storage;
 using GenHub.Core.Interfaces.Tools;
+using GenHub.Core.Interfaces.UserData;
 using GenHub.Core.Interfaces.Workspace;
 using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
@@ -245,6 +246,7 @@ public class MainViewModelTests
         var mockNotificationServiceForSettings = new Mock<INotificationService>();
         var mockConfigurationProvider = new Mock<IConfigurationProviderService>();
         var mockInstallationService = new Mock<IGameInstallationService>();
+        var mockStorageLocationService = new Mock<IStorageLocationService>();
         var mockUserDataTracker = new Mock<IUserDataTracker>();
 
         var settingsVm = new SettingsViewModel(
@@ -258,6 +260,7 @@ public class MainViewModelTests
             mockNotificationServiceForSettings.Object,
             mockConfigurationProvider.Object,
             mockInstallationService.Object,
+            mockStorageLocationService.Object,
             mockUserDataTracker.Object);
         return (settingsVm, mockUserSettings);
     }

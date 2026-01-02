@@ -428,6 +428,9 @@ public partial class GameProfileLauncherViewModel(
         try
         {
             IsScanning = true;
+            IsHeaderExpanded = true;
+            _headerCollapseTimer.Stop(); // Ensure header stays open during scan
+
             StatusMessage = "Scanning for games...";
             ErrorMessage = string.Empty;
 
@@ -601,6 +604,11 @@ public partial class GameProfileLauncherViewModel(
     [RelayCommand]
     private void StartHeaderTimer()
     {
+        if (IsScanning)
+        {
+            return; // Don't collapse header while scanning
+        }
+
         _headerCollapseTimer.Stop();
         _headerCollapseTimer.Start();
     }

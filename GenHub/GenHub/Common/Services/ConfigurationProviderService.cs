@@ -289,6 +289,15 @@ public class ConfigurationProviderService(
     }
 
     /// <inheritdoc />
+    public string GetRootAppDataPath() => _appConfig.GetConfiguredDataPath();
+
+    /// <inheritdoc />
+    public string GetProfilesPath() => Path.Combine(_appConfig.GetConfiguredDataPath(), DirectoryNames.Profiles);
+
+    /// <inheritdoc />
+    public string GetManifestsPath() => Path.Combine(_appConfig.GetConfiguredDataPath(), FileTypes.ManifestsDirectory);
+
+    /// <inheritdoc />
     /// <remarks>
     /// Returns the current CAS configuration. If the path is not configured, a default path is applied
     /// to a new configuration instance.

@@ -1,6 +1,6 @@
 using GenHub.Core.Models.Enums;
 
-namespace GenHub.Features.Workspace;
+namespace GenHub.Core.Models.Workspace;
 
 /// <summary>
 /// Provides priority values for ContentType when resolving file conflicts in workspaces.

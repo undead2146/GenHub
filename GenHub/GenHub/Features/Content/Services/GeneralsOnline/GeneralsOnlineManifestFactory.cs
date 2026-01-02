@@ -43,7 +43,7 @@ public class GeneralsOnlineManifestFactory(
         var websiteUrl = provider?.Endpoints.WebsiteUrl ?? GeneralsOnlineConstants.WebsiteUrl;
         var supportUrl = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.SupportUrl) ?? GeneralsOnlineConstants.SupportUrl;
         var downloadPageUrl = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.DownloadPageUrl) ?? GeneralsOnlineConstants.DownloadPageUrl;
-        var iconUrl = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.IconUrl) ?? GeneralsOnlineConstants.IconUrl;
+        var iconUrl = GeneralsOnlineConstants.LogoSource;
         var coverSource = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.CoverUrl) ?? GeneralsOnlineConstants.CoverSource;
         var description = provider?.Description ?? GeneralsOnlineConstants.ShortDescription;
         var tags = provider?.DefaultTags ?? [.. GeneralsOnlineConstants.Tags];
@@ -280,7 +280,7 @@ public class GeneralsOnlineManifestFactory(
         var websiteUrl = provider?.Endpoints.WebsiteUrl ?? GeneralsOnlineConstants.WebsiteUrl;
         var supportUrl = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.SupportUrl) ?? GeneralsOnlineConstants.SupportUrl;
         var downloadPageUrl = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.DownloadPageUrl) ?? GeneralsOnlineConstants.DownloadPageUrl;
-        var iconUrl = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.IconUrl) ?? GeneralsOnlineConstants.IconUrl;
+        var iconUrl = GeneralsOnlineConstants.LogoSource;
         var userVersion = ParseVersionForManifestId(release.Version);
         var manifestId = ManifestId.Create(ManifestIdGenerator.GeneratePublisherContentId(
             PublisherTypeConstants.GeneralsOnline,
@@ -339,7 +339,7 @@ public class GeneralsOnlineManifestFactory(
         var websiteUrl = provider?.Endpoints.WebsiteUrl ?? string.Empty;
         var supportUrl = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.SupportUrl) ?? string.Empty;
         var downloadPageUrl = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.DownloadPageUrl) ?? string.Empty;
-        var iconUrl = provider?.Endpoints.GetEndpoint(ProviderEndpointConstants.IconUrl) ?? string.Empty;
+        var iconUrl = GeneralsOnlineConstants.LogoSource;
 
         // Create publisher info once (shared by all variants)
         var publisherInfo = new PublisherInfo
