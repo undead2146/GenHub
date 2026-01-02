@@ -43,26 +43,7 @@ jobs:
       - name: Inject Secrets
         shell: pwsh
         run: |
-          $constantsPath = "GenHub/GenHub.Core/Constants/ApiConstants.cs"
-          $token = "${{ secrets.UPLOADTHING_TOKEN }}"
-          if ([string]::IsNullOrEmpty($token)) { throw "UPLOADTHING_TOKEN secret is not set in GitHub Settings" }
-
-          $tokenBytes = [System.Text.Encoding]::UTF8.GetBytes($token)
-          $key = New-Object byte[] 32
-          [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($key)
-
-          $obfuscated = New-Object byte[] $tokenBytes.Length
-          for ($i = 0; $i -lt $tokenBytes.Length; $i++) {
-              $obfuscated[$i] = $tokenBytes[$i] -bxor $key[$i % $key.Length]
-          }
-
-          $dataStr = ($obfuscated | ForEach-Object { "0x{0:x2}" -f $_ }) -join ", "
-          $keyStr = ($key | ForEach-Object { "0x{0:x2}" -f $_ }) -join ", "
-
-          $content = Get-Content $constantsPath -Raw
-          $content = $content -replace 'byte\[\] data = \[\]; // \[PLACEHOLDER_DATA\]', "byte[] data = [$dataStr];"
-          $content = $content -replace 'byte\[\] key = \[\];  // \[PLACEHOLDER_KEY\]', "byte[] key = [$keyStr];"
-          Set-Content $constantsPath $content
+          ./.github/scripts/inject-token.ps1 -Token "${{ secrets.UPLOADTHING_TOKEN }}"
 
       - name: Publish Windows App
         shell: pwsh
@@ -138,26 +119,7 @@ jobs:
       - name: Inject Secrets
         shell: pwsh
         run: |
-          $constantsPath = "GenHub/GenHub.Core/Constants/ApiConstants.cs"
-          $token = "${{ secrets.UPLOADTHING_TOKEN }}"
-          if ([string]::IsNullOrEmpty($token)) { throw "UPLOADTHING_TOKEN secret is not set in GitHub Settings" }
-
-          $tokenBytes = [System.Text.Encoding]::UTF8.GetBytes($token)
-          $key = New-Object byte[] 32
-          [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($key)
-
-          $obfuscated = New-Object byte[] $tokenBytes.Length
-          for ($i = 0; $i -lt $tokenBytes.Length; $i++) {
-              $obfuscated[$i] = $tokenBytes[$i] -bxor $key[$i % $key.Length]
-          }
-
-          $dataStr = ($obfuscated | ForEach-Object { "0x{0:x2}" -f $_ }) -join ", "
-          $keyStr = ($key | ForEach-Object { "0x{0:x2}" -f $_ }) -join ", "
-
-          $content = Get-Content $constantsPath -Raw
-          $content = $content -replace 'byte\[\] data = \[\]; // \[PLACEHOLDER_DATA\]', "byte[] data = [$dataStr];"
-          $content = $content -replace 'byte\[\] key = \[\];  // \[PLACEHOLDER_KEY\]', "byte[] key = [$keyStr];"
-          Set-Content $constantsPath $content
+          ./.github/scripts/inject-token.ps1 -Token "${{ secrets.UPLOADTHING_TOKEN }}"
 
       - name: Publish Linux App
         run: |
