@@ -1,3 +1,4 @@
+using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Models.Enums;
 
 namespace GenHub.Core.Models.Tools.ReplayManager;
@@ -5,7 +6,7 @@ namespace GenHub.Core.Models.Tools.ReplayManager;
 /// <summary>
 /// Represents a replay file on disk.
 /// </summary>
-public sealed class ReplayFile
+public sealed class ReplayFile : IExportableFile
 {
     /// <summary>
     /// Gets or sets the full path to the replay file.

@@ -1,8 +1,8 @@
 using System;
 using CommunityToolkit.Mvvm.ComponentModel;
-using GenHub.Core.Models.Tools.ReplayManager;
+using GenHub.Core.Models.Common;
 
-namespace GenHub.Features.Tools.ReplayManager.ViewModels;
+namespace GenHub.Features.Tools.ViewModels;
 
 /// <summary>
 /// ViewModel for a single upload history item.

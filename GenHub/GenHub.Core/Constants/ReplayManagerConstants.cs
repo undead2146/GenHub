@@ -11,9 +11,9 @@ public static class ReplayManagerConstants
     public const long MaxReplaySizeBytes = 1024 * 1024;
 
     /// <summary>
-    /// Maximum weekly upload bytes (10 MB).
+    /// Maximum upload bytes per period (10 MB).
     /// </summary>
-    public const long MaxWeeklyUploadBytes = 10 * 1024 * 1024;
+    public const long MaxUploadBytesPerPeriod = 10 * 1024 * 1024;
 
     /// <summary>
     /// Prefix for temporary import files.

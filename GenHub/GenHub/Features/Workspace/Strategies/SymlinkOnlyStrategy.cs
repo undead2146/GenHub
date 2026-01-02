@@ -81,7 +81,7 @@ public sealed class SymlinkOnlyStrategy(
             Directory.CreateDirectory(workspacePath);
 
             var allFiles = configuration.Manifests.SelectMany(m => m.Files).ToList();
-            var totalFiles = allFiles.Count();
+            var totalFiles = allFiles.Count;
             var processedFiles = 0;
 
             Logger.LogDebug("Processing {TotalFiles} files in parallel", totalFiles);
@@ -234,7 +234,7 @@ public sealed class SymlinkOnlyStrategy(
         // For game installation files, treat them the same as local files
         // We need to find the manifest that contains this file
         var manifest = configuration.Manifests.FirstOrDefault(m => m.Files.Contains(file));
-        if (manifest == null)
+        if (manifest is null)
         {
             throw new InvalidOperationException($"Could not find manifest containing file {file.RelativePath}");
         }

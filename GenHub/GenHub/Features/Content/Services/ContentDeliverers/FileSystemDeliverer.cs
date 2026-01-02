@@ -103,8 +103,7 @@ public class FileSystemDeliverer(ILogger<FileSystemDeliverer> logger, IConfigura
                 _hashProvider,
                 null!);
 
-            int manifestVersionInt;
-            if (!int.TryParse(packageManifest.Version, out manifestVersionInt))
+            if (!int.TryParse(packageManifest.Version, out var manifestVersionInt))
             {
                 _logger.LogError("Invalid manifest version format: {Version}", packageManifest.Version);
                 return OperationResult<ContentManifest>.CreateFailure("Invalid manifest version format");
@@ -163,7 +162,7 @@ public class FileSystemDeliverer(ILogger<FileSystemDeliverer> logger, IConfigura
             }
 
             // Add required directories
-            manifestBuilder.AddRequiredDirectories(packageManifest.RequiredDirectories.ToArray());
+            manifestBuilder.AddRequiredDirectories([..packageManifest.RequiredDirectories]);
 
             // Add installation instructions if present
             if (packageManifest.InstallationInstructions != null)

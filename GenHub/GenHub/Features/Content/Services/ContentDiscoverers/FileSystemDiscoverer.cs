@@ -21,7 +21,7 @@ namespace GenHub.Features.Content.Services.ContentDiscoverers;
 /// </summary>
 public class FileSystemDiscoverer : IContentDiscoverer
 {
-    private readonly List<string> _contentDirectories = new();
+    private readonly List<string> _contentDirectories = new List<string>();
     private readonly ILogger<FileSystemDiscoverer> _logger;
     private readonly ManifestDiscoveryService _manifestDiscoveryService;
     private readonly IConfigurationProviderService _configurationProvider;
@@ -128,15 +128,7 @@ public class FileSystemDiscoverer : IContentDiscoverer
         return OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(discoveredItems);
     }
 
-    private void InitializeContentDirectories()
-    {
-        var userDefinedDirs = _configurationProvider.GetContentDirectories();
-        _contentDirectories.AddRange(userDefinedDirs.Where(Directory.Exists));
-
-        _logger.LogInformation("FileSystemDiscoverer initialized with {Count} directories", _contentDirectories.Count);
-    }
-
-    private bool MatchesQuery(ContentManifest manifest, ContentSearchQuery query)
+    private static bool MatchesQuery(ContentManifest manifest, ContentSearchQuery query)
     {
         if (!string.IsNullOrWhiteSpace(query.SearchTerm) &&
             !manifest.Name.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase) &&
@@ -156,5 +148,13 @@ public class FileSystemDiscoverer : IContentDiscoverer
         }
 
         return true;
+    }
+
+    private void InitializeContentDirectories()
+    {
+        var userDefinedDirs = _configurationProvider.GetContentDirectories();
+        _contentDirectories.AddRange(userDefinedDirs.Where(Directory.Exists));
+
+        _logger.LogInformation("FileSystemDiscoverer initialized with {Count} directories", _contentDirectories.Count);
     }
 }

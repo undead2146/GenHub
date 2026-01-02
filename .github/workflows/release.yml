@@ -40,6 +40,30 @@ jobs:
           $version = "0.0.${{ github.run_number }}"
           echo "VERSION=$version" >> $env:GITHUB_OUTPUT
 
+      - name: Inject Secrets
+        shell: pwsh
+        run: |
+          $constantsPath = "GenHub/GenHub.Core/Constants/ApiConstants.cs"
+          $token = "${{ secrets.UPLOADTHING_TOKEN }}"
+          if ([string]::IsNullOrEmpty($token)) { throw "UPLOADTHING_TOKEN secret is not set in GitHub Settings" }
+
+          $tokenBytes = [System.Text.Encoding]::UTF8.GetBytes($token)
+          $key = New-Object byte[] 32
+          [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($key)
+
+          $obfuscated = New-Object byte[] $tokenBytes.Length
+          for ($i = 0; $i -lt $tokenBytes.Length; $i++) {
+              $obfuscated[$i] = $tokenBytes[$i] -bxor $key[$i % $key.Length]
+          }
+
+          $dataStr = ($obfuscated | ForEach-Object { "0x{0:x2}" -f $_ }) -join ", "
+          $keyStr = ($key | ForEach-Object { "0x{0:x2}" -f $_ }) -join ", "
+
+          $content = Get-Content $constantsPath -Raw
+          $content = $content -replace 'byte\[\] data = \[\]; // \[PLACEHOLDER_DATA\]', "byte[] data = [$dataStr];"
+          $content = $content -replace 'byte\[\] key = \[\];  // \[PLACEHOLDER_KEY\]', "byte[] key = [$keyStr];"
+          Set-Content $constantsPath $content
+
       - name: Publish Windows App
         shell: pwsh
         run: |
@@ -68,7 +92,7 @@ jobs:
             --packAuthors "Community Outpost" `
             --icon GenHub/GenHub/Assets/Icons/generalshub.ico `
             --outputDir velopack-release-windows
-          
+
           # Rename metadata to prevent collisions with Linux
           Rename-Item -Path "velopack-release-windows\releases.json" -NewName "releases.win.json" -ErrorAction SilentlyContinue
           Rename-Item -Path "velopack-release-windows\assets.json" -NewName "assets.win.json" -ErrorAction SilentlyContinue
@@ -111,6 +135,30 @@ jobs:
       - name: Install Linux Dependencies
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libx11-dev
 
+      - name: Inject Secrets
+        shell: pwsh
+        run: |
+          $constantsPath = "GenHub/GenHub.Core/Constants/ApiConstants.cs"
+          $token = "${{ secrets.UPLOADTHING_TOKEN }}"
+          if ([string]::IsNullOrEmpty($token)) { throw "UPLOADTHING_TOKEN secret is not set in GitHub Settings" }
+
+          $tokenBytes = [System.Text.Encoding]::UTF8.GetBytes($token)
+          $key = New-Object byte[] 32
+          [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($key)
+
+          $obfuscated = New-Object byte[] $tokenBytes.Length
+          for ($i = 0; $i -lt $tokenBytes.Length; $i++) {
+              $obfuscated[$i] = $tokenBytes[$i] -bxor $key[$i % $key.Length]
+          }
+
+          $dataStr = ($obfuscated | ForEach-Object { "0x{0:x2}" -f $_ }) -join ", "
+          $keyStr = ($key | ForEach-Object { "0x{0:x2}" -f $_ }) -join ", "
+
+          $content = Get-Content $constantsPath -Raw
+          $content = $content -replace 'byte\[\] data = \[\]; // \[PLACEHOLDER_DATA\]', "byte[] data = [$dataStr];"
+          $content = $content -replace 'byte\[\] key = \[\];  // \[PLACEHOLDER_KEY\]', "byte[] key = [$keyStr];"
+          Set-Content $constantsPath $content
+
       - name: Publish Linux App
         run: |
           dotnet publish "${{ env.LINUX_PROJECT }}" \
@@ -136,7 +184,7 @@ jobs:
             --packAuthors "Community Outpost" \
             --icon GenHub/GenHub/Assets/Icons/generalshub-icon.png \
             --outputDir velopack-release-linux
-          
+
           # Rename metadata to prevent collisions with Windows
           mv velopack-release-linux/releases.json velopack-release-linux/releases.linux.json || true
           mv velopack-release-linux/assets.json velopack-release-linux/assets.linux.json || true
@@ -194,7 +242,7 @@ jobs:
           find artifacts/linux-release -type f \( -name "*.nupkg" -o -name "*.json" \) -exec cp {} final-assets/ \;
           # 3. Windows Portable (Specific match)
           cp artifacts/windows-portable/*.zip final-assets/
-          
+
           ls -lh final-assets/
 
       - name: Create Release
@@ -205,7 +253,7 @@ jobs:
           prerelease: true
           body: |
             ## GenHub Alpha v${{ steps.info.outputs.VERSION }}
-            
+
             ### 🆕 What's New
             **${{ steps.info.outputs.COUNT }} commits** included:
             ${{ steps.info.outputs.CHANGELOG }}
