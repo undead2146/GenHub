@@ -29,6 +29,14 @@
         <EmbeddedResource Include="Resources\update_genhub.ps1" />
     </ItemGroup>
 
+    <!-- Copy .env file to output directory for local debugging if it exists -->
+    <ItemGroup Condition="Exists('..\..\.env')">
+        <None Include="..\..\.env">
+            <Link>.env</Link>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
     <ItemGroup>
         <ProjectReference Include="..\GenHub\GenHub.csproj" />
         <ProjectReference Include="..\GenHub.Core\GenHub.Core.csproj" />
