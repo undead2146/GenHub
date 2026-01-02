@@ -3,8 +3,8 @@ param(
 )
 
 if ([string]::IsNullOrEmpty($Token)) {
-    Write-Host "No UPLOADTHING_TOKEN provided. Skipping injection. Build will use empty/default token."
-    exit 0
+    Write-Error "No UPLOADTHING_TOKEN provided. Fails for Release builds."
+    exit 1
 }
 
 $constantsPath = "GenHub/GenHub.Core/Constants/ApiConstants.cs"
@@ -26,9 +26,16 @@ $dataStr = ($obfuscated | ForEach-Object { "0x{0:x2}" -f $_ }) -join ", "
 $keyStr = ($key | ForEach-Object { "0x{0:x2}" -f $_ }) -join ", "
 
 $content = Get-Content $constantsPath -Raw
-# Replace the placeholders we put in the static property
-$content = $content -replace 'byte\[\] data = \[\]; // \[PLACEHOLDER_DATA\]', "byte[] data = [$dataStr];"
-$content = $content -replace 'byte\[\] key = \[\];  // \[PLACEHOLDER_KEY\]', "byte[] key = [$keyStr];"
+
+# Use regex replace to be robust against whitespace
+# Pattern: byte[] data = []; // [PLACEHOLDER_DATA]
+$content = [System.Text.RegularExpressions.Regex]::Replace($content, 'byte\[\]\s+data\s*=\s*\[\];\s*//\s*\[PLACEHOLDER_DATA\]', "byte[] data = [$dataStr];")
+$content = [System.Text.RegularExpressions.Regex]::Replace($content, 'byte\[\]\s+key\s*=\s*\[\];\s*//\s*\[PLACEHOLDER_KEY\]', "byte[] key = [$keyStr];")
+
+if ($content -notmatch "0x") {
+    Write-Error "Token injection failed! Placeholders were not found or replaced."
+    exit 1
+}
 
 Set-Content $constantsPath $content
 Write-Host "Successfully injected and obfuscated UPLOADTHING_TOKEN into ApiConstants.cs"
