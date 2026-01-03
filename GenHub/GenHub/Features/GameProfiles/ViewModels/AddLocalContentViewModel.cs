@@ -342,7 +342,7 @@ public partial class AddLocalContentViewModel(
             IsBusy = true;
             StatusMessage = "Processing content...";
 
-            var targetGame = SelectedContentType == ContentType.GameClient ? SelectedGameType : GameType.Generals;
+            var targetGame = SelectedGameType;
 
             var progress = new Progress<Core.Models.Content.ContentStorageProgress>(p =>
             {
@@ -423,7 +423,8 @@ public partial class AddLocalContentViewModel(
                 var fileNameCheck = Path.GetFileName(mapPath); // e.g. "MyMap.map"
                 var mapName = Path.GetFileNameWithoutExtension(mapPath); // e.g. "MyMap"
                 var parentDir = Path.GetDirectoryName(mapPath); // e.g. ".../Staging/Maps"
-                var parentDirName = new DirectoryInfo(parentDir!).Name; // e.g. "Maps"
+                if (parentDir == null) continue;
+                var parentDirName = new DirectoryInfo(parentDir).Name; // e.g. "Maps"
 
                 // If the map is NOT in a folder with its own name (case-insensitive check)
                 if (!string.Equals(parentDirName, mapName, StringComparison.OrdinalIgnoreCase))
@@ -431,7 +432,7 @@ public partial class AddLocalContentViewModel(
                     // Create a new correct directory: ".../Staging/Maps/MyMap"
                     // We keep it in the same parent location to preserve "Maps/" structure if it exists,
                     // but we ensure the immediate parent is the map name.
-                    var newMapDir = Path.Combine(parentDir!, mapName);
+                    var newMapDir = Path.Combine(parentDir, mapName);
 
                     if (!Directory.Exists(newMapDir))
                     {

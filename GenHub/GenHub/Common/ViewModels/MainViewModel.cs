@@ -2,22 +2,15 @@ using System;
 using System.Collections.ObjectModel;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia.Controls;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
-using GenHub.Core.Interfaces.GameInstallations;
-using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Models.Enums;
-using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Notifications;
 using GenHub.Features.AppUpdate.Interfaces;
-using GenHub.Features.AppUpdate.Views;
 using GenHub.Features.Downloads.ViewModels;
-using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.ViewModels;
 using GenHub.Features.Notifications.ViewModels;
 using GenHub.Features.Settings.ViewModels;
@@ -34,12 +27,9 @@ namespace GenHub.Common.ViewModels;
 /// <param name="toolsViewModel">Tools view model.</param>
 /// <param name="settingsViewModel">Settings view model.</param>
 /// <param name="notificationManager">Notification manager view model.</param>
-/// <param name="gameInstallationDetectionOrchestrator">Game installation orchestrator.</param>
 /// <param name="configurationProvider">Configuration provider service.</param>
 /// <param name="userSettingsService">User settings service for persistence operations.</param>
-/// <param name="profileEditorFacade">Profile editor facade for automatic profile creation.</param>
 /// <param name="velopackUpdateManager">The Velopack update manager for checking updates.</param>
-/// <param name="profileResourceService">Service for accessing profile resources.</param>
 /// <param name="notificationService">Service for showing notifications.</param>
 /// <param name="logger">Logger instance.</param>
 public partial class MainViewModel(
@@ -48,12 +38,9 @@ public partial class MainViewModel(
     ToolsViewModel toolsViewModel,
     SettingsViewModel settingsViewModel,
     NotificationManagerViewModel notificationManager,
-    IGameInstallationDetectionOrchestrator gameInstallationDetectionOrchestrator,
     IConfigurationProviderService configurationProvider,
     IUserSettingsService userSettingsService,
-    IProfileEditorFacade profileEditorFacade,
     IVelopackUpdateManager velopackUpdateManager,
-    ProfileResourceService profileResourceService,
     INotificationService notificationService,
     ILogger<MainViewModel>? logger = null) : ObservableObject, IDisposable
 {
@@ -105,11 +92,6 @@ public partial class MainViewModel(
             logger?.LogError(ex, "Failed to load initial settings");
             return NavigationTab.GameProfiles;
         }
-    }
-
-    // Static constructor for any static initialization
-    static MainViewModel()
-    {
     }
 
     /// <summary>
