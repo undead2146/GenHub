@@ -36,10 +36,35 @@ public class Program
         // Load environment variables (locally)
         try
         {
-            Env.TraversePath().Load();
+            // TraversePath() uses CWD by default. Use BaseDirectory to be sure we start from where the exe is.
+            var binDir = AppContext.BaseDirectory;
+            var path = binDir;
+            var found = false;
+
+            // Search up to 6 levels up
+            for (int i = 0; i < 6; i++)
+            {
+               if (System.IO.File.Exists(System.IO.Path.Combine(path, ".env")))
+               {
+                   Env.Load(System.IO.Path.Combine(path, ".env"));
+                   found = true;
+                   break;
+               }
+
+               var parent = System.IO.Directory.GetParent(path);
+               if (parent == null) break;
+               path = parent.FullName;
+            }
+
+            if (!found)
+            {
+                // Fallback to DotNetEnv default traversal just in case
+                Env.TraversePath().Load();
+            }
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"Failed to load environment variables: {ex}");
             System.Diagnostics.Debug.WriteLine($"Failed to load environment variables: {ex}");
         }
 
