@@ -142,6 +142,11 @@ jobs:
           Write-Host "Building Windows project"
           dotnet build "${{ env.WINDOWS_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }} @buildProps
 
+      - name: Inject Secrets
+        shell: pwsh
+        run: |
+          ./.github/scripts/inject-token.ps1 -Token "${{ secrets.UPLOADTHING_TOKEN }}"
+
       - name: Publish Windows App
         shell: pwsh
         run: |
@@ -291,6 +296,11 @@ jobs:
 
           echo "Building Linux project"
           dotnet build "${{ env.LINUX_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }} $BUILD_PROPS
+
+      - name: Inject Secrets
+        shell: pwsh
+        run: |
+          ./.github/scripts/inject-token.ps1 -Token "${{ secrets.UPLOADTHING_TOKEN }}"
 
       - name: Publish Linux App
         run: |
