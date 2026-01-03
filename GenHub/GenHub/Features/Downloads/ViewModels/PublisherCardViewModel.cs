@@ -387,6 +387,11 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
             _ => "Processing",
         };
 
+        if (!string.IsNullOrEmpty(progress.CurrentOperation))
+        {
+            return $"{phaseName}: {progress.CurrentOperation}";
+        }
+
         // Format with percentage and phase
         var percentText = progress.ProgressPercentage > 0 ? $"{progress.ProgressPercentage:F0}%" : string.Empty;
 
@@ -404,11 +409,6 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
                 ? (int)((double)progress.FilesProcessed / progress.TotalFiles * 100)
                 : 0;
             return $"{phaseName}: {progress.FilesProcessed}/{progress.TotalFiles} files ({phasePercent}%)";
-        }
-
-        if (!string.IsNullOrEmpty(progress.CurrentOperation))
-        {
-            return $"{phaseName}: {progress.CurrentOperation}";
         }
 
         return !string.IsNullOrEmpty(percentText) ? $"{phaseName}... {percentText}" : $"{phaseName}...";
@@ -444,7 +444,7 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
             // Downloaded content has ID like: 1.1215251.generalsonline.gameclient.30hz
             // We only want downloaded content as variants for the add-to-profile dropdown
             var manifestIdParts = manifest.Id.Value.Split('.');
-            if (manifestIdParts.Length >= 2 && manifestIdParts[1] == "0")
+            if (manifestIdParts.Length >= 2 && manifestIdParts[1] == "0" && manifest.ContentType == ContentType.GameClient)
             {
                 continue;
             }
@@ -569,25 +569,33 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
 
             var result = await _contentOrchestrator.AcquireContentAsync(item.Model, progress);
 
-            if (result.Success && result.Data != null)
+            if (result.Success && result.Data is Core.Models.Manifest.ContentManifest manifest)
             {
                 item.DownloadStatus = "✓ Downloaded";
                 item.DownloadProgress = 100;
                 item.IsDownloaded = true;
 
                 // Update the Model.Id with the resolved manifest ID
-                if (result.Data != null)
-                {
-                    item.Model.Id = result.Data.Id.Value;
-                    _logger.LogDebug("Updated Model.Id to resolved manifest ID: {ManifestId}", item.Model.Id);
+                item.Model.Id = manifest.Id.Value;
+                _logger.LogDebug("Updated Model.Id to resolved manifest ID: {ManifestId}", item.Model.Id);
 
-                    // Refresh installation status to populate variants
-                    await RefreshInstallationStatusAsync();
-                }
+                // Refresh installation status to populate variants
+                await RefreshInstallationStatusAsync();
 
                 _logger.LogInformation("Successfully downloaded {ItemName}", item.Name);
 
-                if (result.Data!.ContentType == Core.Models.Enums.ContentType.GameClient)
+                // Notify other components that content was acquired
+                try
+                {
+                    var message = new Core.Models.Content.ContentAcquiredMessage(manifest);
+                    WeakReferenceMessenger.Default.Send(message);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send ContentAcquiredMessage");
+                }
+
+                if (manifest.ContentType == ContentType.GameClient)
                 {
                     // For multi-variant content (GeneralsOnline, SuperHackers), we need to create profiles
                     // for all variants that were just installed, not just the primary one returned.
@@ -603,7 +611,7 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
                         var justInstalledGameClients = allManifests.Data.Where(m =>
                             m.Version == installedVersion &&
                             m.Publisher?.PublisherType == publisherType &&
-                            m.ContentType == Core.Models.Enums.ContentType.GameClient).ToList();
+                            m.ContentType == ContentType.GameClient).ToList();
 
                         _logger.LogInformation(
                             "Found {Count} GameClient variants for {Publisher} v{Version}",
@@ -611,9 +619,9 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
                             publisherType,
                             installedVersion);
 
-                        foreach (var manifest in justInstalledGameClients)
+                        foreach (var m in justInstalledGameClients)
                         {
-                            var profileResult = await _profileService.CreateProfileFromManifestAsync(manifest);
+                            var profileResult = await _profileService.CreateProfileFromManifestAsync(m);
                             if (profileResult.Success)
                             {
                                 _logger.LogInformation(

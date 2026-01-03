@@ -29,7 +29,7 @@ namespace GenHub.Features.GameProfiles.ViewModels;
 /// <summary>
 /// ViewModel for managing game profile settings, including content selection and configuration.
 /// </summary>
-public partial class GameProfileSettingsViewModel : ViewModelBase
+public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Core.Models.Content.ContentAcquiredMessage>
 {
     private readonly IGameProfileManager? gameProfileManager;
     private readonly IGameSettingsService? gameSettingsService;
@@ -96,6 +96,9 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
             NullLogger<NotificationItemViewModel>.Instance);
 
         GameSettingsViewModel = new GameSettingsViewModel(gameSettingsService!, gameSettingsLogger!);
+
+        // Register for content acquired messages to auto-refresh available content
+        WeakReferenceMessenger.Default.Register(this);
     }
 
     [ObservableProperty]
@@ -281,31 +284,6 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
         _ = LoadAvailableContentAsync();
     }
 
-    // ===== Local Content Dialog Properties =====
-    [ObservableProperty]
-    private bool _isAddLocalContentDialogOpen;
-
-    [ObservableProperty]
-    private string _localContentName = string.Empty;
-
-    [ObservableProperty]
-    private string _localContentDirectoryPath = string.Empty;
-
-    [ObservableProperty]
-    private ContentType _selectedLocalContentType = ContentType.Addon;
-
-    [ObservableProperty]
-    private Core.Models.Enums.GameType _selectedLocalGameType = Core.Models.Enums.GameType.Generals;
-
-    /// <summary>
-    /// Gets available local game types for selection.
-    /// </summary>
-    public static Core.Models.Enums.GameType[] AvailableLocalGameTypes { get; } =
-    [
-        Core.Models.Enums.GameType.Generals,
-        Core.Models.Enums.GameType.ZeroHour,
-    ];
-
     /// <summary>
     /// Event that is raised when the window should be closed.
     /// </summary>
@@ -332,19 +310,6 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
         WorkspaceStrategy.HybridCopySymlink,
         WorkspaceStrategy.HardLink,
         WorkspaceStrategy.FullCopy,
-    ];
-
-    /// <summary>
-    /// Gets the allowed content types for local content creation.
-    /// </summary>
-    public static ContentType[] AllowedLocalContentTypes { get; } =
-    [
-        ContentType.GameClient,
-        ContentType.Addon,
-        ContentType.Map,
-        ContentType.MapPack,
-        ContentType.Mission,
-        ContentType.ModdingTool,
     ];
 
     /// <summary>
@@ -534,6 +499,16 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
         {
             IsInitializing = false;
         }
+    }
+
+    /// <summary>
+    /// Receives a ContentAcquiredMessage and refreshes the available content list.
+    /// </summary>
+    /// <param name="message">The content acquired message.</param>
+    public void Receive(Core.Models.Content.ContentAcquiredMessage message)
+    {
+        // Refresh available content when new content is acquired
+        _ = LoadAvailableContentAsync();
     }
 
     /// <summary>
@@ -2119,198 +2094,67 @@ public partial class GameProfileSettingsViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Opens a folder picker dialog and shows the local content configuration dialog.
+    /// Opens the Add Local Content dialog.
     /// </summary>
     [RelayCommand]
-    private async Task AddLocalContentAsync()
+    private async Task AddLocalContentAsync(Avalonia.Controls.Window? owner)
     {
         try
         {
-            var topLevel = Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
-                ? desktop.MainWindow
-                : null;
-
-            if (topLevel == null)
-            {
-                StatusMessage = "Unable to open folder picker";
-                return;
-            }
-
-            var folderPickerOptions = new Avalonia.Platform.Storage.FolderPickerOpenOptions
-            {
-                Title = "Select Local Content Folder",
-                AllowMultiple = false,
-            };
-
-            var result = await topLevel.StorageProvider.OpenFolderPickerAsync(folderPickerOptions);
-
-            if (result.Count > 0)
-            {
-                var selectedFolder = result[0];
-                LocalContentDirectoryPath = selectedFolder.Path.LocalPath;
-                LocalContentName = System.IO.Path.GetFileName(LocalContentDirectoryPath);
-                SelectedLocalContentType = ContentType.Addon; // Default
-                SelectedLocalGameType = Core.Models.Enums.GameType.Generals; // Reset default
-                IsAddLocalContentDialogOpen = true;
-
-                logger?.LogInformation("Selected local content folder: {Path}", LocalContentDirectoryPath);
-            }
-        }
-        catch (Exception ex)
-        {
-            logger?.LogError(ex, "Error opening folder picker for local content");
-            StatusMessage = "Error selecting folder";
-        }
-    }
-
-    /// <summary>
-    /// Confirms adding the local content and creates a manifest.
-    /// </summary>
-    [RelayCommand]
-    private async Task ConfirmAddLocalContent()
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(LocalContentName))
-            {
-                StatusMessage = "Please enter a content name";
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(LocalContentDirectoryPath))
-            {
-                StatusMessage = "No folder selected";
-                return;
-            }
-
-            // Determine the game type from enabled content or default to Generals
-            Core.Models.Enums.GameType targetGameType;
-
-            // If it's a game client, use the user-selected game type
-            if (SelectedLocalContentType == ContentType.GameClient)
-            {
-                targetGameType = SelectedLocalGameType;
-            }
-            else
-            {
-                var firstContent = EnabledContent.FirstOrDefault();
-                targetGameType = (firstContent != null) ? firstContent.GameType : Core.Models.Enums.GameType.Generals;
-            }
-
-            // Call local content service to create manifest and store content
-            IsLoadingContent = true;
-            StatusMessage = "Initializing content import...";
-
-            // Show notification for user awareness of potentially long operation
-            _localNotificationService?.ShowInfo(
-                "Importing Content",
-                $"Importing '{LocalContentName}' - this may take a moment for large folders...",
-                autoDismissMs: 5000);
-
-            // Create progress handler
-            var progress = new Progress<Core.Models.Content.ContentStorageProgress>(p =>
-            {
-                // Update status message on UI thread
-                if (p.TotalCount > 0)
-                {
-                    // Show percentage for large operations
-                    StatusMessage = $"Importing: {p.Percentage:0}% ({p.ProcessedCount}/{p.TotalCount} files)";
-                }
-                else
-                {
-                    StatusMessage = $"Importing: {p.ProcessedCount} files processed";
-                }
-            });
-
             if (localContentService == null)
             {
-                StatusMessage = "Local content service not available";
-                IsLoadingContent = false;
+                StatusMessage = "Local content service unavailble";
                 return;
             }
 
-            var result = await localContentService.CreateLocalContentManifestAsync(
-                LocalContentDirectoryPath,
-                LocalContentName,
-                SelectedLocalContentType,
-                targetGameType,
-                progress);
+            var dialogOwner = owner ?? (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow
+                : null);
 
-            if (!result.Success)
+            if (dialogOwner == null)
             {
-                StatusMessage = $"Import failed: {result.FirstError}";
-                notificationService?.ShowError("Import Error", result.FirstError ?? "Unknown error");
+                logger?.LogWarning("AddLocalContentAsync: No suitable owner window found.");
                 return;
             }
 
-            var manifest = result.Data;
+            // Create and show the new dialog
 
-            // Create a ContentDisplayItem for the local content
-            var localContentItem = new ContentDisplayItem
+            // Note: Logger casting might fail if generic type doesn't match, so passing null might be safer or creating a logger manually
+            // Allowing null logger for now
+            var vm = new AddLocalContentViewModel(localContentService, logger as ILogger<AddLocalContentViewModel>); // Simple casting or prefer DI if possible
+            var window = new Views.AddLocalContentWindow
             {
-                ManifestId = ManifestId.Create(manifest.Id),
-                DisplayName = manifest.Name ?? LocalContentName,
-                ContentType = manifest.ContentType,
-                GameType = manifest.TargetGame,
-                InstallationType = GameInstallationType.Unknown,
-                Publisher = manifest.Publisher?.Name ?? "GenHub (Local)",
-                Version = manifest.Version ?? "1.0.0",
-                SourceId = LocalContentDirectoryPath,
-                IsEnabled = false, // Set to false initially so EnableContent passes the "already enabled" check
+                DataContext = vm,
             };
 
-            // Add to AvailableContent first to ensure it's tracked properly
-            if (!AvailableContent.Any(a => a.ManifestId.Value == localContentItem.ManifestId.Value))
+            var result = await window.ShowDialog<bool>(dialogOwner);
+
+            if (result && vm.CreatedContentItem != null)
             {
-                AvailableContent.Add(localContentItem);
-                logger?.LogDebug("Added local content to AvailableContent");
+                var contentItem = vm.CreatedContentItem;
+
+                // Add to AvailableContent if not present
+                if (!AvailableContent.Any(a => a.ManifestId.Value == contentItem.ManifestId.Value))
+                {
+                    AvailableContent.Add(contentItem);
+                }
+
+                logger?.LogInformation("Added local content via dialog: {Name}", contentItem.DisplayName);
+
+                // Enable it
+                StatusMessage = $"Added {contentItem.DisplayName}";
+                await EnableContentInternal(contentItem, bypassLoadingGuard: true);
+
+                _localNotificationService?.ShowSuccess(
+                     "Content Added",
+                     $"'{contentItem.DisplayName}' has been added successfully.");
             }
-
-            // Status message before enabling (EnableContent might overwrite it)
-            StatusMessage = $"Added local content: {LocalContentName}";
-            logger?.LogInformation(
-                "Added local content '{Name}' as {ContentType} from {Path}",
-                LocalContentName,
-                SelectedLocalContentType,
-                LocalContentDirectoryPath);
-
-            // Use EnableContent to handle validation, dependency resolution, and conflict management
-            // This ensures we don't have multiple game clients enabled or missing dependencies
-            // We pass bypassLoadingGuard: true because we are currently "loading" the local content
-            await EnableContentInternal(localContentItem, bypassLoadingGuard: true);
-
-            // Notify user that content is stored in CAS
-            _localNotificationService?.ShowSuccess(
-                "Local Content Added",
-                $"'{LocalContentName}' has been imported. {manifest.Files.Count} files stored.\nYou can safely delete the source folder '{LocalContentDirectoryPath}' if desired.",
-                autoDismissMs: 10000);
-
-            // Close the dialog and reset state
-            IsAddLocalContentDialogOpen = false;
-            LocalContentName = string.Empty;
-            LocalContentDirectoryPath = string.Empty;
         }
         catch (Exception ex)
         {
-            logger?.LogError(ex, "Error adding local content");
-            StatusMessage = $"Error adding local content: {ex.Message}";
+            logger?.LogError(ex, "Error opening Add Local Content dialog");
+            StatusMessage = "Error opening dialog";
         }
-        finally
-        {
-            IsLoadingContent = false;
-        }
-    }
-
-    /// <summary>
-    /// Cancels the add local content dialog.
-    /// </summary>
-    [RelayCommand]
-    private void CancelAddLocalContent()
-    {
-        IsAddLocalContentDialogOpen = false;
-        LocalContentName = string.Empty;
-        LocalContentDirectoryPath = string.Empty;
-        StatusMessage = "Add local content cancelled";
     }
 
     /// <summary>
