@@ -2,7 +2,6 @@ using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Features.Content.Services.ContentDiscoverers;
 using GenHub.Features.Downloads.ViewModels;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -21,21 +20,25 @@ public class DownloadsViewModelTests
     public async Task InitializeAsync_CompletesSuccessfully()
     {
         // Arrange
-        var serviceProviderMock = new Mock<IServiceProvider>();
-        var loggerMock = new Mock<ILogger<DownloadsViewModel>>();
+        var mockServiceProvider = new Mock<IServiceProvider>();
+        var mockLogger = new Mock<ILogger<DownloadsViewModel>>();
         var mockNotificationService = new Mock<INotificationService>();
-        var mockGitHubApiClient = new Mock<IGitHubApiClient>();
-        var mockLoggerGitHubDiscoverer = new Mock<ILogger<GitHubTopicsDiscoverer>>();
-        var mockMemoryCache = new Mock<IMemoryCache>();
 
-        var mockGitHubDiscoverer = new Mock<GitHubTopicsDiscoverer>(
-            mockGitHubApiClient.Object,
-            mockLoggerGitHubDiscoverer.Object,
-            mockMemoryCache.Object);
+        // Create a real instance of the discoverer with mocked dependencies to avoid Moq proxy issues
+        var discoverer = new GitHubTopicsDiscoverer(
+            new Mock<IGitHubApiClient>().Object,
+            new Mock<ILogger<GitHubTopicsDiscoverer>>().Object);
 
-        var vm = new DownloadsViewModel(serviceProviderMock.Object, loggerMock.Object, mockNotificationService.Object, mockGitHubDiscoverer.Object);
+        var vm = new DownloadsViewModel(
+            mockServiceProvider.Object,
+            mockLogger.Object,
+            mockNotificationService.Object,
+            discoverer);
 
-        // Act & Assert (Smoke test to ensure no exceptions are thrown)
+        // Act
         await vm.InitializeAsync();
+
+        // Assert
+        Assert.NotNull(vm);
     }
 }

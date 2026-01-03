@@ -69,37 +69,55 @@ public class ProviderEndpoints
         if (string.Equals(name, ProviderEndpointConstants.CatalogUrl, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(name, ProviderEndpointConstants.Catalog, StringComparison.OrdinalIgnoreCase))
         {
-            return CatalogUrl;
+            if (!string.IsNullOrEmpty(CatalogUrl))
+            {
+                return CatalogUrl;
+            }
         }
 
         if (string.Equals(name, ProviderEndpointConstants.DownloadBaseUrl, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(name, ProviderEndpointConstants.DownloadBase, StringComparison.OrdinalIgnoreCase))
         {
-            return DownloadBaseUrl;
+            if (!string.IsNullOrEmpty(DownloadBaseUrl))
+            {
+                return DownloadBaseUrl;
+            }
         }
 
         if (string.Equals(name, ProviderEndpointConstants.WebsiteUrl, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(name, ProviderEndpointConstants.Website, StringComparison.OrdinalIgnoreCase))
         {
-            return WebsiteUrl;
+            if (!string.IsNullOrEmpty(WebsiteUrl))
+            {
+                return WebsiteUrl;
+            }
         }
 
         if (string.Equals(name, ProviderEndpointConstants.SupportUrl, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(name, ProviderEndpointConstants.Support, StringComparison.OrdinalIgnoreCase))
         {
-            return SupportUrl;
+            if (!string.IsNullOrEmpty(SupportUrl))
+            {
+                return SupportUrl;
+            }
         }
 
         if (string.Equals(name, ProviderEndpointConstants.LatestVersionUrl, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(name, ProviderEndpointConstants.LatestVersion, StringComparison.OrdinalIgnoreCase))
         {
-            return LatestVersionUrl;
+            if (!string.IsNullOrEmpty(LatestVersionUrl))
+            {
+                return LatestVersionUrl;
+            }
         }
 
         if (string.Equals(name, ProviderEndpointConstants.ManifestApiUrl, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(name, ProviderEndpointConstants.ManifestApi, StringComparison.OrdinalIgnoreCase))
         {
-            return ManifestApiUrl;
+            if (!string.IsNullOrEmpty(ManifestApiUrl))
+            {
+                return ManifestApiUrl;
+            }
         }
 
         // Check custom endpoints

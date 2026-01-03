@@ -4,6 +4,7 @@ using GenHub.Core.Interfaces.Providers;
 using GenHub.Core.Models.Results.Content;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
@@ -115,41 +116,71 @@ public class GeneralsOnlineUpdateService(
                 return null;
             }
 
-            var latestVersionUrl = provider.Endpoints.GetEndpoint("latestVersionUrl");
+            var latestVersionUrl = provider.Endpoints.GetEndpoint(ProviderEndpointConstants.LatestVersionUrl);
             if (string.IsNullOrEmpty(latestVersionUrl))
             {
-                logger.LogError("latestVersionUrl not configured in provider definition");
+                // Fallback to standard endpoint name lookup
+                latestVersionUrl = provider.Endpoints.GetEndpoint("latestVersionUrl");
+            }
+
+            if (string.IsNullOrEmpty(latestVersionUrl))
+            {
+                logger.LogError("latestVersionUrl not configured in provider definition (checked both 'custom.latestVersionUrl' and 'latestVersionUrl')");
                 return null;
             }
 
-            // Try to get version from latest.txt
-            var response = await _httpClient.GetAsync(latestVersionUrl, cancellationToken);
+            // Try to get version from latest.txt with retries
+            HttpResponseMessage? response = null;
+            for (int i = 0; i < 3; i++)
+            {
+                try
+                {
+                    response = await _httpClient.GetAsync(latestVersionUrl, cancellationToken);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        break;
+                    }
+                }
+                catch (Exception ex) when (i < 2)
+                {
+                    logger.LogWarning(ex, "Attempt {Count} to fetch latest.txt failed", i + 1);
+                }
 
-            if (response.IsSuccessStatusCode)
+                if (i < 2)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, i + 1)), cancellationToken);
+                }
+            }
+
+            if (response != null && response.IsSuccessStatusCode)
             {
                 var version = await response.Content.ReadAsStringAsync(cancellationToken);
                 return version?.Trim();
             }
 
-            logger.LogWarning("latest.txt not available (status: {StatusCode}), falling back to manifest.json", response.StatusCode);
+            logger.LogWarning("latest.txt not available, falling back to manifest.json");
 
-            // Fallback: get version from manifest.json
-            var manifestResponse = await _httpClient.GetAsync(provider.Endpoints.GetEndpoint("manifestUrl"), cancellationToken);
-            if (manifestResponse.IsSuccessStatusCode)
+            // Fallback: get version from manifest.json (catalogUrl)
+            var catalogUrl = provider.Endpoints.GetEndpoint(ProviderEndpointConstants.CatalogUrl);
+            if (!string.IsNullOrEmpty(catalogUrl))
             {
-                var json = await manifestResponse.Content.ReadAsStringAsync(cancellationToken);
-
-                // Simple JSON parsing for "version" field
-                var versionStart = json.IndexOf("\"version\":", StringComparison.OrdinalIgnoreCase);
-                if (versionStart >= 0)
+                var manifestResponse = await _httpClient.GetAsync(catalogUrl, cancellationToken);
+                if (manifestResponse.IsSuccessStatusCode)
                 {
-                    versionStart += 10; // length of "version":
-                    var versionEnd = json.IndexOf('"', versionStart);
-                    if (versionEnd > versionStart)
+                    var json = await manifestResponse.Content.ReadAsStringAsync(cancellationToken);
+
+                    // Simple JSON parsing for "version" field
+                    var versionStart = json.IndexOf("\"version\":", StringComparison.OrdinalIgnoreCase);
+                    if (versionStart >= 0)
                     {
-                        var version = json[versionStart..versionEnd].Trim().Trim('"');
-                        logger.LogInformation("Retrieved latest version from manifest.json: {Version}", version);
-                        return version;
+                        versionStart += 10; // length of "version":
+                        var versionEnd = json.IndexOf('"', versionStart);
+                        if (versionEnd > versionStart)
+                        {
+                            var version = json[versionStart..versionEnd].Trim().Trim('"');
+                            logger.LogInformation("Retrieved latest version from manifest.json: {Version}", version);
+                            return version;
+                        }
                     }
                 }
             }
@@ -214,16 +245,22 @@ public class GeneralsOnlineUpdateService(
                 return null;
             }
 
-            var month = int.Parse(datePart[0..2]);
-            var day = int.Parse(datePart[2..4]);
-            var year = int.Parse(datePart[4..6]);
+            if (!DateTime.TryParseExact(
+                datePart,
+                GeneralsOnlineConstants.VersionDateFormat,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var date))
+            {
+                logger.LogWarning("Failed to parse version date: {DatePart}", datePart);
+                return null;
+            }
 
-            var date = new DateTime(year, month, day);
             return (date, qfe);
         }
-        catch
+        catch (Exception ex)
         {
-            logger.LogWarning("Failed to parse version: {Version}", version);
+            logger.LogWarning(ex, "Failed to parse version: {Version}", version);
             return null;
         }
     }

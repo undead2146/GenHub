@@ -282,15 +282,22 @@ public class MainViewModelTests
         var mockServiceProvider = new Mock<IServiceProvider>();
         var mockLogger = new Mock<ILogger<DownloadsViewModel>>();
         var mockNotificationService = new Mock<INotificationService>();
-        var mockGitHubDiscoverer = new Mock<GitHubTopicsDiscoverer>(
-            new Mock<IGitHubApiClient>().Object,
-            new Mock<ILogger<GitHubTopicsDiscoverer>>().Object,
-            new Mock<IMemoryCache>().Object);
+
+        // Create the three required dependencies for the discoverer
+        var mockGitHubClient = new Mock<IGitHubApiClient>();
+        var mockDiscovererLogger = new Mock<ILogger<GitHubTopicsDiscoverer>>();
+        var mockCache = new Mock<IMemoryCache>();
+
+        // Instantiate the real class with the three mocks
+        var realGitHubDiscoverer = new GitHubTopicsDiscoverer(
+            mockGitHubClient.Object,
+            mockDiscovererLogger.Object);
+
         return new DownloadsViewModel(
             mockServiceProvider.Object,
             mockLogger.Object,
             mockNotificationService.Object,
-            mockGitHubDiscoverer.Object);
+            realGitHubDiscoverer);
     }
 
     /// <summary>

@@ -43,6 +43,7 @@ Application-wide constants for GenHub.
 | `AppVersion`              | Dynamic (lazy)      | Full semantic version from assembly              |
 | `DisplayVersion`          | `"v" + AppVersion`  | Display version for UI                           |
 | `GitShortHash`            | Dynamic             | Short git commit hash (7 chars)                  |
+| `GitShortHashLength`      | `7`                 | Length of git short hash                         |
 | `PullRequestNumber`       | Dynamic             | PR number if PR build                            |
 | `BuildChannel`            | Dynamic             | Build channel (Dev, PR, CI, Release)             |
 | `IsCiBuild`               | bool                | Whether this is a CI/CD build                    |
@@ -53,6 +54,18 @@ Application-wide constants for GenHub.
 | `DefaultTheme`            | `Theme.Dark`        | Default UI theme                                 |
 | `DefaultThemeName`        | `"Dark"`            | Default theme name as string                     |
 | `TokenFileName`           | `".ghtoken"`        | Default GitHub token file name                   |
+
+---
+
+## AppUpdateConstants Class
+
+Constants related to application updates and Velopack.
+
+| Constant                     | Value/Type                  | Description                                      |
+| ---------------------------- | --------------------------- | ------------------------------------------------ |
+| `PostUpdateExitDelay`        | `TimeSpan.FromSeconds(5)`   | Delay before exit after applying update          |
+| `CacheDuration`              | `TimeSpan.FromHours(1)`     | Cache duration for update checks                 |
+| `MaxHttpRetries`             | `3`                         | Maximum number of HTTP retries for failed requests |
 
 ---
 

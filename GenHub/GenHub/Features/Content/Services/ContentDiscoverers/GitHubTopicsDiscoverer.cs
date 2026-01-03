@@ -12,7 +12,6 @@ using GenHub.Core.Models.GitHub;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
 using GenHub.Features.Content.Services.Helpers;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Content.Services.ContentDiscoverers;
@@ -24,8 +23,7 @@ namespace GenHub.Features.Content.Services.ContentDiscoverers;
 /// </summary>
 public partial class GitHubTopicsDiscoverer(
     IGitHubApiClient gitHubApiClient,
-    ILogger<GitHubTopicsDiscoverer> logger,
-    IMemoryCache cache) : IContentDiscoverer
+    ILogger<GitHubTopicsDiscoverer> logger) : IContentDiscoverer
 {
     [System.Text.RegularExpressions.GeneratedRegex(@"[^\d]")]
     private static partial System.Text.RegularExpressions.Regex NonDigitRegex();
@@ -126,7 +124,7 @@ public partial class GitHubTopicsDiscoverer(
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var searchResponse = await SearchRepositoriesByTopicWithCacheAsync(
+                var searchResponse = await gitHubApiClient.SearchRepositoriesByTopicAsync(
                     topic,
                     perPage: GitHubTopicsConstants.DefaultPerPage,
                     page: 1,
@@ -508,24 +506,6 @@ public partial class GitHubTopicsDiscoverer(
         }
 
         return nameWithoutExt;
-    }
-
-    /// <summary>
-    /// Searches for repositories by topic with caching to reduce API calls.
-    /// </summary>
-    private async Task<GitHubRepositorySearchResponse> SearchRepositoriesByTopicWithCacheAsync(
-        string topic,
-        int perPage,
-        int page,
-        CancellationToken cancellationToken)
-    {
-        var cacheKey = $"github_topic_{topic}_{perPage}_{page}";
-        var result = await cache.GetOrCreateAsync(cacheKey, async entry =>
-        {
-            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(GitHubTopicsConstants.CacheDurationMinutes);
-            return await gitHubApiClient.SearchRepositoriesByTopicAsync(topic, perPage, page, cancellationToken).ConfigureAwait(false);
-        }).ConfigureAwait(false);
-        return result ?? new GitHubRepositorySearchResponse();
     }
 
     /// <summary>
