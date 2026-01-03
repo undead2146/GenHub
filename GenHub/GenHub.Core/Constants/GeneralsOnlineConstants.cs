@@ -5,31 +5,6 @@ namespace GenHub.Core.Constants;
 /// </summary>
 public static class GeneralsOnlineConstants
 {
-    // ===== API Endpoints =====
-
-    /// <summary>Base URL for Generals Online CDN.</summary>
-    public const string CdnBaseUrl = "https://cdn.playgenerals.online";
-
-    /// <summary>API endpoint for JSON manifest with full release information.</summary>
-    public const string ManifestApiUrl = "https://cdn.playgenerals.online/manifest.json";
-
-    /// <summary>Endpoint for latest version information (plain text version string).</summary>
-    public const string LatestVersionUrl = "https://cdn.playgenerals.online/latest.txt";
-
-    /// <summary>Base URL for release downloads.</summary>
-    public const string ReleasesUrl = "https://cdn.playgenerals.online/releases";
-
-    // ===== Web URLs =====
-
-    /// <summary>Official Generals Online website.</summary>
-    public const string WebsiteUrl = "https://www.playgenerals.online/";
-
-    /// <summary>Download page URL.</summary>
-    public const string DownloadPageUrl = "https://www.playgenerals.online/#download";
-
-    /// <summary>Support/discord URL.</summary>
-    public const string SupportUrl = "https://discord.playgenerals.online/";
-
     // ===== Content Metadata =====
 
     /// <summary>Publisher name for manifests.</summary>
@@ -47,15 +22,24 @@ public static class GeneralsOnlineConstants
     /// <summary>Content icon URL.</summary>
     public const string IconUrl = "https://www.playgenerals.online/logo.png";
 
-    /// <summary>
-    /// Publisher logo source path for UI display.
-    /// </summary>
-    public const string LogoSource = "/Assets/Logos/generalsonline-logo.png";
+    /// <summary>Website URL for Generals Online.</summary>
+    public const string WebsiteUrl = "https://www.playgenerals.online";
+
+    /// <summary>Support URL for Generals Online.</summary>
+    public const string SupportUrl = "https://www.playgenerals.online/support";
+
+    /// <summary>Download page URL for Generals Online.</summary>
+    public const string DownloadPageUrl = "https://www.playgenerals.online/download";
 
     /// <summary>
     /// Cover image source path for UI display.
     /// </summary>
     public const string CoverSource = "/Assets/Covers/zerohour-cover.png";
+
+    /// <summary>
+    /// Publisher logo source path for UI display.
+    /// </summary>
+    public const string LogoSource = UriConstants.GeneralsOnlineLogoUri;
 
     // ===== Version Parsing =====
 
@@ -64,6 +48,12 @@ public static class GeneralsOnlineConstants
 
     /// <summary>Separator between date and QFE number in versions.</summary>
     public const string QfeSeparator = "_QFE";
+
+    /// <summary>Prefix for QFE markers in version strings.</summary>
+    public const string QfeMarkerPrefix = "QFE";
+
+    /// <summary>Version string used when version information is missing.</summary>
+    public const string UnknownVersion = "unknown";
 
     // ===== File Extensions =====
 
@@ -76,6 +66,9 @@ public static class GeneralsOnlineConstants
     public const int UpdateCheckIntervalHours = 24;
 
     // ===== Manifest Generation =====
+
+    /// <summary>Publisher ID for the Generals Online service.</summary>
+    public const string PublisherId = PublisherType;
 
     /// <summary>Publisher type identifier for GeneralsOnline.</summary>
     public const string PublisherType = "generalsonline";
@@ -119,4 +112,9 @@ public static class GeneralsOnlineConstants
 
     /// <summary>Content tags for search and categorization.</summary>
     public static readonly string[] Tags = ["multiplayer", "online", "community", "enhancement"];
+
+    /// <summary>
+    /// Default tags for MapPack manifests.
+    /// </summary>
+    public static readonly string[] MapPackTags = ["mappack", "generalsonline", "quickmatch", "competitive"];
 }

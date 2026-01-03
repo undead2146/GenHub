@@ -78,7 +78,7 @@
             <Setter Property="Foreground" Value="White" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="BorderThickness" Value="0,0,0,2" />
-            <Setter Property="BorderBrush" Value="#4A9EFF" />
+            <Setter Property="BorderBrush" Value="#8A2BE2" />
         </Style>
 
         <Style Selector="Button.modern-tab.active:pointerover">
@@ -87,37 +87,15 @@
             <Setter Property="RenderTransform" Value="none" />
         </Style>
 
-        <!-- Update notification button style -->
-        <Style Selector="Button.update-notification">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="20" />
-            <Setter Property="Padding" Value="12" />
-            <Setter Property="Width" Value="44" />
-            <Setter Property="Height" Value="44" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Transitions">
-                <Setter.Value>
-                    <Transitions>
-                        <BrushTransition Property="Background" Duration="0:0:0.2" />
-                        <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2" />
-                    </Transitions>
-                </Setter.Value>
-            </Setter>
-        </Style>
 
-        <Style Selector="Button.update-notification:pointerover">
-            <Setter Property="Background" Value="#2A2A2A" />
-            <Setter Property="RenderTransform" Value="scale(1.1)" />
-        </Style>
 
         <!-- Header gradient background -->
         <Style Selector="Border.header-background">
             <Setter Property="Background">
                 <Setter.Value>
                     <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-                        <GradientStop Color="#2D2D2D" Offset="0" />
-                        <GradientStop Color="#202020" Offset="1" />
+                        <GradientStop Color="#992D2D2D" Offset="0" />
+                        <GradientStop Color="#99202020" Offset="1" />
                     </LinearGradientBrush>
                 </Setter.Value>
             </Setter>
@@ -152,6 +130,16 @@
     </UserControl.DataTemplates>
 
     <Grid>
+        <!-- Global background image for all tabs -->
+        <Image Source="avares://GenHub/Assets/background.jpg"
+               Stretch="UniformToFill"
+               HorizontalAlignment="Stretch"
+               VerticalAlignment="Stretch"
+               Grid.RowSpan="2"/>
+
+        <!-- Semi-transparent overlay to improve text readability -->
+        <Border Background="#F2141414" Grid.RowSpan="2" />
+
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -179,7 +167,6 @@
                         Command="{Binding SelectTabCommand}"
                         CommandParameter="{x:Static enums:NavigationTab.Tools}"
                         Content="Tools"
-                        IsVisible="False"
                         Name="Tab2Button" />
                     <Button Classes="modern-tab"
                         Classes.active="{Binding SelectedTab, Converter={x:Static conv:NavigationTabConverter.Instance}, ConverterParameter={x:Static enums:NavigationTab.Settings}}"
@@ -190,14 +177,7 @@
                 </StackPanel>
                 <!-- branding and update button - Right side -->
                 <Grid Grid.Column="2" ColumnDefinitions="Auto,Auto" VerticalAlignment="Center">
-                    <!-- Update notification button - Left side -->
-                    <Button Grid.Column="0" Classes="update-notification" Command="{Binding ShowUpdateDialogCommand}" IsVisible="{Binding HasUpdateAvailable}" ToolTip.Tip="Update available - click to download" VerticalAlignment="Center" Margin="0,0,12,0">
-                        <Panel>
-                            <Ellipse Width="20" Height="20" Fill="#4CAF50" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            <PathIcon Data="M7,10L12,15L17,10H7Z" Width="12" Height="12" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            <Ellipse Width="8" Height="8" Fill="#FF4500" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-2,0" />
-                        </Panel>
-                    </Button>
+
                     <!-- Logo and title section - Right side -->
                     <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,0,0,0">
                         <Image Source="avares://GenHub/Assets/Logos/generalshub-logo.png" Width="90" Height="90" HorizontalAlignment="Center" Margin="0,-10,0,-15" />
@@ -208,12 +188,12 @@
         </Border>
 
         <!-- Main content area -->
-        <Grid Grid.Row="1" Background="#1A1A1A">
+        <Grid Grid.Row="1">
             <ContentControl Content="{Binding CurrentTabViewModel}" />
             <!-- Version label in bottom right corner -->
             <TextBlock Text="{x:Static constants:AppConstants.DisplayVersion}"
                        FontSize="9"
-                       Foreground="#404040"
+                       Foreground="#808080"
                        HorizontalAlignment="Right"
                        VerticalAlignment="Bottom"
                        Margin="0,0,10,5" />

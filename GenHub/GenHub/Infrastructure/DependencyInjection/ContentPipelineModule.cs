@@ -6,8 +6,10 @@ using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Interfaces.Providers;
 using GenHub.Core.Interfaces.Storage;
 using GenHub.Core.Services.Content;
+using GenHub.Core.Services.Providers;
 using GenHub.Features.Content.Services;
 using GenHub.Features.Content.Services.CommunityOutpost;
 using GenHub.Features.Content.Services.ContentDeliverers;
@@ -58,6 +60,9 @@ public static class ContentPipelineModule
     /// </summary>
     private static void AddCoreServices(IServiceCollection services)
     {
+        // Register content orchestrator
+        services.AddSingleton<IContentOrchestrator, ContentOrchestrator>();
+
         // Register core hash provider
         var hashProvider = new Sha256HashProvider();
         services.AddSingleton<IFileHashProvider>(hashProvider);
@@ -90,8 +95,13 @@ public static class ContentPipelineModule
         });
         services.AddScoped<IContentManifestPool, ContentManifestPool>();
 
-        // Register core orchestrator
-        services.AddSingleton<IContentOrchestrator, ContentOrchestrator>();
+        // Register provider definition loader for data-driven provider configuration
+        services.AddSingleton<IProviderDefinitionLoader, ProviderDefinitionLoader>();
+
+        // Register catalog parser factory and parsers
+        services.AddSingleton<ICatalogParserFactory, CatalogParserFactory>();
+        services.AddSingleton<ICatalogParser, GenPatcherDatCatalogParser>();
+        services.AddSingleton<ICatalogParser, GeneralsOnlineJsonCatalogParser>();
 
         // Register cache
         services.AddSingleton<IDynamicContentCache, MemoryDynamicContentCache>();
@@ -118,7 +128,8 @@ public static class ContentPipelineModule
         services.AddTransient<IContentProvider, GitHubContentProvider>();
 
         // Register SuperHackers provider (uses GitHub discoverer/resolver/deliverer)
-        services.AddTransient<IContentProvider, SuperHackersProvider>();
+        services.AddTransient<SuperHackersProvider>();
+        services.AddTransient<IContentProvider>(sp => sp.GetRequiredService<SuperHackersProvider>());
 
         // Register GitHub discoverers (both concrete and interface registrations)
         services.AddTransient<GitHubDiscoverer>();
@@ -167,6 +178,9 @@ public static class ContentPipelineModule
 
         // Register Generals Online update service
         services.AddSingleton<GeneralsOnlineUpdateService>();
+
+        // Register Generals Online profile reconciler
+        services.AddSingleton<IGeneralsOnlineProfileReconciler, GeneralsOnlineProfileReconciler>();
     }
 
     /// <summary>
@@ -274,6 +288,8 @@ public static class ContentPipelineModule
         // Register publisher manifest factory resolver
         services.AddTransient<PublisherManifestFactoryResolver>();
 
+        // Register content pipeline factory for provider-based component lookup
+        services.AddSingleton<IContentPipelineFactory, ContentPipelineFactory>();
         services.AddTransient<PublisherCardViewModel>();
 
         // Register content orchestrator and validator

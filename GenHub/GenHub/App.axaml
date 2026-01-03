@@ -4,6 +4,7 @@
              x:Class="GenHub.App">
     <Application.Styles>
         <FluentTheme />
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
         <StyleInclude Source="avares://GenHub/Assets/Styles/ComboBoxStyles.axaml" />
     </Application.Styles>
     <Application.Resources>
@@ -16,5 +17,7 @@
         <local:ColorToBrushConverter x:Key="ColorToBrushConverter" />
         <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         <local:IntToBoolConverter x:Key="IntToBoolConverter" />
+        <local:EnumToBoolConverter x:Key="EnumToBoolConverter" />
+        <local:EqualsToConverter x:Key="EqualsToConverter" />
     </Application.Resources>
 </Application>

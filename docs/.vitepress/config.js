@@ -7,7 +7,7 @@ export default withMermaid(
         description: 'C&C Launcher Documentation',
         base:
             process.env.NODE_ENV === 'production' ||
-            process.env.GITHUB_ACTIONS === 'true'
+                process.env.GITHUB_ACTIONS === 'true'
                 ? '/wiki/'
                 : '/',
 
@@ -90,6 +90,12 @@ export default withMermaid(
                         { text: 'Workspace Assembly', link: '/FlowCharts/Assembly-Flow' },
                         { text: 'Manifest Creation', link: '/FlowCharts/Manifest-Creation-Flow' },
                         { text: 'Complete User Flow', link: '/FlowCharts/Complete-User-Flow' }
+                    ]
+                },
+                {
+                    text: 'Tools',
+                    items: [
+                        { text: 'Replay Manager', link: '/tools/replay-manager' }
                     ]
                 }
             ],

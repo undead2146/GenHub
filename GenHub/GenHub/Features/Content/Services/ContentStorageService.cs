@@ -100,7 +100,12 @@ public class ContentStorageService : IContentStorageService
 
         // Check if source directory is on a potentially invalid or removable drive
         bool isInvalidDrive = IsInvalidOrRemovableDrive(sourceDirectory);
-        if (isInvalidDrive)
+
+        // MapPacks and other local content might be created in temp directories on "invalid" drives (e.g. RAM disks)
+        // We should allow storage if it's a MapPack to ensure it persists after temp cleanup.
+        bool forceStorage = manifest.ContentType == ContentType.MapPack;
+
+        if (isInvalidDrive && !forceStorage)
         {
             _logger.LogWarning("Source directory {SourceDirectory} is on an invalid or removable drive, storing metadata only", sourceDirectory);
             return await StoreManifestOnlyAsync(manifest, cancellationToken);
@@ -332,6 +337,12 @@ public class ContentStorageService : IContentStorageService
         if (manifest.ContentType == ContentType.GameInstallation)
         {
             return false;
+        }
+
+        // MapPacks created locally MUST be stored in CAS because the source (temp dir) will be deleted
+        if (manifest.ContentType == ContentType.MapPack)
+        {
+            return true;
         }
 
         // GameClient content typically references external installations - no storage needed (old behavior)

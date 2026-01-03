@@ -37,6 +37,16 @@ public static class UiConstants
     /// </summary>
     public const string StatusErrorColor = "#F44336";
 
+    /// <summary>
+    /// Default theme color for Generals content.
+    /// </summary>
+    public const string GeneralsThemeColor = "#BD5A0F";
+
+    /// <summary>
+    /// Default theme color for Zero Hour content.
+    /// </summary>
+    public const string ZeroHourThemeColor = "#1B6575";
+
     // Content type display names
 
     /// <summary>

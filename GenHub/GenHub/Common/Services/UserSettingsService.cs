@@ -326,10 +326,10 @@ public class UserSettingsService : IUserSettingsService
         {
             // Fallback for test scenarios where appConfig might not be provided
             var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            return Path.Combine(appDataPath, AppConstants.AppName, FileTypes.JsonFileExtension);
+            return Path.Combine(appDataPath, AppConstants.AppName, FileTypes.SettingsFileName);
         }
 
-        return Path.Combine(_appConfig.GetConfiguredDataPath(), FileTypes.JsonFileExtension);
+        return Path.Combine(_appConfig.GetConfiguredDataPath(), FileTypes.SettingsFileName);
     }
 
     private void InitializeSettings()

@@ -55,10 +55,14 @@ public partial class ToolsViewModel(IToolManager toolService, ILogger<ToolsViewM
     private bool _isStatusVisible = false;
 
     [ObservableProperty]
-    private bool _isSidebarCollapsed = false;
+    private bool _isPaneOpen = false;
 
-    [ObservableProperty]
-    private double _sidebarWidth = 300;
+    // We'll add commands to explicitly Open and Close the pane.
+    [RelayCommand]
+    private void OpenPane() => IsPaneOpen = true;
+
+    [RelayCommand]
+    private void ClosePane() => IsPaneOpen = false;
 
     [ObservableProperty]
     private bool _isDetailsDialogOpen = false;
@@ -66,17 +70,12 @@ public partial class ToolsViewModel(IToolManager toolService, ILogger<ToolsViewM
     [ObservableProperty]
     private IToolPlugin? _toolForDetails;
 
-    /// <summary>
-    /// Gets the tooltip text for the sidebar toggle button.
-    /// </summary>
-    public string SidebarToggleTooltip => IsSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar";
-
     private System.Threading.CancellationTokenSource? _statusHideCts;
 
     /// <summary>
     /// Gets the collection of installed tools.
     /// </summary>
-    public ObservableCollection<IToolPlugin> InstalledTools { get; } = new();
+    public ObservableCollection<IToolPlugin> InstalledTools { get; } = [];
 
     /// <summary>
     /// Initializes the ViewModel by loading saved tools.
@@ -153,13 +152,13 @@ public partial class ToolsViewModel(IToolManager toolService, ILogger<ToolsViewM
             {
                 Title = "Select Tool Plugin Assembly",
                 AllowMultiple = false,
-                FileTypeFilter = new[]
-                {
+                FileTypeFilter =
+                [
                     new FilePickerFileType("Tool Plugin Assembly")
                     {
-                        Patterns = new[] { "*.dll" },
+                        Patterns = ["*.dll"],
                     },
-                },
+                ],
             });
 
             if (files.Count > 0)
@@ -205,6 +204,11 @@ public partial class ToolsViewModel(IToolManager toolService, ILogger<ToolsViewM
     {
         var toolToRemove = tool ?? SelectedTool;
         if (toolToRemove == null) return;
+        if (toolToRemove.Metadata.IsBundled)
+        {
+            ShowStatusMessage($"✗ Tool '{toolToRemove.Metadata.Name}' is a bundled tool and cannot be removed.", error: true);
+            return;
+        }
 
         try
         {
@@ -377,17 +381,6 @@ public partial class ToolsViewModel(IToolManager toolService, ILogger<ToolsViewM
         IsStatusSuccess = success;
         IsStatusError = error;
         IsStatusInfo = info;
-    }
-
-    /// <summary>
-    /// Toggles the sidebar collapsed state.
-    /// </summary>
-    [RelayCommand]
-    private void ToggleSidebar()
-    {
-        IsSidebarCollapsed = !IsSidebarCollapsed;
-        SidebarWidth = IsSidebarCollapsed ? 50 : 300;
-        OnPropertyChanged(nameof(SidebarToggleTooltip));
     }
 
     /// <summary>

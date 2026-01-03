@@ -238,10 +238,459 @@ public static class GameSettingsMapper
                     GameSettingsConstants.Audio.MaxNumSounds);
             }
         }
+    }
 
-        if (profile.GameSpyIPAddress != null)
-        {
-            options.Network.GameSpyIPAddress = profile.GameSpyIPAddress;
-        }
+    /// <summary>
+    /// Populates settings from a CreateProfileRequest into a GameProfile.
+    /// </summary>
+    /// <param name="profile">The GameProfile to populate.</param>
+    /// <param name="request">The request containing the settings.</param>
+    public static void PopulateGameProfile(GameProfile profile, CreateProfileRequest request)
+    {
+        // Video settings
+        profile.VideoResolutionWidth = request.VideoResolutionWidth;
+        profile.VideoResolutionHeight = request.VideoResolutionHeight;
+        profile.VideoWindowed = request.VideoWindowed;
+        profile.VideoTextureQuality = request.VideoTextureQuality;
+        profile.EnableVideoShadows = request.EnableVideoShadows;
+        profile.VideoParticleEffects = request.VideoParticleEffects;
+        profile.VideoExtraAnimations = request.VideoExtraAnimations;
+        profile.VideoBuildingAnimations = request.VideoBuildingAnimations;
+        profile.VideoGamma = request.VideoGamma;
+
+        // Audio settings
+        profile.AudioSoundVolume = request.AudioSoundVolume;
+        profile.AudioThreeDSoundVolume = request.AudioThreeDSoundVolume;
+        profile.AudioSpeechVolume = request.AudioSpeechVolume;
+        profile.AudioMusicVolume = request.AudioMusicVolume;
+        profile.AudioEnabled = request.AudioEnabled;
+        profile.AudioNumSounds = request.AudioNumSounds;
+
+        // TheSuperHackers settings
+        profile.TshArchiveReplays = request.TshArchiveReplays;
+        profile.TshShowMoneyPerMinute = request.TshShowMoneyPerMinute;
+        profile.TshPlayerObserverEnabled = request.TshPlayerObserverEnabled;
+        profile.TshSystemTimeFontSize = request.TshSystemTimeFontSize;
+        profile.TshNetworkLatencyFontSize = request.TshNetworkLatencyFontSize;
+        profile.TshRenderFpsFontSize = request.TshRenderFpsFontSize;
+        profile.TshResolutionFontAdjustment = request.TshResolutionFontAdjustment;
+        profile.TshCursorCaptureEnabledInFullscreenGame = request.TshCursorCaptureEnabledInFullscreenGame;
+        profile.TshCursorCaptureEnabledInFullscreenMenu = request.TshCursorCaptureEnabledInFullscreenMenu;
+        profile.TshCursorCaptureEnabledInWindowedGame = request.TshCursorCaptureEnabledInWindowedGame;
+        profile.TshCursorCaptureEnabledInWindowedMenu = request.TshCursorCaptureEnabledInWindowedMenu;
+        profile.TshScreenEdgeScrollEnabledInFullscreenApp = request.TshScreenEdgeScrollEnabledInFullscreenApp;
+        profile.TshScreenEdgeScrollEnabledInWindowedApp = request.TshScreenEdgeScrollEnabledInWindowedApp;
+        profile.TshMoneyTransactionVolume = request.TshMoneyTransactionVolume;
+
+        // GeneralsOnline settings
+        profile.GoShowFps = request.GoShowFps;
+        profile.GoShowPing = request.GoShowPing;
+        profile.GoShowPlayerRanks = request.GoShowPlayerRanks;
+        profile.GoAutoLogin = request.GoAutoLogin;
+        profile.GoRememberUsername = request.GoRememberUsername;
+        profile.GoEnableNotifications = request.GoEnableNotifications;
+        profile.GoEnableSoundNotifications = request.GoEnableSoundNotifications;
+        profile.GoChatFontSize = request.GoChatFontSize;
+
+        // Camera settings
+        profile.GoCameraMaxHeightOnlyWhenLobbyHost = request.GoCameraMaxHeightOnlyWhenLobbyHost;
+        profile.GoCameraMinHeight = request.GoCameraMinHeight;
+        profile.GoCameraMoveSpeedRatio = request.GoCameraMoveSpeedRatio;
+
+        // Chat settings
+        profile.GoChatDurationSecondsUntilFadeOut = request.GoChatDurationSecondsUntilFadeOut;
+
+        // Debug settings
+        profile.GoDebugVerboseLogging = request.GoDebugVerboseLogging;
+
+        // Render settings
+        profile.GoRenderFpsLimit = request.GoRenderFpsLimit;
+        profile.GoRenderLimitFramerate = request.GoRenderLimitFramerate;
+        profile.GoRenderStatsOverlay = request.GoRenderStatsOverlay;
+
+        // Social notification settings
+        profile.GoSocialNotificationFriendComesOnlineGameplay = request.GoSocialNotificationFriendComesOnlineGameplay;
+        profile.GoSocialNotificationFriendComesOnlineMenus = request.GoSocialNotificationFriendComesOnlineMenus;
+        profile.GoSocialNotificationFriendGoesOfflineGameplay = request.GoSocialNotificationFriendGoesOfflineGameplay;
+        profile.GoSocialNotificationFriendGoesOfflineMenus = request.GoSocialNotificationFriendGoesOfflineMenus;
+        profile.GoSocialNotificationPlayerAcceptsRequestGameplay = request.GoSocialNotificationPlayerAcceptsRequestGameplay;
+        profile.GoSocialNotificationPlayerAcceptsRequestMenus = request.GoSocialNotificationPlayerAcceptsRequestMenus;
+        profile.GoSocialNotificationPlayerSendsRequestGameplay = request.GoSocialNotificationPlayerSendsRequestGameplay;
+        profile.GoSocialNotificationPlayerSendsRequestMenus = request.GoSocialNotificationPlayerSendsRequestMenus;
+
+        profile.GameSpyIPAddress = request.GameSpyIPAddress;
+    }
+
+    /// <summary>
+    /// Populates settings from an UpdateProfileRequest into a GameProfile.
+    /// </summary>
+    /// <param name="profile">The GameProfile to populate.</param>
+    /// <param name="request">The request containing the settings.</param>
+    public static void PopulateGameProfile(GameProfile profile, UpdateProfileRequest request)
+    {
+        // Video settings
+        profile.VideoResolutionWidth = request.VideoResolutionWidth;
+        profile.VideoResolutionHeight = request.VideoResolutionHeight;
+        profile.VideoWindowed = request.VideoWindowed;
+        profile.VideoTextureQuality = request.VideoTextureQuality;
+        profile.EnableVideoShadows = request.EnableVideoShadows;
+        profile.VideoParticleEffects = request.VideoParticleEffects;
+        profile.VideoExtraAnimations = request.VideoExtraAnimations;
+        profile.VideoBuildingAnimations = request.VideoBuildingAnimations;
+        profile.VideoGamma = request.VideoGamma;
+
+        // Audio settings
+        profile.AudioSoundVolume = request.AudioSoundVolume;
+        profile.AudioThreeDSoundVolume = request.AudioThreeDSoundVolume;
+        profile.AudioSpeechVolume = request.AudioSpeechVolume;
+        profile.AudioMusicVolume = request.AudioMusicVolume;
+        profile.AudioEnabled = request.AudioEnabled;
+        profile.AudioNumSounds = request.AudioNumSounds;
+
+        // TheSuperHackers settings
+        profile.TshArchiveReplays = request.TshArchiveReplays;
+        profile.TshShowMoneyPerMinute = request.TshShowMoneyPerMinute;
+        profile.TshPlayerObserverEnabled = request.TshPlayerObserverEnabled;
+        profile.TshSystemTimeFontSize = request.TshSystemTimeFontSize;
+        profile.TshNetworkLatencyFontSize = request.TshNetworkLatencyFontSize;
+        profile.TshRenderFpsFontSize = request.TshRenderFpsFontSize;
+        profile.TshResolutionFontAdjustment = request.TshResolutionFontAdjustment;
+        profile.TshCursorCaptureEnabledInFullscreenGame = request.TshCursorCaptureEnabledInFullscreenGame;
+        profile.TshCursorCaptureEnabledInFullscreenMenu = request.TshCursorCaptureEnabledInFullscreenMenu;
+        profile.TshCursorCaptureEnabledInWindowedGame = request.TshCursorCaptureEnabledInWindowedGame;
+        profile.TshCursorCaptureEnabledInWindowedMenu = request.TshCursorCaptureEnabledInWindowedMenu;
+        profile.TshScreenEdgeScrollEnabledInFullscreenApp = request.TshScreenEdgeScrollEnabledInFullscreenApp;
+        profile.TshScreenEdgeScrollEnabledInWindowedApp = request.TshScreenEdgeScrollEnabledInWindowedApp;
+        profile.TshMoneyTransactionVolume = request.TshMoneyTransactionVolume;
+
+        // GeneralsOnline settings
+        profile.GoShowFps = request.GoShowFps;
+        profile.GoShowPing = request.GoShowPing;
+        profile.GoShowPlayerRanks = request.GoShowPlayerRanks;
+        profile.GoAutoLogin = request.GoAutoLogin;
+        profile.GoRememberUsername = request.GoRememberUsername;
+        profile.GoEnableNotifications = request.GoEnableNotifications;
+        profile.GoEnableSoundNotifications = request.GoEnableSoundNotifications;
+        profile.GoChatFontSize = request.GoChatFontSize;
+
+        // Camera settings
+        profile.GoCameraMaxHeightOnlyWhenLobbyHost = request.GoCameraMaxHeightOnlyWhenLobbyHost;
+        profile.GoCameraMinHeight = request.GoCameraMinHeight;
+        profile.GoCameraMoveSpeedRatio = request.GoCameraMoveSpeedRatio;
+
+        // Chat settings
+        profile.GoChatDurationSecondsUntilFadeOut = request.GoChatDurationSecondsUntilFadeOut;
+
+        // Debug settings
+        profile.GoDebugVerboseLogging = request.GoDebugVerboseLogging;
+
+        // Render settings
+        profile.GoRenderFpsLimit = request.GoRenderFpsLimit;
+        profile.GoRenderLimitFramerate = request.GoRenderLimitFramerate;
+        profile.GoRenderStatsOverlay = request.GoRenderStatsOverlay;
+
+        // Social notification settings
+        profile.GoSocialNotificationFriendComesOnlineGameplay = request.GoSocialNotificationFriendComesOnlineGameplay;
+        profile.GoSocialNotificationFriendComesOnlineMenus = request.GoSocialNotificationFriendComesOnlineMenus;
+        profile.GoSocialNotificationFriendGoesOfflineGameplay = request.GoSocialNotificationFriendGoesOfflineGameplay;
+        profile.GoSocialNotificationFriendGoesOfflineMenus = request.GoSocialNotificationFriendGoesOfflineMenus;
+        profile.GoSocialNotificationPlayerAcceptsRequestGameplay = request.GoSocialNotificationPlayerAcceptsRequestGameplay;
+        profile.GoSocialNotificationPlayerAcceptsRequestMenus = request.GoSocialNotificationPlayerAcceptsRequestMenus;
+        profile.GoSocialNotificationPlayerSendsRequestGameplay = request.GoSocialNotificationPlayerSendsRequestGameplay;
+        profile.GoSocialNotificationPlayerSendsRequestMenus = request.GoSocialNotificationPlayerSendsRequestMenus;
+
+        profile.GameSpyIPAddress = request.GameSpyIPAddress;
+    }
+
+    /// <summary>
+    /// Patches a GameProfile with non-null values from a CreateProfileRequest.
+    /// </summary>
+    /// <param name="profile">The GameProfile to patch.</param>
+    /// <param name="request">The request containing potentially partial settings.</param>
+    public static void PatchGameProfile(GameProfile profile, CreateProfileRequest request)
+    {
+        profile.VideoResolutionWidth = request.VideoResolutionWidth ?? profile.VideoResolutionWidth;
+        profile.VideoResolutionHeight = request.VideoResolutionHeight ?? profile.VideoResolutionHeight;
+        profile.VideoWindowed = request.VideoWindowed ?? profile.VideoWindowed;
+        profile.VideoTextureQuality = request.VideoTextureQuality ?? profile.VideoTextureQuality;
+        profile.EnableVideoShadows = request.EnableVideoShadows ?? profile.EnableVideoShadows;
+        profile.VideoParticleEffects = request.VideoParticleEffects ?? profile.VideoParticleEffects;
+        profile.VideoExtraAnimations = request.VideoExtraAnimations ?? profile.VideoExtraAnimations;
+        profile.VideoBuildingAnimations = request.VideoBuildingAnimations ?? profile.VideoBuildingAnimations;
+        profile.VideoGamma = request.VideoGamma ?? profile.VideoGamma;
+
+        profile.AudioSoundVolume = request.AudioSoundVolume ?? profile.AudioSoundVolume;
+        profile.AudioThreeDSoundVolume = request.AudioThreeDSoundVolume ?? profile.AudioThreeDSoundVolume;
+        profile.AudioSpeechVolume = request.AudioSpeechVolume ?? profile.AudioSpeechVolume;
+        profile.AudioMusicVolume = request.AudioMusicVolume ?? profile.AudioMusicVolume;
+        profile.AudioEnabled = request.AudioEnabled ?? profile.AudioEnabled;
+        profile.AudioNumSounds = request.AudioNumSounds ?? profile.AudioNumSounds;
+
+        profile.TshArchiveReplays = request.TshArchiveReplays ?? profile.TshArchiveReplays;
+        profile.TshShowMoneyPerMinute = request.TshShowMoneyPerMinute ?? profile.TshShowMoneyPerMinute;
+        profile.TshPlayerObserverEnabled = request.TshPlayerObserverEnabled ?? profile.TshPlayerObserverEnabled;
+        profile.TshSystemTimeFontSize = request.TshSystemTimeFontSize ?? profile.TshSystemTimeFontSize;
+        profile.TshNetworkLatencyFontSize = request.TshNetworkLatencyFontSize ?? profile.TshNetworkLatencyFontSize;
+        profile.TshRenderFpsFontSize = request.TshRenderFpsFontSize ?? profile.TshRenderFpsFontSize;
+        profile.TshResolutionFontAdjustment = request.TshResolutionFontAdjustment ?? profile.TshResolutionFontAdjustment;
+        profile.TshCursorCaptureEnabledInFullscreenGame = request.TshCursorCaptureEnabledInFullscreenGame ?? profile.TshCursorCaptureEnabledInFullscreenGame;
+        profile.TshCursorCaptureEnabledInFullscreenMenu = request.TshCursorCaptureEnabledInFullscreenMenu ?? profile.TshCursorCaptureEnabledInFullscreenMenu;
+        profile.TshCursorCaptureEnabledInWindowedGame = request.TshCursorCaptureEnabledInWindowedGame ?? profile.TshCursorCaptureEnabledInWindowedGame;
+        profile.TshCursorCaptureEnabledInWindowedMenu = request.TshCursorCaptureEnabledInWindowedMenu ?? profile.TshCursorCaptureEnabledInWindowedMenu;
+        profile.TshScreenEdgeScrollEnabledInFullscreenApp = request.TshScreenEdgeScrollEnabledInFullscreenApp ?? profile.TshScreenEdgeScrollEnabledInFullscreenApp;
+        profile.TshScreenEdgeScrollEnabledInWindowedApp = request.TshScreenEdgeScrollEnabledInWindowedApp ?? profile.TshScreenEdgeScrollEnabledInWindowedApp;
+        profile.TshMoneyTransactionVolume = request.TshMoneyTransactionVolume ?? profile.TshMoneyTransactionVolume;
+
+        profile.GoShowFps = request.GoShowFps ?? profile.GoShowFps;
+        profile.GoShowPing = request.GoShowPing ?? profile.GoShowPing;
+        profile.GoShowPlayerRanks = request.GoShowPlayerRanks ?? profile.GoShowPlayerRanks;
+        profile.GoAutoLogin = request.GoAutoLogin ?? profile.GoAutoLogin;
+        profile.GoRememberUsername = request.GoRememberUsername ?? profile.GoRememberUsername;
+        profile.GoEnableNotifications = request.GoEnableNotifications ?? profile.GoEnableNotifications;
+        profile.GoEnableSoundNotifications = request.GoEnableSoundNotifications ?? profile.GoEnableSoundNotifications;
+        profile.GoChatFontSize = request.GoChatFontSize ?? profile.GoChatFontSize;
+
+        profile.GoCameraMaxHeightOnlyWhenLobbyHost = request.GoCameraMaxHeightOnlyWhenLobbyHost ?? profile.GoCameraMaxHeightOnlyWhenLobbyHost;
+        profile.GoCameraMinHeight = request.GoCameraMinHeight ?? profile.GoCameraMinHeight;
+        profile.GoCameraMoveSpeedRatio = request.GoCameraMoveSpeedRatio ?? profile.GoCameraMoveSpeedRatio;
+
+        profile.GoChatDurationSecondsUntilFadeOut = request.GoChatDurationSecondsUntilFadeOut ?? profile.GoChatDurationSecondsUntilFadeOut;
+
+        profile.GoDebugVerboseLogging = request.GoDebugVerboseLogging ?? profile.GoDebugVerboseLogging;
+
+        profile.GoRenderFpsLimit = request.GoRenderFpsLimit ?? profile.GoRenderFpsLimit;
+        profile.GoRenderLimitFramerate = request.GoRenderLimitFramerate ?? profile.GoRenderLimitFramerate;
+        profile.GoRenderStatsOverlay = request.GoRenderStatsOverlay ?? profile.GoRenderStatsOverlay;
+
+        profile.GoSocialNotificationFriendComesOnlineGameplay = request.GoSocialNotificationFriendComesOnlineGameplay ?? profile.GoSocialNotificationFriendComesOnlineGameplay;
+        profile.GoSocialNotificationFriendComesOnlineMenus = request.GoSocialNotificationFriendComesOnlineMenus ?? profile.GoSocialNotificationFriendComesOnlineMenus;
+        profile.GoSocialNotificationFriendGoesOfflineGameplay = request.GoSocialNotificationFriendGoesOfflineGameplay ?? profile.GoSocialNotificationFriendGoesOfflineGameplay;
+        profile.GoSocialNotificationFriendGoesOfflineMenus = request.GoSocialNotificationFriendGoesOfflineMenus ?? profile.GoSocialNotificationFriendGoesOfflineMenus;
+        profile.GoSocialNotificationPlayerAcceptsRequestGameplay = request.GoSocialNotificationPlayerAcceptsRequestGameplay ?? profile.GoSocialNotificationPlayerAcceptsRequestGameplay;
+        profile.GoSocialNotificationPlayerAcceptsRequestMenus = request.GoSocialNotificationPlayerAcceptsRequestMenus ?? profile.GoSocialNotificationPlayerAcceptsRequestMenus;
+        profile.GoSocialNotificationPlayerSendsRequestGameplay = request.GoSocialNotificationPlayerSendsRequestGameplay ?? profile.GoSocialNotificationPlayerSendsRequestGameplay;
+        profile.GoSocialNotificationPlayerSendsRequestMenus = request.GoSocialNotificationPlayerSendsRequestMenus ?? profile.GoSocialNotificationPlayerSendsRequestMenus;
+
+        profile.GameSpyIPAddress = request.GameSpyIPAddress ?? profile.GameSpyIPAddress;
+    }
+
+    /// <summary>
+    /// Patches a GameProfile with non-null values from an UpdateProfileRequest.
+    /// </summary>
+    /// <param name="profile">The GameProfile to patch.</param>
+    /// <param name="request">The request containing potentially partial settings.</param>
+    public static void UpdateFromRequest(GameProfile profile, UpdateProfileRequest request)
+    {
+        profile.VideoResolutionWidth = request.VideoResolutionWidth ?? profile.VideoResolutionWidth;
+        profile.VideoResolutionHeight = request.VideoResolutionHeight ?? profile.VideoResolutionHeight;
+        profile.VideoWindowed = request.VideoWindowed ?? profile.VideoWindowed;
+        profile.VideoTextureQuality = request.VideoTextureQuality ?? profile.VideoTextureQuality;
+        profile.EnableVideoShadows = request.EnableVideoShadows ?? profile.EnableVideoShadows;
+        profile.VideoParticleEffects = request.VideoParticleEffects ?? profile.VideoParticleEffects;
+        profile.VideoExtraAnimations = request.VideoExtraAnimations ?? profile.VideoExtraAnimations;
+        profile.VideoBuildingAnimations = request.VideoBuildingAnimations ?? profile.VideoBuildingAnimations;
+        profile.VideoGamma = request.VideoGamma ?? profile.VideoGamma;
+
+        profile.AudioSoundVolume = request.AudioSoundVolume ?? profile.AudioSoundVolume;
+        profile.AudioThreeDSoundVolume = request.AudioThreeDSoundVolume ?? profile.AudioThreeDSoundVolume;
+        profile.AudioSpeechVolume = request.AudioSpeechVolume ?? profile.AudioSpeechVolume;
+        profile.AudioMusicVolume = request.AudioMusicVolume ?? profile.AudioMusicVolume;
+        profile.AudioEnabled = request.AudioEnabled ?? profile.AudioEnabled;
+        profile.AudioNumSounds = request.AudioNumSounds ?? profile.AudioNumSounds;
+
+        profile.TshArchiveReplays = request.TshArchiveReplays ?? profile.TshArchiveReplays;
+        profile.TshShowMoneyPerMinute = request.TshShowMoneyPerMinute ?? profile.TshShowMoneyPerMinute;
+        profile.TshPlayerObserverEnabled = request.TshPlayerObserverEnabled ?? profile.TshPlayerObserverEnabled;
+        profile.TshSystemTimeFontSize = request.TshSystemTimeFontSize ?? profile.TshSystemTimeFontSize;
+        profile.TshNetworkLatencyFontSize = request.TshNetworkLatencyFontSize ?? profile.TshNetworkLatencyFontSize;
+        profile.TshRenderFpsFontSize = request.TshRenderFpsFontSize ?? profile.TshRenderFpsFontSize;
+        profile.TshResolutionFontAdjustment = request.TshResolutionFontAdjustment ?? profile.TshResolutionFontAdjustment;
+        profile.TshCursorCaptureEnabledInFullscreenGame = request.TshCursorCaptureEnabledInFullscreenGame ?? profile.TshCursorCaptureEnabledInFullscreenGame;
+        profile.TshCursorCaptureEnabledInFullscreenMenu = request.TshCursorCaptureEnabledInFullscreenMenu ?? profile.TshCursorCaptureEnabledInFullscreenMenu;
+        profile.TshCursorCaptureEnabledInWindowedGame = request.TshCursorCaptureEnabledInWindowedGame ?? profile.TshCursorCaptureEnabledInWindowedGame;
+        profile.TshCursorCaptureEnabledInWindowedMenu = request.TshCursorCaptureEnabledInWindowedMenu ?? profile.TshCursorCaptureEnabledInWindowedMenu;
+        profile.TshScreenEdgeScrollEnabledInFullscreenApp = request.TshScreenEdgeScrollEnabledInFullscreenApp ?? profile.TshScreenEdgeScrollEnabledInFullscreenApp;
+        profile.TshScreenEdgeScrollEnabledInWindowedApp = request.TshScreenEdgeScrollEnabledInWindowedApp ?? profile.TshScreenEdgeScrollEnabledInWindowedApp;
+        profile.TshMoneyTransactionVolume = request.TshMoneyTransactionVolume ?? profile.TshMoneyTransactionVolume;
+
+        profile.GoShowFps = request.GoShowFps ?? profile.GoShowFps;
+        profile.GoShowPing = request.GoShowPing ?? profile.GoShowPing;
+        profile.GoShowPlayerRanks = request.GoShowPlayerRanks ?? profile.GoShowPlayerRanks;
+        profile.GoAutoLogin = request.GoAutoLogin ?? profile.GoAutoLogin;
+        profile.GoRememberUsername = request.GoRememberUsername ?? profile.GoRememberUsername;
+        profile.GoEnableNotifications = request.GoEnableNotifications ?? profile.GoEnableNotifications;
+        profile.GoEnableSoundNotifications = request.GoEnableSoundNotifications ?? profile.GoEnableSoundNotifications;
+        profile.GoChatFontSize = request.GoChatFontSize ?? profile.GoChatFontSize;
+
+        profile.GoCameraMaxHeightOnlyWhenLobbyHost = request.GoCameraMaxHeightOnlyWhenLobbyHost ?? profile.GoCameraMaxHeightOnlyWhenLobbyHost;
+        profile.GoCameraMinHeight = request.GoCameraMinHeight ?? profile.GoCameraMinHeight;
+        profile.GoCameraMoveSpeedRatio = request.GoCameraMoveSpeedRatio ?? profile.GoCameraMoveSpeedRatio;
+
+        profile.GoChatDurationSecondsUntilFadeOut = request.GoChatDurationSecondsUntilFadeOut ?? profile.GoChatDurationSecondsUntilFadeOut;
+
+        profile.GoDebugVerboseLogging = request.GoDebugVerboseLogging ?? profile.GoDebugVerboseLogging;
+
+        profile.GoRenderFpsLimit = request.GoRenderFpsLimit ?? profile.GoRenderFpsLimit;
+        profile.GoRenderLimitFramerate = request.GoRenderLimitFramerate ?? profile.GoRenderLimitFramerate;
+        profile.GoRenderStatsOverlay = request.GoRenderStatsOverlay ?? profile.GoRenderStatsOverlay;
+
+        profile.GoSocialNotificationFriendComesOnlineGameplay = request.GoSocialNotificationFriendComesOnlineGameplay ?? profile.GoSocialNotificationFriendComesOnlineGameplay;
+        profile.GoSocialNotificationFriendComesOnlineMenus = request.GoSocialNotificationFriendComesOnlineMenus ?? profile.GoSocialNotificationFriendComesOnlineMenus;
+        profile.GoSocialNotificationFriendGoesOfflineGameplay = request.GoSocialNotificationFriendGoesOfflineGameplay ?? profile.GoSocialNotificationFriendGoesOfflineGameplay;
+        profile.GoSocialNotificationFriendGoesOfflineMenus = request.GoSocialNotificationFriendGoesOfflineMenus ?? profile.GoSocialNotificationFriendGoesOfflineMenus;
+        profile.GoSocialNotificationPlayerAcceptsRequestGameplay = request.GoSocialNotificationPlayerAcceptsRequestGameplay ?? profile.GoSocialNotificationPlayerAcceptsRequestGameplay;
+        profile.GoSocialNotificationPlayerAcceptsRequestMenus = request.GoSocialNotificationPlayerAcceptsRequestMenus ?? profile.GoSocialNotificationPlayerAcceptsRequestMenus;
+        profile.GoSocialNotificationPlayerSendsRequestGameplay = request.GoSocialNotificationPlayerSendsRequestGameplay ?? profile.GoSocialNotificationPlayerSendsRequestGameplay;
+        profile.GoSocialNotificationPlayerSendsRequestMenus = request.GoSocialNotificationPlayerSendsRequestMenus ?? profile.GoSocialNotificationPlayerSendsRequestMenus;
+
+        if (request.UseSteamLaunch.HasValue)
+            profile.UseSteamLaunch = request.UseSteamLaunch.Value;
+
+        profile.GameSpyIPAddress = request.GameSpyIPAddress ?? profile.GameSpyIPAddress;
+    }
+
+    /// <summary>
+    /// Populates settings from one UpdateProfileRequest into a CreateProfileRequest.
+    /// </summary>
+    /// <param name="target">The target CreateProfileRequest.</param>
+    /// <param name="source">The source UpdateProfileRequest.</param>
+    public static void PopulateRequest(CreateProfileRequest target, UpdateProfileRequest source)
+    {
+        target.VideoResolutionWidth = source.VideoResolutionWidth;
+        target.VideoResolutionHeight = source.VideoResolutionHeight;
+        target.VideoWindowed = source.VideoWindowed;
+        target.VideoTextureQuality = source.VideoTextureQuality;
+        target.EnableVideoShadows = source.EnableVideoShadows;
+        target.VideoParticleEffects = source.VideoParticleEffects;
+        target.VideoExtraAnimations = source.VideoExtraAnimations;
+        target.VideoBuildingAnimations = source.VideoBuildingAnimations;
+        target.VideoGamma = source.VideoGamma;
+
+        target.AudioSoundVolume = source.AudioSoundVolume;
+        target.AudioThreeDSoundVolume = source.AudioThreeDSoundVolume;
+        target.AudioSpeechVolume = source.AudioSpeechVolume;
+        target.AudioMusicVolume = source.AudioMusicVolume;
+        target.AudioEnabled = source.AudioEnabled;
+        target.AudioNumSounds = source.AudioNumSounds;
+
+        target.TshArchiveReplays = source.TshArchiveReplays;
+        target.TshShowMoneyPerMinute = source.TshShowMoneyPerMinute;
+        target.TshPlayerObserverEnabled = source.TshPlayerObserverEnabled;
+        target.TshSystemTimeFontSize = source.TshSystemTimeFontSize;
+        target.TshNetworkLatencyFontSize = source.TshNetworkLatencyFontSize;
+        target.TshRenderFpsFontSize = source.TshRenderFpsFontSize;
+        target.TshResolutionFontAdjustment = source.TshResolutionFontAdjustment;
+        target.TshCursorCaptureEnabledInFullscreenGame = source.TshCursorCaptureEnabledInFullscreenGame;
+        target.TshCursorCaptureEnabledInFullscreenMenu = source.TshCursorCaptureEnabledInFullscreenMenu;
+        target.TshCursorCaptureEnabledInWindowedGame = source.TshCursorCaptureEnabledInWindowedGame;
+        target.TshCursorCaptureEnabledInWindowedMenu = source.TshCursorCaptureEnabledInWindowedMenu;
+        target.TshScreenEdgeScrollEnabledInFullscreenApp = source.TshScreenEdgeScrollEnabledInFullscreenApp;
+        target.TshScreenEdgeScrollEnabledInWindowedApp = source.TshScreenEdgeScrollEnabledInWindowedApp;
+        target.TshMoneyTransactionVolume = source.TshMoneyTransactionVolume;
+
+        target.GoShowFps = source.GoShowFps;
+        target.GoShowPing = source.GoShowPing;
+        target.GoShowPlayerRanks = source.GoShowPlayerRanks;
+        target.GoAutoLogin = source.GoAutoLogin;
+        target.GoRememberUsername = source.GoRememberUsername;
+        target.GoEnableNotifications = source.GoEnableNotifications;
+        target.GoEnableSoundNotifications = source.GoEnableSoundNotifications;
+        target.GoChatFontSize = source.GoChatFontSize;
+
+        target.GoCameraMaxHeightOnlyWhenLobbyHost = source.GoCameraMaxHeightOnlyWhenLobbyHost;
+        target.GoCameraMinHeight = source.GoCameraMinHeight;
+        target.GoCameraMoveSpeedRatio = source.GoCameraMoveSpeedRatio;
+
+        target.GoChatDurationSecondsUntilFadeOut = source.GoChatDurationSecondsUntilFadeOut;
+
+        target.GoDebugVerboseLogging = source.GoDebugVerboseLogging;
+
+        target.GoRenderFpsLimit = source.GoRenderFpsLimit;
+        target.GoRenderLimitFramerate = source.GoRenderLimitFramerate;
+        target.GoRenderStatsOverlay = source.GoRenderStatsOverlay;
+
+        target.GoSocialNotificationFriendComesOnlineGameplay = source.GoSocialNotificationFriendComesOnlineGameplay;
+        target.GoSocialNotificationFriendComesOnlineMenus = source.GoSocialNotificationFriendComesOnlineMenus;
+        target.GoSocialNotificationFriendGoesOfflineGameplay = source.GoSocialNotificationFriendGoesOfflineGameplay;
+        target.GoSocialNotificationFriendGoesOfflineMenus = source.GoSocialNotificationFriendGoesOfflineMenus;
+        target.GoSocialNotificationPlayerAcceptsRequestGameplay = source.GoSocialNotificationPlayerAcceptsRequestGameplay;
+        target.GoSocialNotificationPlayerAcceptsRequestMenus = source.GoSocialNotificationPlayerAcceptsRequestMenus;
+        target.GoSocialNotificationPlayerSendsRequestGameplay = source.GoSocialNotificationPlayerSendsRequestGameplay;
+        target.GoSocialNotificationPlayerSendsRequestMenus = source.GoSocialNotificationPlayerSendsRequestMenus;
+
+        target.GameSpyIPAddress = source.GameSpyIPAddress;
+    }
+
+    /// <summary>
+    /// Populates settings from one UpdateProfileRequest into another.
+    /// </summary>
+    /// <param name="target">The target UpdateProfileRequest.</param>
+    /// <param name="source">The source UpdateProfileRequest.</param>
+    public static void PopulateRequest(UpdateProfileRequest target, UpdateProfileRequest source)
+    {
+        target.VideoResolutionWidth = source.VideoResolutionWidth;
+        target.VideoResolutionHeight = source.VideoResolutionHeight;
+        target.VideoWindowed = source.VideoWindowed;
+        target.VideoTextureQuality = source.VideoTextureQuality;
+        target.EnableVideoShadows = source.EnableVideoShadows;
+        target.VideoParticleEffects = source.VideoParticleEffects;
+        target.VideoExtraAnimations = source.VideoExtraAnimations;
+        target.VideoBuildingAnimations = source.VideoBuildingAnimations;
+        target.VideoGamma = source.VideoGamma;
+
+        target.AudioSoundVolume = source.AudioSoundVolume;
+        target.AudioThreeDSoundVolume = source.AudioThreeDSoundVolume;
+        target.AudioSpeechVolume = source.AudioSpeechVolume;
+        target.AudioMusicVolume = source.AudioMusicVolume;
+        target.AudioEnabled = source.AudioEnabled;
+        target.AudioNumSounds = source.AudioNumSounds;
+
+        target.TshArchiveReplays = source.TshArchiveReplays;
+        target.TshShowMoneyPerMinute = source.TshShowMoneyPerMinute;
+        target.TshPlayerObserverEnabled = source.TshPlayerObserverEnabled;
+        target.TshSystemTimeFontSize = source.TshSystemTimeFontSize;
+        target.TshNetworkLatencyFontSize = source.TshNetworkLatencyFontSize;
+        target.TshRenderFpsFontSize = source.TshRenderFpsFontSize;
+        target.TshResolutionFontAdjustment = source.TshResolutionFontAdjustment;
+        target.TshCursorCaptureEnabledInFullscreenGame = source.TshCursorCaptureEnabledInFullscreenGame;
+        target.TshCursorCaptureEnabledInFullscreenMenu = source.TshCursorCaptureEnabledInFullscreenMenu;
+        target.TshCursorCaptureEnabledInWindowedGame = source.TshCursorCaptureEnabledInWindowedGame;
+        target.TshCursorCaptureEnabledInWindowedMenu = source.TshCursorCaptureEnabledInWindowedMenu;
+        target.TshScreenEdgeScrollEnabledInFullscreenApp = source.TshScreenEdgeScrollEnabledInFullscreenApp;
+        target.TshScreenEdgeScrollEnabledInWindowedApp = source.TshScreenEdgeScrollEnabledInWindowedApp;
+        target.TshMoneyTransactionVolume = source.TshMoneyTransactionVolume;
+
+        target.GoShowFps = source.GoShowFps;
+        target.GoShowPing = source.GoShowPing;
+        target.GoShowPlayerRanks = source.GoShowPlayerRanks;
+        target.GoAutoLogin = source.GoAutoLogin;
+        target.GoRememberUsername = source.GoRememberUsername;
+        target.GoEnableNotifications = source.GoEnableNotifications;
+        target.GoEnableSoundNotifications = source.GoEnableSoundNotifications;
+        target.GoChatFontSize = source.GoChatFontSize;
+
+        target.GoCameraMaxHeightOnlyWhenLobbyHost = source.GoCameraMaxHeightOnlyWhenLobbyHost;
+        target.GoCameraMinHeight = source.GoCameraMinHeight;
+        target.GoCameraMoveSpeedRatio = source.GoCameraMoveSpeedRatio;
+
+        target.GoChatDurationSecondsUntilFadeOut = source.GoChatDurationSecondsUntilFadeOut;
+
+        target.GoDebugVerboseLogging = source.GoDebugVerboseLogging;
+
+        target.GoRenderFpsLimit = source.GoRenderFpsLimit;
+        target.GoRenderLimitFramerate = source.GoRenderLimitFramerate;
+        target.GoRenderStatsOverlay = source.GoRenderStatsOverlay;
+
+        target.GoSocialNotificationFriendComesOnlineGameplay = source.GoSocialNotificationFriendComesOnlineGameplay;
+        target.GoSocialNotificationFriendComesOnlineMenus = source.GoSocialNotificationFriendComesOnlineMenus;
+        target.GoSocialNotificationFriendGoesOfflineGameplay = source.GoSocialNotificationFriendGoesOfflineGameplay;
+        target.GoSocialNotificationFriendGoesOfflineMenus = source.GoSocialNotificationFriendGoesOfflineMenus;
+        target.GoSocialNotificationPlayerAcceptsRequestGameplay = source.GoSocialNotificationPlayerAcceptsRequestGameplay;
+        target.GoSocialNotificationPlayerAcceptsRequestMenus = source.GoSocialNotificationPlayerAcceptsRequestMenus;
+        target.GoSocialNotificationPlayerSendsRequestGameplay = source.GoSocialNotificationPlayerSendsRequestGameplay;
+        target.GoSocialNotificationPlayerSendsRequestMenus = source.GoSocialNotificationPlayerSendsRequestMenus;
+
+        target.UseSteamLaunch = source.UseSteamLaunch;
+        target.GameSpyIPAddress = source.GameSpyIPAddress;
     }
 }

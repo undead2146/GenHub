@@ -1,12 +1,13 @@
-using System;
-using System.Linq;
 using Avalonia;
+using DotNetEnv;
 using GenHub.Core.Constants;
 using GenHub.Core.Helpers;
 using GenHub.Infrastructure.DependencyInjection;
 using GenHub.Windows.Infrastructure.DependencyInjection;
 using GenHub.Windows.Infrastructure.SingleInstance;
 using Microsoft.Extensions.DependencyInjection;
+using System;
+using System.Linq;
 using Microsoft.Extensions.Logging;
 using Velopack;
 
@@ -32,6 +33,16 @@ public class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // Load environment variables (locally)
+        try
+        {
+            Env.TraversePath().Load();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to load environment variables: {ex}");
+        }
+
         // Initialize Velopack - must be first to handle install/update hooks
         VelopackApp.Build().Run();
 

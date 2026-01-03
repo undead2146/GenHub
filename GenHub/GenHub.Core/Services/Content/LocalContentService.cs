@@ -80,6 +80,21 @@ public class LocalContentService(
 
             var manifest = builder.Build();
 
+            // Auto-add GameInstallation dependency for GameClient content types
+            // This ensures auto-resolution logic works correctly for locally added clients
+            if (contentType == ContentType.GameClient)
+            {
+                manifest.Dependencies.Add(new ContentDependency
+                {
+                    Id = ManifestId.Create(ManifestConstants.DefaultContentDependencyId),
+                    DependencyType = ContentType.GameInstallation,
+                    CompatibleGameTypes = [targetGame],
+                    IsOptional = false,
+                });
+
+                logger.LogInformation("Auto-added GameInstallation dependency for local GameClient");
+            }
+
             // Override publisher info to mark as local content
             manifest.Publisher = new PublisherInfo
             {

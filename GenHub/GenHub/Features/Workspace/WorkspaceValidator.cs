@@ -100,8 +100,8 @@ public class WorkspaceValidator(ILogger<WorkspaceValidator> logger) : IWorkspace
         }
 
         // Validate that manifests have files (required for workspace preparation)
-        if (configuration.Manifests.Any() &&
-            configuration.Manifests.All(m => (m.Files?.Any() ?? false) == false))
+        if (configuration.Manifests.Count > 0 &&
+            configuration.Manifests.All(m => m.Files?.Count == 0))
         {
             issues.Add(new ValidationIssue
             {

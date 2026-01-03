@@ -112,13 +112,16 @@ public class ProfileContentLoader(
                 foreach (var gameClient in installation.AvailableGameClients)
                 {
                     var item = CreateGameClientDisplayItem(installation, gameClient);
-                    result.Add(item);
-                    includedManifestIds.Add(gameClient.Id);
+                    if (item != null)
+                    {
+                        result.Add(item);
+                        includedManifestIds.Add(gameClient.Id);
 
-                    logger.LogDebug(
-                        "Added GameClient: {DisplayName} ({Publisher})",
-                        item.DisplayName,
-                        item.Publisher);
+                        logger.LogDebug(
+                            "Added GameClient: {DisplayName} ({Publisher})",
+                            item.DisplayName,
+                            item.Publisher);
+                    }
                 }
             }
 
@@ -427,6 +430,16 @@ public class ProfileContentLoader(
         GameClient gameClient,
         bool isEnabled = false)
     {
+        // Skip clients without valid manifest IDs (detected publisher clients)
+        // These clients should prompt users to download verified publisher versions
+        if (string.IsNullOrEmpty(gameClient.Id))
+        {
+            logger.LogDebug(
+                "Skipping GameClient {DisplayName} - no valid manifest ID (detected publisher client)",
+                gameClient.Name);
+            return null!;
+        }
+
         var normalizedVersion = displayFormatter.NormalizeVersion(gameClient.Version);
         var publisher = displayFormatter.GetPublisherFromInstallationType(installation.InstallationType);
 

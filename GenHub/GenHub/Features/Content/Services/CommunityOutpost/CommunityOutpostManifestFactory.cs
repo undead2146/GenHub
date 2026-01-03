@@ -1,17 +1,19 @@
+using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
+using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.Content;
+using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Interfaces.Providers;
+using GenHub.Core.Models.CommunityOutpost;
+using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.Manifest;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using GenHub.Core.Constants;
-using GenHub.Core.Helpers;
-using GenHub.Core.Interfaces.Common;
-using GenHub.Core.Interfaces.Content;
-using GenHub.Core.Models.Enums;
-using GenHub.Core.Models.Manifest;
-using GenHub.Features.Content.Services.CommunityOutpost.Models;
-using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Content.Services.CommunityOutpost;
 

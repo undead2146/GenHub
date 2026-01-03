@@ -345,10 +345,20 @@ public class GameClientProfileService(
         if (gameClient.Version.Contains('.'))
         {
             var normalized = gameClient.Version.Replace(".", string.Empty);
-            return int.TryParse(normalized, out var v) ? v : 0;
+            return int.TryParse(normalized, out var v) ? v : GetDefaultVersion(gameClient.GameType);
         }
 
-        return int.TryParse(gameClient.Version, out var parsed) ? parsed : 0;
+        return int.TryParse(gameClient.Version, out var parsed) ? parsed : GetDefaultVersion(gameClient.GameType);
+    }
+
+    private static int GetDefaultVersion(GameType gameType)
+    {
+        var fallbackVersion = gameType == GameType.ZeroHour
+            ? ManifestConstants.ZeroHourManifestVersion
+            : ManifestConstants.GeneralsManifestVersion;
+
+        var normalizedFallback = fallbackVersion.Replace(".", string.Empty);
+        return int.TryParse(normalizedFallback, out var v) ? v : 0;
     }
 
     private static string GetThemeColorForGameType(GameType gameType)
@@ -383,14 +393,11 @@ public class GameClientProfileService(
         ContentManifest? providedManifest,
         CancellationToken cancellationToken)
     {
-        var enabledContentIds = new List<string>();
-
-        // Always add the game client itself
-        enabledContentIds.Add(gameClient.Id);
+        var enabledContentIds = new List<string> { gameClient.Id };
 
         // Use provided manifest if available, otherwise try to get from pool
         ContentManifest? manifest = providedManifest;
-        if (manifest == null)
+        if (manifest == null && manifestPool != null)
         {
             var manifestResult = await manifestPool.GetManifestAsync(
                 ManifestId.Create(gameClient.Id), cancellationToken);
@@ -419,7 +426,7 @@ public class GameClientProfileService(
         {
             foreach (var dependency in manifest.Dependencies)
             {
-                var resolvedId = ResolveDependencyToContentId(dependency, installation, gameClient.GameType);
+                var resolvedId = await ResolveDependencyToContentIdAsync(dependency, installation, gameClient.GameType, cancellationToken);
                 if (!string.IsNullOrEmpty(resolvedId) && !enabledContentIds.Contains(resolvedId))
                 {
                     enabledContentIds.Add(resolvedId);
@@ -448,32 +455,53 @@ public class GameClientProfileService(
     }
 
     /// <summary>
-    /// Resolves a content dependency to an actual content ID.
+    /// Resolves a content dependency to an actual content ID by querying the manifest pool.
     /// </summary>
-    private string? ResolveDependencyToContentId(
+    private async Task<string?> ResolveDependencyToContentIdAsync(
         ContentDependency dependency,
         GameInstallation installation,
-        GameType gameType)
+        GameType gameType,
+        CancellationToken cancellationToken)
     {
         if (dependency.DependencyType == ContentType.GameInstallation)
         {
-            // For game installation dependencies, resolve to the actual installation manifest ID
+            // For game installation dependencies, query the manifest pool for the actual manifest
             var targetGameType = dependency.CompatibleGameTypes?.FirstOrDefault() ?? gameType;
 
-            // Find the base game client for the target game type
+            // Find the base game client for the target game type to calculate version
             var baseGameClient = installation.AvailableGameClients
                 .FirstOrDefault(c => c.GameType == targetGameType && IsStandardGameClient(c));
 
-            if (baseGameClient != null)
+            if (baseGameClient == null)
             {
-                var version = CalculateManifestVersion(baseGameClient);
-                var installId = ManifestIdGenerator.GenerateGameInstallationId(
-                    installation, targetGameType, version);
-                return installId;
+                logger.LogWarning(
+                    "Could not find base game client for {GameType} to resolve dependency {DependencyName}",
+                    targetGameType,
+                    dependency.Name);
+                return null;
+            }
+
+            // Generate the expected GameInstallation manifest ID
+            var version = CalculateManifestVersion(baseGameClient);
+            var expectedInstallId = ManifestIdGenerator.GenerateGameInstallationId(
+                installation, targetGameType, version);
+
+            // Verify this manifest actually exists in the pool
+            var manifestResult = await manifestPool.GetManifestAsync(
+                ManifestId.Create(expectedInstallId), cancellationToken);
+
+            if (manifestResult.Success && manifestResult.Data != null)
+            {
+                logger.LogDebug(
+                    "Resolved GameInstallation dependency '{DependencyName}' to manifest ID: {ManifestId}",
+                    dependency.Name,
+                    expectedInstallId);
+                return expectedInstallId;
             }
 
             logger.LogWarning(
-                "Could not find base game client for {GameType} to resolve dependency {DependencyName}",
+                "GameInstallation manifest {ManifestId} for {GameType} not found in pool for dependency {DependencyName}",
+                expectedInstallId,
                 targetGameType,
                 dependency.Name);
             return null;

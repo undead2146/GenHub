@@ -185,7 +185,7 @@ public partial class DownloadsViewModel(
         if (serviceProvider.GetService(typeof(PublisherCardViewModel)) is PublisherCardViewModel modDBCard)
         {
             modDBCard.PublisherId = ModDBConstants.PublisherType;
-            modDBCard.DisplayName = ModDBConstants.PublisherName;
+            modDBCard.DisplayName = ModDBConstants.PublisherDisplayName;
             modDBCard.LogoSource = ModDBConstants.LogoSource;
             modDBCard.ReleaseNotes = ModDBConstants.ShortDescription;
             modDBCard.IsLoading = true;
@@ -242,7 +242,6 @@ public partial class DownloadsViewModel(
                 if (latest != null)
                 {
                     card.LatestVersion = latest.Version;
-
                     card.DownloadSize = latest.DownloadSize;
                     card.ReleaseDate = latest.LastUpdated;
                 }
@@ -740,5 +739,13 @@ public partial class DownloadsViewModel(
         {
             logger.LogError(ex, "Failed to start Community Patch installation");
         }
+    }
+
+    [RelayCommand]
+    private void OpenGitHubBuilds()
+    {
+        notificationService.ShowInfo(
+            "Coming Soon",
+            "GitHub Manager will allow you to browse and manage GitHub repositories, releases, and artifacts.");
     }
 }
