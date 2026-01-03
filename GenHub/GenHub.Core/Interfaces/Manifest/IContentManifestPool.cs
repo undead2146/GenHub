@@ -24,9 +24,10 @@ public interface IContentManifestPool
     /// </summary>
     /// <param name="manifest">The content manifest to store.</param>
     /// <param name="sourceDirectory">The directory containing the content files.</param>
+    /// <param name="progress">Optional progress reporter for storage operations.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation that returns an <see cref="OperationResult{T}"/> indicating success.</returns>
-    Task<OperationResult<bool>> AddManifestAsync(ContentManifest manifest, string sourceDirectory, CancellationToken cancellationToken = default);
+    Task<OperationResult<bool>> AddManifestAsync(ContentManifest manifest, string sourceDirectory, IProgress<ContentStorageProgress>? progress = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves a specific ContentManifest from the pool by ID.

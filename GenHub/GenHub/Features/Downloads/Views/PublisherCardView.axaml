@@ -206,7 +206,7 @@
                                                                      Maximum="100"
                                                                      Height="4"
                                                                      IsVisible="{Binding IsDownloading}"
-                                                                     Foreground="#4CAF50"
+                                                                     Foreground="#A15DF3"
                                                                      Background="#333333" />
                                                         <!-- Status Text - visible during install or when there's a status message -->
                                                         <TextBlock Text="{Binding DownloadStatus}"

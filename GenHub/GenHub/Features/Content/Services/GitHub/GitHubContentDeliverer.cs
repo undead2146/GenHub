@@ -9,6 +9,7 @@ using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
@@ -81,9 +82,12 @@ public class GitHubContentDeliverer(
             }
 
             var downloadedFiles = new List<string>();
+            int currentFileIndex = 0;
+            int totalFiles = filesToDownload.Count;
 
             foreach (var file in filesToDownload)
             {
+                currentFileIndex++;
                 var localPath = Path.Combine(targetDirectory, file.RelativePath);
                 var localDir = Path.GetDirectoryName(localPath);
                 if (!string.IsNullOrEmpty(localDir))
@@ -91,8 +95,35 @@ public class GitHubContentDeliverer(
                     Directory.CreateDirectory(localDir);
                 }
 
+                // Create progress adapter for download progress
+                IProgress<DownloadProgress>? downloadProgress = null;
+                if (progress != null)
+                {
+                    downloadProgress = new Progress<DownloadProgress>(dp =>
+                    {
+                        // Map download progress (0-100) to the Downloading phase range (40-60%)
+                        // We start at 40 (ProgressStepDownloading) and use 20% of the range for downloads
+                        double downloadRange = 25.0; // 40% to 65%
+                        double fileProgressRange = downloadRange / totalFiles;
+                        double baseProgress = ContentConstants.ProgressStepDownloading + ((currentFileIndex - 1) * fileProgressRange);
+                        double currentProgress = baseProgress + (dp.Percentage / 100.0 * fileProgressRange);
+
+                        progress.Report(new ContentAcquisitionProgress
+                        {
+                            Phase = ContentAcquisitionPhase.Downloading,
+                            ProgressPercentage = currentProgress,
+                            CurrentOperation = $"{file.RelativePath} ({currentFileIndex}/{totalFiles}) - {dp.Percentage:F0}% ({dp.FormattedSpeed})",
+                            FilesProcessed = currentFileIndex - 1,
+                            TotalFiles = totalFiles,
+                            TotalBytes = dp.TotalBytes,
+                            BytesProcessed = dp.BytesReceived,
+                            CurrentFile = file.RelativePath,
+                        });
+                    });
+                }
+
                 var downloadResult = await downloadService.DownloadFileAsync(
-                    new Uri(file.DownloadUrl!), localPath, file.Hash, null, cancellationToken);
+                    new Uri(file.DownloadUrl!), localPath, file.Hash, downloadProgress, cancellationToken);
 
                 if (!downloadResult.Success)
                 {
@@ -107,7 +138,7 @@ public class GitHubContentDeliverer(
             // Check if this is GameClient content with ZIP files
             var zipFiles = downloadedFiles.Where(f => Path.GetExtension(f).Equals(".zip", StringComparison.OrdinalIgnoreCase)).ToList();
 
-            if (packageManifest.ContentType == ContentType.GameClient && zipFiles.Count > 0)
+            if ((packageManifest.ContentType == ContentType.GameClient || packageManifest.ContentType == ContentType.Mod) && zipFiles.Count > 0)
             {
                 logger.LogInformation(
                     "GameClient content detected with {Count} ZIP files. Extracting...",
@@ -118,7 +149,39 @@ public class GitHubContentDeliverer(
                 {
                     try
                     {
-                        ZipFile.ExtractToDirectory(zipFile, targetDirectory, overwriteFiles: true);
+                        using (var archive = ZipFile.OpenRead(zipFile))
+                        {
+                            int totalEntries = archive.Entries.Count;
+                            int currentEntry = 0;
+
+                            foreach (var entry in archive.Entries)
+                            {
+                                if (string.IsNullOrEmpty(entry.Name)) continue; // Skip directories
+
+                                var destinationPath = Path.Combine(targetDirectory, entry.FullName);
+                                var destinationDir = Path.GetDirectoryName(destinationPath);
+                                if (!string.IsNullOrEmpty(destinationDir)) Directory.CreateDirectory(destinationDir);
+
+                                entry.ExtractToFile(destinationPath, overwrite: true);
+                                currentEntry++;
+
+                                // Map extraction progress from 65% to 70%
+                                double extractStart = 65;
+                                double extractEnd = 70;
+                                double currentPercentage = extractStart + ((double)currentEntry / totalEntries * (extractEnd - extractStart));
+
+                                progress?.Report(new ContentAcquisitionProgress
+                                {
+                                    Phase = ContentAcquisitionPhase.Extracting,
+                                    ProgressPercentage = currentPercentage,
+                                    CurrentOperation = $"{entry.Name} ({currentEntry}/{totalEntries})",
+                                    FilesProcessed = currentEntry,
+                                    TotalFiles = totalEntries,
+                                    CurrentFile = entry.Name,
+                                });
+                            }
+                        }
+
                         logger.LogInformation("Extracted {ZipFile}", Path.GetFileName(zipFile));
                         File.Delete(zipFile);
                     }
@@ -136,7 +199,7 @@ public class GitHubContentDeliverer(
                     packageManifest.Id);
 
                 // Use publisher-specific factory to create manifests
-                return await HandleExtractedContentAsync(packageManifest, targetDirectory, cancellationToken);
+                return await HandleExtractedContentAsync(packageManifest, targetDirectory, progress, cancellationToken);
             }
 
             // For non-GameClient content or if no ZIPs, return original manifest
@@ -197,6 +260,7 @@ public class GitHubContentDeliverer(
     private async Task<OperationResult<ContentManifest>> HandleExtractedContentAsync(
         ContentManifest originalManifest,
         string extractedDirectory,
+        IProgress<ContentAcquisitionProgress>? progress,
         CancellationToken cancellationToken)
     {
         try
@@ -248,7 +312,21 @@ public class GitHubContentDeliverer(
                     manifest.Id,
                     manifestDirectory);
 
-                var addResult = await manifestPool.AddManifestAsync(manifest, manifestDirectory, cancellationToken);
+                // Create adapter for storage progress
+                var storageProgress = new Progress<ContentStorageProgress>(p =>
+                {
+                    progress?.Report(new ContentAcquisitionProgress
+                    {
+                        Phase = ContentAcquisitionPhase.StoringInCas,
+                        ProgressPercentage = ContentConstants.ProgressStepStoring + (p.Percentage * 0.1), // Map to Storing phase
+                        CurrentOperation = $"Storing content: {p.CurrentFileName} ({p.ProcessedCount}/{p.TotalCount})",
+                        FilesProcessed = p.ProcessedCount,
+                        TotalFiles = p.TotalCount,
+                        CurrentFile = p.CurrentFileName ?? string.Empty,
+                    });
+                });
+
+                var addResult = await manifestPool.AddManifestAsync(manifest, manifestDirectory, progress: storageProgress, cancellationToken: cancellationToken);
                 if (!addResult.Success)
                 {
                     logger.LogWarning(
