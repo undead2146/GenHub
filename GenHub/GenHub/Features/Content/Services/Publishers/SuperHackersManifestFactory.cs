@@ -357,6 +357,7 @@ public class SuperHackersManifestFactory(
                 ReleaseDate = originalManifest.Metadata.ReleaseDate,
                 IconUrl = SuperHackersConstants.LogoSource,
                 CoverUrl = gameType == GameType.Generals ? SuperHackersConstants.GeneralsCoverSource : SuperHackersConstants.ZeroHourCoverSource,
+                ThemeColor = gameType == GameType.ZeroHour ? SuperHackersConstants.ZeroHourThemeColor : SuperHackersConstants.GeneralsThemeColor,
                 ScreenshotUrls = originalManifest.Metadata.ScreenshotUrls,
                 Tags = originalManifest.Metadata.Tags,
                 ChangelogUrl = originalManifest.Metadata.ChangelogUrl,

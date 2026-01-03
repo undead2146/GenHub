@@ -46,11 +46,9 @@ public class MainViewModelTests
     public void Constructor_CreatesValidInstance()
     {
         // Arrange
-        var mockOrchestrator = new Mock<IGameInstallationDetectionOrchestrator>();
         var (settingsVm, userSettingsMock) = CreateSettingsVm();
         var toolsVm = CreateToolsVm();
         var configProvider = CreateConfigProviderMock();
-        var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockVelopackUpdateManager = new Mock<IVelopackUpdateManager>();
         var mockLogger = new Mock<ILogger<MainViewModel>>();
         var mockNotificationService = CreateNotificationServiceMock();
@@ -66,12 +64,9 @@ public class MainViewModelTests
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,
-            mockOrchestrator.Object,
             configProvider,
             userSettingsMock.Object,
-            mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
-            CreateProfileResourceService(),
             mockNotificationService.Object,
             mockLogger.Object);
 
@@ -91,11 +86,9 @@ public class MainViewModelTests
     [InlineData(NavigationTab.Settings)]
     public void SelectTabCommand_SetsSelectedTab(NavigationTab tab)
     {
-        var mockOrchestrator = new Mock<IGameInstallationDetectionOrchestrator>();
         var (settingsVm, userSettingsMock) = CreateSettingsVm();
         var toolsVm = CreateToolsVm();
         var configProvider = CreateConfigProviderMock();
-        var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockVelopackUpdateManager = new Mock<IVelopackUpdateManager>();
         var mockLogger = new Mock<ILogger<MainViewModel>>();
         var mockNotificationService = CreateNotificationServiceMock();
@@ -109,12 +102,9 @@ public class MainViewModelTests
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,
-            mockOrchestrator.Object,
             configProvider,
             userSettingsMock.Object,
-            mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
-            CreateProfileResourceService(),
             mockNotificationService.Object,
             mockLogger.Object);
         vm.SelectTabCommand.Execute(tab);
@@ -129,11 +119,9 @@ public class MainViewModelTests
     public async Task InitializeAsync_MultipleCallsAreSafe()
     {
         // Arrange
-        var mockOrchestrator = new Mock<IGameInstallationDetectionOrchestrator>();
         var (settingsVm, userSettingsMock) = CreateSettingsVm();
         var toolsVm = CreateToolsVm();
         var configProvider = CreateConfigProviderMock();
-        var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockVelopackUpdateManager = new Mock<IVelopackUpdateManager>();
         mockVelopackUpdateManager.Setup(x => x.CheckForUpdatesAsync(It.IsAny<System.Threading.CancellationToken>()))
             .ReturnsAsync((Velopack.UpdateInfo?)null);
@@ -149,12 +137,9 @@ public class MainViewModelTests
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,
-            mockOrchestrator.Object,
             configProvider,
             userSettingsMock.Object,
-            mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
-            CreateProfileResourceService(),
             mockNotificationService.Object,
             mockLogger.Object);
         await vm.InitializeAsync(); // Should not throw
@@ -172,11 +157,9 @@ public class MainViewModelTests
     [InlineData(NavigationTab.Settings)]
     public void CurrentTabViewModel_ReturnsCorrectViewModel(NavigationTab tab)
     {
-        var mockOrchestrator = new Mock<IGameInstallationDetectionOrchestrator>();
         var (settingsVm, userSettingsMock) = CreateSettingsVm();
         var toolsVm = CreateToolsVm();
         var configProvider = CreateConfigProviderMock();
-        var mockProfileEditorFacade = new Mock<IProfileEditorFacade>();
         var mockVelopackUpdateManager = new Mock<IVelopackUpdateManager>();
         var mockLogger = new Mock<ILogger<MainViewModel>>();
         var mockNotificationService = CreateNotificationServiceMock();
@@ -190,12 +173,9 @@ public class MainViewModelTests
             toolsVm,
             settingsVm,
             mockNotificationManager.Object,
-            mockOrchestrator.Object,
             configProvider,
             userSettingsMock.Object,
-            mockProfileEditorFacade.Object,
             mockVelopackUpdateManager.Object,
-            CreateProfileResourceService(),
             mockNotificationService.Object,
             mockLogger.Object);
         vm.SelectTabCommand.Execute(tab);

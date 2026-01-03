@@ -136,7 +136,7 @@ public class GeneralsOnlineDeliverer(
 
             // Register 30Hz manifest first
             var hz30Manifest = manifests[0];
-            var add30Result = await manifestPool.AddManifestAsync(hz30Manifest, extractPath, cancellationToken);
+            var add30Result = await manifestPool.AddManifestAsync(hz30Manifest, extractPath, cancellationToken: cancellationToken);
             if (!add30Result.Success)
             {
                 logger.LogWarning(
@@ -151,7 +151,7 @@ public class GeneralsOnlineDeliverer(
 
             // Register 60Hz manifest
             var hz60Manifest = manifests[1];
-            var add60Result = await manifestPool.AddManifestAsync(hz60Manifest, extractPath, cancellationToken);
+            var add60Result = await manifestPool.AddManifestAsync(hz60Manifest, extractPath, cancellationToken: cancellationToken);
             if (!add60Result.Success)
             {
                 logger.LogWarning(
@@ -166,7 +166,7 @@ public class GeneralsOnlineDeliverer(
 
             // Register QuickMatch MapPack manifest
             var mapPackManifest = manifests[2];
-            var addMapPackResult = await manifestPool.AddManifestAsync(mapPackManifest, extractPath, cancellationToken);
+            var addMapPackResult = await manifestPool.AddManifestAsync(mapPackManifest, extractPath, cancellationToken: cancellationToken);
             if (!addMapPackResult.Success)
             {
                 logger.LogWarning(

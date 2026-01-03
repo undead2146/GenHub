@@ -36,6 +36,16 @@ public static class SuperHackersConstants
     public const string ZeroHourCoverSource = "/Assets/Covers/zerohour-cover.png";
 
     /// <summary>
+    /// Theme color for Zero Hour variant.
+    /// </summary>
+    public const string ZeroHourThemeColor = "#8B0000";
+
+    /// <summary>
+    /// Theme color for Generals variant.
+    /// </summary>
+    public const string GeneralsThemeColor = "#FFA500";
+
+    /// <summary>
     /// The resolver ID used for GitHub releases.
     /// </summary>
     public const string ResolverId = "GitHubRelease";

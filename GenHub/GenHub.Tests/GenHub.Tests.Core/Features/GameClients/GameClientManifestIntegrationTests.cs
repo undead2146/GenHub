@@ -4,11 +4,10 @@ using System.Linq;
 using System.Threading.Tasks;
 using GenHub.Common.Services;
 using GenHub.Core.Interfaces.Common;
-using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameClients;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
-using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
@@ -25,7 +24,7 @@ namespace GenHub.Tests.Core.Features.GameClients;
 public class GameClientManifestIntegrationTests : IDisposable
 {
     private readonly string _tempDirectory;
-    private readonly IFileHashProvider _hashProvider;
+    private readonly Sha256HashProvider _hashProvider;
     private readonly IManifestIdService _manifestIdService;
     private readonly ManifestGenerationService _manifestService;
     private readonly Mock<IContentManifestPool> _manifestPoolMock;
@@ -47,7 +46,7 @@ public class GameClientManifestIntegrationTests : IDisposable
             _manifestIdService);
 
         _manifestPoolMock = new Mock<IContentManifestPool>();
-        _manifestPoolMock.Setup(x => x.AddManifestAsync(It.IsAny<ContentManifest>(), It.IsAny<string>(), default))
+        _manifestPoolMock.Setup(x => x.AddManifestAsync(It.IsAny<ContentManifest>(), It.IsAny<string>(), It.IsAny<IProgress<ContentStorageProgress>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
 
         _detector = new GameClientDetector(
@@ -80,12 +79,12 @@ public class GameClientManifestIntegrationTests : IDisposable
             GeneralsPath = generalsPath,
         };
 
-        var result = await _detector.DetectGameClientsFromInstallationsAsync(new[] { installation });
+        var result = await _detector.DetectGameClientsFromInstallationsAsync([installation]);
 
         Assert.True(result.Success);
         Assert.Single(result.Items);
 
-        var gameClient = result.Items.First();
+        var gameClient = result.Items[0];
         Assert.NotNull(gameClient);
         Assert.NotEmpty(gameClient.Id);
         Assert.Equal(GameType.Generals, gameClient.GameType);
@@ -164,5 +163,7 @@ public class GameClientManifestIntegrationTests : IDisposable
                 // Ignore cleanup errors in tests
             }
         }
+
+        GC.SuppressFinalize(this);
     }
 }

@@ -81,6 +81,11 @@ public static class ContentConstants
     public const int ProgressStepExtracting = 85;
 
     /// <summary>
+    /// Progress percentage for storing content in CAS (90%).
+    /// </summary>
+    public const int ProgressStepStoring = 90;
+
+    /// <summary>
     /// Progress percentage for completion (100%).
     /// </summary>
     public const int ProgressStepCompleted = 100;

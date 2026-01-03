@@ -858,11 +858,17 @@ public class ProfileLauncherFacade(
                     // Validate by dependency type
                     if (!manifestsByType.TryGetValue(dependency.DependencyType, out var potentialMatches) || potentialMatches.Count == 0)
                     {
-                        errors.Add($"Content '{manifest.Name}' requires {dependency.DependencyType} content, but none is selected");
+                        var msg = $"Content '{manifest.Name}' requires {dependency.DependencyType} content, but none is selected";
+                        if (!dependency.IsOptional)
+                        {
+                            errors.Add(msg);
+                        }
+
                         logger.LogWarning(
-                            "Dependency validation failed: {ManifestName} requires {DependencyType} but none found",
+                            "Dependency validation failed: {ManifestName} requires {DependencyType} but none found (Optional: {IsOptional})",
                             manifest.Name,
-                            dependency.DependencyType);
+                            dependency.DependencyType,
+                            dependency.IsOptional);
                         continue;
                     }
 
@@ -915,11 +921,17 @@ public class ProfileLauncherFacade(
 
                         if (requiredManifest == null)
                         {
-                            errors.Add($"Content '{manifest.Name}' requires specific content '{dependency.Name}' (ID: {dependency.Id}), but it is not selected");
+                            var msg = $"Content '{manifest.Name}' requires specific content '{dependency.Name}' (ID: {dependency.Id}), but it is not selected";
+                            if (!dependency.IsOptional)
+                            {
+                                errors.Add(msg);
+                            }
+
                             logger.LogWarning(
-                                "Dependency validation failed: {ManifestName} requires specific dependency {DependencyId} but not found",
+                                "Dependency validation failed: {ManifestName} requires specific dependency {DependencyId} but not found (Optional: {IsOptional})",
                                 manifest.Name,
-                                dependency.Id);
+                                dependency.Id,
+                                dependency.IsOptional);
                             continue;
                         }
 
@@ -929,13 +941,19 @@ public class ProfileLauncherFacade(
                             if (!IsVersionCompatible(requiredManifest.Version, dependency))
                             {
                                 var versionInfo = BuildVersionRequirementString(dependency);
-                                errors.Add($"Content '{manifest.Name}' requires '{dependency.Name}' {versionInfo}, but version {requiredManifest.Version} is selected");
+                                var msg = $"Content '{manifest.Name}' requires '{dependency.Name}' {versionInfo}, but version {requiredManifest.Version} is selected";
+                                if (!dependency.IsOptional)
+                                {
+                                    errors.Add(msg);
+                                }
+
                                 logger.LogWarning(
-                                    "Version compatibility failed: {ManifestName} requires {DependencyName} {VersionInfo}, but {ActualVersion} found",
+                                    "Version compatibility failed: {ManifestName} requires {DependencyName} {VersionInfo}, but {ActualVersion} found (Optional: {IsOptional})",
                                     manifest.Name,
                                     dependency.Name,
                                     versionInfo,
-                                    requiredManifest.Version);
+                                    requiredManifest.Version,
+                                    dependency.IsOptional);
                             }
                         }
                     }
@@ -953,11 +971,17 @@ public class ProfileLauncherFacade(
 
                         if (compatibleInstallation == null)
                         {
-                            errors.Add($"Content '{manifest.Name}' requires {profileGameType} game installation, but selected installation is for a different game");
+                            var msg = $"Content '{manifest.Name}' requires {profileGameType} game installation, but selected installation is for a different game";
+                            if (!dependency.IsOptional)
+                            {
+                                errors.Add(msg);
+                            }
+
                             logger.LogWarning(
-                                "GameType mismatch: {ManifestName} requires {RequiredGameType}, but no matching installation found",
+                                "GameType mismatch: {ManifestName} requires {RequiredGameType}, but no matching installation found (Optional: {IsOptional})",
                                 manifest.Name,
-                                profileGameType);
+                                profileGameType,
+                                dependency.IsOptional);
                         }
                     }
 
@@ -967,13 +991,19 @@ public class ProfileLauncherFacade(
                         if (!dependency.CompatibleGameTypes.Contains(profileGameType))
                         {
                             var compatibleGamesStr = string.Join(", ", dependency.CompatibleGameTypes);
-                            errors.Add($"Content '{manifest.Name}' dependency '{dependency.Name}' is only compatible with {compatibleGamesStr}, but profile is for {profileGameType}");
+                            var msg = $"Content '{manifest.Name}' dependency '{dependency.Name}' is only compatible with {compatibleGamesStr}, but profile is for {profileGameType}";
+                            if (!dependency.IsOptional)
+                            {
+                                errors.Add(msg);
+                            }
+
                             logger.LogWarning(
-                                "GameType compatibility failed: {ManifestName} dependency {DependencyName} requires {CompatibleGameTypes}, but profile is {ProfileGameType}",
+                                "GameType compatibility failed: {ManifestName} dependency {DependencyName} requires {CompatibleGameTypes}, but profile is {ProfileGameType} (Optional: {IsOptional})",
                                 manifest.Name,
                                 dependency.Name,
                                 compatibleGamesStr,
-                                profileGameType);
+                                profileGameType,
+                                dependency.IsOptional);
                         }
                     }
 
@@ -988,13 +1018,19 @@ public class ProfileLauncherFacade(
 
                             if (!string.Equals(dependency.PublisherType, publisherType, StringComparison.OrdinalIgnoreCase))
                             {
-                                errors.Add($"Content '{manifest.Name}' dependency '{dependency.Name}' requires publisher type '{dependency.PublisherType}', but found '{publisherType}'");
+                                var msg = $"Content '{manifest.Name}' dependency '{dependency.Name}' requires publisher type '{dependency.PublisherType}', but found '{publisherType}'";
+                                if (!dependency.IsOptional)
+                                {
+                                    errors.Add(msg);
+                                }
+
                                 logger.LogWarning(
-                                    "Publisher type mismatch: {ManifestName} dependency {DependencyName} requires {RequiredPublisher}, but found {ActualPublisher}",
+                                    "Publisher type mismatch: {ManifestName} dependency {DependencyName} requires {RequiredPublisher}, but found {ActualPublisher} (Optional: {IsOptional})",
                                     manifest.Name,
                                     dependency.Name,
                                     dependency.PublisherType,
-                                    publisherType);
+                                    publisherType,
+                                    dependency.IsOptional);
                             }
                         }
                     }

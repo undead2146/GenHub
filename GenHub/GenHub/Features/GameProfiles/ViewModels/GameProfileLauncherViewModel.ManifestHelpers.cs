@@ -122,7 +122,7 @@ public partial class GameProfileLauncherViewModel
             var manifest = manifestBuilder.Build();
 
             // Register the manifest to the pool
-            var addResult = await contentManifestPool.AddManifestAsync(manifest, installationPath, cancellationToken);
+            var addResult = await contentManifestPool.AddManifestAsync(manifest, installationPath, null, cancellationToken);
 
             if (addResult.Success)
             {

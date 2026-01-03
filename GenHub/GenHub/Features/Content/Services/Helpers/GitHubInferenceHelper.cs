@@ -50,10 +50,14 @@ public static class GitHubInferenceHelper
     {
         var searchText = $"{repo} {releaseName ?? string.Empty}";
 
-        if (searchText.Contains("zero hour", StringComparison.OrdinalIgnoreCase) || searchText.Contains("zh", StringComparison.OrdinalIgnoreCase))
+        // Check for explicit Zero Hour indicators first (highest priority)
+        if (searchText.Contains("zero hour", StringComparison.OrdinalIgnoreCase) ||
+            searchText.Contains("zh", StringComparison.OrdinalIgnoreCase) ||
+            searchText.Contains("zerohour", StringComparison.OrdinalIgnoreCase))
             return (Type: GameType.ZeroHour, IsInferred: true);
 
-        if (searchText.Contains("generals", StringComparison.OrdinalIgnoreCase) && !searchText.Contains("zero hour", StringComparison.OrdinalIgnoreCase))
+        // Check for Generals indicators
+        if (searchText.Contains("generals", StringComparison.OrdinalIgnoreCase))
             return (Type: GameType.Generals, IsInferred: true);
 
         return (Type: GameType.ZeroHour, IsInferred: true);

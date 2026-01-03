@@ -35,6 +35,7 @@ public class GameClientProfileService(
         GameClient gameClient,
         string? iconPath = null,
         string? coverPath = null,
+        string? themeColor = null,
         CancellationToken cancellationToken = default)
     {
         if (installation == null)
@@ -86,7 +87,7 @@ public class GameClientProfileService(
                 Description = $"Auto-created profile for {installation.InstallationType} {gameClient.Name}",
                 PreferredStrategy = preferredStrategy,
                 EnabledContentIds = enabledContentIds,
-                ThemeColor = GetThemeColorForGameType(gameClient.GameType),
+                ThemeColor = themeColor ?? GetThemeColorForGameType(gameClient.GameType, gameClient),
                 IconPath = !string.IsNullOrEmpty(iconPath) ? iconPath : GetIconPathForGame(gameClient.GameType),
                 CoverPath = !string.IsNullOrEmpty(coverPath) ? coverPath : GetCoverPathForGame(gameClient.GameType),
             };
@@ -130,6 +131,7 @@ public class GameClientProfileService(
         GameClient gameClient,
         string? iconPath = null,
         string? coverPath = null,
+        string? themeColor = null,
         CancellationToken cancellationToken = default)
     {
         var results = new List<ProfileOperationResult<GameProfile>>();
@@ -157,6 +159,7 @@ public class GameClientProfileService(
                 gameClient,
                 iconPath,
                 coverPath,
+                themeColor,
                 cancellationToken);
             results.Add(singleResult);
             return results;
@@ -263,6 +266,7 @@ public class GameClientProfileService(
                 gameClient,
                 manifest.Metadata.IconUrl,
                 manifest.Metadata.CoverUrl,
+                manifest.Metadata.ThemeColor,
                 cancellationToken);
         }
         catch (Exception ex)
@@ -361,9 +365,32 @@ public class GameClientProfileService(
         return int.TryParse(normalizedFallback, out var v) ? v : 0;
     }
 
-    private static string GetThemeColorForGameType(GameType gameType)
+    private static string? GetThemeColorForGameType(GameType gameType, GameClient? gameClient = null)
     {
-        return gameType == GameType.Generals ? "#BD5A0F" : "#1B6575";
+        if (gameClient != null)
+        {
+            // TheSuperHackers gets special colors
+            if (gameClient.PublisherType == PublisherTypeConstants.TheSuperHackers)
+            {
+                return gameType == GameType.ZeroHour ? SuperHackersConstants.ZeroHourThemeColor : SuperHackersConstants.GeneralsThemeColor;
+            }
+
+            // GeneralsOnline gets dark blue
+            if (gameClient.PublisherType == PublisherTypeConstants.GeneralsOnline)
+            {
+                return GeneralsOnlineConstants.ThemeColor;
+            }
+
+            // CommunityOutpost gets green
+            if (gameClient.PublisherType == CommunityOutpostConstants.PublisherType)
+            {
+                return CommunityOutpostConstants.ThemeColor;
+            }
+        }
+
+        // For auto-detected profiles without publisher type, return null to use manifest color
+        // Manifest factories will set their own colors (CommunityOutpost=green, GeneralsOnline=dark blue)
+        return null;
     }
 
     private static string GetIconPathForGame(GameType gameType)

@@ -93,7 +93,7 @@ public class ManifestProvider(ILogger<ManifestProvider> logger, IContentManifest
                         embeddedSourceDir = null;
                     }
 
-                    var addResult = await manifestPool.AddManifestAsync(manifest, embeddedSourceDir ?? string.Empty, cancellationToken);
+                    var addResult = await manifestPool.AddManifestAsync(manifest, embeddedSourceDir ?? string.Empty, null, cancellationToken);
                     if (addResult?.Success == true)
                     {
                         return manifest;
@@ -151,7 +151,7 @@ public class ManifestProvider(ILogger<ManifestProvider> logger, IContentManifest
                 gameDir = null;
             }
 
-            var addRes = await manifestPool.AddManifestAsync(generated, gameDir ?? string.Empty, cancellationToken);
+            var addRes = await manifestPool.AddManifestAsync(generated, gameDir ?? string.Empty, null, cancellationToken);
             if (addRes?.Success != true)
             {
                 logger.LogWarning("Failed to add generated manifest {Id} to pool: {Errors}", generated.Id, string.Join(", ", addRes?.Errors ?? []));
@@ -205,7 +205,7 @@ public class ManifestProvider(ILogger<ManifestProvider> logger, IContentManifest
                 if (manifest != null)
                 {
                     // For embedded installation manifests, provide the installation path as source when available.
-                    var addRes = await manifestPool.AddManifestAsync(manifest, installation.InstallationPath ?? string.Empty, cancellationToken);
+                    var addRes = await manifestPool.AddManifestAsync(manifest, installation.InstallationPath ?? string.Empty, null, cancellationToken);
                     if (addRes?.Success != true)
                         logger.LogWarning("Failed to add embedded installation manifest {Id} to pool: {Errors}", manifest.Id, string.Join(", ", addRes?.Errors ?? []));
                     return manifest;
@@ -261,7 +261,7 @@ public class ManifestProvider(ILogger<ManifestProvider> logger, IContentManifest
 
             // Validate ID before adding to pool
             ManifestIdValidator.EnsureValid(generated.Id.Value);
-            var addRes2 = await manifestPool.AddManifestAsync(generated, sourcePath ?? string.Empty, cancellationToken);
+            var addRes2 = await manifestPool.AddManifestAsync(generated, sourcePath ?? string.Empty, null, cancellationToken);
             if (addRes2?.Success != true)
             {
                 logger.LogWarning("Failed to add generated installation manifest {Id} to pool: {Errors}", generated.Id, string.Join(", ", addRes2?.Errors ?? []));

@@ -528,7 +528,7 @@ public class ContentOrchestrator : IContentOrchestrator
                 {
                     // Manifest not yet stored, store it now
                     _logger.LogDebug("Manifest {ManifestId} not yet stored, storing now from staging directory", prepareResult.Data.Id);
-                    await _manifestPool.AddManifestAsync(prepareResult.Data, stagingDir, cancellationToken);
+                    await _manifestPool.AddManifestAsync(prepareResult.Data, stagingDir, cancellationToken: cancellationToken);
                 }
                 else
                 {

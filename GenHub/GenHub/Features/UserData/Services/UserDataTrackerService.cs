@@ -702,11 +702,32 @@ public class UserDataTrackerService(
         return installTarget switch
         {
             ContentInstallTarget.UserDataDirectory => Path.Combine(userDataBasePath, relativePath),
-            ContentInstallTarget.UserMapsDirectory => Path.Combine(userDataBasePath, GameSettingsConstants.FolderNames.Maps, relativePath),
-            ContentInstallTarget.UserReplaysDirectory => Path.Combine(userDataBasePath, GameSettingsConstants.FolderNames.Replays, relativePath),
-            ContentInstallTarget.UserScreenshotsDirectory => Path.Combine(userDataBasePath, GameSettingsConstants.FolderNames.Screenshots, relativePath),
+            ContentInstallTarget.UserMapsDirectory => Path.Combine(userDataBasePath, GameSettingsConstants.FolderNames.Maps, StripLeadingDirectory(relativePath, "Maps")),
+            ContentInstallTarget.UserReplaysDirectory => Path.Combine(userDataBasePath, GameSettingsConstants.FolderNames.Replays, StripLeadingDirectory(relativePath, "Replays")),
+            ContentInstallTarget.UserScreenshotsDirectory => Path.Combine(userDataBasePath, GameSettingsConstants.FolderNames.Screenshots, StripLeadingDirectory(relativePath, "Screenshots")),
             _ => Path.Combine(userDataBasePath, relativePath),
         };
+    }
+
+    /// <summary>
+    /// Strips a leading directory name from a path if present.
+    /// Handles both forward and back slashes.
+    /// </summary>
+    /// <param name="path">The path to process.</param>
+    /// <param name="directoryName">The directory name to strip (without slashes).</param>
+    /// <returns>The path with the leading directory removed, or the original path if not present.</returns>
+    private static string StripLeadingDirectory(string path, string directoryName)
+    {
+        // Handle both forward and back slashes
+        var normalized = path.Replace('\\', '/');
+        var prefix = directoryName + "/";
+
+        if (normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return normalized[prefix.Length..];
+        }
+
+        return path;
     }
 
     private static void CleanupEmptyDirectories(string? directoryPath)

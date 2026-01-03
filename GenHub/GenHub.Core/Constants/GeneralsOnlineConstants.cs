@@ -37,6 +37,11 @@ public static class GeneralsOnlineConstants
     public const string CoverSource = "/Assets/Covers/zerohour-cover.png";
 
     /// <summary>
+    /// Theme color for Generals Online content.
+    /// </summary>
+    public const string ThemeColor = "#1B3A5F";
+
+    /// <summary>
     /// Publisher logo source path for UI display.
     /// </summary>
     public const string LogoSource = UriConstants.GeneralsOnlineLogoUri;
