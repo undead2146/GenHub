@@ -284,8 +284,7 @@ public class MainViewModelTests
         var mockNotificationService = new Mock<INotificationService>();
         var mockGitHubDiscoverer = new Mock<GitHubTopicsDiscoverer>(
             new Mock<IGitHubApiClient>().Object,
-            new Mock<ILogger<GitHubTopicsDiscoverer>>().Object,
-            new Mock<IMemoryCache>().Object);
+            new Mock<ILogger<GitHubTopicsDiscoverer>>().Object);
         return new DownloadsViewModel(
             mockServiceProvider.Object,
             mockLogger.Object,

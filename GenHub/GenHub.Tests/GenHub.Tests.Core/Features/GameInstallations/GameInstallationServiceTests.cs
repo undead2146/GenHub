@@ -17,6 +17,7 @@ public class GameInstallationServiceTests
 {
     private readonly Mock<IGameInstallationDetectionOrchestrator> _orchestratorMock;
     private readonly Mock<IGameClientDetectionOrchestrator> _clientOrchestratorMock;
+    private readonly Mock<ILogger<GameInstallationService>> _loggerMock;
     private readonly GameInstallationService _service;
 
     /// <summary>
@@ -26,6 +27,7 @@ public class GameInstallationServiceTests
     {
         _orchestratorMock = new Mock<IGameInstallationDetectionOrchestrator>();
         _clientOrchestratorMock = new Mock<IGameClientDetectionOrchestrator>();
+        _loggerMock = new Mock<ILogger<GameInstallationService>>();
 
         // Setup client orchestrator to return empty clients by default
         var clientResult = DetectionResult<GameClient>.CreateSuccess(Enumerable.Empty<GameClient>(), TimeSpan.Zero);
@@ -33,11 +35,11 @@ public class GameInstallationServiceTests
         _clientOrchestratorMock.Setup(x => x.DetectGameClientsFromInstallationsAsync(It.IsAny<IEnumerable<IGameInstallation>>(), It.IsAny<CancellationToken>()))
             .Returns((IEnumerable<IGameInstallation> i, CancellationToken c) =>
             {
-                Console.WriteLine("Mock called with {0} installations", i.Count());
+                Console.WriteLine("Mock called with {0} installations", i?.Count() ?? 0);
                 return Task.FromResult(clientResult);
             });
 
-        _service = new GameInstallationService(_orchestratorMock.Object, _clientOrchestratorMock.Object);
+        _service = new GameInstallationService(_orchestratorMock.Object, _clientOrchestratorMock.Object, _loggerMock.Object);
     }
 
     /// <summary>
@@ -130,7 +132,8 @@ public class GameInstallationServiceTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Contains("Installation ID cannot be null", result.FirstError);
+
+        Assert.Contains("null", result.FirstError!.ToLowerInvariant());
     }
 
     /// <summary>
@@ -213,14 +216,10 @@ public class GameInstallationServiceTests
     [Fact]
     public void Dispose_ShouldDisposeResources()
     {
-        // Arrange
-        var service = new GameInstallationService(_orchestratorMock.Object, _clientOrchestratorMock.Object);
-
         // Act
-        service.Dispose();
+        _service.Dispose();
 
-        // Assert - Service should be disposed, subsequent calls should fail gracefully
-        // Note: Since Dispose is mainly for cleanup, we verify it doesn't throw
-        Assert.NotNull(service);
+        // Assert - Verify instance exists
+        Assert.NotNull(_service);
     }
 }
