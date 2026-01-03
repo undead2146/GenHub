@@ -2202,7 +2202,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
         {
             if (localContentService == null)
             {
-                StatusMessage = "Local content service unavailble";
+                StatusMessage = "Local content service unavailable";
                 return;
             }
 
@@ -2217,7 +2217,8 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
             }
 
             // Create and show the new dialog
-            var vm = new AddLocalContentViewModel(localContentService, logger as ILogger<AddLocalContentViewModel>);
+            // Note: Logger casting might fail if generic type doesn't match, so passing null is safer
+            var vm = new AddLocalContentViewModel(localContentService, null);
             var window = new Views.AddLocalContentWindow
             {
                 DataContext = vm,

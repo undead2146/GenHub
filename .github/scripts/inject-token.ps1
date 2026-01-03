@@ -3,8 +3,14 @@ param(
 )
 
 if ([string]::IsNullOrEmpty($Token)) {
-    Write-Error "No UPLOADTHING_TOKEN provided. Fails for Release builds."
-    exit 1
+    # For PRs from forks, secrets are not available. We use a dummy token to allow the build to pass.
+    if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+        Write-Host "Warning: No UPLOADTHING_TOKEN provided. Using dummy token for PR build."
+        $Token = "DUMMY_TOKEN_FOR_CI_ONLY"
+    } else {
+        Write-Error "No UPLOADTHING_TOKEN provided. Fails for Release builds."
+        exit 1
+    }
 }
 
 $constantsPath = "GenHub/GenHub.Core/Constants/ApiConstants.cs"

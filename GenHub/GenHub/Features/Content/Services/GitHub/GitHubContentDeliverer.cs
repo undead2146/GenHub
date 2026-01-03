@@ -101,8 +101,8 @@ public class GitHubContentDeliverer(
                 {
                     downloadProgress = new Progress<DownloadProgress>(dp =>
                     {
-                        // Map download progress (0-100) to the Downloading phase range (40-60%)
-                        // We start at 40 (ProgressStepDownloading) and use 20% of the range for downloads
+                        // Map download progress (0-100) to the Downloading phase range (40-65%)
+                        // We start at 40 (ProgressStepDownloading) and use 25% of the range for downloads
                         double downloadRange = 25.0; // 40% to 65%
                         double fileProgressRange = downloadRange / totalFiles;
                         double baseProgress = ContentConstants.ProgressStepDownloading + ((currentFileIndex - 1) * fileProgressRange);
