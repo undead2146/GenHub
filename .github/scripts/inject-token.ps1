@@ -3,8 +3,8 @@ param(
 )
 
 if ([string]::IsNullOrEmpty($Token)) {
-    Write-Host "No UPLOADTHING_TOKEN provided. Skipping injection. Build will use empty/default token."
-    exit 0
+    Write-Error "No UPLOADTHING_TOKEN provided. Fails for Release builds."
+    exit 1
 }
 
 $constantsPath = "GenHub/GenHub.Core/Constants/ApiConstants.cs"
