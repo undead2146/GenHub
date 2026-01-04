@@ -129,13 +129,19 @@ public class GeneralsOnlineUpdateService(
                 return null;
             }
 
+            // Add cache-busting to prevent HTTP caching of old version
+            var cacheBuster = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            var urlWithCacheBuster = $"{latestVersionUrl}?nocache={cacheBuster}";
+
+            logger.LogDebug("Fetching latest version from CDN with cache-busting: {Url}", urlWithCacheBuster);
+
             // Try to get version from latest.txt with retries
             HttpResponseMessage? response = null;
             for (int i = 0; i < 3; i++)
             {
                 try
                 {
-                    response = await _httpClient.GetAsync(latestVersionUrl, cancellationToken);
+                    response = await _httpClient.GetAsync(urlWithCacheBuster, cancellationToken);
                     if (response.IsSuccessStatusCode)
                     {
                         break;
@@ -143,50 +149,23 @@ public class GeneralsOnlineUpdateService(
                 }
                 catch (Exception ex) when (i < 2)
                 {
-                    logger.LogWarning(ex, "Attempt {Count} to fetch latest.txt failed", i + 1);
-                }
-
-                if (i < 2)
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, i + 1)), cancellationToken);
+                    logger.LogWarning(ex, "Attempt {Attempt} failed to fetch latest version", i + 1);
+                    await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
                 }
             }
 
-            if (response != null && response.IsSuccessStatusCode)
+            if (response == null || !response.IsSuccessStatusCode)
             {
-                var version = await response.Content.ReadAsStringAsync(cancellationToken);
-                return version?.Trim();
+                logger.LogError("Failed to fetch latest version after 3 attempts");
+                return null;
             }
 
-            logger.LogWarning("latest.txt not available, falling back to manifest.json");
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            var version = content?.Trim();
 
-            // Fallback: get version from manifest.json (catalogUrl)
-            var catalogUrl = provider.Endpoints.GetEndpoint(ProviderEndpointConstants.CatalogUrl);
-            if (!string.IsNullOrEmpty(catalogUrl))
-            {
-                var manifestResponse = await _httpClient.GetAsync(catalogUrl, cancellationToken);
-                if (manifestResponse.IsSuccessStatusCode)
-                {
-                    var json = await manifestResponse.Content.ReadAsStringAsync(cancellationToken);
+            logger.LogInformation("Successfully fetched version from CDN: '{Version}' (length: {Length})", version, version?.Length ?? 0);
 
-                    // Simple JSON parsing for "version" field
-                    var versionStart = json.IndexOf("\"version\":", StringComparison.OrdinalIgnoreCase);
-                    if (versionStart >= 0)
-                    {
-                        versionStart += 10; // length of "version":
-                        var versionEnd = json.IndexOf('"', versionStart);
-                        if (versionEnd > versionStart)
-                        {
-                            var version = json[versionStart..versionEnd].Trim().Trim('"');
-                            logger.LogInformation("Retrieved latest version from manifest.json: {Version}", version);
-                            return version;
-                        }
-                    }
-                }
-            }
-
-            logger.LogWarning("Failed to retrieve latest version from both latest.txt and manifest.json");
-            return null;
+            return version;
         }
         catch (Exception ex)
         {
@@ -202,7 +181,7 @@ public class GeneralsOnlineUpdateService(
             return true; // Any version is newer than nothing
         }
 
-        // Parse DDMMYY_QFE# format
+        // Parse MMddyy_QFE# format
         var latest = ParseVersion(latestVersion);
         var current = ParseVersion(currentVersion);
 
@@ -230,18 +209,42 @@ public class GeneralsOnlineUpdateService(
     {
         try
         {
-            // Format: DDMMYY_QFE#
+            // Format: MMddyy_QFE# or MMddyy (without QFE suffix)
+            // latest.txt returns just MMddyy, manifest.json returns MMddyy_QFE#
             var parts = version.Split('_');
-            if (parts.Length != 2)
+
+            string datePart;
+            int qfe;
+
+            if (parts.Length == 1)
             {
+                // No QFE suffix - default to QFE0 (e.g., "122025" -> "122025_QFE0")
+                datePart = parts[0];
+                qfe = 0;
+                logger.LogDebug("Version {Version} has no QFE suffix, defaulting to QFE0", version);
+            }
+            else if (parts.Length == 2)
+            {
+                // Has QFE suffix (e.g., "122025_QFE1")
+                datePart = parts[0];
+                var qfePart = parts[1].Replace("QFE", string.Empty, StringComparison.OrdinalIgnoreCase);
+
+                if (!int.TryParse(qfePart, out qfe))
+                {
+                    logger.LogWarning("Failed to parse QFE number from: {QFEPart}", parts[1]);
+                    return null;
+                }
+            }
+            else
+            {
+                logger.LogWarning("Invalid version format (too many parts): {Version}", version);
                 return null;
             }
 
-            var datePart = parts[0];
-            var qfePart = parts[1].Replace("QFE", string.Empty);
-
-            if (datePart.Length != 6 || !int.TryParse(qfePart, out var qfe))
+            // Validate date part is exactly 6 digits
+            if (datePart.Length != 6)
             {
+                logger.LogWarning("Invalid date part length (expected 6 digits): {DatePart}", datePart);
                 return null;
             }
 
@@ -256,6 +259,7 @@ public class GeneralsOnlineUpdateService(
                 return null;
             }
 
+            logger.LogDebug("Parsed version {Version} as Date={Date:yyyy-MM-dd}, QFE={QFE}", version, date, qfe);
             return (date, qfe);
         }
         catch (Exception ex)

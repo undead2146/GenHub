@@ -846,16 +846,21 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
 
             try
             {
-                var updateInfo = await localUpdateManager.CheckForUpdatesAsync();
-
-                if (updateInfo == null)
+                // Create asset description manually
+                var asset = new VelopackAsset
                 {
-                    _logger.LogWarning(
-                        "Artifact version {Version} is not newer than installed version {Current}",
-                        fileVersion,
-                        AppConstants.AppVersion);
-                    return;
-                }
+                    PackageId = AppConstants.AppName,
+                    Version = SemanticVersion.Parse(fileVersion),
+                    Type = VelopackAssetType.Full,
+                    FileName = nupkgFileName,
+                    SHA1 = sha1,
+                    SHA256 = sha256,
+                    Size = fileInfo.Length,
+                };
+
+                // Manually construct UpdateInfo to force the update (IsDowngrade = true)
+                // This bypasses the version check that prevents installing older versions/artifacts
+                var updateInfo = new UpdateInfo(asset, true);
 
                 // Download from localhost
                 await localUpdateManager.DownloadUpdatesAsync(
