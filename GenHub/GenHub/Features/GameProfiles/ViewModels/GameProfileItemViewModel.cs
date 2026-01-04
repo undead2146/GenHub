@@ -529,6 +529,73 @@ public partial class GameProfileItemViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Refreshes ViewModel properties from the updated profile.
+    /// Called after profile is updated (e.g., by GeneralsOnline reconciler).
+    /// </summary>
+    /// <param name="updatedProfile">The updated profile to refresh from.</param>
+    public void UpdateFromProfile(IGameProfile updatedProfile)
+    {
+        //Update basic properties
+        Name = updatedProfile.Name;
+        Version = updatedProfile.Version;
+        ExecutablePath = updatedProfile.ExecutablePath;
+
+        // Re-extract version and publisher info from updated profile
+        if (updatedProfile is GameProfile gameProfile)
+        {
+            // Reset version info before re-extracting
+            _gameVersion = string.Empty;
+           _publisher = string.Empty;
+
+            // First try to get info from enabled GameInstallation manifests
+            var installationManifestId = gameProfile.EnabledContentIds?.FirstOrDefault(id => id.Contains("-installation"));
+            if (!string.IsNullOrEmpty(installationManifestId))
+            {
+                ExtractManifestInfo(installationManifestId);
+            }
+            // Fallback to GameClient manifest
+            else if (gameProfile.GameClient != null)
+            {
+                ExtractManifestInfo(gameProfile.GameClient.Id);
+
+                // Fallback: use GameClient.Version directly
+                if (string.IsNullOrEmpty(_gameVersion) && !string.IsNullOrEmpty(gameProfile.GameClient.Version))
+                {
+                    var version = gameProfile.GameClient.Version;
+                    if (version.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase) ||
+                        version.Equals("Unknown", StringComparison.OrdinalIgnoreCase) ||
+                        version.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase) ||
+                        version.Contains("Automatically", StringComparison.OrdinalIgnoreCase))
+                    {
+                        GameVersion = string.Empty;
+                    }
+                    else
+                    {
+                        GameVersion = version;
+                    }
+                }
+            }
+
+            // Update description
+            if (!string.IsNullOrEmpty(gameProfile.Description))
+            {
+                Description = gameProfile.Description;
+            }
+
+            // Update workspace info
+            ActiveWorkspaceId = gameProfile.ActiveWorkspaceId;
+            UseSteamLaunch = gameProfile.UseSteamLaunch ?? true;
+        }
+
+        // Notify UI of all property changes
+        OnPropertyChanged(nameof(Name));
+        OnPropertyChanged(nameof(Version));
+        OnPropertyChanged(nameof(GameVersion));
+        OnPropertyChanged(nameof(Publisher));
+        OnPropertyChanged(nameof(Description));
+    }
+
+    /// <summary>
     /// Explicitly notifies that the CanLaunch and CanEdit properties may have changed.
     /// </summary>
     public void NotifyCanLaunchChanged()

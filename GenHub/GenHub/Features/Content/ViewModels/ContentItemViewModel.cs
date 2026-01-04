@@ -75,9 +75,22 @@ public partial class ContentItemViewModel : ObservableObject
     private bool _isDownloaded;
 
     /// <summary>
-    /// Gets a value indicating whether this content can be added to a profile (must be downloaded).
+    /// Gets or sets a value indicating whether a newer version is available for download.
     /// </summary>
-    public bool CanAddToProfile => IsDownloaded;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanAddToProfile))]
+    private bool _isUpdateAvailable;
+
+    /// <summary>
+    /// Gets or sets the version number of the available update (if any).
+    /// </summary>
+    [ObservableProperty]
+    private string? _updateAvailableVersion;
+
+    /// <summary>
+    /// Gets a value indicating whether this content can be added to a profile (must be downloaded and up-to-date).
+    /// </summary>
+    public bool CanAddToProfile => IsDownloaded && !IsUpdateAvailable;
 
     /// <summary>
     /// Gets a value indicating whether this content can be installed (not already installed).
@@ -86,8 +99,9 @@ public partial class ContentItemViewModel : ObservableObject
 
     /// <summary>
     /// Gets a value indicating whether this content can be downloaded.
+    /// Shows "Download" button when: not downloaded OR an update is available.
     /// </summary>
-    public bool CanDownload => !IsDownloaded && !IsDownloading;
+    public bool CanDownload => (!IsDownloaded || IsUpdateAvailable) && !IsDownloading;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanInstall))]

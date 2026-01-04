@@ -48,8 +48,8 @@ public static class GeneralsOnlineConstants
 
     // ===== Version Parsing =====
 
-    /// <summary>Format for parsing version dates (DDMMYY).</summary>
-    public const string VersionDateFormat = "ddMMyy";
+    /// <summary>Format for parsing version dates (MMddyy).</summary>
+    public const string VersionDateFormat = "MMddyy";
 
     /// <summary>Separator between date and QFE number in versions.</summary>
     public const string QfeSeparator = "_QFE";

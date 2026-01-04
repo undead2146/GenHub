@@ -14,6 +14,7 @@
         <conv:ThemeBorderConverter x:Key="ThemeBorderConverter" />
         <conv:ColorToBrushConverter x:Key="ColorToBrushConverter" />
         <conv:NullableDecimalToIntConverter x:Key="NullableDecimalToIntConverter" />
+        <conv:IntToBoolConverter x:Key="IntToBoolConverter" />
     </UserControl.Resources>
 
     <UserControl.Styles>
@@ -28,14 +29,14 @@
             <Setter Property="MinWidth" Value="350" />
             <Setter Property="MaxWidth" Value="500" />
         </Style>
-        
+
         <!-- Section header -->
         <Style Selector="TextBlock.section-header">
             <Setter Property="FontSize" Value="15" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="0,0,0,12" />
         </Style>
-        
+
         <!-- Subsection header -->
         <Style Selector="TextBlock.subsection-header">
             <Setter Property="FontSize" Value="13" />
@@ -43,12 +44,12 @@
             <Setter Property="Opacity" Value="0.9" />
             <Setter Property="Margin" Value="0,0,0,8" />
         </Style>
-        
+
         <!-- Setting row -->
         <Style Selector="Grid.setting-row">
             <Setter Property="Margin" Value="0,0,0,8" />
         </Style>
-        
+
         <!-- Expander style for collapsible sections -->
         <Style Selector="Expander">
             <Setter Property="Background" Value="Transparent" />
@@ -71,12 +72,12 @@
             <Setter Property="Background" Value="#18FFFFFF" />
             <Setter Property="Opacity" Value="0.9" />
         </Style>
-        
+
         <!-- Slider style -->
         <Style Selector="Slider">
             <Setter Property="Margin" Value="8,0" />
         </Style>
-        
+
         <!-- Info box style -->
         <Style Selector="Border.info-box">
             <Setter Property="Background" Value="#15FFFFFF" />
@@ -117,7 +118,7 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
         <StackPanel Spacing="0" Margin="12">
-            
+
             <!-- Header with game type selector -->
             <Border Classes="info-box"
                     Background="{Binding ColorValue, Converter={StaticResource ThemeBackgroundConverter}, Mode=OneWay}"
@@ -131,7 +132,7 @@
                     </StackPanel>
                 </Grid>
             </Border>
-            
+
             <!-- Status Message -->
             <Border Background="{Binding ColorValue, Converter={StaticResource ThemeBackgroundConverter}, Mode=OneWay}"
                     BorderBrush="{Binding ColorValue, Converter={StaticResource ThemeBorderConverter}, Mode=OneWay}"
@@ -143,7 +144,7 @@
 
             <!-- Brick Layout Container -->
             <WrapPanel Orientation="Horizontal">
-                
+
                 <!-- ═══════════════════════════════════════════════════════════ -->
                 <!-- VIDEO SETTINGS CARD -->
                 <!-- ═══════════════════════════════════════════════════════════ -->
@@ -152,7 +153,7 @@
                     <Expander.Header>
                         <TextBlock Text="🎬 Video Settings" FontWeight="SemiBold" FontSize="14" />
                     </Expander.Header>
-                    
+
                     <Border Classes="settings-card"
                             Background="{Binding ColorValue, Converter={StaticResource ThemeBackgroundConverter}, Mode=OneWay}"
                             BorderBrush="{Binding ColorValue, Converter={StaticResource ThemeBorderConverter}, Mode=OneWay}">
@@ -173,10 +174,10 @@
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
                             </Grid>
-                            
+
                             <!-- Windowed Mode -->
                             <CheckBox Content="Run in Windowed Mode" IsChecked="{Binding Windowed}" Margin="0,4,0,8" />
-                            
+
                             <!-- Graphics Options -->
                             <TextBlock Classes="subsection-header" Text="Graphics Options" Margin="0,8,0,8" />
                             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">
@@ -185,13 +186,13 @@
                                 <CheckBox Grid.Column="0" Grid.Row="1" Content="Extra Anims" IsChecked="{Binding ExtraAnimations}" Margin="0,0,8,0" />
                                 <CheckBox Grid.Column="1" Grid.Row="1" Content="Building Anims" IsChecked="{Binding BuildingAnimations}" />
                             </Grid>
-                            
+
                             <!-- Gamma Slider -->
                             <Grid ColumnDefinitions="110,*,60" Margin="0,12,0,0">
                                 <TextBlock Grid.Column="0" Text="Gamma" VerticalAlignment="Center" />
-                                <Slider Grid.Column="1" Value="{Binding Gamma}" Minimum="0" Maximum="100" 
+                                <Slider Grid.Column="1" Value="{Binding Gamma}" Minimum="0" Maximum="100"
                                         TickFrequency="10" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
-                                <NumericUpDown Grid.Column="2" Classes="phantom" Value="{Binding Gamma, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=0, UpdateSourceTrigger=LostFocus}" Minimum="0" Maximum="100" 
+                                <NumericUpDown Grid.Column="2" Classes="phantom" Value="{Binding Gamma, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=0, UpdateSourceTrigger=LostFocus}" Minimum="0" Maximum="100"
                                                Increment="10" ClipValueToMinMax="True" FormatString="0" />
                             </Grid>
                         </StackPanel>
@@ -207,48 +208,48 @@
                     <Expander.Header>
                         <TextBlock Text="🔊 Audio Settings" FontWeight="SemiBold" FontSize="14" />
                     </Expander.Header>
-                    
+
                     <Border Classes="settings-card"
                             Background="{Binding ColorValue, Converter={StaticResource ThemeBackgroundConverter}, Mode=OneWay}"
                             BorderBrush="{Binding ColorValue, Converter={StaticResource ThemeBorderConverter}, Mode=OneWay}">
                         <StackPanel>
                             <CheckBox Content="Audio Enabled" IsChecked="{Binding AudioEnabled}" FontWeight="Medium" Margin="0,0,0,12" />
-                            
+
                             <!-- Volume sliders grid -->
                             <Grid ColumnDefinitions="100,*,60" RowDefinitions="Auto,Auto,Auto,Auto,Auto" IsEnabled="{Binding AudioEnabled}">
                                 <!-- Sound Volume -->
                                 <TextBlock Grid.Column="0" Grid.Row="0" Text="Sound" VerticalAlignment="Center" Margin="0,0,0,10" />
-                                <Slider Grid.Column="1" Grid.Row="0" Value="{Binding SoundVolume}" Minimum="0" Maximum="100" 
+                                <Slider Grid.Column="1" Grid.Row="0" Value="{Binding SoundVolume}" Minimum="0" Maximum="100"
                                         TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="0,0,0,10" />
-                                <NumericUpDown Grid.Column="2" Grid.Row="0" Classes="phantom" Value="{Binding SoundVolume, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=0, UpdateSourceTrigger=LostFocus}" Minimum="0" Maximum="100" 
+                                <NumericUpDown Grid.Column="2" Grid.Row="0" Classes="phantom" Value="{Binding SoundVolume, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=0, UpdateSourceTrigger=LostFocus}" Minimum="0" Maximum="100"
                                                Increment="5" ClipValueToMinMax="True" FormatString="0" Margin="0,0,0,10" />
 
                                 <!-- 3D Sound Volume -->
                                 <TextBlock Grid.Column="0" Grid.Row="1" Text="3D Sound" VerticalAlignment="Center" Margin="0,0,0,10" />
-                                <Slider Grid.Column="1" Grid.Row="1" Value="{Binding ThreeDSoundVolume}" Minimum="0" Maximum="100" 
+                                <Slider Grid.Column="1" Grid.Row="1" Value="{Binding ThreeDSoundVolume}" Minimum="0" Maximum="100"
                                         TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="0,0,0,10" />
-                                <NumericUpDown Grid.Column="2" Grid.Row="1" Classes="phantom" Value="{Binding ThreeDSoundVolume, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=0, UpdateSourceTrigger=LostFocus}" Minimum="0" Maximum="100" 
+                                <NumericUpDown Grid.Column="2" Grid.Row="1" Classes="phantom" Value="{Binding ThreeDSoundVolume, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=0, UpdateSourceTrigger=LostFocus}" Minimum="0" Maximum="100"
                                                Increment="5" ClipValueToMinMax="True" FormatString="0" Margin="0,0,0,10" />
 
                                 <!-- Speech Volume -->
                                 <TextBlock Grid.Column="0" Grid.Row="2" Text="Speech" VerticalAlignment="Center" Margin="0,0,0,10" />
-                                <Slider Grid.Column="1" Grid.Row="2" Value="{Binding SpeechVolume}" Minimum="0" Maximum="100" 
+                                <Slider Grid.Column="1" Grid.Row="2" Value="{Binding SpeechVolume}" Minimum="0" Maximum="100"
                                         TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="0,0,0,10" />
-                                <NumericUpDown Grid.Column="2" Grid.Row="2" Classes="phantom" Value="{Binding SpeechVolume, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=0, UpdateSourceTrigger=LostFocus}" Minimum="0" Maximum="100" 
+                                <NumericUpDown Grid.Column="2" Grid.Row="2" Classes="phantom" Value="{Binding SpeechVolume, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=0, UpdateSourceTrigger=LostFocus}" Minimum="0" Maximum="100"
                                                Increment="5" ClipValueToMinMax="True" FormatString="0" Margin="0,0,0,10" />
 
                                 <!-- Music Volume -->
                                 <TextBlock Grid.Column="0" Grid.Row="3" Text="Music" VerticalAlignment="Center" Margin="0,0,0,10" />
-                                <Slider Grid.Column="1" Grid.Row="3" Value="{Binding MusicVolume}" Minimum="0" Maximum="100" 
+                                <Slider Grid.Column="1" Grid.Row="3" Value="{Binding MusicVolume}" Minimum="0" Maximum="100"
                                         TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="0,0,0,10" />
-                                <NumericUpDown Grid.Column="2" Grid.Row="3" Classes="phantom" Value="{Binding MusicVolume, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=0, UpdateSourceTrigger=LostFocus}" Minimum="0" Maximum="100" 
+                                <NumericUpDown Grid.Column="2" Grid.Row="3" Classes="phantom" Value="{Binding MusicVolume, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=0, UpdateSourceTrigger=LostFocus}" Minimum="0" Maximum="100"
                                                Increment="5" ClipValueToMinMax="True" FormatString="0" Margin="0,0,0,10" />
 
                                 <!-- Number of Sounds -->
                                 <TextBlock Grid.Column="0" Grid.Row="4" Text="Channels" VerticalAlignment="Center" />
-                                <Slider Grid.Column="1" Grid.Row="4" Value="{Binding NumSounds}" Minimum="2" Maximum="32" 
+                                <Slider Grid.Column="1" Grid.Row="4" Value="{Binding NumSounds}" Minimum="2" Maximum="32"
                                         TickFrequency="2" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
-                                <NumericUpDown Grid.Column="2" Grid.Row="4" Classes="phantom" Value="{Binding NumSounds, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=2, UpdateSourceTrigger=LostFocus}" Minimum="2" Maximum="32" 
+                                <NumericUpDown Grid.Column="2" Grid.Row="4" Classes="phantom" Value="{Binding NumSounds, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=2, UpdateSourceTrigger=LostFocus}" Minimum="2" Maximum="32"
                                                Increment="2" ClipValueToMinMax="True" FormatString="0" />
                             </Grid>
                         </StackPanel>
@@ -264,18 +265,18 @@
                     <Expander.Header>
                         <TextBlock Text="🌐 Network Settings" FontWeight="SemiBold" FontSize="14" />
                     </Expander.Header>
-                    
+
                     <Border Classes="settings-card"
                             Background="{Binding ColorValue, Converter={StaticResource ThemeBackgroundConverter}, Mode=OneWay}"
                             BorderBrush="{Binding ColorValue, Converter={StaticResource ThemeBorderConverter}, Mode=OneWay}">
                         <StackPanel>
                             <TextBlock Text="Network configuration for online and LAN play."
                                        FontSize="11" Opacity="0.7" TextWrapping="Wrap" Margin="0,0,0,12" />
-                            
+
                             <!-- GameSpy IP Address -->
                             <Grid RowDefinitions="Auto,Auto" Classes="setting-row">
                                 <TextBlock Grid.Row="0" Text="GameSpy IP Address" FontSize="12" Margin="0,0,0,4" />
-                                <TextBox Grid.Row="1" Text="{Binding GameSpyIPAddress}" 
+                                <TextBox Grid.Row="1" Text="{Binding GameSpyIPAddress}"
                                          Watermark="for connecting to a GameSpy server"
                                          HorizontalAlignment="Stretch" />
                             </Grid>
@@ -291,19 +292,19 @@
                 <Expander IsExpanded="False">
                     <Expander.Header>
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Image Source="avares://GenHub/Assets/Logos/thesuperhackers-logo.png" 
+                            <Image Source="avares://GenHub/Assets/Logos/thesuperhackers-logo.png"
                                    Width="20" Height="20" />
                             <TextBlock Text="TheSuperHackers" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
                         </StackPanel>
                     </Expander.Header>
-                    
+
                     <Border Classes="settings-card"
                             Background="{Binding ColorValue, Converter={StaticResource ThemeBackgroundConverter}, Mode=OneWay}"
                             BorderBrush="{Binding ColorValue, Converter={StaticResource ThemeBorderConverter}, Mode=OneWay}">
                         <StackPanel Spacing="8">
                             <TextBlock Text="Options.ini settings for TheSuperHackers client"
                                        FontSize="11" Opacity="0.7" TextWrapping="Wrap" Margin="0,0,0,8" />
-                            
+
                             <!-- Texture Quality Override (TSH Only) -->
                             <TextBlock Classes="subsection-header" Text="Texture Quality (TSH Only)" />
                             <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
@@ -316,33 +317,33 @@
                                 <RadioButton Content="Very High" GroupName="TshTextureQuality"
                                              IsChecked="{Binding TextureQuality, Converter={StaticResource IntToBoolConverter}, ConverterParameter=3}" />
                             </StackPanel>
-                            
+
                             <!-- Display & Replays -->
                             <TextBlock Classes="subsection-header" Text="Display &amp; Replays" />
                             <CheckBox Content="Archive Replays" IsChecked="{Binding TshArchiveReplays}" Margin="0,0,0,4" />
                             <CheckBox Content="Show Money/Min" IsChecked="{Binding TshShowMoneyPerMinute}" Margin="0,0,0,4" />
                             <CheckBox Content="Observer Mode" IsChecked="{Binding TshPlayerObserverEnabled}" Margin="0,0,0,8" />
-                            
+
                             <!-- Font Sizes -->
                             <TextBlock Classes="subsection-header" Text="Font Sizes" />
                             <Grid ColumnDefinitions="110,*,60" RowDefinitions="Auto,Auto,Auto,Auto">
                                 <TextBlock Grid.Column="0" Grid.Row="0" Text="System Time" VerticalAlignment="Center" Margin="0,0,0,8" />
                                 <Slider Grid.Column="1" Grid.Row="0" Value="{Binding TshSystemTimeFontSize}" Minimum="0" Maximum="24" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,0,0,8" />
                                 <NumericUpDown Grid.Column="2" Grid.Row="0" Classes="phantom" Value="{Binding TshSystemTimeFontSize, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=0, UpdateSourceTrigger=LostFocus}" Minimum="0" Maximum="24" Increment="1" ClipValueToMinMax="True" FormatString="0" Margin="0,0,0,8" />
-                                
+
                                 <TextBlock Grid.Column="0" Grid.Row="1" Text="Latency" VerticalAlignment="Center" Margin="0,0,0,8" />
                                 <Slider Grid.Column="1" Grid.Row="1" Value="{Binding TshNetworkLatencyFontSize}" Minimum="0" Maximum="24" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,0,0,8" />
                                 <NumericUpDown Grid.Column="2" Grid.Row="1" Classes="phantom" Value="{Binding TshNetworkLatencyFontSize, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=0, UpdateSourceTrigger=LostFocus}" Minimum="0" Maximum="24" Increment="1" ClipValueToMinMax="True" FormatString="0" Margin="0,0,0,8" />
-                                
+
                                 <TextBlock Grid.Column="0" Grid.Row="2" Text="FPS" VerticalAlignment="Center" Margin="0,0,0,8" />
                                 <Slider Grid.Column="1" Grid.Row="2" Value="{Binding TshRenderFpsFontSize}" Minimum="0" Maximum="24" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,0,0,8" />
                                 <NumericUpDown Grid.Column="2" Grid.Row="2" Classes="phantom" Value="{Binding TshRenderFpsFontSize, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=0, UpdateSourceTrigger=LostFocus}" Minimum="0" Maximum="24" Increment="1" ClipValueToMinMax="True" FormatString="0" Margin="0,0,0,8" />
-                                
+
                                 <TextBlock Grid.Column="0" Grid.Row="3" Text="Adjustment" VerticalAlignment="Center" />
                                 <Slider Grid.Column="1" Grid.Row="3" Value="{Binding TshResolutionFontAdjustment}" Minimum="-100" Maximum="100" TickFrequency="10" IsSnapToTickEnabled="True" />
                                 <NumericUpDown Grid.Column="2" Grid.Row="3" Classes="phantom" Value="{Binding TshResolutionFontAdjustment, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=-100, UpdateSourceTrigger=LostFocus}" Minimum="-100" Maximum="100" Increment="10" ClipValueToMinMax="True" FormatString="0" />
                             </Grid>
-                            
+
                             <!-- Cursor Capture -->
                             <TextBlock Classes="subsection-header" Text="Cursor Capture" Margin="0,8,0,8" />
                             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">
@@ -351,14 +352,14 @@
                                 <CheckBox Grid.Column="0" Grid.Row="1" Content="Win Game" IsChecked="{Binding TshCursorCaptureEnabledInWindowedGame}" Margin="0,0,8,0" />
                                 <CheckBox Grid.Column="1" Grid.Row="1" Content="Win Menu" IsChecked="{Binding TshCursorCaptureEnabledInWindowedMenu}" />
                             </Grid>
-                            
+
                             <!-- Screen Edge Scroll -->
                             <TextBlock Classes="subsection-header" Text="Edge Scroll" Margin="0,8,0,8" />
                             <StackPanel Orientation="Horizontal" Spacing="16">
                                 <CheckBox Content="Fullscreen" IsChecked="{Binding TshScreenEdgeScrollEnabledInFullscreenApp}" />
                                 <CheckBox Content="Windowed" IsChecked="{Binding TshScreenEdgeScrollEnabledInWindowedApp}" />
                             </StackPanel>
-                            
+
                             <!-- Money Alert Volume -->
                             <Grid ColumnDefinitions="110,*,60" Margin="0,12,0,0">
                                 <TextBlock Grid.Column="0" Text="Money Alert" VerticalAlignment="Center" />
@@ -377,19 +378,19 @@
                 <Expander IsExpanded="False">
                     <Expander.Header>
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Image Source="avares://GenHub/Assets/Logos/generalsonline-logo.png" 
+                            <Image Source="avares://GenHub/Assets/Logos/generalsonline-logo.png"
                                    Width="20" Height="20" />
                             <TextBlock Text="GeneralsOnline" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
                         </StackPanel>
                     </Expander.Header>
-                    
+
                     <Border Classes="settings-card"
                             Background="{Binding ColorValue, Converter={StaticResource ThemeBackgroundConverter}, Mode=OneWay}"
                             BorderBrush="{Binding ColorValue, Converter={StaticResource ThemeBorderConverter}, Mode=OneWay}">
                         <StackPanel Spacing="8">
                             <TextBlock Text="settings.json for GeneralsOnline client (includes TSH settings)"
                                        FontSize="11" Opacity="0.7" TextWrapping="Wrap" Margin="0,0,0,8" />
-                            
+
                             <!-- Display Options -->
                             <TextBlock Classes="subsection-header" Text="Display" />
                             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">
@@ -398,59 +399,59 @@
                                 <CheckBox Grid.Column="0" Grid.Row="1" Content="Show Ranks" IsChecked="{Binding GoShowPlayerRanks}" Margin="0,0,8,0" />
                                 <CheckBox Grid.Column="1" Grid.Row="1" Content="Stats Overlay" IsChecked="{Binding GoRenderStatsOverlay}" Margin="0,0,0,0" />
                             </Grid>
-                            
+
                             <!-- Render Settings -->
                             <TextBlock Classes="subsection-header" Text="Render" Margin="0,8,0,8" />
                             <CheckBox Content="Limit Framerate" IsChecked="{Binding GoRenderLimitFramerate}" Margin="0,0,0,4" />
                             <Grid ColumnDefinitions="110,*,60" Margin="0,0,0,8">
                                 <TextBlock Grid.Column="0" Text="FPS Limit" VerticalAlignment="Center" />
-                                <Slider Grid.Column="1" Value="{Binding GoRenderFpsLimit}" Minimum="30" Maximum="240" TickFrequency="10" IsSnapToTickEnabled="True" 
+                                <Slider Grid.Column="1" Value="{Binding GoRenderFpsLimit}" Minimum="30" Maximum="240" TickFrequency="10" IsSnapToTickEnabled="True"
                                         IsEnabled="{Binding GoRenderLimitFramerate}" />
                                 <NumericUpDown Grid.Column="2" Classes="phantom" Value="{Binding GoRenderFpsLimit, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=30, UpdateSourceTrigger=LostFocus}" Minimum="30" Maximum="240" Increment="10" ClipValueToMinMax="True" FormatString="0" IsEnabled="{Binding GoRenderLimitFramerate}" />
                             </Grid>
-                            
+
                             <!-- Camera Settings -->
                             <TextBlock Classes="subsection-header" Text="Camera" Margin="0,0,0,8" />
                             <Grid ColumnDefinitions="110,*,60" RowDefinitions="Auto,Auto,Auto">
                                 <TextBlock Grid.Column="0" Grid.Row="0" Text="Max Height" VerticalAlignment="Center" Margin="0,0,0,8" />
                                 <Slider Grid.Column="1" Grid.Row="0" Value="{Binding GoCameraMaxHeightOnlyWhenLobbyHost}" Minimum="100" Maximum="500" TickFrequency="10" IsSnapToTickEnabled="True" Margin="0,0,0,8" />
                                 <NumericUpDown Grid.Column="2" Grid.Row="0" Classes="phantom" Value="{Binding GoCameraMaxHeightOnlyWhenLobbyHost, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=100, UpdateSourceTrigger=LostFocus}" Minimum="100" Maximum="500" Increment="10" ClipValueToMinMax="True" FormatString="0" Margin="0,0,0,8" />
-                                
+
                                 <TextBlock Grid.Column="0" Grid.Row="1" Text="Min Height" VerticalAlignment="Center" Margin="0,0,0,8" />
                                 <Slider Grid.Column="1" Grid.Row="1" Value="{Binding GoCameraMinHeight}" Minimum="100" Maximum="500" TickFrequency="10" IsSnapToTickEnabled="True" Margin="0,0,0,8" />
                                 <NumericUpDown Grid.Column="2" Grid.Row="1" Classes="phantom" Value="{Binding GoCameraMinHeight, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=100, UpdateSourceTrigger=LostFocus}" Minimum="100" Maximum="500" Increment="10" ClipValueToMinMax="True" FormatString="0" Margin="0,0,0,8" />
-                                
+
                                 <TextBlock Grid.Column="0" Grid.Row="2" Text="Move Speed" VerticalAlignment="Center" />
                                 <Slider Grid.Column="1" Grid.Row="2" Value="{Binding GoCameraMoveSpeedRatio}" Minimum="0.5" Maximum="3.0" TickFrequency="0.1" IsSnapToTickEnabled="True" />
                                 <NumericUpDown Grid.Column="2" Grid.Row="2" Classes="phantom" Value="{Binding GoCameraMoveSpeedRatio, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=0.5, UpdateSourceTrigger=LostFocus}" Minimum="0.5" Maximum="3.0" Increment="0.1" ClipValueToMinMax="True" FormatString="F1" />
                             </Grid>
-                            
+
                             <!-- Account Options -->
                             <TextBlock Classes="subsection-header" Text="Account" Margin="0,8,0,8" />
                             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto">
                                 <CheckBox Grid.Column="0" Grid.Row="0" Content="Auto-Login" IsChecked="{Binding GoAutoLogin}" Margin="0,0,8,4" />
                                 <CheckBox Grid.Column="1" Grid.Row="0" Content="Remember User" IsChecked="{Binding GoRememberUsername}" Margin="0,0,0,4" />
                             </Grid>
-                            
+
                             <!-- Chat Settings -->
                             <TextBlock Classes="subsection-header" Text="Chat" Margin="0,8,0,8" />
                             <Grid ColumnDefinitions="110,*,60" RowDefinitions="Auto,Auto">
                                 <TextBlock Grid.Column="0" Grid.Row="0" Text="Font Size" VerticalAlignment="Center" Margin="0,0,0,8" />
                                 <Slider Grid.Column="1" Grid.Row="0" Value="{Binding GoChatFontSize}" Minimum="8" Maximum="24" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,0,0,8" />
                                 <NumericUpDown Grid.Column="2" Grid.Row="0" Classes="phantom" Value="{Binding GoChatFontSize, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=8, UpdateSourceTrigger=LostFocus}" Minimum="8" Maximum="24" Increment="1" ClipValueToMinMax="True" FormatString="0" Margin="0,0,0,8" />
-                                
+
                                 <TextBlock Grid.Column="0" Grid.Row="1" Text="Fade Out (s)" VerticalAlignment="Center" />
                                 <Slider Grid.Column="1" Grid.Row="1" Value="{Binding GoChatDurationSecondsUntilFadeOut}" Minimum="5" Maximum="120" TickFrequency="5" IsSnapToTickEnabled="True" />
                                 <NumericUpDown Grid.Column="2" Grid.Row="1" Classes="phantom" Value="{Binding GoChatDurationSecondsUntilFadeOut, Converter={StaticResource NullableDecimalToIntConverter}, ConverterParameter=5, UpdateSourceTrigger=LostFocus}" Minimum="5" Maximum="120" Increment="5" ClipValueToMinMax="True" FormatString="0" />
                             </Grid>
-                            
+
                             <!-- Notifications -->
                             <TextBlock Classes="subsection-header" Text="Notifications" Margin="0,8,0,8" />
                             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">
                                 <CheckBox Grid.Column="0" Grid.Row="0" Content="Enable Notifs" IsChecked="{Binding GoEnableNotifications}" Margin="0,0,8,4" />
                                 <CheckBox Grid.Column="1" Grid.Row="0" Content="Sound Notifs" IsChecked="{Binding GoEnableSoundNotifications}" Margin="0,0,0,4" />
                             </Grid>
-                            
+
                             <!-- Social Notifications -->
                             <TextBlock Classes="subsection-header" Text="Social Notifications" Margin="0,8,0,8" />
                             <TextBlock Text="Friend Online" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4" />
@@ -458,25 +459,25 @@
                                 <CheckBox Grid.Column="0" Grid.Row="0" Content="In Gameplay" IsChecked="{Binding GoSocialNotificationFriendComesOnlineGameplay}" Margin="0,0,8,4" />
                                 <CheckBox Grid.Column="1" Grid.Row="0" Content="In Menus" IsChecked="{Binding GoSocialNotificationFriendComesOnlineMenus}" Margin="0,0,0,4" />
                             </Grid>
-                            
+
                             <TextBlock Text="Friend Offline" FontSize="11" FontWeight="SemiBold" Margin="0,4,0,4" />
                             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto">
                                 <CheckBox Grid.Column="0" Grid.Row="0" Content="In Gameplay" IsChecked="{Binding GoSocialNotificationFriendGoesOfflineGameplay}" Margin="0,0,8,4" />
                                 <CheckBox Grid.Column="1" Grid.Row="0" Content="In Menus" IsChecked="{Binding GoSocialNotificationFriendGoesOfflineMenus}" Margin="0,0,0,4" />
                             </Grid>
-                            
+
                             <TextBlock Text="Player Accepts Request" FontSize="11" FontWeight="SemiBold" Margin="0,4,0,4" />
                             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto">
                                 <CheckBox Grid.Column="0" Grid.Row="0" Content="In Gameplay" IsChecked="{Binding GoSocialNotificationPlayerAcceptsRequestGameplay}" Margin="0,0,8,4" />
                                 <CheckBox Grid.Column="1" Grid.Row="0" Content="In Menus" IsChecked="{Binding GoSocialNotificationPlayerAcceptsRequestMenus}" Margin="0,0,0,4" />
                             </Grid>
-                            
+
                             <TextBlock Text="Player Sends Request" FontSize="11" FontWeight="SemiBold" Margin="0,4,0,4" />
                             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto">
                                 <CheckBox Grid.Column="0" Grid.Row="0" Content="In Gameplay" IsChecked="{Binding GoSocialNotificationPlayerSendsRequestGameplay}" Margin="0,0,8,4" />
                                 <CheckBox Grid.Column="1" Grid.Row="0" Content="In Menus" IsChecked="{Binding GoSocialNotificationPlayerSendsRequestMenus}" Margin="0,0,0,4" />
                             </Grid>
-                            
+
                             <!-- Debug Settings -->
                             <TextBlock Classes="subsection-header" Text="Debug" Margin="0,8,0,8" />
                             <CheckBox Content="Verbose Logging" IsChecked="{Binding GoDebugVerboseLogging}" />
@@ -484,7 +485,7 @@
                     </Border>
                 </Expander>
                 </StackPanel>
-                
+
             </WrapPanel>
 
             <!-- Footer Note -->
@@ -498,7 +499,7 @@
                                FontSize="11" Opacity="0.8" TextWrapping="Wrap" VerticalAlignment="Center" />
                 </StackPanel>
             </Border>
-            
+
         </StackPanel>
     </ScrollViewer>
 </UserControl>
