@@ -29,4 +29,9 @@ public enum NavigationTab
     /// Application settings and configuration.
     /// </summary>
     Settings,
+
+    /// <summary>
+    /// GameReplays tournaments and community integration.
+    /// </summary>
+    GameReplays,
 }

@@ -42,6 +42,11 @@ public static class AppServices
 
         // Register Tools services
         services.AddToolsServices();
+        // TODO: These services are missing from the current codebase after merge.
+        // services.AddUploadThingServices(); // Shared cloud upload service
+        // services.AddReplayManagerServices();
+        // services.AddMapManager();
+        GameReplaysModule.RegisterGameReplaysServices(services);
 
         // Register Notification services
         services.AddNotificationModule();

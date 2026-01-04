@@ -15,6 +15,7 @@ using GenHub.Features.AppUpdate.Interfaces;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.ViewModels;
+using GenHub.Features.GameReplays.ViewModels;
 using GenHub.Features.Notifications.ViewModels;
 using GenHub.Features.Settings.ViewModels;
 using GenHub.Features.Tools.ViewModels;
@@ -31,6 +32,7 @@ namespace GenHub.Common.ViewModels;
 /// <param name="settingsViewModel">Settings view model.</param>
 /// <param name="notificationManager">Notification manager view model.</param>
 /// <param name="gameInstallationDetectionOrchestrator">Game installation orchestrator.</param>
+/// <param name="gameReplaysViewModel">GameReplays view model.</param>
 /// <param name="configurationProvider">Configuration provider service.</param>
 /// <param name="userSettingsService">User settings service for persistence operations.</param>
 /// <param name="profileEditorFacade">Profile editor facade for automatic profile creation.</param>
@@ -45,6 +47,7 @@ public partial class MainViewModel(
     SettingsViewModel settingsViewModel,
     NotificationManagerViewModel notificationManager,
     IGameInstallationDetectionOrchestrator gameInstallationDetectionOrchestrator,
+    GameReplaysViewModel gameReplaysViewModel,
     IConfigurationProviderService configurationProvider,
     IUserSettingsService userSettingsService,
     IProfileEditorFacade profileEditorFacade,
@@ -80,6 +83,11 @@ public partial class MainViewModel(
     /// Gets the notification manager view model.
     /// </summary>
     public NotificationManagerViewModel NotificationManager { get; } = notificationManager;
+
+    /// <summary>
+    /// Gets the GameReplays view model.
+    /// </summary>
+    public GameReplaysViewModel GameReplaysViewModel { get; } = gameReplaysViewModel;
 
     [ObservableProperty]
     private NavigationTab _selectedTab = LoadInitialTab(configurationProvider, logger);
@@ -129,6 +137,8 @@ public partial class MainViewModel(
     [
         NavigationTab.GameProfiles,
         NavigationTab.Downloads,
+        NavigationTab.Tools,
+        NavigationTab.GameReplays,
         NavigationTab.Settings,
     ];
 
@@ -140,6 +150,7 @@ public partial class MainViewModel(
         NavigationTab.GameProfiles => GameProfilesViewModel,
         NavigationTab.Downloads => DownloadsViewModel,
         NavigationTab.Tools => ToolsViewModel,
+        NavigationTab.GameReplays => GameReplaysViewModel,
         NavigationTab.Settings => SettingsViewModel,
         _ => GameProfilesViewModel,
     };
@@ -154,6 +165,7 @@ public partial class MainViewModel(
         NavigationTab.GameProfiles => "Game Profiles",
         NavigationTab.Downloads => "Downloads",
         NavigationTab.Tools => "Tools",
+        NavigationTab.GameReplays => "GameReplays",
         NavigationTab.Settings => "Settings",
         _ => tab.ToString(),
     };
@@ -177,6 +189,7 @@ public partial class MainViewModel(
         await GameProfilesViewModel.InitializeAsync();
         await DownloadsViewModel.InitializeAsync();
         await ToolsViewModel.InitializeAsync();
+        await GameReplaysViewModel.InitializeAsync();
         _logger?.LogInformation("MainViewModel initialized");
 
         // Start background check with cancellation support
@@ -300,6 +313,10 @@ public partial class MainViewModel(
     {
         OnPropertyChanged(nameof(CurrentTabViewModel));
 
+        // Log the current tab view model type
+        var viewModelType = CurrentTabViewModel?.GetType().Name ?? "null";
+        _logger?.LogInformation("Switching to tab {Tab}. ViewModel Type: {ViewModelType}", value, viewModelType);
+
         // Notify SettingsViewModel when it becomes visible/invisible
         SettingsViewModel.IsViewVisible = value == NavigationTab.Settings;
 
@@ -311,6 +328,10 @@ public partial class MainViewModel(
         else if (value == NavigationTab.Downloads)
         {
             _ = DownloadsViewModel.OnTabActivatedAsync();
+        }
+        else if (value == NavigationTab.GameReplays)
+        {
+            _ = GameReplaysViewModel.OnTabActivatedAsync();
         }
 
         SaveSelectedTab(value);

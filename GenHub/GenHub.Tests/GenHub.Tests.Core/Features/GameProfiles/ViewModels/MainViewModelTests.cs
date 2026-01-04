@@ -4,6 +4,7 @@ using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.GameReplays;
 using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Manifest;
@@ -24,6 +25,7 @@ using GenHub.Features.Content.Services.Publishers;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.ViewModels;
+using GenHub.Features.GameReplays.ViewModels;
 using GenHub.Features.Notifications.ViewModels;
 using GenHub.Features.Settings.ViewModels;
 using GenHub.Features.Tools.ViewModels;
@@ -67,6 +69,7 @@ public class MainViewModelTests
             settingsVm,
             mockNotificationManager.Object,
             mockOrchestrator.Object,
+            CreateGameReplaysViewModel(),
             configProvider,
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
@@ -88,6 +91,8 @@ public class MainViewModelTests
     [InlineData(NavigationTab.GameProfiles)]
     [InlineData(NavigationTab.Downloads)]
     [InlineData(NavigationTab.Tools)]
+    [InlineData(NavigationTab.Tools)]
+    [InlineData(NavigationTab.GameReplays)]
     [InlineData(NavigationTab.Settings)]
     public void SelectTabCommand_SetsSelectedTab(NavigationTab tab)
     {
@@ -110,6 +115,7 @@ public class MainViewModelTests
             settingsVm,
             mockNotificationManager.Object,
             mockOrchestrator.Object,
+            CreateGameReplaysViewModel(),
             configProvider,
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
@@ -150,6 +156,7 @@ public class MainViewModelTests
             settingsVm,
             mockNotificationManager.Object,
             mockOrchestrator.Object,
+            CreateGameReplaysViewModel(),
             configProvider,
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
@@ -170,8 +177,10 @@ public class MainViewModelTests
     [InlineData(NavigationTab.Downloads)]
     [InlineData(NavigationTab.Tools)]
     [InlineData(NavigationTab.Settings)]
+    [InlineData(NavigationTab.GameReplays)]
     public void CurrentTabViewModel_ReturnsCorrectViewModel(NavigationTab tab)
     {
+        // Arrange
         var mockOrchestrator = new Mock<IGameInstallationDetectionOrchestrator>();
         var (settingsVm, userSettingsMock) = CreateSettingsVm();
         var toolsVm = CreateToolsVm();
@@ -191,6 +200,7 @@ public class MainViewModelTests
             settingsVm,
             mockNotificationManager.Object,
             mockOrchestrator.Object,
+            CreateGameReplaysViewModel(),
             configProvider,
             userSettingsMock.Object,
             mockProfileEditorFacade.Object,
@@ -199,7 +209,11 @@ public class MainViewModelTests
             mockNotificationService.Object,
             mockLogger.Object);
         vm.SelectTabCommand.Execute(tab);
+
+        // Act
         var currentViewModel = vm.CurrentTabViewModel;
+
+        // Assert
         Assert.NotNull(currentViewModel);
         switch (tab)
         {
@@ -215,7 +229,20 @@ public class MainViewModelTests
             case NavigationTab.Settings:
                 Assert.IsType<SettingsViewModel>(currentViewModel);
                 break;
+            case NavigationTab.GameReplays:
+                Assert.IsType<GameReplaysViewModel>(currentViewModel);
+                break;
         }
+    }
+
+    /// <summary>
+    /// Creates a default GameReplaysViewModel with mocked services for reuse.
+    /// </summary>
+    private static GameReplaysViewModel CreateGameReplaysViewModel()
+    {
+        var mockService = new Mock<IGameReplaysService>();
+        var mockLogger = new Mock<ILogger<GameReplaysViewModel>>();
+        return new GameReplaysViewModel(mockService.Object, mockLogger.Object);
     }
 
     /// <summary>
