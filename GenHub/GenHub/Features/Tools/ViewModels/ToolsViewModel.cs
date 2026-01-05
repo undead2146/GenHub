@@ -7,7 +7,9 @@ using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Core.Interfaces.Tools;
+using GenHub.Core.Messages;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Tools.ViewModels;
@@ -18,14 +20,30 @@ namespace GenHub.Features.Tools.ViewModels;
 /// <remarks>
 /// Initializes a new instance of the <see cref="ToolsViewModel"/> class.
 /// </remarks>
-/// <param name="toolService">The tool service for managing plugins.</param>
-/// <param name="logger">The logger instance.</param>
-/// <param name="serviceProvider">The service provider for dependency injection.</param>
-public partial class ToolsViewModel(IToolManager toolService, ILogger<ToolsViewModel> logger, IServiceProvider serviceProvider) : ObservableObject
+public partial class ToolsViewModel : ObservableObject
 {
-    private readonly IToolManager _toolService = toolService;
-    private readonly ILogger<ToolsViewModel> _logger = logger;
-    private readonly IServiceProvider _serviceProvider = serviceProvider;
+    private readonly IToolManager _toolService;
+    private readonly ILogger<ToolsViewModel> _logger;
+    private readonly IServiceProvider _serviceProvider;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ToolsViewModel"/> class.
+    /// </summary>
+    /// <param name="toolService">The tool service for managing plugins.</param>
+    /// <param name="logger">The logger instance.</param>
+    /// <param name="serviceProvider">The service provider for dependency injection.</param>
+    public ToolsViewModel(IToolManager toolService, ILogger<ToolsViewModel> logger, IServiceProvider serviceProvider)
+    {
+        _toolService = toolService;
+        _logger = logger;
+        _serviceProvider = serviceProvider;
+
+        // Subscribe to tool status messages
+        WeakReferenceMessenger.Default.Register<ToolStatusMessage>(this, (r, m) =>
+        {
+            ((ToolsViewModel)r).ShowStatusMessage(m.Message, m.IsSuccess, m.IsError, m.IsInfo);
+        });
+    }
 
     [ObservableProperty]
     private IToolPlugin? _selectedTool;

@@ -101,6 +101,7 @@ public partial class MainViewModel(
         }
     }
 
+
     /// <summary>
     /// Gets the collection of detected game installations.
     /// </summary>
@@ -252,7 +253,7 @@ public partial class MainViewModel(
                     });
                 }
             }
-        }
+
         catch (Exception ex)
         {
             logger?.LogError(ex, "Exception in CheckForUpdatesAsync");

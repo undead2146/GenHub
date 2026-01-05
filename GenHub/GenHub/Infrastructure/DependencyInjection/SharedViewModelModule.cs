@@ -35,6 +35,9 @@ public static class SharedViewModelModule
         // Register MainViewModel (critical for app startup)
         services.AddSingleton<MainViewModel>();
 
+        // Register NotificationFeedViewModel (required by MainViewModel)
+        services.AddSingleton<NotificationFeedViewModel>();
+
         // Register tab ViewModels
         services.AddSingleton<GameProfileLauncherViewModel>();
         services.AddSingleton<DownloadsViewModel>();

@@ -153,12 +153,12 @@ public static class GenPatcherContentRegistry
             InstallTarget = ContentInstallTarget.Workspace,
         },
 
-        // Hotkeys
+        // Hotkeys - Leikeze
         ["ewba"] = new GenPatcherContentMetadata
         {
             ContentCode = "ewba",
-            DisplayName = "Easy Win Hotkeys - Advanced",
-            Description = "Advanced hotkey configuration",
+            DisplayName = "Leikeze Easy Win Hotkeys - Advanced",
+            Description = "Advanced hotkey configuration by Leikeze",
             ContentType = ContentType.Addon,
             TargetGame = GameType.ZeroHour,
             Category = GenPatcherContentCategory.Hotkeys,
@@ -167,8 +167,8 @@ public static class GenPatcherContentRegistry
         ["ewbi"] = new GenPatcherContentMetadata
         {
             ContentCode = "ewbi",
-            DisplayName = "Easy Win Hotkeys - International",
-            Description = "International hotkey layout",
+            DisplayName = "Leikeze Easy Win Hotkeys - International",
+            Description = "International hotkey layout by Leikeze",
             ContentType = ContentType.Addon,
             TargetGame = GameType.ZeroHour,
             Category = GenPatcherContentCategory.Hotkeys,
@@ -177,8 +177,8 @@ public static class GenPatcherContentRegistry
         ["hlde"] = new GenPatcherContentMetadata
         {
             ContentCode = "hlde",
-            DisplayName = "Hotkeys - German",
-            Description = "German hotkey configuration",
+            DisplayName = "Leikeze Hotkeys - German",
+            Description = "German hotkey configuration by Leikeze",
             ContentType = ContentType.Addon,
             TargetGame = GameType.ZeroHour,
             LanguageCode = "de",
@@ -188,8 +188,8 @@ public static class GenPatcherContentRegistry
         ["hleg"] = new GenPatcherContentMetadata
         {
             ContentCode = "hleg",
-            DisplayName = "Hotkeys - English (Grid)",
-            Description = "English grid-based hotkey layout",
+            DisplayName = "Leikeze Hotkeys - English (Grid)",
+            Description = "Leikeze English grid-based hotkey layout",
             ContentType = ContentType.Addon,
             TargetGame = GameType.ZeroHour,
             LanguageCode = "en",
@@ -199,8 +199,8 @@ public static class GenPatcherContentRegistry
         ["hlei"] = new GenPatcherContentMetadata
         {
             ContentCode = "hlei",
-            DisplayName = "Hotkeys - English (Icons)",
-            Description = "English icon-based hotkey layout",
+            DisplayName = "Leikeze Hotkeys - English (Icons)",
+            Description = "Leikeze English icon-based hotkey layout",
             ContentType = ContentType.Addon,
             TargetGame = GameType.ZeroHour,
             LanguageCode = "en",
@@ -210,8 +210,8 @@ public static class GenPatcherContentRegistry
         ["hlen"] = new GenPatcherContentMetadata
         {
             ContentCode = "hlen",
-            DisplayName = "Hotkeys - English",
-            Description = "Standard English hotkey configuration",
+            DisplayName = "Leikeze Hotkeys - English",
+            Description = "Standard English hotkey configuration by Leikeze",
             ContentType = ContentType.Addon,
             TargetGame = GameType.ZeroHour,
             LanguageCode = "en",
@@ -230,16 +230,6 @@ public static class GenPatcherContentRegistry
             Category = GenPatcherContentCategory.Tools,
             InstallTarget = ContentInstallTarget.Workspace,
         },
-        ["genl"] = new GenPatcherContentMetadata
-        {
-            ContentCode = "genl",
-            DisplayName = "GenLauncher",
-            Description = "Alternative launcher for Generals/Zero Hour",
-            ContentType = ContentType.Addon,
-            TargetGame = GameType.ZeroHour,
-            Category = GenPatcherContentCategory.Tools,
-            InstallTarget = ContentInstallTarget.Workspace,
-        },
         ["gena"] = new GenPatcherContentMetadata
         {
             ContentCode = "gena",
@@ -250,15 +240,47 @@ public static class GenPatcherContentRegistry
             Category = GenPatcherContentCategory.Tools,
             InstallTarget = ContentInstallTarget.Workspace,
         },
-        ["laun"] = new GenPatcherContentMetadata
+        ["genl"] = new GenPatcherContentMetadata
         {
-            ContentCode = "laun",
-            DisplayName = "Launcher",
-            Description = "Game launcher component",
+            ContentCode = "genl",
+            DisplayName = "GenLauncher",
+            Description = "GenLauncher standalone launcher utility",
             ContentType = ContentType.Addon,
             TargetGame = GameType.ZeroHour,
             Category = GenPatcherContentCategory.Tools,
             InstallTarget = ContentInstallTarget.Workspace,
+        },
+
+        // Prerequisites - System dependencies (VCRedist, DirectX, etc.)
+        ["vc05"] = new GenPatcherContentMetadata
+        {
+            ContentCode = "vc05",
+            DisplayName = "Visual C++ 2005 Redistributable",
+            Description = "Microsoft Visual C++ 2005 Redistributable Package",
+            ContentType = ContentType.Addon,
+            TargetGame = GameType.ZeroHour,
+            Category = GenPatcherContentCategory.Prerequisites,
+            InstallTarget = ContentInstallTarget.System,
+        },
+        ["vc08"] = new GenPatcherContentMetadata
+        {
+            ContentCode = "vc08",
+            DisplayName = "Visual C++ 2008 Redistributable",
+            Description = "Microsoft Visual C++ 2008 Redistributable Package",
+            ContentType = ContentType.Addon,
+            TargetGame = GameType.ZeroHour,
+            Category = GenPatcherContentCategory.Prerequisites,
+            InstallTarget = ContentInstallTarget.System,
+        },
+        ["vc10"] = new GenPatcherContentMetadata
+        {
+            ContentCode = "vc10",
+            DisplayName = "Visual C++ 2010 Redistributable",
+            Description = "Microsoft Visual C++ 2010 Redistributable Package",
+            ContentType = ContentType.Addon,
+            TargetGame = GameType.ZeroHour,
+            Category = GenPatcherContentCategory.Prerequisites,
+            InstallTarget = ContentInstallTarget.System,
         },
 
         // Maps and Missions - These go to user Documents directory
@@ -334,38 +356,6 @@ public static class GenPatcherContentRegistry
             TargetGame = GameType.ZeroHour,
             Category = GenPatcherContentCategory.Visuals,
             InstallTarget = ContentInstallTarget.Workspace,
-        },
-
-        // Prerequisites - System install
-        ["vc05"] = new GenPatcherContentMetadata
-        {
-            ContentCode = "vc05",
-            DisplayName = "VC++ 2005 Redistributable",
-            Description = "Microsoft Visual C++ 2005 Redistributable (x86)",
-            ContentType = ContentType.Addon,
-            TargetGame = GameType.ZeroHour,
-            Category = GenPatcherContentCategory.Prerequisites,
-            InstallTarget = ContentInstallTarget.System,
-        },
-        ["vc08"] = new GenPatcherContentMetadata
-        {
-            ContentCode = "vc08",
-            DisplayName = "VC++ 2008 Redistributable",
-            Description = "Microsoft Visual C++ 2008 Redistributable (x86)",
-            ContentType = ContentType.Addon,
-            TargetGame = GameType.ZeroHour,
-            Category = GenPatcherContentCategory.Prerequisites,
-            InstallTarget = ContentInstallTarget.System,
-        },
-        ["vc10"] = new GenPatcherContentMetadata
-        {
-            ContentCode = "vc10",
-            DisplayName = "VC++ 2010 Redistributable",
-            Description = "Microsoft Visual C++ 2010 Redistributable (x86)",
-            ContentType = ContentType.Addon,
-            TargetGame = GameType.ZeroHour,
-            Category = GenPatcherContentCategory.Prerequisites,
-            InstallTarget = ContentInstallTarget.System,
         },
     };
 
@@ -451,7 +441,6 @@ public static class GenPatcherContentRegistry
         // Determine target game based on version
         // 108 = Generals 1.08, 104 = Zero Hour 1.04
         var isGenerals = versionNumber == 8; // 1.08 is Generals
-        var isZeroHour = versionNumber == 4; // 1.04 is Zero Hour
 
         var targetGame = isGenerals ? GameType.Generals : GameType.ZeroHour;
         var version = $"1.0{versionNumber}";

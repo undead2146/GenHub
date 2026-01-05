@@ -6,7 +6,7 @@ using GenHub.Infrastructure.Exceptions;
 using Microsoft.Extensions.Logging;
 using Moq;
 
-namespace GenHub.Tests.Features.Validation;
+namespace GenHub.Tests.Core.Features.Validation;
 
 /// <summary>
 /// Unit tests for FileSystemValidator.
@@ -80,17 +80,8 @@ public class FileSystemValidatorTests
     /// <summary>
     /// Test implementation of <see cref="FileSystemValidator"/> for unit testing.
     /// </summary>
-    public class TestFileSystemValidator : FileSystemValidator
+    public class TestFileSystemValidator(ILogger logger) : FileSystemValidator(logger, new Mock<IFileHashProvider>().Object)
     {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="TestFileSystemValidator"/> class.
-        /// </summary>
-        /// <param name="logger">Logger instance.</param>
-        public TestFileSystemValidator(ILogger logger)
-            : base(logger, new Mock<IFileHashProvider>().Object)
-        {
-        }
-
         /// <summary>
         /// Exposes base ValidateDirectoriesAsync for testing.
         /// </summary>

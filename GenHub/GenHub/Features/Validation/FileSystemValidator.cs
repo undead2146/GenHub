@@ -117,7 +117,6 @@ public abstract class FileSystemValidator(ILogger logger, IFileHashProvider hash
                     issues.Add(new ValidationIssue { IssueType = ValidationIssueType.UnexpectedFile, Path = absFile, Message = $"I/O error: {ex.Message}" });
                 }
 
-                // Progress reporting for MVVM
                 if (progress != null)
                 {
                     int current = Interlocked.Increment(ref processed);
@@ -125,6 +124,6 @@ public abstract class FileSystemValidator(ILogger logger, IFileHashProvider hash
                 }
             });
 
-        return issues.ToList();
+        return [.. issues];
     }
 }

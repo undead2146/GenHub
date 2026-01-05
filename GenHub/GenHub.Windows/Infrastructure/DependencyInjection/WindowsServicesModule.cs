@@ -1,17 +1,22 @@
+using GenHub.Core.Features.ActionSets;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Storage;
+using GenHub.Core.Interfaces.Tools;
 using GenHub.Core.Interfaces.Workspace;
 using GenHub.Features.GameInstallations;
 using GenHub.Features.Workspace;
+using GenHub.Windows.Features.ActionSets;
+using GenHub.Windows.Features.ActionSets.Fixes;
+using GenHub.Windows.Features.ActionSets.Infrastructure;
+using GenHub.Windows.Features.ActionSets.UI;
 using GenHub.Windows.Features.GitHub.Services;
 using GenHub.Windows.Features.Shortcuts;
 using GenHub.Windows.Features.Workspace;
 using GenHub.Windows.GameInstallations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System;
 
 namespace GenHub.Windows.Infrastructure.DependencyInjection;
 
@@ -41,6 +46,25 @@ public static class WindowsServicesModule
             var logger = serviceProvider.GetRequiredService<ILogger<WindowsFileOperationsService>>();
             return new WindowsFileOperationsService(baseService, casService, logger);
         });
+
+        // Register ActionSet Infrastructure
+        services.AddSingleton<IRegistryService, RegistryService>();
+        services.AddSingleton<IActionSetOrchestrator, ActionSetOrchestrator>();
+
+        // Register ActionSets
+        services.AddSingleton<IActionSet, BrowserEngineFix>();
+        services.AddSingleton<IActionSet, DbgHelpFix>();
+        services.AddSingleton<IActionSet, EAAppRegistryFix>();
+        services.AddSingleton<IActionSet, MyDocumentsPathCompatibility>();
+        services.AddSingleton<IActionSet, VCRedist2010Fix>();
+
+        // NOTE: GenPatcherContentActionSetProvider is NOT registered here.
+        // Content from GenPatcherContentRegistry is already available in the Downloads UI
+        // and should not be duplicated as ActionSets. Only the 4 core fixes above are needed.
+
+        // Register GenPatcher Tool
+        services.AddSingleton<IToolPlugin, GenPatcherTool>();
+        services.AddTransient<GenPatcherViewModel>();
 
         return services;
     }
