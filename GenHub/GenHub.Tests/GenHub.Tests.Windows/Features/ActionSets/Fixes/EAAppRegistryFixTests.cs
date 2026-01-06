@@ -53,7 +53,7 @@ public class EAAppRegistryFixTests
         };
 
         // Mock Registry: Any call to GetStringValue for Install Path returns null (missing)
-        _registryMock.Setup(r => r.GetStringValue(It.IsAny<string>(), "Install Path", It.IsAny<bool>()))
+        _registryMock.Setup(r => r.GetStringValue(It.IsAny<string>(), RegistryConstants.InstallPathValueName, It.IsAny<bool>()))
                      .Returns((string?)null);
 
         var result = await _fix.IsApplicableAsync(installation);
@@ -77,13 +77,13 @@ public class EAAppRegistryFixTests
         };
 
         // Mock returns correct paths
-        _registryMock.Setup(r => r.GetStringValue(RegistryConstants.EAAppGeneralsKeyPath, "Install Path", It.IsAny<bool>()))
+        _registryMock.Setup(r => r.GetStringValue(RegistryConstants.EAAppGeneralsKeyPath, RegistryConstants.InstallPathValueName, It.IsAny<bool>()))
                      .Returns(installation.GeneralsPath);
         _registryMock.Setup(r => r.GetIntValue(RegistryConstants.EAAppGeneralsKeyPath, "Version", It.IsAny<bool>()))
                      .Returns(65544); // 1.08
 
         // Mock zero hour correct
-        _registryMock.Setup(r => r.GetStringValue(RegistryConstants.EAAppZeroHourKeyPath, "Install Path", It.IsAny<bool>()))
+        _registryMock.Setup(r => r.GetStringValue(RegistryConstants.EAAppZeroHourKeyPath, RegistryConstants.InstallPathValueName, It.IsAny<bool>()))
                      .Returns(installation.ZeroHourPath);
         _registryMock.Setup(r => r.GetIntValue(RegistryConstants.EAAppZeroHourKeyPath, "Version", It.IsAny<bool>()))
                      .Returns(65540); // 1.04
@@ -117,8 +117,8 @@ public class EAAppRegistryFixTests
         Assert.True(result.Success);
 
         // Verify installs - Verify SET usage
-        _registryMock.Verify(r => r.SetStringValue(RegistryConstants.EAAppGeneralsKeyPath, "Install Path", installation.GeneralsPath, It.IsAny<bool>()), Times.Once);
-        _registryMock.Verify(r => r.SetIntValue(RegistryConstants.EAAppGeneralsKeyPath, "Version", 65544, It.IsAny<bool>()), Times.Once);
+        _registryMock.Verify(r => r.SetStringValue(RegistryConstants.EAAppGeneralsKeyPath, RegistryConstants.InstallPathValueName, installation.GeneralsPath, It.IsAny<bool>()), Times.Once);
+        _registryMock.Verify(r => r.SetIntValue(RegistryConstants.EAAppGeneralsKeyPath, "Version", RegistryConstants.GeneralsVersionDWord, It.IsAny<bool>()), Times.Once);
 
         // Verify serials logic - should attempt to write if missing (default mock returns null/empty so logic thinks it's missing)
         _registryMock.Verify(r => r.SetStringValue(RegistryConstants.EAAppGeneralsErgcKeyPath, string.Empty, It.IsAny<string>(), It.IsAny<bool>()), Times.AtLeast(1));

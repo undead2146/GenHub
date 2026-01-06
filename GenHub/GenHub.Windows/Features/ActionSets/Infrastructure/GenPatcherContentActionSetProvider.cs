@@ -1,7 +1,6 @@
 namespace GenHub.Windows.Features.ActionSets.Infrastructure;
 
 using System.Collections.Generic;
-using System.Linq;
 using GenHub.Core.Features.ActionSets;
 using GenHub.Core.Models.CommunityOutpost;
 using Microsoft.Extensions.Logging;
@@ -34,7 +33,7 @@ public class GenPatcherContentActionSetProvider(ILoggerFactory loggerFactory) : 
                 continue;
             }
 
-            var logger = _loggerFactory.CreateLogger<ContentActionSet>();
+            var logger = this.loggerFactory.CreateLogger<ContentActionSet>();
             yield return new ContentActionSet(metadata, logger);
         }
     }

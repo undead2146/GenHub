@@ -29,9 +29,6 @@ public partial class NotificationFeedViewModel : ViewModelBase, IDisposable
     private bool _isFeedOpen;
 
     [ObservableProperty]
-    private int _unreadCount;
-
-    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasUnreadNotifications))]
     private int _badgeCount;
 
@@ -79,21 +76,35 @@ public partial class NotificationFeedViewModel : ViewModelBase, IDisposable
     /// </summary>
     public void Dispose()
     {
-        if (_disposed)
-            return;
-
-        _historySubscription?.Dispose();
-
-        foreach (var item in NotificationHistory)
-        {
-            item?.Dispose();
-        }
-
-        NotificationHistory.Clear();
-        _disposed = true;
+        Dispose(true);
         GC.SuppressFinalize(this);
     }
 
+    /// <summary>
+    /// Disposes of managed resources.
+    /// </summary>
+    /// <param name="disposing">True if disposing managed resources.</param>
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (disposing)
+        {
+            _historySubscription?.Dispose();
+
+            foreach (var item in NotificationHistory)
+            {
+                item?.Dispose();
+            }
+
+            NotificationHistory.Clear();
+        }
+
+        _disposed = true;
+    }
     /// <summary>
     /// Adds a notification to the feed.
     /// </summary>

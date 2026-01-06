@@ -40,10 +40,10 @@ public partial class ActionSetViewModel : ObservableObject
     public bool IsCore => ActionSet.IsCoreFix;
 
     [ObservableProperty]
-    private bool _isApplicable;
+    private bool isApplicable;
 
     [ObservableProperty]
-    private bool _isApplied;
+    private bool isApplied;
 
     [ObservableProperty]
     private AsyncRelayCommand _applyCommand;
@@ -80,7 +80,7 @@ public partial class ActionSetViewModel : ObservableObject
 
     private async Task ApplyAsync()
     {
-        if (!_registryService.IsRunningAsAdministrator())
+        if (!this.registryService.IsRunningAsAdministrator())
         {
             WeakReferenceMessenger.Default.Send(new ToolStatusMessage(
                 "Administrator privileges required. Please restart GenHub as Administrator to apply this fix.",
@@ -102,7 +102,16 @@ public partial class ActionSetViewModel : ObservableObject
             return;
         }
 
-        await ActionSet.ApplyAsync(_installation);
-        await CheckStatusAsync();
+        try
+        {
+            await ActionSet.ApplyAsync(this.installation);
+            await CheckStatusAsync();
+        }
+        catch (System.Exception ex)
+        {
+            WeakReferenceMessenger.Default.Send(new ToolStatusMessage(
+                $"Failed to apply fix: {ex.Message}",
+                ToolMessageType.Error));
+        }
     }
 }

@@ -99,7 +99,7 @@ public record NotificationMessage
         NotificationType type,
         string title,
         string message,
-        int? autoDismissMilliseconds = 5000,
+        int? autoDismissMilliseconds = GenHub.Core.Constants.NotificationDurations.Medium,
         string? actionText = null,
         Action? action = null,
         IReadOnlyList<NotificationAction>? actions = null,

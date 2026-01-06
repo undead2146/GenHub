@@ -22,20 +22,20 @@ using Microsoft.Extensions.Logging;
 /// </summary>
 public partial class GenPatcherViewModel : ObservableObject
 {
-    private readonly IActionSetOrchestrator _orchestrator;
-    private readonly IGameInstallationDetector _installationDetector;
-    private readonly IRegistryService _registryService;
-    private readonly ILogger<GenPatcherViewModel> _logger;
-    private GameInstallation? _currentInstallation;
+    private readonly IActionSetOrchestrator orchestrator;
+    private readonly IGameInstallationDetector installationDetector;
+    private readonly IRegistryService registryService;
+    private readonly ILogger<GenPatcherViewModel> logger;
+    private GameInstallation? currentInstallation;
 
     [ObservableProperty]
-    private AsyncRelayCommand _loadFixesCommand;
+    private AsyncRelayCommand loadFixesCommand;
 
     [ObservableProperty]
-    private AsyncRelayCommand _applyAllFixesCommand;
+    private AsyncRelayCommand applyAllFixesCommand;
 
     [ObservableProperty]
-    private ObservableCollection<ActionSetViewModel> _actionSets = [];
+    private ObservableCollection<ActionSetViewModel> actionSets = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GenPatcherViewModel"/> class.
@@ -50,12 +50,12 @@ public partial class GenPatcherViewModel : ObservableObject
         IRegistryService registryService,
         ILogger<GenPatcherViewModel> logger)
     {
-        _orchestrator = orchestrator;
-        _installationDetector = installationDetector;
-        _registryService = registryService;
-        _logger = logger;
-        _loadFixesCommand = new AsyncRelayCommand(LoadFixesAsync);
-        _applyAllFixesCommand = new AsyncRelayCommand(ApplyAllFixesAsync);
+        this.orchestrator = orchestrator;
+        this.installationDetector = installationDetector;
+        this.registryService = registryService;
+        this.logger = logger;
+        this.loadFixesCommand = new AsyncRelayCommand(LoadFixesAsync);
+        this.applyAllFixesCommand = new AsyncRelayCommand(ApplyAllFixesAsync);
     }
 
     /// <summary>
@@ -64,7 +64,7 @@ public partial class GenPatcherViewModel : ObservableObject
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task InitializeAsync()
     {
-        if (!_registryService.IsRunningAsAdministrator())
+        if (!this.registryService.IsRunningAsAdministrator())
         {
             WeakReferenceMessenger.Default.Send(new ToolStatusMessage(
                 "Please restart GenHub as Administrator to ensure GenPatcher can apply registry-based fixes.",
@@ -78,7 +78,7 @@ public partial class GenPatcherViewModel : ObservableObject
     {
         try
         {
-            var result = await _installationDetector.DetectInstallationsAsync();
+            var result = await this.installationDetector.DetectInstallationsAsync();
             var detected = result.Items;
             GameInstallation? preferred = null;
             foreach (var item in detected)
@@ -90,35 +90,38 @@ public partial class GenPatcherViewModel : ObservableObject
                 }
             }
 
-            _currentInstallation = preferred ?? (detected.Count > 0 ? detected[0] : null);
+            this.currentInstallation = preferred ?? (detected.Count > 0 ? detected[0] : null);
 
-            if (_currentInstallation == null)
+            if (this.currentInstallation == null)
             {
-                // Handle no installation found
+                this.logger.LogWarning("No valid game installation found for GenPatcher");
+                WeakReferenceMessenger.Default.Send(new ToolStatusMessage(
+                    "No valid game installation found. Please ensure Command & Conquer Generals or Zero Hour is installed.",
+                    ToolMessageType.Error));
                 return;
             }
 
-            var fixes = _orchestrator.GetAllActionSets();
+            var fixes = this.orchestrator.GetAllActionSets();
             ActionSets.Clear();
 
             foreach (var fix in fixes)
             {
-                var vm = new ActionSetViewModel(fix, _currentInstallation, _registryService, _logger);
+                var vm = new ActionSetViewModel(fix, currentInstallation, registryService, logger);
                 await vm.CheckStatusAsync();
                 ActionSets.Add(vm);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load fixes");
+            this.logger.LogError(ex, "Failed to load fixes");
         }
     }
 
     private async Task ApplyAllFixesAsync()
     {
-        if (_currentInstallation == null) return;
+        if (this.currentInstallation == null) return;
 
-        if (!_registryService.IsRunningAsAdministrator())
+        if (!this.registryService.IsRunningAsAdministrator())
         {
             WeakReferenceMessenger.Default.Send(new ToolStatusMessage(
                 "Administrator privileges required for 'Apply Recommended'. Please restart GenHub as Administrator.",
@@ -135,7 +138,7 @@ public partial class GenPatcherViewModel : ObservableObject
             }
         }
 
-        await _orchestrator.ApplyActionSetsAsync(_currentInstallation, applicableFixes);
+        await this.orchestrator.ApplyActionSetsAsync(this.currentInstallation, applicableFixes);
 
         // Refresh status
         foreach(var vm in ActionSets)
