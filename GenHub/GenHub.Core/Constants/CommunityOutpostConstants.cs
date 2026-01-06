@@ -36,6 +36,11 @@ public static class CommunityOutpostConstants
     public const string CoverSource = "avares://GenHub/Assets/Covers/generals-cover.png";
 
     /// <summary>
+    /// Theme color for Community Outpost content.
+    /// </summary>
+    public const string ThemeColor = "#2D5A27";
+
+    /// <summary>
     /// Description for the content provider.
     /// </summary>
     public const string ProviderDescription = "Official patches, tools, and addons from GenPatcher (Community Outpost)";

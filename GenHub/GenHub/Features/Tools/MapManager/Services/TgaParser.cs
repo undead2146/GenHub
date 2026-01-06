@@ -106,6 +106,12 @@ public class TgaParser(ILogger<TgaParser> logger)
     private static byte[] ConvertToRgba(byte[] bgrData, int width, int height, int bytesPerPixel, bool topToBottom)
     {
         var rgba = new byte[width * height * 4];
+        int expectedSrcSize = width * height * bytesPerPixel;
+        if (bgrData.Length < expectedSrcSize)
+        {
+            return rgba;
+        }
+
         int srcIndex = 0;
 
         for (int y = 0; y < height; y++)
@@ -116,6 +122,11 @@ public class TgaParser(ILogger<TgaParser> logger)
             for (int x = 0; x < width; x++)
             {
                 int destIndex = destRowStart + (x * 4);
+
+                if (srcIndex + (bytesPerPixel == 4 ? 3 : 2) >= bgrData.Length)
+                {
+                    return rgba;
+                }
 
                 // TGA stores as BGR(A)
                 byte b = bgrData[srcIndex++];

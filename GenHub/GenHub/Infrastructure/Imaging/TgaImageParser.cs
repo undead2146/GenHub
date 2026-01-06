@@ -95,6 +95,11 @@ public class TgaImageParser(ILogger<TgaImageParser> logger)
             var srcIndex = i * sourceBytesPerPixel;
             var dstIndex = i * 4;
 
+            if (srcIndex + (sourceBytesPerPixel == 4 ? 3 : 2) >= sourceData.Length)
+            {
+                return rgbaData;
+            }
+
             rgbaData[dstIndex] = sourceData[srcIndex + 2];
             rgbaData[dstIndex + 1] = sourceData[srcIndex + 1];
             rgbaData[dstIndex + 2] = sourceData[srcIndex];

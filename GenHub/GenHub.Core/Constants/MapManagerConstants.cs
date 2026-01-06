@@ -21,6 +21,16 @@ public static class MapManagerConstants
     public const long MaxUploadBytesPerPeriod = 100 * 1024 * 1024;
 
     /// <summary>
+    /// Display name for a map pack/package.
+    /// </summary>
+    public const string MapPackageDisplayName = "Map Package";
+
+    /// <summary>
+    /// Display name for a single map file.
+    /// </summary>
+    public const string MapFileDisplayName = "Map File";
+
+    /// <summary>
     /// Maximum width for map thumbnails in pixels.
     /// </summary>
     public const int ThumbnailMaxWidth = 128;

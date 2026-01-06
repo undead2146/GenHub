@@ -472,9 +472,9 @@ public abstract class WorkspaceStrategyBase<T>(
         return file.InstallTarget switch
         {
             ContentInstallTarget.UserDataDirectory => Path.Combine(userDataBasePath, file.RelativePath),
-            ContentInstallTarget.UserMapsDirectory => Path.Combine(userDataBasePath, "Maps", file.RelativePath),
-            ContentInstallTarget.UserReplaysDirectory => Path.Combine(userDataBasePath, "Replays", file.RelativePath),
-            ContentInstallTarget.UserScreenshotsDirectory => Path.Combine(userDataBasePath, "Screenshots", file.RelativePath),
+            ContentInstallTarget.UserMapsDirectory => Path.Combine(userDataBasePath, GameSettingsConstants.FolderNames.Maps, StripLeadingDirectory(file.RelativePath, "Maps")),
+            ContentInstallTarget.UserReplaysDirectory => Path.Combine(userDataBasePath, GameSettingsConstants.FolderNames.Replays, StripLeadingDirectory(file.RelativePath, "Replays")),
+            ContentInstallTarget.UserScreenshotsDirectory => Path.Combine(userDataBasePath, GameSettingsConstants.FolderNames.Screenshots, StripLeadingDirectory(file.RelativePath, "Screenshots")),
             ContentInstallTarget.System => throw new NotSupportedException(
                 "System install target is not supported for workspace operations. " +
                 "Prerequisites like Visual C++ runtimes should be installed through system package managers."),
@@ -624,5 +624,23 @@ public abstract class WorkspaceStrategyBase<T>(
         // Copy from extracted source to target
         await FileOperations.CopyFileAsync(file.SourcePath, targetPath, cancellationToken);
         Logger.LogDebug("Copied extracted file: {Source} -> {Target}", file.SourcePath, targetPath);
+    }
+
+    /// <summary>
+    /// Strips a leading directory name from a path if present.
+    /// Handles both forward and back slashes.
+    /// </summary>
+    private static string StripLeadingDirectory(string path, string directoryName)
+    {
+        // Handle both forward and back slashes
+        var normalized = path.Replace('\\', '/');
+        var prefix = directoryName + "/";
+
+        if (normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return normalized[prefix.Length..];
+        }
+
+        return path;
     }
 }

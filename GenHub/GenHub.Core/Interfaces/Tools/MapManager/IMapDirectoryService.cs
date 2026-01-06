@@ -41,16 +41,16 @@ public interface IMapDirectoryService
     Task<bool> DeleteMapsAsync(IEnumerable<MapFile> maps, CancellationToken ct = default);
 
     /// <summary>
-    /// Opens the map directory in Windows Explorer.
+    /// Opens the map directory in the system file manager.
     /// </summary>
     /// <param name="version">The game version.</param>
-    void OpenInExplorer(GameType version);
+    void OpenDirectory(GameType version);
 
     /// <summary>
-    /// Reveals a specific file in Windows Explorer.
+    /// Reveals a specific file in the system file manager.
     /// </summary>
     /// <param name="map">The map file to reveal.</param>
-    void RevealInExplorer(MapFile map);
+    void RevealFile(MapFile map);
 
     /// <summary>
     /// Renames a map, including its parent directory if applicable.

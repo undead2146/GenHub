@@ -18,7 +18,7 @@ public sealed class EnumToBoolConverter : IValueConverter
             return false;
         }
 
-        return value.ToString() == parameter.ToString();
+        return value?.Equals(parameter) == true || value?.ToString()?.Equals(parameter?.ToString(), StringComparison.OrdinalIgnoreCase) == true;
     }
 
     /// <inheritdoc />
@@ -26,7 +26,10 @@ public sealed class EnumToBoolConverter : IValueConverter
     {
         if (value is bool b && b && parameter != null)
         {
-            return Enum.Parse(targetType, parameter.ToString()!);
+            if (Enum.TryParse(targetType, parameter.ToString(), out var result))
+            {
+                return result;
+            }
         }
 
         return AvaloniaProperty.UnsetValue;

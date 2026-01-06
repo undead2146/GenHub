@@ -25,6 +25,11 @@ public static class UiConstants
     /// </summary>
     public const double DefaultProfileSettingsHeight = 700;
 
+    /// <summary>
+    /// Global UI accent color.
+    /// </summary>
+    public const string AccentColor = "#7B1FA2";
+
     // Status colors
 
     /// <summary>

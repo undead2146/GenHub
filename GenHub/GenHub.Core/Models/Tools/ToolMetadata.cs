@@ -16,12 +16,12 @@ public class ToolMetadata
     public required string Name { get; set; }
 
     /// <summary>
-    /// Gets or sets the author of the tool.
+    /// Gets or sets the version of the tool.
     /// </summary>
     public required string Version { get; set; }
 
     /// <summary>
-    /// Gets or sets the version of the tool.
+    /// Gets or sets the author of the tool.
     /// </summary>
     public required string Author { get; set; }
 

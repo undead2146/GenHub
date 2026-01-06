@@ -52,7 +52,7 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
     public string ZeroHourPath { get; private set; } = string.Empty;
 
     /// <inheritdoc/>
-    public List<GameClient> AvailableGameClients { get; } = new();
+    public List<GameClient> AvailableGameClients { get; } = [];
 
     /// <summary>
     /// Gets a value indicating whether Steam is installed successfully.
@@ -127,13 +127,13 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
                 // Check for Zero Hour
                 if (!HasZeroHour)
                 {
-                    var possibleZeroHourPaths = new[]
-                    {
+                    string[] possibleZeroHourPaths =
+                    [
                         Path.Combine(libraryPath, GameClientConstants.ZeroHourDirectoryNameAmpersandHyphen), // Standard Steam naming (& with -)
                         Path.Combine(libraryPath, GameClientConstants.ZeroHourDirectoryName), // Alternative naming (and without -)
                         Path.Combine(libraryPath, GameClientConstants.ZeroHourDirectoryNameColonVariant), // Colon variant
                         Path.Combine(libraryPath, GameClientConstants.ZeroHourDirectoryNameAbbreviated), // Abbreviated form
-                    };
+                    ];
 
                     foreach (var zeroHourPath in possibleZeroHourPaths)
                     {
@@ -169,14 +169,14 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
     /// Gets Steam library paths on Linux.
     /// </summary>
     /// <returns>Collection of Steam library paths.</returns>
-    private IEnumerable<string> GetSteamLibraryPaths()
+    private List<string> GetSteamLibraryPaths()
     {
         var libraryPaths = new List<string>();
 
         try
         {
             var homeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            var steamConfigPaths = new Dictionary<string, LinuxInstallationType>
+            Dictionary<string, LinuxInstallationType> steamConfigPaths = new()
             {
                 {
                     ".steam/steam/steamapps/libraryfolders.vdf",

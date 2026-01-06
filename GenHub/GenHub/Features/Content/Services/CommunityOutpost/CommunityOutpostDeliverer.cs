@@ -273,6 +273,7 @@ public class CommunityOutpostDeliverer(
                 var addResult = await manifestPool.AddManifestAsync(
                     manifest,
                     extractPath,
+                    null,
                     cancellationToken);
 
                 if (!addResult.Success)

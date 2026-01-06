@@ -151,6 +151,10 @@ public static class ContentPipelineModule
 
         // Register SuperHackers update service
         services.AddSingleton<SuperHackersUpdateService>();
+
+        // Register GitHub generic manifest factory
+        services.AddTransient<GitHubManifestFactory>();
+        services.AddTransient<IPublisherManifestFactory>(sp => sp.GetRequiredService<GitHubManifestFactory>());
     }
 
     /// <summary>

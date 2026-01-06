@@ -41,14 +41,14 @@ public interface IReplayDirectoryService
     Task<bool> DeleteReplaysAsync(IEnumerable<ReplayFile> replays, CancellationToken ct = default);
 
     /// <summary>
-    /// Opens the replay directory in Windows Explorer.
+    /// Opens the replay directory in the system file manager.
     /// </summary>
     /// <param name="version">The game version.</param>
-    void OpenInExplorer(GameType version);
+    void OpenDirectory(GameType version);
 
     /// <summary>
-    /// Reveals a specific file in Windows Explorer.
+    /// Reveals a specific file in the system file manager.
     /// </summary>
     /// <param name="replay">The replay file to reveal.</param>
-    void RevealInExplorer(ReplayFile replay);
+    void RevealFile(ReplayFile replay);
 }

@@ -303,11 +303,6 @@ jobs:
           echo "Building Linux project"
           dotnet build "${{ env.LINUX_PROJECT }}" -c ${{ env.BUILD_CONFIGURATION }} $BUILD_PROPS
 
-      - name: Inject Secrets
-        shell: pwsh
-        run: |
-          ./.github/scripts/inject-token.ps1 -Token "${{ secrets.UPLOADTHING_TOKEN }}"
-
       - name: Publish Linux App
         run: |
           BUILD_PROPS="-p:Version=${{ steps.buildinfo.outputs.VERSION }} -p:GitShortHash=${{ steps.buildinfo.outputs.SHORT_HASH }} -p:PullRequestNumber=${{ steps.buildinfo.outputs.PR_NUMBER }} -p:BuildChannel=${{ steps.buildinfo.outputs.CHANNEL }}"

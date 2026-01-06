@@ -274,6 +274,7 @@ public class CommunityOutpostManifestFactory(
                     ReleaseDate = originalManifest.Metadata.ReleaseDate,
                     IconUrl = CommunityOutpostConstants.LogoSource,
                     CoverUrl = CommunityOutpostConstants.CoverSource,
+                    ThemeColor = CommunityOutpostConstants.ThemeColor,
                     ScreenshotUrls = originalManifest.Metadata.ScreenshotUrls,
                     Tags = originalManifest.Metadata.Tags,
                     ChangelogUrl = originalManifest.Metadata.ChangelogUrl,

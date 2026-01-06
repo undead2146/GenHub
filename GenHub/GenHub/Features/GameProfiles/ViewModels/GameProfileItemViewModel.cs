@@ -375,7 +375,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
                 ExtractManifestInfo(gameProfile.GameClient.Id);
 
                 // Fallback: use GameClient.Version directly if we couldn't extract from manifest
-                if (string.IsNullOrEmpty(_gameVersion) && !string.IsNullOrEmpty(gameProfile.GameClient.Version))
+                if (string.IsNullOrEmpty(GameVersion) && !string.IsNullOrEmpty(gameProfile.GameClient.Version))
                 {
                     // Normalize version to handle Unknown, Auto-Updated, and Automatically added cases
                     var version = gameProfile.GameClient.Version;
@@ -405,16 +405,16 @@ public partial class GameProfileItemViewModel : ViewModelBase
 
                 // Don't show version if it's Unknown, Auto-Updated, or Automatically added
                 var versionInfo = string.Empty;
-                if (!string.IsNullOrEmpty(_gameVersion) &&
-                    !_gameVersion.Equals("Unknown", StringComparison.OrdinalIgnoreCase) &&
-                    !_gameVersion.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase) &&
-                    !_gameVersion.Equals("Automatically added", StringComparison.OrdinalIgnoreCase) &&
-                    !_gameVersion.Contains("Automatically", StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrEmpty(GameVersion) &&
+                    !GameVersion.Equals("Unknown", StringComparison.OrdinalIgnoreCase) &&
+                    !GameVersion.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase) &&
+                    !GameVersion.Equals("Automatically added", StringComparison.OrdinalIgnoreCase) &&
+                    !GameVersion.Contains("Automatically", StringComparison.OrdinalIgnoreCase))
                 {
-                    versionInfo = $"v{_gameVersion}";
+                    versionInfo = $"v{GameVersion}";
                 }
 
-                var publisherInfo = !string.IsNullOrEmpty(_publisher) ? $" • {_publisher}" : string.Empty;
+                var publisherInfo = !string.IsNullOrEmpty(Publisher) ? $" • {Publisher}" : string.Empty;
                 _description = string.IsNullOrEmpty(versionInfo)
                     ? $"{gameTypeName}{publisherInfo}"
                     : $"{gameTypeName} • {versionInfo}{publisherInfo}";
