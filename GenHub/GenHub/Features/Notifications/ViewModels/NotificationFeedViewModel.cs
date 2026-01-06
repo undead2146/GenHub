@@ -32,6 +32,9 @@ public partial class NotificationFeedViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(HasUnreadNotifications))]
     private int _badgeCount;
 
+    [ObservableProperty]
+    private int _unreadCount;
+
     /// <summary>
     /// Gets a value indicating whether there are unread notifications that should be shown in the badge.
     /// </summary>
@@ -105,6 +108,7 @@ public partial class NotificationFeedViewModel : ViewModelBase, IDisposable
 
         _disposed = true;
     }
+
     /// <summary>
     /// Adds a notification to the feed.
     /// </summary>

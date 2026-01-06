@@ -13,7 +13,6 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Providers;
 using GenHub.Core.Models.Results;
-using GenHub.Core.Models.Results.Content;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Content.Services.CommunityOutpost;
@@ -207,19 +206,9 @@ public class CommunityOutpostResolver(
 
             // Override the display name to be more user-friendly
             builtManifest.Name = discoveredItem.Name ?? contentMetadata.DisplayName;
-
-            // For community-patch, prioritize discoveredItem.Version (dynamic date from legi.cc/patch)
-            // over static metadata version which may be null/empty
-            if (contentCode == "community-patch" && !string.IsNullOrEmpty(discoveredItem.Version))
-            {
-                builtManifest.Version = discoveredItem.Version;
-            }
-            else
-            {
-                builtManifest.Version = !string.IsNullOrEmpty(contentMetadata.Version)
-                    ? contentMetadata.Version
-                    : discoveredItem.Version;
-            }
+            builtManifest.Version = !string.IsNullOrEmpty(contentMetadata.Version)
+                ? contentMetadata.Version
+                : discoveredItem.Version;
 
             logger.LogInformation(
                 "Successfully resolved Community Outpost manifest: {ManifestId} for {ContentCode} ({Category})",

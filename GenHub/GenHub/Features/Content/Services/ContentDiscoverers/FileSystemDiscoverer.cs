@@ -4,14 +4,12 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
-using GenHub.Core.Models.Results.Content;
 using GenHub.Features.Manifest;
 using Microsoft.Extensions.Logging;
 
@@ -23,7 +21,7 @@ namespace GenHub.Features.Content.Services.ContentDiscoverers;
 /// </summary>
 public class FileSystemDiscoverer : IContentDiscoverer
 {
-    private readonly List<string> _contentDirectories = [];
+    private readonly List<string> _contentDirectories = new();
     private readonly ILogger<FileSystemDiscoverer> _logger;
     private readonly ManifestDiscoveryService _manifestDiscoveryService;
     private readonly IConfigurationProviderService _configurationProvider;
@@ -45,28 +43,6 @@ public class FileSystemDiscoverer : IContentDiscoverer
         InitializeContentDirectories();
     }
 
-    private static bool MatchesQuery(ContentManifest manifest, ContentSearchQuery query)
-    {
-        if (!string.IsNullOrWhiteSpace(query.SearchTerm) &&
-            !manifest.Name.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase) &&
-            !manifest.Id.Value.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (query.ContentType.HasValue && manifest.ContentType != query.ContentType.Value)
-        {
-            return false;
-        }
-
-        if (query.TargetGame.HasValue && manifest.TargetGame != query.TargetGame.Value)
-        {
-            return false;
-        }
-
-        return true;
-    }
-
     /// <inheritdoc />
     public string SourceName => "Local File System";
 
@@ -82,7 +58,7 @@ public class FileSystemDiscoverer : IContentDiscoverer
         ContentSourceCapabilities.SupportsManifestGeneration;
 
     /// <inheritdoc />
-    public async Task<OperationResult<ContentDiscoveryResult>> DiscoverAsync(
+    public async Task<OperationResult<IEnumerable<ContentSearchResult>>> DiscoverAsync(
         ContentSearchQuery query, CancellationToken cancellationToken = default)
     {
         var discoveredItems = new List<ContentSearchResult>();
@@ -96,7 +72,7 @@ public class FileSystemDiscoverer : IContentDiscoverer
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to discover manifests from content directories");
-            return OperationResult<ContentDiscoveryResult>.CreateFailure($"Failed to discover manifests {ex.Message}");
+            return OperationResult<IEnumerable<ContentSearchResult>>.CreateFailure($"Failed to discover manifests {ex.Message}");
         }
 
         foreach (var manifestEntry in discoveredManifests)
@@ -114,7 +90,7 @@ public class FileSystemDiscoverer : IContentDiscoverer
                     ContentType = manifest.ContentType,
                     TargetGame = manifest.TargetGame,
                     ProviderName = SourceName,
-                    AuthorName = manifest.Publisher?.Name ?? GameClientConstants.UnknownVersion,
+                    AuthorName = manifest.Publisher?.Name ?? "Unknown",
                     IconUrl = manifest.Metadata?.IconUrl ?? string.Empty,
                     LastUpdated = manifest.Metadata?.ReleaseDate ?? DateTime.Now,
                     DownloadSize = manifest.Files?.Sum(f => f.Size) ?? 0,
@@ -149,12 +125,7 @@ public class FileSystemDiscoverer : IContentDiscoverer
         }
 
         _logger.LogInformation("FileSystemDiscoverer found {Count} manifests matching query", discoveredItems.Count);
-        return OperationResult<ContentDiscoveryResult>.CreateSuccess(new ContentDiscoveryResult
-        {
-            Items = discoveredItems,
-            TotalItems = discoveredItems.Count,
-            HasMoreItems = false,
-        });
+        return OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(discoveredItems);
     }
 
     private void InitializeContentDirectories()
@@ -163,5 +134,27 @@ public class FileSystemDiscoverer : IContentDiscoverer
         _contentDirectories.AddRange(userDefinedDirs.Where(Directory.Exists));
 
         _logger.LogInformation("FileSystemDiscoverer initialized with {Count} directories", _contentDirectories.Count);
+    }
+
+    private bool MatchesQuery(ContentManifest manifest, ContentSearchQuery query)
+    {
+        if (!string.IsNullOrWhiteSpace(query.SearchTerm) &&
+            !manifest.Name.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase) &&
+            !manifest.Id.Value.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (query.ContentType.HasValue && manifest.ContentType != query.ContentType.Value)
+        {
+            return false;
+        }
+
+        if (query.TargetGame.HasValue && manifest.TargetGame != query.TargetGame.Value)
+        {
+            return false;
+        }
+
+        return true;
     }
 }

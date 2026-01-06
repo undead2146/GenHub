@@ -32,7 +32,7 @@ public abstract class FileSystemValidator(ILogger logger, IFileHashProvider hash
     /// <param name="requiredDirectories">Directories to check.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>List of validation issues.</returns>
-    protected static Task<List<ValidationIssue>> ValidateDirectoriesAsync(string basePath, IEnumerable<string> requiredDirectories, CancellationToken cancellationToken)
+    protected Task<List<ValidationIssue>> ValidateDirectoriesAsync(string basePath, IEnumerable<string> requiredDirectories, CancellationToken cancellationToken)
     {
         var issues = new List<ValidationIssue>();
         foreach (var dir in requiredDirectories)
@@ -117,6 +117,7 @@ public abstract class FileSystemValidator(ILogger logger, IFileHashProvider hash
                     issues.Add(new ValidationIssue { IssueType = ValidationIssueType.UnexpectedFile, Path = absFile, Message = $"I/O error: {ex.Message}" });
                 }
 
+                // Progress reporting for MVVM
                 if (progress != null)
                 {
                     int current = Interlocked.Increment(ref processed);
@@ -124,6 +125,6 @@ public abstract class FileSystemValidator(ILogger logger, IFileHashProvider hash
                 }
             });
 
-        return [.. issues];
+        return issues.ToList();
     }
 }

@@ -97,7 +97,7 @@ public partial class GenPatcherViewModel : ObservableObject
                 this.logger.LogWarning("No valid game installation found for GenPatcher");
                 WeakReferenceMessenger.Default.Send(new ToolStatusMessage(
                     "No valid game installation found. Please ensure Command & Conquer Generals or Zero Hour is installed.",
-                    ToolMessageType.Error));
+                    IsError: true));
                 return;
             }
 

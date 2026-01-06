@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using Avalonia.Data.Converters;
 using GenHub.Core.Models.AppUpdate;
-using GenHub.Features.AppUpdate.ViewModels;
 
 namespace GenHub.Infrastructure.Converters;
 
@@ -13,7 +12,14 @@ namespace GenHub.Infrastructure.Converters;
 /// </summary>
 public class IsSubscribedConverter : IMultiValueConverter
 {
-    /// <inheritdoc/>
+    /// <summary>
+    /// Converts multiple values to a single value.
+    /// </summary>
+    /// <param name="values">The values to convert.</param>
+    /// <param name="targetType">The target type.</param>
+    /// <param name="parameter">The converter parameter.</param>
+    /// <param name="culture">The culture to use.</param>
+    /// <returns>True if the item is subscribed, false otherwise.</returns>
     public object? Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
     {
         if (values.Count < 3) return false;
@@ -32,5 +38,18 @@ public class IsSubscribedConverter : IMultiValueConverter
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Converts a value back to multiple values.
+    /// </summary>
+    /// <param name="value">The value to convert back.</param>
+    /// <param name="targetTypes">The target types.</param>
+    /// <param name="parameter">The converter parameter.</param>
+    /// <param name="culture">The culture to use.</param>
+    /// <returns>An empty array as this converter does not support two-way binding.</returns>
+    public object?[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
+    {
+        return Array.Empty<object?>();
     }
 }

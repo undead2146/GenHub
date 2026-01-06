@@ -80,7 +80,7 @@ public partial class ActionSetViewModel : ObservableObject
 
     private async Task ApplyAsync()
     {
-        if (!this.registryService.IsRunningAsAdministrator())
+        if (!_registryService.IsRunningAsAdministrator())
         {
             WeakReferenceMessenger.Default.Send(new ToolStatusMessage(
                 "Administrator privileges required. Please restart GenHub as Administrator to apply this fix.",
@@ -104,14 +104,14 @@ public partial class ActionSetViewModel : ObservableObject
 
         try
         {
-            await ActionSet.ApplyAsync(this.installation);
+            await ActionSet.ApplyAsync(_installation);
             await CheckStatusAsync();
         }
         catch (System.Exception ex)
         {
             WeakReferenceMessenger.Default.Send(new ToolStatusMessage(
                 $"Failed to apply fix: {ex.Message}",
-                ToolMessageType.Error));
+                IsError: true));
         }
     }
 }

@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 /// </summary>
 public class GenPatcherContentActionSetProvider(ILoggerFactory loggerFactory) : IActionSetProvider
 {
+    private readonly ILoggerFactory _loggerFactory = loggerFactory;
 
     /// <inheritdoc/>
     public IEnumerable<IActionSet> GetActionSets()
@@ -33,7 +34,7 @@ public class GenPatcherContentActionSetProvider(ILoggerFactory loggerFactory) : 
                 continue;
             }
 
-            var logger = this.loggerFactory.CreateLogger<ContentActionSet>();
+            var logger = _loggerFactory.CreateLogger<ContentActionSet>();
             yield return new ContentActionSet(metadata, logger);
         }
     }
