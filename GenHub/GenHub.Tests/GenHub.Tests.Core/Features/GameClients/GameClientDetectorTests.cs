@@ -47,7 +47,7 @@ public class GameClientDetectorTests : IDisposable
         _hashRegistryMock.Setup(x => x.GetVersionFromHash(GameClientHashRegistry.ZeroHour105HashPublic, GameType.ZeroHour))
             .Returns("1.05");
         _hashRegistryMock.Setup(x => x.GetVersionFromHash(It.IsNotIn(GameClientHashRegistry.Generals108HashPublic, GameClientHashRegistry.ZeroHour105HashPublic), It.IsAny<GameType>()))
-            .Returns("Unknown");
+            .Returns(GameClientConstants.UnknownVersion);
 
         _detector = new GameClientDetector(
             _manifestGenerationServiceMock.Object,
@@ -300,7 +300,7 @@ public class GameClientDetectorTests : IDisposable
         Assert.Single(result.Items);
         var client = result.Items[0];
         Assert.Equal(GameType.Generals, client.GameType); // Default assumption
-        Assert.Equal("Unknown", client.Version);
+        Assert.Equal(GameClientConstants.UnknownVersion, client.Version);
         Assert.Equal(executablePath, client.ExecutablePath);
         Assert.Contains("Unknown Game", client.Name);
     }
@@ -322,7 +322,7 @@ public class GameClientDetectorTests : IDisposable
             "30Hz",
             "GeneralsOnline 30Hz",
             GameType.Generals,
-            "Unknown"));
+            GameClientConstants.UnknownVersion));
 
         // Create detector with the identifier
         var detectorWith30HzIdentifier = new GameClientDetector(
@@ -395,7 +395,7 @@ public class GameClientDetectorTests : IDisposable
         var generalsOnlineClient = result.Items.FirstOrDefault(c => c.Name.Contains("GeneralsOnline"));
         Assert.NotNull(generalsOnlineClient);
         Assert.Equal(GameType.Generals, generalsOnlineClient.GameType);
-        Assert.Equal("Unknown", generalsOnlineClient.Version); // GeneralsOnline clients auto-update
+        Assert.Equal(GameClientConstants.UnknownVersion, generalsOnlineClient.Version); // Updated to match implementation
         Assert.Equal(generalsOnlineExePath, generalsOnlineClient.ExecutablePath);
 
         Assert.Contains("30Hz", generalsOnlineClient.Name);
@@ -418,7 +418,7 @@ public class GameClientDetectorTests : IDisposable
             "60Hz",
             "GeneralsOnline 60Hz",
             GameType.ZeroHour,
-            "Unknown"));
+            GameClientConstants.UnknownVersion));
 
         // Create detector with the identifier
         var detectorWith60HzIdentifier = new GameClientDetector(
@@ -478,7 +478,7 @@ public class GameClientDetectorTests : IDisposable
         var generalsOnlineClient = result.Items.FirstOrDefault(c => c.Name.Contains("GeneralsOnline"));
         Assert.NotNull(generalsOnlineClient);
         Assert.Equal(GameType.ZeroHour, generalsOnlineClient.GameType);
-        Assert.Equal("Unknown", generalsOnlineClient.Version); // GeneralsOnline clients auto-update
+        Assert.Equal(GameClientConstants.UnknownVersion, generalsOnlineClient.Version); // Updated to match implementation
         Assert.Equal(generalsOnlineExePath, generalsOnlineClient.ExecutablePath);
         Assert.Contains("60Hz", generalsOnlineClient.Name);
     }
@@ -500,7 +500,7 @@ public class GameClientDetectorTests : IDisposable
             "30Hz",
             "GeneralsOnline 30Hz",
             GameType.Generals,
-            "Unknown"));
+            GameClientConstants.UnknownVersion));
 
         var identifier60HzMock = new Mock<IGameClientIdentifier>();
         identifier60HzMock.Setup(x => x.PublisherId).Returns(PublisherTypeConstants.GeneralsOnline);
@@ -511,7 +511,7 @@ public class GameClientDetectorTests : IDisposable
             "60Hz",
             "GeneralsOnline 60Hz",
             GameType.Generals,
-            "Unknown"));
+            GameClientConstants.UnknownVersion));
 
         // Create detector with both identifiers
         var detectorWithMultipleIdentifiers = new GameClientDetector(
