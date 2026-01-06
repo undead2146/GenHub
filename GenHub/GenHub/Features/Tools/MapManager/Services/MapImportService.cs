@@ -23,7 +23,7 @@ public sealed class MapImportService(
     MapNameParser mapNameParser,
     ILogger<MapImportService> logger) : IMapImportService
 {
-    private static readonly char[] PathSeparators = ['/', '\''];
+    private static readonly char[] PathSeparators = ['/', '\\'];
 
     /// <inheritdoc />
     public async Task<ImportResult> ImportFromUrlAsync(
