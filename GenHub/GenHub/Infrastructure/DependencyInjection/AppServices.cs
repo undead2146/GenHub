@@ -1,5 +1,6 @@
 using System;
 using Microsoft.Extensions.DependencyInjection;
+using GenHub.Features.GameReplays;
 
 namespace GenHub.Infrastructure.DependencyInjection;
 

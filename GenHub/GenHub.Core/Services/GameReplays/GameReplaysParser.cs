@@ -30,7 +30,13 @@ public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplays
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
 
-            var result = new GameReplaysTournaments();
+            var result = new GameReplaysTournaments
+            {
+                SignupsOpen = new List<TournamentModel>(),
+                Upcoming = new List<TournamentModel>(),
+                Active = new List<TournamentModel>(),
+                Finished = new List<TournamentModel>(),
+            };
 
             // Find main post content
             var mainPost = doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'post')]/div[@class='comment_wrapper']/div[@class='comment']/div[@class='comment_display_content']");

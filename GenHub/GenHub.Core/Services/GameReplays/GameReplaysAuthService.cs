@@ -29,8 +29,6 @@ public class GameReplaysAuthService(
     private OAuthUserInfo? _currentUser;
 
     /// <inheritdoc/>
-
-    /// <inheritdoc/>
     public OperationResult<string> GetAuthorizationUrl()
     {
         try

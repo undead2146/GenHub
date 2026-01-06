@@ -91,7 +91,7 @@ public class MainViewModelTests
     [InlineData(NavigationTab.GameProfiles)]
     [InlineData(NavigationTab.Downloads)]
     [InlineData(NavigationTab.Tools)]
-    [InlineData(NavigationTab.Tools)]
+
     [InlineData(NavigationTab.GameReplays)]
     [InlineData(NavigationTab.Settings)]
     public void SelectTabCommand_SetsSelectedTab(NavigationTab tab)

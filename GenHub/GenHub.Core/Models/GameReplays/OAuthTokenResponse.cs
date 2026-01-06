@@ -1,4 +1,4 @@
-using GenHub.Core.Constants;
+
 
 namespace GenHub.Core.Models.GameReplays;
 
@@ -33,7 +33,12 @@ public class OAuthTokenResponse
     public string Scope { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets when the token response was created/received.
+    /// </summary>
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
     /// Gets the expiration timestamp.
     /// </summary>
-    public DateTime ExpiresAt => DateTime.UtcNow.AddSeconds(ExpiresIn);
+    public DateTime ExpiresAt => CreatedAt.AddSeconds(ExpiresIn);
 }

@@ -135,11 +135,11 @@ public partial class MainViewModel(
     /// </summary>
     public NavigationTab[] AvailableTabs { get; } =
     [
-        NavigationTab.GameProfiles,
         NavigationTab.Downloads,
-        NavigationTab.Tools,
+        NavigationTab.GameProfiles,
         NavigationTab.GameReplays,
         NavigationTab.Settings,
+        NavigationTab.Tools,
     ];
 
     /// <summary>
@@ -165,7 +165,7 @@ public partial class MainViewModel(
         NavigationTab.GameProfiles => "Game Profiles",
         NavigationTab.Downloads => "Downloads",
         NavigationTab.Tools => "Tools",
-        NavigationTab.GameReplays => "GameReplays",
+        NavigationTab.GameReplays => "Game Replays",
         NavigationTab.Settings => "Settings",
         _ => tab.ToString(),
     };

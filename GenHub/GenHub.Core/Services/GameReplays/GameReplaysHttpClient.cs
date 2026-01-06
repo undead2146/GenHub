@@ -22,10 +22,8 @@ public class GameReplaysHttpClient(
 {
     private readonly HttpClient _httpClient = httpClient;
     private readonly ILogger<GameReplaysHttpClient> _logger = logger;
-    private readonly bool _initialized = Initialize(httpClient);
-    private string? _authCookie;
 
-    /// <inheritdoc/>
+    private string? _authCookie;
 
     /// <inheritdoc/>
     public async Task<OperationResult<string>> GetHtmlAsync(

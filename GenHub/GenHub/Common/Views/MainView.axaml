@@ -183,7 +183,7 @@
                         Classes.active="{Binding SelectedTab, Converter={x:Static conv:NavigationTabConverter.Instance}, ConverterParameter={x:Static enums:NavigationTab.GameReplays}}"
                         Command="{Binding SelectTabCommand}"
                         CommandParameter="{x:Static enums:NavigationTab.GameReplays}"
-                        Content="GameReplays"
+                        Content="Game Replays"
                         Name="Tab4Button" />
                 </StackPanel>
                 <!-- branding and update button - Right side -->

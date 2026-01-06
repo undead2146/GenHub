@@ -28,7 +28,7 @@ public class CommentModel
     /// <summary>
     /// Gets or sets when the comment was posted.
     /// </summary>
-    public DateTime PostedAt { get; set; } = DateTime.UtcNow;
+    public DateTime PostedAt { get; set; } = DateTime.MinValue;
 
     /// <summary>
     /// Gets or sets a value indicating whether the comment has been edited.

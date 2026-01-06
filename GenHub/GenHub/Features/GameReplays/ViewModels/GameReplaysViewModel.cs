@@ -39,15 +39,13 @@ public partial class GameReplaysViewModel(
         {
             if (SetProperty(ref _tournaments, value))
             {
-                OnPropertyChanged(nameof(FilteredTournaments));
-                OnPropertyChanged(nameof(FilteredCount));
+                UpdateFilteredTournaments();
                 OnPropertyChanged(nameof(SignupsOpenCount));
                 OnPropertyChanged(nameof(UpcomingCount));
                 OnPropertyChanged(nameof(ActiveCount));
                 OnPropertyChanged(nameof(FinishedCount));
                 OnPropertyChanged(nameof(TotalCount));
                 OnPropertyChanged(nameof(HasTournaments));
-                OnPropertyChanged(nameof(HasFilteredTournaments));
             }
         }
     }
@@ -78,9 +76,7 @@ public partial class GameReplaysViewModel(
         {
             if (SetProperty(ref _selectedFilter, value))
             {
-                OnPropertyChanged(nameof(FilteredTournaments));
-                OnPropertyChanged(nameof(FilteredCount));
-                OnPropertyChanged(nameof(HasFilteredTournaments));
+                UpdateFilteredTournaments();
                 OnPropertyChanged(nameof(IsSignupsOpenSelected));
                 OnPropertyChanged(nameof(IsUpcomingSelected));
                 OnPropertyChanged(nameof(IsActiveSelected));
@@ -92,19 +88,26 @@ public partial class GameReplaysViewModel(
     /// <summary>
     /// Gets the tournaments for the selected filter.
     /// </summary>
-    public ObservableCollection<TournamentItemViewModel> FilteredTournaments =>
-        SelectedFilter switch
+    [ObservableProperty]
+    private ObservableCollection<TournamentItemViewModel> _filteredTournaments = [];
+
+    private void UpdateFilteredTournaments()
+    {
+        var items = SelectedFilter switch
         {
-            TournamentStatus.SignupsOpen => new ObservableCollection<TournamentItemViewModel>(
-                _tournaments.SignupsOpen.Select(t => new TournamentItemViewModel(t))),
-            TournamentStatus.Upcoming => new ObservableCollection<TournamentItemViewModel>(
-                _tournaments.Upcoming.Select(t => new TournamentItemViewModel(t))),
-            TournamentStatus.Active => new ObservableCollection<TournamentItemViewModel>(
-                _tournaments.Active.Select(t => new TournamentItemViewModel(t))),
-            TournamentStatus.Finished => new ObservableCollection<TournamentItemViewModel>(
-                _tournaments.Finished.Select(t => new TournamentItemViewModel(t))),
-            _ => new ObservableCollection<TournamentItemViewModel>(),
+            TournamentStatus.SignupsOpen => _tournaments.SignupsOpen,
+            TournamentStatus.Upcoming => _tournaments.Upcoming,
+            TournamentStatus.Active => _tournaments.Active,
+            TournamentStatus.Finished => _tournaments.Finished,
+            _ => Enumerable.Empty<TournamentModel>(),
         };
+
+        FilteredTournaments = new ObservableCollection<TournamentItemViewModel>(
+            items.Select(t => new TournamentItemViewModel(t)));
+
+        OnPropertyChanged(nameof(FilteredCount));
+        OnPropertyChanged(nameof(HasFilteredTournaments));
+    }
 
     /// <summary>
     /// Gets the count of tournaments for the selected filter.

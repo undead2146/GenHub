@@ -31,7 +31,6 @@ public class GameReplaysService(
     private GameReplaysTournaments? _cachedTournaments;
     private DateTime _cacheExpiry;
 
-    /// <inheritdoc/>
 
     /// <inheritdoc/>
     public async Task<OperationResult<GameReplaysTournaments>> GetTournamentsAsync(
@@ -217,7 +216,7 @@ public class GameReplaysService(
                 return OperationResult<string>.CreateFailure(authUrlResult.FirstError ?? "Failed to generate authorization URL");
             }
 
-            await Task.CompletedTask;
+
             return OperationResult<string>.CreateSuccess(authUrlResult.Data);
         }
         catch (Exception ex)
