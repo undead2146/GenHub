@@ -30,7 +30,7 @@ public interface IMapPackService
     /// <param name="name">The name of the MapPack.</param>
     /// <param name="targetGame">The target game.</param>
     /// <param name="selectedMaps">The maps to include.</param>
-    /// <param name="progress">Progress repoter.</param>
+    /// <param name="progress">Progress reporter.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The operation result with the created manifest.</returns>
     Task<OperationResult<ContentManifest>> CreateCasMapPackAsync(

@@ -5,6 +5,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Tools.ReplayManager;
@@ -530,8 +531,8 @@ public partial class ReplayManagerViewModel(
         long totalSizeBytes = SelectedReplays.Sum(r => new FileInfo(r.FullPath).Length);
 
         // Check file size limit
-        const long MaxReplayUploadSize = 10 * 1024 * 1024; // 10MB
-        if (totalSizeBytes > MaxReplayUploadSize)
+        long maxUploadSize = ReplayManagerConstants.MaxUploadBytesPerPeriod;
+        if (totalSizeBytes > maxUploadSize)
         {
             notificationService.ShowError(
                "File Too Large",
@@ -604,13 +605,13 @@ public partial class ReplayManagerViewModel(
     [RelayCommand]
     private void OpenFolder()
     {
-        directoryService.OpenInExplorer(SelectedTab);
+        directoryService.OpenDirectory(SelectedTab);
     }
 
     [RelayCommand]
     private void RevealFile(ReplayFile replay)
     {
-        directoryService.RevealInExplorer(replay);
+        directoryService.RevealFile(replay);
     }
 
     [RelayCommand]

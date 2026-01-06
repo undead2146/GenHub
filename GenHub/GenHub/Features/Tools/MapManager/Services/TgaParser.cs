@@ -123,6 +123,11 @@ public class TgaParser(ILogger<TgaParser> logger)
             {
                 int destIndex = destRowStart + (x * 4);
 
+                if (srcIndex + (bytesPerPixel == 4 ? 3 : 2) >= bgrData.Length)
+                {
+                    return rgba;
+                }
+
                 // TGA stores as BGR(A)
                 byte b = bgrData[srcIndex++];
                 byte g = bgrData[srcIndex++];

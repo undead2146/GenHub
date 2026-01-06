@@ -29,4 +29,19 @@ public static class ReplayManagerConstants
     /// Default file name for imported replays.
     /// </summary>
     public const string DefaultImportedReplayFileName = "imported_replay.rep";
+
+    /// <summary>
+    /// Standard extension for replay files.
+    /// </summary>
+    public const string ReplayExtension = ".rep";
+
+    /// <summary>
+    /// Standard extension for ZIP archives.
+    /// </summary>
+    public const string ZipExtension = ".zip";
+
+    /// <summary>
+    /// Number of days files are retained in cloud storage.
+    /// </summary>
+    public const int RetentionDays = 14;
 }

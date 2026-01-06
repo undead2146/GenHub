@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using Avalonia.Data.Converters;
+using GenHub.Core.Constants;
 
 namespace GenHub.Infrastructure.Converters;
 
@@ -14,10 +15,10 @@ public class BoolToTypeConverter : IValueConverter
     {
         if (value is bool isDirectory)
         {
-            return isDirectory ? "Map Package" : "Map File";
+            return isDirectory ? MapManagerConstants.MapPackageDisplayName : MapManagerConstants.MapFileDisplayName;
         }
 
-        return "Map File";
+        return MapManagerConstants.MapFileDisplayName;
     }
 
     /// <inheritdoc />

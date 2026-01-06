@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using GenHub.Core.Constants;
 using GenHub.Core.Models.Tools.ReplayManager;
 using GenHub.Features.Tools.ReplayManager.ViewModels;
 using System;
@@ -55,9 +56,9 @@ public partial class ReplayManagerView : UserControl
             var newFileName = replay.FileName;
 
             // Ensure .rep extension if missing?
-            if (!newFileName.EndsWith(".rep", StringComparison.OrdinalIgnoreCase))
+            if (!newFileName.EndsWith(ReplayManagerConstants.ReplayExtension, StringComparison.OrdinalIgnoreCase))
             {
-                newFileName += ".rep";
+                newFileName += ReplayManagerConstants.ReplayExtension;
             }
 
             var newPath = Path.Combine(directory, newFileName);
@@ -95,8 +96,8 @@ public partial class ReplayManagerView : UserControl
             bool hasValidFiles = files != null && files.Any(f =>
             {
                 var path = f.Path.LocalPath;
-                return path.EndsWith(".rep", StringComparison.OrdinalIgnoreCase) ||
-                       path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase);
+                return path.EndsWith(ReplayManagerConstants.ReplayExtension, StringComparison.OrdinalIgnoreCase) ||
+                       path.EndsWith(ReplayManagerConstants.ZipExtension, StringComparison.OrdinalIgnoreCase);
             });
 
             if (hasValidFiles)

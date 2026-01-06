@@ -41,14 +41,7 @@ public sealed class UploadHistoryService(
     private readonly ILogger<UploadHistoryService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly string _historyFilePath = Path.Combine(appConfig.GetConfiguredDataPath(), "upload_history.json");
 
-    // Trigger cleanup on service instantiation (fire-and-forget)
-    private readonly Task _cleanupTask = Task.Run(async () => await ProcessPendingDeletionsAsync());
     private List<UploadRecord>? _cache;
-
-    private static Task ProcessPendingDeletionsAsync()
-    {
-        return Task.CompletedTask;
-    }
 
     private static string? ExtractKeyFromUrl(string url)
     {
@@ -64,6 +57,12 @@ public sealed class UploadHistoryService(
             var lastSlash = url.LastIndexOf('/');
             return lastSlash >= 0 && lastSlash < url.Length - 1 ? url[(lastSlash + 1)..] : null;
         }
+    }
+
+    // Initialization logic for the service
+    private async Task InitializeInternalAsync()
+    {
+        await RunCleanupAsync();
     }
 
     /// <inheritdoc />
@@ -178,7 +177,7 @@ public sealed class UploadHistoryService(
         }
 
         // Attempt deletion of all pending items
-        await ProcessPendingDeletionsAsync();
+        await RunCleanupAsync();
     }
 
     private async Task TryDeleteUrlAsync(string url)
@@ -245,25 +244,25 @@ public sealed class UploadHistoryService(
         {
             if (_cache != null)
             {
-                return new List<UploadRecord>(_cache);
+                return [.. _cache];
             }
 
             try
             {
                 if (!File.Exists(_historyFilePath))
                 {
-                    _cache = new List<UploadRecord>();
-                    return new List<UploadRecord>();
+                    _cache = [];
+                    return [];
                 }
 
                 var json = File.ReadAllText(_historyFilePath);
                 if (string.IsNullOrWhiteSpace(json))
                 {
-                    _cache = new List<UploadRecord>();
-                    return new List<UploadRecord>();
+                    _cache = [];
+                    return [];
                 }
 
-                var history = JsonSerializer.Deserialize<List<UploadRecord>>(json, JsonOptions) ?? new List<UploadRecord>();
+                var history = JsonSerializer.Deserialize<List<UploadRecord>>(json, JsonOptions) ?? [];
 
                 // Clean up old entries (expired retention)
                 var retentionCutoff = DateTime.UtcNow.AddDays(-HistoryRetentionDays);
@@ -274,7 +273,7 @@ public sealed class UploadHistoryService(
                 // Let's stick to standard retention. If it's old, it falls off history anyway.
                 _cache = history.Where(r => r.Timestamp >= retentionCutoff).OrderByDescending(r => r.Timestamp).ToList();
 
-                return new List<UploadRecord>(_cache);
+                return [.. _cache];
             }
             catch (Exception ex)
             {

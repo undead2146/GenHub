@@ -41,10 +41,10 @@ public sealed class MapPackService : IMapPackService
             File.Copy(file, destFile, true);
         }
 
-        foreach (var subManager in Directory.GetDirectories(sourceDir))
+        foreach (var subDirectory in Directory.GetDirectories(sourceDir))
         {
-            var destSub = Path.Combine(destDir, Path.GetFileName(subManager));
-            CopyDirectory(subManager, destSub);
+            var destSub = Path.Combine(destDir, Path.GetFileName(subDirectory));
+            CopyDirectory(subDirectory, destSub);
         }
     }
 
@@ -84,10 +84,10 @@ public sealed class MapPackService : IMapPackService
         // Legacy method - we should probably discourage its use or map it to CAS
         var mapPack = new MapPack
         {
-            Id = ManifestId.Create($"1.0.local.mappack.{name.ToLowerInvariant().Replace(" ", "-")}"),
+            Id = ManifestId.Create($"{ManifestConstants.DefaultManifestVersion}.0.local.mappack.{name.ToLowerInvariant().Replace(" ", "-")}"),
             Name = name,
             ProfileId = profileId,
-            MapFilePaths = mapFilePaths.ToList(),
+            MapFilePaths = [.. mapFilePaths],
             CreatedDate = DateTime.UtcNow,
             IsLoaded = false,
         };

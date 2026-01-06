@@ -127,7 +127,7 @@ public sealed class MapDirectoryService(
                                 LastModified = fileInfo.LastWriteTime,
                                 DirectoryName = null,
                                 IsDirectory = false,
-                                AssetFiles = new List<string>(),
+                                AssetFiles = [],
                                 IsExpanded = false,
                                 DisplayName = displayName,
                                 ThumbnailPath = null,
@@ -159,7 +159,7 @@ public sealed class MapDirectoryService(
                                 LastModified = fileInfo.LastWriteTime,
                                 DirectoryName = null,
                                 IsDirectory = false,
-                                AssetFiles = new List<string>(),
+                                AssetFiles = [],
                                 IsExpanded = false,
                                 DisplayName = fileInfo.Name, // Use filename for ZIPs
                                 ThumbnailPath = null,
@@ -231,31 +231,45 @@ public sealed class MapDirectoryService(
     }
 
     /// <inheritdoc />
-    public void OpenInExplorer(GameType version)
+    public void OpenDirectory(GameType version)
     {
         var directory = GetMapDirectory(version);
         EnsureDirectoryExists(version);
 
         try
         {
-            System.Diagnostics.Process.Start("explorer.exe", directory);
+            if (OperatingSystem.IsWindows())
+            {
+                System.Diagnostics.Process.Start("explorer.exe", directory);
+            }
+            else if (OperatingSystem.IsLinux())
+            {
+                System.Diagnostics.Process.Start("xdg-open", directory);
+            }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to open map directory in Explorer: {Directory}", directory);
+            logger.LogError(ex, "Failed to open map directory: {Directory}", directory);
         }
     }
 
     /// <inheritdoc />
-    public void RevealInExplorer(MapFile map)
+    public void RevealFile(MapFile map)
     {
         try
         {
-            System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{map.FullPath}\"");
+            if (OperatingSystem.IsWindows())
+            {
+                System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{map.FullPath}\"");
+            }
+            else if (OperatingSystem.IsLinux())
+            {
+                System.Diagnostics.Process.Start("xdg-open", Path.GetDirectoryName(map.FullPath) ?? map.FullPath);
+            }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to reveal map in Explorer: {FileName}", map.FileName);
+            logger.LogError(ex, "Failed to reveal map: {FileName}", map.FileName);
         }
     }
 

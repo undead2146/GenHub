@@ -652,13 +652,13 @@ public partial class MapManagerViewModel : ObservableObject
     [RelayCommand]
     private void OpenFolder()
     {
-        _directoryService.OpenInExplorer(SelectedTab);
+        _directoryService.OpenDirectory(SelectedTab);
     }
 
     [RelayCommand]
     private void RevealFile(MapFile map)
     {
-        _directoryService.RevealInExplorer(map);
+        _directoryService.RevealFile(map);
     }
 
     // MapPack Commands

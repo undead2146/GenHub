@@ -111,31 +111,37 @@ public sealed class ReplayDirectoryService(ILogger<ReplayDirectoryService> logge
     }
 
     /// <inheritdoc />
-    public void OpenInExplorer(GameType version)
+    public void OpenDirectory(GameType version)
     {
         var path = GetReplayDirectory(version);
         if (Directory.Exists(path))
         {
-            Process.Start(new ProcessStartInfo
+            if (OperatingSystem.IsWindows())
             {
-                FileName = PlatformConstants.WindowsExplorerExecutable,
-                Arguments = path,
-                UseShellExecute = true,
-            });
+                Process.Start("explorer.exe", path);
+            }
+            else if (OperatingSystem.IsLinux())
+            {
+                Process.Start("xdg-open", path);
+            }
         }
     }
 
     /// <inheritdoc />
-    public void RevealInExplorer(ReplayFile replay)
+    public void RevealFile(ReplayFile replay)
     {
         if (File.Exists(replay.FullPath))
         {
-            Process.Start(new ProcessStartInfo
+            if (OperatingSystem.IsWindows())
             {
-                FileName = PlatformConstants.WindowsExplorerExecutable,
-                Arguments = string.Format(PlatformConstants.WindowsExplorerSelectArgument, replay.FullPath),
-                UseShellExecute = true,
-            });
+                Process.Start("explorer.exe", $"/select,\"{replay.FullPath}\"");
+            }
+            else if (OperatingSystem.IsLinux())
+            {
+                // Linux doesn't have a standard 'select' argument for file managers,
+                // so we just open the directory containing the file.
+                Process.Start("xdg-open", Path.GetDirectoryName(replay.FullPath) ?? replay.FullPath);
+            }
         }
     }
 }

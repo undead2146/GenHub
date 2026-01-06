@@ -14,7 +14,6 @@
     <!-- Placeholder for design time -->
   </Design.DataContext>
   <UserControl.Resources>
-    <SolidColorBrush x:Key="AccentColor" Color="#8A2BE2" />
   </UserControl.Resources>
 
   <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" MinWidth="600"
@@ -181,7 +180,7 @@
                     ToolTip.Tip="View the history of your uploaded replays.">
               <TextBlock Text="▼" FontSize="10" VerticalAlignment="Center"/>
             </Button>
-            <TextBlock Text="(max 10MB per file)" FontSize="10" Opacity="0.5" VerticalAlignment="Center" Margin="8,0,0,0"/>
+            <TextBlock Text="(max 1MB per file)" FontSize="10" Opacity="0.5" VerticalAlignment="Center" Margin="8,0,0,0"/>
 
             <Popup IsOpen="{Binding IsHistoryOpen}"
                    Placement="Bottom" PlacementTarget="{Binding $parent[StackPanel]}"
@@ -259,7 +258,7 @@
     </Border>
 
     <!-- Footer Storage Notice -->
-    <TextBlock Grid.Row="4" Text="Files are maintained for up to 14 days or until storage is full. Maximum 1MB per file."
+    <TextBlock Grid.Row="4" Text="Files are maintained for up to 14 days or until storage is full. Maximum 10MB total per 3-day period."
                FontSize="11" Opacity="0.4" HorizontalAlignment="Left" Margin="0,8,0,0" TextWrapping="Wrap" MaxWidth="600"/>
   </Grid>
 
