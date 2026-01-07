@@ -22,27 +22,15 @@ namespace GenHub.Features.Content.Services.GitHub;
 /// <summary>
 /// Resolves a discovered GitHub release into a full ContentManifest.
 /// </summary>
-public partial class GitHubResolver : IContentResolver
+public partial class GitHubResolver(
+    IGitHubApiClient gitHubApiClient,
+    IServiceProvider serviceProvider,
+    ILogger<GitHubResolver> logger)
+    : IContentResolver
 {
-    private readonly IGitHubApiClient _gitHubApiClient;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<GitHubResolver> _logger;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="GitHubResolver"/> class.
-    /// </summary>
-    /// <param name="gitHubApiClient">API client for GitHub interactions.</param>
-    /// <param name="serviceProvider">Service provider to resolve factories and helpers.</param>
-    /// <param name="logger">Logger instance.</param>
-    public GitHubResolver(
-        IGitHubApiClient gitHubApiClient,
-        IServiceProvider serviceProvider,
-        ILogger<GitHubResolver> logger)
-    {
-        _gitHubApiClient = gitHubApiClient ?? throw new ArgumentNullException(nameof(gitHubApiClient));
-        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    private readonly IGitHubApiClient _gitHubApiClient = gitHubApiClient ?? throw new ArgumentNullException(nameof(gitHubApiClient));
+    private readonly IServiceProvider _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+    private readonly ILogger<GitHubResolver> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     // Regex breakdown:
     // ^https://github\.com/

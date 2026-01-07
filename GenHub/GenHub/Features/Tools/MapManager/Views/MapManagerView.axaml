@@ -18,6 +18,8 @@
     <converters:BoolToTypeConverter x:Key="BoolToTypeConverter" />
     <converters:AssetCountConverter x:Key="AssetCountConverter" />
     <converters:MapTypeDisplayConverter x:Key="MapTypeDisplayConverter" />
+    <converters:EnumToBoolConverter x:Key="EnumToBoolConverter" />
+    <converters:EqualityConverter x:Key="EqualsToConverter" />
     <SolidColorBrush x:Key="AccentColor" Color="#8A2BE2" />
   </UserControl.Resources>
 
@@ -405,4 +407,3 @@
     </Style>
   </UserControl.Styles>
 </UserControl>
-

@@ -32,7 +32,7 @@ public class IsSubscribedConverterTests
             Title = "PR 123",
             BranchName = "feature/123",
             Author = "user",
-            State = "open"
+            State = "open",
         };
         var subscribedPr = new PullRequestInfo
         {
@@ -40,7 +40,7 @@ public class IsSubscribedConverterTests
             Title = "PR 123",
             BranchName = "feature/123",
             Author = "user",
-            State = "open"
+            State = "open",
         };
         var values = new List<object?> { pr, subscribedPr, "some-branch" };
 
@@ -64,7 +64,7 @@ public class IsSubscribedConverterTests
             Title = "PR 123",
             BranchName = "feature/123",
             Author = "user",
-            State = "open"
+            State = "open",
         };
         var subscribedPr = new PullRequestInfo
         {
@@ -72,7 +72,7 @@ public class IsSubscribedConverterTests
             Title = "PR 456",
             BranchName = "feature/456",
             Author = "user",
-            State = "open"
+            State = "open",
         };
         var values = new List<object?> { pr, subscribedPr, "some-branch" };
 

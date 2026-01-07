@@ -54,6 +54,8 @@ public static class FileTypes
     /// File extension pattern for ZIP files.
     /// </summary>
     public const string ZipFilePattern = "*.zip";
+
+    /// <summary>
     /// File extension for backup files.
     /// </summary>
     public const string BackupExtension = ".ghbak";

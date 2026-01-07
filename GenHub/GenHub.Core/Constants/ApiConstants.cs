@@ -150,6 +150,7 @@ public static class ApiConstants
     /// Generals Online view match URL fragment.
     /// </summary>
     public const string GeneralsOnlineViewMatchFragment = "playgenerals.online/viewmatch";
+
     /// <summary>
     /// Format string for GitHub API Workflow Runs endpoint (owner, repo).
     /// </summary>

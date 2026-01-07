@@ -33,9 +33,17 @@ public class IsSubscribedConverter : IMultiValueConverter
 
         return false;
     }
-    /// <inheritdoc/>
-    public object?[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
+
+    /// <summary>
+    /// Not implemented.
+    /// </summary>
+    /// <param name="value">The value to convert back.</param>
+    /// <param name="targetTypes">The target types.</param>
+    /// <param name="parameter">The converter parameter.</param>
+    /// <param name="culture">The culture info.</param>
+    /// <returns>An empty array.</returns>
+    public object?[] ConvertBack(object? _, Type[] __, object? ___, CultureInfo ____)
     {
-        return Array.Empty<object?>();
+        return [];
     }
 }
