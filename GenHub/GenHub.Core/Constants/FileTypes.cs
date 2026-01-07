@@ -54,4 +54,12 @@ public static class FileTypes
     /// File extension pattern for ZIP files.
     /// </summary>
     public const string ZipFilePattern = "*.zip";
+    /// File extension for backup files.
+    /// </summary>
+    public const string BackupExtension = ".ghbak";
+
+    /// <summary>
+    /// File extension for user data manifest files.
+    /// </summary>
+    public const string UserDataManifestExtension = ".userdata.json";
 }

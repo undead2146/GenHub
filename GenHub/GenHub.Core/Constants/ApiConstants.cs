@@ -150,6 +150,10 @@ public static class ApiConstants
     /// Generals Online view match URL fragment.
     /// </summary>
     public const string GeneralsOnlineViewMatchFragment = "playgenerals.online/viewmatch";
+    /// <summary>
+    /// Format string for GitHub API Workflow Runs endpoint (owner, repo).
+    /// </summary>
+    public const string GitHubApiWorkflowRunsAllFormat = "https://api.github.com/repos/{0}/{1}/actions/runs?status=success&per_page=20";
 
     // User agents
 
