@@ -5,8 +5,15 @@
       CI will override with: 0.0.{runNumber} or 0.0.{runNumber}-pr{prNumber}
     -->
     <Version Condition="'$(Version)' == ''">0.0.1</Version>
-    <AssemblyVersion>$(Version)</AssemblyVersion>
-    <FileVersion>$(Version)</FileVersion>
+
+    <!--
+      AssemblyVersion and FileVersion must be strictly numeric (x.y.z.w)
+      Strip any prerelease suffix (e.g., -pr238) from Version for these properties
+    -->
+    <_NumericVersion Condition="$(Version.Contains('-'))">$(Version.Substring(0, $(Version.IndexOf('-'))))</_NumericVersion>
+    <_NumericVersion Condition="!$(Version.Contains('-'))">$(Version)</_NumericVersion>
+    <AssemblyVersion>$(_NumericVersion)</AssemblyVersion>
+    <FileVersion>$(_NumericVersion)</FileVersion>
 
     <!-- Make version available to source generators / build-time code -->
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
