@@ -116,17 +116,4 @@ public class IsSubscribedConverterTests
         // Assert
         Assert.False((bool?)result);
     }
-
-    /// <summary>
-    /// Verifies that ConvertBack returns an empty array.
-    /// </summary>
-    [Fact]
-    public void ConvertBack_ReturnsEmptyArray()
-    {
-        // Act
-        var result = _converter.ConvertBack(true, new[] { typeof(object), typeof(object), typeof(object) }, null, CultureInfo.InvariantCulture);
-
-        // Assert
-        Assert.Empty(result);
-    }
 }

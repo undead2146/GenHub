@@ -17,17 +17,18 @@ public static class ContentTypeExtensions
         return contentType switch
         {
             ContentType.GameInstallation => "Game Installation",
-            ContentType.GameClient => "Game Client",
-            ContentType.Mod => "Modification",
+            ContentType.GameClient => "Executable",
+            ContentType.Mod => "Mods",
             ContentType.Patch => "Patch",
-            ContentType.Addon => "Add-on",
-            ContentType.MapPack => "Map Pack",
+            ContentType.Addon => "Addons",
+            ContentType.MapPack => "Maps",
             ContentType.Map => "Map",
             ContentType.Mission => "Mission",
             ContentType.LanguagePack => "Language Pack",
             ContentType.ContentBundle => "Content Bundle",
             ContentType.PublisherReferral => "Publisher Referral",
             ContentType.ContentReferral => "Content Referral",
+            ContentType.ModdingTool => "Tools",
             _ => contentType.ToString(),
         };
     }
@@ -54,6 +55,7 @@ public static class ContentTypeExtensions
             ContentType.ContentReferral => "contentreferral",
             ContentType.Mission => "mission",
             ContentType.Map => "map",
+            ContentType.ModdingTool => "moddingtool",
             ContentType.UnknownContentType => "unknown",
             _ => "unknown",
         };

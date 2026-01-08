@@ -44,6 +44,13 @@ public interface ILocalContentService
         GameType targetGame);
 
     /// <summary>
+    /// Deletes local content by removing its manifest and potentially deleting files.
+    /// </summary>
+    /// <param name="manifestId">The manifest ID of the content to delete.</param>
+    /// <returns>A result indicating success or failure.</returns>
+    Task<OperationResult> DeleteLocalContentAsync(string manifestId);
+
+    /// <summary>
     /// Gets the allowed content types for local content creation.
     /// </summary>
     IReadOnlyList<ContentType> AllowedContentTypes { get; }

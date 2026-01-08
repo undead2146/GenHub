@@ -789,6 +789,15 @@ Process and system constants.
 - `SW_SHOW`: 5
 - `SW_MINIMIZE`: 6
 - `SW_MAXIMIZE`: 3
+- `SW_MAXIMIZE`: 3
+
+### WindowMessageConstants Class
+
+Windows API message codes enabling UIPI bypass.
+
+- `WM_DROPFILES`: `0x0233` - Dropped files message
+- `WM_COPYDATA`: `0x004A` - Copy data message
+- `WM_COPYGLOBALDATA`: `0x0049` - Copy global data message
 
 ---
 

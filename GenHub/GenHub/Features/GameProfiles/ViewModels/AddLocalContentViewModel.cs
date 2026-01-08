@@ -123,9 +123,9 @@ public partial class AddLocalContentViewModel(
     public Func<Task<string?>>? BrowseFolderAction { get; set; }
 
     /// <summary>
-    /// Gets or sets the action to browse for a file.
+    /// Gets or sets the action to browse for files.
     /// </summary>
-    public Func<Task<string?>>? BrowseFileAction { get; set; }
+    public Func<Task<IReadOnlyList<string>?>>? BrowseFileAction { get; set; }
 
     /// <summary>
     /// Imports content from the specified path into the staging directory.
@@ -142,12 +142,21 @@ public partial class AddLocalContentViewModel(
             return;
         }
 
-        SourcePath = path;
-
-        if (string.IsNullOrWhiteSpace(ContentName))
+        // Only set SourcePath if not already set or empty (support multiple imports)
+        if (string.IsNullOrEmpty(SourcePath))
         {
+            SourcePath = path;
+        }
+
+        if (string.IsNullOrWhiteSpace(ContentName) && string.IsNullOrEmpty(SourcePath))
+        {
+            // Use the folder name or first file name as default content name if not set
             ContentName = Path.GetFileNameWithoutExtension(path);
-            logger?.LogDebug("ImportContentAsync: ContentName set to {Name}", ContentName);
+        }
+        else if (string.IsNullOrWhiteSpace(ContentName))
+        {
+            // If adding more files, don't overwrite name unless empty
+            ContentName = Path.GetFileNameWithoutExtension(path);
         }
 
         try
@@ -176,23 +185,17 @@ public partial class AddLocalContentViewModel(
             }
             else if (Directory.Exists(path))
             {
-                var dirInfo = new DirectoryInfo(path);
-                var dirName = dirInfo.Name;
+                // FLATTEN: Import contents of directory directly to staging root
+                // previously: var targetSubDir = Path.Combine(_stagingPath, dirName);
+                var targetDir = new DirectoryInfo(_stagingPath);
+                var sourceDir = new DirectoryInfo(path);
 
-                // Ensure we don't try to copy to the staging root itself if Name is somehow empty
-                if (string.IsNullOrWhiteSpace(dirName))
-                {
-                    dirName = "Imported_Folder";
-                }
+                logger?.LogDebug("ImportContentAsync: Flattening directory structure. Source: {Source}, Target: {Target}", path, _stagingPath);
 
-                var targetSubDir = Path.Combine(_stagingPath, dirName);
-                logger?.LogDebug("ImportContentAsync: Preserving directory structure. Source: {Source}, Target: {Target}", path, targetSubDir);
-
-                await Task.Run(() => CopyDirectory(dirInfo, new DirectoryInfo(targetSubDir)));
+                await Task.Run(() => CopyDirectory(sourceDir, targetDir));
             }
 
             // Auto-organization: If we have .map files at the root level, move them into subdirectories
-            // This is required because the game expects maps to be in their own folders
             CreateMapFoldersIfNeeded();
 
             await RefreshStagingTreeAsync();
@@ -213,6 +216,8 @@ public partial class AddLocalContentViewModel(
     private static List<FileTreeItem> BuildDirectoryTree(DirectoryInfo dir)
     {
         var items = new List<FileTreeItem>();
+
+        if (!dir.Exists) return items;
 
         foreach (var d in dir.GetDirectories().Take(20))
         {
@@ -235,7 +240,10 @@ public partial class AddLocalContentViewModel(
 
     private static void CopyDirectory(DirectoryInfo source, DirectoryInfo target)
     {
-        Directory.CreateDirectory(target.FullName);
+        if (!target.Exists)
+        {
+            Directory.CreateDirectory(target.FullName);
+        }
 
         foreach (var file in source.GetFiles())
         {
@@ -267,10 +275,13 @@ public partial class AddLocalContentViewModel(
     {
         if (BrowseFileAction != null)
         {
-            var path = await BrowseFileAction();
-            if (!string.IsNullOrEmpty(path))
+            var paths = await BrowseFileAction();
+            if (paths != null && paths.Count > 0)
             {
-                await ImportContentAsync(path);
+                foreach (var path in paths)
+                {
+                    await ImportContentAsync(path);
+                }
             }
         }
     }

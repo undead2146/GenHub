@@ -23,6 +23,12 @@ public sealed partial class UrlParserService(HttpClient httpClient, ILogger<UrlP
             return ReplaySource.Unknown;
         }
 
+        // Check for raw Match ID (e.g., "151553")
+        if (long.TryParse(url, out _))
+        {
+            return ReplaySource.GeneralsOnline;
+        }
+
         if (url.Contains(ApiConstants.UploadThingUrlFragment))
         {
             return ReplaySource.UploadThing;
@@ -85,6 +91,15 @@ public sealed partial class UrlParserService(HttpClient httpClient, ILogger<UrlP
 
     private async Task<string?> ExtractGeneralsOnlineUrlAsync(string url, CancellationToken ct)
     {
+        // If the URL is just a number, treat it as a match ID
+        if (long.TryParse(url, out long matchId))
+        {
+            // Reconstruct: https://www.playgenerals.online/viewmatch?match=123
+            // Note: ApiConstants.GeneralsOnlineViewMatchFragment is "playgenerals.online/viewmatch"
+            // We use GeneralsOnlineConstants.WebsiteUrl which is "https://www.playgenerals.online"
+            url = $"{GeneralsOnlineConstants.WebsiteUrl}/viewmatch?match={matchId}";
+        }
+
         // Example: https://www.playgenerals.online/viewmatch?match=354994
         // Search for a link matching *_replay.rep
         var html = await httpClient.GetStringAsync(url, ct);

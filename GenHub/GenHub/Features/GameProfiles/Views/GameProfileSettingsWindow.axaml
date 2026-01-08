@@ -109,7 +109,7 @@
         <Style Selector="Button.btn-add:pointerover /template/ ContentPresenter">
             <Setter Property="Background" Value="#9575CD" />
             <Setter Property="BorderBrush" Value="#9575CD" />
-            <Setter Property="Foreground" Value="#000000" />
+            <Setter Property="Foreground" Value="White" />
         </Style>
 
         <Style Selector="Button.btn-remove">
@@ -574,59 +574,26 @@
                             <TextBlock Classes="section-title" Text="Add Content" />
 
                             <!-- Content type filter pills -->
-                            <WrapPanel Margin="0,0,0,12" HorizontalAlignment="Center">
-
-
-                                <Button Classes="filter-pill"
-                                        Classes.selected="{Binding SelectedContentType, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:ContentType.GameClient}}"
-                                        Command="{Binding SelectContentTypeFilterCommand}"
-                                        CommandParameter="{x:Static models:ContentType.GameClient}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <PathIcon Data="M20,19V7H4V19H20M20,3A2,2 0 0,1 22,5V19A2,2 0 0,1 20,21H4A2,2 0 0,1 2,19V5C2,3.89 2.9,3 4,3H20" Width="16" Height="16" />
-                                        <TextBlock Text="Executable" FontSize="12" />
-                                    </StackPanel>
-                                </Button>
-
-                                <Button Classes="filter-pill"
-                                        Classes.selected="{Binding SelectedContentType, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:ContentType.Mod}}"
-                                        Command="{Binding SelectContentTypeFilterCommand}"
-                                        CommandParameter="{x:Static models:ContentType.Mod}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <PathIcon Data="M22.7,19L13.6,9.9C13.9,9.3 14.1,8.6 14.1,7.9C14.1,5.7 12.4,3.9 10.2,3.9C8,3.9 6.3,5.7 6.3,7.9C6.3,10.1 8,11.8 10.2,11.8C10.9,11.8 11.6,11.6 12.2,11.3L21.3,20.4L22.7,19Z" Width="16" Height="16" />
-                                        <TextBlock Text="Mods" FontSize="12" />
-                                    </StackPanel>
-                                </Button>
-
-                                <Button Classes="filter-pill"
-                                        Classes.selected="{Binding SelectedContentType, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:ContentType.MapPack}}"
-                                        Command="{Binding SelectContentTypeFilterCommand}"
-                                        CommandParameter="{x:Static models:ContentType.MapPack}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <PathIcon Data="M15,19L9,16.89V5L15,7.11M20.5,3C20.44,3 20.39,3 20.34,3L15,5.1L9,3L3.36,4.9C3.15,4.97 3,5.15 3,5.38V20.5A0.5,0.5 0 0,0 3.5,21C3.55,21 3.61,21 3.66,20.97L9,18.9L15,21L20.64,19.1C20.85,19 21,18.85 21,18.62V3.5A0.5,0.5 0 0,0 20.5,3Z" Width="16" Height="16" />
-                                        <TextBlock Text="Maps" FontSize="12" />
-                                    </StackPanel>
-                                </Button>
-
-                                <Button Classes="filter-pill"
-                                        Classes.selected="{Binding SelectedContentType, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:ContentType.Patch}}"
-                                        Command="{Binding SelectContentTypeFilterCommand}"
-                                        CommandParameter="{x:Static models:ContentType.Patch}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <PathIcon Data="M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z" Width="16" Height="16" />
-                                        <TextBlock Text="Patches" FontSize="12" />
-                                    </StackPanel>
-                                </Button>
-
-                                <Button Classes="filter-pill"
-                                        Classes.selected="{Binding SelectedContentType, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:ContentType.Addon}}"
-                                        Command="{Binding SelectContentTypeFilterCommand}"
-                                        CommandParameter="{x:Static models:ContentType.Addon}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <PathIcon Data="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" Width="16" Height="16" />
-                                        <TextBlock Text="Addons" FontSize="12" />
-                                    </StackPanel>
-                                </Button>
-                            </WrapPanel>
+                            <ItemsControl ItemsSource="{Binding VisibleFilters}" Margin="0,0,0,12">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel HorizontalAlignment="Center" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:GameProfileSettingsViewModel+FilterTypeInfo">
+                                        <Button Classes="filter-pill"
+                                                Classes.selected="{Binding ContentType, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={Binding $parent[ItemsControl].((vm:GameProfileSettingsViewModel)DataContext).SelectedContentType}}"
+                                                Command="{Binding $parent[ItemsControl].((vm:GameProfileSettingsViewModel)DataContext).SelectContentTypeFilterCommand}"
+                                                CommandParameter="{Binding ContentType}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <PathIcon Data="{Binding IconData}" Width="16" Height="16" />
+                                                <TextBlock Text="{Binding DisplayName}" FontSize="12" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
 
                             <!-- Action Row: Add Local and Game Type Toggle -->
                             <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,12">

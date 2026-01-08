@@ -35,9 +35,10 @@
 
         <!-- Import Bar Integrated -->
         <Grid Grid.Column="1" ColumnDefinitions="*,Auto,Auto" Margin="24,0">
-          <TextBox Grid.Column="0" Watermark="Paste Replay URL..."
+          <TextBox Grid.Column="0" Watermark="Paste Replay URL or Match ID..."
                    Text="{Binding ImportUrl}" Margin="0,0,8,0" VerticalContentAlignment="Center"
-                   HorizontalAlignment="Stretch"/>
+                   HorizontalAlignment="Stretch"
+                   ToolTip.Tip="Supported formats:&#x0a;• Generals Online URL or Match ID (e.g. 151553)&#x0a;• GenTool Replay URL&#x0a;• GenHub / UploadThing Link&#x0a;• Direct download link (.rep/.zip)"/>
           <Button Grid.Column="1" Command="{Binding ImportFromUrlCommand}"
                   Classes="Primary" Margin="0,0,4,0" IsEnabled="{Binding !IsBusy}"
                   ToolTip.Tip="Import from URL">

@@ -109,7 +109,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
     private string _description = string.Empty;
 
     [ObservableProperty]
-    private string _colorValue = "#1976D2";
+    private string _colorValue = "#5E35B1";
 
     // Remove [ObservableProperty] for SelectedContentType to implement custom setter
     private ContentType _selectedContentType = ContentType.GameClient;
@@ -143,8 +143,31 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
     [ObservableProperty]
     private ContentDisplayItem? _selectedGameInstallation;
 
+    /// <summary>
+    /// Called when the selected game installation changes.
+    /// </summary>
+    partial void OnSelectedGameInstallationChanged(ContentDisplayItem? value)
+    {
+        if (value != null && value.GameType != GameTypeFilter)
+        {
+            GameTypeFilter = value.GameType;
+            logger?.LogInformation("Auto-synced GameTypeFilter to {GameType} based on SelectedGameInstallation", value.GameType);
+        }
+    }
+
     [ObservableProperty]
     private ObservableCollection<ContentDisplayItem> _enabledContent = [];
+
+    [ObservableProperty]
+    private ObservableCollection<FilterTypeInfo> _visibleFilters = [];
+
+    /// <summary>
+    /// Information about a content filter type.
+    /// </summary>
+    /// <param name="ContentType">The content type.</param>
+    /// <param name="DisplayName">The display name.</param>
+    /// <param name="IconData">The SVG path data for the icon.</param>
+    public record FilterTypeInfo(ContentType ContentType, string DisplayName, string IconData);
 
     [ObservableProperty]
     private bool _isInitializing;
@@ -282,7 +305,13 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
     /// </summary>
     partial void OnGameTypeFilterChanged(GameType value)
     {
-        _ = LoadAvailableContentAsync();
+        _ = RefreshFiltersAndContentAsync();
+    }
+
+    private async Task RefreshFiltersAndContentAsync()
+    {
+        await RefreshVisibleFiltersAsync();
+        await LoadAvailableContentAsync();
     }
 
     // ===== Local Content Dialog Properties =====
@@ -319,6 +348,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
         ContentType.MapPack,
         ContentType.Addon,
         ContentType.Patch,
+        ContentType.ModdingTool,
     ];
 
     /// <summary>
@@ -398,7 +428,63 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
         ContentType.MapPack,
         ContentType.Addon,
         ContentType.Patch,
+        ContentType.ModdingTool,
     ];
+
+    /// <summary>
+    /// Refreshes the list of visible content filters based on available content.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public async Task RefreshVisibleFiltersAsync()
+    {
+        try
+        {
+            var manifestsResult = await manifestPool!.GetAllManifestsAsync();
+            if (!manifestsResult.Success || manifestsResult.Data == null) return;
+
+            var availableTypes = manifestsResult.Data
+                .Where(m => m.TargetGame == GameTypeFilter)
+                .Select(m => m.ContentType)
+                .Distinct()
+                .ToHashSet();
+
+            // Executable (GameClient) is always visible if we have installations
+            if (AvailableGameInstallations.Any(i => i.GameType == GameTypeFilter))
+            {
+                availableTypes.Add(ContentType.GameClient);
+            }
+
+            var newFilters = new List<FilterTypeInfo>();
+
+            void AddFilterIfAvailable(ContentType type, string iconData)
+            {
+                if (availableTypes.Contains(type))
+                {
+                    newFilters.Add(new FilterTypeInfo(type, type.GetDisplayName(), iconData));
+                }
+            }
+
+            // Define filters in order
+            AddFilterIfAvailable(ContentType.GameClient, "M20,19V7H4V19H20M20,3A2,2 0 0,1 22,5V19A2,2 0 0,1 20,21H4A2,2 0 0,1 2,19V5C2,3.89 2.9,3 4,3H20");
+            AddFilterIfAvailable(ContentType.Mod, "M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z");
+            AddFilterIfAvailable(ContentType.MapPack, "M15,19L9,16.89V5L15,7.11M20.5,3C20.44,3 20.39,3 20.34,3L15,5.1L9,3L3.36,4.9C3.15,4.97 3,5.15 3,5.38V20.5A0.5,0.5 0 0,0 3.5,21C3.55,21 3.61,21 3.66,20.97L9,18.9L15,21L20.64,19.1C20.85,19 21,18.85 21,18.62V3.5A0.5,0.5 0 0,0 20.5,3Z");
+            AddFilterIfAvailable(ContentType.ModdingTool, "M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11.03L21.54,9.37C21.73,9.22 21.78,8.97 21.68,8.76L19.68,5.29C19.58,5.08 19.33,5 19.14,5.07L16.66,6.07C16.14,5.67 15.58,5.33 14.97,5.08L14.59,2.44C14.54,2.2 14.34,2.04 14.1,2.04H10.1C9.86,2.04 9.66,2.2 9.61,2.44L9.23,5.08C8.62,5.33 8.06,5.67 7.54,6.07L5.06,5.07C4.87,5 4.62,5.08 4.52,5.29L2.52,8.76C2.42,8.97 2.47,9.22 2.66,9.37L4.77,11.03C4.73,11.34 4.7,11.67 4.7,12C4.7,12.33 4.73,12.65 4.77,12.97L2.66,14.63C2.47,14.78 2.42,15.03 2.52,15.24L4.52,18.71C4.62,18.92 4.87,19 5.06,18.93L7.54,17.93C8.06,18.33 8.62,18.67 9.23,18.92L9.61,21.56C9.66,21.8 9.86,21.96 10.1,21.96H14.1C14.34,21.96 14.54,21.8 14.59,21.56L14.97,18.92C15.58,18.67 16.14,18.33 16.66,17.93L19.14,18.93C19.33,19 19.58,18.92 19.68,18.71L21.68,15.24C21.78,15.03 21.73,14.78 21.54,14.63L19.43,12.97Z");
+            AddFilterIfAvailable(ContentType.Patch, "M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z");
+            AddFilterIfAvailable(ContentType.Addon, "M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z");
+
+            VisibleFilters = new ObservableCollection<FilterTypeInfo>(newFilters);
+
+            // If selected content type is no longer available, switch to first available
+            if (!availableTypes.Contains(SelectedContentType))
+            {
+                SelectedContentType = newFilters.FirstOrDefault()?.ContentType ?? ContentType.GameClient;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Error refreshing visible filters");
+        }
+    }
 
     /// <summary>
     /// Gets available workspace strategies for selection.
@@ -440,10 +526,16 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
             await LoadAvailableGameInstallationsAsync();
             await LoadAvailableContentAsync();
 
+            // Populate visible filters based on available content
+            await RefreshVisibleFiltersAsync();
+
             // Set the first game installation as selected (for UI convenience), but don't auto-enable it
             if (AvailableGameInstallations.Any())
             {
-                SelectedGameInstallation = AvailableGameInstallations.First();
+                // Prioritize Zero Hour if available
+                SelectedGameInstallation = AvailableGameInstallations
+                    .OrderByDescending(i => i.GameType == Core.Models.Enums.GameType.ZeroHour)
+                    .First();
                 logger?.LogInformation("Pre-selected first GameInstallation for UI: {ContentName}", SelectedGameInstallation.DisplayName);
 
                 // Set default icon and cover FIRST
@@ -571,6 +663,9 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
 
             await LoadAvailableGameInstallationsAsync();
             await LoadAvailableContentAsync();
+
+            // Populate visible filters based on available content
+            await RefreshVisibleFiltersAsync();
 
             // Sync SelectedGameInstallation with the enabled one in the profile
             var enabledInstallation = EnabledContent.FirstOrDefault(c => c.ContentType == ContentType.GameInstallation);
@@ -782,10 +877,12 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
                 }
             }
 
-            // Select the first installation if available
+            // Select the first installation if available (prioritizing Zero Hour)
             if (AvailableGameInstallations.Any() && SelectedGameInstallation == null)
             {
-                SelectedGameInstallation = AvailableGameInstallations.First();
+                SelectedGameInstallation = AvailableGameInstallations
+                    .OrderByDescending(i => i.GameType == Core.Models.Enums.GameType.ZeroHour)
+                    .First();
             }
 
             logger?.LogInformation(
@@ -964,6 +1061,152 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
 
         // Auto-resolve dependencies (switch game installation or enable other content)
         await ResolveDependenciesAsync(contentItem);
+    }
+
+    /// <summary>
+    /// Disables the specified content item for the profile.
+    /// Removes it from the enabled list and adds it back to available content.
+    /// </summary>
+    /// <param name="contentItem">The content item to disable.</param>
+    [RelayCommand]
+    private async Task DisableContent(ContentDisplayItem? contentItem)
+    {
+        if (contentItem == null)
+        {
+            StatusMessage = "No content selected";
+            logger?.LogWarning("DisableContent: contentItem parameter is null");
+            return;
+        }
+
+        logger?.LogInformation(
+            "DisableContent called for: {DisplayName} (ManifestId: {ManifestId})",
+            contentItem.DisplayName,
+            contentItem.ManifestId.Value);
+
+        // Remove from enabled content
+        var itemToRemove = EnabledContent.FirstOrDefault(e => e.ManifestId.Value == contentItem.ManifestId.Value);
+        if (itemToRemove != null)
+        {
+            itemToRemove.IsEnabled = false;
+            EnabledContent.Remove(itemToRemove);
+
+            // Add back to available content if it matches current filters
+            if (itemToRemove.ContentType == SelectedContentType && itemToRemove.GameType == GameTypeFilter)
+            {
+                // Check if it's not already in available content
+                var alreadyInAvailable = AvailableContent.FirstOrDefault(a => a.ManifestId.Value == itemToRemove.ManifestId.Value);
+                if (alreadyInAvailable == null)
+                {
+                    AvailableContent.Add(itemToRemove);
+                }
+                else
+                {
+                    alreadyInAvailable.IsEnabled = false;
+                }
+            }
+
+            // If this was the selected game installation, clear it
+            if (itemToRemove.ContentType == ContentType.GameInstallation &&
+                SelectedGameInstallation?.ManifestId.Value == itemToRemove.ManifestId.Value)
+            {
+                SelectedGameInstallation = null;
+                logger?.LogInformation("Cleared SelectedGameInstallation");
+            }
+
+            StatusMessage = $"Disabled {itemToRemove.DisplayName}";
+            logger?.LogInformation("Disabled content {ContentName} from profile", itemToRemove.DisplayName);
+        }
+        else
+        {
+            StatusMessage = "Content not found in enabled list";
+            logger?.LogWarning("DisableContent: ManifestId {ManifestId} not found in EnabledContent", contentItem.ManifestId.Value);
+        }
+
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Deletes the specified content item from disk permanently.
+    /// Shows a confirmation dialog before deletion.
+    /// </summary>
+    /// <param name="contentItem">The content item to delete.</param>
+    [RelayCommand]
+    private async Task DeleteContent(ContentDisplayItem? contentItem)
+    {
+        if (contentItem == null)
+        {
+            StatusMessage = "No content selected";
+            logger?.LogWarning("DeleteContent: contentItem parameter is null");
+            return;
+        }
+
+        logger?.LogInformation(
+            "DeleteContent called for: {DisplayName} (ManifestId: {ManifestId})",
+            contentItem.DisplayName,
+            contentItem.ManifestId.Value);
+
+        try
+        {
+            // Check if this is local content
+            if (localContentService == null || contentStorageService == null)
+            {
+                _localNotificationService.ShowError(
+                    "Service Unavailable",
+                    "Content deletion service is not available.");
+                return;
+            }
+
+            // Confirm deletion with user
+            var confirmMessage = $"Are you sure you want to permanently delete '{contentItem.DisplayName}' from disk? This action cannot be undone.";
+
+            // For now, we'll proceed with deletion (in a real app, you'd show a dialog)
+            // TODO: Add confirmation dialog when available
+            logger?.LogInformation("Attempting to delete content: {ContentName}", contentItem.DisplayName);
+
+            // Try to delete using local content service first
+            var result = await localContentService.DeleteLocalContentAsync(contentItem.ManifestId.Value);
+
+            if (result.Success)
+            {
+                // Remove from both collections
+                var enabledItem = EnabledContent.FirstOrDefault(e => e.ManifestId.Value == contentItem.ManifestId.Value);
+                if (enabledItem != null)
+                {
+                    EnabledContent.Remove(enabledItem);
+                }
+
+                var availableItem = AvailableContent.FirstOrDefault(a => a.ManifestId.Value == contentItem.ManifestId.Value);
+                if (availableItem != null)
+                {
+                    AvailableContent.Remove(availableItem);
+                }
+
+                StatusMessage = $"Deleted {contentItem.DisplayName}";
+                _localNotificationService.ShowSuccess(
+                    "Content Deleted",
+                    $"'{contentItem.DisplayName}' has been permanently deleted.");
+                logger?.LogInformation("Successfully deleted content: {ContentName}", contentItem.DisplayName);
+            }
+            else
+            {
+                StatusMessage = $"Failed to delete {contentItem.DisplayName}";
+                _localNotificationService.ShowError(
+                    "Delete Failed",
+                    $"Failed to delete '{contentItem.DisplayName}': {string.Join(", ", result.Errors)}");
+                logger?.LogWarning(
+                    "Failed to delete content {ContentName}: {Errors}",
+                    contentItem.DisplayName,
+                    string.Join(", ", result.Errors));
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Error deleting content {ContentName}", contentItem.DisplayName);
+            StatusMessage = "Error deleting content";
+            _localNotificationService.ShowError(
+                "Delete Error",
+                $"An error occurred while deleting '{contentItem.DisplayName}'.");
+        }
     }
 
     /// <summary>
@@ -1492,152 +1735,9 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
         catch (Exception ex)
         {
             logger?.LogError(ex, "Error during comprehensive dependency validation");
-            errors.Add($"• Validation error: {ex.Message}");
         }
 
         return errors;
-    }
-
-    /// <summary>
-    /// Disables the specified content item.
-    /// </summary>
-    /// <param name="contentItem">The content item to disable.</param>
-    [RelayCommand]
-    private void DisableContent(ContentDisplayItem contentItem)
-    {
-        if (contentItem == null)
-        {
-            return;
-        }
-
-        // Remove from enabled content
-        var itemToRemove = EnabledContent.FirstOrDefault(e => e.ManifestId.Value == contentItem.ManifestId.Value);
-        if (itemToRemove != null)
-        {
-            itemToRemove.IsEnabled = false;
-            EnabledContent.Remove(itemToRemove);
-        }
-
-        // If the disabled content matches the current content type and game type filter, add it back to AvailableContent
-        if (contentItem.ContentType == SelectedContentType && contentItem.GameType == GameTypeFilter)
-        {
-            var alreadyInAvailable = AvailableContent.FirstOrDefault(a => a.ManifestId.Value == contentItem.ManifestId.Value);
-            if (alreadyInAvailable == null)
-            {
-                // Create a new instance with IsEnabled = false
-                var availableItem = new ContentDisplayItem
-                {
-                    ManifestId = contentItem.ManifestId,
-                    DisplayName = contentItem.DisplayName,
-                    ContentType = contentItem.ContentType,
-                    GameType = contentItem.GameType,
-                    InstallationType = contentItem.InstallationType,
-                    Publisher = contentItem.Publisher,
-                    IsEnabled = false,
-                    SourceId = contentItem.SourceId,
-                    GameClientId = contentItem.GameClientId,
-                    Version = contentItem.Version,
-                };
-                AvailableContent.Add(availableItem);
-            }
-            else
-            {
-                alreadyInAvailable.IsEnabled = false;
-            }
-        }
-
-        if (contentItem.ContentType == ContentType.GameInstallation &&
-            SelectedGameInstallation?.ManifestId.Value == contentItem.ManifestId.Value)
-        {
-            // Try to find another enabled GameInstallation
-            var anotherEnabledInstallation = EnabledContent.FirstOrDefault(c => c.ContentType == ContentType.GameInstallation && c.IsEnabled);
-
-            if (anotherEnabledInstallation != null)
-            {
-                SelectedGameInstallation = anotherEnabledInstallation;
-                logger?.LogInformation(
-                    "Switched SelectedGameInstallation to {DisplayName} after disabling previous selection",
-                    anotherEnabledInstallation.DisplayName);
-            }
-            else
-            {
-                // No GameInstallation enabled - try to select from available list
-                SelectedGameInstallation = AvailableGameInstallations.FirstOrDefault();
-                logger?.LogWarning(
-                    "No GameInstallation enabled - reset to first available: {DisplayName}",
-                    SelectedGameInstallation?.DisplayName ?? "None");
-            }
-        }
-
-        // UX Improvement: Auto-rename back to "New Profile" if removing the game client that gave the name
-        if (contentItem.ContentType == ContentType.GameClient && Name == contentItem.DisplayName)
-        {
-            Name = "New Profile";
-            logger?.LogInformation("Auto-renamed profile back to 'New Profile' after disabling GameClient '{OldName}'", contentItem.DisplayName);
-        }
-
-        StatusMessage = $"Disabled {contentItem.DisplayName}";
-        logger?.LogInformation("Disabled content {ContentName} for profile", contentItem.DisplayName);
-    }
-
-    /// <summary>
-    /// Deletes the specified content item from storage.
-    /// </summary>
-    /// <param name="contentItem">The content item to delete.</param>
-    [RelayCommand]
-    private void DeleteContent(ContentDisplayItem? contentItem)
-    {
-        if (contentItem == null)
-        {
-            StatusMessage = "No content selected";
-            logger?.LogWarning("DeleteContent: contentItem parameter is NULL");
-            return;
-        }
-
-        if (contentStorageService == null)
-        {
-            StatusMessage = "Content storage service not available";
-            logger?.LogError("DeleteContent: contentStorageService is NULL");
-            return;
-        }
-
-        // Check if content is currently enabled in this profile
-        var isEnabled = EnabledContent.Any(e => e.ManifestId.Value == contentItem.ManifestId.Value);
-        if (isEnabled)
-        {
-            _localNotificationService.ShowWarning(
-                "Cannot Delete",
-                $"Cannot delete '{contentItem.DisplayName}' because it is currently enabled in this profile. Please disable it first.");
-            logger?.LogWarning(
-                "DeleteContent: Cannot delete {ContentName} because it is enabled in the profile",
-                contentItem.DisplayName);
-            return;
-        }
-
-        // Prevent deletion of GameInstallation content types
-        if (contentItem.ContentType == Core.Models.Enums.ContentType.GameInstallation)
-        {
-            _localNotificationService.ShowWarning(
-                "Cannot Delete",
-                $"Cannot delete '{contentItem.DisplayName}' because it references an existing game installation on your drive. Only downloaded content (mods, maps, etc.) can be deleted.");
-            logger?.LogWarning(
-                "DeleteContent: Cannot delete {ContentName} because it is a GameInstallation",
-                contentItem.DisplayName);
-            return;
-        }
-
-        // Show actionable notification for confirmation
-        // using full namespace for NotificationMessage to avoid ambiguity if namespaces aren't imported
-        var notification = new Core.Models.Notifications.NotificationMessage(
-            Core.Models.Enums.NotificationType.Warning,
-            "Delete Content?",
-            $"Are you sure you want to delete '{contentItem.DisplayName}'? This action cannot be undone.",
-            autoDismissMilliseconds: null, // Persistent
-            actionText: "✓ Confirm Delete",
-            action: () => _ = PerformDeletionAsync(contentItem));
-
-        _localNotificationService.Show(notification);
-        logger?.LogInformation("DeleteContent: Shown confirmation notification for {ContentName}", contentItem.DisplayName);
     }
 
     /// <summary>

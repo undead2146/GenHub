@@ -3,7 +3,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$version = "0.0.1"
+$version = "0.0.3"
 $configuration = "Release"
 $runtime = "win-x64"
 $projectPath = "GenHub/GenHub.Windows/GenHub.Windows.csproj"
