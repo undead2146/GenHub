@@ -28,6 +28,16 @@ URI scheme constants for handling different types of URIs and paths.
 
 - `AvarUriScheme`: URI scheme for Avalonia embedded resources (`"avares://"`)
 - `HttpUriScheme`: HTTP URI scheme (`"http://"`)
+- `UploadThingUrlFragment`: URL fragment for identification (`"utfs.io/f/"`)
+- `UploadThingTokenEnvVar`: Token environment variable (`"UPLOADTHING_TOKEN"`)
+- `UploadThingTokenEnvVarAlt`: Alternative token environment variable (`"GENHUB_UPLOADTHING_TOKEN"`)
+- `UploadThingApiKeyHeader`: API key header name (`"x-uploadthing-api-key"`)
+- `UploadThingVersionHeader`: API version header name (`"x-uploadthing-version"`)
+
+### Media Types
+
+- `MediaTypeZip`: Media type for ZIP files (`"application/zip"`)
+
 - `HttpsUriScheme`: HTTPS URI scheme (`"https://"`)
 - `GeneralsIconUri`: Icon URI for Generals game type (`"avares://GenHub/Assets/Icons/generals-icon.png"`)
 - `ZeroHourIconUri`: Icon URI for Zero Hour game type (`"avares://GenHub/Assets/Icons/zerohour-icon.png"`)
@@ -779,6 +789,15 @@ Process and system constants.
 - `SW_SHOW`: 5
 - `SW_MINIMIZE`: 6
 - `SW_MAXIMIZE`: 3
+- `SW_MAXIMIZE`: 3
+
+### WindowMessageConstants Class
+
+Windows API message codes enabling UIPI bypass.
+
+- `WM_DROPFILES`: `0x0233` - Dropped files message
+- `WM_COPYDATA`: `0x004A` - Copy data message
+- `WM_COPYGLOBALDATA`: `0x0049` - Copy global data message
 
 ---
 
@@ -1369,6 +1388,122 @@ Predefined resolution options available in the game settings.
 
 ---
 
+## Content Provider Constants
+
+Constants for various community content providers and manifest generation.
+
+### CommunityOutpostCatalogConstants Class
+
+Constants related to the Community Outpost (GenPatcher) catalog and metadata.
+
+- `CatalogFilename`: Default filename for the GenPatcher catalog (`"GenPatcher.dat"`)
+- `VersionKey`: Metadata key for version information (`"Version"`)
+- `DescriptionKey`: Metadata key for description information (`"Description"`)
+- `DownloadUrlKey`: Metadata key for download URLs (`"DownloadUrl"`)
+
+### GeneralsOnlineConstants Class
+
+Constants for Generals Online content discovery and manifest creation.
+
+- `PublisherPrefix`: Publisher prefix string (`"generalsonline"`)
+- `PublisherId`: Publisher identifier (`"generals-online"`)
+- `PublisherDisplayName`: Display name for the publisher (`"Generals Online"`)
+- `QfeMarkerPrefix`: Prefix used for QFE (Quick Fix Engineering) versions (`"qfe-"`)
+- `MapPackTags`: Default tags for MapPack manifests (`["mappack", "generalsonline"]`)
+- `UnknownVersion`: Default version string when unknown (`"unknown"`)
+- `CoverSource`: Default path for cover images (`"/Assets/Covers/zerohour-cover.png"`)
+
+### CNCLabsConstants Class
+
+Constants for CNC Labs (CNC Maps) content discovery and manifest creation.
+
+- `PublisherPrefix`: Publisher prefix string (`"cnclabs"`)
+- `PublisherId`: Publisher identifier (`"cnc-labs"`)
+- `PublisherName`: Display name for the publisher (`"CNC Labs"`)
+- `PublisherWebsite`: Main website URL (`"https://www.cnclabs.com"`)
+- `DefaultTags`: Default tags for CNC Labs manifests (`["cnclabs"]`)
+- `DefaultDownloadFilename`: Default filename for downloads when parsing fails (`"download.zip"`)
+
+### ModDBConstants Class
+
+Constants for ModDB content discovery and manifest creation.
+
+- `PublisherPrefix`: Publisher prefix string (`"moddb"`)
+- `PublisherDisplayName`: Display name for the publisher (`"ModDB"`)
+- `PublisherWebsite`: Main website URL (`"https://www.moddb.com"`)
+- `ReleaseDateFormat`: Date format used in ModDB metadata (`"MMMM dd, yyyy"`)
+- `PublisherNameFormat`: Format string for including the author with the publisher name (`"ModDB ({0})"`)
+- `DefaultDownloadFilename`: Default filename for downloads when parsing fails (`"download.zip"`)
+
+### SuperHackersConstants Class
+
+Constants for The Super Hackers content discovery and manifest creation.
+
+- `PublisherPrefix`: Publisher prefix string (`"thesuperhackers"`)
+- `PublisherDisplayName`: Display name for the publisher (`"The Super Hackers"`)
+- `VersionDelimiter`: Character used to separate components in version strings (`':'`)
+## ToolConstants Class
+
+Constants for tool plugin metadata and configuration.
+
+### ReplayManager Subclass
+
+Constants specific to the Replay Manager tool plugin.
+
+| Constant     | Value                                      | Description                                      |
+| ------------ | ------------------------------------------ | ------------------------------------------------ |
+| `Id`         | `"genhub.tools.replaymanager"`             | Unique identifier for the Replay Manager tool    |
+| `Name`       | `"Replay Manager"`                         | Display name for the Replay Manager tool         |
+| `Version`    | `"1.0.0"`                                  | Version of the Replay Manager tool               |
+| `Author`     | `"GenHub Team"`                            | Author of the Replay Manager tool                |
+| `Description`| `"Manage, import, and share replay files for Command & Conquer: Generals and Zero Hour."` | Description of the Replay Manager tool |
+| `Tags`       | `["replays", "file-management", "sharing"]`| Tags associated with the Replay Manager tool     |
+| `IconPath`   | `"Assets/Icons/replay.png"`                | Icon path for the Replay Manager tool (placeholder) |
+| `IsBundled`  | `true`                                     | Whether the tool is bundled with the application |
+
+### Usage Example
+
+```csharp
+using GenHub.Core.Constants;
+
+// Create tool metadata using constants
+var metadata = new ToolMetadata
+{
+    Id = ToolConstants.ReplayManager.Id,
+    Name = ToolConstants.ReplayManager.Name,
+    Version = ToolConstants.ReplayManager.Version,
+    Author = ToolConstants.ReplayManager.Author,
+    Description = ToolConstants.ReplayManager.Description,
+    Tags = ToolConstants.ReplayManager.Tags,
+    IconPath = ToolConstants.ReplayManager.IconPath,
+    IsBundled = ToolConstants.ReplayManager.IsBundled,
+};
+```
+
+---
+
+## MapManagerConstants Class
+
+Constants specifically for the Map Manager feature.
+
+| Constant                       | Value                                      | Description                                                                           |
+| ------------------------------ | ------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `MaxMapSizeBytes`              | `10485760` (10MB)                          | Maximum file size for individual maps                                                 |
+| `MaxWeeklyUploadBytes`         | `104857600` (100MB)                        | Maximum weekly upload limit                                                           |
+| `ThumbnailMaxWidth`            | `128`                                      | Maximum width for thumbnails                                                          |
+| `ThumbnailMaxHeight`           | `128`                                      | Maximum height for thumbnails                                                         |
+| `DefaultThumbnailName`         | `"map.tga"`                                | Default thumbnail filename                                                            |
+| `MaxDirectoryDepth`            | `1`                                        | Maximum directory nesting depth                                                       |
+| `GeneralsDataDirectoryName`    | `"Command and Conquer Generals Data"`      | Directory name for Generals data                                                      |
+| `ZeroHourDataDirectoryName`   | `"Command and Conquer Generals Zero Hour Data"` | Directory name for Zero Hour data                                                     |
+| `MapsSubdirectoryName`         | `"Maps"`                                   | Subdirectory name for maps                                                            |
+| `MapPacksSubdirectoryName`     | `"mappacks"`                               | Subdirectory name for MapPacks                                                        |
+| `MapFilePattern`               | `"*.map"`                                  | File pattern for maps                                                                 |
+| `ZipFilePattern`               | `"*.zip"`                                  | File pattern for ZIPs                                                                 |
+| `DefaultZipName`               | `"maps.zip"`                               | Default name for exported ZIPs                                                        |
+| `ToolId`                       | `"map-manager"`                            | Unique identifier for Map Manager                                                     |
+| `ToolName`                     | `"Map Manager"`                            | Display name for Map Manager                                                          |
+| `ToolDescription`              | `"Manage, import, and share custom maps. Create MapPacks for easy profile switching."` | Description of the tool |
 ## Content Provider Constants
 
 Constants for various community content providers and manifest generation.

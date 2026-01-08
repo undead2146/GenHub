@@ -88,7 +88,7 @@
                         <StackPanel Spacing="12">
                             <TextBlock Text="Installation Source" FontSize="14" FontWeight="SemiBold" Foreground="White"/>
 
-                            <!-- Current Source Display (Fixed overlapped) -->
+                            <!-- Current Source Display -->
                             <Grid ColumnDefinitions="Auto,*,Auto">
                                 <PathIcon Grid.Column="0" Data="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" Width="16" Height="16" Foreground="#7C4DFF" Margin="0,0,8,0" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="1" Text="{Binding StatusMessage}" VerticalAlignment="Center" Foreground="#DDDDDD" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>

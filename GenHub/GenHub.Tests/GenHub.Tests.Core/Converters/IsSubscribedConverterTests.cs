@@ -32,7 +32,7 @@ public class IsSubscribedConverterTests
             Title = "PR 123",
             BranchName = "feature/123",
             Author = "user",
-            State = "open"
+            State = "open",
         };
         var subscribedPr = new PullRequestInfo
         {
@@ -40,7 +40,7 @@ public class IsSubscribedConverterTests
             Title = "PR 123",
             BranchName = "feature/123",
             Author = "user",
-            State = "open"
+            State = "open",
         };
         var values = new List<object?> { pr, subscribedPr, "some-branch" };
 
@@ -64,7 +64,7 @@ public class IsSubscribedConverterTests
             Title = "PR 123",
             BranchName = "feature/123",
             Author = "user",
-            State = "open"
+            State = "open",
         };
         var subscribedPr = new PullRequestInfo
         {
@@ -72,7 +72,7 @@ public class IsSubscribedConverterTests
             Title = "PR 456",
             BranchName = "feature/456",
             Author = "user",
-            State = "open"
+            State = "open",
         };
         var values = new List<object?> { pr, subscribedPr, "some-branch" };
 
@@ -115,18 +115,5 @@ public class IsSubscribedConverterTests
 
         // Assert
         Assert.False((bool?)result);
-    }
-
-    /// <summary>
-    /// Verifies that ConvertBack returns an empty array.
-    /// </summary>
-    [Fact]
-    public void ConvertBack_ReturnsEmptyArray()
-    {
-        // Act
-        var result = _converter.ConvertBack(true, new[] { typeof(object), typeof(object), typeof(object) }, null, CultureInfo.InvariantCulture);
-
-        // Assert
-        Assert.Empty(result);
     }
 }

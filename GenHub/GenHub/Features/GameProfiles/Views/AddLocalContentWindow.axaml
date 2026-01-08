@@ -97,7 +97,7 @@
                                     <Button Command="{Binding BrowseFolderCommand}" ToolTip.Tip="Browse Folder" Classes="icon-btn">
                                         <TextBlock Text="📁"/>
                                     </Button>
-                                    <Button Command="{Binding BrowseFileCommand}" ToolTip.Tip="Browse Archive" Classes="icon-btn">
+                                    <Button Command="{Binding BrowseFileCommand}" ToolTip.Tip="Browse Files" Classes="icon-btn">
                                         <TextBlock Text="📦"/>
                                     </Button>
                                 </StackPanel>
@@ -180,7 +180,7 @@
         <!-- Loading Overlay -->
         <Grid Background="#CC000000" IsVisible="{Binding IsBusy}">
              <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="15">
-                 <ProgressBar IsIndeterminate="True" Width="200" Height="4" Foreground="#1976D2"/>
+                 <ProgressBar IsIndeterminate="True" Width="200" Height="4" Foreground="#5E35B1"/>
                  <TextBlock Text="Processing..." Foreground="White" HorizontalAlignment="Center" FontSize="14" FontWeight="Light"/>
              </StackPanel>
         </Grid>
@@ -221,30 +221,34 @@
              <Setter Property="Padding" Value="10,6"/>
              <Setter Property="CornerRadius" Value="4"/>
              <Setter Property="Foreground" Value="White"/>
+             <Setter Property="Cursor" Value="Hand"/>
         </Style>
         <Style Selector="Button.icon-btn:pointerover">
              <Setter Property="Background" Value="#20FFFFFF"/>
         </Style>
 
         <Style Selector="Button.accent">
-            <Setter Property="Background" Value="#1976D2"/>
+            <Setter Property="Background" Value="#5E35B1"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="CornerRadius" Value="4"/>
             <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="Cursor" Value="Hand"/>
         </Style>
         <Style Selector="Button.accent:pointerover">
-            <Setter Property="Background" Value="#2196F3"/>
+            <Setter Property="Background" Value="#7E57C2"/>
         </Style>
         <Style Selector="Button.accent:disabled">
             <Setter Property="Background" Value="#20FFFFFF"/>
             <Setter Property="Foreground" Value="#50FFFFFF"/>
+            <Setter Property="Cursor" Value="Arrow"/>
         </Style>
 
         <Style Selector="Button.ghost">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="#AAAAAA"/>
             <Setter Property="Padding" Value="15,10"/>
+            <Setter Property="Cursor" Value="Hand"/>
         </Style>
         <Style Selector="Button.ghost:pointerover">
             <Setter Property="Foreground" Value="White"/>

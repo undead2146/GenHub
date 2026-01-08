@@ -373,7 +373,7 @@ public sealed class HardLinkStrategy(IFileOperationsService fileOperations, ILog
         // For game installation files, treat them the same as local files
         // We need to find the manifest that contains this file
         var manifest = configuration.Manifests.FirstOrDefault(m => m.Files.Contains(file));
-        if (manifest == null)
+        if (manifest is null)
         {
             throw new InvalidOperationException($"Could not find manifest containing file {file.RelativePath}");
         }

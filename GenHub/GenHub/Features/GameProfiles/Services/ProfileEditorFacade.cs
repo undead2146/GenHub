@@ -117,8 +117,8 @@ public class ProfileEditorFacade(
                         return ProfileOperationResult<GameProfile>.CreateFailure(string.Join(", ", resolutionResult.Errors));
                     }
 
-                    workspaceConfig.Manifests = [.. resolutionResult.ResolvedManifests];
-                    profile.EnabledContentIds = [.. resolutionResult.ResolvedContentIds];
+                    workspaceConfig.Manifests = [..resolutionResult.ResolvedManifests];
+                    profile.EnabledContentIds = [..resolutionResult.ResolvedContentIds];
 
                     // Resolve source paths for all manifests
                     var manifestSourcePaths = new Dictionary<string, string>();

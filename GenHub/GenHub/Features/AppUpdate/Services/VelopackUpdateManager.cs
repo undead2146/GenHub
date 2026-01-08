@@ -1176,6 +1176,7 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                 totalRead += read;
 
                 var currentTime = stopwatch.ElapsedMilliseconds;
+
                 // Report every 500ms
                 if (currentTime - lastReportTime >= 500 || !isMoreToRead)
                 {

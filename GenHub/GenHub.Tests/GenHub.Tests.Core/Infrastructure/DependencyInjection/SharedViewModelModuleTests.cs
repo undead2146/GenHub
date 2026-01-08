@@ -154,8 +154,8 @@ public class SharedViewModelModuleTests
         mock.Setup(x => x.GetLastSelectedTab()).Returns(NavigationTab.Home);
         mock.Setup(x => x.GetApplicationDataPath()).Returns(Path.Combine(Path.GetTempPath(), "GenHubTest", "Content"));
         mock.Setup(x => x.GetWorkspacePath()).Returns(Path.Combine(Path.GetTempPath(), "GenHubTest", "Workspace"));
-        mock.Setup(x => x.GetContentDirectories()).Returns(new List<string> { Path.GetTempPath() });
-        mock.Setup(x => x.GetGitHubDiscoveryRepositories()).Returns(new List<string> { "test/repo" });
+        mock.Setup(x => x.GetContentDirectories()).Returns([Path.GetTempPath()]);
+        mock.Setup(x => x.GetGitHubDiscoveryRepositories()).Returns(["test/repo"]);
         mock.Setup(x => x.GetCasConfiguration()).Returns(new GenHub.Core.Models.Storage.CasConfiguration());
         mock.Setup(x => x.GetDownloadUserAgent()).Returns("TestAgent/1.0");
         mock.Setup(x => x.GetDownloadTimeoutSeconds()).Returns(120);

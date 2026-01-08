@@ -31,6 +31,8 @@ public class WindowsInstallationDetector(ILogger<WindowsInstallationDetector> lo
     /// </summary>
     public bool CanDetectOnCurrentPlatform => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 
+    private static readonly GameInstallationType[] PriorityOrder = [GameInstallationType.Steam, GameInstallationType.EaApp, GameInstallationType.CDISO, GameInstallationType.Retail, GameInstallationType.TheFirstDecade];
+
     /// <summary>
     /// Scan for Windows platform installations and return them.
     /// </summary>
@@ -192,8 +194,7 @@ public class WindowsInstallationDetector(ILogger<WindowsInstallationDetector> lo
         var deduplicated = new List<GameInstallation>();
 
         // Define priority order: Steam > EA App > CDISO > Retail
-        var priorityOrder = new[] { GameInstallationType.Steam, GameInstallationType.EaApp, GameInstallationType.CDISO, GameInstallationType.Retail, GameInstallationType.TheFirstDecade };
-        var orderedInstallations = installations.OrderBy(i => Array.IndexOf(priorityOrder, i.InstallationType)).ToList();
+        var orderedInstallations = installations.OrderBy(i => Array.IndexOf(PriorityOrder, i.InstallationType)).ToList();
 
         foreach (var installation in orderedInstallations)
         {

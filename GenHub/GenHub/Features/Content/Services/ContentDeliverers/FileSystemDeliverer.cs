@@ -107,7 +107,7 @@ public class FileSystemDeliverer(
                 downloadService,
                 configProvider);
 
-            if (!int.TryParse(packageManifest.Version, out int manifestVersionInt))
+            if (!int.TryParse(packageManifest.Version, out var manifestVersionInt))
             {
                 logger.LogError("Invalid manifest version format: {Version}", packageManifest.Version);
                 return OperationResult<ContentManifest>.CreateFailure("Invalid manifest version format");
@@ -166,7 +166,7 @@ public class FileSystemDeliverer(
             }
 
             // Add required directories
-            manifestBuilder.AddRequiredDirectories([.. packageManifest.RequiredDirectories]);
+            manifestBuilder.AddRequiredDirectories([..packageManifest.RequiredDirectories]);
 
             // Add installation instructions if present
             if (packageManifest.InstallationInstructions != null)

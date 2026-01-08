@@ -13,6 +13,7 @@
 
     <ItemGroup>
         <PackageReference Include="Avalonia.Desktop" />
+        <PackageReference Include="DotNetEnv" />
         <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
         <PackageReference Include="Avalonia.Diagnostics">
             <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
@@ -28,6 +29,14 @@
         <EmbeddedResource Include="Resources\update_genhub.ps1" />
     </ItemGroup>
 
+    <!-- Copy .env file to output directory for local debugging if it exists -->
+    <ItemGroup Condition="Exists('..\..\.env')">
+        <None Include="..\..\.env">
+            <Link>.env</Link>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
     <ItemGroup>
         <ProjectReference Include="..\GenHub\GenHub.csproj" />
         <ProjectReference Include="..\GenHub.Core\GenHub.Core.csproj" />
@@ -35,7 +44,7 @@
 
     <!-- Ensure Proxy Launcher is PUBLISHED as SingleFile and copied to build output -->
     <Target Name="BuildProxyLauncher" BeforeTargets="Build">
-        <Exec Command="dotnet publish &quot;..\GenHub.ProxyLauncher\GenHub.ProxyLauncher.csproj&quot; -c $(Configuration) -f $(TargetFramework) -r win-x64 --self-contained false -p:PublishSingleFile=true -o &quot;$(MSBuildProjectDirectory)\..\GenHub.ProxyLauncher\bin\Publish\$(Configuration)&quot;" />
+        <Exec Command="dotnet publish &quot;..\GenHub.ProxyLauncher\GenHub.ProxyLauncher.csproj&quot; -c $(Configuration) -f $(TargetFramework) -r win-x64 --self-contained false -p:PublishSingleFile=true -p:Version=$(Version) -p:GitShortHash=$(GitShortHash) -p:PullRequestNumber=$(PullRequestNumber) -p:BuildChannel=$(BuildChannel) -o &quot;$(MSBuildProjectDirectory)\..\GenHub.ProxyLauncher\bin\Publish\$(Configuration)&quot;" />
     </Target>
 
     <Target Name="CopyProxyLauncher" AfterTargets="Build">

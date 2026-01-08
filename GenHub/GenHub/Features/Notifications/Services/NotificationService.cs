@@ -92,10 +92,7 @@ public class NotificationService(ILogger<NotificationService> logger) : INotific
             return;
         }
 
-        if (notification == null)
-        {
-            throw new ArgumentNullException(nameof(notification));
-        }
+        ArgumentNullException.ThrowIfNull(notification);
 
         logger.LogDebug(
             "Showing {Type} notification: {Title}",
