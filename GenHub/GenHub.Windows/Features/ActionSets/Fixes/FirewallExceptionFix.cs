@@ -7,6 +7,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Features.ActionSets;
+using GenHub.Core.Constants;
 using GenHub.Core.Models.GameInstallations;
 using Microsoft.Extensions.Logging;
 
@@ -17,12 +18,13 @@ using Microsoft.Extensions.Logging;
 public class FirewallExceptionFix(ILogger<FirewallExceptionFix> logger) : BaseActionSet(logger)
 {
     // GenPatcher-compatible rule names
-    private const string PortRuleUdp16000 = "GP Open UDP Port 16000";
-    private const string PortRuleUdp16001 = "GP Open UDP Port 16001";
-    private const string PortRuleTcp16001 = "GP Open TCP Port 16001";
-    private const string GeneralsRule = "GP Command & Conquer Generals";
-    private const string GeneralsGameDatRule = "GP Command & Conquer Generals Game.dat";
-    private const string ZeroHourRule = "GP Command & Conquer Generals Zero Hour";
+    private const string PortRuleUdp16000 = ActionSetConstants.FirewallRules.PortRuleUdp16000;
+    private const string PortRuleUdp16001 = ActionSetConstants.FirewallRules.PortRuleUdp16001;
+    private const string PortRuleTcp16001 = ActionSetConstants.FirewallRules.PortRuleTcp16001;
+
+    private const string GeneralsRule = ActionSetConstants.FirewallRules.GeneralsRule;
+    private const string GeneralsGameDatRule = ActionSetConstants.FirewallRules.GeneralsGameDatRule;
+    private const string ZeroHourRule = ActionSetConstants.FirewallRules.ZeroHourRule;
     private const string ZeroHourGameDatRule = "GP Command & Conquer Generals Zero Hour Game.dat";
 
     private readonly ILogger<FirewallExceptionFix> _logger = logger;
@@ -147,9 +149,12 @@ public class FirewallExceptionFix(ILogger<FirewallExceptionFix> logger) : BaseAc
                 // Add Zero Hour executable rules
                 if (installation.HasZeroHour && !string.IsNullOrEmpty(installation.ZeroHourPath))
                 {
-                    var zeroHourExe = Path.Combine(installation.ZeroHourPath, "Generals.exe");
-                    var zeroHourGameDat = Path.Combine(installation.ZeroHourPath, "Game.dat");
+                    // NOTE: Zero Hour often runs via generals.exe (the engine), not the launcher.
+                    // However, we add rules for both standard executables just in case.
 
+                    // Add Zero Hour executable rule
+                    var zeroHourExe = Path.Combine(installation.ZeroHourPath, ActionSetConstants.FileNames.GeneralsExe);
+                    var zeroHourGameDat = Path.Combine(installation.ZeroHourPath, ActionSetConstants.FileNames.GameDat);
                     if (File.Exists(zeroHourExe))
                     {
                         if (AddProgramRule(ZeroHourRule, zeroHourExe))

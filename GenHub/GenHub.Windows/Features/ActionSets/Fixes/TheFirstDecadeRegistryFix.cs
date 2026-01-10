@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Constants;
 using GenHub.Core.Features.ActionSets;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Windows.Features.ActionSets.Infrastructure;
@@ -46,8 +47,8 @@ public class TheFirstDecadeRegistryFix(
         {
             // Check if TFD registry entries exist
             var tfdInstalled = _registryService.GetStringValue(
-                @"SOFTWARE\EA Games\Command & Conquer The First Decade",
-                "InstallPath");
+                RegistryConstants.TheFirstDecadeKeyPath,
+                RegistryConstants.InstallPathValueName);
 
             return Task.FromResult(!string.IsNullOrEmpty(tfdInstalled));
         }
@@ -89,14 +90,14 @@ public class TheFirstDecadeRegistryFix(
 
             // Create TFD registry entries
             _registryService.SetStringValue(
-                @"SOFTWARE\EA Games\Command & Conquer The First Decade",
-                "InstallPath",
+                RegistryConstants.TheFirstDecadeKeyPath,
+                RegistryConstants.InstallPathValueName,
                 tfdPath);
 
             _registryService.SetStringValue(
-                @"SOFTWARE\EA Games\Command & Conquer The First Decade",
-                "Version",
-                "1.03");
+                RegistryConstants.TheFirstDecadeKeyPath,
+                RegistryConstants.VersionValueName,
+                RegistryConstants.TfdVersionValue);
 
             details.Add("✓ Created: HKCU\\SOFTWARE\\EA Games\\Command & Conquer The First Decade");
             details.Add($"  • InstallPath = {tfdPath}");

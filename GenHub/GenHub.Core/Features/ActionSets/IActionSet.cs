@@ -81,8 +81,8 @@ public record ActionSetResult(bool Success, string? ErrorMessage = null, List<st
     /// <returns>A new ActionSetResult with the detail added.</returns>
     public ActionSetResult WithDetail(string detail)
     {
-        Details.Add(detail);
-        return this;
+        var newDetails = new List<string>(Details) { detail };
+        return this with { Details = newDetails };
     }
 
     /// <summary>

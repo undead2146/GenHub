@@ -49,7 +49,7 @@ public class Patch108Fix(IHttpClientFactory httpClientFactory, ILogger<Patch108F
         try
         {
             // Check if generals.exe version is 1.08
-            var gameExePath = Path.Combine(installation.InstallationPath, "generals.exe");
+            var gameExePath = Path.Combine(installation.GeneralsPath, ActionSetConstants.FileNames.GeneralsExe);
             if (!File.Exists(gameExePath))
             {
                 return Task.FromResult(false);
@@ -81,7 +81,7 @@ public class Patch108Fix(IHttpClientFactory httpClientFactory, ILogger<Patch108F
         try
         {
             details.Add("Starting Generals 1.08 patch installation...");
-            details.Add($"Target directory: {installation.InstallationPath}");
+            details.Add($"Target directory: {installation.GeneralsPath}");
 
             var tempPath = Path.Combine(Path.GetTempPath(), "gn108_patch.zip");
             var extractPath = Path.Combine(Path.GetTempPath(), "gn108_extract");
@@ -115,14 +115,14 @@ public class Patch108Fix(IHttpClientFactory httpClientFactory, ILogger<Patch108F
             details.Add($"✓ Extracted {extractedFiles.Length} files");
 
             // Copy files to game directory
-            details.Add($"Installing to: {installation.InstallationPath}");
-            logger.LogInformation("Copying patch files to {Path}", installation.InstallationPath);
+            details.Add($"Installing to: {installation.GeneralsPath}");
+            logger.LogInformation("Copying patch files to {Path}", installation.GeneralsPath);
 
             int copiedCount = 0;
             foreach (var file in extractedFiles)
             {
                 var relativePath = file.Substring(extractPath.Length).TrimStart(Path.DirectorySeparatorChar);
-                var destPath = Path.Combine(installation.InstallationPath, relativePath);
+                var destPath = Path.Combine(installation.GeneralsPath, relativePath);
 
                 var destDir = Path.GetDirectoryName(destPath);
                 if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))

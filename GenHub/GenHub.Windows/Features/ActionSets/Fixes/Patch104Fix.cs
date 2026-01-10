@@ -51,7 +51,7 @@ public class Patch104Fix(IHttpClientFactory httpClientFactory, ILogger<Patch104F
         try
         {
             // Check if game.exe version is 1.04
-            var gameExePath = Path.Combine(installation.InstallationPath, "game.exe");
+            var gameExePath = Path.Combine(installation.ZeroHourPath, ActionSetConstants.FileNames.GameExe);
             if (!File.Exists(gameExePath))
             {
                 return Task.FromResult(false);
@@ -83,7 +83,7 @@ public class Patch104Fix(IHttpClientFactory httpClientFactory, ILogger<Patch104F
         try
         {
             details.Add("Starting Zero Hour 1.04 patch installation...");
-            details.Add($"Target directory: {installation.InstallationPath}");
+            details.Add($"Target directory: {installation.ZeroHourPath}");
 
             var tempPath = Path.Combine(Path.GetTempPath(), "zh104_patch.zip");
             var extractPath = Path.Combine(Path.GetTempPath(), "zh104_extract");
@@ -117,14 +117,14 @@ public class Patch104Fix(IHttpClientFactory httpClientFactory, ILogger<Patch104F
             details.Add($"✓ Extracted {extractedFiles.Length} files");
 
             // Copy files to game directory
-            details.Add($"Installing to: {installation.InstallationPath}");
-            logger.LogInformation("Copying patch files to {Path}", installation.InstallationPath);
+            details.Add($"Installing to: {installation.ZeroHourPath}");
+            logger.LogInformation("Copying patch files to {Path}", installation.ZeroHourPath);
 
             int copiedCount = 0;
             foreach (var file in extractedFiles)
             {
                 var relativePath = file.Substring(extractPath.Length).TrimStart(Path.DirectorySeparatorChar);
-                var destPath = Path.Combine(installation.InstallationPath, relativePath);
+                var destPath = Path.Combine(installation.ZeroHourPath, relativePath);
 
                 var destDir = Path.GetDirectoryName(destPath);
                 if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))

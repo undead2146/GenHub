@@ -46,8 +46,8 @@ public class CNCOnlineRegistryFix(
         {
             // Check if C&C Online registry entries exist
             var cncOnlineInstalled = _registryService.GetStringValue(
-                @"SOFTWARE\Revora\CNCOnline",
-                "InstallPath");
+                RegistryConstants.CncOnlineKeyPath,
+                RegistryConstants.InstallPathValueName);
 
             return Task.FromResult(!string.IsNullOrEmpty(cncOnlineInstalled));
         }
@@ -73,14 +73,14 @@ public class CNCOnlineRegistryFix(
                 details.Add($"Configuring C&C Online for Generals at: {installation.GeneralsPath}");
 
                 _registryService.SetStringValue(
-                    @"SOFTWARE\Revora\CNCOnline\Generals",
-                    "InstallPath",
+                    RegistryConstants.CncOnlineGeneralsKeyPath,
+                    RegistryConstants.InstallPathValueName,
                     installation.GeneralsPath);
 
                 _registryService.SetStringValue(
-                    @"SOFTWARE\Revora\CNCOnline\Generals",
-                    "Version",
-                    "1.08");
+                    RegistryConstants.CncOnlineGeneralsKeyPath,
+                    RegistryConstants.VersionValueName,
+                    RegistryConstants.CncOnlineGeneralsVersion);
 
                 details.Add("✓ Created: HKCU\\SOFTWARE\\Revora\\CNCOnline\\Generals");
                 details.Add($"  • InstallPath = {installation.GeneralsPath}");
@@ -95,14 +95,14 @@ public class CNCOnlineRegistryFix(
                 details.Add($"Configuring C&C Online for Zero Hour at: {installation.ZeroHourPath}");
 
                 _registryService.SetStringValue(
-                    @"SOFTWARE\Revora\CNCOnline\ZeroHour",
-                    "InstallPath",
+                    RegistryConstants.CncOnlineZeroHourKeyPath,
+                    RegistryConstants.InstallPathValueName,
                     installation.ZeroHourPath);
 
                 _registryService.SetStringValue(
-                    @"SOFTWARE\Revora\CNCOnline\ZeroHour",
-                    "Version",
-                    "1.04");
+                    RegistryConstants.CncOnlineZeroHourKeyPath,
+                    RegistryConstants.VersionValueName,
+                    RegistryConstants.CncOnlineZeroHourVersion);
 
                 details.Add("✓ Created: HKCU\\SOFTWARE\\Revora\\CNCOnline\\ZeroHour");
                 details.Add($"  • InstallPath = {installation.ZeroHourPath}");
@@ -119,14 +119,14 @@ public class CNCOnlineRegistryFix(
             details.Add("Creating main C&C Online registry entry...");
 
             _registryService.SetStringValue(
-                @"SOFTWARE\Revora\CNCOnline",
-                "InstallPath",
+                RegistryConstants.CncOnlineKeyPath,
+                RegistryConstants.InstallPathValueName,
                 basePath);
 
             _registryService.SetStringValue(
-                @"SOFTWARE\Revora\CNCOnline",
-                "Version",
-                "1.0");
+                RegistryConstants.CncOnlineKeyPath,
+                RegistryConstants.VersionValueName,
+                RegistryConstants.CncOnlineVersion);
 
             details.Add("✓ Created: HKCU\\SOFTWARE\\Revora\\CNCOnline");
             details.Add($"  • InstallPath = {basePath}");

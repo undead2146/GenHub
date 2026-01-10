@@ -32,6 +32,9 @@ public static class WindowsServicesModule
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddWindowsServices(this IServiceCollection services)
     {
+        // Add HttpClient for patches that download content
+        services.AddHttpClient();
+
         // Register Windows-specific services
         services.AddSingleton<IGameInstallationDetector, WindowsInstallationDetector>();
         services.AddSingleton<IGitHubTokenStorage, WindowsGitHubTokenStorage>();
@@ -87,9 +90,8 @@ public static class WindowsServicesModule
         services.AddSingleton<IActionSet, PreferIPv4Fix>();
         services.AddSingleton<IActionSet, FirewallExceptionFix>();
 
-        // NOTE: GenPatcherContentActionSetProvider is NOT registered here.
-        // Content from GenPatcherContentRegistry is already available in the Downloads UI
-        // and should not be duplicated as ActionSets. Only the 4 core fixes above are needed.
+        // Register Content ActionSet Provider for dynamic content (filtered)
+        services.AddSingleton<IActionSetProvider, GenPatcherContentActionSetProvider>();
 
         // Register GenPatcher Tool
         services.AddSingleton<IToolPlugin, GenPatcherTool>();

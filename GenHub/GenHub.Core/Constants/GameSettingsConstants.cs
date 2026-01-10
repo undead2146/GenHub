@@ -178,4 +178,49 @@ public static class GameSettingsConstants
             "7680x4320",   // 8K
         ];
     }
+
+    /// <summary>
+    /// Optimal settings for game performance and compatibility.
+    /// </summary>
+    public static class OptimalSettings
+    {
+        // Video
+        public const int AntiAliasing = 1;
+        public const int TextureReduction = 0;
+        public const bool ExtraAnimations = true;
+        public const int Gamma = 50;
+        public const bool UseShadowDecals = true;
+        public const bool UseShadowVolumes = false;
+        public const bool Windowed = false;
+        public const int DefaultResolutionWidth = 1920;
+        public const int DefaultResolutionHeight = 1080;
+
+        // Audio
+        public const int VolumeLevel = 70; // Common for SFX, Music, Voice
+        public const bool AudioEnabled = true;
+        public const int NumSounds = 16;
+
+        // Network
+        public const string GameSpyIPAddress = "0.0.0.0";
+
+        // TheSuperHackers
+        public const string BuildingOcclusion = "yes";
+        public const string CampaignDifficulty = "0";
+        public const string DynamicLOD = "no";
+        public const string FirewallPortOverride = "16001";
+        public const string HeatEffects = "no";
+        public const string IdealStaticGameLOD = "High";
+        public const string LanguageFilter = "false";
+        public const string MaxParticleCount = "1000";
+        public const string Retaliation = "yes";
+        public const string ScrollFactor = "60";
+        public const string SendDelay = "no";
+        public const string ShowSoftWaterEdge = "yes";
+        public const string ShowTrees = "yes";
+        public const string StaticGameLOD = "Custom";
+        public const string UseAlternateMouse = "no";
+        public const string UseCloudMap = "yes";
+        public const string UseDoubleClickAttackMove = "no";
+        public const string UseLightMap = "yes";
+    }
 }

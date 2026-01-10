@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Features.ActionSets;
 using GenHub.Core.Interfaces.GameSettings;
+using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.GameSettings;
@@ -151,7 +152,7 @@ public class OptionsINIFix(IGameSettingsService gameSettingsService, ILogger<Opt
             details.Add("Applying optimal settings...");
 
             // Apply optimal settings
-            ApplyOptimalSettings(options, installation.InstallationType);
+            ApplyOptimalSettings(options, installation.InstallationType, details);
 
             // Log what was changed
             details.Add("✓ Video settings optimized:");
@@ -265,23 +266,29 @@ public class OptionsINIFix(IGameSettingsService gameSettingsService, ILogger<Opt
         return true;
     }
 
-    private void ApplyOptimalSettings(IniOptions options, GameInstallationType installationType)
+    private void ApplyOptimalSettings(IniOptions options, GameInstallationType installationType, List<string> details)
     {
         // Set optimal values for performance and compatibility
-        options.Video.AntiAliasing = 1;
-        options.Video.TextureReduction = 0;
-        options.Video.ExtraAnimations = true;
-        options.Video.Gamma = 50;
-        options.Video.UseShadowDecals = true;
-        options.Video.UseShadowVolumes = false;
-        options.Video.Windowed = false;
+        options.Video.AntiAliasing = GameSettingsConstants.OptimalSettings.AntiAliasing;
+        options.Video.TextureReduction = GameSettingsConstants.OptimalSettings.TextureReduction;
+        options.Video.ExtraAnimations = GameSettingsConstants.OptimalSettings.ExtraAnimations;
+        options.Video.Gamma = GameSettingsConstants.OptimalSettings.Gamma;
+        options.Video.UseShadowDecals = GameSettingsConstants.OptimalSettings.UseShadowDecals;
+        options.Video.UseShadowVolumes = GameSettingsConstants.OptimalSettings.UseShadowVolumes;
+        options.Video.Windowed = GameSettingsConstants.OptimalSettings.Windowed;
+        options.Video.ResolutionWidth = GameSettingsConstants.OptimalSettings.DefaultResolutionWidth;
+        options.Video.ResolutionHeight = GameSettingsConstants.OptimalSettings.DefaultResolutionHeight;
 
-        options.Audio.SFXVolume = 70;
-        options.Audio.SFX3DVolume = 70;
-        options.Audio.MusicVolume = 70;
-        options.Audio.VoiceVolume = 70;
-        options.Audio.AudioEnabled = true;
-        options.Audio.NumSounds = 16;
+        details.Add($"✓ Set AntiAliasing = {GameSettingsConstants.OptimalSettings.AntiAliasing}");
+        details.Add($"✓ Set TextureReduction = {GameSettingsConstants.OptimalSettings.TextureReduction}");
+        details.Add($"✓ Set Gamma = {GameSettingsConstants.OptimalSettings.Gamma}");
+
+        options.Audio.SFXVolume = GameSettingsConstants.OptimalSettings.VolumeLevel;
+        options.Audio.SFX3DVolume = GameSettingsConstants.OptimalSettings.VolumeLevel;
+        options.Audio.MusicVolume = GameSettingsConstants.OptimalSettings.VolumeLevel;
+        options.Audio.VoiceVolume = GameSettingsConstants.OptimalSettings.VolumeLevel;
+        options.Audio.AudioEnabled = GameSettingsConstants.OptimalSettings.AudioEnabled;
+        options.Audio.NumSounds = GameSettingsConstants.OptimalSettings.NumSounds;
 
         // Set default resolution if it's a bad one
         if (IsBadResolution(options.Video.ResolutionWidth, options.Video.ResolutionHeight))
@@ -291,33 +298,35 @@ public class OptionsINIFix(IGameSettingsService gameSettingsService, ILogger<Opt
         }
 
         // Set network settings
-        options.Network.GameSpyIPAddress = "0.0.0.0";
+        options.Network.GameSpyIPAddress = GameSettingsConstants.OptimalSettings.GameSpyIPAddress;
 
-        // Set TheSuperHackers specific settings in AdditionalProperties
-        if (!options.AdditionalSections.ContainsKey("TheSuperHackers"))
+        // Ensure [TheSuperHackers] section exists with optimal defaults
+        if (!options.AdditionalSections.TryGetValue(ActionSetConstants.IniFiles.TheSuperHackersSection, out var tsh))
         {
-            options.AdditionalSections["TheSuperHackers"] = new Dictionary<string, string>();
+            tsh = new Dictionary<string, string>();
+            options.AdditionalSections[ActionSetConstants.IniFiles.TheSuperHackersSection] = tsh;
         }
 
-        var tshSection = options.AdditionalSections["TheSuperHackers"];
-        tshSection["BuildingOcclusion"] = "yes";
-        tshSection["CampaignDifficulty"] = "0";
-        tshSection["DynamicLOD"] = "no";
-        tshSection["FirewallPortOverride"] = "16001";
-        tshSection["HeatEffects"] = "no";
-        tshSection["IdealStaticGameLOD"] = "High";
-        tshSection["LanguageFilter"] = "false";
-        tshSection["MaxParticleCount"] = "1000";
-        tshSection["Retaliation"] = "yes";
-        tshSection["ScrollFactor"] = "60";
-        tshSection["SendDelay"] = "no";
-        tshSection["ShowSoftWaterEdge"] = "yes";
-        tshSection["ShowTrees"] = "yes";
-        tshSection["StaticGameLOD"] = "Custom";
-        tshSection["UseAlternateMouse"] = "no";
-        tshSection["UseCloudMap"] = "yes";
-        tshSection["UseDoubleClickAttackMove"] = "no";
-        tshSection["UseLightMap"] = "yes";
+        tsh["BuildingOcclusion"] = GameSettingsConstants.OptimalSettings.BuildingOcclusion;
+        tsh["CampaignDifficulty"] = GameSettingsConstants.OptimalSettings.CampaignDifficulty;
+        tsh["DynamicLOD"] = GameSettingsConstants.OptimalSettings.DynamicLOD;
+        tsh["FirewallPortOverride"] = GameSettingsConstants.OptimalSettings.FirewallPortOverride;
+        tsh["HeatEffects"] = GameSettingsConstants.OptimalSettings.HeatEffects;
+        tsh["IdealStaticGameLOD"] = GameSettingsConstants.OptimalSettings.IdealStaticGameLOD;
+        tsh["LanguageFilter"] = GameSettingsConstants.OptimalSettings.LanguageFilter;
+        tsh["MaxParticleCount"] = GameSettingsConstants.OptimalSettings.MaxParticleCount;
+        tsh["Retaliation"] = GameSettingsConstants.OptimalSettings.Retaliation;
+        tsh["ScrollFactor"] = GameSettingsConstants.OptimalSettings.ScrollFactor;
+        tsh["SendDelay"] = GameSettingsConstants.OptimalSettings.SendDelay;
+        tsh["ShowSoftWaterEdge"] = GameSettingsConstants.OptimalSettings.ShowSoftWaterEdge;
+        tsh["ShowTrees"] = GameSettingsConstants.OptimalSettings.ShowTrees;
+        tsh["StaticGameLOD"] = GameSettingsConstants.OptimalSettings.StaticGameLOD;
+        tsh["UseAlternateMouse"] = GameSettingsConstants.OptimalSettings.UseAlternateMouse;
+        tsh["UseCloudMap"] = GameSettingsConstants.OptimalSettings.UseCloudMap;
+        tsh["UseDoubleClickAttackMove"] = GameSettingsConstants.OptimalSettings.UseDoubleClickAttackMove;
+        tsh["UseLightMap"] = GameSettingsConstants.OptimalSettings.UseLightMap;
+
+        details.Add("✓ Applied optimal GenPatcher settings/compatibility tweaks");
     }
 
     private bool IsBadResolution(int width, int height)

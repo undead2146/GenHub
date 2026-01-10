@@ -6,6 +6,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Features.ActionSets;
+using GenHub.Core.Constants;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.Results;
 using Microsoft.Extensions.Logging;
@@ -47,7 +48,7 @@ public class ZeroHourExecutableFix(ILogger<ZeroHourExecutableFix> logger) : Base
                 return Task.FromResult(false);
             }
 
-            var gameExePath = Path.Combine(installation.ZeroHourPath, "game.exe");
+            var gameExePath = Path.Combine(installation.ZeroHourPath, ActionSetConstants.FileNames.GameExe);
             if (!File.Exists(gameExePath))
             {
                 return Task.FromResult(false);
@@ -91,7 +92,7 @@ public class ZeroHourExecutableFix(ILogger<ZeroHourExecutableFix> logger) : Base
             details.Add("The actual patching is done by the 'Zero Hour 1.04 Patch' fix.");
             details.Add(string.Empty);
 
-            var gameExePath = Path.Combine(installation.ZeroHourPath, "game.exe");
+            var gameExePath = Path.Combine(installation.ZeroHourPath, ActionSetConstants.FileNames.GameExe);
 
             if (File.Exists(gameExePath))
             {

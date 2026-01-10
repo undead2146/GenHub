@@ -1,23 +1,33 @@
-namespace GenHub.Windows.Features.ActionSets.Infrastructure;
-
 using System.Collections.Generic;
 using GenHub.Core.Features.ActionSets;
 using GenHub.Core.Models.CommunityOutpost;
 using Microsoft.Extensions.Logging;
 
+namespace GenHub.Windows.Features.ActionSets.Infrastructure;
+
 /// <summary>
-/// Provider for action sets based on GenPatcher content metadata.
+/// Provides action sets derived from GenPatcher content (patches, etc.).
+/// Filters out content that belongs in the Downloads tab.
 /// </summary>
-public class GenPatcherContentActionSetProvider(ILoggerFactory loggerFactory) : IActionSetProvider
+public class GenPatcherContentActionSetProvider : IActionSetProvider
 {
-    private readonly ILoggerFactory _loggerFactory = loggerFactory;
+    private readonly ILogger<ContentActionSet> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="GenPatcherContentActionSetProvider"/> class.
+    /// </summary>
+    /// <param name="logger">The logger factory.</param>
+    public GenPatcherContentActionSetProvider(ILogger<ContentActionSet> logger)
+    {
+        _logger = logger;
+    }
 
     /// <inheritdoc/>
     public IEnumerable<IActionSet> GetActionSets()
     {
-        var codes = GenPatcherContentRegistry.GetKnownContentCodes();
+        var contentCodes = GenPatcherContentRegistry.GetKnownContentCodes();
 
-        foreach (var code in codes)
+        foreach (var code in contentCodes)
         {
             var metadata = GenPatcherContentRegistry.GetMetadata(code);
 
@@ -34,8 +44,7 @@ public class GenPatcherContentActionSetProvider(ILoggerFactory loggerFactory) : 
                 continue;
             }
 
-            var logger = _loggerFactory.CreateLogger<ContentActionSet>();
-            yield return new ContentActionSet(metadata, logger);
+            yield return new ContentActionSet(metadata, _logger);
         }
     }
 }

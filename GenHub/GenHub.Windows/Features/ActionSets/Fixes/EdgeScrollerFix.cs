@@ -160,20 +160,26 @@ public class EdgeScrollerFix(ILogger<EdgeScrollerFix> logger, IGameSettingsServi
             var optionsPath = _gameSettingsService.GetOptionsFilePath(gameType);
 
             // Apply optimal edge scrolling settings
-            if (!options.AdditionalSections.TryGetValue("TheSuperHackers", out var tshSection))
+            if (!options.AdditionalSections.TryGetValue(ActionSetConstants.IniFiles.TheSuperHackersSection, out var tshSection))
             {
                 tshSection = new Dictionary<string, string>();
-                options.AdditionalSections["TheSuperHackers"] = tshSection;
-                details.Add($"✓ Created [TheSuperHackers] section in Options.ini for {gameType}");
+                options.AdditionalSections[ActionSetConstants.IniFiles.TheSuperHackersSection] = tshSection;
+                details.Add($"✓ Created [{ActionSetConstants.IniFiles.TheSuperHackersSection}] section in Options.ini for {gameType}");
             }
 
-            tshSection["ScrollEdgeZone"] = "0.1";
-            tshSection["ScrollEdgeSpeed"] = "1.5";
-            tshSection["ScrollEdgeAcceleration"] = "1.0";
-
-            details.Add($"✓ Set ScrollEdgeZone=0.1 for {gameType}");
-            details.Add($"✓ Set ScrollEdgeSpeed=1.5 for {gameType}");
-            details.Add($"✓ Set ScrollEdgeAcceleration=1.0 for {gameType}");
+            // Apply scroll settings
+            tshSection[ActionSetConstants.IniFiles.ScrollEdgeZoneKey] = "0";
+            tshSection[ActionSetConstants.IniFiles.ScrollEdgeSpeedKey] = "1.0";
+            tshSection[ActionSetConstants.IniFiles.ScrollEdgeAccelerationKey] = "0.0";
+            // Also ensure default scroll factor is good if present
+            if (tshSection.ContainsKey("ScrollFactor"))
+            {
+                 tshSection["ScrollFactor"] = "60";
+                 details.Add($"✓ Set ScrollFactor=60 for {gameType}");
+            }
+            details.Add($"✓ Set {ActionSetConstants.IniFiles.ScrollEdgeZoneKey}=0 for {gameType}");
+            details.Add($"✓ Set {ActionSetConstants.IniFiles.ScrollEdgeSpeedKey}=1.0 for {gameType}");
+            details.Add($"✓ Set {ActionSetConstants.IniFiles.ScrollEdgeAccelerationKey}=0.0 for {gameType}");
 
             await _gameSettingsService.SaveOptionsAsync(gameType, options);
 

@@ -6,6 +6,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Features.ActionSets;
+using GenHub.Core.Constants;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.Results;
 using Microsoft.Extensions.Logging;
@@ -47,10 +48,10 @@ public class VanillaExecutableFix(ILogger<VanillaExecutableFix> logger) : BaseAc
                 return Task.FromResult(false);
             }
 
-            var generalsExePath = Path.Combine(installation.GeneralsPath, "generals.exe");
+            var generalsExePath = Path.Combine(installation.GeneralsPath, ActionSetConstants.FileNames.GeneralsExe);
             if (!File.Exists(generalsExePath))
             {
-                generalsExePath = Path.Combine(installation.GeneralsPath, "Generals.exe");
+                // Fallback case-insensitive check handled by file system, but keeping logic structure
             }
 
             if (!File.Exists(generalsExePath))
@@ -96,10 +97,10 @@ public class VanillaExecutableFix(ILogger<VanillaExecutableFix> logger) : BaseAc
             details.Add("The actual patching is done by the 'Generals 1.08 Patch' fix.");
             details.Add(string.Empty);
 
-            var generalsExePath = Path.Combine(installation.GeneralsPath, "generals.exe");
+            var generalsExePath = Path.Combine(installation.GeneralsPath, ActionSetConstants.FileNames.GeneralsExe);
             if (!File.Exists(generalsExePath))
             {
-                generalsExePath = Path.Combine(installation.GeneralsPath, "Generals.exe");
+                // Try searching strictly if needed, but Windows specific constant is generals.exe
             }
 
             if (File.Exists(generalsExePath))

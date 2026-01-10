@@ -253,7 +253,7 @@ public class RemoveReadOnlyFix(ILogger<RemoveReadOnlyFix> logger) : BaseActionSe
             var psi = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
-                Arguments = $"-WindowStyle Hidden -NoProfile -NonInteractive -Command \"Get-ChildItem -Path '{path}' -Recurse | ForEach-Object {{ attrib +P -U $_.FullName }}\"",
+                Arguments = $"-WindowStyle Hidden -NoProfile -NonInteractive -Command \"Get-ChildItem -Path '{path.Replace("'", "''")}' -Recurse | ForEach-Object {{ attrib +P -U $_.FullName }}\"",
                 CreateNoWindow = true,
                 UseShellExecute = false,
             };

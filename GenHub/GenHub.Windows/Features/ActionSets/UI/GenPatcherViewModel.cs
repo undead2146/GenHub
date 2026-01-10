@@ -111,13 +111,15 @@ public partial class GenPatcherViewModel : ObservableObject
             var fixes = this.orchestrator.GetAllActionSets();
             ActionSets.Clear();
 
+            var installation = currentInstallation;
+
             // Parallelize status checks to prevent UI blocking
             var tasks = new List<Task<ActionSetViewModel>>();
             foreach (var fix in fixes)
             {
                 tasks.Add(Task.Run(async () =>
                 {
-                    var vm = new ActionSetViewModel(fix, currentInstallation, registryService, notificationService, logger);
+                    var vm = new ActionSetViewModel(fix, installation, registryService, notificationService, logger);
                     await vm.CheckStatusAsync();
                     return vm;
                 }));
@@ -175,7 +177,7 @@ public partial class GenPatcherViewModel : ObservableObject
             "Applying Fixes",
             $"Applying {applicableFixes.Count} recommended fix(es)...");
 
-        await this.orchestrator.ApplyActionSetsAsync(this.currentInstallation, applicableFixes);
+        var result = await this.orchestrator.ApplyActionSetsAsync(this.currentInstallation, applicableFixes);
 
         // Refresh status
         foreach(var vm in ActionSets)
@@ -183,8 +185,17 @@ public partial class GenPatcherViewModel : ObservableObject
             await vm.CheckStatusAsync();
         }
 
-        this.notificationService.ShowSuccess(
-            "Fixes Applied",
-            $"Successfully applied {applicableFixes.Count} fix(es).");
+        if (!result.Success)
+        {
+            this.notificationService.ShowError(
+                "Fixes Failed",
+                $"Failed to apply some fixes: {string.Join(", ", result.Errors ?? [])}");
+        }
+        else
+        {
+            this.notificationService.ShowSuccess(
+                "Fixes Applied",
+                $"Successfully applied {applicableFixes.Count} fix(es).");
+        }
     }
 }

@@ -159,14 +159,14 @@ public class OneDriveFix(ILogger<OneDriveFix> logger) : BaseActionSet(logger)
     {
         try
         {
-            var desktopIniPath = Path.Combine(path, "desktop.ini");
+            var desktopIniPath = Path.Combine(path, ActionSetConstants.FileNames.DesktopIni);
             if (!File.Exists(desktopIniPath))
             {
                 return false;
             }
 
             var content = File.ReadAllText(desktopIniPath);
-            return content.Contains("ThisPCPolicy") && content.Contains("DisableCloudSync");
+            return content.Contains(ActionSetConstants.IniFiles.ThisPCPolicyKey) && content.Contains(ActionSetConstants.IniFiles.ThisPCPolicyValue);
         }
         catch (Exception ex)
         {
@@ -181,16 +181,18 @@ public class OneDriveFix(ILogger<OneDriveFix> logger) : BaseActionSet(logger)
         {
             _logger.LogInformation("Applying OneDrive protection to: {Path}", path);
 
-            var desktopIniPath = Path.Combine(path, "desktop.ini");
+            var desktopIniPath = Path.Combine(path, ActionSetConstants.FileNames.DesktopIni);
 
-            // Create desktop.ini content with ThisPCPolicy=DisableCloudSync
-            var content = new StringBuilder();
-            content.AppendLine("[.ShellClassInfo]");
-            content.AppendLine("ThisPCPolicy=DisableCloudSync");
-            content.AppendLine("ConfirmFileOp=0");
+            // Prepare desktop.ini content
+            var lines = new List<string>
+            {
+                ActionSetConstants.IniFiles.ShellClassInfoSection,
+                $"{ActionSetConstants.IniFiles.ThisPCPolicyKey}={ActionSetConstants.IniFiles.ThisPCPolicyValue}",
+                $"{ActionSetConstants.IniFiles.ConfirmFileOpKey}=0"
+            };
 
             // Write desktop.ini file
-            await File.WriteAllTextAsync(desktopIniPath, content.ToString(), cancellationToken);
+            await File.WriteAllLinesAsync(desktopIniPath, lines, cancellationToken);
 
             // Set desktop.ini as hidden and system file
             var attributes = File.GetAttributes(desktopIniPath);
