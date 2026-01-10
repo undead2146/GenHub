@@ -18,8 +18,6 @@ namespace GenHub.Features.Launching;
 public class LaunchRegistry(ILogger<LaunchRegistry> logger, IWorkspaceManager? workspaceManager = null) : ILaunchRegistry
 {
     private readonly ConcurrentDictionary<string, GameLaunchInfo> _activeLaunches = new();
-    private readonly ILogger<LaunchRegistry> _logger = logger;
-    private readonly IWorkspaceManager? _workspaceManager = workspaceManager;
 
     /// <summary>
     /// Registers a new game launch in the registry.
@@ -32,7 +30,7 @@ public class LaunchRegistry(ILogger<LaunchRegistry> logger, IWorkspaceManager? w
         ArgumentException.ThrowIfNullOrWhiteSpace(launchInfo.LaunchId);
 
         _activeLaunches[launchInfo.LaunchId] = launchInfo;
-        _logger.LogInformation("Registered launch {LaunchId} for profile {ProfileId}", launchInfo.LaunchId, launchInfo.ProfileId);
+        logger.LogInformation("Registered launch {LaunchId} for profile {ProfileId}", launchInfo.LaunchId, launchInfo.ProfileId);
         return Task.CompletedTask;
     }
 
@@ -48,11 +46,11 @@ public class LaunchRegistry(ILogger<LaunchRegistry> logger, IWorkspaceManager? w
         if (_activeLaunches.TryRemove(launchId, out var launchInfo))
         {
             launchInfo.TerminatedAt = System.DateTime.UtcNow;
-            _logger.LogInformation("Unregistered launch {LaunchId} for profile {ProfileId}", launchId, launchInfo.ProfileId);
+            logger.LogInformation("Unregistered launch {LaunchId} for profile {ProfileId}", launchId, launchInfo.ProfileId);
         }
         else
         {
-            _logger.LogWarning("Attempted to unregister non-existent launch {LaunchId}", launchId);
+            logger.LogWarning("Attempted to unregister non-existent launch {LaunchId}", launchId);
         }
 
         return Task.CompletedTask;
@@ -100,7 +98,7 @@ public class LaunchRegistry(ILogger<LaunchRegistry> logger, IWorkspaceManager? w
 
             if (runningProcess == null)
             {
-                _logger.LogDebug("Process {ProcessId} for launch {LaunchId} no longer exists", launchInfo.ProcessInfo.ProcessId, launchId);
+                logger.LogDebug("Process {ProcessId} for launch {LaunchId} no longer exists", launchInfo.ProcessInfo.ProcessId, launchId);
                 launchInfo.TerminatedAt = DateTime.UtcNow;
 
                 // NOTE: Workspace is NOT cleaned up automatically - it persists across launches
@@ -127,14 +125,14 @@ public class LaunchRegistry(ILogger<LaunchRegistry> logger, IWorkspaceManager? w
         }
         catch (UnauthorizedAccessException uaex)
         {
-            _logger.LogWarning(uaex, "Access denied checking process status for launch {LaunchId}", launchId);
+            logger.LogWarning(uaex, "Access denied checking process status for launch {LaunchId}", launchId);
             launchInfo.TerminatedAt = DateTime.UtcNow;
 
             // NOTE: Workspace is NOT cleaned up on error - it persists
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to check process status for launch {LaunchId}", launchId);
+            logger.LogWarning(ex, "Failed to check process status for launch {LaunchId}", launchId);
             launchInfo.TerminatedAt = DateTime.UtcNow;
 
             // NOTE: Workspace is NOT cleaned up on error - it persists
@@ -148,23 +146,23 @@ public class LaunchRegistry(ILogger<LaunchRegistry> logger, IWorkspaceManager? w
     /// <param name="launchId">The launch ID.</param>
     private async Task CleanupWorkspaceForLaunchAsync(GameLaunchInfo launchInfo, string launchId)
     {
-        if (_workspaceManager == null || string.IsNullOrEmpty(launchInfo.WorkspaceId))
+        if (workspaceManager == null || string.IsNullOrEmpty(launchInfo.WorkspaceId))
         {
             return;
         }
 
         try
         {
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Automatically cleaning up workspace {WorkspaceId} for terminated launch {LaunchId} (Profile: {ProfileId})",
                 launchInfo.WorkspaceId,
                 launchId,
                 launchInfo.ProfileId);
 
-            var cleanupResult = await _workspaceManager.CleanupWorkspaceAsync(launchInfo.WorkspaceId);
+            var cleanupResult = await workspaceManager.CleanupWorkspaceAsync(launchInfo.WorkspaceId);
             if (cleanupResult.Failed)
             {
-                _logger.LogWarning(
+                logger.LogWarning(
                     "Failed to cleanup workspace {WorkspaceId} for launch {LaunchId}: {Error}",
                     launchInfo.WorkspaceId,
                     launchId,
@@ -172,7 +170,7 @@ public class LaunchRegistry(ILogger<LaunchRegistry> logger, IWorkspaceManager? w
             }
             else
             {
-                _logger.LogInformation(
+                logger.LogInformation(
                     "Successfully cleaned up workspace {WorkspaceId} for terminated launch {LaunchId}",
                     launchInfo.WorkspaceId,
                     launchId);
@@ -180,7 +178,7 @@ public class LaunchRegistry(ILogger<LaunchRegistry> logger, IWorkspaceManager? w
         }
         catch (Exception ex)
         {
-            _logger.LogError(
+            logger.LogError(
                 ex,
                 "Exception during automatic workspace cleanup for launch {LaunchId}, workspace {WorkspaceId}",
                 launchId,

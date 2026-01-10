@@ -21,6 +21,10 @@
         </PackageReference>
 
         <PackageReference Include="CommunityToolkit.Mvvm" />
+
+        <PackageReference Include="HtmlAgilityPack" />
+
+        <PackageReference Include="Markdig" />
         <PackageReference Include="Material.Icons.Avalonia" />
         <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" />

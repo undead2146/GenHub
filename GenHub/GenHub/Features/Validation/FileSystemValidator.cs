@@ -19,11 +19,6 @@ namespace GenHub.Features.Validation;
 /// <param name="hashProvider">Hash provider instance.</param>
 public abstract class FileSystemValidator(ILogger logger, IFileHashProvider hashProvider)
 {
-    /// <summary>
-    /// Logger for validation events.
-    /// </summary>
-    private readonly ILogger _logger = logger;
-    private readonly IFileHashProvider _hashProvider = hashProvider;
 
     /// <summary>
     /// Validates that all required directories exist.
@@ -56,7 +51,7 @@ public abstract class FileSystemValidator(ILogger logger, IFileHashProvider hash
     /// <returns>SHA256 hash string.</returns>
     protected async Task<string> ComputeSha256Async(string filePath, CancellationToken cancellationToken)
     {
-        return await _hashProvider.ComputeFileHashAsync(filePath, cancellationToken);
+        return await hashProvider.ComputeFileHashAsync(filePath, cancellationToken);
     }
 
     /// <summary>
@@ -113,7 +108,7 @@ public abstract class FileSystemValidator(ILogger logger, IFileHashProvider hash
                 }
                 catch (IOException ex)
                 {
-                    _logger.LogError(ex, "I/O error validating file {FilePath}", absFile);
+                    logger.LogError(ex, "I/O error validating file {FilePath}", absFile);
                     issues.Add(new ValidationIssue { IssueType = ValidationIssueType.UnexpectedFile, Path = absFile, Message = $"I/O error: {ex.Message}" });
                 }
 

@@ -1,0 +1,297 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:GenHub.Features.Info.ViewModels"
+             xmlns:models="clr-namespace:GenHub.Core.Models.Info;assembly=GenHub.Core"
+             xmlns:material="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:local="clr-namespace:GenHub.Features.GameProfiles.Views"
+             xmlns:update="clr-namespace:GenHub.Features.AppUpdate.Views"
+             xmlns:views="clr-namespace:GenHub.Features.Info.Views"
+             xmlns:controls="clr-namespace:GenHub.Common.Controls"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
+             x:Class="GenHub.Features.Info.Views.GenHubInfoSectionView"
+             x:DataType="vm:GenHubInfoSectionViewModel">
+
+  <UserControl.Styles>
+    <!-- Section Navigation Styles -->
+    <Style Selector="ListBox.sections">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Padding" Value="0"/>
+    </Style>
+
+    <Style Selector="ListBox.sections ListBoxItem">
+      <Setter Property="Padding" Value="12,10"/>
+      <Setter Property="Margin" Value="0,2"/>
+      <Setter Property="CornerRadius" Value="6"/>
+      <Setter Property="Background" Value="Transparent"/>
+    </Style>
+
+    <Style Selector="ListBox.sections ListBoxItem:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#1AFFFFFF"/>
+    </Style>
+
+    <Style Selector="ListBox.sections ListBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="#33FFFFFF"/>
+      <Setter Property="BorderBrush" Value="{StaticResource SystemAccentColorBrush}"/>
+      <Setter Property="BorderThickness" Value="4,0,0,0"/>
+    </Style>
+
+    <!-- Info Card Styles -->
+    <Style Selector="Border.info-card">
+      <Setter Property="Background" Value="#E61E1E1E"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="BorderBrush" Value="#33FFFFFF"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Margin" Value="0,0,0,16"/>
+      <Setter Property="Padding" Value="20"/>
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.2"/>
+          <ThicknessTransition Property="BorderThickness" Duration="0:0:0.2"/>
+        </Transitions>
+      </Setter>
+    </Style>
+
+    <Style Selector="Border.info-card:pointerover">
+      <Setter Property="BorderBrush" Value="{StaticResource SystemAccentColorBrush}"/>
+    </Style>
+
+    <Style Selector="TextBlock.card-title">
+      <Setter Property="FontSize" Value="20"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Foreground" Value="White"/>
+    </Style>
+
+    <Style Selector="TextBlock.card-content">
+      <Setter Property="FontSize" Value="15"/>
+      <Setter Property="Foreground" Value="#CCCCCC"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+      <Setter Property="LineHeight" Value="24"/>
+    </Style>
+
+    <Style Selector="Button.action-btn">
+      <Setter Property="CornerRadius" Value="6"/>
+      <Setter Property="Padding" Value="16,8"/>
+      <Setter Property="Margin" Value="0,0,10,0"/>
+    </Style>
+
+    <Style Selector="Button.action-btn.primary">
+      <Setter Property="Background" Value="{StaticResource SystemAccentColorBrush}"/>
+      <Setter Property="Foreground" Value="White"/>
+    </Style>
+  </UserControl.Styles>
+
+  <ScrollViewer Padding="30,20,10,20">
+      <StackPanel Spacing="10">
+
+        <!-- Section Header -->
+        <StackPanel Margin="0,0,0,30">
+          <TextBlock Text="{Binding SelectedSection.Title}"
+                     FontSize="32"
+                     FontWeight="Bold"
+                     Foreground="White"/>
+          <TextBlock Text="{Binding SelectedSection.Description}"
+                     FontSize="16"
+                     Foreground="#AAAAAA"
+                     Margin="0,8,0,0"/>
+        </StackPanel>
+
+        <!-- Interactive Demo Section: GAME PROFILES -->
+        <Border IsVisible="{Binding IsGameProfilesSelected}"
+                Margin="0,0,0,30">
+          <StackPanel>
+            <!-- Demo Header -->
+            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,16">
+              <StackPanel>
+                <TextBlock Text="Interactive Element: Game Profile Card"
+                           FontSize="24"
+                           FontWeight="Bold"
+                           Foreground="White"/>
+                <TextBlock Text="This is the actual component used in the app. Hover and click to test it."
+                           FontSize="14"
+                           Foreground="#888888"
+                           Margin="0,4,0,0"/>
+              </StackPanel>
+              <Border CornerRadius="6" Padding="12,6" Background="#20FFFFFF" VerticalAlignment="Center">
+                <TextBlock Text="LIVE DEMO" FontSize="11" FontWeight="Bold" Foreground="#888888"/>
+              </Border>
+            </Grid>
+
+            <!-- Embedded Demo: Game Profile Card -->
+            <Border Background="#10FFFFFF"
+                    CornerRadius="12"
+                    Padding="40,30"
+                    BorderBrush="#20FFFFFF"
+                    BorderThickness="1">
+              <StackPanel HorizontalAlignment="Center">
+                <local:GameProfileCardView DataContext="{Binding DemoProfileCard}"
+                                            Width="280" Height="380"/>
+                <TextBlock Text="↑ Hover over the card and try the buttons!"
+                           FontSize="13"
+                           Foreground="#666666"
+                           HorizontalAlignment="Center"
+                           Margin="0,16,0,0"/>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Border>
+
+        <!-- Interactive Demo Section: APP UPDATE -->
+        <Border IsVisible="{Binding IsAppUpdatesSelected}"
+                Margin="0,0,0,30">
+          <StackPanel>
+            <!-- Demo Header -->
+            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,16">
+              <StackPanel>
+                <TextBlock Text="Interactive Element: Update Notification"
+                           FontSize="24"
+                           FontWeight="Bold"
+                           Foreground="White"/>
+                <TextBlock Text="This is the notification you see when a new version is available."
+                           FontSize="14"
+                           Foreground="#888888"
+                           Margin="0,4,0,0"/>
+              </StackPanel>
+              <Border CornerRadius="6" Padding="12,6" Background="#20FFFFFF" VerticalAlignment="Center">
+                <TextBlock Text="LIVE DEMO" FontSize="11" FontWeight="Bold" Foreground="#888888"/>
+              </Border>
+            </Grid>
+
+            <!-- Embedded Demo: Update View -->
+            <Border Background="#10FFFFFF"
+                    CornerRadius="12"
+                    Padding="40,30"
+                    BorderBrush="#20FFFFFF"
+                    BorderThickness="1">
+              <StackPanel HorizontalAlignment="Center" MaxWidth="600">
+                <Border BorderBrush="#33000000" BorderThickness="1" CornerRadius="8" Background="#1E1E1E" ClipToBounds="True">
+                    <update:UpdateNotificationView DataContext="{Binding DemoUpdateNotification}"/>
+                </Border>
+                <TextBlock Text="This mock uses the real update UI but won't actually install anything."
+                           FontSize="13"
+                           Foreground="#666666"
+                           HorizontalAlignment="Center"
+                           Margin="0,16,0,0"/>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Border>
+
+        <!-- Interactive Demo Section: PROFILE SETTINGS -->
+        <Border IsVisible="{Binding IsProfileSettingsSelected}"
+                Margin="0,0,0,30">
+          <StackPanel>
+            <!-- Demo Header -->
+            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,16">
+              <StackPanel>
+                <TextBlock Text="Interactive Element: Settings Editor"
+                           FontSize="24"
+                           FontWeight="Bold"
+                           Foreground="White"/>
+                <TextBlock Text="Try adjusting the settings below. This is the real editor running with mock data."
+                           FontSize="14"
+                           Foreground="#888888"
+                           Margin="0,4,0,0"/>
+              </StackPanel>
+              <Border CornerRadius="6" Padding="12,6" Background="#20FFFFFF" VerticalAlignment="Center">
+                <TextBlock Text="LIVE DEMO" FontSize="11" FontWeight="Bold" Foreground="#888888"/>
+              </Border>
+            </Grid>
+
+            <!-- Embedded Demo: Settings View -->
+            <Border Background="#10FFFFFF"
+                    CornerRadius="12"
+                    Padding="20"
+                    BorderBrush="#20FFFFFF"
+                    BorderThickness="1">
+              <StackPanel>
+                <local:GameSettingsView DataContext="{Binding DemoGameSettings}"/>
+                <TextBlock Text="Changes here satisfy validation logic but won't be saved to disk."
+                           FontSize="13"
+                           Foreground="#666666"
+                           HorizontalAlignment="Center"
+                           Margin="0,16,0,0"/>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Border>
+
+        <!-- Interactive Demo Section: CHANGELOGS -->
+        <Border IsVisible="{Binding IsChangelogsSelected}"
+                Margin="0,0,0,30">
+            <views:ChangelogsView DataContext="{Binding Changelogs}"/>
+        </Border>
+
+        <!-- Information Cards -->
+        <ItemsControl ItemsSource="{Binding SelectedSection.Cards}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:InfoCardViewModel">
+              <Border Classes="info-card">
+                <Grid RowDefinitions="Auto, Auto, Auto, Auto">
+
+                  <!-- Card Header -->
+                  <Grid ColumnDefinitions="Auto, *, Auto" Grid.Row="0" Margin="0,0,0,12">
+                    <material:MaterialIcon Kind="{Binding IconKey}"
+                                            Width="28" Height="28"
+                                            Foreground="{StaticResource SystemAccentColorBrush}"
+                                            IsVisible="{Binding IconKey, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                            Margin="0,0,15,0"/>
+                    <TextBlock Text="{Binding Title}" Grid.Column="1" Classes="card-title" VerticalAlignment="Center"/>
+
+                    <!-- Expand Button -->
+                    <Button Grid.Column="2"
+                            IsVisible="{Binding IsExpandable}"
+                            Command="{Binding ToggleExpansionCommand}"
+                            Background="Transparent"
+                            Padding="4">
+                      <material:MaterialIcon Kind="{Binding IsExpanded, Converter={StaticResource BoolToExpandIconConverter}}" Width="24" Height="24"/>
+                    </Button>
+                  </Grid>
+
+                  <!-- Main Content -->
+                  <TextBlock Grid.Row="1" Text="{Binding Content}" Classes="card-content" Margin="0,0,0,16"/>
+
+                  <!-- Expanded Content -->
+                  <Border Grid.Row="2"
+                          IsVisible="{Binding IsExpanded}"
+                          Background="#33000000"
+                          CornerRadius="6"
+                          Padding="16"
+                          Margin="0,0,0,16">
+                    <TextBlock Text="{Binding DetailedContent}"
+                               Classes="card-content"
+                               FontStyle="Italic"/>
+                  </Border>
+
+                  <!-- Actions -->
+                  <ItemsControl Grid.Row="3" ItemsSource="{Binding Actions}" IsVisible="{Binding Actions.Count}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="models:InfoAction">
+                        <Button Classes="action-btn"
+                                Classes.primary="{Binding IsPrimary}"
+                                Command="{Binding ((vm:GenHubInfoSectionViewModel)DataContext).HandleActionCommand, RelativeSource={RelativeSource AncestorType=views:GenHubInfoSectionView}}"
+                                CommandParameter="{Binding}">
+                          <StackPanel Orientation="Horizontal" Spacing="8">
+                            <material:MaterialIcon Kind="{Binding IconKey}" Width="16" Height="16" IsVisible="{Binding IconKey, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                            <TextBlock Text="{Binding Label}"/>
+                          </StackPanel>
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Border Height="40"/> <!-- Bottom Spacer -->
+      </StackPanel>
+  </ScrollViewer>
+</UserControl>

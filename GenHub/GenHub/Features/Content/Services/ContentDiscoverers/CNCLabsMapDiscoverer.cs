@@ -22,9 +22,6 @@ namespace GenHub.Features.Content.Services.ContentDiscoverers;
 /// </summary>
 public class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabsMapDiscoverer> logger) : IContentDiscoverer
 {
-    private readonly HttpClient _httpClient = httpClient;
-    private readonly ILogger<CNCLabsMapDiscoverer> _logger = logger;
-
     /// <summary>
     /// Gets the source name for this discoverer.
     /// </summary>
@@ -104,7 +101,7 @@ public class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabsMapDisco
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, CNCLabsConstants.DiscoveryFailureLogMessage);
+            logger.LogError(ex, CNCLabsConstants.DiscoveryFailureLogMessage);
             return OperationResult<ContentDiscoveryResult>.CreateFailure(string.Format(CNCLabsConstants.DiscoveryFailedErrorTemplate, ex.Message));
         }
     }
@@ -211,7 +208,7 @@ public class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabsMapDisco
 
         var mapList = new List<MapListItem>();
 
-        var html = await _httpClient.GetStringAsync(url, cancellationToken).ConfigureAwait(false);
+        var html = await httpClient.GetStringAsync(url, cancellationToken).ConfigureAwait(false);
 
         var context = BrowsingContext.New(Configuration.Default);
         var document = await context.OpenAsync(req => req.Content(html), cancellationToken).ConfigureAwait(false);
@@ -290,7 +287,7 @@ public class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabsMapDisco
         if (string.IsNullOrWhiteSpace(detailsPageUrl))
             throw new ArgumentException(CNCLabsConstants.UrlRequiredMessage, nameof(detailsPageUrl));
 
-        var html = await _httpClient.GetStringAsync(detailsPageUrl, cancellationToken).ConfigureAwait(false);
+        var html = await httpClient.GetStringAsync(detailsPageUrl, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
 
         var context = BrowsingContext.New(Configuration.Default);

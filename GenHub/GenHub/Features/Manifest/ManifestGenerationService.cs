@@ -39,8 +39,7 @@ public class ManifestGenerationService(
 
     private static readonly string[] SupportedLanguages = ["EN", "DE", "FR", "ES", "IT", "KO", "PL", "PT-BR", "ZH-CN", "ZH-TW"];
 
-    private readonly IDownloadService _downloadService = downloadService;
-    private readonly IConfigurationProviderService _configurationProvider = configurationProvider;
+
 
     private int _fileCount = 0;
 
@@ -66,7 +65,7 @@ public class ManifestGenerationService(
                 gameInstallationPath);
 
             var builderLogger = NullLogger<ContentManifestBuilder>.Instance;
-            var builder = new ContentManifestBuilder(builderLogger, hashProvider, manifestIdService, _downloadService, _configurationProvider)
+            var builder = new ContentManifestBuilder(builderLogger, hashProvider, manifestIdService, downloadService, configurationProvider)
                 .WithBasicInfo(installationType, gameType, manifestVersion)
                 .WithContentType(ContentType.GameInstallation, gameType);
 
@@ -150,7 +149,7 @@ public class ManifestGenerationService(
                 publisherId);
 
             var builderLogger = NullLogger<ContentManifestBuilder>.Instance;
-            var builder = new ContentManifestBuilder(builderLogger, hashProvider, manifestIdService, _downloadService, _configurationProvider)
+            var builder = new ContentManifestBuilder(builderLogger, hashProvider, manifestIdService, downloadService, configurationProvider)
                 .WithBasicInfo(publisherId, contentName, manifestVersion.ToString())
                 .WithContentType(contentType, targetGame);
 
@@ -252,7 +251,7 @@ public class ManifestGenerationService(
                 targetPublisherId);
 
             var builderLogger = NullLogger<ContentManifestBuilder>.Instance;
-            var builder = new ContentManifestBuilder(builderLogger, hashProvider, manifestIdService, _downloadService, _configurationProvider)
+            var builder = new ContentManifestBuilder(builderLogger, hashProvider, manifestIdService, downloadService, configurationProvider)
                 .WithBasicInfo(publisherId, referralName, manifestVersion.ToString())
 
                 // Note: Publisher referrals are typically game-agnostic, but we default to ZeroHour for compatibility
@@ -299,7 +298,7 @@ public class ManifestGenerationService(
                 targetContentId);
 
             var builderLogger = NullLogger<ContentManifestBuilder>.Instance;
-            var builder = new ContentManifestBuilder(builderLogger, hashProvider, manifestIdService, _downloadService, _configurationProvider)
+            var builder = new ContentManifestBuilder(builderLogger, hashProvider, manifestIdService, downloadService, configurationProvider)
                 .WithBasicInfo(publisherId, referralName, manifestVersion.ToString())
                 .WithContentType(ContentType.ContentReferral, GameType.ZeroHour) // Default to ZeroHour
                 .WithMetadata(description);
@@ -399,7 +398,7 @@ public class ManifestGenerationService(
             }
 
             var contentName = gameType.ToString().ToLowerInvariant();
-            var builder = new ContentManifestBuilder(builderLogger, hashProvider, manifestIdService, _downloadService, _configurationProvider)
+            var builder = new ContentManifestBuilder(builderLogger, hashProvider, manifestIdService, downloadService, configurationProvider)
                 .WithBasicInfo(publisher, contentName, clientVersion)
                 .WithContentType(ContentType.GameClient, gameType);
 
@@ -461,7 +460,7 @@ public class ManifestGenerationService(
             // Create unique manifest name based on executable to distinguish variants (30Hz, 60Hz, standard)
             var executableFileName = Path.GetFileNameWithoutExtension(executablePath).ToLowerInvariant();
             var contentName = $"{gameType.ToString().ToLowerInvariant()}{executableFileName.Replace("-", string.Empty).Replace(".", string.Empty)}";
-            var builder = new ContentManifestBuilder(builderLogger, hashProvider, manifestIdService, _downloadService, _configurationProvider)
+            var builder = new ContentManifestBuilder(builderLogger, hashProvider, manifestIdService, downloadService, configurationProvider)
                 .WithBasicInfo(publisher, contentName, clientVersion)
                 .WithContentType(ContentType.GameClient, gameType)
                 .WithMetadata(

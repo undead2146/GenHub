@@ -37,6 +37,31 @@ public partial class GameProfileItemViewModel : ViewModelBase
     public Func<GameProfileItemViewModel, Task>? CreateShortcutAction { get; set; }
 
     /// <summary>
+    /// Gets or sets the action to stop the profile.
+    /// </summary>
+    public Func<GameProfileItemViewModel, Task>? StopProfileAction { get; set; }
+
+    /// <summary>
+    /// Gets or sets the action to toggle Steam launch mode.
+    /// </summary>
+    public Func<GameProfileItemViewModel, Task>? ToggleSteamLaunchAction { get; set; }
+
+    /// <summary>
+    /// Gets or sets the action to confirm keeping user data.
+    /// </summary>
+    public Func<GameProfileItemViewModel, Task>? ConfirmKeepUserDataAction { get; set; }
+
+    /// <summary>
+    /// Gets or sets the action to confirm removing user data.
+    /// </summary>
+    public Func<GameProfileItemViewModel, Task>? ConfirmRemoveUserDataAction { get; set; }
+
+    /// <summary>
+    /// Gets or sets the action to cancel user data confirmation.
+    /// </summary>
+    public Action<GameProfileItemViewModel>? CancelUserDataConfirmationAction { get; set; }
+
+    /// <summary>
     /// Launches the profile using the injected action.
     /// </summary>
     [RelayCommand]
@@ -82,6 +107,63 @@ public partial class GameProfileItemViewModel : ViewModelBase
         {
             await CreateShortcutAction(this);
         }
+    }
+
+    /// <summary>
+    /// Stops the profile using the injected action.
+    /// </summary>
+    [RelayCommand]
+    private async Task StopProfile()
+    {
+        if (StopProfileAction != null)
+        {
+            await StopProfileAction(this);
+        }
+    }
+
+    /// <summary>
+    /// Toggles Steam launch mode using the injected action.
+    /// </summary>
+    [RelayCommand]
+    private async Task ToggleSteamLaunch()
+    {
+        if (ToggleSteamLaunchAction != null)
+        {
+            await ToggleSteamLaunchAction(this);
+        }
+    }
+
+    /// <summary>
+    /// Confirms keeping user data.
+    /// </summary>
+    [RelayCommand]
+    private async Task ConfirmKeepUserData()
+    {
+        if (ConfirmKeepUserDataAction != null)
+        {
+            await ConfirmKeepUserDataAction(this);
+        }
+    }
+
+    /// <summary>
+    /// Confirms removing user data.
+    /// </summary>
+    [RelayCommand]
+    private async Task ConfirmRemoveUserData()
+    {
+        if (ConfirmRemoveUserDataAction != null)
+        {
+            await ConfirmRemoveUserDataAction(this);
+        }
+    }
+
+    /// <summary>
+    /// Cancels user data confirmation.
+    /// </summary>
+    [RelayCommand]
+    private void CancelUserDataConfirmation()
+    {
+        CancelUserDataConfirmationAction?.Invoke(this);
     }
 
     /// <summary>

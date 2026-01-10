@@ -5,13 +5,16 @@ using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Messages;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Notifications;
 using GenHub.Features.AppUpdate.Interfaces;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.ViewModels;
+using GenHub.Features.Info.ViewModels;
 using GenHub.Features.Notifications.ViewModels;
 using GenHub.Features.Settings.ViewModels;
 using GenHub.Features.Tools.ViewModels;
@@ -32,6 +35,7 @@ namespace GenHub.Common.ViewModels;
 /// <param name="velopackUpdateManager">The Velopack update manager for checking updates.</param>
 /// <param name="notificationService">Service for showing notifications.</param>
 /// <param name="notificationFeedViewModel">Notification feed view model.</param>
+/// <param name="infoViewModel">Info view model.</param>
 /// <param name="logger">Logger instance.</param>
 public partial class MainViewModel(
     GameProfileLauncherViewModel gameProfilesViewModel,
@@ -44,9 +48,24 @@ public partial class MainViewModel(
     IVelopackUpdateManager velopackUpdateManager,
     INotificationService notificationService,
     NotificationFeedViewModel notificationFeedViewModel,
-    ILogger<MainViewModel> logger) : ObservableObject, IDisposable
+    InfoViewModel infoViewModel,
+    ILogger<MainViewModel> logger) : ObservableObject, IDisposable, IRecipient<NavigationMessage>
 {
     private readonly CancellationTokenSource _initializationCts = new();
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MainViewModel"/> class.
+    /// </summary>
+    public MainViewModel()
+        : this(null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!)
+    {
+        // Parameterless constructor for XAML tools if needed, though usually handled by DI
+    }
+
+    /// <summary>
+    /// Gets the info view model.
+    /// </summary>
+    public InfoViewModel InfoViewModel { get; } = infoViewModel;
 
     /// <summary>
     /// Gets the notification feed view model.
@@ -78,29 +97,6 @@ public partial class MainViewModel(
     /// </summary>
     public NotificationManagerViewModel NotificationManager { get; } = notificationManager;
 
-    [ObservableProperty]
-    private NavigationTab _selectedTab = LoadInitialTab(configurationProvider, logger);
-
-    private static NavigationTab LoadInitialTab(IConfigurationProviderService configurationProvider, ILogger<MainViewModel>? logger)
-    {
-        try
-        {
-            var tab = configurationProvider.GetLastSelectedTab();
-            if (tab == NavigationTab.Tools)
-            {
-                tab = NavigationTab.GameProfiles;
-            }
-
-            logger?.LogDebug("Initial settings loaded, selected tab: {Tab}", tab);
-            return tab;
-        }
-        catch (Exception ex)
-        {
-            logger?.LogError(ex, "Failed to load initial settings");
-            return NavigationTab.GameProfiles;
-        }
-    }
-
     /// <summary>
     /// Gets the collection of detected game installations.
     /// </summary>
@@ -126,8 +122,18 @@ public partial class MainViewModel(
         NavigationTab.Downloads => DownloadsViewModel,
         NavigationTab.Tools => ToolsViewModel,
         NavigationTab.Settings => SettingsViewModel,
+        NavigationTab.Info => InfoViewModel,
         _ => GameProfilesViewModel,
     };
+
+    [ObservableProperty]
+    private NavigationTab _selectedTab = LoadInitialTab(configurationProvider, logger);
+
+    // Register for messages
+    private void RegisterMessages()
+    {
+        WeakReferenceMessenger.Default.Register(this);
+    }
 
     /// <summary>
     /// Gets the display name for a navigation tab.
@@ -140,8 +146,16 @@ public partial class MainViewModel(
         NavigationTab.Downloads => "Downloads",
         NavigationTab.Tools => "Tools",
         NavigationTab.Settings => "Settings",
+        NavigationTab.Info => "Info",
         _ => tab.ToString(),
     };
+
+    /// <inheritdoc/>
+    public void Receive(NavigationMessage message)
+    {
+        Dispatcher.UIThread.Post(() => SelectTab(message.Tab));
+    }
+
 
     /// <summary>
     /// Selects the specified navigation tab.
@@ -153,15 +167,39 @@ public partial class MainViewModel(
         SelectedTab = tab;
     }
 
+
+
+    private static NavigationTab LoadInitialTab(IConfigurationProviderService configurationProvider, ILogger<MainViewModel>? logger)
+    {
+        try
+        {
+            var tab = configurationProvider.GetLastSelectedTab();
+            if (tab == NavigationTab.Tools)
+            {
+                tab = NavigationTab.GameProfiles;
+            }
+
+            logger?.LogDebug("Initial settings loaded, selected tab: {Tab}", tab);
+            return tab;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Failed to load initial settings");
+            return NavigationTab.GameProfiles;
+        }
+    }
+
     /// <summary>
     /// Performs asynchronous initialization for the shell and all tabs.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     public async Task InitializeAsync()
     {
+        RegisterMessages();
         await GameProfilesViewModel.InitializeAsync();
         await DownloadsViewModel.InitializeAsync();
         await ToolsViewModel.InitializeAsync();
+        await InfoViewModel.InitializeAsync();
         logger?.LogInformation("MainViewModel initialized");
 
         // Start background check with cancellation support
@@ -308,6 +346,14 @@ public partial class MainViewModel(
         else if (value == NavigationTab.Downloads)
         {
             _ = DownloadsViewModel.OnTabActivatedAsync();
+        }
+        else if (value == NavigationTab.Tools)
+        {
+            ToolsViewModel.IsPaneOpen = true;
+        }
+        else if (value == NavigationTab.Info)
+        {
+            InfoViewModel.IsPaneOpen = true;
         }
 
         SaveSelectedTab(value);

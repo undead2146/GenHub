@@ -164,6 +164,11 @@ public partial class GameProfileLauncherViewModel(
                         EditProfileAction = EditProfile,
                         DeleteProfileAction = DeleteProfile,
                         CreateShortcutAction = CreateShortcut,
+                        StopProfileAction = StopProfile,
+                        ToggleSteamLaunchAction = ToggleSteamLaunch,
+                        ConfirmKeepUserDataAction = ConfirmUserDataKeepAsync,
+                        ConfirmRemoveUserDataAction = ConfirmUserDataRemoveAsync,
+                        CancelUserDataConfirmationAction = CancelUserDataConfirmation,
                     };
 
                     // Add to collection before the "Add New Profile" button (which is always at the end)
@@ -830,6 +835,11 @@ public partial class GameProfileLauncherViewModel(
                 EditProfileAction = EditProfile,
                 DeleteProfileAction = DeleteProfile,
                 CreateShortcutAction = CreateShortcut,
+                StopProfileAction = StopProfile,
+                ToggleSteamLaunchAction = ToggleSteamLaunch,
+                ConfirmKeepUserDataAction = ConfirmUserDataKeepAsync,
+                ConfirmRemoveUserDataAction = ConfirmUserDataRemoveAsync,
+                CancelUserDataConfirmationAction = CancelUserDataConfirmation,
             };
 
             // Add to collection before the "Add New Profile" button (which is always at the end)

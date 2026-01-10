@@ -433,7 +433,7 @@
                                       ToolTip.Tip="Toggle Steam Integration"
                                       IsVisible="{Binding IsSteamInstallation}"
                                       Background="Transparent"
-                                      Command="{Binding $parent[ItemsControl].((vm:GameProfileLauncherViewModel)DataContext).ToggleSteamLaunchCommand}"
+                                      Command="{Binding ToggleSteamLaunchCommand}"
                                       CommandParameter="{Binding}">
                             <Image Source="/Assets/Icons/steam-icon.png"
                                  Width="20" Height="20" />                    </ToggleButton>
@@ -469,7 +469,7 @@
                 <Grid IsVisible="{Binding IsProcessRunning}">
                     <!-- Stop Button Center -->
                     <Button Classes="launch-button"
-                            Command="{Binding $parent[ItemsControl].((vm:GameProfileLauncherViewModel)DataContext).StopProfileCommand}"
+                            Command="{Binding StopProfileCommand}"
                             CommandParameter="{Binding}"
                             Background="#CCEF4444"
                             BorderBrush="#EF4444"
@@ -541,20 +541,20 @@
 
                          <StackPanel Spacing="8">
                              <Button Content="Keep Data" Classes="launch-button"
-                                     Command="{Binding $parent[ItemsControl].((vm:GameProfileLauncherViewModel)DataContext).ConfirmUserDataKeepCommand}"
+                                     Command="{Binding ConfirmKeepUserDataCommand}"
                                      CommandParameter="{Binding}"
                                      Background="#22C55E" BorderBrush="#22C55E" Foreground="White"
                                      FontSize="12" Padding="16,8" Opacity="1" RenderTransform="scale(1)"/>
 
                              <Grid ColumnDefinitions="*,*">
                                 <Button Grid.Column="0" Content="Remove" Classes="launch-button"
-                                         Command="{Binding $parent[ItemsControl].((vm:GameProfileLauncherViewModel)DataContext).ConfirmUserDataRemoveCommand}"
+                                         Command="{Binding ConfirmRemoveUserDataCommand}"
                                          CommandParameter="{Binding}"
                                          Background="#EF4444" BorderBrush="#EF4444" Foreground="White"
                                          FontSize="12" Padding="8,8" Margin="0,0,4,0" Opacity="1" RenderTransform="scale(1)"/>
 
                                 <Button Grid.Column="1" Content="Cancel" Classes="launch-button"
-                                         Command="{Binding $parent[ItemsControl].((vm:GameProfileLauncherViewModel)DataContext).CancelUserDataConfirmationCommand}"
+                                         Command="{Binding CancelUserDataConfirmationCommand}"
                                          CommandParameter="{Binding}"
                                          Background="#4B5563" BorderBrush="#4B5563" Foreground="White"
                                          FontSize="12" Padding="8,8" Margin="4,0,0,0" Opacity="1" RenderTransform="scale(1)"/>
