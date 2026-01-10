@@ -41,6 +41,7 @@ public class FaqService(IHttpClientFactory httpClientFactory, ILogger<FaqService
 
             var url = $"{InfoConstants.FaqBaseUrl}?lang={language}";
             using var client = _httpClientFactory.CreateClient();
+            client.Timeout = TimeSpan.FromSeconds(DownloadDefaults.TimeoutSeconds);
             var html = await client.GetStringAsync(url, cancellationToken);
 
             var context = BrowsingContext.New(Configuration.Default);
@@ -101,7 +102,8 @@ public class FaqService(IHttpClientFactory httpClientFactory, ILogger<FaqService
                 // Parse content: aside, p, ul, ol, h4
                 var answer = ExtractAnswerText(section, questionHeader);
 
-                currentItems.Add(new FaqItem(id ?? Guid.NewGuid().ToString(), question, answer, id));
+                var itemId = id ?? Guid.NewGuid().ToString();
+                currentItems.Add(new FaqItem(itemId, question, answer, itemId));
             }
         }
 

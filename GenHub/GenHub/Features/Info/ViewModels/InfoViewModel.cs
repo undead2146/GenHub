@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -12,7 +13,7 @@ namespace GenHub.Features.Info.ViewModels;
 /// <summary>
 /// ViewModel for the Info tab, managing multiple info sections.
 /// </summary>
-public partial class InfoViewModel : ViewModelBase
+public partial class InfoViewModel : ViewModelBase, IDisposable
 {
     private readonly IEnumerable<IInfoSectionViewModel> _sectionViewModels;
 
@@ -127,6 +128,7 @@ public partial class InfoViewModel : ViewModelBase
     }
 
     // Keep SelectedSection for content binding
+
     /// <summary>
     /// Initializes a new instance of the <see cref="InfoViewModel"/> class.
     /// </summary>
@@ -166,5 +168,17 @@ public partial class InfoViewModel : ViewModelBase
         {
             _ = value.InitializeAsync();
         }
+    }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        var faqSection = Sections.OfType<FaqSectionViewModel>().FirstOrDefault();
+        if (faqSection != null)
+        {
+            faqSection.PropertyChanged -= OnFaqSectionPropertyChanged;
+        }
+
+        GC.SuppressFinalize(this);
     }
 }

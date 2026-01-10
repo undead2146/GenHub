@@ -21,8 +21,6 @@ public class FileOperationsService(
 {
     private const int BufferSize = 1024 * 1024; // 1MB buffer
 
-
-
     /// <summary>
     /// Ensures that the directory for the specified file path exists, creating it if necessary.
     /// </summary>
@@ -146,9 +144,9 @@ public class FileOperationsService(
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task representing the asynchronous copy operation.</returns>
     public async Task CopyFileAsync(
-            string sourcePath,
-            string destinationPath,
-            CancellationToken cancellationToken = default)
+        string sourcePath,
+        string destinationPath,
+        CancellationToken cancellationToken = default)
     {
         const int MaxRetries = 3;
         const int InitialDelayMs = 50;

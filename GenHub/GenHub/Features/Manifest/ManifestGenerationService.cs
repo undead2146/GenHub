@@ -39,8 +39,6 @@ public class ManifestGenerationService(
 
     private static readonly string[] SupportedLanguages = ["EN", "DE", "FR", "ES", "IT", "KO", "PL", "PT-BR", "ZH-CN", "ZH-TW"];
 
-
-
     private int _fileCount = 0;
 
     /// <summary>

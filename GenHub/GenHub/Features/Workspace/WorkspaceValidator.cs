@@ -20,7 +20,6 @@ namespace GenHub.Features.Workspace;
 /// </summary>
 public class WorkspaceValidator(ILogger<WorkspaceValidator> logger) : IWorkspaceValidator
 {
-
     /// <summary>
     /// Validates a workspace configuration.
     /// </summary>

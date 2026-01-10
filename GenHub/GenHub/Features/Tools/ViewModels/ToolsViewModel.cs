@@ -23,7 +23,6 @@ namespace GenHub.Features.Tools.ViewModels;
 /// <param name="serviceProvider">The service provider for dependency injection.</param>
 public partial class ToolsViewModel(IToolManager toolService, ILogger<ToolsViewModel> logger, IServiceProvider serviceProvider) : ObservableObject
 {
-
     [ObservableProperty]
     private IToolPlugin? _selectedTool;
 

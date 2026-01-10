@@ -23,8 +23,6 @@ public class WorkspaceReconciler(ILogger<WorkspaceReconciler> logger)
     /// </summary>
     private const long MaxHashVerificationFileSize = 100 * ConversionConstants.BytesPerMegabyte;
 
-
-
     /// <summary>
     /// Analyzes workspace and determines what operations are needed to reconcile it with manifests.
     /// </summary>

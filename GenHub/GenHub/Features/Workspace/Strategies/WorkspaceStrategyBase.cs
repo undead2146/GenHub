@@ -52,8 +52,6 @@ public abstract class WorkspaceStrategyBase<T>(
         ".avi", ".mp4", ".wmv", ".bik",
     ];
 
-
-
     /// <inheritdoc/>
     public abstract string Name { get; }
 

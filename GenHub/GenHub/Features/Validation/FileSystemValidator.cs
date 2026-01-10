@@ -19,7 +19,6 @@ namespace GenHub.Features.Validation;
 /// <param name="hashProvider">Hash provider instance.</param>
 public abstract class FileSystemValidator(ILogger logger, IFileHashProvider hashProvider)
 {
-
     /// <summary>
     /// Validates that all required directories exist.
     /// </summary>

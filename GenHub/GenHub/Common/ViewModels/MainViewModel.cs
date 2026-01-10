@@ -111,6 +111,7 @@ public partial class MainViewModel(
         NavigationTab.Downloads,
         NavigationTab.Tools,
         NavigationTab.Settings,
+        NavigationTab.Info,
     ];
 
     /// <summary>
@@ -129,12 +130,6 @@ public partial class MainViewModel(
     [ObservableProperty]
     private NavigationTab _selectedTab = LoadInitialTab(configurationProvider, logger);
 
-    // Register for messages
-    private void RegisterMessages()
-    {
-        WeakReferenceMessenger.Default.Register(this);
-    }
-
     /// <summary>
     /// Gets the display name for a navigation tab.
     /// </summary>
@@ -150,12 +145,17 @@ public partial class MainViewModel(
         _ => tab.ToString(),
     };
 
+    // Register for messages
+    private void RegisterMessages()
+    {
+        WeakReferenceMessenger.Default.Register(this);
+    }
+
     /// <inheritdoc/>
     public void Receive(NavigationMessage message)
     {
         Dispatcher.UIThread.Post(() => SelectTab(message.Tab));
     }
-
 
     /// <summary>
     /// Selects the specified navigation tab.
@@ -166,8 +166,22 @@ public partial class MainViewModel(
     {
         SelectedTab = tab;
     }
+    /// <summary>
+    /// Performs asynchronous initialization for the shell and all tabs.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public async Task InitializeAsync()
+    {
+        RegisterMessages();
+        await GameProfilesViewModel.InitializeAsync();
+        await DownloadsViewModel.InitializeAsync();
+        await ToolsViewModel.InitializeAsync();
+        await InfoViewModel.InitializeAsync();
+        logger?.LogInformation("MainViewModel initialized");
 
-
+        // Start background check with cancellation support
+        _ = CheckForUpdatesInBackgroundAsync(_initializationCts.Token);
+    }
 
     private static NavigationTab LoadInitialTab(IConfigurationProviderService configurationProvider, ILogger<MainViewModel>? logger)
     {
@@ -187,23 +201,6 @@ public partial class MainViewModel(
             logger?.LogError(ex, "Failed to load initial settings");
             return NavigationTab.GameProfiles;
         }
-    }
-
-    /// <summary>
-    /// Performs asynchronous initialization for the shell and all tabs.
-    /// </summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public async Task InitializeAsync()
-    {
-        RegisterMessages();
-        await GameProfilesViewModel.InitializeAsync();
-        await DownloadsViewModel.InitializeAsync();
-        await ToolsViewModel.InitializeAsync();
-        await InfoViewModel.InitializeAsync();
-        logger?.LogInformation("MainViewModel initialized");
-
-        // Start background check with cancellation support
-        _ = CheckForUpdatesInBackgroundAsync(_initializationCts.Token);
     }
 
     /// <summary>

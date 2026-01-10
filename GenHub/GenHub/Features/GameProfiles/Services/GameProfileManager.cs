@@ -29,7 +29,6 @@ public class GameProfileManager(
     IGameSettingsService gameSettingsService,
     ILogger<GameProfileManager> logger) : IGameProfileManager
 {
-
     /// <inheritdoc/>
     public async Task<ProfileOperationResult<GameProfile>> CreateProfileAsync(CreateProfileRequest request, CancellationToken cancellationToken = default)
     {

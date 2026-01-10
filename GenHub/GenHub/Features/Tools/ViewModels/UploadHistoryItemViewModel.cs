@@ -13,7 +13,6 @@ namespace GenHub.Features.Tools.ViewModels;
 /// <param name="item">The upload history item.</param>
 public partial class UploadHistoryItemViewModel(UploadHistoryItem item) : ObservableObject
 {
-
     /// <summary>
     /// Gets the filename.
     /// </summary>

@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -20,6 +21,7 @@ public partial class FaqSectionViewModel : ObservableObject, IInfoSectionViewMod
 {
     private readonly IFaqService _faqService;
     private readonly ILogger<FaqSectionViewModel> _logger;
+    private CancellationTokenSource? _loadCts;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -70,6 +72,12 @@ public partial class FaqSectionViewModel : ObservableObject, IInfoSectionViewMod
         _selectedLanguageOption = LanguageOptions.First(x => x.Code == InfoConstants.FaqDefaultLanguage);
     }
 
+    /// <inheritdoc/>
+    public async Task InitializeAsync()
+    {
+        await LoadFaqAsync();
+    }
+
     [RelayCommand]
     private void SelectLanguage(LanguageOption option)
     {
@@ -77,12 +85,6 @@ public partial class FaqSectionViewModel : ObservableObject, IInfoSectionViewMod
         {
             SelectedLanguageOption = option;
         }
-    }
-
-    /// <inheritdoc/>
-    public async Task InitializeAsync()
-    {
-        await LoadFaqAsync();
     }
 
     async partial void OnSelectedLanguageOptionChanged(LanguageOption value)
@@ -93,30 +95,38 @@ public partial class FaqSectionViewModel : ObservableObject, IInfoSectionViewMod
     [RelayCommand]
     private async Task LoadFaqAsync()
     {
-        if (IsLoading) return;
+        _loadCts?.Cancel();
+        _loadCts = new CancellationTokenSource();
+        var token = _loadCts.Token;
 
         IsLoading = true;
         StatusMessage = string.Empty;
 
         try
         {
-            var result = await _faqService.GetFaqAsync(SelectedLanguageOption.Code);
+            var result = await _faqService.GetFaqAsync(SelectedLanguageOption.Code, token);
             if (result.Success)
             {
-                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
                 {
                     Categories.Clear();
                     foreach (var category in result.Data)
                     {
                         Categories.Add(new FaqCategoryViewModel(category));
                     }
+
                     SelectedCategory = Categories.FirstOrDefault();
-                });
+                    await Task.CompletedTask;
+                }, Avalonia.Threading.DispatcherPriority.Normal, token);
             }
             else
             {
                 StatusMessage = result.FirstError ?? "Unknown error loading FAQ.";
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected
         }
         catch (Exception ex)
         {
@@ -129,4 +139,3 @@ public partial class FaqSectionViewModel : ObservableObject, IInfoSectionViewMod
         }
     }
 }
-

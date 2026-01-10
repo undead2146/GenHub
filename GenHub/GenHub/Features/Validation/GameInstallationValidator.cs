@@ -26,7 +26,6 @@ public class GameInstallationValidator(
     : FileSystemValidator(logger, hashProvider),
       IGameInstallationValidator, IValidator<GameInstallation>
 {
-
     /// <summary>
     /// Validates the specified game installation.
     /// </summary>

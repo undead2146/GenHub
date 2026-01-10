@@ -30,7 +30,6 @@ public class GameClientValidator(
     IFileHashProvider hashProvider)
     : FileSystemValidator(logger, hashProvider), IGameClientValidator, IValidator<GameClient>
 {
-
     /// <inheritdoc/>
     public async Task<ValidationResult> ValidateAsync(GameClient gameClient, CancellationToken cancellationToken = default)
     {

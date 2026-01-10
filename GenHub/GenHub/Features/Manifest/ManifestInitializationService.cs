@@ -13,7 +13,6 @@ public class ManifestInitializationService(
     ILogger<ManifestInitializationService> logger,
     ManifestDiscoveryService discoveryService) : IHostedService
 {
-
     /// <summary>
     /// Initializes the manifest cache during application startup.
     /// </summary>

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Info;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Info;
@@ -15,14 +16,6 @@ public class DefaultInfoContentProvider : IInfoContentProvider
 {
     private readonly List<InfoSection> _sections;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="DefaultInfoContentProvider"/> class.
-    /// </summary>
-    public DefaultInfoContentProvider()
-    {
-        _sections = CreateContent();
-    }
-
     /// <inheritdoc/>
     public Task<IEnumerable<InfoSection>> GetAllSectionsAsync()
     {
@@ -33,24 +26,6 @@ public class DefaultInfoContentProvider : IInfoContentProvider
     public Task<InfoSection?> GetSectionAsync(string sectionId)
     {
         return Task.FromResult(_sections.FirstOrDefault(s => s.Id.Equals(sectionId, StringComparison.OrdinalIgnoreCase)));
-    }
-
-    private List<InfoSection> CreateContent()
-    {
-        return
-        [
-            CreateGameProfilesSection(),
-            CreateProfileSettingsSection(),
-            CreateSteamIntegrationSection(),
-            CreateModsAndMapsSection(),
-            CreateContentSystemSection(),
-            CreateWorkspaceSection(),
-            CreateUserDataSection(),
-            CreateToolsSection(),
-            CreateSharingSection(),
-            CreateAppUpdatesSection(),
-            CreateChangelogsSection(),
-        ];
     }
 
     private static InfoSection CreateProfileSettingsSection()
@@ -115,7 +90,7 @@ public class DefaultInfoContentProvider : IInfoContentProvider
                     DetailedContent = "Think of a profile as a 'Bookmark' that knows exactly how to build the game on the fly. When you launch a profile, GenHub prepares a temporary 'Workspace' with all selected files combined. This allows you to have multiple mods installed without them ever touching or breaking each other.",
                     Actions =
                     [
-                        new InfoAction { Label = "Create Profile", ActionId = "NAV_GAMEPROFILES", IconKey = "Plus", IsPrimary = true },
+                        new InfoAction { Label = "Create Profile", ActionId = InfoActionConstants.NavigateToGameProfiles, IconKey = "Plus", IsPrimary = true },
                     ],
                 },
                 new InfoCard
@@ -317,7 +292,7 @@ public class DefaultInfoContentProvider : IInfoContentProvider
                     DetailedContent = "• Discovery: GenHub scans GitHub, ModDB, and CNC Labs for new versions.\n• Acquisition: Files are securely downloaded and hashed for integrity.\n• Delivery: Content is organized into the library, ready to be used by any profile.\n\nThis ensures you always have the latest versions and that they are safe to run.",
                     Actions =
                     [
-                        new InfoAction { Label = "Browse Content", ActionId = "NAV_DOWNLOADS", IconKey = "Compass", IsPrimary = true },
+                        new InfoAction { Label = "Browse Content", ActionId = InfoActionConstants.NavigateToDownloads, IconKey = "Compass", IsPrimary = true },
                     ],
                 },
                 new InfoCard
@@ -337,7 +312,7 @@ public class DefaultInfoContentProvider : IInfoContentProvider
                     IconKey = "DownloadNetworkOutline",
                     Actions =
                     [
-                        new InfoAction { Label = "Open Downloads", ActionId = "NAV_DOWNLOADS", IconKey = "Download" },
+                        new InfoAction { Label = "Open Downloads", ActionId = InfoActionConstants.NavigateToDownloads, IconKey = "Download" },
                     ],
                 },
             ],
@@ -446,7 +421,7 @@ public class DefaultInfoContentProvider : IInfoContentProvider
                     DetailedContent = "1. Click 'Check for Updates' in the bottom left.\n2. Switch to the 'Browse Builds' tab.\n3. Expand 'Open Pull Requests' to see what's being worked on.\n4. Click 'Subscribe' to switch your installation to that version.",
                     Actions =
                     [
-                        new InfoAction { Label = "Check Updates", ActionId = "NAV_SETTINGS", IconKey = "Update" },
+                        new InfoAction { Label = "Check Updates", ActionId = InfoActionConstants.NavigateToSettings, IconKey = "Update" },
                     ],
                 },
             ],
@@ -464,5 +439,32 @@ public class DefaultInfoContentProvider : IInfoContentProvider
             Order = 10,
             Cards = [],
         };
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultInfoContentProvider"/> class.
+    /// </summary>
+    public DefaultInfoContentProvider()
+    {
+        _sections = CreateContent();
+    }
+
+
+    private List<InfoSection> CreateContent()
+    {
+        return
+        [
+            CreateGameProfilesSection(),
+            CreateProfileSettingsSection(),
+            CreateSteamIntegrationSection(),
+            CreateModsAndMapsSection(),
+            CreateContentSystemSection(),
+            CreateWorkspaceSection(),
+            CreateUserDataSection(),
+            CreateToolsSection(),
+            CreateSharingSection(),
+            CreateAppUpdatesSection(),
+            CreateChangelogsSection(),
+        ];
     }
 }
