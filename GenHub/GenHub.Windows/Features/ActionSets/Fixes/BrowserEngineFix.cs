@@ -1,6 +1,7 @@
 namespace GenHub.Windows.Features.ActionSets.Fixes;
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -60,50 +61,75 @@ public class BrowserEngineFix(ILogger<BrowserEngineFix> logger) : BaseActionSet(
     /// <inheritdoc/>
     protected override Task<ActionSetResult> ApplyInternalAsync(GameInstallation installation, CancellationToken ct)
     {
+        var details = new List<string>();
+
         try
         {
+            details.Add("Starting BrowserEngine.dll fix...");
+            details.Add("This DLL causes crashes on modern systems and will be disabled");
+
             if (installation.HasGenerals)
             {
-                RenameDll(installation.GeneralsPath);
+                details.Add($"Processing Generals: {installation.GeneralsPath}");
+                var result = RenameDll(installation.GeneralsPath, details);
+                if (!result)
+                {
+                    details.Add("  ⚠ BrowserEngine.dll not found (may already be fixed)");
+                }
             }
 
             if (installation.HasZeroHour)
             {
-                RenameDll(installation.ZeroHourPath);
+                details.Add($"Processing Zero Hour: {installation.ZeroHourPath}");
+                var result = RenameDll(installation.ZeroHourPath, details);
+                if (!result)
+                {
+                    details.Add("  ⚠ BrowserEngine.dll not found (may already be fixed)");
+                }
             }
 
-            return Task.FromResult(Success());
+            details.Add("✓ BrowserEngine.dll fix completed successfully");
+            return Task.FromResult(new ActionSetResult(true, null, details));
         }
         catch (Exception ex)
         {
-            return Task.FromResult(Failure(ex.Message));
+            details.Add($"✗ Error: {ex.Message}");
+            return Task.FromResult(new ActionSetResult(false, ex.Message, details));
         }
     }
 
     /// <inheritdoc/>
     protected override Task<ActionSetResult> UndoInternalAsync(GameInstallation installation, CancellationToken ct)
     {
+        var details = new List<string>();
+
         try
         {
+            details.Add("Restoring BrowserEngine.dll...");
+
             if (installation.HasGenerals)
             {
-                RestoreDll(installation.GeneralsPath);
+                details.Add($"Processing Generals: {installation.GeneralsPath}");
+                RestoreDll(installation.GeneralsPath, details);
             }
 
             if (installation.HasZeroHour)
             {
-                RestoreDll(installation.ZeroHourPath);
+                details.Add($"Processing Zero Hour: {installation.ZeroHourPath}");
+                RestoreDll(installation.ZeroHourPath, details);
             }
 
-            return Task.FromResult(Success());
+            details.Add("✓ BrowserEngine.dll restored");
+            return Task.FromResult(new ActionSetResult(true, null, details));
         }
         catch (Exception ex)
         {
-            return Task.FromResult(Failure(ex.Message));
+            details.Add($"✗ Error: {ex.Message}");
+            return Task.FromResult(new ActionSetResult(false, ex.Message, details));
         }
     }
 
-    private static void RenameDll(string path)
+    private static bool RenameDll(string path, List<string> details)
     {
         var dllPath = Path.Combine(path, BrowserEngineDll);
         var bakPath = Path.Combine(path, BrowserEngineDllBak);
@@ -113,13 +139,18 @@ public class BrowserEngineFix(ILogger<BrowserEngineFix> logger) : BaseActionSet(
             if (File.Exists(bakPath))
             {
                 File.Delete(bakPath);
+                details.Add($"  • Deleted existing backup: {BrowserEngineDllBak}");
             }
 
             File.Move(dllPath, bakPath);
+            details.Add($"  ✓ Renamed {BrowserEngineDll} → {BrowserEngineDllBak}");
+            return true;
         }
+
+        return false;
     }
 
-    private static void RestoreDll(string path)
+    private static void RestoreDll(string path, List<string> details)
     {
         var dllPath = Path.Combine(path, BrowserEngineDll);
         var bakPath = Path.Combine(path, BrowserEngineDllBak);
@@ -132,6 +163,11 @@ public class BrowserEngineFix(ILogger<BrowserEngineFix> logger) : BaseActionSet(
             }
 
             File.Move(bakPath, dllPath);
+            details.Add($"  ✓ Restored {BrowserEngineDllBak} → {BrowserEngineDll}");
+        }
+        else
+        {
+            details.Add($"  ⚠ Backup file not found: {BrowserEngineDllBak}");
         }
     }
 }

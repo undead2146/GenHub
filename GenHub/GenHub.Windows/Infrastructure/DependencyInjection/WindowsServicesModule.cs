@@ -57,6 +57,35 @@ public static class WindowsServicesModule
         services.AddSingleton<IActionSet, EAAppRegistryFix>();
         services.AddSingleton<IActionSet, MyDocumentsPathCompatibility>();
         services.AddSingleton<IActionSet, VCRedist2010Fix>();
+        services.AddSingleton<IActionSet, RemoveReadOnlyFix>();
+        services.AddSingleton<IActionSet, AppCompatConfigurationsFix>();
+        services.AddSingleton<IActionSet, DirectXRuntimeFix>();
+        services.AddSingleton<IActionSet, Patch104Fix>();
+        services.AddSingleton<IActionSet, Patch108Fix>();
+        services.AddSingleton<IActionSet, OptionsINIFix>();
+        services.AddSingleton<IActionSet, VanillaExecutableFix>();
+        services.AddSingleton<IActionSet, ZeroHourExecutableFix>();
+        services.AddSingleton<IActionSet, OneDriveFix>();
+        services.AddSingleton<IActionSet, EdgeScrollerFix>();
+        services.AddSingleton<IActionSet, TheFirstDecadeRegistryFix>();
+        services.AddSingleton<IActionSet, CNCOnlineRegistryFix>();
+        services.AddSingleton<IActionSet, MalwarebytesFix>();
+        services.AddSingleton<IActionSet, D3D8XDLLCheck>();
+        services.AddSingleton<IActionSet, NahimicFix>();
+        services.AddSingleton<IActionSet, DisableOriginInGame>();
+        services.AddSingleton<IActionSet, GenArial>();
+        services.AddSingleton<IActionSet, HDIconsFix>();
+        services.AddSingleton<IActionSet, WindowsMediaFeaturePack>();
+        services.AddSingleton<IActionSet, GameRangerRunAsAdmin>();
+        services.AddSingleton<IActionSet, ExpandedLANLobbyMenu>();
+        services.AddSingleton<IActionSet, ProxyLauncher>();
+        services.AddSingleton<IActionSet, StartMenuFix>();
+        services.AddSingleton<IActionSet, IntelGfxDriverCompatibility>();
+
+        // Network Optimization Fixes
+        services.AddSingleton<IActionSet, NetworkPrivateProfileFix>();
+        services.AddSingleton<IActionSet, PreferIPv4Fix>();
+        services.AddSingleton<IActionSet, FirewallExceptionFix>();
 
         // NOTE: GenPatcherContentActionSetProvider is NOT registered here.
         // Content from GenPatcherContentRegistry is already available in the Downloads UI

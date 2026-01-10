@@ -87,7 +87,7 @@ public class ToolService(
     }
 
     /// <inheritdoc/>
-    public async Task<OperationResult<List<IToolPlugin>>> LoadSavedToolsAsync()
+    public Task<OperationResult<List<IToolPlugin>>> LoadSavedToolsAsync()
     {
         try
         {
@@ -162,12 +162,12 @@ public class ToolService(
                 builtInTools.Count(),
                 toolPaths.Count);
 
-            return OperationResult<List<IToolPlugin>>.CreateSuccess(loadedPlugins);
+            return Task.FromResult(OperationResult<List<IToolPlugin>>.CreateSuccess(loadedPlugins));
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "An error occurred while loading saved tool plugins.");
-            return OperationResult<List<IToolPlugin>>.CreateFailure("An error occurred while loading saved tool plugins.");
+            return Task.FromResult(OperationResult<List<IToolPlugin>>.CreateFailure("An error occurred while loading saved tool plugins."));
         }
     }
 

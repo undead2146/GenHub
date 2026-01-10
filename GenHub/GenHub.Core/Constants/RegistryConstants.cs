@@ -45,4 +45,9 @@ public static class RegistryConstants
 
     /// <summary>Registry version for Zero Hour 1.04 (0x10004).</summary>
     public const int ZeroHourVersionDWord = 0x10004;
+
+    // ===== Windows System Keys =====
+
+    /// <summary>Registry key path for Windows Compatibility Flags (AppCompatLayers).</summary>
+    public const string AppCompatLayersKeyPath = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers";
 }

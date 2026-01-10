@@ -2,9 +2,8 @@ namespace GenHub.Windows.Features.ActionSets.UI;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Core.Features.ActionSets;
-using GenHub.Core.Messages;
+using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Windows.Features.ActionSets.Infrastructure;
 using Microsoft.Extensions.Logging;
@@ -22,6 +21,7 @@ public partial class ActionSetViewModel : ObservableObject
 
     private readonly GameInstallation _installation;
     private readonly IRegistryService _registryService;
+    private readonly INotificationService _notificationService;
     private readonly ILogger _logger;
 
     /// <summary>
@@ -57,12 +57,14 @@ public partial class ActionSetViewModel : ObservableObject
     /// <param name="actionSet">The action set.</param>
     /// <param name="installation">The game installation.</param>
     /// <param name="registryService">The registry service.</param>
+    /// <param name="notificationService">The notification service.</param>
     /// <param name="logger">The logger instance.</param>
-    public ActionSetViewModel(IActionSet actionSet, GameInstallation installation, IRegistryService registryService, ILogger logger)
+    public ActionSetViewModel(IActionSet actionSet, GameInstallation installation, IRegistryService registryService, INotificationService notificationService, ILogger logger)
     {
         ActionSet = actionSet;
         _installation = installation;
         _registryService = registryService;
+        _notificationService = notificationService;
         _logger = logger;
         _applyCommand = new AsyncRelayCommand(ApplyAsync);
         _forceApplyCommand = new AsyncRelayCommand(ForceApplyAsync);
@@ -82,36 +84,89 @@ public partial class ActionSetViewModel : ObservableObject
     {
         if (!_registryService.IsRunningAsAdministrator())
         {
-            WeakReferenceMessenger.Default.Send(new ToolStatusMessage(
-                "Administrator privileges required. Please restart GenHub as Administrator to apply this fix.",
-                IsError: true));
+            _notificationService.ShowError(
+                "Administrator Rights Required",
+                "Please restart GenHub as Administrator to apply this fix.");
             return;
         }
 
-        await ActionSet.ApplyAsync(_installation);
-        await CheckStatusAsync();
+        try
+        {
+            var result = await ActionSet.ApplyAsync(_installation);
+            await CheckStatusAsync();
+
+            if (result.Success)
+            {
+                var detailsText = result.Details.Count > 0
+                    ? result.FormatDetails()
+                    : $"{ActionSet.Title} has been successfully applied.";
+
+                _notificationService.ShowSuccess(
+                    $"Fix Applied: {ActionSet.Title}",
+                    detailsText);
+            }
+            else
+            {
+                var detailsText = result.Details.Count > 0
+                    ? result.FormatDetails()
+                    : result.ErrorMessage ?? "Unknown error occurred.";
+
+                _notificationService.ShowError(
+                    $"Fix Failed: {ActionSet.Title}",
+                    detailsText);
+            }
+        }
+        catch (System.Exception ex)
+        {
+            _logger.LogError(ex, "Failed to apply action set {ActionSetId}", ActionSet.Id);
+            _notificationService.ShowError(
+                "Failed to Apply Fix",
+                $"Could not apply {ActionSet.Title}: {ex.Message}");
+        }
     }
 
     private async Task ForceApplyAsync()
     {
         if (!_registryService.IsRunningAsAdministrator())
         {
-            WeakReferenceMessenger.Default.Send(new ToolStatusMessage(
-                "Administrator privileges required for force apply. Please restart GenHub as Administrator.",
-                IsError: true));
+            _notificationService.ShowError(
+                "Administrator Rights Required",
+                "Please restart GenHub as Administrator for force apply.");
             return;
         }
 
         try
         {
-            await ActionSet.ApplyAsync(_installation);
+            var result = await ActionSet.ApplyAsync(_installation);
             await CheckStatusAsync();
+
+            if (result.Success)
+            {
+                var detailsText = result.Details.Count > 0
+                    ? result.FormatDetails()
+                    : $"{ActionSet.Title} has been force applied successfully.";
+
+                _notificationService.ShowSuccess(
+                    $"Fix Force Applied: {ActionSet.Title}",
+                    detailsText);
+            }
+            else
+            {
+                var detailsText = result.Details.Count > 0
+                    ? result.FormatDetails()
+                    : result.ErrorMessage ?? "Unknown error occurred.";
+
+                _notificationService.ShowError(
+                    $"Fix Failed: {ActionSet.Title}",
+                    detailsText);
+            }
         }
         catch (System.Exception ex)
         {
-            WeakReferenceMessenger.Default.Send(new ToolStatusMessage(
-                $"Failed to apply fix: {ex.Message}",
-                IsError: true));
+            _logger.LogError(ex, "Failed to force apply action set {ActionSetId}", ActionSet.Id);
+            _notificationService.ShowError(
+                "Failed to Force Apply Fix",
+                $"Could not apply {ActionSet.Title}: {ex.Message}");
         }
     }
 }

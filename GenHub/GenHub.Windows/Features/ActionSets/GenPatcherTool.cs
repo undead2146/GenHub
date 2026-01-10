@@ -39,9 +39,6 @@ public class GenPatcherTool(ILogger<GenPatcherTool> logger) : IToolPlugin
             if (vm != null)
             {
                 view.DataContext = vm;
-
-                // Fire and forget initialization
-                _ = vm.InitializeAsync();
             }
         }
 

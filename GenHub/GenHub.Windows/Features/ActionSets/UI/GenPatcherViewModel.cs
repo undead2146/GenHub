@@ -8,10 +8,9 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Core.Features.ActionSets;
 using GenHub.Core.Interfaces.GameInstallations;
-using GenHub.Core.Messages;
+using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Windows.Features.ActionSets.Infrastructure;
@@ -25,6 +24,7 @@ public partial class GenPatcherViewModel : ObservableObject
     private readonly IActionSetOrchestrator orchestrator;
     private readonly IGameInstallationDetector installationDetector;
     private readonly IRegistryService registryService;
+    private readonly INotificationService notificationService;
     private readonly ILogger<GenPatcherViewModel> logger;
     private GameInstallation? currentInstallation;
 
@@ -43,16 +43,19 @@ public partial class GenPatcherViewModel : ObservableObject
     /// <param name="orchestrator">The action set orchestrator.</param>
     /// <param name="installationDetector">The game installation detector.</param>
     /// <param name="registryService">The registry service.</param>
+    /// <param name="notificationService">The notification service.</param>
     /// <param name="logger">The logger.</param>
     public GenPatcherViewModel(
         IActionSetOrchestrator orchestrator,
         IGameInstallationDetector installationDetector,
         IRegistryService registryService,
+        INotificationService notificationService,
         ILogger<GenPatcherViewModel> logger)
     {
         this.orchestrator = orchestrator;
         this.installationDetector = installationDetector;
         this.registryService = registryService;
+        this.notificationService = notificationService;
         this.logger = logger;
         this.loadFixesCommand = new AsyncRelayCommand(LoadFixesAsync);
         this.applyAllFixesCommand = new AsyncRelayCommand(ApplyAllFixesAsync);
@@ -66,9 +69,9 @@ public partial class GenPatcherViewModel : ObservableObject
     {
         if (!this.registryService.IsRunningAsAdministrator())
         {
-            WeakReferenceMessenger.Default.Send(new ToolStatusMessage(
-                "Please restart GenHub as Administrator to ensure GenPatcher can apply registry-based fixes.",
-                IsInfo: true));
+            this.notificationService.ShowWarning(
+                "Administrator Rights Required",
+                "Please restart GenHub as Administrator to ensure GenPatcher can apply registry-based fixes.");
         }
 
         await LoadFixesCommand.ExecuteAsync(null);
@@ -78,6 +81,10 @@ public partial class GenPatcherViewModel : ObservableObject
     {
         try
         {
+            this.notificationService.ShowInfo(
+                "Loading GenPatcher",
+                "Detecting game installations and loading available fixes...");
+
             var result = await this.installationDetector.DetectInstallationsAsync();
             var detected = result.Items;
             GameInstallation? preferred = null;
@@ -95,25 +102,43 @@ public partial class GenPatcherViewModel : ObservableObject
             if (this.currentInstallation == null)
             {
                 this.logger.LogWarning("No valid game installation found for GenPatcher");
-                WeakReferenceMessenger.Default.Send(new ToolStatusMessage(
-                    "No valid game installation found. Please ensure Command & Conquer Generals or Zero Hour is installed.",
-                    IsError: true));
+                this.notificationService.ShowError(
+                    "No Game Installation Found",
+                    "Please ensure Command & Conquer Generals or Zero Hour is installed.");
                 return;
             }
 
             var fixes = this.orchestrator.GetAllActionSets();
             ActionSets.Clear();
 
+            // Parallelize status checks to prevent UI blocking
+            var tasks = new List<Task<ActionSetViewModel>>();
             foreach (var fix in fixes)
             {
-                var vm = new ActionSetViewModel(fix, currentInstallation, registryService, logger);
-                await vm.CheckStatusAsync();
+                tasks.Add(Task.Run(async () =>
+                {
+                    var vm = new ActionSetViewModel(fix, currentInstallation, registryService, notificationService, logger);
+                    await vm.CheckStatusAsync();
+                    return vm;
+                }));
+            }
+
+            var loadedVms = await Task.WhenAll(tasks);
+            foreach (var vm in loadedVms)
+            {
                 ActionSets.Add(vm);
             }
+
+            this.notificationService.ShowSuccess(
+                "GenPatcher Loaded",
+                $"Successfully loaded {ActionSets.Count} fixes for {this.currentInstallation.InstallationType}.");
         }
         catch (Exception ex)
         {
             this.logger.LogError(ex, "Failed to load fixes");
+            this.notificationService.ShowError(
+                "Failed to Load Fixes",
+                $"An error occurred while loading fixes: {ex.Message}");
         }
     }
 
@@ -123,9 +148,9 @@ public partial class GenPatcherViewModel : ObservableObject
 
         if (!this.registryService.IsRunningAsAdministrator())
         {
-            WeakReferenceMessenger.Default.Send(new ToolStatusMessage(
-                "Administrator privileges required for 'Apply Recommended'. Please restart GenHub as Administrator.",
-                IsError: true));
+            this.notificationService.ShowError(
+                "Administrator Rights Required",
+                "Administrator privileges required for 'Apply Recommended'. Please restart GenHub as Administrator.");
             return;
         }
 
@@ -138,6 +163,18 @@ public partial class GenPatcherViewModel : ObservableObject
             }
         }
 
+        if (applicableFixes.Count == 0)
+        {
+            this.notificationService.ShowInfo(
+                "No Fixes to Apply",
+                "All applicable fixes are already applied.");
+            return;
+        }
+
+        this.notificationService.ShowInfo(
+            "Applying Fixes",
+            $"Applying {applicableFixes.Count} recommended fix(es)...");
+
         await this.orchestrator.ApplyActionSetsAsync(this.currentInstallation, applicableFixes);
 
         // Refresh status
@@ -145,5 +182,9 @@ public partial class GenPatcherViewModel : ObservableObject
         {
             await vm.CheckStatusAsync();
         }
+
+        this.notificationService.ShowSuccess(
+            "Fixes Applied",
+            $"Successfully applied {applicableFixes.Count} fix(es).");
     }
 }

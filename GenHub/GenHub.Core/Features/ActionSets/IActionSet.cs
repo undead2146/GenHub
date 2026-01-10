@@ -1,5 +1,6 @@
 namespace GenHub.Core.Features.ActionSets;
 
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Models.GameInstallations;
@@ -63,4 +64,49 @@ public interface IActionSet
 /// <summary>
 /// Represents the result of an action set operation.
 /// </summary>
-public record ActionSetResult(bool Success, string? ErrorMessage = null);
+/// <param name="Success">Whether the operation succeeded.</param>
+/// <param name="ErrorMessage">Error message if the operation failed.</param>
+/// <param name="Details">Detailed list of actions taken during the operation.</param>
+public record ActionSetResult(bool Success, string? ErrorMessage = null, List<string>? Details = null)
+{
+    /// <summary>
+    /// Gets the details list, creating one if needed.
+    /// </summary>
+    public List<string> Details { get; init; } = Details ?? [];
+
+    /// <summary>
+    /// Creates a new ActionSetResult with an additional detail message.
+    /// </summary>
+    /// <param name="detail">The detail message to add.</param>
+    /// <returns>A new ActionSetResult with the detail added.</returns>
+    public ActionSetResult WithDetail(string detail)
+    {
+        Details.Add(detail);
+        return this;
+    }
+
+    /// <summary>
+    /// Creates a successful result with the given details.
+    /// </summary>
+    /// <param name="details">The details of what was done.</param>
+    /// <returns>A successful ActionSetResult.</returns>
+    public static ActionSetResult SuccessWithDetails(params string[] details) =>
+        new(true, null, [.. details]);
+
+    /// <summary>
+    /// Creates a failed result with the given error and optional details.
+    /// </summary>
+    /// <param name="error">The error message.</param>
+    /// <param name="details">Optional details of what was attempted.</param>
+    /// <returns>A failed ActionSetResult.</returns>
+    public static ActionSetResult FailureWithDetails(string error, params string[] details) =>
+        new(false, error, [.. details]);
+
+    /// <summary>
+    /// Formats the details as a multi-line string for display.
+    /// </summary>
+    /// <returns>A formatted string of all details.</returns>
+    public string FormatDetails() => Details.Count > 0
+        ? string.Join("\n", Details)
+        : "No details available.";
+}

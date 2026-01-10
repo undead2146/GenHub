@@ -89,8 +89,8 @@ public class FileSystemValidatorTests
         /// <param name="requiredDirectories">Directories to check.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>List of validation issues.</returns>
-        public new Task<List<ValidationIssue>> ValidateDirectoriesAsync(string basePath, IEnumerable<string> requiredDirectories, CancellationToken cancellationToken)
-            => FileSystemValidator.ValidateDirectoriesAsync(basePath, requiredDirectories, cancellationToken);
+        public new async Task<List<ValidationIssue>> ValidateDirectoriesAsync(string basePath, IEnumerable<string> requiredDirectories, CancellationToken cancellationToken)
+            => await base.ValidateDirectoriesAsync(basePath, requiredDirectories, cancellationToken);
 
         /// <summary>
         /// Exposes base ValidateFilesAsync for testing.
@@ -100,7 +100,7 @@ public class FileSystemValidatorTests
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <param name="progress">Progress reporter.</param>
         /// <returns>List of validation issues.</returns>
-        public new Task<List<ValidationIssue>> ValidateFilesAsync(string basePath, IEnumerable<ManifestFile> files, CancellationToken cancellationToken, IProgress<ValidationProgress>? progress = null)
-            => base.ValidateFilesAsync(basePath, files, cancellationToken, progress);
+        public new async Task<List<ValidationIssue>> ValidateFilesAsync(string basePath, IEnumerable<ManifestFile> files, CancellationToken cancellationToken, IProgress<ValidationProgress>? progress = null)
+            => await base.ValidateFilesAsync(basePath, files, cancellationToken, progress);
     }
 }

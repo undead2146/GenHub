@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,6 +12,7 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Providers;
 using GenHub.Core.Models.Results;
+using GenHub.Core.Models.Results.Content;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Content.Services.CommunityOutpost;

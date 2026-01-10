@@ -112,61 +112,97 @@ public class EAAppRegistryFix(IRegistryService registryService, ILogger<EAAppReg
     /// <inheritdoc/>
     protected override Task<ActionSetResult> ApplyInternalAsync(GameInstallation installation, CancellationToken ct)
     {
+        var details = new List<string>();
+
         // Check if running as administrator - required for HKEY_LOCAL_MACHINE writes
         if (!_registryService.IsRunningAsAdministrator())
         {
-            return Task.FromResult(Failure("Administrator privileges are required to modify registry keys. Please restart GenHub as administrator."));
+            details.Add("✗ Administrator privileges required");
+            details.Add("  Registry modifications require elevated permissions");
+            return Task.FromResult(new ActionSetResult(false, "Administrator privileges are required to modify registry keys. Please restart GenHub as administrator.", details));
         }
 
         try
         {
+            details.Add("Starting EA App registry configuration...");
             bool allSucceeded = true;
             var failedOperations = new List<string>();
 
             if (installation.HasGenerals)
             {
+                details.Add($"Configuring EA App registry for Generals: {installation.GeneralsPath}");
+
                 if (!_registryService.SetStringValue(RegistryConstants.EAAppGeneralsKeyPath, RegistryConstants.InstallPathValueName, installation.GeneralsPath))
                 {
                     allSucceeded = false;
                     failedOperations.Add($"{RegistryConstants.EAAppGeneralsKeyPath}\\{RegistryConstants.InstallPathValueName}");
+                    details.Add($"  ✗ Failed to set InstallPath");
+                }
+                else
+                {
+                    details.Add($"  ✓ InstallPath = {installation.GeneralsPath}");
                 }
 
                 if (!_registryService.SetIntValue(RegistryConstants.EAAppGeneralsKeyPath, RegistryConstants.VersionValueName, RegistryConstants.GeneralsVersionDWord))
                 {
                     allSucceeded = false;
                     failedOperations.Add($"{RegistryConstants.EAAppGeneralsKeyPath}\\{RegistryConstants.VersionValueName}");
+                    details.Add($"  ✗ Failed to set Version");
+                }
+                else
+                {
+                    details.Add($"  ✓ Version = {RegistryConstants.GeneralsVersionDWord}");
                 }
 
-                // Ensure serial key exists. If missing, we might need to prompt or set a placeholder.
-                // For now, if missing, we just ensure the KEY exists, maybe with a specialized placeholder if totally absent?
-                // Actually, without a valid serial, online play fails, but game *launches* usually.
-                // We'll trust that the user has a serial or we define a placeholder if completely missing.
                 var existingSerial = _registryService.GetStringValue(RegistryConstants.EAAppGeneralsErgcKeyPath, string.Empty);
                 if (string.IsNullOrEmpty(existingSerial))
                 {
-                    // Placeholder or generic serial could go here, but for legal reasons usually we don't distribute serials.
-                    // We will just create the key with an empty string if it's null, or leave it.
-                    // Actually, the main issue is usually the KEY structure missing.
                     if (!_registryService.SetStringValue(RegistryConstants.EAAppGeneralsErgcKeyPath, string.Empty, existingSerial ?? string.Empty))
                     {
                         allSucceeded = false;
                         failedOperations.Add($"{RegistryConstants.EAAppGeneralsErgcKeyPath}\\(Default)");
+                        details.Add($"  ✗ Failed to set serial key");
                     }
+                    else
+                    {
+                        details.Add($"  ✓ Serial key structure created");
+                    }
+                }
+                else
+                {
+                    details.Add($"  ✓ Serial key already exists");
+                }
+
+                if (allSucceeded)
+                {
+                    details.Add("✓ Generals registry configuration completed");
                 }
             }
 
             if (installation.HasZeroHour)
             {
+                details.Add($"Configuring EA App registry for Zero Hour: {installation.ZeroHourPath}");
+
                 if (!_registryService.SetStringValue(RegistryConstants.EAAppZeroHourKeyPath, RegistryConstants.InstallPathValueName, installation.ZeroHourPath))
                 {
                     allSucceeded = false;
                     failedOperations.Add($"{RegistryConstants.EAAppZeroHourKeyPath}\\{RegistryConstants.InstallPathValueName}");
+                    details.Add($"  ✗ Failed to set InstallPath");
+                }
+                else
+                {
+                    details.Add($"  ✓ InstallPath = {installation.ZeroHourPath}");
                 }
 
                 if (!_registryService.SetIntValue(RegistryConstants.EAAppZeroHourKeyPath, RegistryConstants.VersionValueName, RegistryConstants.ZeroHourVersionDWord))
                 {
                     allSucceeded = false;
                     failedOperations.Add($"{RegistryConstants.EAAppZeroHourKeyPath}\\{RegistryConstants.VersionValueName}");
+                    details.Add($"  ✗ Failed to set Version");
+                }
+                else
+                {
+                    details.Add($"  ✓ Version = {RegistryConstants.ZeroHourVersionDWord}");
                 }
 
                 var existingSerial = _registryService.GetStringValue(RegistryConstants.EAAppZeroHourErgcKeyPath, string.Empty);
@@ -176,20 +212,41 @@ public class EAAppRegistryFix(IRegistryService registryService, ILogger<EAAppReg
                     {
                         allSucceeded = false;
                         failedOperations.Add($"{RegistryConstants.EAAppZeroHourErgcKeyPath}\\(Default)");
+                        details.Add($"  ✗ Failed to set serial key");
                     }
+                    else
+                    {
+                        details.Add($"  ✓ Serial key structure created");
+                    }
+                }
+                else
+                {
+                    details.Add($"  ✓ Serial key already exists");
+                }
+
+                if (allSucceeded)
+                {
+                    details.Add("✓ Zero Hour registry configuration completed");
                 }
             }
 
             if (!allSucceeded)
             {
-                return Task.FromResult(Failure($"Failed to write the following registry keys: {string.Join(", ", failedOperations)}. Ensure you are running as administrator."));
+                details.Add($"✗ Failed to write {failedOperations.Count} registry key(s)");
+                foreach (var op in failedOperations)
+                {
+                    details.Add($"  • {op}");
+                }
+                return Task.FromResult(new ActionSetResult(false, $"Failed to write the following registry keys: {string.Join(", ", failedOperations)}. Ensure you are running as administrator.", details));
             }
 
-            return Task.FromResult(Success());
+            details.Add("✓ EA App registry configuration completed successfully");
+            return Task.FromResult(new ActionSetResult(true, null, details));
         }
         catch (Exception ex)
         {
-            return Task.FromResult(Failure(ex.Message));
+            details.Add($"✗ Error: {ex.Message}");
+            return Task.FromResult(new ActionSetResult(false, ex.Message, details));
         }
     }
 

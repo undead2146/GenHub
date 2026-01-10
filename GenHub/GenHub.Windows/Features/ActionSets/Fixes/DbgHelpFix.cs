@@ -1,6 +1,7 @@
 namespace GenHub.Windows.Features.ActionSets.Fixes;
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -61,50 +62,75 @@ public class DbgHelpFix(ILogger<DbgHelpFix> logger) : BaseActionSet(logger)
     /// <inheritdoc/>
     protected override Task<ActionSetResult> ApplyInternalAsync(GameInstallation installation, CancellationToken ct)
     {
+        var details = new List<string>();
+
         try
         {
+            details.Add("Starting DbgHelp.dll fix...");
+            details.Add("This DLL causes crashes on modern Windows and will be disabled");
+
             if (installation.HasGenerals)
             {
-                RenameDll(installation.GeneralsPath);
+                details.Add($"Processing Generals: {installation.GeneralsPath}");
+                var result = RenameDll(installation.GeneralsPath, details);
+                if (!result)
+                {
+                    details.Add("  ⚠ DbgHelp.dll not found (may already be fixed)");
+                }
             }
 
             if (installation.HasZeroHour)
             {
-                RenameDll(installation.ZeroHourPath);
+                details.Add($"Processing Zero Hour: {installation.ZeroHourPath}");
+                var result = RenameDll(installation.ZeroHourPath, details);
+                if (!result)
+                {
+                    details.Add("  ⚠ DbgHelp.dll not found (may already be fixed)");
+                }
             }
 
-            return Task.FromResult(Success());
+            details.Add("✓ DbgHelp.dll fix completed successfully");
+            return Task.FromResult(new ActionSetResult(true, null, details));
         }
         catch (Exception ex)
         {
-            return Task.FromResult(Failure(ex.Message));
+            details.Add($"✗ Error: {ex.Message}");
+            return Task.FromResult(new ActionSetResult(false, ex.Message, details));
         }
     }
 
     /// <inheritdoc/>
     protected override Task<ActionSetResult> UndoInternalAsync(GameInstallation installation, CancellationToken ct)
     {
+        var details = new List<string>();
+
         try
         {
+            details.Add("Restoring DbgHelp.dll...");
+
             if (installation.HasGenerals)
             {
-                RestoreDll(installation.GeneralsPath);
+                details.Add($"Processing Generals: {installation.GeneralsPath}");
+                RestoreDll(installation.GeneralsPath, details);
             }
 
             if (installation.HasZeroHour)
             {
-                RestoreDll(installation.ZeroHourPath);
+                details.Add($"Processing Zero Hour: {installation.ZeroHourPath}");
+                RestoreDll(installation.ZeroHourPath, details);
             }
 
-            return Task.FromResult(Success());
+            details.Add("✓ DbgHelp.dll restored");
+            return Task.FromResult(new ActionSetResult(true, null, details));
         }
         catch (Exception ex)
         {
-            return Task.FromResult(Failure(ex.Message));
+            details.Add($"✗ Error: {ex.Message}");
+            return Task.FromResult(new ActionSetResult(false, ex.Message, details));
         }
     }
 
-    private static void RenameDll(string path)
+    private static bool RenameDll(string path, List<string> details)
     {
         var dllPath = Path.Combine(path, DbgHelpDll);
         var bakPath = Path.Combine(path, DbgHelpDllBak);
@@ -114,13 +140,18 @@ public class DbgHelpFix(ILogger<DbgHelpFix> logger) : BaseActionSet(logger)
             if (File.Exists(bakPath))
             {
                 File.Delete(bakPath);
+                details.Add($"  • Deleted existing backup: {DbgHelpDllBak}");
             }
 
             File.Move(dllPath, bakPath);
+            details.Add($"  ✓ Renamed {DbgHelpDll} → {DbgHelpDllBak}");
+            return true;
         }
+
+        return false;
     }
 
-    private static void RestoreDll(string path)
+    private static void RestoreDll(string path, List<string> details)
     {
         var dllPath = Path.Combine(path, DbgHelpDll);
         var bakPath = Path.Combine(path, DbgHelpDllBak);
@@ -133,6 +164,11 @@ public class DbgHelpFix(ILogger<DbgHelpFix> logger) : BaseActionSet(logger)
             }
 
             File.Move(bakPath, dllPath);
+            details.Add($"  ✓ Restored {DbgHelpDllBak} → {DbgHelpDll}");
+        }
+        else
+        {
+            details.Add($"  ⚠ Backup file not found: {DbgHelpDllBak}");
         }
     }
 }

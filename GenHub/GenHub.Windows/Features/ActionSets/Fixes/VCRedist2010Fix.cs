@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
@@ -83,20 +84,32 @@ public class VCRedist2010Fix(IHttpClientFactory httpClientFactory, ILogger<VCRed
     /// <inheritdoc/>
     protected override async Task<ActionSetResult> ApplyInternalAsync(GameInstallation installation, CancellationToken cancellationToken)
     {
+        var details = new List<string>();
+
         try
         {
-            var tempPath = Path.Combine(Path.GetTempPath(), "vcredist_x86_2010.exe");
+            details.Add("Starting Visual C++ 2010 Runtime installation...");
+            details.Add($"Download URL: {ExternalUrls.VCRedist2010DownloadUrl}");
 
+            var tempPath = Path.Combine(Path.GetTempPath(), "vcredist_x86_2010.exe");
+            details.Add($"Temp file: {tempPath}");
+
+            details.Add("Downloading VCRedist 2010...");
             logger.LogInformation("Downloading VCRedist 2010 from {Url}", ExternalUrls.VCRedist2010DownloadUrl);
 
             using var client = httpClientFactory.CreateClient("Downloader");
             using var response = await client.GetAsync(ExternalUrls.VCRedist2010DownloadUrl, cancellationToken);
             response.EnsureSuccessStatusCode();
 
+            var fileSize = response.Content.Headers.ContentLength ?? 0;
+            details.Add($"✓ Downloaded {fileSize / 1024 / 1024:F2} MB");
+
             using var fs = new FileStream(tempPath, FileMode.Create);
             await response.Content.CopyToAsync(fs, cancellationToken);
             fs.Close();
 
+            details.Add("Installing VCRedist 2010 (silent mode)...");
+            details.Add("  ⚠ This may require administrator privileges");
             logger.LogInformation("Installing VCRedist 2010...");
 
             var psi = new ProcessStartInfo
@@ -116,10 +129,21 @@ public class VCRedist2010Fix(IHttpClientFactory httpClientFactory, ILogger<VCRed
                 if (process.ExitCode != ProcessConstants.ExitCodeSuccess && process.ExitCode != 3010)
                 {
                     logger.LogWarning("VCRedist install exited with code {Code}", process.ExitCode);
-                    return Failure($"VCRedist install failed with code {process.ExitCode}");
+                    details.Add($"⚠ VCRedist install exited with code {process.ExitCode}");
+                    details.Add($"✗ Installation may have failed");
+                    return new ActionSetResult(false, $"VCRedist install failed with code {process.ExitCode}", details);
                 }
                 else
                 {
+                    if (process.ExitCode == 3010)
+                    {
+                        details.Add("✓ VCRedist 2010 installed successfully");
+                        details.Add("  ⚠ System restart may be required");
+                    }
+                    else
+                    {
+                        details.Add("✓ VCRedist 2010 installed successfully");
+                    }
                     logger.LogInformation("VCRedist 2010 installed successfully");
                 }
             }
@@ -130,12 +154,14 @@ public class VCRedist2010Fix(IHttpClientFactory httpClientFactory, ILogger<VCRed
                 File.Delete(tempPath);
             }
 
-            return Success();
+            details.Add("✓ VCRedist 2010 installation completed");
+            return new ActionSetResult(true, null, details);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to install VCRedist 2010");
-            return Failure(ex.Message);
+            details.Add($"✗ Error: {ex.Message}");
+            return new ActionSetResult(false, ex.Message, details);
         }
     }
 
@@ -143,6 +169,6 @@ public class VCRedist2010Fix(IHttpClientFactory httpClientFactory, ILogger<VCRed
     protected override Task<ActionSetResult> UndoInternalAsync(GameInstallation installation, CancellationToken cancellationToken)
     {
         logger.LogWarning("Uninstalling VCRedist 2010 is not supported via GenHub.");
-        return Task.FromResult(Success());
+        return Task.FromResult(new ActionSetResult(true));
     }
 }
