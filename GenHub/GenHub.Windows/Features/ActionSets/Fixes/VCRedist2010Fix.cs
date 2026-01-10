@@ -144,6 +144,7 @@ public class VCRedist2010Fix(IHttpClientFactory httpClientFactory, ILogger<VCRed
                     {
                         details.Add("✓ VCRedist 2010 installed successfully");
                     }
+
                     logger.LogInformation("VCRedist 2010 installed successfully");
                 }
             }

@@ -118,7 +118,6 @@ public class EdgeScrollerFix(ILogger<EdgeScrollerFix> logger, IGameSettingsServi
         // The key settings are:
         // - ScrollEdgeZone: The size of edge detection zone (default: 0.1, optimal: 0.05-0.15)
         // - ScrollEdgeSpeed: The speed of edge scrolling (default: 1.0, optimal: 1.0-2.0)
-
         if (!options.AdditionalSections.TryGetValue("TheSuperHackers", out var tshSection))
         {
             return false;

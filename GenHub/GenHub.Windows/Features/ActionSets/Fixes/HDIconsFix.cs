@@ -60,16 +60,16 @@ public class HDIconsFix(ILogger<HDIconsFix> logger) : BaseActionSet(logger)
         try
         {
             details.Add("High-Definition Icons - Informational");
-            details.Add("");
+            details.Add(string.Empty);
             details.Add("⚠ NOTE: HD Icons are provided by mods or community content");
             details.Add("  GenHub's Content system handles icon downloads");
-            details.Add("");
+            details.Add(string.Empty);
             details.Add("To get HD Icons:");
             details.Add("  1. Open GenHub");
             details.Add("  2. Go to Downloads section");
             details.Add("  3. Browse 'Icons' category");
             details.Add("  4. Download and install HD icon packs");
-            details.Add("");
+            details.Add(string.Empty);
 
             // Check current status
             var hdIconsPresent = AreHDIconsPresent(installation);

@@ -157,7 +157,8 @@ public class EAAppRegistryFix(IRegistryService registryService, ILogger<EAAppReg
                 var existingSerial = _registryService.GetStringValue(RegistryConstants.EAAppGeneralsErgcKeyPath, string.Empty);
                 if (string.IsNullOrEmpty(existingSerial))
                 {
-                    if (!_registryService.SetStringValue(RegistryConstants.EAAppGeneralsErgcKeyPath, string.Empty, existingSerial ?? string.Empty))
+                    const string defaultSerial = "1234567890";
+                    if (!_registryService.SetStringValue(RegistryConstants.EAAppGeneralsErgcKeyPath, string.Empty, defaultSerial))
                     {
                         allSucceeded = false;
                         failedOperations.Add($"{RegistryConstants.EAAppGeneralsErgcKeyPath}\\(Default)");
@@ -165,7 +166,7 @@ public class EAAppRegistryFix(IRegistryService registryService, ILogger<EAAppReg
                     }
                     else
                     {
-                        details.Add($"  ✓ Serial key structure created");
+                        details.Add($"  ✓ Serial key created: {defaultSerial}");
                     }
                 }
                 else
@@ -208,7 +209,8 @@ public class EAAppRegistryFix(IRegistryService registryService, ILogger<EAAppReg
                 var existingSerial = _registryService.GetStringValue(RegistryConstants.EAAppZeroHourErgcKeyPath, string.Empty);
                 if (string.IsNullOrEmpty(existingSerial))
                 {
-                    if (!_registryService.SetStringValue(RegistryConstants.EAAppZeroHourErgcKeyPath, string.Empty, existingSerial ?? string.Empty))
+                    const string defaultSerial = "1234567890";
+                    if (!_registryService.SetStringValue(RegistryConstants.EAAppZeroHourErgcKeyPath, string.Empty, defaultSerial))
                     {
                         allSucceeded = false;
                         failedOperations.Add($"{RegistryConstants.EAAppZeroHourErgcKeyPath}\\(Default)");
@@ -216,7 +218,7 @@ public class EAAppRegistryFix(IRegistryService registryService, ILogger<EAAppReg
                     }
                     else
                     {
-                        details.Add($"  ✓ Serial key structure created");
+                        details.Add($"  ✓ Serial key created: {defaultSerial}");
                     }
                 }
                 else
@@ -237,6 +239,7 @@ public class EAAppRegistryFix(IRegistryService registryService, ILogger<EAAppReg
                 {
                     details.Add($"  • {op}");
                 }
+
                 return Task.FromResult(new ActionSetResult(false, $"Failed to write the following registry keys: {string.Join(", ", failedOperations)}. Ensure you are running as administrator.", details));
             }
 

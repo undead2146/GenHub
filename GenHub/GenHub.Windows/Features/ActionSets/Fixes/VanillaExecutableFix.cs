@@ -91,10 +91,10 @@ public class VanillaExecutableFix(ILogger<VanillaExecutableFix> logger) : BaseAc
             }
 
             details.Add("Generals Executable Fix - Informational");
-            details.Add("");
+            details.Add(string.Empty);
             details.Add("This fix ensures the Generals 1.08 patch is applied.");
             details.Add("The actual patching is done by the 'Generals 1.08 Patch' fix.");
-            details.Add("");
+            details.Add(string.Empty);
 
             var generalsExePath = Path.Combine(installation.GeneralsPath, "generals.exe");
             if (!File.Exists(generalsExePath))

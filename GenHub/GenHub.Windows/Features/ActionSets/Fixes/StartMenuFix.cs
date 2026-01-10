@@ -60,20 +60,20 @@ public class StartMenuFix(ILogger<StartMenuFix> logger) : BaseActionSet(logger)
         try
         {
             details.Add("Start Menu Shortcuts Fix - Informational");
-            details.Add("");
+            details.Add(string.Empty);
             details.Add("⚠ NOTE: This fix is informational only");
             details.Add("  Shortcuts are typically created during game installation");
-            details.Add("");
+            details.Add(string.Empty);
             details.Add("To create shortcuts manually:");
             details.Add("  1. Right-click on game executable");
             details.Add("  2. Select 'Show more options' > 'Create shortcut'");
             details.Add("  3. Move shortcut to Start Menu folder");
-            details.Add("");
+            details.Add(string.Empty);
             details.Add("Or use GenHub to create shortcuts:");
             details.Add("  1. Open GenHub");
             details.Add("  2. Go to game installation");
             details.Add("  3. Click 'Create Shortcuts' button");
-            details.Add("");
+            details.Add(string.Empty);
 
             // Check current status
             var shortcutsExist = DoShortcutsExist(installation);

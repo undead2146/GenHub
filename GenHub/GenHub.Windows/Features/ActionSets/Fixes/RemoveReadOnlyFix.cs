@@ -164,7 +164,7 @@ public class RemoveReadOnlyFix(ILogger<RemoveReadOnlyFix> logger) : BaseActionSe
         return Path.Combine(documents, folder);
     }
 
-    private async Task<(int files, int dirs)> ProcessDirectoryAsync(string path, List<string> details, CancellationToken ct)
+    private async Task<(int Files, int Dirs)> ProcessDirectoryAsync(string path, List<string> details, CancellationToken ct)
     {
         if (!Directory.Exists(path)) return (0, 0);
 
@@ -205,7 +205,7 @@ public class RemoveReadOnlyFix(ILogger<RemoveReadOnlyFix> logger) : BaseActionSe
         return (filesProcessed, dirsProcessed);
     }
 
-    private async Task<(int files, int dirs)> RemoveReadOnlyRecursiveAsync(DirectoryInfo directory, CancellationToken ct)
+    private async Task<(int Files, int Dirs)> RemoveReadOnlyRecursiveAsync(DirectoryInfo directory, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 

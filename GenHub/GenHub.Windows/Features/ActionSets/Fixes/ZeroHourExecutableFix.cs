@@ -86,10 +86,10 @@ public class ZeroHourExecutableFix(ILogger<ZeroHourExecutableFix> logger) : Base
             }
 
             details.Add("Zero Hour Executable Fix - Informational");
-            details.Add("");
+            details.Add(string.Empty);
             details.Add("This fix ensures the Zero Hour 1.04 patch is applied.");
             details.Add("The actual patching is done by the 'Zero Hour 1.04 Patch' fix.");
-            details.Add("");
+            details.Add(string.Empty);
 
             var gameExePath = Path.Combine(installation.ZeroHourPath, "game.exe");
 

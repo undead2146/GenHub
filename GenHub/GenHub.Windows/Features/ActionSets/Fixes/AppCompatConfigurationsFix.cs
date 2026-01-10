@@ -93,7 +93,7 @@ public class AppCompatConfigurationsFix(
 
             details.Add($"Installation type: {installation.InstallationType}");
             details.Add($"Compatibility flags: {flag}");
-            details.Add("");
+            details.Add(string.Empty);
 
             if (installation.HasGenerals)
             {
@@ -186,6 +186,7 @@ public class AppCompatConfigurationsFix(
                 await process.WaitForExitAsync(ct);
                 return process.ExitCode == 0;
             }
+
             return false;
         }
         catch (Exception ex)

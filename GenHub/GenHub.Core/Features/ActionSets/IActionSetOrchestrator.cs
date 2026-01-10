@@ -7,7 +7,7 @@ using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.Results;
 
 /// <summary>
-/// Service responsbile for managing and executing action sets.
+/// Service responsible for managing and executing action sets.
 /// </summary>
 public interface IActionSetOrchestrator
 {

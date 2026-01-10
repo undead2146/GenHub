@@ -60,6 +60,7 @@ public class MainViewModelTests
         // Act
         var mockNotificationFeedVm = new Mock<NotificationFeedViewModel>(
             mockNotificationService.Object,
+            Mock.Of<ILoggerFactory>(),
             Mock.Of<ILogger<NotificationFeedViewModel>>());
         var vm = new MainViewModel(
             CreateGameProfileLauncherViewModel(),
@@ -102,6 +103,7 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var mockNotificationFeedVm = new Mock<NotificationFeedViewModel>(
             mockNotificationService.Object,
+            Mock.Of<ILoggerFactory>(),
             Mock.Of<ILogger<NotificationFeedViewModel>>());
         var vm = new MainViewModel(
             CreateGameProfileLauncherViewModel(),
@@ -141,6 +143,7 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var mockNotificationFeedVm = new Mock<NotificationFeedViewModel>(
             mockNotificationService.Object,
+            Mock.Of<ILoggerFactory>(),
             Mock.Of<ILogger<NotificationFeedViewModel>>());
         var vm = new MainViewModel(
             CreateGameProfileLauncherViewModel(),
@@ -181,6 +184,7 @@ public class MainViewModelTests
             Mock.Of<ILogger<NotificationItemViewModel>>());
         var mockNotificationFeedVm = new Mock<NotificationFeedViewModel>(
             mockNotificationService.Object,
+            Mock.Of<ILoggerFactory>(),
             Mock.Of<ILogger<NotificationFeedViewModel>>());
         var vm = new MainViewModel(
             CreateGameProfileLauncherViewModel(),
@@ -371,6 +375,7 @@ public class MainViewModelTests
     {
         var mock = new Mock<INotificationService>();
         mock.Setup(x => x.Notifications).Returns(Observable.Empty<NotificationMessage>());
+        mock.Setup(x => x.NotificationHistory).Returns(Observable.Empty<NotificationMessage>());
         mock.Setup(x => x.DismissRequests).Returns(Observable.Empty<Guid>());
         mock.Setup(x => x.DismissAllRequests).Returns(Observable.Empty<bool>());
         return mock;

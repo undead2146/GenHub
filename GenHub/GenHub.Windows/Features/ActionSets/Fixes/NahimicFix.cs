@@ -70,7 +70,7 @@ public class NahimicFix(ILogger<NahimicFix> logger) : BaseActionSet(logger)
         try
         {
             details.Add("Nahimic Audio Compatibility - Informational");
-            details.Add("");
+            details.Add(string.Empty);
 
             var nahimicInstalled = IsNahimicInstalled();
 
@@ -85,7 +85,7 @@ public class NahimicFix(ILogger<NahimicFix> logger) : BaseActionSet(logger)
             // Provide guidance for disabling Nahimic
             details.Add("⚠ Nahimic audio driver detected");
             details.Add("  This may cause audio issues with Generals/Zero Hour");
-            details.Add("");
+            details.Add(string.Empty);
             details.Add("To disable Nahimic audio effects:");
             details.Add("  1. Open Task Manager (Ctrl+Shift+Esc)");
             details.Add("  2. Go to the 'Services' tab");
@@ -94,7 +94,7 @@ public class NahimicFix(ILogger<NahimicFix> logger) : BaseActionSet(logger)
             details.Add("  5. Right-click again and select 'Properties'");
             details.Add("  6. Change 'Startup type' to 'Disabled'");
             details.Add("  7. Click 'Apply' and 'OK'");
-            details.Add("");
+            details.Add(string.Empty);
             details.Add("Alternative: Uninstall Nahimic if you don't need it");
 
             _logger.LogWarning("Nahimic audio driver is installed. This may cause audio issues with Generals/Zero Hour.");

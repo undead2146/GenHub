@@ -100,14 +100,14 @@ public class ActionSetOrchestrator : IActionSetOrchestrator
                 if (actionSet.IsCrucialFix)
                 {
                     _logger.LogError("Critical fix {Title} failed for {Installation}. Aborting sequence.", actionSet.Title, installation.InstallationPath);
-                    return OperationResult<int>.CreateFailure(errors, default);
+                    return OperationResult<int>.CreateFailure(errors, successCount);
                 }
             }
         }
 
         if (errors.Count > 0)
         {
-            return OperationResult<int>.CreateFailure(errors);
+            return OperationResult<int>.CreateFailure(errors, successCount);
         }
 
         return OperationResult<int>.CreateSuccess(successCount);

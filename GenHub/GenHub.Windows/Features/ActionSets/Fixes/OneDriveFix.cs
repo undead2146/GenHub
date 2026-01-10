@@ -91,7 +91,7 @@ public class OneDriveFix(ILogger<OneDriveFix> logger) : BaseActionSet(logger)
         {
             details.Add("Starting OneDrive sync prevention...");
             details.Add("Creating desktop.ini files with ThisPCPolicy=DisableCloudSync");
-            details.Add("");
+            details.Add(string.Empty);
 
             int foldersProtected = 0;
 
@@ -125,7 +125,7 @@ public class OneDriveFix(ILogger<OneDriveFix> logger) : BaseActionSet(logger)
                 }
             }
 
-            details.Add("");
+            details.Add(string.Empty);
             details.Add($"✓ Protected {foldersProtected} folders from OneDrive sync");
             details.Add("✓ OneDrive sync prevention completed successfully");
 
@@ -144,6 +144,15 @@ public class OneDriveFix(ILogger<OneDriveFix> logger) : BaseActionSet(logger)
     {
         _logger.LogWarning("Undoing OneDrive protection is not recommended as it may cause sync issues.");
         return Task.FromResult(new ActionSetResult(true));
+    }
+
+    private static string GetUserDataPath(GameType gameType)
+    {
+        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        var folder = gameType == GameType.ZeroHour
+            ? GameSettingsConstants.FolderNames.ZeroHour
+            : GameSettingsConstants.FolderNames.Generals;
+        return Path.Combine(documents, folder);
     }
 
     private bool HasOneDriveProtection(string path)
@@ -200,14 +209,5 @@ public class OneDriveFix(ILogger<OneDriveFix> logger) : BaseActionSet(logger)
             _logger.LogWarning(ex, "Could not apply OneDrive protection to {Path}", path);
             details.Add($"  ⚠ Failed to protect folder: {ex.Message}");
         }
-    }
-
-    private string GetUserDataPath(GameType gameType)
-    {
-        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        var folder = gameType == GameType.ZeroHour
-            ? GameSettingsConstants.FolderNames.ZeroHour
-            : GameSettingsConstants.FolderNames.Generals;
-        return Path.Combine(documents, folder);
     }
 }

@@ -132,6 +132,7 @@ public class OptionsINIFix(IGameSettingsService gameSettingsService, ILogger<Opt
                         details.Add($"  • {error}");
                     }
                 }
+
                 return new ActionSetResult(false, $"Failed to load Options.ini: {string.Join(", ", loadResult.Errors ?? [])}", details);
             }
 
@@ -162,7 +163,7 @@ public class OptionsINIFix(IGameSettingsService gameSettingsService, ILogger<Opt
             details.Add("  • UseShadowVolumes = no");
             details.Add("  • Windowed = no");
 
-            if (IsBadResolution(int.Parse(currentRes.Split('x')[0]), int.Parse(currentRes.Split('x')[1])))
+            if (IsBadResolution(options.Video.ResolutionWidth, options.Video.ResolutionHeight))
             {
                 details.Add($"  • Resolution = 1920x1080 (changed from {currentRes})");
             }
@@ -199,6 +200,7 @@ public class OptionsINIFix(IGameSettingsService gameSettingsService, ILogger<Opt
                         details.Add($"  • {error}");
                     }
                 }
+
                 return new ActionSetResult(false, $"Failed to save Options.ini: {string.Join(", ", saveResult.Errors ?? [])}", details);
             }
 

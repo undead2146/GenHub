@@ -131,7 +131,7 @@ public class FileSystemDiscoverer : IContentDiscoverer
         {
             Items = discoveredItems,
             HasMoreItems = false,
-            TotalItems = discoveredItems.Count
+            TotalItems = discoveredItems.Count,
         };
 
         return OperationResult<ContentDiscoveryResult>.CreateSuccess(result);
