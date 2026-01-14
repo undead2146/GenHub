@@ -1,5 +1,6 @@
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Interfaces.Tools;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
@@ -22,6 +23,7 @@ public class ManifestGenerationServiceTests : IDisposable
     private readonly Mock<IManifestIdService> _manifestIdServiceMock;
     private readonly Mock<IDownloadService> _downloadServiceMock;
     private readonly Mock<IConfigurationProviderService> _configProviderServiceMock;
+    private readonly Mock<IPlaywrightService> _playwrightServiceMock;
     private readonly ManifestGenerationService _service;
     private readonly string _tempDirectory;
 
@@ -34,6 +36,7 @@ public class ManifestGenerationServiceTests : IDisposable
         _manifestIdServiceMock = new Mock<IManifestIdService>();
         _downloadServiceMock = new Mock<IDownloadService>();
         _configProviderServiceMock = new Mock<IConfigurationProviderService>();
+        _playwrightServiceMock = new Mock<IPlaywrightService>();
 
         // Setup hash provider to return deterministic hashes
         _hashProviderMock.Setup(x => x.ComputeFileHashAsync(It.IsAny<string>(), default))
