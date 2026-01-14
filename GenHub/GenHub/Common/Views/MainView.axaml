@@ -122,6 +122,9 @@
         <DataTemplate DataType="downloadsVM:DownloadsViewModel">
             <downloadsViews:DownloadsView />
         </DataTemplate>
+        <DataTemplate DataType="downloadsVM:DownloadsBrowserViewModel">
+            <downloadsViews:DownloadsBrowserView />
+        </DataTemplate>
         <DataTemplate DataType="toolsVM:ToolsViewModel">
             <toolsViews:ToolsView />
         </DataTemplate>

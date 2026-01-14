@@ -28,24 +28,6 @@ public class FileSystemDiscoverer : IContentDiscoverer
     private readonly ManifestDiscoveryService _manifestDiscoveryService;
     private readonly IConfigurationProviderService _configurationProvider;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="FileSystemDiscoverer"/> class.
-    /// </summary>
-    /// <param name="logger">The logger instance.</param>
-    /// <param name="manifestDiscoveryService">The manifest discovery service.</param>
-    /// <param name="configurationProvider">The unified configuration provider.</param>
-    public FileSystemDiscoverer(
-        ILogger<FileSystemDiscoverer> logger,
-        ManifestDiscoveryService manifestDiscoveryService,
-        IConfigurationProviderService configurationProvider)
-    {
-        _logger = logger;
-        _manifestDiscoveryService = manifestDiscoveryService;
-        _configurationProvider = configurationProvider;
-
-        InitializeContentDirectories();
-    }
-
     private static bool MatchesQuery(ContentManifest manifest, ContentSearchQuery query)
     {
         if (!string.IsNullOrWhiteSpace(query.SearchTerm) &&
@@ -66,6 +48,24 @@ public class FileSystemDiscoverer : IContentDiscoverer
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FileSystemDiscoverer"/> class.
+    /// </summary>
+    /// <param name="logger">The logger instance.</param>
+    /// <param name="manifestDiscoveryService">The manifest discovery service.</param>
+    /// <param name="configurationProvider">The unified configuration provider.</param>
+    public FileSystemDiscoverer(
+        ILogger<FileSystemDiscoverer> logger,
+        ManifestDiscoveryService manifestDiscoveryService,
+        IConfigurationProviderService configurationProvider)
+    {
+        _logger = logger;
+        _manifestDiscoveryService = manifestDiscoveryService;
+        _configurationProvider = configurationProvider;
+
+        InitializeContentDirectories();
     }
 
     /// <inheritdoc />

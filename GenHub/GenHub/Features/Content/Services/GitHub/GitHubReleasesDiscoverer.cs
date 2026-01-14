@@ -60,7 +60,7 @@ public class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILogger<Git
             try
             {
                 // Get all releases from GitHub
-                var releases = await gitHubClient.GetReleasesAsync(owner, repo, cancellationToken);
+                var releases = (await gitHubClient.GetReleasesAsync(owner, repo, cancellationToken))?.ToList();
 
                 if (releases != null)
                 {
@@ -76,7 +76,7 @@ public class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILogger<Git
                                 Id = $"github.{owner}.{repo}.{release.TagName}",
                                 Name = release.Name ?? $"{repo} {release.TagName}",
                                 Description = release.Body ?? "GitHub release - full details available after resolution",
-                                Version = release.TagName,
+                                Version = release.TagName.TrimStart('v', 'V'),
                                 AuthorName = release.Author,
                                 ContentType = inferredContentType.Type,
                                 TargetGame = inferredGame.Type,
@@ -85,6 +85,7 @@ public class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILogger<Git
                                 RequiresResolution = true,
                                 ResolverId = ContentSourceNames.GitHubResolverId,
                                 SourceUrl = release.HtmlUrl,
+                                IconUrl = "avares://GenHub/Assets/Logos/thesuperhackers-logo.png", // Default icon for SuperHackers
                                 LastUpdated = release.PublishedAt?.DateTime ?? release.CreatedAt.DateTime,
                                 ResolverMetadata =
                                 {

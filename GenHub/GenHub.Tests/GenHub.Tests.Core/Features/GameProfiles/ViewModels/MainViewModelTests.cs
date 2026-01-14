@@ -1,6 +1,7 @@
 using System.Reactive.Linq;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.Content; // Added
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GameSettings;
@@ -17,7 +18,8 @@ using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Notifications;
 using GenHub.Features.AppUpdate.Interfaces;
-using GenHub.Features.Content.Services.ContentDiscoverers;
+using GenHub.Core.Interfaces.Providers; // Added
+using GenHub.Features.Content.Services.Publishers;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.ViewModels;
@@ -195,7 +197,7 @@ public class MainViewModelTests
                 Assert.IsType<GameProfileLauncherViewModel>(currentViewModel);
                 break;
             case NavigationTab.Downloads:
-                Assert.IsType<DownloadsViewModel>(currentViewModel);
+                Assert.IsType<DownloadsBrowserViewModel>(currentViewModel);
                 break;
             case NavigationTab.Tools:
                 Assert.IsType<ToolsViewModel>(currentViewModel);
@@ -246,6 +248,9 @@ public class MainViewModelTests
             mockWorkspaceManager.Object,
             mockManifestPool.Object,
             mockUpdateManager.Object,
+            new Mock<IPublisherSubscriptionStore>().Object,
+            new Mock<IPublisherCatalogRefreshService>().Object,
+            new Mock<IGitHubApiClient>().Object,
             mockNotificationServiceForSettings.Object,
             mockConfigurationProvider.Object,
             mockInstallationService.Object,
@@ -265,28 +270,20 @@ public class MainViewModelTests
     }
 
     /// <summary>
-    /// Helper method to create a DownloadsViewModel with mocked dependencies.
+    /// Helper method to create a DownloadsBrowserViewModel with mocked dependencies.
     /// </summary>
-    private static DownloadsViewModel CreateDownloadsViewModel()
+    private static DownloadsBrowserViewModel CreateDownloadsViewModel()
     {
         var mockServiceProvider = new Mock<IServiceProvider>();
-        var mockLogger = new Mock<ILogger<DownloadsViewModel>>();
-        var mockNotificationService = new Mock<INotificationService>();
+        var mockLogger = new Mock<ILogger<DownloadsBrowserViewModel>>();
+        var mockDiscoverers = Enumerable.Empty<IContentDiscoverer>();
+        var mockDownloadService = new Mock<IDownloadService>();
 
-        // Create the three required dependencies for the discoverer
-        var mockGitHubClient = new Mock<IGitHubApiClient>();
-        var mockDiscovererLogger = new Mock<ILogger<GitHubTopicsDiscoverer>>();
-
-        // Instantiate the real class with the two mocks
-        var realGitHubDiscoverer = new GitHubTopicsDiscoverer(
-            mockGitHubClient.Object,
-            mockDiscovererLogger.Object);
-
-        return new DownloadsViewModel(
+        return new DownloadsBrowserViewModel(
             mockServiceProvider.Object,
             mockLogger.Object,
-            mockNotificationService.Object,
-            realGitHubDiscoverer);
+            mockDiscoverers,
+            mockDownloadService.Object);
     }
 
     /// <summary>

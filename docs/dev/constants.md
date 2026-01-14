@@ -140,6 +140,18 @@ Configuration key constants for `appsettings.json` and environment variables.
 Constants related to workspace management and configuration.
 
 - `DefaultWorkspaceStrategy`: The default workspace strategy to use when none is specified (`WorkspaceStrategy.HardLink`)
+## CommandLineConstants Class
+
+Constants for command line arguments and URI schemes.
+
+| Constant                     | Value                | Description                                                |
+| ---------------------------- | -------------------- | ---------------------------------------------------------- |
+| `LaunchProfileArg`           | `"--launch-profile"` | Command-line argument used to request launching a profile  |
+| `LaunchProfileInlinePrefix` | `"--launch-profile="` | Prefix for inline profile launching                        |
+| `UriScheme`                  | `"genhub://"`        | URI scheme used for protocol handling                      |
+| `SubscribeCommand`           | `"subscribe"`        | Command for subscribing to a catalog via URI               |
+| `SubscribeUriPrefix`         | `"genhub://subscribe"` | Full prefix for subscription URI                          |
+| `SubscribeUrlParam`          | `"?url="`            | Query parameter name for the catalog URL                   |
 
 ---
 
@@ -1558,6 +1570,76 @@ Constants for The Super Hackers content discovery and manifest creation.
 - `PublisherPrefix`: Publisher prefix string (`"thesuperhackers"`)
 - `PublisherDisplayName`: Display name for the publisher (`"The Super Hackers"`)
 - `VersionDelimiter`: Character used to separate components in version strings (`':'`)
+
+---
+
+## AODMapsConstants Class
+
+Constants for AODMaps (Age of Defense Maps) provider.
+
+### Publisher & Source Information
+
+| Constant                 | Value        | Description                              |
+| ------------------------ | ------------ | ---------------------------------------- |
+| `PublisherType`          | `"aodmaps"`  | Publisher type identifier                |
+| `DiscovererSourceName`   | `"AODMaps"`  | Source name for discoverer               |
+| `DiscovererDescription`  | `"Age of Defense Maps"` | Display description          |
+| `ResolverId`             | `"AODMaps"`  | Resolver identifier                      |
+
+### URLs & Page Patterns
+
+| Constant                 | Value                                               |
+| ------------------------ | --------------------------------------------------- |
+| `BaseUrl`                | `"https://aodmaps.com"`                             |
+| `PlayerPagePattern`      | `"https://aodmaps.com/Players/{0}_players{1}.html"` |
+| `AoaMapsUrl`             | `"https://aodmaps.com/AOA/aoamaps.html"`            |
+| `RaceMapsUrl`            | `"https://aodmaps.com/race/racemaps.html"`          |
+| `AirMapsUrl`             | `"https://aodmaps.com/air/airmaps.html"`            |
+| `ContraAodUrl`           | `"https://aodmaps.com/ContraAOD/ContraAOD.html"`    |
+
+### CSS Selectors
+
+| Constant                         | Selector/Value                  |
+| -------------------------------- | ------------------------------- |
+| `GallerySelector`                | `"#gallery ul.nospace.clear"`   |
+| `DetailsPageDescriptionSelector` | `"#description"`                |
+| `NameSelector`                   | `".resource-header h1"`         |
+
+---
+
+## CommunityOutpostConstants Class
+
+Constants for the Community Outpost content provider.
+
+| Constant               | Value                                                 |
+| ---------------------- | ----------------------------------------------------- |
+| `PublisherId`          | `"community-outpost"`                                 |
+| `PublisherType`        | `"communityoutpost"`                                  |
+| `PublisherName`        | `"Community Outpost"`                                 |
+| `LogoSource`           | `"avares://GenHub/Assets/Logos/communityoutpost-logo.png"` |
+| `ProviderDescription`  | `"Official patches, tools, and addons from GenPatcher"` |
+
+---
+
+## ModDBParserConstants Class
+
+CSS selectors for the `ModDBPageParser`.
+
+### Page Type Detection
+
+| Constant                 | Selector             |
+| ------------------------ | -------------------- |
+| `ArticlesBrowseSelector` | `"#articlesbrowse"`  |
+| `DownloadsInfoSelector`  | `"#downloadsinfo"`   |
+| `TableSelector`          | `".table"`           |
+
+### Global Context
+
+| Constant              | Selector                                      |
+| --------------------- | --------------------------------------------- |
+| `HeaderBoxSelector`   | `".headerbox"`                                |
+| `TitleSelector`       | `"h1, h2, .title"`                            |
+| `DeveloperSelector`   | `"a[href*='/members/'], a[href*='/company/']"` |
 
 ---
 

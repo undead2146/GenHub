@@ -1,8 +1,10 @@
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Interfaces.Providers;
 using GenHub.Core.Interfaces.Storage;
 using GenHub.Core.Interfaces.UserData;
 using GenHub.Core.Interfaces.Workspace;
@@ -36,6 +38,9 @@ public class SettingsViewModelTests
     private readonly Mock<IConfigurationProviderService> _mockConfigurationProvider;
     private readonly Mock<IGameInstallationService> _mockInstallationService;
     private readonly Mock<IStorageLocationService> _mockStorageLocationService;
+    private readonly Mock<IGitHubApiClient> _mockGitHubApiClient;
+    private readonly Mock<IPublisherSubscriptionStore> _mockSubscriptionStore;
+    private readonly Mock<IPublisherCatalogRefreshService> _mockCatalogRefreshService;
     private readonly Mock<IUserDataTracker> _mockUserDataTracker;
     private readonly UserSettings _defaultSettings;
 
@@ -55,6 +60,9 @@ public class SettingsViewModelTests
         _mockConfigurationProvider = new Mock<IConfigurationProviderService>();
         _mockInstallationService = new Mock<IGameInstallationService>();
         _mockStorageLocationService = new Mock<IStorageLocationService>();
+        _mockGitHubApiClient = new Mock<IGitHubApiClient>();
+        _mockSubscriptionStore = new Mock<IPublisherSubscriptionStore>();
+        _mockCatalogRefreshService = new Mock<IPublisherCatalogRefreshService>();
         _mockUserDataTracker = new Mock<IUserDataTracker>();
         _defaultSettings = new UserSettings();
 
@@ -87,6 +95,9 @@ public class SettingsViewModelTests
             _mockWorkspaceManager.Object,
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
+            _mockSubscriptionStore.Object,
+            _mockCatalogRefreshService.Object,
+            _mockGitHubApiClient.Object,
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
@@ -116,6 +127,9 @@ public class SettingsViewModelTests
             _mockWorkspaceManager.Object,
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
+            _mockSubscriptionStore.Object,
+            _mockCatalogRefreshService.Object,
+            _mockGitHubApiClient.Object,
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
@@ -150,6 +164,9 @@ public class SettingsViewModelTests
             _mockWorkspaceManager.Object,
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
+            _mockSubscriptionStore.Object,
+            _mockCatalogRefreshService.Object,
+            _mockGitHubApiClient.Object,
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
@@ -186,6 +203,9 @@ public class SettingsViewModelTests
             _mockWorkspaceManager.Object,
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
+            _mockSubscriptionStore.Object,
+            _mockCatalogRefreshService.Object,
+            _mockGitHubApiClient.Object,
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
@@ -221,6 +241,9 @@ public class SettingsViewModelTests
             _mockWorkspaceManager.Object,
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
+            _mockSubscriptionStore.Object,
+            _mockCatalogRefreshService.Object,
+            _mockGitHubApiClient.Object,
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
@@ -251,6 +274,9 @@ public class SettingsViewModelTests
             _mockWorkspaceManager.Object,
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
+            _mockSubscriptionStore.Object,
+            _mockCatalogRefreshService.Object,
+            _mockGitHubApiClient.Object,
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
@@ -283,6 +309,9 @@ public class SettingsViewModelTests
             _mockWorkspaceManager.Object,
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
+            _mockSubscriptionStore.Object,
+            _mockCatalogRefreshService.Object,
+            _mockGitHubApiClient.Object,
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
@@ -321,6 +350,9 @@ public class SettingsViewModelTests
             _mockWorkspaceManager.Object,
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
+            _mockSubscriptionStore.Object,
+            _mockCatalogRefreshService.Object,
+            _mockGitHubApiClient.Object,
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
@@ -358,6 +390,9 @@ public class SettingsViewModelTests
             _mockWorkspaceManager.Object,
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
+            _mockSubscriptionStore.Object,
+            _mockCatalogRefreshService.Object,
+            _mockGitHubApiClient.Object,
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
@@ -387,6 +422,9 @@ public class SettingsViewModelTests
             _mockWorkspaceManager.Object,
             _mockManifestPool.Object,
             _mockUpdateManager.Object,
+            _mockSubscriptionStore.Object,
+            _mockCatalogRefreshService.Object,
+            _mockGitHubApiClient.Object,
             _mockNotificationService.Object,
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,

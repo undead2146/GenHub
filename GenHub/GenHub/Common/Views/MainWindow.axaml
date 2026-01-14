@@ -11,18 +11,7 @@
         Title="GenHub"
         WindowStartupLocation="CenterScreen"
         Icon="avares://GenHub/Assets/Icons/generalshub-icon.png"
-        SystemDecorations="Full"
-        ExtendClientAreaToDecorationsHint="True"
-        ExtendClientAreaChromeHints="NoChrome"
-        ExtendClientAreaTitleBarHeightHint="-1">
-
-    <Window.Styles>
-        <Style Selector="Grid.TitleBarArea">
-            <Setter Property="Background" Value="#1A1A1A"/>
-            <Setter Property="Height" Value="40"/>
-        </Style>
-    </Window.Styles>
-
+        DragDrop.AllowDrop="True">
     <Grid>
         <!-- Main content with title bar -->
         <Grid RowDefinitions="Auto,*">

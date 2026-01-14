@@ -38,12 +38,16 @@ graph TD
         P1["GitHubContentProvider"]
         P2["ModDBContentProvider"]
         P3["LocalFileSystemProvider"]
+        P4["AODMapsContentProvider"]
+        P5["CommunityOutpostProvider"]
     end
 
     subgraph Tier3 ["Tier 3: Pipeline Components (Discoverers)"]
         D1["GitHubReleasesDiscoverer"]
         D2["ModDBDiscoverer"]
         D3["FileSystemDiscoverer"]
+        D4["AODMapsDiscoverer"]
+        D5["CommunityOutpostDiscoverer"]
     end
 
     A --> B
@@ -51,19 +55,27 @@ graph TD
     C --> P1
     C --> P2
     C --> P3
+    C --> P4
+    C --> P5
 
     P1 -->|Uses| D1
     P2 -->|Uses| D2
     P3 -->|Uses| D3
+    P4 -->|Uses| D4
+    P5 -->|Uses| D5
 
     D1 -->|Returns ContentSearchResult| P1
     D2 -->|Returns ContentSearchResult| P2
     D3 -->|Returns ContentSearchResult| P3
+    D4 -->|Returns ContentSearchResult| P4
+    D5 -->|Returns ContentSearchResult| P5
 
     P1 -->|Returns results| D
     P2 -->|Returns results| D
     P3 -->|Returns results| D
-    
+    P4 -->|Returns results| D
+    P5 -->|Returns results| D
+
     D --> E
     E -->|Updates UI| A
 
@@ -80,8 +92,8 @@ graph TD
 
 **Discovery Workflow:**
 
-1.  **Initiation**: The user starts a search from the UI.
-2.  **Orchestration**: The `IContentOrchestrator` receives the request and forwards it to every registered `IContentProvider`.
-3.  **Provider Action**: Each `ContentProvider` invokes its specific `IContentDiscoverer` component.
-4.  **Discovery**: The `IContentDiscoverer` performs the source-specific action (API call, web scrape, file scan) and returns lightweight `ContentSearchResult` objects.
+1. **Initiation**: The user starts a search from the UI.
+2. **Orchestration**: The `IContentOrchestrator` receives the request and forwards it to every registered `IContentProvider`.
+3. **Provider Action**: Each `ContentProvider` invokes its specific `IContentDiscoverer` component.
+4. **Discovery**: The `IContentDiscoverer` performs the source-specific action (API call, web scrape, file scan) and returns lightweight `ContentSearchResult` objects.
 5

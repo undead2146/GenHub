@@ -35,7 +35,7 @@ namespace GenHub.Common.ViewModels;
 /// <param name="logger">Logger instance.</param>
 public partial class MainViewModel(
     GameProfileLauncherViewModel gameProfilesViewModel,
-    DownloadsViewModel downloadsViewModel,
+    DownloadsBrowserViewModel downloadsViewModel,
     ToolsViewModel toolsViewModel,
     SettingsViewModel settingsViewModel,
     NotificationManagerViewModel notificationManager,
@@ -61,7 +61,7 @@ public partial class MainViewModel(
     /// <summary>
     /// Gets the downloads view model.
     /// </summary>
-    public DownloadsViewModel DownloadsViewModel { get; } = downloadsViewModel;
+    public DownloadsBrowserViewModel DownloadsViewModel { get; } = downloadsViewModel;
 
     /// <summary>
     /// Gets the tools view model.
@@ -124,6 +124,7 @@ public partial class MainViewModel(
     {
         NavigationTab.GameProfiles => GameProfilesViewModel,
         NavigationTab.Downloads => DownloadsViewModel,
+
         NavigationTab.Tools => ToolsViewModel,
         NavigationTab.Settings => SettingsViewModel,
         _ => GameProfilesViewModel,
@@ -163,6 +164,9 @@ public partial class MainViewModel(
         await DownloadsViewModel.InitializeAsync();
         await ToolsViewModel.InitializeAsync();
         logger?.LogInformation("MainViewModel initialized");
+
+        // Ensure the initial tab's activation logic runs (triggers lazy loading)
+        OnSelectedTabChanged(SelectedTab);
 
         // Start background check with cancellation support
         _ = CheckForUpdatesInBackgroundAsync(_initializationCts.Token);

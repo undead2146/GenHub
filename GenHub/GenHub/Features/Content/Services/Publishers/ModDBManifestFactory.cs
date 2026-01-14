@@ -148,12 +148,50 @@ public partial class ModDBManifestFactory(
         // 6. Add custom metadata
         manifest = AddCustomMetadata(manifest);
 
-        // 7. Add the download file
-        var fileName = ExtractFileNameFromUrl(details.DownloadUrl);
-        manifest = await manifest.AddRemoteFileAsync(
-            fileName,
+        // 7. Add the download files
+        var addedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Add primary file
+        var primaryFileName = ExtractFileNameFromUrl(details.DownloadUrl);
+        logger.LogInformation("[TEMP] ModDBManifestFactory - Adding primary file: {FileName} from URL: {Url}", primaryFileName, details.DownloadUrl);
+
+        manifest = await manifest.AddDownloadedFileAsync(
+            primaryFileName,
             details.DownloadUrl,
-            ContentSourceType.RemoteDownload);
+            ContentSourceType.ContentAddressable,
+            isExecutable: false,
+            permissions: null,
+            refererUrl: detailPageUrl,
+            userAgent: ModDBConstants.BrowserUserAgent);
+
+        addedUrls.Add(details.DownloadUrl);
+
+        // Add any additional files discovered on the page (e.g. patches, mirrors, addons)
+        if (details.AdditionalFiles != null)
+        {
+            foreach (var file in details.AdditionalFiles)
+            {
+                if (string.IsNullOrEmpty(file.DownloadUrl) || addedUrls.Contains(file.DownloadUrl))
+                    continue;
+
+                var fileName = !string.IsNullOrEmpty(file.Name) ? file.Name : ExtractFileNameFromUrl(file.DownloadUrl);
+
+                logger.LogInformation("[TEMP] ModDBManifestFactory - Adding additional file: {FileName} from URL: {Url}", fileName, file.DownloadUrl);
+
+                manifest = await manifest.AddDownloadedFileAsync(
+                    fileName,
+                    file.DownloadUrl,
+                    ContentSourceType.ContentAddressable,
+                    isExecutable: false,
+                    permissions: null,
+                    refererUrl: detailPageUrl,
+                    userAgent: ModDBConstants.BrowserUserAgent);
+
+                addedUrls.Add(file.DownloadUrl);
+            }
+        }
+
+        logger.LogInformation("[TEMP] ModDBManifestFactory - {Count} total files added to manifest with CAS storage", addedUrls.Count);
 
         // 8. Add dependencies based on target game
         manifest = AddGameDependencies(manifest, details.TargetGame);
@@ -215,7 +253,7 @@ public partial class ModDBManifestFactory(
     /// <returns>A list of tags.</returns>
     private static List<string> GetTags(MapDetails details)
     {
-        var tags = new List<string>(ModDBConstants.Tags);
+        List<string> tags = [.. ModDBConstants.Tags];
 
         // Add game-specific tag
         tags.Add(details.TargetGame == GameType.Generals ? GameClientConstants.GeneralsShortName : GameClientConstants.ZeroHourShortName);

@@ -317,12 +317,12 @@ public class CommunityOutpostDiscoverer : IContentDiscoverer
         CancellationToken cancellationToken = default)
     {
         // Get configuration from provider definition with fallback to constants
-        var catalogUrl = provider?.Endpoints.CatalogUrl 
+        var catalogUrl = provider?.Endpoints.CatalogUrl
             ?? CommunityOutpostConstants.CatalogUrl;
-        
-        var patchPageUrl = provider?.Endpoints.GetEndpoint("patchPageUrl") 
+
+        var patchPageUrl = provider?.Endpoints.GetEndpoint("patchPageUrl")
             ?? CommunityOutpostConstants.PatchPageUrl;
-        
+
         var timeout = TimeSpan.FromSeconds(
             provider?.Timeouts.CatalogTimeoutSeconds ?? 30);
 
@@ -334,7 +334,7 @@ public class CommunityOutpostDiscoverer : IContentDiscoverer
         // Fetch catalog and discover content...
         using var client = _httpClientFactory.CreateClient();
         client.Timeout = timeout;
-        
+
         var catalogContent = await client.GetStringAsync(catalogUrl, cancellationToken);
         // Parse and return results...
     }
@@ -354,10 +354,10 @@ public class CommunityOutpostResolver : IContentResolver
         CancellationToken cancellationToken = default)
     {
         // Get endpoints from provider definition
-        var websiteUrl = provider?.Endpoints.WebsiteUrl 
+        var websiteUrl = provider?.Endpoints.WebsiteUrl
             ?? CommunityOutpostConstants.PublisherWebsite;
-        
-        var patchPageUrl = provider?.Endpoints.GetEndpoint("patchPageUrl") 
+
+        var patchPageUrl = provider?.Endpoints.GetEndpoint("patchPageUrl")
             ?? CommunityOutpostConstants.PatchPageUrl;
 
         // Build manifest using configured endpoints
@@ -428,12 +428,30 @@ public interface IProviderDefinitionLoader
 
 Static providers have a fixed publisher identity. All content discovered from the source is attributed to a single known publisher.
 
-**Examples**: Community Outpost, Generals Online, TheSuperHackers
+**Examples**: Community Outpost, AODMaps, Generals Online, TheSuperHackers
 
 ```json
 {
   "providerType": "Static",
   "publisherType": "communityoutpost"
+}
+```
+
+#### AODMaps Configuration
+
+AODMaps uses a static provider configuration to map its custom catalog format:
+
+```json
+{
+  "providerId": "aodmaps",
+  "publisherType": "aodmaps",
+  "displayName": "Age of Defense Maps",
+  "providerType": "Static",
+  "catalogFormat": "html-scraping",
+  "endpoints": {
+    "catalogUrl": "https://aodmaps.com",
+    "websiteUrl": "https://aodmaps.com"
+  }
 }
 ```
 
@@ -509,15 +527,15 @@ public async Task Loader_LoadsFromBothDirectories()
     // Arrange
     var bundledDir = Path.Combine(_tempDir, "bundled");
     var userDir = Path.Combine(_tempDir, "user");
-    
+
     Directory.CreateDirectory(bundledDir);
     Directory.CreateDirectory(userDir);
-    
+
     // Create bundled provider
     File.WriteAllText(
         Path.Combine(bundledDir, "test.provider.json"),
         """{"providerId": "test", "displayName": "Bundled"}""");
-    
+
     // Create user override
     File.WriteAllText(
         Path.Combine(userDir, "test.provider.json"),

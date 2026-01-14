@@ -36,7 +36,8 @@ export default withMermaid(
                         { text: 'Introduction', link: '/' },
                         { text: 'Developer Onboarding', link: '/onboarding' },
                         { text: 'Architecture Overview', link: '/architecture' },
-                        { text: 'Velopack Integration', link: '/velopack-integration' }
+                        { text: 'Velopack Integration', link: '/velopack-integration' },
+                        { text: 'Contributor Guidelines', link: '/dev/contribution-guidelines' }
                     ]
                 },
                 {

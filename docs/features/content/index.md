@@ -9,8 +9,11 @@ The GenHub content system provides a flexible, extensible architecture for disco
 
 ## Core Documentation
 
+- [Content Pipeline Architecture](./content-pipeline.md) - Three-tier pipeline for discovering, resolving, and acquiring content
 - [Provider Configuration](./provider-configuration.md) - Data-driven provider configuration for flexible content pipeline customization
 - [Publisher Manifest Factories](./publisher-manifest-factories.md) - Extensible architecture for publisher-specific content handling
+- [Content Dependencies](./content-dependencies.md) - Dependency system for mods and content packages
+- [Downloads Flow](../FlowCharts/Downloads-Flow.md) - User journey from browsing to installation
 
 ## Architecture
 
@@ -31,6 +34,8 @@ The content system follows a layered architecture with clear separation of conce
 
 - GitHub releases
 - CNCLabs maps
+- AODMaps (Age of Defense Maps)
+- Community Outpost (GenPatcher)
 - Local file system
 - Future: ModDB, Steam Workshop
 
@@ -107,10 +112,10 @@ Factories self-identify via `CanHandle(manifest)`:
 
 ### Benefits
 
-✅ Add new publishers without modifying core code  
-✅ Support complex release structures (multi-game, multi-variant)  
-✅ Isolate publisher-specific logic  
-✅ Easy testing with mock factories  
+✅ Add new publishers without modifying core code
+✅ Support complex release structures (multi-game, multi-variant)
+✅ Isolate publisher-specific logic
+✅ Easy testing with mock factories
 
 See [Publisher Manifest Factories](./publisher-manifest-factories.md) for detailed documentation.
 

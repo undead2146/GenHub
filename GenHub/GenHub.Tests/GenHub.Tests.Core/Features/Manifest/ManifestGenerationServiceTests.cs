@@ -9,8 +9,9 @@ using GenHub.Features.Workspace;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using ContentType = GenHub.Core.Models.Enums.ContentType;
-using GameInstallationType = GenHub.Core.Models.Enums.GameInstallationType;
 using GameType = GenHub.Core.Models.Enums.GameType;
+
+using GenHub.Core.Models.Enums;
 
 namespace GenHub.Tests.Core.Features.Manifest;
 
@@ -67,7 +68,8 @@ public class ManifestGenerationServiceTests : IDisposable
             _hashProviderMock.Object,
             _manifestIdServiceMock.Object,
             _downloadServiceMock.Object,
-            _configProviderServiceMock.Object);
+            _configProviderMock.Object,
+            _playwrightServiceMock.Object);
 
         _tempDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(_tempDirectory);
