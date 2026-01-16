@@ -53,8 +53,6 @@ public partial class GameProfileLauncherViewModel(
     IGameClientDetector gameClientDetector,
     INotificationService notificationService,
     ISetupWizardService setupWizardService,
-    IManifestGenerationService manifestGenerationService,
-    IContentManifestPool contentManifestPool,
     IDialogService dialogService,
     ILogger<GameProfileLauncherViewModel> logger) : ViewModelBase,
     IRecipient<ProfileCreatedMessage>,
@@ -63,6 +61,8 @@ public partial class GameProfileLauncherViewModel(
 {
     private readonly SemaphoreSlim _launchSemaphore = new(1, 1);
     private readonly System.Timers.Timer _headerCollapseTimer = new(TimeIntervals.HeaderCollapseDelayMs);
+    private readonly System.Timers.Timer _headerExpansionTimer = new(TimeIntervals.HeaderExpansionDelayMs);
+    private bool _isHovering;
 
     [ObservableProperty]
     private ObservableCollection<GameProfileItemViewModel> _profiles = [];
@@ -131,6 +131,20 @@ public partial class GameProfileLauncherViewModel(
             };
 
             _headerCollapseTimer.Start();
+
+            // Set up expansion timer
+            _headerExpansionTimer.AutoReset = false;
+            _headerExpansionTimer.Elapsed += (s, e) =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Invoke(() =>
+                {
+                    IsHeaderExpanded = true;
+                    _isHovering = true;
+
+                    // Stop collapse timer just in case
+                    _headerCollapseTimer.Stop();
+                });
+            };
 
             gameProcessManager.ProcessExited += OnProcessExited;
 
@@ -290,7 +304,13 @@ public partial class GameProfileLauncherViewModel(
     {
         IsHeaderExpanded = true;
         _headerCollapseTimer.Stop();
-        _headerCollapseTimer.Start();
+        _headerExpansionTimer.Stop();
+
+        // Only start the auto-collapse timer if the user is NOT currently hovering
+        if (!_isHovering)
+        {
+            _headerCollapseTimer.Start();
+        }
     }
 
     private static Window? GetMainWindow()
@@ -463,8 +483,12 @@ public partial class GameProfileLauncherViewModel(
                         // Create and register GameInstallation manifests to the pool
                         await CreateAndRegisterManualInstallationManifestsAsync(manualInstallation);
 
-                        // Register the manual installation with the service so it's available globally (e.g. for profile creation)
-                        await installationService.RegisterManualInstallationAsync(manualInstallation);
+                        // Register the installation with the service cache
+                        var addResult = await installationService.AddInstallationToCacheAsync(manualInstallation);
+                        if (!addResult.Success)
+                        {
+                            logger.LogWarning("Failed to add manual installation to cache: {Error}", addResult.FirstError);
+                        }
 
                         // Add the manually selected installation to the list
                         installationsList.Add(manualInstallation);
@@ -602,8 +626,20 @@ public partial class GameProfileLauncherViewModel(
     [RelayCommand]
     private void ExpandHeader()
     {
-        IsHeaderExpanded = true;
-        _headerCollapseTimer.Stop();
+        _isHovering = true;
+
+        if (IsHeaderExpanded)
+        {
+            // Already expanded, just ensure it stays that way
+            _headerCollapseTimer.Stop();
+        }
+        else
+        {
+            // Not expanded, start grace period timer
+            // If user leaves before timer fires, StartHeaderTimer will cancel this
+            _headerExpansionTimer.Stop(); // Reset
+            _headerExpansionTimer.Start();
+        }
     }
 
     /// <summary>
@@ -618,7 +654,12 @@ public partial class GameProfileLauncherViewModel(
         }
 
         _headerCollapseTimer.Stop();
-        _headerCollapseTimer.Start();
+        _headerExpansionTimer.Stop(); // Cancel any pending expansion
+
+        if (IsHeaderExpanded)
+        {
+            _headerCollapseTimer.Start();
+        }
     }
 
     /// <summary>

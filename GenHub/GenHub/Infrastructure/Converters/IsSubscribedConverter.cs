@@ -12,17 +12,13 @@ namespace GenHub.Infrastructure.Converters;
 /// </summary>
 public class IsSubscribedConverter : IMultiValueConverter
 {
-    /// <summary>
-    /// Converts multiple values to a single value.
-    /// </summary>
-    /// <param name="values">The values to convert.</param>
-    /// <param name="targetType">The target type.</param>
-    /// <param name="parameter">The converter parameter.</param>
-    /// <param name="culture">The culture to use.</param>
-    /// <returns>True if the item is subscribed, false otherwise.</returns>
+    /// <inheritdoc/>
     public object? Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
     {
-        if (values.Count < 3) return false;
+        if (values.Count < 3)
+        {
+            return false;
+        }
 
         var item = values[0];
         var subscribedPr = values[1] as PullRequestInfo;
