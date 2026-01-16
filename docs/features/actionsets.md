@@ -15,16 +15,19 @@ These fixes are essential for the games to run properly on modern Windows system
 **Purpose**: Fixes in-game browser compatibility issues by disabling the problematic BrowserEngine.dll.
 
 **What It Does**:
+
 - Renames `BrowserEngine.dll` to `BrowserEngine.dll.bak` in game directories
 - Prevents crashes and errors caused by outdated browser components
 - Applies to both Generals and Zero Hour
 
 **How It Works**:
+
 1. Checks if `BrowserEngine.dll` exists in game installation directories
 2. If found, renames it to `.bak` extension to disable it
 3. The game will run without the browser engine (which is rarely used)
 
 **Files Modified**:
+
 - `{GeneralsPath}\BrowserEngine.dll` → `BrowserEngine.dll.bak`
 - `{ZeroHourPath}\BrowserEngine.dll` → `BrowserEngine.dll.bak`
 
@@ -37,17 +40,20 @@ These fixes are essential for the games to run properly on modern Windows system
 **Purpose**: Replaces outdated `dbghelp.dll` files that can cause crashes and debugging issues.
 
 **What It Does**:
+
 - Replaces `dbghelp.dll` in both Generals and Zero Hour directories
 - Uses a modern version compatible with Windows 10/11
 - Prevents crashes during error reporting and debugging
 
 **How It Works**:
+
 1. Checks for existing `dbghelp.dll` in game directories
 2. Backs up original file to `.bak`
 3. Copies a modern `dbghelp.dll` from embedded resources
 4. Verifies the replacement was successful
 
 **Files Modified**:
+
 - `{GeneralsPath}\dbghelp.dll` (replaced, original backed up)
 - `{ZeroHourPath}\dbghelp.dll` (replaced, original backed up)
 
@@ -60,11 +66,13 @@ These fixes are essential for the games to run properly on modern Windows system
 **Purpose**: Ensures EA App can properly detect game installations.
 
 **What It Does**:
+
 - Creates or updates registry entries for EA App detection
 - Sets correct installation paths for Generals and Zero Hour
 - Enables EA App integration features
 
 **How It Works**:
+
 1. Checks if EA App is installed
 2. Creates registry keys under `HKLM\SOFTWARE\EA Games\`
 3. Sets `InstallPath` values for both games
@@ -83,17 +91,20 @@ These fixes are essential for the games to run properly on modern Windows system
 **Purpose**: Ensures game data folders exist in Documents directory, even with non-English characters in path.
 
 **What It Does**:
+
 - Creates required game data folders in Documents
 - Handles paths with Unicode/non-English characters
 - Ensures proper folder structure for saves and settings
 
 **How It Works**:
+
 1. Locates Documents folder using Windows API
 2. Creates `Command and Conquer Generals Data` folder if missing
 3. Creates `Command and Conquer Generals Zero Hour Data` folder if missing
 4. Creates subdirectories for saves, replays, and maps
 
 **Folders Created**:
+
 - `{Documents}\Command and Conquer Generals Data\`
 - `{Documents}\Command and Conquer Generals Zero Hour Data\`
 - Subdirectories: `Save`, `Replays`, `Maps`
@@ -107,17 +118,20 @@ These fixes are essential for the games to run properly on modern Windows system
 **Purpose**: Installs Visual C++ 2010 Redistributable required by the game.
 
 **What It Does**:
+
 - Downloads and installs Visual C++ 2010 Redistributable
 - Ensures required runtime libraries are present
 - Fixes "MSVCR100.dll missing" errors
 
 **How It Works**:
+
 1. Checks if VC++ 2010 Redistributable is already installed
 2. If not installed, downloads installer from Microsoft
 3. Runs installer silently with administrator privileges
 4. Verifies installation by checking for required DLLs
 
 **Files Installed**:
+
 - `msvcr100.dll`, `msvcp100.dll` (and variants)
 - Installed to System32 and SysWOW64 directories
 
@@ -130,17 +144,20 @@ These fixes are essential for the games to run properly on modern Windows system
 **Purpose**: Removes read-only attributes from game files and pins folders to prevent OneDrive sync issues.
 
 **What It Does**:
+
 - Recursively removes read-only attributes from game directories
 - Applies OneDrive "Pinned" attribute to prevent syncing
 - Ensures game files can be modified and saved properly
 
 **How It Works**:
+
 1. Iterates through all files in game installation directories
 2. Removes read-only attribute using Windows API
 3. Uses PowerShell to apply `+P -U` attributes for OneDrive pinning
 4. Processes both Generals and Zero Hour installations
 
 **Files Modified**:
+
 - All files in `{GeneralsPath}` (read-only attribute removed)
 - All files in `{ZeroHourPath}` (read-only attribute removed)
 
@@ -153,12 +170,14 @@ These fixes are essential for the games to run properly on modern Windows system
 **Purpose**: Sets Windows compatibility flags and adds Windows Defender exclusions for better performance.
 
 **What It Does**:
+
 - Enables High DPI awareness for proper scaling on modern displays
 - Sets Run as Administrator compatibility for non-Steam installations
 - Adds Windows Defender exclusions to prevent scanning interference
 - Improves game performance and stability
 
 **How It Works**:
+
 1. Checks if game is installed via Steam
 2. For Steam: Sets `~ HIGHDPIAWARE` compatibility flag
 3. For other installations: Sets `~ RUNASADMIN HIGHDPIAWARE` flags
@@ -166,9 +185,11 @@ These fixes are essential for the games to run properly on modern Windows system
 5. Uses PowerShell `Add-MpPreference` command
 
 **Registry Keys Created/Modified**:
+
 - `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers\{GameExePath}`
 
 **Windows Defender Exclusions Added**:
+
 - `{GeneralsPath}` (directory exclusion)
 - `{ZeroHourPath}` (directory exclusion)
 
@@ -181,17 +202,20 @@ These fixes are essential for the games to run properly on modern Windows system
 **Purpose**: Installs DirectX 8.1 and 9.0c runtime components required by the game.
 
 **What It Does**:
+
 - Downloads DirectX runtime installer
 - Installs missing DirectX components
 - Ensures proper 3D rendering and graphics functionality
 
 **How It Works**:
+
 1. Downloads DirectX runtime from official source
 2. Extracts to temporary directory
 3. Runs `DXSETUP.exe /silent` with administrator privileges
 4. Verifies installation by checking for `D3DX9_43.dll` in SysWOW64
 
 **Files Installed**:
+
 - DirectX 8.1 and 9.0c runtime components
 - Installed to System32 and SysWOW64 directories
 
@@ -204,6 +228,7 @@ These fixes are essential for the games to run properly on modern Windows system
 **Purpose**: Installs Zero Hour 1.04 official patch.
 
 **What It Does**:
+
 - Downloads Zero Hour 1.04 patch
 - Applies patch to Zero Hour installation
 - Updates game to latest official version
@@ -215,6 +240,7 @@ These fixes are essential for the games to run properly on modern Windows system
 4. Verifies installation by checking `game.exe` version (should start with "1.4")
 
 **Files Modified**:
+
 - All files in `{ZeroHourPath}` updated to 1.04 versions
 - `game.exe` version updated to 1.04
 
@@ -227,6 +253,7 @@ These fixes are essential for the games to run properly on modern Windows system
 **Purpose**: Installs Generals 1.08 official patch.
 
 **What It Does**:
+
 - Downloads Generals 1.08 patch
 - Applies patch to Generals installation
 - Updates game to latest official version
@@ -238,6 +265,7 @@ These fixes are essential for the games to run properly on modern Windows system
 4. Verifies installation by checking `generals.exe` version (should start with "1.8")
 
 **Files Modified**:
+
 - All files in `{GeneralsPath}` updated to 1.08 versions
 - `generals.exe` version updated to 1.08
 
@@ -250,17 +278,20 @@ These fixes are essential for the games to run properly on modern Windows system
 **Purpose**: Ensures optimal game settings in Options.ini for better performance and compatibility.
 
 **What It Does**:
+
 - Applies optimal settings to Options.ini files
 - Improves performance and visual quality
 - Ensures proper resolution and graphics settings
 
 **How It Works**:
+
 1. Loads Options.ini from game data folder in Documents
 2. Applies optimal settings if not already set
 3. Saves modified Options.ini
 4. Works for both Generals and Zero Hour
 
 **Settings Applied**:
+
 - `DynamicLOD = no` (disables dynamic level of detail)
 - `ExtraAnimations = yes` (enables extra animations)
 - `HeatEffects = no` (disables heat effects for performance)
@@ -283,6 +314,7 @@ These fixes are essential for the games to run properly on modern Windows system
 **Purpose**: Verifies that Generals 1.08 patch is properly applied.
 
 **What It Does**:
+
 - Checks `generals.exe` file version
 - Confirms 1.08 patch is installed
 - Provides status information
@@ -431,153 +463,7 @@ These fixes improve compatibility with Windows features and third-party software
 
 ---
 
-## Network Optimization Fixes
 
-These fixes optimize network settings for better LAN and online multiplayer performance.
-
-### NetworkPrivateProfileFix
-
-**Purpose**: Sets network connection to Private (Home) profile for better LAN/online play.
-
-**What It Does**:
-- Checks current network profile category
-- Sets network category to "Private" using PowerShell
-- Required for LAN/online play to work properly
-- Works for both Generals and Zero Hour
-
-**How It Works**:
-1. Uses PowerShell to check current network profile
-2. If not already Private, sets network category to Private
-3. Uses `Set-NetConnectionProfile -NetworkCategory Private` command
-4. Verifies the change was successful
-
-**User Action Required**:
-- Restart computer for changes to take effect
-
-**Reversible**: Yes - can manually change network profile in Windows Settings
-
----
-
-### PreferIPv4Fix
-
-**Purpose**: Disables IPv6 to prefer IPv4 for better multiplayer compatibility.
-
-**What It Does**:
-- Sets registry value to disable IPv6 tunnel interfaces
-- Forces network stack to prefer IPv4 over IPv6
-- Improves compatibility with older game networking code
-- Works for both Generals and Zero Hour
-
-**How It Works**:
-1. Checks registry for current IPv6 settings
-2. Sets `DisabledComponents = 32` in `HKLM\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters`
-3. This disables IPv6 tunnel interfaces, forcing IPv4 preference
-4. Verifies the change was successful
-
-**Registry Keys Modified**:
-- `HKLM\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters\DisabledComponents = 32`
-
-**User Action Required**:
-- Restart computer for changes to take effect
-
-**Reversible**: Yes - can delete registry value to restore default behavior
-
----
-
-### FirewallExceptionFix
-
-**Purpose**: Adds Windows Firewall exceptions for game executables to allow multiplayer.
-
-**What It Does**:
-- Adds inbound firewall rules for game executables
-- Allows incoming and outgoing connections
-- Enables multiplayer functionality through Windows Firewall
-- Works for both Generals and Zero Hour
-
-**How It Works**:
-1. Checks if firewall rules already exist for game executables
-2. Uses `netsh.exe` to add firewall rules
-3. Adds rules for `generals.exe` and `game.dat`
-4. Verifies rules were added successfully
-
-**Firewall Rules Added**:
-- Rule for `generals.exe` (inbound, allow)
-- Rule for `game.dat` (inbound, allow)
-
-**Reversible**: Yes - can delete firewall rules using netsh
-
----
-
-## Network Optimization Fixes
-
-These fixes optimize network settings for better LAN and online multiplayer performance.
-
-### NetworkPrivateProfileFix
-
-**Purpose**: Sets network connection to Private (Home) profile for LAN/online play.
-
-**What It Does**:
-- Changes network profile from Public to Private
-- Enables proper LAN and online multiplayer functionality
-- Required for network discovery and game hosting
-
-**How It Works**:
-1. Checks current network profile using PowerShell
-2. If not Private, uses PowerShell to set profile to Private
-3. Verifies the change was successful
-4. Provides restart warning (may require PC restart)
-
-**Network Profile Changed**:
-- Network category set to "Private" (from "Public")
-
-**Reversible**: Yes - can be changed back to Public through Windows Settings
-
----
-
-### PreferIPv4Fix
-
-**Purpose**: Disables IPv6 to prefer IPv4 for better multiplayer compatibility.
-
-**What It Does**:
-- Sets registry value to disable IPv6 tunnel interfaces
-- Forces network stack to prefer IPv4 over IPv6
-- Improves compatibility with older game networking code
-
-**How It Works**:
-1. Checks registry for current IPv6 preference setting
-2. If not set, sets `DisabledComponents = 32` in registry
-3. Value of 32 disables IPv6 tunnel interfaces
-4. Provides restart warning (may require PC restart)
-
-**Registry Key Modified**:
-- `HKLM\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters\DisabledComponents = 32`
-
-**Reversible**: Yes - can set value back to 0 to re-enable IPv6
-
----
-
-### FirewallExceptionFix
-
-**Purpose**: Adds Windows Firewall exceptions for game executables to allow multiplayer.
-
-**What It Does**:
-- Creates inbound firewall rules for game executables
-- Allows game to communicate on network
-- Enables LAN and online multiplayer functionality
-
-**How It Works**:
-1. Checks if firewall rules already exist for games
-2. If not, uses netsh to create firewall rules
-3. Adds rules for `generals.exe` and `game.dat`
-4. Verifies rules were added successfully
-
-**Firewall Rules Added**:
-- Rule for `generals.exe` (inbound, allow)
-- Rule for `game.dat` (inbound, allow)
-
-**Reversible**: Yes - can delete firewall rules using netsh
-
----
 
 ## Optional Enhancement Fixes
 
@@ -889,7 +775,7 @@ These fixes provide additional improvements and guidance but are not essential f
 
 ## Fix Categories
 
-### Automated Fixes (18)
+### Automated Fixes (21)
 
 These fixes automatically apply changes without user intervention:
 
@@ -911,6 +797,10 @@ These fixes automatically apply changes without user intervention:
 16. NetworkPrivateProfileFix
 17. PreferIPv4Fix
 18. FirewallExceptionFix
+19. SerialKeyFix
+20. CncOnlineLauncherFix
+20. Patch104Fix (Official)
+21. Patch108Fix (Official)
 
 ### Network Optimization Fixes (3)
 
@@ -1001,7 +891,7 @@ public interface IActionSet
     string Description { get; }
     bool IsCoreFix { get; }
     bool IsCrucialFix { get; }
-    
+
     Task<bool> IsApplicableAsync(GameInstallation installation);
     Task<bool> IsAppliedAsync(GameInstallation installation);
     Task<ActionSetResult> ApplyAsync(GameInstallation installation, IProgress<double>? progress, CancellationToken ct);

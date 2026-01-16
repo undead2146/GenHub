@@ -113,7 +113,6 @@ public class GenArial(ILogger<GenArial> logger) : BaseActionSet(logger)
                 "arialbd.ttf",
                 "ariali.ttf",
                 "arialbi.ttf",
-                "arial.ttf", // Sometimes uppercase
                 "ARIAL.TTF",
             };
 

@@ -61,9 +61,6 @@ public static class SharedViewModelModule
         // Register PublisherCardViewModel as transient
         services.AddTransient<PublisherCardViewModel>();
 
-        // Register NotificationFeedViewModel
-        services.AddSingleton<NotificationFeedViewModel>();
-
         // Register factory for GameProfileItemViewModel (has required constructor parameters)
         services.AddTransient<Func<string, IGameProfile, string, string, GameProfileItemViewModel>>(sp =>
             (profileId, profile, icon, cover) => new GameProfileItemViewModel(profileId, profile, icon, cover));

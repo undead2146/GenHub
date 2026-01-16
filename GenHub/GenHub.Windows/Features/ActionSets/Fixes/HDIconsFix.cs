@@ -83,8 +83,9 @@ public class HDIconsFix(ILogger<HDIconsFix> logger) : BaseActionSet(logger)
                 Directory.CreateDirectory(Path.GetDirectoryName(_markerPath)!);
                 File.WriteAllText(_markerPath, DateTime.UtcNow.ToString());
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Failed to create marker file for HDIconsFix");
             }
 
             return Task.FromResult(new ActionSetResult(true, "HD Icons are available through GenHub's Content system.", details));

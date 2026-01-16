@@ -97,7 +97,7 @@ public class DirectXRuntimeFix(IHttpClientFactory httpClientFactory, ILogger<Dir
             bool downloaded = false;
 
             var isExe = false;
-            var downloadPath = "";
+            var downloadPath = string.Empty;
 
             foreach (var url in urls)
             {
@@ -185,8 +185,9 @@ public class DirectXRuntimeFix(IHttpClientFactory httpClientFactory, ILogger<Dir
                     details.Add("✗ DXSETUP.exe not found in package");
                     return new ActionSetResult(false, "DXSETUP.exe not found in downloaded package.", details);
                 }
-                arguments = "/silent";
             }
+
+            arguments = "/silent";
 
             details.Add($"Running DirectX Setup (silent mode)...");
             details.Add("  ⚠ This may require administrator privileges");

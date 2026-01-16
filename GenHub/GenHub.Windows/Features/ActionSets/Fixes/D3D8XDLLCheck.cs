@@ -128,7 +128,7 @@ public class D3D8XDLLCheck(ILogger<D3D8XDLLCheck> logger) : BaseActionSet(logger
             _logger.LogInformation("2. This will install all required DirectX 8 DLLs");
             _logger.LogInformation("3. Restart your computer after installation");
 
-            return Task.FromResult(new ActionSetResult(true, null, [$"Missing {missingDLLs.Count} DirectX 8 DLLs. Please run DirectXRuntimeFix."]));
+            return Task.FromResult(new ActionSetResult(true, null, [$"Missing {missingDLLs.Count} DirectX 8 DLLs in system directories. Please run DirectXRuntimeFix."]));
         }
         catch (Exception ex)
         {

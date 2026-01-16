@@ -46,6 +46,10 @@ public class IsSubscribedConverter : IMultiValueConverter
     /// <returns>An empty array as this converter does not support two-way binding.</returns>
     public object?[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
     {
+        _ = value;
+        _ = targetTypes;
+        _ = parameter;
+        _ = culture;
         return Array.Empty<object?>();
     }
 }

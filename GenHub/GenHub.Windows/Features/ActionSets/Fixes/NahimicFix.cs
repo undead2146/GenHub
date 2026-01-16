@@ -138,7 +138,7 @@ public class NahimicFix(ILogger<NahimicFix> logger) : BaseActionSet(logger)
 
             // Check for Nahimic processes
             var processes = Process.GetProcessesByName("Nahimic");
-            if (processes.Length > 0)
+            if (processes.Length == 0)
             {
                 processes = Process.GetProcessesByName("NahimicService");
             }

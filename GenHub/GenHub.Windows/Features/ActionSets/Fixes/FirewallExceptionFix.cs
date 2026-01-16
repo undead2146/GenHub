@@ -25,7 +25,7 @@ public class FirewallExceptionFix(ILogger<FirewallExceptionFix> logger) : BaseAc
     private const string GeneralsRule = ActionSetConstants.FirewallRules.GeneralsRule;
     private const string GeneralsGameDatRule = ActionSetConstants.FirewallRules.GeneralsGameDatRule;
     private const string ZeroHourRule = ActionSetConstants.FirewallRules.ZeroHourRule;
-    private const string ZeroHourGameDatRule = "GP Command & Conquer Generals Zero Hour Game.dat";
+    private const string ZeroHourGameDatRule = ActionSetConstants.FirewallRules.ZeroHourGameDatRule;
 
     private readonly ILogger<FirewallExceptionFix> _logger = logger;
 

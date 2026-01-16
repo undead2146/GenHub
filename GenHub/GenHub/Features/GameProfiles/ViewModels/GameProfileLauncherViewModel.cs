@@ -62,6 +62,7 @@ public partial class GameProfileLauncherViewModel(
     private readonly SemaphoreSlim _launchSemaphore = new(1, 1);
     private readonly System.Timers.Timer _headerCollapseTimer = new(TimeIntervals.HeaderCollapseDelayMs);
     private readonly System.Timers.Timer _headerExpansionTimer = new(TimeIntervals.HeaderExpansionDelayMs);
+
     private bool _isHovering;
 
     [ObservableProperty]

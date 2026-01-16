@@ -22,10 +22,32 @@ namespace GenHub.Features.Content.Services.ContentDiscoverers;
 /// </summary>
 public class FileSystemDiscoverer : IContentDiscoverer
 {
-    private readonly List<string> _contentDirectories = new();
+    private readonly List<string> _contentDirectories = [];
     private readonly ILogger<FileSystemDiscoverer> _logger;
     private readonly ManifestDiscoveryService _manifestDiscoveryService;
     private readonly IConfigurationProviderService _configurationProvider;
+
+    private static bool MatchesQuery(ContentManifest manifest, ContentSearchQuery query)
+    {
+        if (!string.IsNullOrWhiteSpace(query.SearchTerm) &&
+            !manifest.Name.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase) &&
+            !manifest.Id.Value.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (query.ContentType.HasValue && manifest.ContentType != query.ContentType.Value)
+        {
+            return false;
+        }
+
+        if (query.TargetGame.HasValue && manifest.TargetGame != query.TargetGame.Value)
+        {
+            return false;
+        }
+
+        return true;
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FileSystemDiscoverer"/> class.
@@ -144,27 +166,5 @@ public class FileSystemDiscoverer : IContentDiscoverer
         _contentDirectories.AddRange(userDefinedDirs.Where(Directory.Exists));
 
         _logger.LogInformation("FileSystemDiscoverer initialized with {Count} directories", _contentDirectories.Count);
-    }
-
-    private bool MatchesQuery(ContentManifest manifest, ContentSearchQuery query)
-    {
-        if (!string.IsNullOrWhiteSpace(query.SearchTerm) &&
-            !manifest.Name.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase) &&
-            !manifest.Id.Value.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (query.ContentType.HasValue && manifest.ContentType != query.ContentType.Value)
-        {
-            return false;
-        }
-
-        if (query.TargetGame.HasValue && manifest.TargetGame != query.TargetGame.Value)
-        {
-            return false;
-        }
-
-        return true;
     }
 }

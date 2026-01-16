@@ -51,11 +51,6 @@ public class VanillaExecutableFix(ILogger<VanillaExecutableFix> logger) : BaseAc
             var generalsExePath = Path.Combine(installation.GeneralsPath, ActionSetConstants.FileNames.GeneralsExe);
             if (!File.Exists(generalsExePath))
             {
-                // Fallback case-insensitive check handled by file system, but keeping logic structure
-            }
-
-            if (!File.Exists(generalsExePath))
-            {
                 return Task.FromResult(false);
             }
 

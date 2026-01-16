@@ -180,6 +180,20 @@ public class RemoveReadOnlyFix(ILogger<RemoveReadOnlyFix> logger) : BaseActionSe
             details.Add("✓ Read-only attributes removed successfully");
             details.Add("✓ OneDrive pin attributes applied");
 
+            try
+            {
+                var userPath = GetUserDataPath(installation.HasZeroHour ? GameType.ZeroHour : GameType.Generals);
+                if (Directory.Exists(userPath))
+                {
+                    var markerPath = Path.Combine(userPath, MarkerFileName);
+                    await File.WriteAllTextAsync(markerPath, DateTime.UtcNow.ToString(), ct);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to create marker file for RemoveReadOnlyFix");
+            }
+
             _logger.LogInformation("RemoveReadOnlyFix completed: {Files} files, {Dirs} directories", totalFilesProcessed, totalDirsProcessed);
             return new ActionSetResult(true, null, details);
         }

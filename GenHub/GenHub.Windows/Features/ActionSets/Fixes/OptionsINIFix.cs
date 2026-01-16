@@ -144,9 +144,13 @@ public class OptionsINIFix(IGameSettingsService gameSettingsService, ILogger<Opt
             var currentRes = $"{options.Video.ResolutionWidth}x{options.Video.ResolutionHeight}";
             details.Add($"Current resolution: {currentRes}");
 
+            var resolutionChanged = false;
             if (IsBadResolution(options.Video.ResolutionWidth, options.Video.ResolutionHeight))
             {
                 details.Add("  ⚠ Bad resolution detected, will be changed to 1920x1080");
+                options.Video.ResolutionWidth = 1920;
+                options.Video.ResolutionHeight = 1080;
+                resolutionChanged = true;
             }
 
             details.Add("Applying optimal settings...");
@@ -164,7 +168,7 @@ public class OptionsINIFix(IGameSettingsService gameSettingsService, ILogger<Opt
             details.Add("  • UseShadowVolumes = no");
             details.Add("  • Windowed = no");
 
-            if (IsBadResolution(options.Video.ResolutionWidth, options.Video.ResolutionHeight))
+            if (resolutionChanged)
             {
                 details.Add($"  • Resolution = 1920x1080 (changed from {currentRes})");
             }
@@ -271,7 +275,6 @@ public class OptionsINIFix(IGameSettingsService gameSettingsService, ILogger<Opt
 
     private static void ApplyOptimalSettings(IniOptions options, List<string> details)
     {
-        // Set optimal values for performance and compatibility
         options.Video.AntiAliasing = GameSettingsConstants.OptimalSettings.AntiAliasing;
         options.Video.TextureReduction = GameSettingsConstants.OptimalSettings.TextureReduction;
         options.Video.ExtraAnimations = GameSettingsConstants.OptimalSettings.ExtraAnimations;
@@ -279,8 +282,6 @@ public class OptionsINIFix(IGameSettingsService gameSettingsService, ILogger<Opt
         options.Video.UseShadowDecals = GameSettingsConstants.OptimalSettings.UseShadowDecals;
         options.Video.UseShadowVolumes = GameSettingsConstants.OptimalSettings.UseShadowVolumes;
         options.Video.Windowed = GameSettingsConstants.OptimalSettings.Windowed;
-        options.Video.ResolutionWidth = GameSettingsConstants.OptimalSettings.DefaultResolutionWidth;
-        options.Video.ResolutionHeight = GameSettingsConstants.OptimalSettings.DefaultResolutionHeight;
 
         details.Add($"✓ Set AntiAliasing = {GameSettingsConstants.OptimalSettings.AntiAliasing}");
         details.Add($"✓ Set TextureReduction = {GameSettingsConstants.OptimalSettings.TextureReduction}");
@@ -293,12 +294,7 @@ public class OptionsINIFix(IGameSettingsService gameSettingsService, ILogger<Opt
         options.Audio.AudioEnabled = GameSettingsConstants.OptimalSettings.AudioEnabled;
         options.Audio.NumSounds = GameSettingsConstants.OptimalSettings.NumSounds;
 
-        // Set default resolution if it's a bad one
-        if (IsBadResolution(options.Video.ResolutionWidth, options.Video.ResolutionHeight))
-        {
-            options.Video.ResolutionWidth = 1920;
-            options.Video.ResolutionHeight = 1080;
-        }
+        // Resolution handling is now done in ApplyInternalAsync to better track changes.
 
         // Set network settings
         options.Network.GameSpyIPAddress = GameSettingsConstants.OptimalSettings.GameSpyIPAddress;

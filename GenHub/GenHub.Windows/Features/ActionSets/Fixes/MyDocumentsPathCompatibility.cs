@@ -21,8 +21,10 @@ public class MyDocumentsPathCompatibility : BaseActionSet
     public MyDocumentsPathCompatibility(ILogger<MyDocumentsPathCompatibility> logger)
         : base(logger)
     {
+        _logger = logger;
     }
 
+    private readonly ILogger<MyDocumentsPathCompatibility> _logger;
     private readonly string _markerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", "sub_markers", "MyDocumentsPathCompatibility.done");
 
     /// <inheritdoc/>
@@ -70,7 +72,6 @@ public class MyDocumentsPathCompatibility : BaseActionSet
         // We return a failure with a descriptive message to prompt the user.
         // In the future, we might implement a symlink workaround similar to OneDriveFix here too,
         // but for now, we flag it.
-            // but for now, we flag it.
         string documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
 
         // Since we can't auto-fix, if the user clicked Apply, we assume they saw the message.
@@ -80,8 +81,9 @@ public class MyDocumentsPathCompatibility : BaseActionSet
             Directory.CreateDirectory(Path.GetDirectoryName(_markerPath)!);
             File.WriteAllText(_markerPath, DateTime.UtcNow.ToString());
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to create marker file for MyDocumentsPathCompatibility");
         }
 
         // We still return failure message to warn them, but next time it will be Green.

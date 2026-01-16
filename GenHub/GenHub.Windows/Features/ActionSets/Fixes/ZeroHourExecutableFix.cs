@@ -39,7 +39,6 @@ public class ZeroHourExecutableFix(ILogger<ZeroHourExecutableFix> logger) : Base
     }
 
     /// <inheritdoc/>
-    /// <inheritdoc/>
     public override Task<bool> IsAppliedAsync(GameInstallation installation)
     {
         try

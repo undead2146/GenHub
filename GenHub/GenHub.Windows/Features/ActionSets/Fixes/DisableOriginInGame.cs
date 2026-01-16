@@ -41,8 +41,7 @@ public class DisableOriginInGame(ILogger<DisableOriginInGame> logger) : BaseActi
     /// <inheritdoc/>
     public override Task<bool> IsAppliedAsync(GameInstallation installation)
     {
-         if (File.Exists(_markerPath)) return Task.FromResult(true);
-         return Task.FromResult(false);
+         return Task.FromResult(File.Exists(_markerPath));
     }
 
     /// <inheritdoc/>
@@ -85,8 +84,9 @@ public class DisableOriginInGame(ILogger<DisableOriginInGame> logger) : BaseActi
                 Directory.CreateDirectory(Path.GetDirectoryName(_markerPath)!);
                 File.WriteAllText(_markerPath, DateTime.UtcNow.ToString());
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Failed to create marker file for DisableOriginInGame");
             }
 
             return Task.FromResult(new ActionSetResult(true, "Please manually disable Origin in-game overlay. See logs for details."));

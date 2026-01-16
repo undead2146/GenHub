@@ -47,11 +47,11 @@ public class PreferIPv4Fix(
     {
         try
         {
-            var currentValue = _registryService.GetStringValue(
+            var currentValue = _registryService.GetIntValue(
                 RegistryPath,
                 DisabledComponentsKey);
 
-            var isApplied = currentValue?.ToString() == PreferIPv4Value.ToString();
+            var isApplied = currentValue == PreferIPv4Value;
             return Task.FromResult(isApplied);
         }
         catch (Exception ex)
@@ -70,13 +70,13 @@ public class PreferIPv4Fix(
         {
             details.Add("Checking current IPv6 configuration...");
 
-            var currentValue = _registryService.GetStringValue(
+            var currentValue = _registryService.GetIntValue(
                 RegistryPath,
                 DisabledComponentsKey);
 
-            details.Add($"Current DisabledComponents value: {currentValue ?? "not set"}");
+            details.Add($"Current DisabledComponents value: {currentValue}");
 
-            if (currentValue?.ToString() == PreferIPv4Value.ToString())
+            if (currentValue == PreferIPv4Value)
             {
                 details.Add("✓ IPv4 preference is already enabled (IPv6 tunnels disabled)");
                 _logger.LogInformation("IPv4 preference is already enabled. No action needed.");
@@ -90,10 +90,10 @@ public class PreferIPv4Fix(
 
             _logger.LogInformation("Enabling IPv4 preference by disabling IPv6 tunnel interfaces...");
 
-            _registryService.SetStringValue(
+            _registryService.SetIntValue(
                 RegistryPath,
                 DisabledComponentsKey,
-                PreferIPv4Value.ToString());
+                PreferIPv4Value);
 
             details.Add("✓ IPv4 preference enabled successfully");
             details.Add("⚠ IMPORTANT: Computer restart required for changes to take effect");

@@ -112,20 +112,35 @@ public class OneDriveFix(ILogger<OneDriveFix> logger) : BaseActionSet(logger)
                     continue;
                 }
 
+                // Handle merge scenario: If both exist and cloud is not a symlink
+                if (Directory.Exists(cloudPath) && !IsSymbolicLink(cloudPath) && Directory.Exists(localPath))
+                {
+                    details.Add($"⚠ Both cloud and local versions of '{folderName}' exist.");
+                    details.Add("  Attempting to merge cloud files into local folder...");
+                    try
+                    {
+                        MergeDirectories(cloudPath, localPath);
+                        Directory.Delete(cloudPath, true);
+                        details.Add("  ✓ Cloud folder contents merged and original removed.");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to merge {Cloud} into {Local}", cloudPath, localPath);
+                        details.Add($"  ⚠ Failed to fully merge: {ex.Message}");
+
+                        // Rename cloud folder to avoid conflict for symlink creation
+                        var bakPath = cloudPath + ".bak_" + DateTime.Now.Ticks;
+                        Directory.Move(cloudPath, bakPath);
+                        details.Add($"  ✓ Cloud folder renamed to: {Path.GetFileName(bakPath)}");
+                    }
+                }
+
                 // If folder exists in cloud but not local, move it
-                if (Directory.Exists(cloudPath) && !IsSymbolicLink(cloudPath))
+                if (Directory.Exists(cloudPath) && !IsSymbolicLink(cloudPath) && !Directory.Exists(localPath))
                 {
                     details.Add($"Moving '{folderName}' from OneDrive to local Documents...");
-                    if (Directory.Exists(localPath))
-                    {
-                        // Merge or backup? GenPatcher just moves. We'll try to move, if fails, log it.
-                        details.Add($"  ⚠ Local folder already exists: {localPath}");
-                    }
-                    else
-                    {
-                        Directory.Move(cloudPath, localPath);
-                        details.Add($"  ✓ Moved to: {localPath}");
-                    }
+                    Directory.Move(cloudPath, localPath);
+                    details.Add($"  ✓ Moved to: {localPath}");
                 }
 
                 // Create symlink
@@ -135,13 +150,8 @@ public class OneDriveFix(ILogger<OneDriveFix> logger) : BaseActionSet(logger)
                     Directory.CreateSymbolicLink(cloudPath, localPath);
                     details.Add($"  ✓ Symlink created: {cloudPath} -> {localPath}");
                 }
-                else if (Directory.Exists(localPath) && IsSymbolicLink(cloudPath))
-                {
-                    // Already matched or needs update?
-                    details.Add($"✓ Symlink already exists for '{folderName}'.");
-                }
 
-                // Apply Pin attribute to local folder (just in case)
+                // Apply Pin attribute to local folder
                 await ApplyPinAttributeAsync(localPath, cancellationToken);
                 foldersProcessed++;
             }
@@ -165,6 +175,23 @@ public class OneDriveFix(ILogger<OneDriveFix> logger) : BaseActionSet(logger)
     {
         _logger.LogWarning("Undoing OneDrive folder relocation is not supported automatically.");
         return Task.FromResult(new ActionSetResult(true));
+    }
+
+    private void MergeDirectories(string source, string target)
+    {
+        foreach (var dirPath in Directory.GetDirectories(source, "*", SearchOption.AllDirectories))
+        {
+            Directory.CreateDirectory(dirPath.Replace(source, target));
+        }
+
+        foreach (var newPath in Directory.GetFiles(source, "*.*", SearchOption.AllDirectories))
+        {
+            var targetFile = newPath.Replace(source, target);
+            if (!File.Exists(targetFile))
+            {
+                File.Move(newPath, targetFile);
+            }
+        }
     }
 
     private bool IsOneDriveRedirected()

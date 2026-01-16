@@ -107,9 +107,11 @@ public class IntelGfxDriverCompatibility(ILogger<IntelGfxDriverCompatibility> lo
                 Directory.CreateDirectory(Path.GetDirectoryName(_markerPath)!);
                 File.WriteAllText(_markerPath, DateTime.UtcNow.ToString());
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Failed to create marker file for IntelGfxDriverCompatibility");
             }
+
             _logger.LogInformation("- Test game performance");
 
             return Task.FromResult(new ActionSetResult(true, "Please update Intel graphics driver. See logs for details."));

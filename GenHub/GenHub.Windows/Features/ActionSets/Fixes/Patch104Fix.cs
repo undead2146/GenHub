@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Features.ActionSets;
 using GenHub.Core.Models.GameInstallations;
-using GenHub.Core.Models.Results;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Windows.Features.ActionSets.Fixes;
@@ -86,7 +85,7 @@ public class Patch104Fix(IHttpClientFactory httpClientFactory, ILogger<Patch104F
             details.Add($"Target directory: {installation.ZeroHourPath}");
 
             var isExe = false;
-            var downloadPath = "";
+            var downloadPath = string.Empty;
             var tempPath = Path.Combine(Path.GetTempPath(), "zh104_patch.zip"); // Default tag
             var extractPath = Path.Combine(Path.GetTempPath(), "zh104_extract");
 
@@ -123,8 +122,8 @@ public class Patch104Fix(IHttpClientFactory httpClientFactory, ILogger<Patch104F
                     // Validate file size - if it's too small (e.g. < 1MB), it's likely an error page
                     if (fileSize < 1024 * 1024)
                     {
-                         logger.LogWarning("Downloaded file from {Url} is too small ({Size} bytes). Likely blocked.", url, fileSize);
-                         continue;
+                        logger.LogWarning("Downloaded file from {Url} is too small ({Size} bytes). Likely blocked.", url, fileSize);
+                        continue;
                     }
 
                     details.Add($"✓ Downloaded {fileSize / 1024 / 1024:F2} MB from {uri.Host}");
@@ -173,9 +172,9 @@ public class Patch104Fix(IHttpClientFactory httpClientFactory, ILogger<Patch104F
                 var process = Process.Start(new ProcessStartInfo
                 {
                     FileName = downloadPath,
-                    Arguments = "", // Standard installer, interactive is fine if silent fails, but usually no args for this old patch or /S
+                    Arguments = string.Empty, // Standard installer, interactive is fine if silent fails, but usually no args for this old patch or /S
                     UseShellExecute = true,
-                    Verb = "runas"
+                    Verb = "runas",
                 });
 
                 if (process != null)

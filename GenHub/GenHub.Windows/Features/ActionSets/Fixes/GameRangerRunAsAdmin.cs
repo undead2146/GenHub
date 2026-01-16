@@ -173,9 +173,9 @@ public class GameRangerRunAsAdmin(ILogger<GameRangerRunAsAdmin> logger) : BaseAc
 
             foreach (var exe in executables)
             {
-                var exePath = installation.HasGenerals
-                    ? Path.Combine(installation.GeneralsPath, exe)
-                    : Path.Combine(installation.ZeroHourPath, exe);
+                var exePath = exe.Equals("game.exe", StringComparison.OrdinalIgnoreCase) || exe.Equals("Game.exe", StringComparison.OrdinalIgnoreCase)
+                    ? Path.Combine(installation.ZeroHourPath, exe)
+                    : Path.Combine(installation.GeneralsPath, exe);
 
                 if (!File.Exists(exePath))
                 {

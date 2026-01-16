@@ -41,8 +41,8 @@ public class WindowsMediaFeaturePack(ILogger<WindowsMediaFeaturePack> logger) : 
     /// <inheritdoc/>
     public override Task<bool> IsAppliedAsync(GameInstallation installation)
     {
-         if (File.Exists(_markerPath)) return Task.FromResult(true);
-         return Task.FromResult(IsMediaFeaturePackInstalled());
+        if (File.Exists(_markerPath)) return Task.FromResult(true);
+        return Task.FromResult(IsMediaFeaturePackInstalled());
     }
 
     /// <inheritdoc/>

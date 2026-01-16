@@ -73,8 +73,9 @@ public class ProxyLauncher(ILogger<ProxyLauncher> logger) : BaseActionSet(logger
                 Directory.CreateDirectory(Path.GetDirectoryName(_markerPath)!);
                 File.WriteAllText(_markerPath, DateTime.UtcNow.ToString());
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Failed to create marker file for ProxyLauncher");
             }
 
             return Task.FromResult(new ActionSetResult(true, "Proxy launcher is built into GenHub and automatically used."));

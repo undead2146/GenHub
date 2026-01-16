@@ -58,6 +58,7 @@ public static class WindowsServicesModule
         services.AddSingleton<IActionSet, DbgHelpFix>();
         services.AddSingleton<IActionSet, EAAppRegistryFix>();
         services.AddSingleton<IActionSet, MyDocumentsPathCompatibility>();
+        services.AddSingleton<IActionSet, VCRedist2008Fix>();
         services.AddSingleton<IActionSet, VCRedist2010Fix>();
         services.AddSingleton<IActionSet, RemoveReadOnlyFix>();
         services.AddSingleton<IActionSet, AppCompatConfigurationsFix>();
