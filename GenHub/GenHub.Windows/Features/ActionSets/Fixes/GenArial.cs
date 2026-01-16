@@ -16,6 +16,7 @@ using Microsoft.Extensions.Logging;
 public class GenArial(ILogger<GenArial> logger) : BaseActionSet(logger)
 {
     private readonly ILogger<GenArial> _logger = logger;
+    private readonly string _markerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", "sub_markers", "GenArial.done");
 
     /// <inheritdoc/>
     public override string Id => "GenArial";
@@ -32,24 +33,16 @@ public class GenArial(ILogger<GenArial> logger) : BaseActionSet(logger)
     /// <inheritdoc/>
     public override Task<bool> IsApplicableAsync(GameInstallation installation)
     {
-        return Task.FromResult(installation.HasGenerals || installation.HasZeroHour);
+        // Only applicable if Arial is NOT installed (needs to be fixed)
+        var arialInstalled = IsArialFontInstalled();
+        return Task.FromResult(!arialInstalled && (installation.HasGenerals || installation.HasZeroHour));
     }
 
     /// <inheritdoc/>
     public override Task<bool> IsAppliedAsync(GameInstallation installation)
     {
-        try
-        {
-            // Check if Arial font is installed
-            var arialInstalled = IsArialFontInstalled();
-
-            return Task.FromResult(arialInstalled);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error checking Arial font status");
-            return Task.FromResult(false);
-        }
+        if (File.Exists(_markerPath)) return Task.FromResult(true);
+        return Task.FromResult(IsArialFontInstalled());
     }
 
     /// <inheritdoc/>
@@ -79,6 +72,15 @@ public class GenArial(ILogger<GenArial> logger) : BaseActionSet(logger)
             _logger.LogInformation("- Copy Arial font files from another Windows computer");
             _logger.LogInformation("- Download Arial font from a trusted source");
             _logger.LogInformation("- Install the font by right-clicking and selecting 'Install for all users'");
+
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(_markerPath)!);
+                File.WriteAllText(_markerPath, DateTime.UtcNow.ToString());
+            }
+            catch
+            {
+            }
 
             return Task.FromResult(new ActionSetResult(true, "Please manually install Arial font. See logs for details."));
         }

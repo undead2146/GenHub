@@ -19,7 +19,58 @@ using Microsoft.Extensions.Logging;
 /// </summary>
 public class RemoveReadOnlyFix(ILogger<RemoveReadOnlyFix> logger) : BaseActionSet(logger)
 {
+    // Marker file to definitively track if GenPatcher applied this fix
+    private const string MarkerFileName = ".gp_ro_fix";
+
     private readonly ILogger<RemoveReadOnlyFix> _logger = logger;
+
+    private static string GetUserDataPath(GameType gameType)
+    {
+        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        var folder = gameType == GameType.ZeroHour
+            ? "Command and Conquer Generals Zero Hour Data"
+            : "Command and Conquer Generals Data";
+        return Path.Combine(documents, folder);
+    }
+
+    private static async Task<(int Files, int Dirs)> RemoveReadOnlyRecursiveAsync(DirectoryInfo directory, ILogger logger, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        int filesProcessed = 0;
+        int dirsProcessed = 0;
+
+        try
+        {
+            if ((directory.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+            {
+                directory.Attributes &= ~FileAttributes.ReadOnly;
+                dirsProcessed++;
+            }
+
+            foreach (var file in directory.GetFiles())
+            {
+                if ((file.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+                {
+                    file.Attributes &= ~FileAttributes.ReadOnly;
+                    filesProcessed++;
+                }
+            }
+
+            foreach (var subDir in directory.GetDirectories())
+            {
+                var (f, d) = await RemoveReadOnlyRecursiveAsync(subDir, logger, ct);
+                filesProcessed += f;
+                dirsProcessed += d;
+            }
+        }
+        catch (UnauthorizedAccessException)
+        {
+            logger.LogWarning("Access denied to {Path}", directory.FullName);
+        }
+
+        return (filesProcessed, dirsProcessed);
+    }
 
     /// <inheritdoc/>
     public override string Id => "RemoveReadOnlyFix";
@@ -51,8 +102,14 @@ public class RemoveReadOnlyFix(ILogger<RemoveReadOnlyFix> logger) : BaseActionSe
             var userPath = GetUserDataPath(GameType.Generals);
             if (Directory.Exists(userPath))
             {
+                // check for marker file
+                var markerPath = Path.Combine(userPath, MarkerFileName);
+                if (!File.Exists(markerPath)) return Task.FromResult(false);
+
                 if (IsReadOnly(userPath)) return Task.FromResult(false);
                 if (IsReadOnly(Path.Combine(userPath, "Options.ini"))) return Task.FromResult(false);
+                if (IsReadOnly(Path.Combine(userPath, "Maps"))) return Task.FromResult(false);
+                if (IsReadOnly(Path.Combine(userPath, "Replays"))) return Task.FromResult(false);
             }
         }
 
@@ -65,6 +122,8 @@ public class RemoveReadOnlyFix(ILogger<RemoveReadOnlyFix> logger) : BaseActionSe
             {
                 if (IsReadOnly(userPath)) return Task.FromResult(false);
                 if (IsReadOnly(Path.Combine(userPath, "Options.ini"))) return Task.FromResult(false);
+                if (IsReadOnly(Path.Combine(userPath, "Maps"))) return Task.FromResult(false);
+                if (IsReadOnly(Path.Combine(userPath, "Replays"))) return Task.FromResult(false);
             }
         }
 
@@ -94,7 +153,7 @@ public class RemoveReadOnlyFix(ILogger<RemoveReadOnlyFix> logger) : BaseActionSe
                 if (Directory.Exists(userPath))
                 {
                     details.Add($"Processing Generals user data: {userPath}");
-                    var (uFiles, uDirs) = await ProcessDirectoryAsync(userPath, details, ct);
+                    (int uFiles, int uDirs) = await ProcessDirectoryAsync(userPath, details, ct);
                     totalFilesProcessed += uFiles;
                     totalDirsProcessed += uDirs;
                 }
@@ -111,7 +170,7 @@ public class RemoveReadOnlyFix(ILogger<RemoveReadOnlyFix> logger) : BaseActionSe
                 if (Directory.Exists(userPath))
                 {
                     details.Add($"Processing Zero Hour user data: {userPath}");
-                    var (uFiles, uDirs) = await ProcessDirectoryAsync(userPath, details, ct);
+                    (int uFiles, int uDirs) = await ProcessDirectoryAsync(userPath, details, ct);
                     totalFilesProcessed += uFiles;
                     totalDirsProcessed += uDirs;
                 }
@@ -155,15 +214,6 @@ public class RemoveReadOnlyFix(ILogger<RemoveReadOnlyFix> logger) : BaseActionSe
         }
     }
 
-    private string GetUserDataPath(GameType gameType)
-    {
-        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        var folder = gameType == GameType.ZeroHour
-            ? GameSettingsConstants.FolderNames.ZeroHour
-            : GameSettingsConstants.FolderNames.Generals;
-        return Path.Combine(documents, folder);
-    }
-
     private async Task<(int Files, int Dirs)> ProcessDirectoryAsync(string path, List<string> details, CancellationToken ct)
     {
         if (!Directory.Exists(path)) return (0, 0);
@@ -177,7 +227,7 @@ public class RemoveReadOnlyFix(ILogger<RemoveReadOnlyFix> logger) : BaseActionSe
         try
         {
             var dirInfo = new DirectoryInfo(path);
-            var (f, d) = await RemoveReadOnlyRecursiveAsync(dirInfo, ct);
+            var (f, d) = await RemoveReadOnlyRecursiveAsync(dirInfo, _logger, ct);
             filesProcessed += f;
             dirsProcessed += d;
 
@@ -200,45 +250,6 @@ public class RemoveReadOnlyFix(ILogger<RemoveReadOnlyFix> logger) : BaseActionSe
         {
             _logger.LogWarning(ex, "Failed to apply pin attributes to {Path}", path);
             details.Add($"  ⚠ Could not apply pin attributes: {ex.Message}");
-        }
-
-        return (filesProcessed, dirsProcessed);
-    }
-
-    private async Task<(int Files, int Dirs)> RemoveReadOnlyRecursiveAsync(DirectoryInfo directory, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-
-        int filesProcessed = 0;
-        int dirsProcessed = 0;
-
-        try
-        {
-            if ((directory.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
-            {
-                directory.Attributes &= ~FileAttributes.ReadOnly;
-                dirsProcessed++;
-            }
-
-            foreach (var file in directory.GetFiles())
-            {
-                if ((file.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
-                {
-                    file.Attributes &= ~FileAttributes.ReadOnly;
-                    filesProcessed++;
-                }
-            }
-
-            foreach (var subDir in directory.GetDirectories())
-            {
-                var (f, d) = await RemoveReadOnlyRecursiveAsync(subDir, ct);
-                filesProcessed += f;
-                dirsProcessed += d;
-            }
-        }
-        catch (UnauthorizedAccessException)
-        {
-            _logger.LogWarning("Access denied to {Path}", directory.FullName);
         }
 
         return (filesProcessed, dirsProcessed);
@@ -269,6 +280,4 @@ public class RemoveReadOnlyFix(ILogger<RemoveReadOnlyFix> logger) : BaseActionSe
             _logger.LogWarning(ex, "Failed to apply pin attributes to {Path}", path);
         }
     }
-
-    private ActionSetResult Success(string? message = null, List<string>? details = null) => new ActionSetResult(true, message, details);
 }

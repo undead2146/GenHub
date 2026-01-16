@@ -15,6 +15,7 @@ using Microsoft.Extensions.Logging;
 public class ExpandedLANLobbyMenu(ILogger<ExpandedLANLobbyMenu> logger) : BaseActionSet(logger)
 {
     private readonly ILogger<ExpandedLANLobbyMenu> _logger = logger;
+    private readonly string _markerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", "sub_markers", "ExpandedLANLobbyMenu.done");
 
     /// <inheritdoc/>
     public override string Id => "ExpandedLANLobbyMenu";
@@ -39,9 +40,7 @@ public class ExpandedLANLobbyMenu(ILogger<ExpandedLANLobbyMenu> logger) : BaseAc
     {
         try
         {
-            // This is an informational fix - always return true
-            // LAN lobby menu is built into the game
-            return Task.FromResult(true);
+            return Task.FromResult(File.Exists(_markerPath));
         }
         catch (Exception ex)
         {
@@ -72,6 +71,15 @@ public class ExpandedLANLobbyMenu(ILogger<ExpandedLANLobbyMenu> logger) : BaseAc
             _logger.LogInformation("- Use wired network connection if possible");
             _logger.LogInformation("- Ensure all players have the same game version");
             _logger.LogInformation(string.Empty);
+
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(_markerPath)!);
+                File.WriteAllText(_markerPath, DateTime.UtcNow.ToString());
+            }
+            catch
+            {
+            }
 
             return Task.FromResult(new ActionSetResult(true, "LAN lobby menu is built into the game. See logs for details."));
         }

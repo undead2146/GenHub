@@ -30,7 +30,7 @@ public class DirectXRuntimeFix(IHttpClientFactory httpClientFactory, ILogger<Dir
     public override bool IsCoreFix => true;
 
     /// <inheritdoc/>
-    public override bool IsCrucialFix => true;
+    public override bool IsCrucialFix => false; // Network failures shouldn't abort entire sequence
 
     /// <inheritdoc/>
     public override Task<bool> IsApplicableAsync(GameInstallation installation)
@@ -42,12 +42,20 @@ public class DirectXRuntimeFix(IHttpClientFactory httpClientFactory, ILogger<Dir
     /// <inheritdoc/>
     public override Task<bool> IsAppliedAsync(GameInstallation installation)
     {
-        // GenPatcher check: If D3DX9_43.dll exists in SysWOW64, it's likely fine.
-        // On 64-bit Windows (which is 99.9% of users today), this is the reliable check.
-        var sysWow64Path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "SysWOW64");
-        var dxDll = Path.Combine(sysWow64Path, "D3DX9_43.dll");
+        try
+        {
+            // GenPatcher check: If D3DX9_43.dll (DX9) and d3d8.dll (DX8 Core) exist, we are good.
+            // Note: Modern dxwebsetup often skips d3dx8.dll (helper), but d3d8.dll is sufficient for the game to launch.
+            var sysWow64Path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "SysWOW64");
+            var dx9Dll = Path.Combine(sysWow64Path, "D3DX9_43.dll");
+            var dx8Dll = Path.Combine(sysWow64Path, "d3d8.dll");
 
-        return Task.FromResult(File.Exists(dxDll));
+            return Task.FromResult(File.Exists(dx9Dll) && File.Exists(dx8Dll));
+        }
+        catch
+        {
+            return Task.FromResult(false);
+        }
     }
 
     /// <inheritdoc/>
@@ -72,32 +80,112 @@ public class DirectXRuntimeFix(IHttpClientFactory httpClientFactory, ILogger<Dir
             details.Add($"Temp directory: {tempFolder}");
 
             details.Add("Downloading DirectX Runtime...");
-            _logger.LogInformation("Downloading DirectX Runtime from {Url}", ExternalUrls.DirectXRuntimeDownloadUrl);
 
-            using (var client = httpClientFactory.CreateClient())
+            using var client = httpClientFactory.CreateClient();
+
+            // Add User-Agent to avoid blocking
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+
+            // Increase timeout for large downloads (DirectX is ~100MB)
+            client.Timeout = TimeSpan.FromMinutes(5);
+
+            var urls = new[]
             {
-                var response = await client.GetAsync(ExternalUrls.DirectXRuntimeDownloadUrl, cancellationToken);
-                response.EnsureSuccessStatusCode();
+                ExternalUrls.DirectXRuntimeDownloadUrlPrimary,
+                ExternalUrls.DirectXRuntimeDownloadUrlMirror1,
+            };
+            bool downloaded = false;
 
-                var fileSize = response.Content.Headers.ContentLength ?? 0;
-                details.Add($"✓ Downloaded {fileSize / 1024 / 1024:F2} MB");
+            var isExe = false;
+            var downloadPath = "";
 
-                await using var fs = new FileStream(zipFile, FileMode.Create);
-                await response.Content.CopyToAsync(fs, cancellationToken);
+            foreach (var url in urls)
+            {
+                try
+                {
+                    _logger.LogInformation("Attempting download from {Url}", url);
+
+                    var uri = new Uri(url);
+                    isExe = uri.AbsolutePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+                    downloadPath = isExe ? Path.Combine(tempFolder, "dxsetup.exe") : zipFile;
+
+                    var response = await client.GetAsync(url, cancellationToken);
+                    response.EnsureSuccessStatusCode();
+
+                    var fileSize = response.Content.Headers.ContentLength ?? 0;
+
+                    // Validate file size - 200KB for web installer, 1MB for zip
+                    var minSize = isExe ? 200 * 1024 : 1024 * 1024;
+
+                    if (fileSize < minSize)
+                    {
+                        _logger.LogWarning("Downloaded file from {Url} is too small ({Size} bytes). Likely blocked.", url, fileSize);
+                        continue;
+                    }
+
+                    details.Add($"✓ Downloaded {fileSize / 1024.0 / 1024.0:F2} MB from {uri.Host}");
+
+                    _logger.LogInformation("Reading response content to memory...");
+                    var fileBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+
+                    _logger.LogInformation("Writing {Size} bytes to disk...", fileBytes.Length);
+                    await File.WriteAllBytesAsync(downloadPath, fileBytes, cancellationToken);
+
+                    if (!isExe)
+                    {
+                        // Validate ZIP integrity
+                        try
+                        {
+                            using var archive = ZipFile.OpenRead(downloadPath);
+                            var entryCount = archive.Entries.Count;
+                            _logger.LogInformation("Validated zip archive from {Url} ({Count} entries)", url, entryCount);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning("Downloaded file from {Url} is corrupt: {Error}. Trying next mirror.", url, ex.Message);
+                            continue;
+                        }
+                    }
+
+                    downloaded = true;
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning("Failed to download from {Url}: {Error}", url, ex.Message);
+                }
             }
 
-            details.Add("Extracting DirectX Runtime...");
-            _logger.LogInformation("Extracting DirectX Runtime...");
-            ZipFile.ExtractToDirectory(zipFile, extractPath);
-
-            var extractedFiles = Directory.GetFiles(extractPath, "*.*", SearchOption.AllDirectories);
-            details.Add($"✓ Extracted {extractedFiles.Length} files");
-
-            var setupExe = Path.Combine(extractPath, "DXSETUP.exe");
-            if (!File.Exists(setupExe))
+            if (!downloaded)
             {
-                details.Add("✗ DXSETUP.exe not found in package");
-                return new ActionSetResult(false, "DXSETUP.exe not found in downloaded package.", details);
+                throw new HttpRequestException("Failed to download or validate DirectX Runtime from all mirrors.");
+            }
+
+            string setupExe;
+            string arguments;
+
+            if (isExe)
+            {
+                setupExe = downloadPath;
+                arguments = "/Q"; // Silent install for web setup
+                details.Add("Running DirectX Web Setup...");
+            }
+            else
+            {
+                details.Add("Extracting DirectX Runtime...");
+                _logger.LogInformation("Extracting DirectX Runtime...");
+                ZipFile.ExtractToDirectory(zipFile, extractPath);
+
+                var extractedFiles = Directory.GetFiles(extractPath, "*.*", SearchOption.AllDirectories);
+                details.Add($"✓ Extracted {extractedFiles.Length} files");
+
+                setupExe = Path.Combine(extractPath, "DXSETUP.exe");
+                if (!File.Exists(setupExe))
+                {
+                    details.Add("✗ DXSETUP.exe not found in package");
+                    return new ActionSetResult(false, "DXSETUP.exe not found in downloaded package.", details);
+                }
+                arguments = "/silent";
             }
 
             details.Add($"Running DirectX Setup (silent mode)...");
@@ -107,9 +195,9 @@ public class DirectXRuntimeFix(IHttpClientFactory httpClientFactory, ILogger<Dir
             var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
                 FileName = setupExe,
-                Arguments = "/silent",
+                Arguments = arguments,
                 UseShellExecute = true,
-                Verb = "runas", // Ensure admin for installation
+                Verb = "runas",
             });
 
             if (process == null)
@@ -118,16 +206,13 @@ public class DirectXRuntimeFix(IHttpClientFactory httpClientFactory, ILogger<Dir
                 return new ActionSetResult(false, "Failed to start DirectX setup process.", details);
             }
 
-            await process.WaitForExitAsync();
+            await process.WaitForExitAsync(cancellationToken);
 
             if (process.ExitCode != 0)
             {
                 _logger.LogWarning("DirectX setup exited with code {ExitCode}", process.ExitCode);
                 details.Add($"⚠ DirectX setup exited with code {process.ExitCode}");
                 details.Add("  Note: Non-zero codes may not indicate failure");
-
-                // Note: Sometimes DX returns non-zero codes that aren't failures,
-                // but usually /silent should result in 0 or a reboot code.
             }
             else
             {
@@ -135,6 +220,7 @@ public class DirectXRuntimeFix(IHttpClientFactory httpClientFactory, ILogger<Dir
             }
 
             details.Add("✓ DirectX Runtime installation completed");
+
             return new ActionSetResult(true, null, details);
         }
         catch (Exception ex)

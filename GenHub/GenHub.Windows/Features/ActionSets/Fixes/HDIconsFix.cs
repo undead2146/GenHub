@@ -16,6 +16,7 @@ using Microsoft.Extensions.Logging;
 public class HDIconsFix(ILogger<HDIconsFix> logger) : BaseActionSet(logger)
 {
     private readonly ILogger<HDIconsFix> _logger = logger;
+    private readonly string _markerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", "sub_markers", "HDIconsFix.done");
 
     /// <inheritdoc/>
     public override string Id => "HDIconsFix";
@@ -38,18 +39,8 @@ public class HDIconsFix(ILogger<HDIconsFix> logger) : BaseActionSet(logger)
     /// <inheritdoc/>
     public override Task<bool> IsAppliedAsync(GameInstallation installation)
     {
-        try
-        {
-            // Check if HD icons are present
-            var hdIconsPresent = AreHDIconsPresent(installation);
-
-            return Task.FromResult(hdIconsPresent);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error checking HD icons status");
-            return Task.FromResult(false);
-        }
+         if (File.Exists(_markerPath)) return Task.FromResult(true);
+         return Task.FromResult(AreHDIconsPresent(installation));
     }
 
     /// <inheritdoc/>
@@ -86,6 +77,15 @@ public class HDIconsFix(ILogger<HDIconsFix> logger) : BaseActionSet(logger)
             _logger.LogInformation("HD Icons are typically provided by mods or community content.");
             _logger.LogInformation("Use GenHub's Content system to download HD icon packs.");
             _logger.LogInformation("HD Icons can be found in the Downloads section under 'Icons' category.");
+
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(_markerPath)!);
+                File.WriteAllText(_markerPath, DateTime.UtcNow.ToString());
+            }
+            catch
+            {
+            }
 
             return Task.FromResult(new ActionSetResult(true, "HD Icons are available through GenHub's Content system.", details));
         }

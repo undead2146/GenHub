@@ -3,9 +3,11 @@ namespace GenHub.Windows.Features.ActionSets.Fixes;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Features.ActionSets;
+using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Models.GameInstallations;
 using Microsoft.Extensions.Logging;
 
@@ -13,8 +15,9 @@ using Microsoft.Extensions.Logging;
 /// Fix that creates or fixes start menu shortcuts for Generals and Zero Hour.
 /// This fix ensures proper shortcuts are available in Windows Start Menu.
 /// </summary>
-public class StartMenuFix(ILogger<StartMenuFix> logger) : BaseActionSet(logger)
+public class StartMenuFix(IShortcutService shortcutService, ILogger<StartMenuFix> logger) : BaseActionSet(logger)
 {
+    private readonly IShortcutService _shortcutService = shortcutService;
     private readonly ILogger<StartMenuFix> _logger = logger;
 
     /// <inheritdoc/>
@@ -40,10 +43,7 @@ public class StartMenuFix(ILogger<StartMenuFix> logger) : BaseActionSet(logger)
     {
         try
         {
-            // Check if start menu shortcuts exist
-            var shortcutsExist = DoShortcutsExist(installation);
-
-            return Task.FromResult(shortcutsExist);
+            return Task.FromResult(DoShortcutsExist(installation));
         }
         catch (Exception ex)
         {
@@ -53,118 +53,149 @@ public class StartMenuFix(ILogger<StartMenuFix> logger) : BaseActionSet(logger)
     }
 
     /// <inheritdoc/>
-    protected override Task<ActionSetResult> ApplyInternalAsync(GameInstallation installation, CancellationToken cancellationToken)
+    protected override async Task<ActionSetResult> ApplyInternalAsync(GameInstallation installation, CancellationToken cancellationToken)
     {
         var details = new List<string>();
 
         try
         {
-            details.Add("Start Menu Shortcuts Fix - Informational");
-            details.Add(string.Empty);
-            details.Add("⚠ NOTE: This fix is informational only");
-            details.Add("  Shortcuts are typically created during game installation");
-            details.Add(string.Empty);
-            details.Add("To create shortcuts manually:");
-            details.Add("  1. Right-click on game executable");
-            details.Add("  2. Select 'Show more options' > 'Create shortcut'");
-            details.Add("  3. Move shortcut to Start Menu folder");
-            details.Add(string.Empty);
-            details.Add("Or use GenHub to create shortcuts:");
-            details.Add("  1. Open GenHub");
-            details.Add("  2. Go to game installation");
-            details.Add("  3. Click 'Create Shortcuts' button");
-            details.Add(string.Empty);
+            details.Add("Creating Start Menu shortcuts...");
 
-            // Check current status
-            var shortcutsExist = DoShortcutsExist(installation);
-            if (shortcutsExist)
+            var commonPrograms = Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms);
+
+            if (installation.HasGenerals)
             {
-                details.Add("✓ Start Menu shortcuts already exist");
+                var startMenuPath = Path.Combine(commonPrograms, "Command and Conquer Generals");
+                var exe = Path.Combine(installation.GeneralsPath, "Generals.exe");
+
+                if (File.Exists(exe))
+                {
+                    var shortcutPath = Path.Combine(startMenuPath, "Command & Conquer Generals Windowed.lnk");
+                    var result = await _shortcutService.CreateShortcutAsync(
+                        shortcutPath,
+                        exe,
+                        "-win",
+                        installation.GeneralsPath,
+                        "Launch Generals in Windowed Mode");
+
+                    if (result.Success)
+                    {
+                        details.Add($"✓ Created: {Path.GetFileName(shortcutPath)}");
+                    }
+                    else
+                    {
+                        details.Add($"✗ Failed to create Generals shortcut: {result.Errors.FirstOrDefault()}");
+                    }
+                }
             }
-            else
+
+            if (installation.HasZeroHour)
             {
-                details.Add("⚠ No Start Menu shortcuts found");
-                details.Add("  Use GenHub's shortcut creation feature to add them");
+                var startMenuPath = Path.Combine(commonPrograms, "Command and Conquer Generals Zero Hour");
+                var exe = Path.Combine(installation.ZeroHourPath, "generals.exe");
+
+                if (File.Exists(exe))
+                {
+                    var shortcutPath = Path.Combine(startMenuPath, "Command & Conquer Generals Zero Hour Windowed.lnk");
+                    var result = await _shortcutService.CreateShortcutAsync(
+                        shortcutPath,
+                        exe,
+                        "-win",
+                        installation.ZeroHourPath,
+                        "Launch Zero Hour in Windowed Mode");
+
+                    if (result.Success)
+                    {
+                        details.Add($"✓ Created: {Path.GetFileName(shortcutPath)}");
+                    }
+                    else
+                    {
+                        details.Add($"✗ Failed to create Zero Hour shortcut: {result.Errors.FirstOrDefault()}");
+                    }
+                }
+
+                // EdgeScroller shortcut
+                var edgeScroller = Path.Combine(installation.ZeroHourPath, "EdgeScroller.exe");
+                if (File.Exists(edgeScroller))
+                {
+                    var shortcutPath = Path.Combine(startMenuPath, "EdgeScroller.lnk");
+                    var result = await _shortcutService.CreateShortcutAsync(
+                        shortcutPath,
+                        edgeScroller,
+                        null,
+                        installation.ZeroHourPath,
+                        "Window Edge Scroller");
+
+                    if (result.Success)
+                    {
+                        details.Add($"✓ Created: {Path.GetFileName(shortcutPath)}");
+                    }
+                }
             }
 
-            _logger.LogInformation("Start Menu Shortcuts Information:");
-            _logger.LogInformation("Shortcuts can be created through GenHub's interface.");
-            _logger.LogInformation(string.Empty);
-            _logger.LogInformation("To create shortcuts manually:");
-            _logger.LogInformation("1. Right-click on game executable");
-            _logger.LogInformation("2. Select 'Show more options' > 'Create shortcut'");
-            _logger.LogInformation("3. Move shortcut to desired location");
-            _logger.LogInformation(string.Empty);
-            _logger.LogInformation("Or use GenHub to create shortcuts:");
-            _logger.LogInformation("1. Open GenHub");
-            _logger.LogInformation("2. Go to game installation");
-            _logger.LogInformation("3. Click 'Create Shortcuts' button");
+            details.Add(string.Empty);
+            details.Add("✓ Start Menu shortcuts created successfully");
 
-            return Task.FromResult(new ActionSetResult(true, "Start menu shortcuts can be created through GenHub. See details for instructions.", details));
+            return new ActionSetResult(true, null, details);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error applying start menu shortcuts fix");
             details.Add($"✗ Error: {ex.Message}");
-            return Task.FromResult(new ActionSetResult(false, ex.Message, details));
+            return new ActionSetResult(false, ex.Message, details);
         }
     }
 
     /// <inheritdoc/>
     protected override Task<ActionSetResult> UndoInternalAsync(GameInstallation installation, CancellationToken cancellationToken)
     {
-        _logger.LogWarning("Start Menu Shortcuts Fix is informational only. No undo action needed.");
+        _logger.LogWarning("Undoing Start Menu Shortcuts Fix is not supported.");
         return Task.FromResult(new ActionSetResult(true));
     }
 
     private bool DoShortcutsExist(GameInstallation installation)
     {
-        try
+        var searchPaths = new[]
         {
-            // Check for shortcuts in common start menu locations
-            var startMenuPath = Environment.GetFolderPath(Environment.SpecialFolder.StartMenu);
-            var programsPath = Path.Combine(startMenuPath, "Programs");
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),
+            Environment.GetFolderPath(Environment.SpecialFolder.Programs),
+        };
 
-            var shortcutNames = new List<string>();
+        var generalsFound = !installation.HasGenerals;
+        var zhFound = !installation.HasZeroHour;
 
-            if (installation.HasGenerals)
+        foreach (var programsPath in searchPaths)
+        {
+            if (installation.HasGenerals && !generalsFound)
             {
-                shortcutNames.AddRange(new[]
+                // Try both variants of '&' vs 'and'
+                var folderVariants = new[] { "Command and Conquer Generals", "Command & Conquer Generals" };
+                foreach (var folder in folderVariants)
                 {
-                    "Command & Conquer Generals.lnk",
-                    "Generals.lnk",
-                    "C&C Generals.lnk",
-                });
-            }
-
-            if (installation.HasZeroHour)
-            {
-                shortcutNames.AddRange(new[]
-                {
-                    "Command & Conquer Generals Zero Hour.lnk",
-                    "Generals Zero Hour.lnk",
-                    "C&C Zero Hour.lnk",
-                    "Zero Hour.lnk",
-                });
-            }
-
-            var foundShortcuts = 0;
-            foreach (var shortcutName in shortcutNames)
-            {
-                var shortcutPath = Path.Combine(programsPath, shortcutName);
-                if (File.Exists(shortcutPath))
-                {
-                    _logger.LogInformation("Found shortcut: {Shortcut}", shortcutName);
-                    foundShortcuts++;
+                    var path = Path.Combine(programsPath, folder, "Command & Conquer Generals Windowed.lnk");
+                    if (File.Exists(path))
+                    {
+                        generalsFound = true;
+                        break;
+                    }
                 }
             }
 
-            return foundShortcuts > 0;
+            if (installation.HasZeroHour && !zhFound)
+            {
+                var folderVariants = new[] { "Command and Conquer Generals Zero Hour", "Command & Conquer Generals Zero Hour" };
+                foreach (var folder in folderVariants)
+                {
+                    var path = Path.Combine(programsPath, folder, "Command & Conquer Generals Zero Hour Windowed.lnk");
+                    if (File.Exists(path))
+                    {
+                        zhFound = true;
+                        break;
+                    }
+                }
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Error checking for shortcuts");
-            return false;
-        }
+
+        return generalsFound && zhFound;
     }
 }

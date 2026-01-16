@@ -15,6 +15,7 @@ using Microsoft.Extensions.Logging;
 public class ProxyLauncher(ILogger<ProxyLauncher> logger) : BaseActionSet(logger)
 {
     private readonly ILogger<ProxyLauncher> _logger = logger;
+    private readonly string _markerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", "sub_markers", "ProxyLauncher.done");
 
     /// <inheritdoc/>
     public override string Id => "ProxyLauncher";
@@ -39,9 +40,7 @@ public class ProxyLauncher(ILogger<ProxyLauncher> logger) : BaseActionSet(logger
     {
         try
         {
-            // This is an informational fix - always return true
-            // Proxy launcher is built into GenHub
-            return Task.FromResult(true);
+            return Task.FromResult(File.Exists(_markerPath));
         }
         catch (Exception ex)
         {
@@ -68,6 +67,15 @@ public class ProxyLauncher(ILogger<ProxyLauncher> logger) : BaseActionSet(logger
             _logger.LogInformation(string.Empty);
             _logger.LogInformation("The proxy launcher is automatically used when launching games through GenHub.");
             _logger.LogInformation("No manual configuration is required.");
+
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(_markerPath)!);
+                File.WriteAllText(_markerPath, DateTime.UtcNow.ToString());
+            }
+            catch
+            {
+            }
 
             return Task.FromResult(new ActionSetResult(true, "Proxy launcher is built into GenHub and automatically used."));
         }

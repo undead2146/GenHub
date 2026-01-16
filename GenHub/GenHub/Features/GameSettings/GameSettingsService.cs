@@ -349,6 +349,7 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
             "ScreenEdgeScrollEnabledInWindowedApp", "ScrollFactor", "SendDelay",
             "ShowMoneyPerMinute", "ShowSoftWaterEdge", "ShowTrees", "SystemTimeFontSize",
             "UseAlternateMouse", "UseCloudMap", "UseDoubleClickAttackMove", "UseLightMap",
+            "ScrollEdgeZone", "ScrollEdgeSpeed", "ScrollEdgeAcceleration",
         };
 
         Dictionary<string, string> audioDict = [];

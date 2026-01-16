@@ -34,32 +34,17 @@ public class NahimicFix(ILogger<NahimicFix> logger) : BaseActionSet(logger)
     /// <inheritdoc/>
     public override Task<bool> IsApplicableAsync(GameInstallation installation)
     {
-        return Task.FromResult(installation.HasGenerals || installation.HasZeroHour);
+        // Only applicable if Nahimic is actually installed (something to check/warn about)
+        var nahimicInstalled = IsNahimicInstalled();
+        return Task.FromResult(nahimicInstalled && (installation.HasGenerals || installation.HasZeroHour));
     }
 
     /// <inheritdoc/>
     public override Task<bool> IsAppliedAsync(GameInstallation installation)
     {
-        try
-        {
-            // Check if Nahimic is installed
-            var nahimicInstalled = IsNahimicInstalled();
-
-            if (!nahimicInstalled)
-            {
-                // If Nahimic is not installed, consider this fix "applied"
-                return Task.FromResult(true);
-            }
-
-            // Check if Nahimic service is disabled
-            // Note: Disabling Nahimic service requires manual intervention
-            return Task.FromResult(false);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error checking Nahimic compatibility status");
-            return Task.FromResult(false);
-        }
+        // This is an informational fix - always returns false since it requires manual action
+        // Users must manually disable Nahimic service
+        return Task.FromResult(false);
     }
 
     /// <inheritdoc/>

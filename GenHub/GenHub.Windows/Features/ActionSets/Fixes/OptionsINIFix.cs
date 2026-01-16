@@ -4,9 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Constants;
 using GenHub.Core.Features.ActionSets;
 using GenHub.Core.Interfaces.GameSettings;
-using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.GameSettings;
@@ -77,7 +77,7 @@ public class OptionsINIFix(IGameSettingsService gameSettingsService, ILogger<Opt
             var options = loadResult.Data;
 
             // Check if all required settings are present with correct values
-            if (!IsOptionsValid(options, installation.InstallationType))
+            if (!IsOptionsValid(options))
             {
                 return false;
             }
@@ -152,7 +152,7 @@ public class OptionsINIFix(IGameSettingsService gameSettingsService, ILogger<Opt
             details.Add("Applying optimal settings...");
 
             // Apply optimal settings
-            ApplyOptimalSettings(options, installation.InstallationType, details);
+            ApplyOptimalSettings(options, details);
 
             // Log what was changed
             details.Add("✓ Video settings optimized:");
@@ -226,47 +226,50 @@ public class OptionsINIFix(IGameSettingsService gameSettingsService, ILogger<Opt
         return Task.FromResult(Success());
     }
 
-    private bool IsOptionsValid(IniOptions options, GameInstallationType installationType)
+    private static bool IsOptionsValid(IniOptions options)
     {
-        // Check for problematic default files from Steam/Origin/EA App
-        // These have specific file sizes and bad mouse configurations
-        // We'll check for the presence of required settings instead
-
-        // Required settings with specific values
-        // Note: DynamicLOD is in AdditionalProperties for TheSuperHackers
+        // Check core video settings
         if (options.Video.ExtraAnimations != true) return false;
         if (options.Video.Gamma != 50) return false;
         if (options.Video.TextureReduction != 0) return false;
         if (options.Video.AntiAliasing != 1) return false;
         if (options.Video.UseShadowDecals != true) return false;
         if (options.Video.UseShadowVolumes != false) return false;
+
+        // Check audio settings
         if (options.Audio.SFXVolume != 70) return false;
         if (options.Audio.SFX3DVolume != 70) return false;
         if (options.Audio.MusicVolume != 70) return false;
         if (options.Audio.VoiceVolume != 70) return false;
 
-        // Check for bad resolutions
-        if (options.Video.ResolutionWidth == 800 && options.Video.ResolutionHeight == 600)
+        // Check bad resolutions
+        if (IsBadResolution(options.Video.ResolutionWidth, options.Video.ResolutionHeight))
             return false;
-        if (options.Video.ResolutionWidth == 1024 && options.Video.ResolutionHeight == 768)
+
+        // Check [TheSuperHackers] section
+        if (!options.AdditionalSections.TryGetValue(ActionSetConstants.IniFiles.TheSuperHackersSection, out var tsh))
+        {
             return false;
-        if (options.Video.ResolutionWidth == 1280 && options.Video.ResolutionHeight == 1024)
-            return false;
-        if (options.Video.ResolutionWidth == 1600 && options.Video.ResolutionHeight == 1200)
-            return false;
-        if (options.Video.ResolutionWidth == 1280 && options.Video.ResolutionHeight == 720)
-            return false;
-        if (options.Video.ResolutionWidth == 1360 && options.Video.ResolutionHeight == 768)
-            return false;
-        if (options.Video.ResolutionWidth == 1366 && options.Video.ResolutionHeight == 768)
-            return false;
-        if (options.Video.ResolutionWidth == 1600 && options.Video.ResolutionHeight == 900)
-            return false;
+        }
+
+        // Validate essential TSH settings that GenPatcher looks for
+        if (tsh.GetValueOrDefault("DynamicLOD") != GameSettingsConstants.OptimalSettings.DynamicLOD) return false;
+        if (tsh.GetValueOrDefault("MaxParticleCount") != GameSettingsConstants.OptimalSettings.MaxParticleCount) return false;
+        if (tsh.GetValueOrDefault("HeatEffects") != GameSettingsConstants.OptimalSettings.HeatEffects) return false;
+        if (tsh.GetValueOrDefault("SendDelay") != GameSettingsConstants.OptimalSettings.SendDelay) return false;
+        if (tsh.GetValueOrDefault("ShowSoftWaterEdge") != GameSettingsConstants.OptimalSettings.ShowSoftWaterEdge) return false;
+        if (tsh.GetValueOrDefault("ShowTrees") != GameSettingsConstants.OptimalSettings.ShowTrees) return false;
+        if (tsh.GetValueOrDefault("UseAlternateMouse") != GameSettingsConstants.OptimalSettings.UseAlternateMouse) return false;
+        if (tsh.GetValueOrDefault("UseDoubleClickAttackMove") != GameSettingsConstants.OptimalSettings.UseDoubleClickAttackMove) return false;
+        if (tsh.GetValueOrDefault("BuildingOcclusion") != GameSettingsConstants.OptimalSettings.BuildingOcclusion) return false;
+        if (tsh.GetValueOrDefault("Retaliation") != GameSettingsConstants.OptimalSettings.Retaliation) return false;
+        if (tsh.GetValueOrDefault("UseCloudMap") != GameSettingsConstants.OptimalSettings.UseCloudMap) return false;
+        if (tsh.GetValueOrDefault("UseLightMap") != GameSettingsConstants.OptimalSettings.UseLightMap) return false;
 
         return true;
     }
 
-    private void ApplyOptimalSettings(IniOptions options, GameInstallationType installationType, List<string> details)
+    private static void ApplyOptimalSettings(IniOptions options, List<string> details)
     {
         // Set optimal values for performance and compatibility
         options.Video.AntiAliasing = GameSettingsConstants.OptimalSettings.AntiAliasing;
@@ -303,7 +306,7 @@ public class OptionsINIFix(IGameSettingsService gameSettingsService, ILogger<Opt
         // Ensure [TheSuperHackers] section exists with optimal defaults
         if (!options.AdditionalSections.TryGetValue(ActionSetConstants.IniFiles.TheSuperHackersSection, out var tsh))
         {
-            tsh = new Dictionary<string, string>();
+            tsh = [];
             options.AdditionalSections[ActionSetConstants.IniFiles.TheSuperHackersSection] = tsh;
         }
 
@@ -329,7 +332,7 @@ public class OptionsINIFix(IGameSettingsService gameSettingsService, ILogger<Opt
         details.Add("✓ Applied optimal GenPatcher settings/compatibility tweaks");
     }
 
-    private bool IsBadResolution(int width, int height)
+    private static bool IsBadResolution(int width, int height)
     {
         return (width == 800 && height == 600) ||
                (width == 1024 && height == 768) ||
@@ -341,5 +344,5 @@ public class OptionsINIFix(IGameSettingsService gameSettingsService, ILogger<Opt
                (width == 1600 && height == 900);
     }
 
-    private new ActionSetResult Success() => new ActionSetResult(true);
+    private static new ActionSetResult Success() => new(true);
 }

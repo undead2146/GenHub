@@ -36,7 +36,7 @@ public class VCRedist2010Fix(IHttpClientFactory httpClientFactory, ILogger<VCRed
     public override bool IsCoreFix => true;
 
     /// <inheritdoc/>
-    public override bool IsCrucialFix => true;
+    public override bool IsCrucialFix => false; // Network failures shouldn't abort entire sequence
 
     /// <inheritdoc/>
     public override Task<bool> IsApplicableAsync(GameInstallation installation)

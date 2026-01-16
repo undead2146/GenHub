@@ -16,6 +16,7 @@ using Microsoft.Extensions.Logging;
 public class DisableOriginInGame(ILogger<DisableOriginInGame> logger) : BaseActionSet(logger)
 {
     private readonly ILogger<DisableOriginInGame> _logger = logger;
+    private readonly string _markerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", "sub_markers", "DisableOriginInGame.done");
 
     /// <inheritdoc/>
     public override string Id => "DisableOriginInGame";
@@ -32,33 +33,16 @@ public class DisableOriginInGame(ILogger<DisableOriginInGame> logger) : BaseActi
     /// <inheritdoc/>
     public override Task<bool> IsApplicableAsync(GameInstallation installation)
     {
-        return Task.FromResult(installation.HasGenerals || installation.HasZeroHour);
+        // Only applicable if Origin is actually installed (something to disable)
+        var originInstalled = IsOriginInstalled();
+        return Task.FromResult(originInstalled && (installation.HasGenerals || installation.HasZeroHour));
     }
 
     /// <inheritdoc/>
     public override Task<bool> IsAppliedAsync(GameInstallation installation)
     {
-        try
-        {
-            // Check if Origin is installed
-            var originInstalled = IsOriginInstalled();
-
-            if (!originInstalled)
-            {
-                // If Origin is not installed, consider this fix "applied"
-                return Task.FromResult(true);
-            }
-
-            // Check if Origin in-game overlay is disabled
-            var overlayDisabled = IsOriginOverlayDisabled();
-
-            return Task.FromResult(overlayDisabled);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error checking Origin overlay status");
-            return Task.FromResult(false);
-        }
+         if (File.Exists(_markerPath)) return Task.FromResult(true);
+         return Task.FromResult(false);
     }
 
     /// <inheritdoc/>
@@ -95,6 +79,15 @@ public class DisableOriginInGame(ILogger<DisableOriginInGame> logger) : BaseActi
             _logger.LogInformation("2. Select 'Game Properties'");
             _logger.LogInformation("3. Uncheck 'Enable Origin In-Game for this game'");
             _logger.LogInformation("4. Click 'Save'");
+
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(_markerPath)!);
+                File.WriteAllText(_markerPath, DateTime.UtcNow.ToString());
+            }
+            catch
+            {
+            }
 
             return Task.FromResult(new ActionSetResult(true, "Please manually disable Origin in-game overlay. See logs for details."));
         }

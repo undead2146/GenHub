@@ -16,6 +16,7 @@ using Microsoft.Extensions.Logging;
 public class WindowsMediaFeaturePack(ILogger<WindowsMediaFeaturePack> logger) : BaseActionSet(logger)
 {
     private readonly ILogger<WindowsMediaFeaturePack> _logger = logger;
+    private readonly string _markerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", "sub_markers", "WindowsMediaFeaturePack.done");
 
     /// <inheritdoc/>
     public override string Id => "WindowsMediaFeaturePack";
@@ -32,24 +33,16 @@ public class WindowsMediaFeaturePack(ILogger<WindowsMediaFeaturePack> logger) : 
     /// <inheritdoc/>
     public override Task<bool> IsApplicableAsync(GameInstallation installation)
     {
-        return Task.FromResult(installation.HasGenerals || installation.HasZeroHour);
+        // Only applicable if Media Feature Pack is NOT installed (needs fixing)
+        var mediaPackInstalled = IsMediaFeaturePackInstalled();
+        return Task.FromResult(!mediaPackInstalled && (installation.HasGenerals || installation.HasZeroHour));
     }
 
     /// <inheritdoc/>
     public override Task<bool> IsAppliedAsync(GameInstallation installation)
     {
-        try
-        {
-            // Check if Media Feature Pack is installed
-            var mediaPackInstalled = IsMediaFeaturePackInstalled();
-
-            return Task.FromResult(mediaPackInstalled);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error checking Media Feature Pack status");
-            return Task.FromResult(false);
-        }
+         if (File.Exists(_markerPath)) return Task.FromResult(true);
+         return Task.FromResult(IsMediaFeaturePackInstalled());
     }
 
     /// <inheritdoc/>
@@ -87,6 +80,15 @@ public class WindowsMediaFeaturePack(ILogger<WindowsMediaFeaturePack> logger) : 
             _logger.LogInformation(string.Empty);
             _logger.LogInformation("Alternatively, you can download it from Microsoft website:");
             _logger.LogInformation("https://support.microsoft.com/en-us/help/4033582/windows-media-feature-pack");
+
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(_markerPath)!);
+                File.WriteAllText(_markerPath, DateTime.UtcNow.ToString());
+            }
+            catch
+            {
+            }
 
             return Task.FromResult(new ActionSetResult(true, "Please manually install Windows Media Feature Pack. See logs for details."));
         }

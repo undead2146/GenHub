@@ -73,8 +73,8 @@ public static class GenPatcherContentRegistry
         ["cbbs"] = new GenPatcherContentMetadata
         {
             ContentCode = "cbbs",
-            DisplayName = "Control Bar - Basic",
-            Description = "Basic control bar addon",
+            DisplayName = "Control Bar HD (Base)",
+            Description = "Base files for Control Bar HD",
             ContentType = ContentType.Addon,
             TargetGame = GameType.ZeroHour,
             Category = GenPatcherContentCategory.ControlBar,
@@ -83,8 +83,8 @@ public static class GenPatcherContentRegistry
         ["cben"] = new GenPatcherContentMetadata
         {
             ContentCode = "cben",
-            DisplayName = "Control Bar - Enhanced",
-            Description = "Enhanced control bar with additional features",
+            DisplayName = "Control Bar HD (English)",
+            Description = "English language pack for Control Bar HD",
             ContentType = ContentType.Addon,
             TargetGame = GameType.ZeroHour,
             Category = GenPatcherContentCategory.ControlBar,
@@ -93,8 +93,8 @@ public static class GenPatcherContentRegistry
         ["cbpc"] = new GenPatcherContentMetadata
         {
             ContentCode = "cbpc",
-            DisplayName = "Control Bar - PC Style",
-            Description = "PC-style control bar layout",
+            DisplayName = "Control Bar Pro (Common)",
+            Description = "Common files for Control Bar Pro (ExiLe/Xezon)",
             ContentType = ContentType.Addon,
             TargetGame = GameType.ZeroHour,
             Category = GenPatcherContentCategory.ControlBar,
@@ -103,8 +103,8 @@ public static class GenPatcherContentRegistry
         ["cbpr"] = new GenPatcherContentMetadata
         {
             ContentCode = "cbpr",
-            DisplayName = "Control Bar - Pro",
-            Description = "Professional control bar addon",
+            DisplayName = "Control Bar Pro (ExiLe)",
+            Description = "Base files for Control Bar Pro (ExiLe)",
             ContentType = ContentType.Addon,
             TargetGame = GameType.ZeroHour,
             Category = GenPatcherContentCategory.ControlBar,
@@ -113,8 +113,8 @@ public static class GenPatcherContentRegistry
         ["cbpx"] = new GenPatcherContentMetadata
         {
             ContentCode = "cbpx",
-            DisplayName = "Control Bar - Extended",
-            Description = "Extended control bar with extra functionality",
+            DisplayName = "Control Bar Pro (Xezon)",
+            Description = "Base files for Control Bar Pro (Xezon)",
             ContentType = ContentType.Addon,
             TargetGame = GameType.ZeroHour,
             Category = GenPatcherContentCategory.ControlBar,
@@ -153,32 +153,32 @@ public static class GenPatcherContentRegistry
             InstallTarget = ContentInstallTarget.Workspace,
         },
 
-        // Hotkeys - Leikeze
+        // Hotkeys & WorldBuilder
         ["ewba"] = new GenPatcherContentMetadata
         {
             ContentCode = "ewba",
-            DisplayName = "Leikeze Easy Win Hotkeys - Advanced",
-            Description = "Advanced hotkey configuration by Leikeze",
+            DisplayName = "Enhanced World Builder v2.7 by Adriane",
+            Description = "Advanced World Builder with new theme",
             ContentType = ContentType.Addon,
             TargetGame = GameType.ZeroHour,
-            Category = GenPatcherContentCategory.Hotkeys,
+            Category = GenPatcherContentCategory.Tools,
             InstallTarget = ContentInstallTarget.Workspace,
         },
         ["ewbi"] = new GenPatcherContentMetadata
         {
             ContentCode = "ewbi",
-            DisplayName = "Leikeze Easy Win Hotkeys - International",
-            Description = "International hotkey layout by Leikeze",
+            DisplayName = "Enhanced World Builder v2.2",
+            Description = "Standard Enhanced World Builder",
             ContentType = ContentType.Addon,
             TargetGame = GameType.ZeroHour,
-            Category = GenPatcherContentCategory.Hotkeys,
+            Category = GenPatcherContentCategory.Tools,
             InstallTarget = ContentInstallTarget.Workspace,
         },
         ["hlde"] = new GenPatcherContentMetadata
         {
             ContentCode = "hlde",
-            DisplayName = "Leikeze Hotkeys - German",
-            Description = "German hotkey configuration by Leikeze",
+            DisplayName = "Leikeze's Hotkeys Indicators (German)",
+            Description = "German version of Leikeze's indicators",
             ContentType = ContentType.Addon,
             TargetGame = GameType.ZeroHour,
             LanguageCode = "de",
@@ -188,8 +188,8 @@ public static class GenPatcherContentRegistry
         ["hleg"] = new GenPatcherContentMetadata
         {
             ContentCode = "hleg",
-            DisplayName = "Leikeze Hotkeys - English (Grid)",
-            Description = "Leikeze English grid-based hotkey layout",
+            DisplayName = "Legionnaire's Hotkeys",
+            Description = "Legionnaire's custom hotkey layout",
             ContentType = ContentType.Addon,
             TargetGame = GameType.ZeroHour,
             LanguageCode = "en",
@@ -199,8 +199,8 @@ public static class GenPatcherContentRegistry
         ["hlei"] = new GenPatcherContentMetadata
         {
             ContentCode = "hlei",
-            DisplayName = "Leikeze Hotkeys - English (Icons)",
-            Description = "Leikeze English icon-based hotkey layout",
+            DisplayName = "Leikeze's Hotkeys (Icons)",
+            Description = "Leikeze's hotkeys with icon support",
             ContentType = ContentType.Addon,
             TargetGame = GameType.ZeroHour,
             LanguageCode = "en",
@@ -210,8 +210,8 @@ public static class GenPatcherContentRegistry
         ["hlen"] = new GenPatcherContentMetadata
         {
             ContentCode = "hlen",
-            DisplayName = "Leikeze Hotkeys - English",
-            Description = "Standard English hotkey configuration by Leikeze",
+            DisplayName = "Leikeze's Hotkeys Indicators",
+            Description = "Leikeze's hotkey indicators overlay",
             ContentType = ContentType.Addon,
             TargetGame = GameType.ZeroHour,
             LanguageCode = "en",
@@ -287,8 +287,8 @@ public static class GenPatcherContentRegistry
         ["maod"] = new GenPatcherContentMetadata
         {
             ContentCode = "maod",
-            DisplayName = "Map Addon",
-            Description = "Additional maps addon pack",
+            DisplayName = "AOD and comp-stomp maps",
+            Description = "Maps designed for AOD/Comp-Stomp",
             ContentType = ContentType.MapPack,
             TargetGame = GameType.ZeroHour,
             Category = GenPatcherContentCategory.Maps,
@@ -297,8 +297,8 @@ public static class GenPatcherContentRegistry
         ["mmis"] = new GenPatcherContentMetadata
         {
             ContentCode = "mmis",
-            DisplayName = "Missions Pack",
-            Description = "Custom missions pack",
+            DisplayName = "Single player and multiplayer co-op missions",
+            Description = "Custom missions campaign",
             ContentType = ContentType.Mission,
             TargetGame = GameType.ZeroHour,
             Category = GenPatcherContentCategory.Maps,
@@ -307,8 +307,8 @@ public static class GenPatcherContentRegistry
         ["mscr"] = new GenPatcherContentMetadata
         {
             ContentCode = "mscr",
-            DisplayName = "Map Scripts",
-            Description = "Map scripting resources",
+            DisplayName = "Scripted and no-money maps",
+            Description = "Maps with heavy scripting or no-money rules",
             ContentType = ContentType.MapPack,
             TargetGame = GameType.ZeroHour,
             Category = GenPatcherContentCategory.Maps,
@@ -317,8 +317,8 @@ public static class GenPatcherContentRegistry
         ["mskr"] = new GenPatcherContentMetadata
         {
             ContentCode = "mskr",
-            DisplayName = "Map Pack - Korean",
-            Description = "Korean map pack",
+            DisplayName = "Skirmish and multiplayer maps",
+            Description = "Collection of skirmish and MP maps",
             ContentType = ContentType.MapPack,
             TargetGame = GameType.ZeroHour,
             LanguageCode = "ko",

@@ -114,25 +114,14 @@
 
                                     <!-- Status Badge -->
                                     <Border Grid.Column="1" Margin="20,0" VerticalAlignment="Center" CornerRadius="12" Padding="12,4"
-                                            IsVisible="{Binding IsApplied}">
-                                            <!-- Simple visual logic: Green if applied -->
-                                        <Border.Styles>
-                                           <Style Selector="Border[IsVisible=True]">
-                                               <Setter Property="Background" Value="#2200FF00"/>
-                                               <Setter Property="BorderBrush" Value="#4400FF00"/>
-                                               <Setter Property="BorderThickness" Value="1"/>
-                                           </Style>
-                                        </Border.Styles>
-                                        <TextBlock Text="APPLIED" FontWeight="Bold" FontSize="11" Foreground="#44FF44" HorizontalAlignment="Center"/>
-                                    </Border>
-
-                                     <Border Grid.Column="1" Margin="20,0" VerticalAlignment="Center" CornerRadius="12" Padding="12,4"
-                                            IsVisible="{Binding !IsApplied}">
-                                         <TextBlock Text="NOT INSTALLED" FontWeight="Bold" FontSize="11" Foreground="#88FFFFFF" HorizontalAlignment="Center"/>
+                                            Background="{Binding StatusBackground}"
+                                            BorderBrush="{Binding StatusBorder}"
+                                            BorderThickness="1">
+                                        <TextBlock Text="{Binding StatusDisplay}" FontWeight="Bold" FontSize="11" Foreground="{Binding StatusColor}" HorizontalAlignment="Center"/>
                                     </Border>
 
                                     <!-- Action Button -->
-                                    <Button Grid.Column="2" Classes="ActionBtn" Command="{Binding ApplyCommand}" IsEnabled="{Binding !IsApplied}" VerticalAlignment="Center">
+                                    <Button Grid.Column="2" Classes="ActionBtn" Command="{Binding ApplyCommand}" IsEnabled="{Binding CanApply}" VerticalAlignment="Center">
                                         <TextBlock Text="Apply"/>
                                     </Button>
                                 </Grid>

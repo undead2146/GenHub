@@ -33,7 +33,9 @@ public class GameRangerRunAsAdmin(ILogger<GameRangerRunAsAdmin> logger) : BaseAc
     /// <inheritdoc/>
     public override Task<bool> IsApplicableAsync(GameInstallation installation)
     {
-        return Task.FromResult(installation.HasGenerals || installation.HasZeroHour);
+        // Only applicable if GameRanger IS installed
+        var gameRangerInstalled = IsGameRangerInstalled();
+        return Task.FromResult(gameRangerInstalled && (installation.HasGenerals || installation.HasZeroHour));
     }
 
     /// <inheritdoc/>
@@ -46,8 +48,8 @@ public class GameRangerRunAsAdmin(ILogger<GameRangerRunAsAdmin> logger) : BaseAc
 
             if (!gameRangerInstalled)
             {
-                // If GameRanger is not installed, consider this fix "applied"
-                return Task.FromResult(true);
+                // If GameRanger is not installed, it's not applied (it's N/A)
+                return Task.FromResult(false);
             }
 
             // Check if game executables have run as admin compatibility

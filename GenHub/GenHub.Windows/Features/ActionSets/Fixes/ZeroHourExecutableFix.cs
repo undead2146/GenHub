@@ -5,8 +5,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using GenHub.Core.Features.ActionSets;
 using GenHub.Core.Constants;
+using GenHub.Core.Features.ActionSets;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.Results;
 using Microsoft.Extensions.Logging;
@@ -34,10 +34,11 @@ public class ZeroHourExecutableFix(ILogger<ZeroHourExecutableFix> logger) : Base
     /// <inheritdoc/>
     public override Task<bool> IsApplicableAsync(GameInstallation installation)
     {
-        // Only applicable for Zero Hour installations
-        return Task.FromResult(installation.HasZeroHour);
+        // User requested to disable this fix as it is handled by the Downloads tab
+        return Task.FromResult(false);
     }
 
+    /// <inheritdoc/>
     /// <inheritdoc/>
     public override Task<bool> IsAppliedAsync(GameInstallation installation)
     {
@@ -89,7 +90,7 @@ public class ZeroHourExecutableFix(ILogger<ZeroHourExecutableFix> logger) : Base
             details.Add("Zero Hour Executable Fix - Informational");
             details.Add(string.Empty);
             details.Add("This fix ensures the Zero Hour 1.04 patch is applied.");
-            details.Add("The actual patching is done by the 'Zero Hour 1.04 Patch' fix.");
+            details.Add("Note: Automatic patching is currently disabled. Please use the Downloads section.");
             details.Add(string.Empty);
 
             var gameExePath = Path.Combine(installation.ZeroHourPath, ActionSetConstants.FileNames.GameExe);
@@ -109,7 +110,7 @@ public class ZeroHourExecutableFix(ILogger<ZeroHourExecutableFix> logger) : Base
                 else
                 {
                     details.Add("⚠ Zero Hour 1.04 patch needs to be applied");
-                    details.Add("  Please apply the 'Zero Hour 1.04 Patch' fix");
+                    details.Add("  Please use the 'Downloads' section in GenHub to get the 1.04 patch.");
                 }
             }
             else
@@ -118,11 +119,6 @@ public class ZeroHourExecutableFix(ILogger<ZeroHourExecutableFix> logger) : Base
                 details.Add($"  Expected location: {gameExePath}");
             }
 
-            _logger.LogInformation("ZeroHourExecutableFix ensures Zero Hour 1.04 patch is applied via Patch104Fix.");
-
-            // This fix is a wrapper that ensures that official patch is applied.
-            // The actual patching is done by Patch104Fix.
-            // This fix exists for compatibility with GenPatcher's fix structure.
             return Task.FromResult(new ActionSetResult(true, null, details));
         }
         catch (Exception ex)

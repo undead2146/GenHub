@@ -76,27 +76,63 @@ public class ActionSetOrchestrator : IActionSetOrchestrator
     {
         int successCount = 0;
         var errors = new List<string>();
+        var actionSetsList = actionSets.ToList();
+        int totalCount = actionSetsList.Count;
 
-        foreach (var actionSet in actionSets)
+        _logger.LogInformation("Starting to apply {TotalCount} action sets to {Installation}", totalCount, installation.InstallationPath);
+
+        for (int i = 0; i < actionSetsList.Count; i++)
         {
+            var actionSet = actionSetsList[i];
             if (ct.IsCancellationRequested)
+            {
+                _logger.LogWarning("Action set application cancelled by user");
                 break;
+            }
 
             // Double check applicability and applied state to avoid redundant work
             if (!await actionSet.IsApplicableAsync(installation))
+            {
+                _logger.LogDebug("Skipping {Title} - not applicable", actionSet.Title);
                 continue;
+            }
 
             if (await actionSet.IsAppliedAsync(installation))
+            {
+                _logger.LogDebug("Skipping {Title} - already applied", actionSet.Title);
                 continue;
+            }
+
+            _logger.LogInformation("Applying fix {Current}/{Total}: {Title}", i + 1, totalCount, actionSet.Title);
 
             var result = await actionSet.ApplyAsync(installation, ct);
             if (result.Success)
             {
                 successCount++;
+                _logger.LogInformation("✓ Successfully applied {Title} ({Current}/{Total})", actionSet.Title, i + 1, totalCount);
+
+                if (result.Details?.Count > 0)
+                {
+                    foreach (var detail in result.Details)
+                    {
+                        _logger.LogDebug("  {Detail}", detail);
+                    }
+                }
             }
             else
             {
-                errors.Add($"Failed to apply {actionSet.Title}: {result.ErrorMessage}");
+                var errorMsg = $"Failed to apply {actionSet.Title}: {result.ErrorMessage}";
+                errors.Add(errorMsg);
+                _logger.LogWarning("✗ {ErrorMsg}", errorMsg);
+
+                if (result.Details?.Count > 0)
+                {
+                    foreach (var detail in result.Details)
+                    {
+                        _logger.LogDebug("  {Detail}", detail);
+                    }
+                }
+
                 if (actionSet.IsCrucialFix)
                 {
                     _logger.LogError("Critical fix {Title} failed for {Installation}. Aborting sequence.", actionSet.Title, installation.InstallationPath);
@@ -105,6 +141,12 @@ public class ActionSetOrchestrator : IActionSetOrchestrator
                 }
             }
         }
+
+        _logger.LogInformation(
+            "Action set application completed: {SuccessCount}/{TotalCount} successful, {ErrorCount} errors",
+            successCount,
+            totalCount,
+            errors.Count);
 
         if (errors.Count > 0)
         {

@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Core.Features.ActionSets;
@@ -19,47 +18,17 @@ using Microsoft.Extensions.Logging;
 /// <summary>
 /// ViewModel for the GenPatcher feature.
 /// </summary>
-public partial class GenPatcherViewModel : ObservableObject
+public partial class GenPatcherViewModel(
+    IActionSetOrchestrator orchestrator,
+    IGameInstallationDetector installationDetector,
+    IRegistryService registryService,
+    INotificationService notificationService,
+    ILogger<GenPatcherViewModel> logger) : ObservableObject
 {
-    private readonly IActionSetOrchestrator orchestrator;
-    private readonly IGameInstallationDetector installationDetector;
-    private readonly IRegistryService registryService;
-    private readonly INotificationService notificationService;
-    private readonly ILogger<GenPatcherViewModel> logger;
     private GameInstallation? currentInstallation;
 
     [ObservableProperty]
-    private AsyncRelayCommand loadFixesCommand;
-
-    [ObservableProperty]
-    private AsyncRelayCommand applyAllFixesCommand;
-
-    [ObservableProperty]
     private ObservableCollection<ActionSetViewModel> actionSets = [];
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="GenPatcherViewModel"/> class.
-    /// </summary>
-    /// <param name="orchestrator">The action set orchestrator.</param>
-    /// <param name="installationDetector">The game installation detector.</param>
-    /// <param name="registryService">The registry service.</param>
-    /// <param name="notificationService">The notification service.</param>
-    /// <param name="logger">The logger.</param>
-    public GenPatcherViewModel(
-        IActionSetOrchestrator orchestrator,
-        IGameInstallationDetector installationDetector,
-        IRegistryService registryService,
-        INotificationService notificationService,
-        ILogger<GenPatcherViewModel> logger)
-    {
-        this.orchestrator = orchestrator;
-        this.installationDetector = installationDetector;
-        this.registryService = registryService;
-        this.notificationService = notificationService;
-        this.logger = logger;
-        this.loadFixesCommand = new AsyncRelayCommand(LoadFixesAsync);
-        this.applyAllFixesCommand = new AsyncRelayCommand(ApplyAllFixesAsync);
-    }
 
     /// <summary>
     /// Initializes the ViewModel asynchronously.
@@ -67,9 +36,22 @@ public partial class GenPatcherViewModel : ObservableObject
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task InitializeAsync()
     {
-        if (!this.registryService.IsRunningAsAdministrator())
+        logger.LogInformation("[GENPATCHER_INIT_001] GenPatcher tool opened by user");
+
+        var isAdmin = registryService.IsRunningAsAdministrator();
+        var osVersion = Environment.OSVersion.VersionString;
+        var dotnetVersion = Environment.Version.ToString();
+
+        logger.LogInformation(
+            "System Info - OS: {OsVersion}, .NET: {DotNetVersion}, Admin: {IsAdmin}",
+            osVersion,
+            dotnetVersion,
+            isAdmin);
+
+        if (!isAdmin)
         {
-            this.notificationService.ShowWarning(
+            logger.LogWarning("GenPatcher running without administrator privileges - some fixes may fail");
+            notificationService.ShowWarning(
                 "Administrator Rights Required",
                 "Please restart GenHub as Administrator to ensure GenPatcher can apply registry-based fixes.");
         }
@@ -77,16 +59,28 @@ public partial class GenPatcherViewModel : ObservableObject
         await LoadFixesCommand.ExecuteAsync(null);
     }
 
+    [RelayCommand]
     private async Task LoadFixesAsync()
     {
         try
         {
-            this.notificationService.ShowInfo(
+            logger.LogInformation("[GENPATCHER_LOAD_002] Detecting game installations...");
+            notificationService.ShowInfo(
                 "Loading GenPatcher",
                 "Detecting game installations and loading available fixes...");
 
-            var result = await this.installationDetector.DetectInstallationsAsync();
+            var result = await installationDetector.DetectInstallationsAsync();
             var detected = result.Items;
+
+            logger.LogInformation("Found {Count} game installation(s)", detected.Count);
+            foreach (var inst in detected)
+            {
+                logger.LogDebug(
+                    "Installation: {InstallType} at {Path}",
+                    inst.InstallationType,
+                    inst.InstallationPath);
+            }
+
             GameInstallation? preferred = null;
             foreach (var item in detected)
             {
@@ -97,18 +91,24 @@ public partial class GenPatcherViewModel : ObservableObject
                 }
             }
 
-            this.currentInstallation = preferred ?? (detected.Count > 0 ? detected[0] : null);
+            currentInstallation = preferred ?? (detected.Count > 0 ? detected[0] : null);
 
-            if (this.currentInstallation == null)
+            if (currentInstallation == null)
             {
-                this.logger.LogWarning("No valid game installation found for GenPatcher");
-                this.notificationService.ShowError(
+                logger.LogError("[GENPATCHER_LOAD_003] No valid game installation found for GenPatcher");
+                notificationService.ShowError(
                     "No Game Installation Found",
                     "Please ensure Command & Conquer Generals or Zero Hour is installed.");
                 return;
             }
 
-            var fixes = this.orchestrator.GetAllActionSets();
+            logger.LogInformation(
+                "Using installation: {InstallType} at {Path}",
+                currentInstallation.InstallationType,
+                currentInstallation.InstallationPath);
+
+            var fixes = orchestrator.GetAllActionSets();
+            logger.LogInformation("Loading {Count} action sets...", fixes.Count());
             ActionSets.Clear();
 
             var installation = currentInstallation;
@@ -129,28 +129,56 @@ public partial class GenPatcherViewModel : ObservableObject
             foreach (var vm in loadedVms)
             {
                 ActionSets.Add(vm);
+                logger.LogInformation(
+                    "[{Title}] ID={Id}, IsCore={IsCore}, Applicable={Applicable}, Applied={Applied}",
+                    vm.ActionSet.Title,
+                    vm.ActionSet.Id,
+                    vm.IsCore,
+                    vm.IsApplicable,
+                    vm.IsApplied);
             }
 
-            this.notificationService.ShowSuccess(
+            var applicableCount = ActionSets.Count(x => x.IsApplicable);
+            var appliedAndApplicableCount = ActionSets.Count(x => x.IsApplicable && x.IsApplied);
+            var totalAppliedCount = ActionSets.Count(x => x.IsApplied);
+            var notApplicableCount = ActionSets.Count(x => !x.IsApplicable);
+            var coreCount = ActionSets.Count(x => x.IsCore);
+
+            logger.LogInformation(
+                "Load complete - Total: {Total}, Core: {Core}, Applicable: {Applicable}, Applied (Total): {AppliedTotal}, Applied (Applicable): {AppliedApplicable}, NotApplicable: {NotApplicable}",
+                ActionSets.Count,
+                coreCount,
+                applicableCount,
+                totalAppliedCount,
+                appliedAndApplicableCount,
+                notApplicableCount);
+
+            notificationService.ShowSuccess(
                 "GenPatcher Loaded",
-                $"Successfully loaded {ActionSets.Count} fixes for {this.currentInstallation.InstallationType}.");
+                $"Successfully loaded {ActionSets.Count} fixes.\nApplied: {appliedAndApplicableCount} / {applicableCount} applicable fixes.");
         }
         catch (Exception ex)
         {
-            this.logger.LogError(ex, "Failed to load fixes");
-            this.notificationService.ShowError(
+            logger.LogError(ex, "[GENPATCHER_LOAD_004] Failed to load fixes");
+            notificationService.ShowError(
                 "Failed to Load Fixes",
                 $"An error occurred while loading fixes: {ex.Message}");
         }
     }
 
+    [RelayCommand]
     private async Task ApplyAllFixesAsync()
     {
-        if (this.currentInstallation == null) return;
-
-        if (!this.registryService.IsRunningAsAdministrator())
+        if (currentInstallation == null)
         {
-            this.notificationService.ShowError(
+            logger.LogError("[GENPATCHER_APPLY_004] Cannot apply fixes - no installation selected");
+            return;
+        }
+
+        if (!registryService.IsRunningAsAdministrator())
+        {
+            logger.LogWarning("[GENPATCHER_APPLY_005] Apply batch rejected - not running as administrator");
+            notificationService.ShowError(
                 "Administrator Rights Required",
                 "Administrator privileges required for 'Apply Recommended'. Please restart GenHub as Administrator.");
             return;
@@ -167,35 +195,114 @@ public partial class GenPatcherViewModel : ObservableObject
 
         if (applicableFixes.Count == 0)
         {
-            this.notificationService.ShowInfo(
+            var alreadyApplied = ActionSets.Count(x => x.IsApplied);
+            var totalSets = ActionSets.Count;
+
+            logger.LogInformation("No fixes to apply - {Applied}/{Total} already applied", alreadyApplied, totalSets);
+            notificationService.ShowInfo(
                 "No Fixes to Apply",
-                "All applicable fixes are already applied.");
+                $"All {alreadyApplied}/{totalSets} applicable fixes are already applied.");
             return;
         }
 
-        this.notificationService.ShowInfo(
-            "Applying Fixes",
-            $"Applying {applicableFixes.Count} recommended fix(es)...");
+        logger.LogInformation(
+            "[GENPATCHER_APPLY_006] Starting batch application of {Count} fixes: {FixList}",
+            applicableFixes.Count,
+            string.Join(", ", applicableFixes.Select(f => f.Id)));
 
-        var result = await this.orchestrator.ApplyActionSetsAsync(this.currentInstallation, applicableFixes);
+        notificationService.ShowInfo(
+            "Applying Fixes",
+            $"Starting to apply {applicableFixes.Count} fix(es)...\nThis may take a few minutes.");
+
+        // Apply fixes one by one with progress notifications
+        int successCount = 0;
+        var errors = new List<string>();
+        var startTime = DateTime.UtcNow;
+
+        for (int i = 0; i < applicableFixes.Count; i++)
+        {
+            var fix = applicableFixes[i];
+            var fixNumber = i + 1;
+            var total = applicableFixes.Count;
+
+            // Show notification for current fix
+            notificationService.ShowInfo(
+                $"Applying Fix {fixNumber}/{total}",
+                $"⚙ {fix.Title}");
+
+            logger.LogInformation(
+                "[{Current}/{Total}] Applying {Title} (ID={Id})",
+                fixNumber,
+                total,
+                fix.Title,
+                fix.Id);
+
+            var fixStartTime = DateTime.UtcNow;
+
+            // Apply the fix
+            var fixResult = await fix.ApplyAsync(currentInstallation);
+
+            var duration = (DateTime.UtcNow - fixStartTime).TotalMilliseconds;
+
+            if (fixResult.Success)
+            {
+                successCount++;
+                notificationService.ShowSuccess(
+                    $"✓ Fix {fixNumber}/{total} Applied",
+                    fix.Title);
+                logger.LogInformation(
+                    "✓ [{Title}] Success in {Duration}ms",
+                    fix.Title,
+                    (int)duration);
+            }
+            else
+            {
+                var errorMsg = $"{fix.Title}: {fixResult.ErrorMessage}";
+                errors.Add(errorMsg);
+                notificationService.ShowWarning(
+                    $"✗ Fix {fixNumber}/{total} Failed",
+                    $"{fix.Title}\n{fixResult.ErrorMessage}");
+                logger.LogError(
+                    "✗ [GENPATCHER_FIX_007] {Title} failed in {Duration}ms - {Error}",
+                    fix.Title,
+                    (int)duration,
+                    fixResult.ErrorMessage);
+            }
+        }
+
+        var totalDuration = (DateTime.UtcNow - startTime).TotalSeconds;
 
         // Refresh status
-        foreach(var vm in ActionSets)
+        logger.LogInformation("Refreshing fix status after batch application...");
+        foreach (var vm in ActionSets)
         {
             await vm.CheckStatusAsync();
         }
 
-        if (!result.Success)
+        // Provide detailed summary
+        var failureCount = applicableFixes.Count - successCount;
+
+        logger.LogInformation(
+            "Batch complete in {Duration}s - {Success}/{Total} successful, {Failed} failed",
+            totalDuration,
+            successCount,
+            applicableFixes.Count,
+            failureCount);
+
+        if (errors.Count > 0)
         {
-            this.notificationService.ShowError(
-                "Fixes Failed",
-                $"Failed to apply some fixes: {string.Join(", ", result.Errors ?? [])}");
+            var errorDetails = string.Join("\n\n", errors);
+
+            logger.LogWarning("Batch completed with {Count} error(s): {Errors}", errors.Count, string.Join("; ", errors));
+            notificationService.ShowError(
+                $"Fixes Completed with Errors ({successCount}/{applicableFixes.Count} successful)",
+                $"✓ Successfully applied: {successCount}\n✗ Failed: {failureCount}\n\nErrors:\n{errorDetails}");
         }
         else
         {
-            this.notificationService.ShowSuccess(
-                "Fixes Applied",
-                $"Successfully applied {applicableFixes.Count} fix(es).");
+            notificationService.ShowSuccess(
+                "All Fixes Applied Successfully",
+                $"✓ Successfully applied all {applicableFixes.Count} fix(es).\n\nYour game installation has been optimized!");
         }
     }
 }

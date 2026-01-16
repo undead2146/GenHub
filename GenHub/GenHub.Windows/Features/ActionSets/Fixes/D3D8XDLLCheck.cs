@@ -16,34 +16,11 @@ using Microsoft.Extensions.Logging;
 /// </summary>
 public class D3D8XDLLCheck(ILogger<D3D8XDLLCheck> logger) : BaseActionSet(logger)
 {
-    // DirectX 8 DLLs that Generals and Zero Hour may require
+    // DirectX 8/9 DLLs that Generals and Zero Hour may require (Retail only)
     private static readonly string[] RequiredDLLs = new[]
     {
         "d3d8.dll",
         "d3d8thk.dll",
-        "d3dx8d.dll",
-        "d3dx8.dll",
-        "d3dxof.dll",
-        "d3dpmx.dll",
-        "d3dx9_24.dll",
-        "d3dx9_25.dll",
-        "d3dx9_26.dll",
-        "d3dx9_27.dll",
-        "d3dx9_28.dll",
-        "d3dx9_29.dll",
-        "d3dx9_30.dll",
-        "d3dx9_31.dll",
-        "d3dx9_32.dll",
-        "d3dx9_33.dll",
-        "d3dx9_34.dll",
-        "d3dx9_35.dll",
-        "d3dx9_36.dll",
-        "d3dx9_37.dll",
-        "d3dx9_38.dll",
-        "d3dx9_39.dll",
-        "d3dx9_40.dll",
-        "d3dx9_41.dll",
-        "d3dx9_42.dll",
         "d3dx9_43.dll",
     };
 
@@ -75,6 +52,7 @@ public class D3D8XDLLCheck(ILogger<D3D8XDLLCheck> logger) : BaseActionSet(logger
             // Check if required DirectX DLLs are present in system directories
             var system32 = Environment.GetFolderPath(Environment.SpecialFolder.System);
             var sysWow64 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "SysWOW64");
+            var gameDir = installation.InstallationPath;
 
             var allPresent = true;
             var missingDLLs = new List<string>();
@@ -83,8 +61,9 @@ public class D3D8XDLLCheck(ILogger<D3D8XDLLCheck> logger) : BaseActionSet(logger
             {
                 var inSystem32 = File.Exists(Path.Combine(system32, dll));
                 var inSysWow64 = File.Exists(Path.Combine(sysWow64, dll));
+                var inGameDir = !string.IsNullOrEmpty(gameDir) && File.Exists(Path.Combine(gameDir, dll));
 
-                if (!inSystem32 && !inSysWow64)
+                if (!inSystem32 && !inSysWow64 && !inGameDir)
                 {
                     allPresent = false;
                     missingDLLs.Add(dll);
@@ -149,7 +128,7 @@ public class D3D8XDLLCheck(ILogger<D3D8XDLLCheck> logger) : BaseActionSet(logger
             _logger.LogInformation("2. This will install all required DirectX 8 DLLs");
             _logger.LogInformation("3. Restart your computer after installation");
 
-            return Task.FromResult(new ActionSetResult(false, $"Missing {missingDLLs.Count} DirectX 8 DLLs. Please run DirectXRuntimeFix."));
+            return Task.FromResult(new ActionSetResult(true, null, [$"Missing {missingDLLs.Count} DirectX 8 DLLs. Please run DirectXRuntimeFix."]));
         }
         catch (Exception ex)
         {

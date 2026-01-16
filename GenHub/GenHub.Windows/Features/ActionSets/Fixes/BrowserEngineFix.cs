@@ -51,11 +51,11 @@ public class BrowserEngineFix(ILogger<BrowserEngineFix> logger) : BaseActionSet(
     /// <inheritdoc/>
     public override Task<bool> IsAppliedAsync(GameInstallation installation)
     {
-        // Considered applied if the DLL is missing (renamed) in all present installations
-        bool generalsOk = !installation.HasGenerals || !File.Exists(Path.Combine(installation.GeneralsPath, BrowserEngineDll));
-        bool zeroHourOk = !installation.HasZeroHour || !File.Exists(Path.Combine(installation.ZeroHourPath, BrowserEngineDll));
+        // Considered applied if the .bak file exists (indicating we renamed it)
+        bool generalsApplied = !installation.HasGenerals || File.Exists(Path.Combine(installation.GeneralsPath, BrowserEngineDllBak));
+        bool zeroHourApplied = !installation.HasZeroHour || File.Exists(Path.Combine(installation.ZeroHourPath, BrowserEngineDllBak));
 
-        return Task.FromResult(generalsOk && zeroHourOk);
+        return Task.FromResult(generalsApplied && zeroHourApplied);
     }
 
     /// <inheritdoc/>

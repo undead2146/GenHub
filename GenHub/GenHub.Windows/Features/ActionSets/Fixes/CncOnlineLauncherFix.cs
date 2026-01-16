@@ -14,18 +14,18 @@ using Microsoft.Extensions.Logging;
 /// Fix that creates registry entries for C&amp;C Online (Revora) multiplayer service.
 /// This enables the game to properly detect and connect to C&amp;C Online servers.
 /// </summary>
-public class CNCOnlineRegistryFix(
+public class CncOnlineLauncherFix(
     IRegistryService registryService,
-    ILogger<CNCOnlineRegistryFix> logger) : BaseActionSet(logger)
+    ILogger<CncOnlineLauncherFix> logger) : BaseActionSet(logger)
 {
     private readonly IRegistryService _registryService = registryService;
-    private readonly ILogger<CNCOnlineRegistryFix> _logger = logger;
+    private readonly ILogger<CncOnlineLauncherFix> _logger = logger;
 
     /// <inheritdoc/>
-    public override string Id => "CNCOnlineRegistryFix";
+    public override string Id => "CncOnlineLauncherFix";
 
     /// <inheritdoc/>
-    public override string Title => "C&C Online Registry";
+    public override string Title => "C&C Online Launcher Fix";
 
     /// <inheritdoc/>
     public override bool IsCoreFix => false;

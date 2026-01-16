@@ -14,7 +14,15 @@ public static class ExternalUrls
     /// <summary>
     /// Download URL for DirectX 8.1 / 9.0c runtime files used by GenPatcher.
     /// </summary>
-    public const string DirectXRuntimeDownloadUrl = "https://gentool.net/program_data/genpatcher/drtx.dat";
+    /// <summary>
+    /// Gets the primary download URL for DirectX runtime (Microsoft Official).
+    /// </summary>
+    public const string DirectXRuntimeDownloadUrlPrimary = "https://download.microsoft.com/download/1/7/1/1718CCC4-6315-4D8E-9543-8E28A4E18C4C/dxwebsetup.exe";
+
+    /// <summary>
+    /// Gets the secondary download URL for DirectX runtime (Gentool).
+    /// </summary>
+    public const string DirectXRuntimeDownloadUrlMirror1 = "https://gentool.net/program_data/genpatcher/drtx.dat";
 
     /// <summary>
     /// Download URL for Generals 1.08 official patch.
@@ -22,7 +30,54 @@ public static class ExternalUrls
     public const string Generals108PatchUrl = "https://gentool.net/program_data/genpatcher/10gn.dat";
 
     /// <summary>
-    /// Download URL for Zero Hour 1.04 official patch.
+    /// Gets the primary download URL for Zero Hour 1.04 patch (CNCNZ).
     /// </summary>
-    public const string ZeroHour104PatchUrl = "https://gentool.net/program_data/genpatcher/10zh.dat";
+    public const string ZeroHour104PatchUrlPrimary = "http://http.cncnz.com/patches/GeneralsZH-104-english.exe";
+
+    /// <summary>
+    /// Gets the secondary download URL for Zero Hour 1.04 patch (Gentool).
+    /// </summary>
+    public const string ZeroHour104PatchUrlMirror1 = "https://gentool.net/program_data/genpatcher/10zh.dat";
+
+    /// <summary>
+    /// Gets the primary download URL for GenTool (Gentool).
+    /// </summary>
+    public const string GenToolDownloadUrlPrimary = "https://gentool.net/program_data/genpatcher/gent.dat";
+
+    /// <summary>
+    /// Gets the secondary download URL for GenTool (Legi.cc).
+    /// </summary>
+    public const string GenToolDownloadUrlMirror1 = "https://legi.cc/gp2/f/gent.dat";
+
+    /// <summary>
+    /// Gets the primary download URL for Visual C++ 2005 Redistributable (Gentool).
+    /// </summary>
+    public const string VCRedist2005DownloadUrlPrimary = "https://gentool.net/program_data/genpatcher/vcredist_x86-2005.exe";
+
+    /// <summary>
+    /// Gets the secondary download URL for Visual C++ 2005 Redistributable (Legi.cc).
+    /// </summary>
+    public const string VCRedist2005DownloadUrlMirror1 = "https://legi.cc/gp2/f/vc05.dat";
+
+    /// <summary>
+    /// Gets the primary download URL for Visual C++ 2008 Redistributable (Gentool).
+    /// </summary>
+    public const string VCRedist2008DownloadUrlPrimary = "https://gentool.net/program_data/genpatcher/vcredist_x86-2008.exe";
+
+    /// <summary>
+    /// Gets the secondary download URL for Visual C++ 2008 Redistributable (Legi.cc).
+    /// </summary>
+    public const string VCRedist2008DownloadUrlMirror1 = "https://legi.cc/gp2/f/vc08.dat";
+
+    // Legacy support
+
+    /// <summary>
+    /// Legacy download URL for DirectX runtime.
+    /// </summary>
+    public const string DirectXRuntimeDownloadUrl = DirectXRuntimeDownloadUrlPrimary;
+
+    /// <summary>
+    /// Legacy download URL for Zero Hour 1.04 patch.
+    /// </summary>
+    public const string ZeroHour104PatchUrl = ZeroHour104PatchUrlPrimary;
 }

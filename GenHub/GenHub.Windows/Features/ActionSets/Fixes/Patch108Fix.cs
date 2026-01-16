@@ -39,8 +39,8 @@ public class Patch108Fix(IHttpClientFactory httpClientFactory, ILogger<Patch108F
     /// <inheritdoc/>
     public override Task<bool> IsApplicableAsync(GameInstallation installation)
     {
-        // Only applicable for Generals installations
-        return Task.FromResult(installation.HasGenerals);
+        // Disabled per user request - redundant with GenHub Downloads section
+        return Task.FromResult(false);
     }
 
     /// <inheritdoc/>
@@ -121,7 +121,7 @@ public class Patch108Fix(IHttpClientFactory httpClientFactory, ILogger<Patch108F
             int copiedCount = 0;
             foreach (var file in extractedFiles)
             {
-                var relativePath = file.Substring(extractPath.Length).TrimStart(Path.DirectorySeparatorChar);
+                var relativePath = file[extractPath.Length..].TrimStart(Path.DirectorySeparatorChar);
                 var destPath = Path.Combine(installation.GeneralsPath, relativePath);
 
                 var destDir = Path.GetDirectoryName(destPath);

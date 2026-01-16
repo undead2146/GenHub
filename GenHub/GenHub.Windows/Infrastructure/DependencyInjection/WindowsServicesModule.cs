@@ -71,7 +71,7 @@ public static class WindowsServicesModule
         services.AddSingleton<IActionSet, OneDriveFix>();
         services.AddSingleton<IActionSet, EdgeScrollerFix>();
         services.AddSingleton<IActionSet, TheFirstDecadeRegistryFix>();
-        services.AddSingleton<IActionSet, CNCOnlineRegistryFix>();
+        services.AddSingleton<IActionSet, CncOnlineLauncherFix>();
         services.AddSingleton<IActionSet, MalwarebytesFix>();
         services.AddSingleton<IActionSet, D3D8XDLLCheck>();
         services.AddSingleton<IActionSet, NahimicFix>();
@@ -83,6 +83,7 @@ public static class WindowsServicesModule
         services.AddSingleton<IActionSet, ExpandedLANLobbyMenu>();
         services.AddSingleton<IActionSet, ProxyLauncher>();
         services.AddSingleton<IActionSet, StartMenuFix>();
+        services.AddSingleton<IActionSet, SerialKeyFix>();
         services.AddSingleton<IActionSet, IntelGfxDriverCompatibility>();
 
         // Network Optimization Fixes
@@ -90,8 +91,8 @@ public static class WindowsServicesModule
         services.AddSingleton<IActionSet, PreferIPv4Fix>();
         services.AddSingleton<IActionSet, FirewallExceptionFix>();
 
-        // Register Content ActionSet Provider for dynamic content (filtered)
-        services.AddSingleton<IActionSetProvider, GenPatcherContentActionSetProvider>();
+        // NOTE: GenPatcherContentActionSetProvider removed - content stubs were non-functional.
+        // Content from GenPatcherContentRegistry is available in the Downloads UI.
 
         // Register GenPatcher Tool
         services.AddSingleton<IToolPlugin, GenPatcherTool>();

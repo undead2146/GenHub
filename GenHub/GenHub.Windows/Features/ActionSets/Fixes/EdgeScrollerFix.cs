@@ -112,31 +112,17 @@ public class EdgeScrollerFix(ILogger<EdgeScrollerFix> logger, IGameSettingsServi
         return Task.FromResult(new ActionSetResult(true, null, ["Undo not supported for Edge Scrolling Fix."]));
     }
 
-    private bool IsEdgeScrollingOptimal(IniOptions options)
+    private static bool IsEdgeScrollingOptimal(IniOptions options)
     {
-        // Check if edge scrolling settings are optimal
-        // The key settings are:
-        // - ScrollEdgeZone: The size of edge detection zone (default: 0.1, optimal: 0.05-0.15)
-        // - ScrollEdgeSpeed: The speed of edge scrolling (default: 1.0, optimal: 1.0-2.0)
+        // Check if edge scrolling settings exist in TheSuperHackers section
+        // If the section exists with ScrollEdgeZone or ScrollEdgeSpeed, consider it applied
         if (!options.AdditionalSections.TryGetValue("TheSuperHackers", out var tshSection))
         {
             return false;
         }
 
-        string scrollEdgeZone = "0.1";
-        string scrollEdgeSpeed = "1.0";
-
-        if (tshSection.TryGetValue("ScrollEdgeZone", out var zoneValue)) scrollEdgeZone = zoneValue;
-        if (tshSection.TryGetValue("ScrollEdgeSpeed", out var speedValue)) scrollEdgeSpeed = speedValue;
-
-        // Parse values
-        if (double.TryParse(scrollEdgeZone, out var zone) && double.TryParse(scrollEdgeSpeed, out var speed))
-        {
-            // Check if settings are within optimal range
-            return zone >= 0.05 && zone <= 0.15 && speed >= 1.0 && speed <= 2.0;
-        }
-
-        return false;
+        // If either setting exists, consider the fix applied
+        return tshSection.ContainsKey("ScrollEdgeZone") || tshSection.ContainsKey("ScrollEdgeSpeed");
     }
 
     private async Task<List<string>> ApplyEdgeScrollingFixAsync(GameType gameType, CancellationToken cancellationToken)
@@ -162,7 +148,7 @@ public class EdgeScrollerFix(ILogger<EdgeScrollerFix> logger, IGameSettingsServi
             // Apply optimal edge scrolling settings
             if (!options.AdditionalSections.TryGetValue(ActionSetConstants.IniFiles.TheSuperHackersSection, out var tshSection))
             {
-                tshSection = new Dictionary<string, string>();
+                tshSection = [];
                 options.AdditionalSections[ActionSetConstants.IniFiles.TheSuperHackersSection] = tshSection;
                 details.Add($"✓ Created [{ActionSetConstants.IniFiles.TheSuperHackersSection}] section in Options.ini for {gameType}");
             }
@@ -171,12 +157,14 @@ public class EdgeScrollerFix(ILogger<EdgeScrollerFix> logger, IGameSettingsServi
             tshSection[ActionSetConstants.IniFiles.ScrollEdgeZoneKey] = "0";
             tshSection[ActionSetConstants.IniFiles.ScrollEdgeSpeedKey] = "1.0";
             tshSection[ActionSetConstants.IniFiles.ScrollEdgeAccelerationKey] = "0.0";
+
             // Also ensure default scroll factor is good if present
             if (tshSection.ContainsKey("ScrollFactor"))
             {
                  tshSection["ScrollFactor"] = "60";
                  details.Add($"✓ Set ScrollFactor=60 for {gameType}");
             }
+
             details.Add($"✓ Set {ActionSetConstants.IniFiles.ScrollEdgeZoneKey}=0 for {gameType}");
             details.Add($"✓ Set {ActionSetConstants.IniFiles.ScrollEdgeSpeedKey}=1.0 for {gameType}");
             details.Add($"✓ Set {ActionSetConstants.IniFiles.ScrollEdgeAccelerationKey}=0.0 for {gameType}");

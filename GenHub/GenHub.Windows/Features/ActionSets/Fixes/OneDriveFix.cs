@@ -2,7 +2,9 @@ namespace GenHub.Windows.Features.ActionSets.Fixes;
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,11 +23,19 @@ public class OneDriveFix(ILogger<OneDriveFix> logger) : BaseActionSet(logger)
 {
     private readonly ILogger<OneDriveFix> _logger = logger;
 
+    private readonly string[] _commonFolderNames =
+    [
+        "Command and Conquer Generals Data",
+        "Command and Conquer Generals Zero Hour Data",
+        "Command & Conquer Generäle Stunde Null Data",
+        "Command & Conquer Generals - Heure H Data"
+    ];
+
     /// <inheritdoc/>
     public override string Id => "OneDriveFix";
 
     /// <inheritdoc/>
-    public override string Title => "Prevent OneDrive Sync";
+    public override string Title => "Prevent OneDrive Sync (Move & Symlink)";
 
     /// <inheritdoc/>
     public override bool IsCoreFix => true;
@@ -36,7 +46,8 @@ public class OneDriveFix(ILogger<OneDriveFix> logger) : BaseActionSet(logger)
     /// <inheritdoc/>
     public override Task<bool> IsApplicableAsync(GameInstallation installation)
     {
-        return Task.FromResult(installation.HasGenerals || installation.HasZeroHour);
+        // Fix is only applicable if Documents is redirected to OneDrive
+        return Task.FromResult(IsOneDriveRedirected() && (installation.HasGenerals || installation.HasZeroHour));
     }
 
     /// <inheritdoc/>
@@ -44,30 +55,12 @@ public class OneDriveFix(ILogger<OneDriveFix> logger) : BaseActionSet(logger)
     {
         try
         {
-            // Check if desktop.ini files exist with ThisPCPolicy=DisableCloudSync
-            if (installation.HasGenerals)
+            // If not redirected, not applicable. Return false so it shows as NOT APPLICABLE instead of APPLIED
+            if (!IsOneDriveRedirected()) return Task.FromResult(false);
+
+            foreach (var folderName in _commonFolderNames)
             {
-                if (!HasOneDriveProtection(installation.GeneralsPath))
-                {
-                    return Task.FromResult(false);
-                }
-
-                var userPath = GetUserDataPath(GameType.Generals);
-                if (Directory.Exists(userPath) && !HasOneDriveProtection(userPath))
-                {
-                    return Task.FromResult(false);
-                }
-            }
-
-            if (installation.HasZeroHour)
-            {
-                if (!HasOneDriveProtection(installation.ZeroHourPath))
-                {
-                    return Task.FromResult(false);
-                }
-
-                var userPath = GetUserDataPath(GameType.ZeroHour);
-                if (Directory.Exists(userPath) && !HasOneDriveProtection(userPath))
+                if (!IsFolderCorrectlySymlinked(folderName))
                 {
                     return Task.FromResult(false);
                 }
@@ -89,45 +82,73 @@ public class OneDriveFix(ILogger<OneDriveFix> logger) : BaseActionSet(logger)
 
         try
         {
-            details.Add("Starting OneDrive sync prevention...");
-            details.Add("Creating desktop.ini files with ThisPCPolicy=DisableCloudSync");
-            details.Add(string.Empty);
-
-            int foldersProtected = 0;
-
-            if (installation.HasGenerals)
+            if (!IsOneDriveRedirected())
             {
-                details.Add($"Processing Generals: {installation.GeneralsPath}");
-                await ApplyOneDriveProtectionAsync(installation.GeneralsPath, details, cancellationToken);
-                foldersProtected++;
-
-                var userPath = GetUserDataPath(GameType.Generals);
-                if (Directory.Exists(userPath))
-                {
-                    details.Add($"Processing Generals user data: {userPath}");
-                    await ApplyOneDriveProtectionAsync(userPath, details, cancellationToken);
-                    foldersProtected++;
-                }
+                details.Add("OneDrive redirection not detected. No action needed.");
+                return new ActionSetResult(true, null, details);
             }
 
-            if (installation.HasZeroHour)
-            {
-                details.Add($"Processing Zero Hour: {installation.ZeroHourPath}");
-                await ApplyOneDriveProtectionAsync(installation.ZeroHourPath, details, cancellationToken);
-                foldersProtected++;
+            details.Add("Starting OneDrive folder relocation...");
+            var cloudDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            var localDocs = GetLocalDocumentsPath();
 
-                var userPath = GetUserDataPath(GameType.ZeroHour);
-                if (Directory.Exists(userPath))
+            if (!Directory.Exists(localDocs))
+            {
+                Directory.CreateDirectory(localDocs);
+                details.Add($"Created local Documents folder: {localDocs}");
+            }
+
+            int foldersProcessed = 0;
+            foreach (var folderName in _commonFolderNames)
+            {
+                var cloudPath = Path.Combine(cloudDocs, folderName);
+                var localPath = Path.Combine(localDocs, folderName);
+
+                if (!Directory.Exists(cloudPath) && !Directory.Exists(localPath)) continue;
+
+                if (IsFolderCorrectlySymlinked(folderName))
                 {
-                    details.Add($"Processing Zero Hour user data: {userPath}");
-                    await ApplyOneDriveProtectionAsync(userPath, details, cancellationToken);
-                    foldersProtected++;
+                    details.Add($"✓ Folder '{folderName}' is already correctly symlinked.");
+                    continue;
                 }
+
+                // If folder exists in cloud but not local, move it
+                if (Directory.Exists(cloudPath) && !IsSymbolicLink(cloudPath))
+                {
+                    details.Add($"Moving '{folderName}' from OneDrive to local Documents...");
+                    if (Directory.Exists(localPath))
+                    {
+                        // Merge or backup? GenPatcher just moves. We'll try to move, if fails, log it.
+                        details.Add($"  ⚠ Local folder already exists: {localPath}");
+                    }
+                    else
+                    {
+                        Directory.Move(cloudPath, localPath);
+                        details.Add($"  ✓ Moved to: {localPath}");
+                    }
+                }
+
+                // Create symlink
+                if (Directory.Exists(localPath) && !Directory.Exists(cloudPath))
+                {
+                    details.Add($"Creating symlink in OneDrive for '{folderName}'...");
+                    Directory.CreateSymbolicLink(cloudPath, localPath);
+                    details.Add($"  ✓ Symlink created: {cloudPath} -> {localPath}");
+                }
+                else if (Directory.Exists(localPath) && IsSymbolicLink(cloudPath))
+                {
+                    // Already matched or needs update?
+                    details.Add($"✓ Symlink already exists for '{folderName}'.");
+                }
+
+                // Apply Pin attribute to local folder (just in case)
+                await ApplyPinAttributeAsync(localPath, cancellationToken);
+                foldersProcessed++;
             }
 
             details.Add(string.Empty);
-            details.Add($"✓ Protected {foldersProtected} folders from OneDrive sync");
-            details.Add("✓ OneDrive sync prevention completed successfully");
+            details.Add($"✓ Processed {foldersProcessed} folders for OneDrive compatibility");
+            details.Add("✓ OneDrive relocation completed successfully");
 
             return new ActionSetResult(true, null, details);
         }
@@ -142,74 +163,83 @@ public class OneDriveFix(ILogger<OneDriveFix> logger) : BaseActionSet(logger)
     /// <inheritdoc/>
     protected override Task<ActionSetResult> UndoInternalAsync(GameInstallation installation, CancellationToken cancellationToken)
     {
-        _logger.LogWarning("Undoing OneDrive protection is not recommended as it may cause sync issues.");
+        _logger.LogWarning("Undoing OneDrive folder relocation is not supported automatically.");
         return Task.FromResult(new ActionSetResult(true));
     }
 
-    private static string GetUserDataPath(GameType gameType)
+    private bool IsOneDriveRedirected()
     {
-        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        var folder = gameType == GameType.ZeroHour
-            ? GameSettingsConstants.FolderNames.ZeroHour
-            : GameSettingsConstants.FolderNames.Generals;
-        return Path.Combine(documents, folder);
+        var myDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        return myDocs.Contains("OneDrive", StringComparison.OrdinalIgnoreCase);
     }
 
-    private bool HasOneDriveProtection(string path)
+    private string GetLocalDocumentsPath()
+    {
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Documents");
+    }
+
+    private bool IsFolderCorrectlySymlinked(string folderName)
+    {
+        var cloudDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        var localDocs = GetLocalDocumentsPath();
+        var cloudPath = Path.Combine(cloudDocs, folderName);
+        var localPath = Path.Combine(localDocs, folderName);
+
+        // If neither exist, we consider it "fine" (it will be fixed when they appear)
+        if (!Directory.Exists(cloudPath) && !Directory.Exists(localPath)) return true;
+
+        // If local exists and cloud is a symlink to it, it's applied
+        if (Directory.Exists(localPath) && IsSymbolicLink(cloudPath))
+        {
+            // We could check the target here, but Directory.Exists(localPath) + IsSymbolicLink(cloudPath) is 99% there.
+            return true;
+        }
+
+        // If cloud exists as real folder but local doesn't, it's NOT applied
+        if (Directory.Exists(cloudPath) && !IsSymbolicLink(cloudPath)) return false;
+
+        return false;
+    }
+
+    private bool IsSymbolicLink(string path)
     {
         try
         {
-            var desktopIniPath = Path.Combine(path, ActionSetConstants.FileNames.DesktopIni);
-            if (!File.Exists(desktopIniPath))
-            {
-                return false;
-            }
-
-            var content = File.ReadAllText(desktopIniPath);
-            return content.Contains(ActionSetConstants.IniFiles.ThisPCPolicyKey) && content.Contains(ActionSetConstants.IniFiles.ThisPCPolicyValue);
+            if (!Directory.Exists(path)) return false;
+            var pathInfo = new DirectoryInfo(path);
+            return pathInfo.Attributes.HasFlag(FileAttributes.ReparsePoint);
         }
-        catch (Exception ex)
+        catch
         {
-            _logger.LogWarning(ex, "Could not check OneDrive protection for {Path}", path);
             return false;
         }
     }
 
-    private async Task ApplyOneDriveProtectionAsync(string path, List<string> details, CancellationToken cancellationToken)
+    private async Task ApplyPinAttributeAsync(string path, CancellationToken ct)
     {
         try
         {
-            _logger.LogInformation("Applying OneDrive protection to: {Path}", path);
+            if (!Directory.Exists(path)) return;
 
-            var desktopIniPath = Path.Combine(path, ActionSetConstants.FileNames.DesktopIni);
-
-            // Prepare desktop.ini content
-            var lines = new List<string>
+            // Use PowerShell to apply 'Pinned' attribute which is specific to modern Windows / OneDrive
+            // Attrib +P -U
+            var psi = new ProcessStartInfo
             {
-                ActionSetConstants.IniFiles.ShellClassInfoSection,
-                $"{ActionSetConstants.IniFiles.ThisPCPolicyKey}={ActionSetConstants.IniFiles.ThisPCPolicyValue}",
-                $"{ActionSetConstants.IniFiles.ConfirmFileOpKey}=0"
+                FileName = "powershell.exe",
+                Arguments = $"-WindowStyle Hidden -NoProfile -NonInteractive -Command \"attrib +P -U '{path.Replace("'", "''")}' /S /D\"",
+                CreateNoWindow = true,
+                UseShellExecute = false,
             };
 
-            // Write desktop.ini file
-            await File.WriteAllLinesAsync(desktopIniPath, lines, cancellationToken);
-
-            // Set desktop.ini as hidden and system file
-            var attributes = File.GetAttributes(desktopIniPath);
-            File.SetAttributes(desktopIniPath, attributes | FileAttributes.Hidden | FileAttributes.System);
-
-            // Set folder as system folder (read-only bit indicates system folder)
-            var dirInfo = new DirectoryInfo(path);
-            var dirAttributes = dirInfo.Attributes;
-            dirInfo.Attributes = dirAttributes | FileAttributes.System;
-
-            details.Add($"  ✓ Created desktop.ini with DisableCloudSync policy");
-            _logger.LogInformation("Successfully applied OneDrive protection to: {Path}", path);
+            using var process = Process.Start(psi);
+            if (process != null)
+            {
+                await process.WaitForExitAsync(ct);
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Could not apply OneDrive protection to {Path}", path);
-            details.Add($"  ⚠ Failed to protect folder: {ex.Message}");
+            _logger.LogWarning(ex, "Failed to apply pin attributes to {Path}", path);
         }
     }
 }

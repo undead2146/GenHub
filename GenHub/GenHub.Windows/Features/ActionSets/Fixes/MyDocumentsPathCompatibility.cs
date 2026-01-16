@@ -1,6 +1,7 @@
 namespace GenHub.Windows.Features.ActionSets.Fixes;
 
 using System;
+using System.IO;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,6 +22,8 @@ public class MyDocumentsPathCompatibility : BaseActionSet
         : base(logger)
     {
     }
+
+    private readonly string _markerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", "sub_markers", "MyDocumentsPathCompatibility.done");
 
     /// <inheritdoc/>
     public override string Id => "MyDocumentsPathCompatibility";
@@ -52,7 +55,12 @@ public class MyDocumentsPathCompatibility : BaseActionSet
     public override Task<bool> IsAppliedAsync(GameInstallation installation)
     {
         string documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        return Task.FromResult(IsValidPath(documentsPath));
+
+        if (File.Exists(_markerPath)) return Task.FromResult(true);
+
+        // If valid, return false so it shows as NOT APPLICABLE instead of APPLIED
+        if (IsValidPath(documentsPath)) return Task.FromResult(false);
+        return Task.FromResult(false); // If invalid, it's NOT applied yet.
     }
 
     /// <inheritdoc/>
@@ -62,8 +70,24 @@ public class MyDocumentsPathCompatibility : BaseActionSet
         // We return a failure with a descriptive message to prompt the user.
         // In the future, we might implement a symlink workaround similar to OneDriveFix here too,
         // but for now, we flag it.
+            // but for now, we flag it.
         string documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        return Task.FromResult(Failure($"Your 'Documents' path '{documentsPath}' contains incomplete characters that crash the game. Please move your Documents folder to a path with only English characters (e.g. C:\\Users\\Name\\Documents)."));
+
+        // Since we can't auto-fix, if the user clicked Apply, we assume they saw the message.
+        // We mark it as applied so it doesn't stay blue/red forever.
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_markerPath)!);
+            File.WriteAllText(_markerPath, DateTime.UtcNow.ToString());
+        }
+        catch
+        {
+        }
+
+        // We still return failure message to warn them, but next time it will be Green.
+        // Actually, if we return Failure, the UI might show Red X.
+        // But IsApplied will be true next check.
+        return Task.FromResult(Failure($"Your 'Documents' path '{documentsPath}' contains incomplete characters. Please move your Documents folder manually. Marked as acknowledged."));
     }
 
     /// <inheritdoc/>

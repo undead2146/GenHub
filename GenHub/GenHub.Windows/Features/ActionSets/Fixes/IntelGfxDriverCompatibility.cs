@@ -17,6 +17,7 @@ using Microsoft.Extensions.Logging;
 public class IntelGfxDriverCompatibility(ILogger<IntelGfxDriverCompatibility> logger) : BaseActionSet(logger)
 {
     private readonly ILogger<IntelGfxDriverCompatibility> _logger = logger;
+    private readonly string _markerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", "sub_markers", "IntelGfxDriverCompatibility.done");
 
     /// <inheritdoc/>
     public override string Id => "IntelGfxDriverCompatibility";
@@ -33,7 +34,9 @@ public class IntelGfxDriverCompatibility(ILogger<IntelGfxDriverCompatibility> lo
     /// <inheritdoc/>
     public override Task<bool> IsApplicableAsync(GameInstallation installation)
     {
-        return Task.FromResult(installation.HasGenerals || installation.HasZeroHour);
+        // Only applicable if Intel graphics are present
+        var hasIntelGfx = HasIntelGraphics();
+        return Task.FromResult(hasIntelGfx && (installation.HasGenerals || installation.HasZeroHour));
     }
 
     /// <inheritdoc/>
@@ -46,9 +49,11 @@ public class IntelGfxDriverCompatibility(ILogger<IntelGfxDriverCompatibility> lo
 
             if (!hasIntelGfx)
             {
-                // If Intel graphics is not present, consider this fix "applied"
-                return Task.FromResult(true);
+                // If Intel graphics is not present, it's not applicable
+                return Task.FromResult(false);
             }
+
+            if (File.Exists(_markerPath)) return Task.FromResult(true);
 
             // Check if Intel graphics driver is up to date
             var driverUpToDate = IsIntelDriverUpToDate();
@@ -96,6 +101,15 @@ public class IntelGfxDriverCompatibility(ILogger<IntelGfxDriverCompatibility> lo
             _logger.LogInformation("Note: After updating driver, you may need to:");
             _logger.LogInformation("- Restart your computer");
             _logger.LogInformation("- Run GenHub fixes again");
+
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(_markerPath)!);
+                File.WriteAllText(_markerPath, DateTime.UtcNow.ToString());
+            }
+            catch
+            {
+            }
             _logger.LogInformation("- Test game performance");
 
             return Task.FromResult(new ActionSetResult(true, "Please update Intel graphics driver. See logs for details."));
@@ -134,9 +148,8 @@ public class IntelGfxDriverCompatibility(ILogger<IntelGfxDriverCompatibility> lo
             }
 
             // Check for Intel graphics via WMI
-            var searcher = new ManagementObjectSearcher("root\\CIMV2");
-            var query = new SelectQuery("SELECT * FROM Win32_VideoController");
-            var results = searcher.Get();
+            using var searcher = new ManagementObjectSearcher("root\\CIMV2", "SELECT * FROM Win32_VideoController");
+            using var results = searcher.Get();
 
             foreach (ManagementObject result in results)
             {

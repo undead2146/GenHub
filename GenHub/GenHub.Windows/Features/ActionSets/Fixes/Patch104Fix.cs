@@ -36,13 +36,13 @@ public class Patch104Fix(IHttpClientFactory httpClientFactory, ILogger<Patch104F
     public override bool IsCoreFix => true;
 
     /// <inheritdoc/>
-    public override bool IsCrucialFix => true;
+    public override bool IsCrucialFix => false; // Download failures shouldn't abort entire sequence
 
     /// <inheritdoc/>
     public override Task<bool> IsApplicableAsync(GameInstallation installation)
     {
-        // Only applicable for Zero Hour installations
-        return Task.FromResult(installation.HasZeroHour);
+        // Disabled per user request - redundant with GenHub Downloads section
+        return Task.FromResult(false);
     }
 
     /// <inheritdoc/>
@@ -85,63 +85,155 @@ public class Patch104Fix(IHttpClientFactory httpClientFactory, ILogger<Patch104F
             details.Add("Starting Zero Hour 1.04 patch installation...");
             details.Add($"Target directory: {installation.ZeroHourPath}");
 
-            var tempPath = Path.Combine(Path.GetTempPath(), "zh104_patch.zip");
+            var isExe = false;
+            var downloadPath = "";
+            var tempPath = Path.Combine(Path.GetTempPath(), "zh104_patch.zip"); // Default tag
             var extractPath = Path.Combine(Path.GetTempPath(), "zh104_extract");
 
-            details.Add($"Download URL: {ExternalUrls.ZeroHour104PatchUrl}");
-            details.Add("Downloading patch archive...");
-
-            logger.LogInformation("Downloading Zero Hour 1.04 patch from {Url}", ExternalUrls.ZeroHour104PatchUrl);
+            details.Add("Downloading patch...");
 
             using var client = httpClientFactory.CreateClient("Downloader");
-            using var response = await client.GetAsync(ExternalUrls.ZeroHour104PatchUrl, cancellationToken);
-            response.EnsureSuccessStatusCode();
 
-            var fileSize = response.Content.Headers.ContentLength ?? 0;
-            details.Add($"✓ Downloaded {fileSize / 1024 / 1024:F2} MB");
+            // Add User-Agent to avoid blocking
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            client.Timeout = TimeSpan.FromMinutes(5); // Increase timeout for large downloads
 
-            using var fs = new FileStream(tempPath, FileMode.Create);
-            await response.Content.CopyToAsync(fs, cancellationToken);
-            fs.Close();
+            var urls = new[] { ExternalUrls.ZeroHour104PatchUrlPrimary, ExternalUrls.ZeroHour104PatchUrlMirror1 };
+            bool downloaded = false;
 
-            details.Add("Extracting patch files...");
-            logger.LogInformation("Extracting Zero Hour 1.04 patch...");
-
-            if (Directory.Exists(extractPath))
-                Directory.Delete(extractPath, true);
-
-            Directory.CreateDirectory(extractPath);
-            ZipFile.ExtractToDirectory(tempPath, extractPath);
-
-            var extractedFiles = Directory.GetFiles(extractPath, "*.*", SearchOption.AllDirectories);
-            details.Add($"✓ Extracted {extractedFiles.Length} files");
-
-            // Copy files to game directory
-            details.Add($"Installing to: {installation.ZeroHourPath}");
-            logger.LogInformation("Copying patch files to {Path}", installation.ZeroHourPath);
-
-            int copiedCount = 0;
-            foreach (var file in extractedFiles)
+            foreach (var url in urls)
             {
-                var relativePath = file.Substring(extractPath.Length).TrimStart(Path.DirectorySeparatorChar);
-                var destPath = Path.Combine(installation.ZeroHourPath, relativePath);
-
-                var destDir = Path.GetDirectoryName(destPath);
-                if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+                try
                 {
-                    Directory.CreateDirectory(destDir);
-                }
+                    logger.LogInformation("Attempting download from {Url}", url);
 
-                File.Copy(file, destPath, true);
-                logger.LogDebug("Copied {File}", relativePath);
-                copiedCount++;
+                    var uri = new Uri(url);
+                    isExe = uri.AbsolutePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+
+                    // Update temp path based on extension
+                    downloadPath = isExe
+                        ? Path.Combine(Path.GetTempPath(), "GeneralsZH-104-english.exe")
+                        : Path.Combine(Path.GetTempPath(), "zh104_patch.zip");
+
+                    using var response = await client.GetAsync(url, cancellationToken);
+                    response.EnsureSuccessStatusCode();
+
+                    var fileSize = response.Content.Headers.ContentLength ?? 0;
+
+                    // Validate file size - if it's too small (e.g. < 1MB), it's likely an error page
+                    if (fileSize < 1024 * 1024)
+                    {
+                         logger.LogWarning("Downloaded file from {Url} is too small ({Size} bytes). Likely blocked.", url, fileSize);
+                         continue;
+                    }
+
+                    details.Add($"✓ Downloaded {fileSize / 1024 / 1024:F2} MB from {uri.Host}");
+
+                    logger.LogInformation("Reading response content to memory...");
+                    var fileBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+
+                    logger.LogInformation("Writing {Size} bytes to disk...", fileBytes.Length);
+                    await File.WriteAllBytesAsync(downloadPath, fileBytes, cancellationToken);
+
+                    if (!isExe)
+                    {
+                        // Validate integrity by attempting to open the archive
+                        try
+                        {
+                            using var archive = ZipFile.OpenRead(downloadPath);
+                            var entryCount = archive.Entries.Count;
+                            logger.LogInformation("Validated zip archive from {Url} ({Count} entries)", url, entryCount);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogWarning("Downloaded file from {Url} is corrupt: {Error}. Trying next mirror.", url, ex.Message);
+                            continue;
+                        }
+                    }
+
+                    downloaded = true;
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning("Failed to download from {Url}: {Error}", url, ex.Message);
+                }
             }
 
-            details.Add($"✓ Installed {copiedCount} files");
+            if (!downloaded)
+            {
+                throw new HttpRequestException("Failed to download Zero Hour 1.04 Patch from all mirrors.");
+            }
+
+            if (isExe)
+            {
+                details.Add("Running Zero Hour 1.04 Patch Installer...");
+                logger.LogInformation("Executing installer {Path}...", downloadPath);
+
+                var process = Process.Start(new ProcessStartInfo
+                {
+                    FileName = downloadPath,
+                    Arguments = "", // Standard installer, interactive is fine if silent fails, but usually no args for this old patch or /S
+                    UseShellExecute = true,
+                    Verb = "runas"
+                });
+
+                if (process != null)
+                {
+                    await process.WaitForExitAsync(cancellationToken);
+
+                    if (process.ExitCode == 0)
+                        details.Add("✓ Patch installer completed successfully");
+                    else
+                        details.Add($"⚠ Patch installer exited with code {process.ExitCode}");
+                }
+                else
+                {
+                    details.Add("✗ Failed to start patch installer");
+                    return new ActionSetResult(false, "Failed to start patch installer", details);
+                }
+            }
+            else
+            {
+                details.Add("Extracting patch files...");
+                logger.LogInformation("Extracting Zero Hour 1.04 patch...");
+
+                if (Directory.Exists(extractPath))
+                    Directory.Delete(extractPath, true);
+
+                Directory.CreateDirectory(extractPath);
+                ZipFile.ExtractToDirectory(downloadPath, extractPath);
+
+                var extractedFiles = Directory.GetFiles(extractPath, "*.*", SearchOption.AllDirectories);
+                details.Add($"✓ Extracted {extractedFiles.Length} files");
+
+                // Copy files to game directory
+                details.Add($"Installing to: {installation.ZeroHourPath}");
+                logger.LogInformation("Copying patch files to {Path}", installation.ZeroHourPath);
+
+                int copiedCount = 0;
+                foreach (var file in extractedFiles)
+                {
+                    var relativePath = file[extractPath.Length..].TrimStart(Path.DirectorySeparatorChar);
+                    var destPath = Path.Combine(installation.ZeroHourPath, relativePath);
+
+                    var destDir = Path.GetDirectoryName(destPath);
+                    if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+                    {
+                        Directory.CreateDirectory(destDir);
+                    }
+
+                    File.Copy(file, destPath, true);
+                    logger.LogDebug("Copied {File}", relativePath);
+                    copiedCount++;
+                }
+
+                details.Add($"✓ Installed {copiedCount} files");
+            }
 
             // Cleanup
-            if (File.Exists(tempPath))
-                File.Delete(tempPath);
+            if (File.Exists(downloadPath))
+                File.Delete(downloadPath);
 
             if (Directory.Exists(extractPath))
                 Directory.Delete(extractPath, true);
@@ -149,7 +241,6 @@ public class Patch104Fix(IHttpClientFactory httpClientFactory, ILogger<Patch104F
             details.Add("✓ Cleanup completed");
             details.Add("✓ Zero Hour 1.04 patch installed successfully");
 
-            logger.LogInformation("Zero Hour 1.04 patch installed successfully with {Count} actions", details.Count);
             return new ActionSetResult(true, null, details);
         }
         catch (Exception ex)
