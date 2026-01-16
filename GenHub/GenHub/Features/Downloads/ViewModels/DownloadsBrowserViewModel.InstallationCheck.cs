@@ -7,7 +7,7 @@ namespace GenHub.Features.Downloads.ViewModels;
 /// </content>
 public partial class DownloadsBrowserViewModel
 {
-    private static Task CheckIfInstalledAsync(ContentGridItemViewModel _)
+    private static Task CheckIfInstalledAsync()
     {
         // Feature temporarily disabled during refactoring
         return Task.CompletedTask;

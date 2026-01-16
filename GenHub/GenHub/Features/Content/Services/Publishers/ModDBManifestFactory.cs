@@ -155,14 +155,12 @@ public partial class ModDBManifestFactory(
         var primaryFileName = ExtractFileNameFromUrl(details.DownloadUrl);
         logger.LogInformation("[TEMP] ModDBManifestFactory - Adding primary file: {FileName} from URL: {Url}", primaryFileName, details.DownloadUrl);
 
-        manifest = await manifest.AddDownloadedFileAsync(
+        manifest = await manifest.AddRemoteFileAsync(
             primaryFileName,
             details.DownloadUrl,
             ContentSourceType.ContentAddressable,
             isExecutable: false,
-            permissions: null,
-            refererUrl: detailPageUrl,
-            userAgent: ModDBConstants.BrowserUserAgent);
+            permissions: null);
 
         addedUrls.Add(details.DownloadUrl);
 
@@ -178,14 +176,12 @@ public partial class ModDBManifestFactory(
 
                 logger.LogInformation("[TEMP] ModDBManifestFactory - Adding additional file: {FileName} from URL: {Url}", fileName, file.DownloadUrl);
 
-                manifest = await manifest.AddDownloadedFileAsync(
+                manifest = await manifest.AddRemoteFileAsync(
                     fileName,
                     file.DownloadUrl,
                     ContentSourceType.ContentAddressable,
                     isExecutable: false,
-                    permissions: null,
-                    refererUrl: detailPageUrl,
-                    userAgent: ModDBConstants.BrowserUserAgent);
+                    permissions: null);
 
                 addedUrls.Add(file.DownloadUrl);
             }

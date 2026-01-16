@@ -391,6 +391,10 @@ public class GameProcessManager(
                 // Run Kill() on a background thread to prevent UI freeze
                 await Task.Run(() => process.Kill(entireProcessTree: true), cancellationToken);
 
+                // Wait for the process to actually exit to ensure file handles are released
+                // and system state is updated before returning.
+                await Task.Run(() => process.WaitForExit(TimeSpan.FromSeconds(5)), cancellationToken);
+
                 _logger.LogInformation("[Terminate] Process {ProcessId} terminated successfully", processId);
             }
             catch (InvalidOperationException ex)

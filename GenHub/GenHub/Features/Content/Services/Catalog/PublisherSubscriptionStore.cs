@@ -20,11 +20,11 @@ namespace GenHub.Features.Content.Services.Catalog;
 /// </summary>
 public class PublisherSubscriptionStore : IPublisherSubscriptionStore
 {
+    private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
     private readonly ILogger<PublisherSubscriptionStore> _logger;
     private readonly IConfigurationProviderService _configurationProvider;
     private readonly string _subscriptionsFilePath;
     private readonly SemaphoreSlim _fileLock = new(1, 1);
-    private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
     private PublisherSubscriptionCollection? _cachedSubscriptions;
 

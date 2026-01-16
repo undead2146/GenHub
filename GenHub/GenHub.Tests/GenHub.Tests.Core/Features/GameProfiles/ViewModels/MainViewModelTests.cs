@@ -8,6 +8,7 @@ using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Interfaces.Providers; // Added
 using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Steam;
 using GenHub.Core.Interfaces.Storage;
@@ -18,7 +19,6 @@ using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Notifications;
 using GenHub.Features.AppUpdate.Interfaces;
-using GenHub.Core.Interfaces.Providers; // Added
 using GenHub.Features.Content.Services.Publishers;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.Services;

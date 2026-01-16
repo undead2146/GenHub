@@ -1,6 +1,7 @@
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Tools;
+using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
@@ -8,10 +9,9 @@ using GenHub.Features.Manifest;
 using GenHub.Features.Workspace;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+
 using ContentType = GenHub.Core.Models.Enums.ContentType;
 using GameType = GenHub.Core.Models.Enums.GameType;
-
-using GenHub.Core.Models.Enums;
 
 namespace GenHub.Tests.Core.Features.Manifest;
 
@@ -24,7 +24,7 @@ public class ManifestGenerationServiceTests : IDisposable
     private readonly Mock<IManifestIdService> _manifestIdServiceMock;
     private readonly Mock<IDownloadService> _downloadServiceMock;
     private readonly Mock<IConfigurationProviderService> _configProviderServiceMock;
-    private readonly Mock<IPlaywrightService> _playwrightServiceMock;
+
     private readonly ManifestGenerationService _service;
     private readonly string _tempDirectory;
 
@@ -37,7 +37,6 @@ public class ManifestGenerationServiceTests : IDisposable
         _manifestIdServiceMock = new Mock<IManifestIdService>();
         _downloadServiceMock = new Mock<IDownloadService>();
         _configProviderServiceMock = new Mock<IConfigurationProviderService>();
-        _playwrightServiceMock = new Mock<IPlaywrightService>();
 
         // Setup hash provider to return deterministic hashes
         _hashProviderMock.Setup(x => x.ComputeFileHashAsync(It.IsAny<string>(), default))
@@ -46,10 +45,7 @@ public class ManifestGenerationServiceTests : IDisposable
         // Setup manifest ID service to return properly formatted IDs
         // Format: version.userversion.publisher.contenttype.contentname
         // Publisher names need to be normalized (lowercase, no spaces)
-        _manifestIdServiceMock.Setup(x => x.GenerateGameInstallationId(
-                It.IsAny<GameInstallation>(),
-                It.IsAny<GameType>(),
-                It.IsAny<string?>()))
+        _manifestIdServiceMock.Setup(x => x.GenerateGameInstallationId(It.IsAny<GameInstallation>(), It.IsAny<GameType>(), It.IsAny<string?>()))
             .Returns((GameInstallation inst, GameType gt, string? v) => OperationResult<ManifestId>.CreateSuccess(ManifestId.Create("1.0.ea.gameinstallation.generals")));
 
         _manifestIdServiceMock.Setup(x => x.GeneratePublisherContentId(
@@ -68,8 +64,7 @@ public class ManifestGenerationServiceTests : IDisposable
             _hashProviderMock.Object,
             _manifestIdServiceMock.Object,
             _downloadServiceMock.Object,
-            _configProviderMock.Object,
-            _playwrightServiceMock.Object);
+            _configProviderServiceMock.Object);
 
         _tempDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(_tempDirectory);

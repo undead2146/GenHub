@@ -46,8 +46,6 @@ public class ContentManifestBuilderTests
     /// <summary>
     /// Mock for the playwright service.
     /// </summary>
-    private readonly Mock<IPlaywrightService> _playwrightServiceMock;
-
     /// <summary>
     /// The content manifest builder under test.
     /// </summary>
@@ -63,7 +61,6 @@ public class ContentManifestBuilderTests
         _manifestIdServiceMock = new Mock<IManifestIdService>();
         _downloadServiceMock = new Mock<IDownloadService>();
         _configurationProviderMock = new Mock<IConfigurationProviderService>();
-        _playwrightServiceMock = new Mock<IPlaywrightService>();
 
         // Set up mock to return success for ValidateAndCreateManifestId
         _manifestIdServiceMock.Setup(x => x.ValidateAndCreateManifestId(It.IsAny<string>()))
@@ -86,8 +83,7 @@ public class ContentManifestBuilderTests
             _hashProviderMock.Object,
             _manifestIdServiceMock.Object,
             _downloadServiceMock.Object,
-            _configurationProviderMock.Object,
-            _playwrightServiceMock.Object);
+            _configurationProviderMock.Object);
     }
 
     /// <summary>

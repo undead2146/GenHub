@@ -57,10 +57,10 @@ Application-wide constants for GenHub.
 | `PullRequestNumber`       | Dynamic             | PR number if PR build                            |
 | `BuildChannel`            | Dynamic             | Build channel (Dev, PR, CI, Release)             |
 | `IsCiBuild`               | bool                | Whether this is a CI/CD build                    |
-| `FullDisplayVersion`      | string              | Full display version with hash                   |
-| `GitHubRepositoryUrl`     | `"https://github.com/community-outpost/GenHub"` | GitHub repository URL                            |
-| `GitHubRepositoryOwner`   | `"community-outpost"`                           | GitHub repository owner                          |
-| `GitHubRepositoryName`    | `"GenHub"`                                      | GitHub repository name                           |
+| `FullDisplayVersion`    | string              | Full display version with hash                   |
+| `GitHubRepositoryUrl`   | `"https://github.com/community-outpost/GenHub"` | GitHub repository URL                            |
+| `GitHubRepositoryOwner` | `"community-outpost"`                           | GitHub repository owner                          |
+| `GitHubRepositoryName`  | `"GenHub"`                                      | GitHub repository name                           |
 | `DefaultTheme`            | `Theme.Dark`        | Default UI theme                                 |
 | `DefaultThemeName`        | `"Dark"`            | Default theme name as string                     |
 | `TokenFileName`           | `".ghtoken"`        | Default GitHub token file name                   |
@@ -144,14 +144,14 @@ Constants related to workspace management and configuration.
 
 Constants for command line arguments and URI schemes.
 
-| Constant                     | Value                | Description                                                |
-| ---------------------------- | -------------------- | ---------------------------------------------------------- |
-| `LaunchProfileArg`           | `"--launch-profile"` | Command-line argument used to request launching a profile  |
+| Constant                    | Value                 | Description                                                |
+| --------------------------- | --------------------- | ---------------------------------------------------------- |
+| `LaunchProfileArg`          | `"--launch-profile"`  | Command-line argument used to request launching a profile  |
 | `LaunchProfileInlinePrefix` | `"--launch-profile="` | Prefix for inline profile launching                        |
-| `UriScheme`                  | `"genhub://"`        | URI scheme used for protocol handling                      |
-| `SubscribeCommand`           | `"subscribe"`        | Command for subscribing to a catalog via URI               |
-| `SubscribeUriPrefix`         | `"genhub://subscribe"` | Full prefix for subscription URI                          |
-| `SubscribeUrlParam`          | `"?url="`            | Query parameter name for the catalog URL                   |
+| `UriScheme`                 | `"genhub://"`         | URI scheme used for protocol handling                      |
+| `SubscribeCommand`          | `"subscribe"`         | Command for subscribing to a catalog via URI               |
+| `SubscribeUriPrefix`        | `"genhub://subscribe"`| Full prefix for subscription URI                           |
+| `SubscribeUrlParam`         | `"?url="`             | Query parameter name for the catalog URL                   |
 
 ---
 
@@ -207,11 +207,11 @@ File and directory name constants to prevent typos and ensure consistency.
 
 | Constant                | Value               | Description                       |
 | ----------------------- | ------------------- | --------------------------------- |
-| `ManifestsDirectory`    | `"Manifests"`       | Directory for manifest files      |
-| `ManifestFilePattern`   | `"*.manifest.json"` | File pattern for manifest files   |
-| `ManifestFileExtension` | `".manifest.json"`  | File extension for manifest files |
-| `UserDataManifestExtension` | `".userdata.json"` | File extension for user data manifest files |
-| `BackupExtension`       | `".ghbak"`          | File extension for backup files   |
+| `ManifestsDirectory`        | `"Manifests"`       | Directory for manifest files      |
+| `ManifestFilePattern`       | `"*.manifest.json"` | File pattern for manifest files   |
+| `ManifestFileExtension`     | `".manifest.json"`  | File extension for manifest files |
+| `UserDataManifestExtension` | `".userdata.json"`  | File extension for user data manifest files |
+| `BackupExtension`           | `".ghbak"`          | File extension for backup files   |
 
 ### JSON Files
 

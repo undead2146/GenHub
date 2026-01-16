@@ -36,7 +36,11 @@ public partial class AODMapsFilterViewModel : FilterPanelViewModelBase
         if (!string.IsNullOrEmpty(SelectedPlayerCount)) tags.Add(SelectedPlayerCount);
         if (!string.IsNullOrEmpty(SelectedCategory)) tags.Add(SelectedCategory);
 
-        baseQuery.CNCLabsMapTags = new Collection<string>(tags);
+        baseQuery.CNCLabsMapTags.Clear();
+        foreach (var tag in tags)
+        {
+            baseQuery.CNCLabsMapTags.Add(tag);
+        }
 
         return baseQuery;
     }

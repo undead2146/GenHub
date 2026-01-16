@@ -27,7 +27,6 @@ public class GameClientManifestIntegrationTests : IDisposable
     private readonly GameClientDetector _detector;
     private readonly Mock<IDownloadService> _downloadServiceMock;
     private readonly Mock<IConfigurationProviderService> _configProviderMock;
-    private readonly Mock<IPlaywrightService> _playwrightServiceMock;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GameClientManifestIntegrationTests"/> class.
@@ -41,15 +40,13 @@ public class GameClientManifestIntegrationTests : IDisposable
         _manifestIdService = new ManifestIdService();
         _downloadServiceMock = new Mock<IDownloadService>();
         _configProviderMock = new Mock<IConfigurationProviderService>();
-        _playwrightServiceMock = new Mock<IPlaywrightService>();
 
         _manifestService = new ManifestGenerationService(
             NullLogger<ManifestGenerationService>.Instance,
             _hashProvider,
             _manifestIdService,
             _downloadServiceMock.Object,
-            _configProviderMock.Object,
-            _playwrightServiceMock.Object);
+            _configProviderMock.Object);
 
         _manifestPoolMock = new Mock<IContentManifestPool>();
         _manifestPoolMock.Setup(x => x.AddManifestAsync(It.IsAny<ContentManifest>(), It.IsAny<string>(), It.IsAny<IProgress<ContentStorageProgress>>(), It.IsAny<CancellationToken>()))

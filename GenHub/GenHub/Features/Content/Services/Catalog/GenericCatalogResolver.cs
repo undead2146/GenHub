@@ -89,14 +89,12 @@ public class GenericCatalogResolver(
             // 3. Extract all files if archive
             // 4. Store each file in CAS
             // 5. Add ManifestFile entries
-            await builder.AddDownloadedFileAsync(
+            await builder.AddRemoteFileAsync(
                 relativePath: primaryArtifact.Filename,
                 downloadUrl: primaryArtifact.DownloadUrl,
                 sourceType: ContentSourceType.ContentAddressable,
                 isExecutable: false,
-                permissions: null,
-                refererUrl: publisher.Website,
-                userAgent: null);
+                permissions: null);
 
             // Add dependencies
             foreach (var dependency in release.Dependencies)

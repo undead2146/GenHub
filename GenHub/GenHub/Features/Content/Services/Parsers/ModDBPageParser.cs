@@ -672,7 +672,7 @@ public class ModDBPageParser(IPlaywrightService playwrightService, ILogger<ModDB
             sections.Count);
 
         return new ParsedWebPage(
-            Url: url,
+            Url: new Uri(url),
             Context: context,
             Sections: sections,
             PageType: pageType);
