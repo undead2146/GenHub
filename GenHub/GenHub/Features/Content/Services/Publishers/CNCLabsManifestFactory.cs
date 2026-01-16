@@ -31,8 +31,6 @@ public partial class CNCLabsManifestFactory(
     IConfigurationProviderService configurationProvider,
     ILogger<CNCLabsManifestFactory> logger) : IPublisherManifestFactory
 {
-    [GeneratedRegex(@"[^a-z0-9]", RegexOptions.IgnoreCase)]
-
     private static string SlugifyContentName(string title)
     {
         if (string.IsNullOrWhiteSpace(title))
