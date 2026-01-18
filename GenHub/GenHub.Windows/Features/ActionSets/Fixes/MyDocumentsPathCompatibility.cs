@@ -12,19 +12,8 @@ using Microsoft.Extensions.Logging;
 /// <summary>
 /// Fix for My Documents path compatibility issues (e.g. non-English characters or double backslashes).
 /// </summary>
-public class MyDocumentsPathCompatibility : BaseActionSet
+public partial class MyDocumentsPathCompatibility(ILogger<MyDocumentsPathCompatibility> logger) : BaseActionSet(logger)
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MyDocumentsPathCompatibility"/> class.
-    /// </summary>
-    /// <param name="logger">The logger instance.</param>
-    public MyDocumentsPathCompatibility(ILogger<MyDocumentsPathCompatibility> logger)
-        : base(logger)
-    {
-        _logger = logger;
-    }
-
-    private readonly ILogger<MyDocumentsPathCompatibility> _logger;
     private readonly string _markerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", "sub_markers", "MyDocumentsPathCompatibility.done");
 
     /// <inheritdoc/>
@@ -60,9 +49,8 @@ public class MyDocumentsPathCompatibility : BaseActionSet
 
         if (File.Exists(_markerPath)) return Task.FromResult(true);
 
-        // If valid, return false so it shows as NOT APPLICABLE instead of APPLIED
-        if (IsValidPath(documentsPath)) return Task.FromResult(false);
-        return Task.FromResult(false); // If invalid, it's NOT applied yet.
+        // If valid, return TRUE (applied/compliant). If invalid, return FALSE (needs fixing).
+        return Task.FromResult(IsValidPath(documentsPath));
     }
 
     /// <inheritdoc/>
@@ -83,7 +71,7 @@ public class MyDocumentsPathCompatibility : BaseActionSet
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to create marker file for MyDocumentsPathCompatibility");
+            logger.LogWarning(ex, "Failed to create marker file for MyDocumentsPathCompatibility");
         }
 
         // We still return failure message to warn them, but next time it will be Green.
@@ -98,7 +86,7 @@ public class MyDocumentsPathCompatibility : BaseActionSet
         return Task.FromResult(Success());
     }
 
-    private bool IsValidPath(string path)
+    private static bool IsValidPath(string path)
     {
         // Check for double backslashes (excluding the initial network share start if applicable, but usually strictly local)
         // AHK logic: if(InStr(Path, "\\")) return 0
@@ -114,6 +102,9 @@ public class MyDocumentsPathCompatibility : BaseActionSet
         // Note: Backslash \ and Colon : are allowed for drive paths e.g. C:\
         // Regex for disallowed characters: [^a-zA-Z0-9 `~!@#$%^&()_+\-='{}\.,;\[\]\:\\]
         // If match found, return false.
-        return !Regex.IsMatch(path, @"[^a-zA-Z0-9 `~!@#$%^&()_+\-='{}\.,;\[\]\:\\]");
+        return !DisallowedCharactersRegex().IsMatch(path);
     }
+
+    [GeneratedRegex(@"[^a-zA-Z0-9 `~!@#$%^&()_+\-='{}\.,;\[\]\:\\]")]
+    private static partial Regex DisallowedCharactersRegex();
 }

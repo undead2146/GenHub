@@ -12,9 +12,6 @@ public static class ExternalUrls
     public const string VCRedist2010DownloadUrl = "https://download.microsoft.com/download/1/6/5/165255E7-1014-4D0A-B094-B6A430A6BFFC/vcredist_x86.exe";
 
     /// <summary>
-    /// Download URL for DirectX 8.1 / 9.0c runtime files used by GenPatcher.
-    /// </summary>
-    /// <summary>
     /// Gets the primary download URL for DirectX runtime (Microsoft Official).
     /// </summary>
     public const string DirectXRuntimeDownloadUrlPrimary = "https://download.microsoft.com/download/1/7/1/1718CCC4-6315-4D8E-9543-8E28A4E18C4C/dxwebsetup.exe";
@@ -80,4 +77,9 @@ public static class ExternalUrls
     /// Legacy download URL for Zero Hour 1.04 patch.
     /// </summary>
     public const string ZeroHour104PatchUrl = ZeroHour104PatchUrlPrimary;
+
+    /// <summary>
+    /// Download URL for Intel Graphics Drivers.
+    /// </summary>
+    public const string IntelDriverDownloadUrl = "https://www.intel.com/content/www/us/en/download-center/home";
 }

@@ -81,13 +81,13 @@ public class EdgeScrollerFix(ILogger<EdgeScrollerFix> logger, IGameSettingsServi
 
             if (installation.HasGenerals)
             {
-                var gameDetails = await ApplyEdgeScrollingFixAsync(GameType.Generals, cancellationToken);
+                var gameDetails = await ApplyEdgeScrollingFixAsync(GameType.Generals);
                 details.AddRange(gameDetails);
             }
 
             if (installation.HasZeroHour)
             {
-                var gameDetails = await ApplyEdgeScrollingFixAsync(GameType.ZeroHour, cancellationToken);
+                var gameDetails = await ApplyEdgeScrollingFixAsync(GameType.ZeroHour);
                 details.AddRange(gameDetails);
             }
 
@@ -125,7 +125,7 @@ public class EdgeScrollerFix(ILogger<EdgeScrollerFix> logger, IGameSettingsServi
         return tshSection.ContainsKey("ScrollEdgeZone") || tshSection.ContainsKey("ScrollEdgeSpeed");
     }
 
-    private async Task<List<string>> ApplyEdgeScrollingFixAsync(GameType gameType, CancellationToken cancellationToken)
+    private async Task<List<string>> ApplyEdgeScrollingFixAsync(GameType gameType)
     {
         var details = new List<string>();
 

@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Constants;
 using GenHub.Core.Features.ActionSets;
 using GenHub.Core.Models.GameInstallations;
 using Microsoft.Extensions.Logging;
@@ -16,7 +17,7 @@ using Microsoft.Extensions.Logging;
 public class GenArial(ILogger<GenArial> logger) : BaseActionSet(logger)
 {
     private readonly ILogger<GenArial> _logger = logger;
-    private readonly string _markerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", "sub_markers", "GenArial.done");
+    private readonly string _markerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", ActionSetConstants.Paths.SubActionSetMarkers, "GenArial.done");
 
     /// <inheritdoc/>
     public override string Id => "GenArial";
@@ -78,8 +79,9 @@ public class GenArial(ILogger<GenArial> logger) : BaseActionSet(logger)
                 Directory.CreateDirectory(Path.GetDirectoryName(_markerPath)!);
                 File.WriteAllText(_markerPath, DateTime.UtcNow.ToString());
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Failed to create marker file.");
             }
 
             return Task.FromResult(new ActionSetResult(true, "Please manually install Arial font. See logs for details."));

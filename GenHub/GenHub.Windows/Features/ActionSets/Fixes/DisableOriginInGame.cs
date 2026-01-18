@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Constants;
 using GenHub.Core.Features.ActionSets;
 using GenHub.Core.Models.GameInstallations;
 using Microsoft.Extensions.Logging;
@@ -16,7 +17,7 @@ using Microsoft.Extensions.Logging;
 public class DisableOriginInGame(ILogger<DisableOriginInGame> logger) : BaseActionSet(logger)
 {
     private readonly ILogger<DisableOriginInGame> _logger = logger;
-    private readonly string _markerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", "sub_markers", "DisableOriginInGame.done");
+    private readonly string _markerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", ActionSetConstants.Paths.SubActionSetMarkers, "DisableOriginInGame.done");
 
     /// <inheritdoc/>
     public override string Id => "DisableOriginInGame";
@@ -111,7 +112,7 @@ public class DisableOriginInGame(ILogger<DisableOriginInGame> logger) : BaseActi
         {
             // Check for Origin in registry
             using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
-                @"SOFTWARE\Origin",
+                RegistryConstants.OriginKeyPath,
                 false);
 
             if (key != null)

@@ -177,7 +177,7 @@ public class OneDriveFix(ILogger<OneDriveFix> logger) : BaseActionSet(logger)
         return Task.FromResult(new ActionSetResult(true));
     }
 
-    private void MergeDirectories(string source, string target)
+    private static void MergeDirectories(string source, string target)
     {
         foreach (var dirPath in Directory.GetDirectories(source, "*", SearchOption.AllDirectories))
         {
@@ -194,18 +194,32 @@ public class OneDriveFix(ILogger<OneDriveFix> logger) : BaseActionSet(logger)
         }
     }
 
-    private bool IsOneDriveRedirected()
+    private static bool IsOneDriveRedirected()
     {
         var myDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         return myDocs.Contains("OneDrive", StringComparison.OrdinalIgnoreCase);
     }
 
-    private string GetLocalDocumentsPath()
+    private static string GetLocalDocumentsPath()
     {
         return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Documents");
     }
 
-    private bool IsFolderCorrectlySymlinked(string folderName)
+    private static bool IsSymbolicLink(string path)
+    {
+        try
+        {
+            if (!Directory.Exists(path)) return false;
+            var pathInfo = new DirectoryInfo(path);
+            return pathInfo.Attributes.HasFlag(FileAttributes.ReparsePoint);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsFolderCorrectlySymlinked(string folderName)
     {
         var cloudDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         var localDocs = GetLocalDocumentsPath();
@@ -226,20 +240,6 @@ public class OneDriveFix(ILogger<OneDriveFix> logger) : BaseActionSet(logger)
         if (Directory.Exists(cloudPath) && !IsSymbolicLink(cloudPath)) return false;
 
         return false;
-    }
-
-    private bool IsSymbolicLink(string path)
-    {
-        try
-        {
-            if (!Directory.Exists(path)) return false;
-            var pathInfo = new DirectoryInfo(path);
-            return pathInfo.Attributes.HasFlag(FileAttributes.ReparsePoint);
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     private async Task ApplyPinAttributeAsync(string path, CancellationToken ct)

@@ -6,6 +6,7 @@ using System.IO;
 using System.Management;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Constants;
 using GenHub.Core.Features.ActionSets;
 using GenHub.Core.Models.GameInstallations;
 using Microsoft.Extensions.Logging;
@@ -17,7 +18,7 @@ using Microsoft.Extensions.Logging;
 public class IntelGfxDriverCompatibility(ILogger<IntelGfxDriverCompatibility> logger) : BaseActionSet(logger)
 {
     private readonly ILogger<IntelGfxDriverCompatibility> _logger = logger;
-    private readonly string _markerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", "sub_markers", "IntelGfxDriverCompatibility.done");
+    private readonly string _markerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", ActionSetConstants.Paths.SubActionSetMarkers, "IntelGfxDriverCompatibility.done");
 
     /// <inheritdoc/>
     public override string Id => "IntelGfxDriverCompatibility";
@@ -96,7 +97,7 @@ public class IntelGfxDriverCompatibility(ILogger<IntelGfxDriverCompatibility> lo
             _logger.LogInformation("4. Follow prompts to install latest driver");
             _logger.LogInformation(string.Empty);
             _logger.LogInformation("Alternatively, download from Intel website:");
-            _logger.LogInformation("https://www.intel.com/content/www/us/en/download-center/home");
+            _logger.LogInformation("{Url}", ExternalUrls.IntelDriverDownloadUrl);
             _logger.LogInformation(string.Empty);
             _logger.LogInformation("Note: After updating driver, you may need to:");
             _logger.LogInformation("- Restart your computer");
@@ -136,13 +137,12 @@ public class IntelGfxDriverCompatibility(ILogger<IntelGfxDriverCompatibility> lo
         {
             // Check for Intel graphics in system
             using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
-                @"SYSTEM\CurrentControlSet\Control\Class\{4D36E968-E325-11CE-BFC1-08002BE10318}\0000",
+                $@"{RegistryConstants.IntelGraphicsClassKeyPath}\0000",
                 false);
 
             if (key != null)
             {
-                var driverDesc = key.GetValue("DriverDesc") as string;
-                if (driverDesc != null && driverDesc.Contains("Intel", StringComparison.OrdinalIgnoreCase))
+                if (key.GetValue("DriverDesc") is string driverDesc && driverDesc.Contains("Intel", StringComparison.OrdinalIgnoreCase))
                 {
                     _logger.LogInformation("Found Intel graphics: {Driver}", driverDesc);
                     return true;
@@ -153,10 +153,9 @@ public class IntelGfxDriverCompatibility(ILogger<IntelGfxDriverCompatibility> lo
             using var searcher = new ManagementObjectSearcher("root\\CIMV2", "SELECT * FROM Win32_VideoController");
             using var results = searcher.Get();
 
-            foreach (ManagementObject result in results)
+            foreach (ManagementBaseObject result in results)
             {
-                var name = result["Name"] as string;
-                if (name != null && name.Contains("Intel", StringComparison.OrdinalIgnoreCase))
+                if (result["Name"] is string name && name.Contains("Intel", StringComparison.OrdinalIgnoreCase))
                 {
                     _logger.LogInformation("Found Intel graphics via WMI: {Name}", name);
                     return true;
@@ -179,13 +178,12 @@ public class IntelGfxDriverCompatibility(ILogger<IntelGfxDriverCompatibility> lo
             // This is a simplified check - actual driver version checking is complex
             // We'll check if Intel Driver & Support Assistant is installed
             using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
-                @"SOFTWARE\Intel\MEWiz1.0",
+                RegistryConstants.IntelMEWizKeyPath,
                 false);
 
             if (key != null)
             {
-                var version = key.GetValue("Version") as string;
-                if (version != null)
+                if (key.GetValue("Version") is string version)
                 {
                     _logger.LogInformation("Intel Driver & Support Assistant version: {Version}", version);
 

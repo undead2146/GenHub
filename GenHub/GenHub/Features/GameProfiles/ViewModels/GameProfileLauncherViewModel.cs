@@ -654,6 +654,7 @@ public partial class GameProfileLauncherViewModel(
             return; // Don't collapse header while scanning
         }
 
+        _isHovering = false;
         _headerCollapseTimer.Stop();
         _headerExpansionTimer.Stop(); // Cancel any pending expansion
 

@@ -79,15 +79,14 @@ public class Patch104Fix(IHttpClientFactory httpClientFactory, ILogger<Patch104F
     {
         var details = new List<string>();
 
+        var isExe = false;
+        var downloadPath = string.Empty;
+        var extractPath = Path.Combine(Path.GetTempPath(), "zh104_extract");
+
         try
         {
             details.Add("Starting Zero Hour 1.04 patch installation...");
             details.Add($"Target directory: {installation.ZeroHourPath}");
-
-            var isExe = false;
-            var downloadPath = string.Empty;
-            var tempPath = Path.Combine(Path.GetTempPath(), "zh104_patch.zip"); // Default tag
-            var extractPath = Path.Combine(Path.GetTempPath(), "zh104_extract");
 
             details.Add("Downloading patch...");
 
@@ -222,6 +221,12 @@ public class Patch104Fix(IHttpClientFactory httpClientFactory, ILogger<Patch104F
                         Directory.CreateDirectory(destDir);
                     }
 
+                    if (!Path.GetFullPath(destPath).StartsWith(Path.GetFullPath(installation.ZeroHourPath), StringComparison.OrdinalIgnoreCase))
+                    {
+                         logger.LogWarning("Skipping file {File} due to path traversal detected.", relativePath);
+                         continue;
+                    }
+
                     File.Copy(file, destPath, true);
                     logger.LogDebug("Copied {File}", relativePath);
                     copiedCount++;
@@ -230,14 +235,6 @@ public class Patch104Fix(IHttpClientFactory httpClientFactory, ILogger<Patch104F
                 details.Add($"✓ Installed {copiedCount} files");
             }
 
-            // Cleanup
-            if (File.Exists(downloadPath))
-                File.Delete(downloadPath);
-
-            if (Directory.Exists(extractPath))
-                Directory.Delete(extractPath, true);
-
-            details.Add("✓ Cleanup completed");
             details.Add("✓ Zero Hour 1.04 patch installed successfully");
 
             return new ActionSetResult(true, null, details);
@@ -247,6 +244,31 @@ public class Patch104Fix(IHttpClientFactory httpClientFactory, ILogger<Patch104F
             logger.LogError(ex, "Failed to install Zero Hour 1.04 patch");
             details.Add($"✗ Error: {ex.Message}");
             return new ActionSetResult(false, ex.Message, details);
+        }
+        finally
+        {
+            // Cleanup
+            if (File.Exists(downloadPath))
+            {
+                try
+                {
+                    File.Delete(downloadPath);
+                }
+                catch
+                {
+                }
+            }
+
+            if (Directory.Exists(extractPath))
+            {
+                try
+                {
+                    Directory.Delete(extractPath, true);
+                }
+                catch
+                {
+                }
+            }
         }
     }
 

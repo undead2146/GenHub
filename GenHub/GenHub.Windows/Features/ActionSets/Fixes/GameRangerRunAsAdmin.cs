@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Constants;
 using GenHub.Core.Features.ActionSets;
 using GenHub.Core.Models.GameInstallations;
 using Microsoft.Extensions.Logging;
@@ -16,6 +17,8 @@ using Microsoft.Extensions.Logging;
 /// </summary>
 public class GameRangerRunAsAdmin(ILogger<GameRangerRunAsAdmin> logger) : BaseActionSet(logger)
 {
+    private static readonly string[] GeneralsExecutables = ["Generals.exe", "generals.exe"];
+    private static readonly string[] ZeroHourExecutables = ["game.exe", "Game.exe"];
     private readonly ILogger<GameRangerRunAsAdmin> _logger = logger;
 
     /// <inheritdoc/>
@@ -135,8 +138,7 @@ public class GameRangerRunAsAdmin(ILogger<GameRangerRunAsAdmin> logger) : BaseAc
                     using var subKey = key.OpenSubKey(subKeyName, false);
                     if (subKey != null)
                     {
-                        var displayName = subKey.GetValue("DisplayName") as string;
-                        if (displayName != null && displayName.Contains("GameRanger", StringComparison.OrdinalIgnoreCase))
+                        if (subKey.GetValue("DisplayName") is string displayName && displayName.Contains("GameRanger", StringComparison.OrdinalIgnoreCase))
                         {
                             return true;
                         }
@@ -146,7 +148,14 @@ public class GameRangerRunAsAdmin(ILogger<GameRangerRunAsAdmin> logger) : BaseAc
 
             // Check for GameRanger processes
             var processes = Process.GetProcessesByName("GameRanger");
-            return processes.Length > 0;
+            try
+            {
+                return processes.Length > 0;
+            }
+            finally
+            {
+                foreach (var p in processes) p.Dispose();
+            }
         }
         catch (Exception ex)
         {
@@ -163,12 +172,12 @@ public class GameRangerRunAsAdmin(ILogger<GameRangerRunAsAdmin> logger) : BaseAc
 
             if (installation.HasGenerals)
             {
-                executables.AddRange(new[] { "Generals.exe", "generals.exe" });
+                executables.AddRange(GeneralsExecutables);
             }
 
             if (installation.HasZeroHour)
             {
-                executables.AddRange(new[] { "game.exe", "Game.exe" });
+                executables.AddRange(ZeroHourExecutables);
             }
 
             foreach (var exe in executables)
@@ -189,8 +198,7 @@ public class GameRangerRunAsAdmin(ILogger<GameRangerRunAsAdmin> logger) : BaseAc
 
                 if (key != null)
                 {
-                    var flags = key.GetValue(exePath) as string;
-                    if (flags != null && flags.Contains("RUNASADMIN", StringComparison.OrdinalIgnoreCase))
+                    if (key.GetValue(exePath) is string flags && flags.Contains("RUNASADMIN", StringComparison.OrdinalIgnoreCase))
                     {
                         return true;
                     }

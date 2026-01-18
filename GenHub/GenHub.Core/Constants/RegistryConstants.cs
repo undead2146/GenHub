@@ -86,4 +86,25 @@ public static class RegistryConstants
 
     /// <summary>Registry value name for DisplayName.</summary>
     public const string DisplayNameValueName = "DisplayName";
+
+    // ===== Intel Graphics Keys =====
+
+    /// <summary>Registry key path for Intel Graphics Class.</summary>
+    public const string IntelGraphicsClassKeyPath = @"SYSTEM\CurrentControlSet\Control\Class\{4D36E968-E325-11CE-BFC1-08002BE10318}";
+
+    /// <summary>Registry key path for Intel MEWiz.</summary>
+    public const string IntelMEWizKeyPath = @"SOFTWARE\Intel\MEWiz1.0";
+
+    // ===== Windows Media Feature Pack =====
+
+    /// <summary>Registry key path for Windows Media Player Feature.</summary>
+    public const string WindowsMediaPlayerFeatureKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Setup\WindowsFeatures\WindowsMediaPlayer";
+
+    // ===== Origin Keys =====
+
+    /// <summary>Registry key path for Origin.</summary>
+    public const string OriginKeyPath = @"SOFTWARE\Origin";
+
+    /// <summary>Registry value name for Origin Client Path.</summary>
+    public const string OriginClientPathValue = "ClientPath";
 }

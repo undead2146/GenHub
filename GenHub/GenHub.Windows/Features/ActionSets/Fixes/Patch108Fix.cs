@@ -34,7 +34,7 @@ public class Patch108Fix(IHttpClientFactory httpClientFactory, ILogger<Patch108F
     public override bool IsCoreFix => true;
 
     /// <inheritdoc/>
-    public override bool IsCrucialFix => true;
+    public override bool IsCrucialFix => false;
 
     /// <inheritdoc/>
     public override Task<bool> IsApplicableAsync(GameInstallation installation)
@@ -78,13 +78,13 @@ public class Patch108Fix(IHttpClientFactory httpClientFactory, ILogger<Patch108F
     {
         var details = new List<string>();
 
+        var tempPath = Path.Combine(Path.GetTempPath(), "gn108_patch.zip");
+        var extractPath = Path.Combine(Path.GetTempPath(), "gn108_extract");
+
         try
         {
             details.Add("Starting Generals 1.08 patch installation...");
             details.Add($"Target directory: {installation.GeneralsPath}");
-
-            var tempPath = Path.Combine(Path.GetTempPath(), "gn108_patch.zip");
-            var extractPath = Path.Combine(Path.GetTempPath(), "gn108_extract");
 
             details.Add($"Download URL: {ExternalUrls.Generals108PatchUrl}");
             details.Add("Downloading patch archive...");
@@ -137,13 +137,6 @@ public class Patch108Fix(IHttpClientFactory httpClientFactory, ILogger<Patch108F
 
             details.Add($"✓ Installed {copiedCount} files");
 
-            // Cleanup
-            if (File.Exists(tempPath))
-                File.Delete(tempPath);
-
-            if (Directory.Exists(extractPath))
-                Directory.Delete(extractPath, true);
-
             details.Add("✓ Cleanup completed");
             details.Add("✓ Generals 1.08 patch installed successfully");
 
@@ -155,6 +148,31 @@ public class Patch108Fix(IHttpClientFactory httpClientFactory, ILogger<Patch108F
             logger.LogError(ex, "Failed to install Generals 1.08 patch");
             details.Add($"✗ Error: {ex.Message}");
             return new ActionSetResult(false, ex.Message, details);
+        }
+        finally
+        {
+            // Cleanup
+            if (File.Exists(tempPath))
+            {
+                try
+                {
+                    File.Delete(tempPath);
+                }
+                catch
+                {
+                }
+            }
+
+            if (Directory.Exists(extractPath))
+            {
+                try
+                {
+                    Directory.Delete(extractPath, true);
+                }
+                catch
+                {
+                }
+            }
         }
     }
 

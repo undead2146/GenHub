@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Constants;
 using GenHub.Core.Features.ActionSets;
 using GenHub.Core.Models.GameInstallations;
 using Microsoft.Extensions.Logging;
@@ -117,7 +118,7 @@ public class NahimicFix(ILogger<NahimicFix> logger) : BaseActionSet(logger)
         {
             // Check for Nahimic in registry
             using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
-                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                RegistryConstants.UninstallKeyPath,
                 false);
 
             if (key != null)
@@ -127,8 +128,7 @@ public class NahimicFix(ILogger<NahimicFix> logger) : BaseActionSet(logger)
                     using var subKey = key.OpenSubKey(subKeyName, false);
                     if (subKey != null)
                     {
-                        var displayName = subKey.GetValue("DisplayName") as string;
-                        if (displayName != null && displayName.Contains("Nahimic", StringComparison.OrdinalIgnoreCase))
+                        if (subKey.GetValue("DisplayName") is string displayName && displayName.Contains("Nahimic", StringComparison.OrdinalIgnoreCase))
                         {
                             return true;
                         }

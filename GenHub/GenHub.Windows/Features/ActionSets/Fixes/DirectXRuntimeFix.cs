@@ -162,7 +162,7 @@ public class DirectXRuntimeFix(IHttpClientFactory httpClientFactory, ILogger<Dir
             }
 
             string setupExe;
-            string arguments;
+            string arguments = string.Empty;
 
             if (isExe)
             {
@@ -186,8 +186,6 @@ public class DirectXRuntimeFix(IHttpClientFactory httpClientFactory, ILogger<Dir
                     return new ActionSetResult(false, "DXSETUP.exe not found in downloaded package.", details);
                 }
             }
-
-            arguments = "/silent";
 
             details.Add($"Running DirectX Setup (silent mode)...");
             details.Add("  ⚠ This may require administrator privileges");
@@ -239,9 +237,9 @@ public class DirectXRuntimeFix(IHttpClientFactory httpClientFactory, ILogger<Dir
                     Directory.Delete(tempFolder, true);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore cleanup errors
+                _logger.LogDebug(ex, "Failed to cleanup temp directory: {TempFolder}", tempFolder);
             }
         }
     }

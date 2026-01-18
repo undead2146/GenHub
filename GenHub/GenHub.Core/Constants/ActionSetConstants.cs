@@ -170,4 +170,26 @@ public static class ActionSetConstants
             Path.Combine("Malwarebytes", "Anti-Malware", "mbamtray.exe")
         ];
     }
+
+    /// <summary>
+    /// File and directory paths used by ActionSets.
+    /// </summary>
+    public static class Paths
+    {
+        /// <summary>
+        /// Gets the directory name for sub-action set markers.
+        /// </summary>
+        public const string SubActionSetMarkers = "sub_markers";
+    }
+
+    /// <summary>
+    /// Validation constants for file operations.
+    /// </summary>
+    public static class Validation
+    {
+        /// <summary>
+        /// Minimum file size for VCRedist installers (1000 KB).
+        /// </summary>
+        public const long VCRedistMinSize = 1000 * 1024;
+    }
 }

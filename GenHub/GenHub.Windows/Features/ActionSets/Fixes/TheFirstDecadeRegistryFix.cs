@@ -101,7 +101,7 @@ public class TheFirstDecadeRegistryFix(
 
             details.Add("✓ Created: HKCU\\SOFTWARE\\EA Games\\Command & Conquer The First Decade");
             details.Add($"  • InstallPath = {tfdPath}");
-            details.Add("  • Version = 1.03");
+            details.Add($"  • Version = {RegistryConstants.TfdVersionValue}");
             details.Add("✓ The First Decade registry configuration completed successfully");
 
             _logger.LogInformation("Successfully created TFD registry entries at {Path} with {Count} actions", tfdPath, details.Count);

@@ -174,7 +174,7 @@ public class AppCompatConfigurationsFix(
             var psi = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
-                Arguments = $"-WindowStyle Hidden -NoProfile -NonInteractive -Command \"Add-MpPreference -ExclusionPath '{path}'\"",
+                Arguments = $"-WindowStyle Hidden -NoProfile -NonInteractive -Command \"Add-MpPreference -ExclusionPath \\\"{path}\\\"\"",
                 CreateNoWindow = true,
                 UseShellExecute = true, // Required for admin prompt if not already admin
                 Verb = "runas",

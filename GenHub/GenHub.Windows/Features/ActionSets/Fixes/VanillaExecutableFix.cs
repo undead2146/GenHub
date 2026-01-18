@@ -93,11 +93,6 @@ public class VanillaExecutableFix(ILogger<VanillaExecutableFix> logger) : BaseAc
             details.Add(string.Empty);
 
             var generalsExePath = Path.Combine(installation.GeneralsPath, ActionSetConstants.FileNames.GeneralsExe);
-            if (!File.Exists(generalsExePath))
-            {
-                // Try searching strictly if needed, but Windows specific constant is generals.exe
-            }
-
             if (File.Exists(generalsExePath))
             {
                 var versionInfo = System.Diagnostics.FileVersionInfo.GetVersionInfo(generalsExePath);

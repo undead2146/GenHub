@@ -1,10 +1,10 @@
 namespace GenHub.Windows.Features.ActionSets.Fixes;
 
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Constants;
 using GenHub.Core.Features.ActionSets;
 using GenHub.Core.Models.GameInstallations;
 using Microsoft.Extensions.Logging;
@@ -16,7 +16,7 @@ using Microsoft.Extensions.Logging;
 public class WindowsMediaFeaturePack(ILogger<WindowsMediaFeaturePack> logger) : BaseActionSet(logger)
 {
     private readonly ILogger<WindowsMediaFeaturePack> _logger = logger;
-    private readonly string _markerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", "sub_markers", "WindowsMediaFeaturePack.done");
+    private readonly string _markerPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GenHub", ActionSetConstants.Paths.SubActionSetMarkers, "WindowsMediaFeaturePack.done");
 
     /// <inheritdoc/>
     public override string Id => "WindowsMediaFeaturePack";
@@ -86,8 +86,9 @@ public class WindowsMediaFeaturePack(ILogger<WindowsMediaFeaturePack> logger) : 
                 Directory.CreateDirectory(Path.GetDirectoryName(_markerPath)!);
                 File.WriteAllText(_markerPath, DateTime.UtcNow.ToString());
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Failed to create marker file.");
             }
 
             return Task.FromResult(new ActionSetResult(true, "Please manually install Windows Media Feature Pack. See logs for details."));

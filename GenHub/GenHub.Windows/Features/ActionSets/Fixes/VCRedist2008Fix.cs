@@ -90,7 +90,7 @@ public class VCRedist2008Fix(IHttpClientFactory httpClientFactory, ILogger<VCRed
                     }
 
                     // Simple size validation check
-                    if (new FileInfo(tempFile).Length < 1000 * 1024)
+                    if (new FileInfo(tempFile).Length < ActionSetConstants.Validation.VCRedistMinSize)
                     {
                         _logger.LogWarning("Downloaded file too small, likely corrupt.");
                         continue;
@@ -121,18 +121,13 @@ public class VCRedist2008Fix(IHttpClientFactory httpClientFactory, ILogger<VCRed
                 Verb = "runas",
             };
 
-            using var process = Process.Start(psi);
-            if (process == null)
-            {
-                throw new InvalidOperationException("Failed to start installer.");
-            }
+            using var process = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start installer.");
 
             await process.WaitForExitAsync(cancellationToken);
 
             // 3010 = Reboot required
             if (process.ExitCode == 0 || process.ExitCode == 3010)
             {
-                File.Delete(tempFile);
                 return new ActionSetResult(true, "Visual C++ 2008 installed successfully.", details);
             }
             else
@@ -144,6 +139,19 @@ public class VCRedist2008Fix(IHttpClientFactory httpClientFactory, ILogger<VCRed
         {
             return new ActionSetResult(false, $"Error: {ex.Message}", details);
         }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                try
+            {
+                File.Delete(tempFile);
+            }
+            catch
+            {
+            }
+            }
+        }
     }
 
     /// <inheritdoc/>
@@ -152,7 +160,7 @@ public class VCRedist2008Fix(IHttpClientFactory httpClientFactory, ILogger<VCRed
         return Task.FromResult(new ActionSetResult(true, "Uninstalling runtime not supported automatically. Use Control Panel."));
     }
 
-    private bool IsProductInstalled(string productCode)
+    private static bool IsProductInstalled(string productCode)
     {
         try
         {

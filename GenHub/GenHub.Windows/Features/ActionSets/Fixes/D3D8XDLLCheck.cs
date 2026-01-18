@@ -17,12 +17,12 @@ using Microsoft.Extensions.Logging;
 public class D3D8XDLLCheck(ILogger<D3D8XDLLCheck> logger) : BaseActionSet(logger)
 {
     // DirectX 8/9 DLLs that Generals and Zero Hour may require (Retail only)
-    private static readonly string[] RequiredDLLs = new[]
-    {
+    private static readonly string[] RequiredDLLs =
+    [
         "d3d8.dll",
         "d3d8thk.dll",
         "d3dx9_43.dll",
-    };
+    ];
 
     private readonly ILogger<D3D8XDLLCheck> _logger = logger;
 
