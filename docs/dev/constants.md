@@ -245,8 +245,8 @@ Constants related to manifest ID generation, validation, and file operations.
 
 ### Manifest ID Regex Patterns
 
-| Constant                       | Description                                                                                                         |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| Constant                       | Description                                                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
 | `PublisherContentRegexPattern` | Regex for validating 5-segment publisher content IDs (schemaVersion.userVersion.publisher.contentType.contentName) |
 
 **Publisher Content Regex Pattern (5-segment format):**
@@ -966,7 +966,7 @@ Publisher types are **string-based** (not an enum) for extensibility. Any string
 | `LocalImport` | `"local"`      | Local file import by user |
 | `FileSystem`  | `"filesystem"` | Imported from file system |
 
-### Content Generation Constants
+### Content Generation Metadata Constants
 
 | Constant         | Value             | Description                                     |
 | ---------------- | ----------------- | ----------------------------------------------- |
@@ -974,14 +974,14 @@ Publisher types are **string-based** (not an enum) for extensibility. Any string
 | `GenHubInternal` | `"genhub"`        | GenHub internal system content                  |
 | `CsvGenerated`   | `"csvgenerated"`  | Content generated from CSV authoritative source |
 
-### Unspecified Publisher Types
+### Miscellaneous Publisher Types
 
 | Constant  | Value       | Description                           |
 | --------- | ----------- | ------------------------------------- |
 | `Unknown` | `"unknown"` | Unknown or unspecified publisher type |
 | `Custom`  | `"custom"`  | Custom user-defined publisher         |
 
-### Publisher Type Utilities
+### Publisher Identification Utilities
 
 #### `FromInstallationType(GameInstallationType)`
 

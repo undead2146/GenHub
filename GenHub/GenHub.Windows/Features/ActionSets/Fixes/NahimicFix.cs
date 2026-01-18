@@ -112,7 +112,7 @@ public class NahimicFix(ILogger<NahimicFix> logger) : BaseActionSet(logger)
         return Task.FromResult(new ActionSetResult(true));
     }
 
-    private bool IsNahimicInstalled()
+    private static bool IsNahimicInstalled()
     {
         try
         {
@@ -138,16 +138,16 @@ public class NahimicFix(ILogger<NahimicFix> logger) : BaseActionSet(logger)
 
             // Check for Nahimic processes
             var processes = Process.GetProcessesByName("Nahimic");
-            if (processes.Length == 0)
+            if (processes.Length > 0)
             {
-                processes = Process.GetProcessesByName("NahimicService");
+                return true;
             }
 
+            processes = Process.GetProcessesByName("NahimicService");
             return processes.Length > 0;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogWarning(ex, "Error checking for Nahimic installation");
             return false;
         }
     }
