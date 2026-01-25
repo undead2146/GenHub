@@ -3,7 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:GenHub.Features.GameReplays.ViewModels"
-             xmlns:grEnums="using:GenHub.Core.Models.GameReplays"
+             xmlns:grEnums="using:GenHub.Core.Models.Enums"
              mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
              x:Class="GenHub.Features.GameReplays.Views.GameReplaysView"
              x:DataType="vm:GameReplaysViewModel">
@@ -52,7 +52,7 @@
         </Style>
 
         <Style Selector="RadioButton.filter-tab:checked /template/ Border">
-             <Setter Property="BoxShadow" Value="0 0 15 0 #408A2BE2" />
+             <Setter Property="BoxShadow" Value="0 0 8 0 #408A2BE2" />
         </Style>
 
         <!-- Glass Panel Style -->
@@ -61,7 +61,7 @@
             <Setter Property="BorderBrush" Value="#40FFFFFF" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="16" />
-            <Setter Property="BoxShadow" Value="0 8 32 0 #60000000" />
+            <Setter Property="BoxShadow" Value="0 4 16 0 #60000000" />
         </Style>
     </UserControl.Styles>
 

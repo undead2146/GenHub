@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Core.Constants;
+using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameReplays;
 using System.Threading.Tasks;
 
@@ -11,19 +12,19 @@ namespace GenHub.Features.GameReplays.ViewModels;
 /// </summary>
 public partial class TournamentItemViewModel : ObservableObject
 {
-    private TournamentModel _tournament;
+    private Tournament _tournament;
     private bool _isSelected;
 
     /// <summary>Initializes a new instance of the <see cref="TournamentItemViewModel"/> class.</summary>
     public TournamentItemViewModel()
     {
-        _tournament = new TournamentModel();
+        _tournament = new Tournament();
         _isSelected = false;
     }
 
     /// <summary>Initializes a new instance of the <see cref="TournamentItemViewModel"/> class with a tournament model.</summary>
     /// <param name="tournament">The tournament model.</param>
-    public TournamentItemViewModel(TournamentModel tournament)
+    public TournamentItemViewModel(Tournament tournament)
     {
         _tournament = tournament;
         _isSelected = false;
@@ -32,7 +33,7 @@ public partial class TournamentItemViewModel : ObservableObject
     /// <summary>
     /// Gets or sets the tournament model.
     /// </summary>
-    public TournamentModel Tournament
+    public Tournament Tournament
     {
         get => _tournament;
         set => SetProperty(ref _tournament, value);

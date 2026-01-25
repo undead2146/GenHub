@@ -1,3 +1,4 @@
+using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameReplays;
 using GenHub.Core.Models.Results;
 using System.Collections.Generic;
@@ -25,7 +26,7 @@ public interface IGameReplaysService
     /// <param name="status">The tournament status to filter by.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Result containing filtered tournaments.</returns>
-    Task<OperationResult<IEnumerable<TournamentModel>>> GetTournamentsByStatusAsync(
+    Task<OperationResult<IEnumerable<Tournament>>> GetTournamentsByStatusAsync(
         TournamentStatus status,
         CancellationToken cancellationToken = default);
 
@@ -35,7 +36,7 @@ public interface IGameReplaysService
     /// <param name="topicId">The tournament topic ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Result containing tournament details.</returns>
-    Task<OperationResult<TournamentModel>> GetTournamentAsync(
+    Task<OperationResult<Tournament>> GetTournamentAsync(
         string topicId,
         CancellationToken cancellationToken = default);
 
@@ -45,7 +46,7 @@ public interface IGameReplaysService
     /// <param name="topicId">The topic ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Result containing forum posts.</returns>
-    Task<OperationResult<IEnumerable<ForumPostModel>>> GetTopicPostsAsync(
+    Task<OperationResult<IEnumerable<ForumPost>>> GetTopicPostsAsync(
         string topicId,
         CancellationToken cancellationToken = default);
 
@@ -90,7 +91,7 @@ public interface IGameReplaysService
     /// <param name="comment">The comment content.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Result indicating success or failure.</returns>
-    Task<OperationResult<bool>> PostCommentAsync(
+    Task<OperationResult<bool>> PostTournamentCommentAsync(
         string topicId,
         string comment,
         CancellationToken cancellationToken = default);
@@ -102,9 +103,7 @@ public interface IGameReplaysService
     /// <param name="topicId">The tournament topic ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Result containing comment collection.</returns>
-    Task<OperationResult<IEnumerable<CommentModel>>> GetCommentsAsync(
+    Task<OperationResult<IEnumerable<Comment>>> GetTournamentCommentsAsync(
         string topicId,
         CancellationToken cancellationToken = default);
 }
-
-

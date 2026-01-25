@@ -1,5 +1,6 @@
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.GameReplays;
+using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameReplays;
 using GenHub.Core.Models.Results;
 using Microsoft.Extensions.Logging;
@@ -18,12 +19,6 @@ public class GameReplaysCommentService(
     IGameReplaysParser parser,
     ILogger<GameReplaysCommentService> logger) : IGameReplaysCommentService
 {
-    private readonly IGameReplaysHttpClient _httpClient = httpClient;
-    private readonly IGameReplaysParser _parser = parser;
-    private readonly ILogger<GameReplaysCommentService> _logger = logger;
-
-    /// <inheritdoc/>
-
     /// <inheritdoc/>
     public async Task<OperationResult<bool>> PostCommentAsync(
         string topicId,
@@ -32,10 +27,10 @@ public class GameReplaysCommentService(
     {
         try
         {
-            _logger.LogDebug("Posting comment to topic: {TopicId}", topicId);
+            logger.LogDebug("Posting comment to topic: {TopicId}", topicId);
 
             // Check if authenticated
-            var authCookie = _httpClient.GetAuthCookie();
+            var authCookie = httpClient.GetAuthCookie();
             if (string.IsNullOrEmpty(authCookie))
             {
                 return OperationResult<bool>.CreateFailure("Not authenticated. Please log in first.");
@@ -54,7 +49,7 @@ public class GameReplaysCommentService(
                 { "fast_reply_used", "1" },
             };
 
-            var response = await _httpClient.PostFormAsync(
+            var response = await httpClient.PostFormAsync(
                 GameReplaysConstants.BaseUrl + "/community/index.php",
                 formData,
                 cancellationToken);
@@ -64,46 +59,46 @@ public class GameReplaysCommentService(
                 return OperationResult<bool>.CreateFailure(response.FirstError ?? "Failed to post comment");
             }
 
-            _logger.LogDebug("Successfully posted comment to topic: {TopicId}", topicId);
+            logger.LogDebug("Successfully posted comment to topic: {TopicId}", topicId);
 
             return OperationResult<bool>.CreateSuccess(true);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error posting comment to topic: {TopicId}", topicId);
+            logger.LogError(ex, "Error posting comment to topic: {TopicId}", topicId);
             return OperationResult<bool>.CreateFailure($"Error: {ex.Message}");
         }
     }
 
     /// <inheritdoc/>
-    public async Task<OperationResult<IEnumerable<CommentModel>>> GetCommentsAsync(
+    public async Task<OperationResult<IEnumerable<Comment>>> GetCommentsAsync(
         string topicId,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            _logger.LogDebug("Fetching comments for topic: {TopicId}", topicId);
+            logger.LogDebug("Fetching comments for topic: {TopicId}", topicId);
 
             var url = $"{GameReplaysConstants.BaseUrl}/community/index.php?showtopic={topicId}";
-            var htmlResult = await _httpClient.GetHtmlAsync(url, cancellationToken);
+            var htmlResult = await httpClient.GetHtmlAsync(url, cancellationToken);
 
             if (!htmlResult.Success)
             {
-                return OperationResult<IEnumerable<CommentModel>>.CreateFailure(htmlResult.FirstError ?? "Failed to fetch topic pages");
+                return OperationResult<IEnumerable<Comment>>.CreateFailure(htmlResult.FirstError ?? "Failed to fetch topic pages");
             }
 
-            var parseResult = _parser.ParseForumPosts(htmlResult.Data);
+            var parseResult = parser.ParseForumPosts(htmlResult.Data);
 
             if (!parseResult.Success)
             {
-                 return OperationResult<IEnumerable<CommentModel>>.CreateFailure(parseResult.FirstError ?? "Failed to parse topic posts");
+                 return OperationResult<IEnumerable<Comment>>.CreateFailure(parseResult.FirstError ?? "Failed to parse topic posts");
             }
 
-            var comments = new List<CommentModel>();
+            var comments = new List<Comment>();
 
             foreach (var post in parseResult.Data)
             {
-                comments.Add(new CommentModel
+                comments.Add(new Comment
                 {
                     Id = post.PostId,
                     AuthorId = post.Author,
@@ -115,12 +110,12 @@ public class GameReplaysCommentService(
                 });
             }
 
-            return OperationResult<IEnumerable<CommentModel>>.CreateSuccess(comments);
+            return OperationResult<IEnumerable<Comment>>.CreateSuccess(comments);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error fetching comments for topic: {TopicId}", topicId);
-            return OperationResult<IEnumerable<CommentModel>>.CreateFailure($"Error: {ex.Message}");
+            logger.LogError(ex, "Error fetching comments for topic: {TopicId}", topicId);
+            return OperationResult<IEnumerable<Comment>>.CreateFailure($"Error: {ex.Message}");
         }
     }
 }

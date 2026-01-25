@@ -1,9 +1,12 @@
+using GenHub.Core.Models.Enums;
+using System;
+
 namespace GenHub.Core.Models.GameReplays;
 
 /// <summary>
 /// Represents a tournament from GameReplays.org.
 /// </summary>
-public class TournamentModel
+public class Tournament
 {
     /// <summary>
     /// Gets or sets the topic ID for the tournament.
@@ -50,30 +53,4 @@ public class TournamentModel
     /// TODO: Implement comment counting when API is available.
     /// </summary>
     public int CommentCount { get; set; }
-}
-
-/// <summary>
-/// Represents the status of a tournament.
-/// </summary>
-public enum TournamentStatus
-{
-    /// <summary>
-    /// Tournament is accepting signups.
-    /// </summary>
-    SignupsOpen,
-
-    /// <summary>
-    /// Tournament is upcoming but not yet started.
-    /// </summary>
-    Upcoming,
-
-    /// <summary>
-    /// Tournament is currently active.
-    /// </summary>
-    Active,
-
-    /// <summary>
-    /// Tournament has finished.
-    /// </summary>
-    Finished,
 }

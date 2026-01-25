@@ -29,7 +29,7 @@ public interface IGameReplaysCommentService
     /// <param name="topicId">The tournament topic ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Result containing comment collection.</returns>
-    Task<OperationResult<IEnumerable<CommentModel>>> GetCommentsAsync(
+    Task<OperationResult<IEnumerable<Comment>>> GetCommentsAsync(
         string topicId,
         CancellationToken cancellationToken = default);
 }

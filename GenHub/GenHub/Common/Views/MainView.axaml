@@ -156,22 +156,22 @@
                 <!-- Tab navigation - Left side -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Bottom" Margin="0,0,0,6">
                     <Button Classes="modern-tab"
-                        Classes.active="{Binding SelectedTab, Converter={x:Static conv:NavigationTabConverter.Instance}, ConverterParameter={x:Static enums:NavigationTab.GameProfiles}}"
-                        Command="{Binding SelectTabCommand}"
-                        CommandParameter="{x:Static enums:NavigationTab.GameProfiles}"
-                        Content="Game Profiles"
-                        Name="Tab0Button" />
-                    <Button Classes="modern-tab"
                         Classes.active="{Binding SelectedTab, Converter={x:Static conv:NavigationTabConverter.Instance}, ConverterParameter={x:Static enums:NavigationTab.Downloads}}"
                         Command="{Binding SelectTabCommand}"
                         CommandParameter="{x:Static enums:NavigationTab.Downloads}"
                         Content="Downloads"
+                        Name="Tab0Button" />
+                    <Button Classes="modern-tab"
+                        Classes.active="{Binding SelectedTab, Converter={x:Static conv:NavigationTabConverter.Instance}, ConverterParameter={x:Static enums:NavigationTab.GameProfiles}}"
+                        Command="{Binding SelectTabCommand}"
+                        CommandParameter="{x:Static enums:NavigationTab.GameProfiles}"
+                        Content="Game Profiles"
                         Name="Tab1Button" />
                     <Button Classes="modern-tab"
-                        Classes.active="{Binding SelectedTab, Converter={x:Static conv:NavigationTabConverter.Instance}, ConverterParameter={x:Static enums:NavigationTab.Tools}}"
+                        Classes.active="{Binding SelectedTab, Converter={x:Static conv:NavigationTabConverter.Instance}, ConverterParameter={x:Static enums:NavigationTab.GameReplays}}"
                         Command="{Binding SelectTabCommand}"
-                        CommandParameter="{x:Static enums:NavigationTab.Tools}"
-                        Content="Tools"
+                        CommandParameter="{x:Static enums:NavigationTab.GameReplays}"
+                        Content="Game Replays"
                         Name="Tab2Button" />
                     <Button Classes="modern-tab"
                         Classes.active="{Binding SelectedTab, Converter={x:Static conv:NavigationTabConverter.Instance}, ConverterParameter={x:Static enums:NavigationTab.Settings}}"
@@ -180,10 +180,10 @@
                         Content="Settings"
                         Name="Tab3Button" />
                     <Button Classes="modern-tab"
-                        Classes.active="{Binding SelectedTab, Converter={x:Static conv:NavigationTabConverter.Instance}, ConverterParameter={x:Static enums:NavigationTab.GameReplays}}"
+                        Classes.active="{Binding SelectedTab, Converter={x:Static conv:NavigationTabConverter.Instance}, ConverterParameter={x:Static enums:NavigationTab.Tools}}"
                         Command="{Binding SelectTabCommand}"
-                        CommandParameter="{x:Static enums:NavigationTab.GameReplays}"
-                        Content="Game Replays"
+                        CommandParameter="{x:Static enums:NavigationTab.Tools}"
+                        Content="Tools"
                         Name="Tab4Button" />
                 </StackPanel>
                 <!-- branding and update button - Right side -->

@@ -1,5 +1,6 @@
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.GameReplays;
+using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameReplays;
 using GenHub.Core.Models.Results;
 using HtmlAgilityPack;
@@ -8,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace GenHub.Core.Services.GameReplays;
@@ -16,27 +18,22 @@ namespace GenHub.Core.Services.GameReplays;
 /// Parser implementation for GameReplays HTML content.
 /// Extracts tournament and forum post data from HTML.
 /// </summary>
-public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplaysParser
+public partial class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplaysParser
 {
-    private readonly ILogger<GameReplaysParser> _logger = logger;
-
     /// <inheritdoc/>
     public OperationResult<GameReplaysTournaments> ParseTournamentBoard(string html)
     {
         try
         {
-            _logger.LogDebug("Parsing tournament board HTML");
+            logger.LogDebug("Parsing tournament board HTML");
 
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
 
-            var result = new GameReplaysTournaments
-            {
-                SignupsOpen = new List<TournamentModel>(),
-                Upcoming = new List<TournamentModel>(),
-                Active = new List<TournamentModel>(),
-                Finished = new List<TournamentModel>(),
-            };
+            var signupsOpen = new List<Tournament>();
+            var upcoming = new List<Tournament>();
+            var active = new List<Tournament>();
+            var finished = new List<Tournament>();
 
             // Find main post content
             var mainPost = doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'post')]/div[@class='comment_wrapper']/div[@class='comment']/div[@class='comment_display_content']");
@@ -51,7 +48,6 @@ public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplays
             var foundAny = false;
 
             // Use Descendants to flatten the tree safely
-            // This grabs ALL nodes in the tree in order of appearance (opening tag)
             var allNodes = mainPost.Descendants();
 
             foreach (var node in allNodes)
@@ -59,8 +55,11 @@ public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplays
                 // Only care about Text nodes for headers
                 if (node.NodeType == HtmlNodeType.Text)
                 {
-                   var text = node.InnerText.Trim();
-                   if (string.IsNullOrWhiteSpace(text)) continue;
+                    var text = node.InnerText.Trim();
+                    if (string.IsNullOrWhiteSpace(text))
+                    {
+                        continue;
+                    }
 
                     // Detect Section Headers
                     if (IsHeader(text, "Signups Open"))
@@ -68,16 +67,19 @@ public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplays
                         currentStatus = TournamentStatus.SignupsOpen;
                         continue;
                     }
+
                     if (IsHeader(text, "Upcoming"))
                     {
                         currentStatus = TournamentStatus.Upcoming;
                         continue;
                     }
+
                     if (IsHeader(text, "Active"))
                     {
                         currentStatus = TournamentStatus.Active;
                         continue;
                     }
+
                     // Handle "Finished/Previous" and specifically "Finished"
                     if (IsHeader(text, "Finished") || IsHeader(text, "Previous"))
                     {
@@ -92,26 +94,27 @@ public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplays
                     var href = node.GetAttributeValue("href", string.Empty);
 
                     // Basic validation that it's a topic link
-                    if (Regex.IsMatch(href, @"showtopic=\d+"))
+                    if (TopicLinkValidationRegex().IsMatch(href))
                     {
                         var tournament = ParseTournamentLink(node, currentStatus);
                         if (tournament != null)
                         {
                             foundAny = true;
+
                             // Add to list based on current status
                             switch (currentStatus)
                             {
                                 case TournamentStatus.SignupsOpen:
-                                    ((List<TournamentModel>)result.SignupsOpen).Add(tournament);
+                                    signupsOpen.Add(tournament);
                                     break;
                                 case TournamentStatus.Upcoming:
-                                    ((List<TournamentModel>)result.Upcoming).Add(tournament);
+                                    upcoming.Add(tournament);
                                     break;
                                 case TournamentStatus.Active:
-                                    ((List<TournamentModel>)result.Active).Add(tournament);
+                                    active.Add(tournament);
                                     break;
                                 case TournamentStatus.Finished:
-                                    ((List<TournamentModel>)result.Finished).Add(tournament);
+                                    finished.Add(tournament);
                                     break;
                             }
                         }
@@ -121,10 +124,18 @@ public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplays
 
             if (!foundAny)
             {
-                 _logger.LogWarning("No tournaments found using linear scan.");
+                logger.LogWarning("No tournaments found using linear scan.");
             }
 
-            _logger.LogDebug(
+            var result = new GameReplaysTournaments
+            {
+                SignupsOpen = signupsOpen,
+                Upcoming = upcoming,
+                Active = active,
+                Finished = finished,
+            };
+
+            logger.LogDebug(
                 "Parsed tournament board: {SignupsOpen} signups open, {Upcoming} upcoming, {Active} active, {Finished} finished",
                 result.SignupsOpen.Count(),
                 result.Upcoming.Count(),
@@ -135,110 +146,17 @@ public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplays
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error parsing tournament board HTML");
+            logger.LogError(ex, "Error parsing tournament board HTML");
             return OperationResult<GameReplaysTournaments>.CreateFailure($"Parse error: {ex.Message}");
         }
     }
 
-    private bool IsHeader(string text, string headerKeyword)
-    {
-        return text.Contains(headerKeyword, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private TournamentModel? ParseTournamentLink(HtmlNode linkNode, TournamentStatus status)
-    {
-        try
-        {
-            var href = linkNode.GetAttributeValue("href", string.Empty);
-            var name = linkNode.InnerText.Trim();
-
-            if (string.IsNullOrWhiteSpace(name)) return null;
-
-            // Extract topic ID from URL
-            var topicIdMatch = Regex.Match(href, @"showtopic=(\d+)");
-            var topicId = topicIdMatch.Success ? topicIdMatch.Groups[1].Value : string.Empty;
-
-            // Get host name from text (e.g., "hosted by AkRaMjOn")
-            var host = ExtractHostName(name);
-
-            // Get dates from nearby italic text
-            // We search siblings or parent's siblings for the date info
-            var dateInfo = FindDateInfo(linkNode);
-            DateTime? signupsCloseDate = null;
-            DateTime? startDate = null;
-
-            if (!string.IsNullOrEmpty(dateInfo))
-            {
-                if (dateInfo.Contains("Signups close", StringComparison.OrdinalIgnoreCase))
-                {
-                    signupsCloseDate = ParseDateFromText(dateInfo);
-                }
-
-                if (dateInfo.Contains("Started", StringComparison.OrdinalIgnoreCase))
-                {
-                    startDate = ParseDateFromText(dateInfo);
-                }
-
-                // Sometimes it just says "May 12th 2025" without prefix for finished
-                if (status == TournamentStatus.Finished && startDate == null)
-                {
-                     startDate = ParseDateFromText(dateInfo);
-                }
-            }
-
-            return new TournamentModel
-            {
-                TopicId = topicId,
-                Name = name.Replace(" hosted by " + host, string.Empty, StringComparison.OrdinalIgnoreCase).Trim(),
-                Host = host,
-                Url = href.StartsWith("/") ? GameReplaysConstants.BaseUrl + href : href,
-                Status = status,
-                SignupsCloseDate = signupsCloseDate,
-                StartDate = startDate,
-            };
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private string FindDateInfo(HtmlNode linkNode)
-    {
-        // Strategy 1: Next sibling <i> tag (common structure)
-        var nextNode = linkNode.NextSibling;
-        while (nextNode != null)
-        {
-            if (nextNode.Name == "i" || (nextNode.Name == "span" && nextNode.InnerText.Contains("Started")))
-            {
-                return nextNode.InnerText;
-            }
-            // Stop if we hit a newline or another link
-            if (nextNode.Name == "br" || nextNode.Name == "a") break;
-
-            nextNode = nextNode.NextSibling;
-        }
-
-        // Strategy 2: Parent's text (if link is inside li or span)
-        if (linkNode.ParentNode != null)
-        {
-           var parentText = linkNode.ParentNode.InnerText;
-           if (parentText.Contains("(")) // Dates are often in brackets
-           {
-               return parentText;
-           }
-        }
-
-        return string.Empty;
-    }
-
-
     /// <inheritdoc/>
-    public OperationResult<TournamentModel> ParseTournamentTopic(string html)
+    public OperationResult<Tournament> ParseTournamentTopic(string html)
     {
         try
         {
-            _logger.LogDebug("Parsing tournament topic HTML");
+            logger.LogDebug("Parsing tournament topic HTML");
 
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
@@ -249,7 +167,7 @@ public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplays
             var status = ExtractTournamentStatus(html);
             var (signupsCloseDate, startDate) = ExtractTournamentDates(html);
 
-            var tournament = new TournamentModel
+            var tournament = new Tournament
             {
                 Name = title,
                 Status = status,
@@ -258,31 +176,31 @@ public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplays
                 Description = FormatHtmlForDisplay(html),
             };
 
-            return OperationResult<TournamentModel>.CreateSuccess(tournament);
+            return OperationResult<Tournament>.CreateSuccess(tournament);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error parsing tournament topic HTML");
-            return OperationResult<TournamentModel>.CreateFailure($"Parse error: {ex.Message}");
+            logger.LogError(ex, "Error parsing tournament topic HTML");
+            return OperationResult<Tournament>.CreateFailure($"Parse error: {ex.Message}");
         }
     }
 
     /// <inheritdoc/>
-    public OperationResult<IEnumerable<ForumPostModel>> ParseForumPosts(string html)
+    public OperationResult<IEnumerable<ForumPost>> ParseForumPosts(string html)
     {
         try
         {
-            _logger.LogDebug("Parsing forum posts HTML");
+            logger.LogDebug("Parsing forum posts HTML");
 
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
 
-            var posts = new List<ForumPostModel>();
+            var posts = new List<ForumPost>();
             var postNodes = doc.DocumentNode.SelectNodes("//div[contains(@class, 'post')]");
 
             if (postNodes == null)
             {
-                return OperationResult<IEnumerable<ForumPostModel>>.CreateSuccess(posts);
+                return OperationResult<IEnumerable<ForumPost>>.CreateSuccess(posts);
             }
 
             foreach (var postNode in postNodes)
@@ -294,14 +212,14 @@ public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplays
                 }
             }
 
-            _logger.LogDebug("Parsed {Count} forum posts", posts.Count);
+            logger.LogDebug("Parsed {Count} forum posts", posts.Count);
 
-            return OperationResult<IEnumerable<ForumPostModel>>.CreateSuccess(posts);
+            return OperationResult<IEnumerable<ForumPost>>.CreateSuccess(posts);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error parsing forum posts HTML");
-            return OperationResult<IEnumerable<ForumPostModel>>.CreateFailure($"Parse error: {ex.Message}");
+            logger.LogError(ex, "Error parsing forum posts HTML");
+            return OperationResult<IEnumerable<ForumPost>>.CreateFailure($"Parse error: {ex.Message}");
         }
     }
 
@@ -310,14 +228,11 @@ public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplays
     {
         try
         {
-            _logger.LogDebug("Parsing OAuth token response JSON");
+            logger.LogDebug("Parsing OAuth token response JSON");
 
-            var options = new System.Text.Json.JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-            };
+            var options = JsonOptions;
 
-            var tokenResponse = System.Text.Json.JsonSerializer.Deserialize<OAuthTokenResponse>(json, options);
+            var tokenResponse = JsonSerializer.Deserialize<OAuthTokenResponse>(json, options);
 
             if (tokenResponse == null)
             {
@@ -328,7 +243,7 @@ public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplays
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error parsing OAuth token response JSON");
+            logger.LogError(ex, "Error parsing OAuth token response JSON");
             return OperationResult<OAuthTokenResponse>.CreateFailure($"Parse error: {ex.Message}");
         }
     }
@@ -338,14 +253,11 @@ public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplays
     {
         try
         {
-            _logger.LogDebug("Parsing OAuth user info JSON");
+            logger.LogDebug("Parsing OAuth user info JSON");
 
-            var options = new System.Text.Json.JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-            };
+            var options = JsonOptions;
 
-            var userInfo = System.Text.Json.JsonSerializer.Deserialize<OAuthUserInfo>(json, options);
+            var userInfo = JsonSerializer.Deserialize<OAuthUserInfo>(json, options);
 
             if (userInfo == null)
             {
@@ -356,7 +268,7 @@ public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplays
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error parsing OAuth user info JSON");
+            logger.LogError(ex, "Error parsing OAuth user info JSON");
             return OperationResult<OAuthUserInfo>.CreateFailure($"Parse error: {ex.Message}");
         }
     }
@@ -499,9 +411,206 @@ public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplays
         return doc.DocumentNode.InnerText.Trim();
     }
 
+    private static bool IsHeader(string text, string headerKeyword)
+    {
+        return text.Contains(headerKeyword, StringComparison.OrdinalIgnoreCase);
+    }
 
+    private static string FindDateInfo(HtmlNode linkNode)
+    {
+        // Strategy 1: Next sibling <i> tag (common structure)
+        var nextNode = linkNode.NextSibling;
+        while (nextNode != null)
+        {
+            if (nextNode.Name == "i" || (nextNode.Name == "span" && nextNode.InnerText.Contains("Started")))
+            {
+                return nextNode.InnerText;
+            }
 
-    private ForumPostModel? ParsePostNode(HtmlNode postNode)
+            // Stop if we hit a newline or another link
+            if (nextNode.Name == "br" || nextNode.Name == "a")
+            {
+                break;
+            }
+
+            nextNode = nextNode.NextSibling;
+        }
+
+        // Strategy 2: Parent's text (if link is inside li or span)
+        if (linkNode.ParentNode != null)
+        {
+            var parentText = linkNode.ParentNode.InnerText;
+            if (parentText.Contains('(') && parentText.Contains(')')) // Dates are often in brackets
+            {
+                return parentText;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static string ExtractHostName(string text)
+    {
+        var match = HostNameRegex().Match(text);
+        return match.Success ? match.Groups[1].Value.Trim() : "Unknown";
+    }
+
+    private static DateTime? ParseDateFromText(string text)
+    {
+        // Try various date formats
+        var formats = new[]
+        {
+            "MMMM d, yyyy",
+            "MMM d, yyyy",
+            "MMMM d yyyy",
+            "d MMMM yyyy",
+            "dd MMMM yyyy",
+        };
+
+        // Extract date from text
+        var dateMatch = DateFromTextRegex().Match(text);
+        if (dateMatch.Success)
+        {
+            var dateStr = dateMatch.Groups[1].Value;
+
+            // Remove ordinal suffixes
+            dateStr = OrdinalSuffixRegex().Replace(dateStr, "$1");
+            dateStr = dateStr.Replace(",", string.Empty); // Remove commas for consistent parsing
+
+            foreach (var format in formats)
+            {
+                // Try to parse with spaces condensed
+                if (DateTime.TryParse(dateStr, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+                {
+                    return date;
+                }
+
+                if (DateTime.TryParseExact(dateStr, format, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dateExact))
+                {
+                    return dateExact;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static DateTime ParsePostDate(string text)
+    {
+        // Format: "Dec 30 2022, 09:03 AM"
+        var match = PostDateRegex().Match(text);
+        if (match.Success)
+        {
+            if (DateTime.TryParseExact(match.Value, "MMM dd yyyy, hh:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+            {
+                return date;
+            }
+        }
+
+        return DateTime.UtcNow;
+    }
+
+    private static DateTime? ParseEditDate(string text)
+    {
+        // Format: "This post has been edited by <b>Name</b>: Jan 11 2023, 14:00 PM"
+        var match = EditDateRegex().Match(text);
+        if (match.Success)
+        {
+            if (DateTime.TryParseExact(match.Value, ": MMM dd yyyy, hh:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+            {
+                return date;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsSafeAttribute(string attributeName)
+    {
+        var safeAttributes = new[]
+        {
+            "href", "src", "alt", "title", "class", "id", "style",
+        };
+
+        return safeAttributes.Contains(attributeName.ToLowerInvariant());
+    }
+
+    private static HtmlNode? FindSectionByColor(HtmlNode parentNode, string color)
+    {
+        // Look for span with specific color
+        var colorSpan = parentNode.SelectSingleNode($".//span[@style='color:{color}']");
+        if (colorSpan == null)
+        {
+            return null;
+        }
+
+        // Get parent ul element
+        var ulNode = colorSpan.ParentNode?.ParentNode;
+        return ulNode?.Name == "ul" ? ulNode : null;
+    }
+
+    private static Tournament? ParseTournamentLink(HtmlNode linkNode, TournamentStatus status)
+    {
+        try
+        {
+            var href = linkNode.GetAttributeValue("href", string.Empty);
+            var name = linkNode.InnerText.Trim();
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return null;
+            }
+
+            // Extract topic ID from URL
+            var topicIdMatch = TopicIdRegex().Match(href);
+            var topicId = topicIdMatch.Success ? topicIdMatch.Groups[1].Value : string.Empty;
+
+            // Get host name from text (e.g., "hosted by AkRaMjOn")
+            var host = ExtractHostName(name);
+
+            // Get dates from nearby italic text
+            // We search siblings or parent's siblings for the date info
+            var dateInfo = FindDateInfo(linkNode);
+            DateTime? signupsCloseDate = null;
+            DateTime? startDate = null;
+
+            if (!string.IsNullOrEmpty(dateInfo))
+            {
+                if (dateInfo.Contains("Signups close", StringComparison.OrdinalIgnoreCase))
+                {
+                    signupsCloseDate = ParseDateFromText(dateInfo);
+                }
+
+                if (dateInfo.Contains("Started", StringComparison.OrdinalIgnoreCase))
+                {
+                    startDate = ParseDateFromText(dateInfo);
+                }
+
+                // Sometimes it just says "May 12th 2025" without prefix for finished
+                if (status == TournamentStatus.Finished && startDate == null)
+                {
+                     startDate = ParseDateFromText(dateInfo);
+                }
+            }
+
+            return new Tournament
+            {
+                TopicId = topicId,
+                Name = name.Replace(" hosted by " + host, string.Empty, StringComparison.OrdinalIgnoreCase).Trim(),
+                Host = host,
+                Url = href.StartsWith('/') ? GameReplaysConstants.BaseUrl + href : href,
+                Status = status,
+                SignupsCloseDate = signupsCloseDate,
+                StartDate = startDate,
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private ForumPost? ParsePostNode(HtmlNode postNode)
     {
         try
         {
@@ -535,7 +644,7 @@ public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplays
             var authorName = authorNode?.InnerText.Trim() ?? "Unknown";
 
             // Extract author ID from URL
-            var authorIdMatch = Regex.Match(authorId, @"showuser=(\d+)");
+            var authorIdMatch = AuthorIdRegex().Match(authorId);
             var authorIdValue = authorIdMatch.Success ? authorIdMatch.Groups[1].Value : string.Empty;
 
             // Extract post date
@@ -556,7 +665,7 @@ public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplays
                 editedAt = ParseEditDate(editedText);
             }
 
-            return new ForumPostModel
+            return new ForumPost
             {
                 PostId = postId,
                 TopicId = string.Empty, // Will be set by caller
@@ -564,115 +673,44 @@ public class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGameReplays
                 AuthorDisplayName = authorName,
                 PostedAt = postedAt,
                 ContentHtml = contentHtml,
-                Comments = new List<CommentModel>(),
+                Comments = [],
                 IsEdited = isEdited,
                 EditedAt = editedAt,
             };
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error parsing post node");
+            logger.LogWarning(ex, "Error parsing post node");
             return null;
         }
     }
 
-    private string ExtractHostName(string text)
+    private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        var match = Regex.Match(text, @"hosted by (.+)", RegexOptions.IgnoreCase);
-        return match.Success ? match.Groups[1].Value.Trim() : "Unknown";
-    }
+        PropertyNameCaseInsensitive = true,
+    };
 
-    private DateTime? ParseDateFromText(string text)
-    {
-        // Try various date formats
-        var formats = new[]
-        {
-            "MMMM d, yyyy",
-            "MMM d, yyyy",
-            "MMMM d yyyy",
-            "d MMMM yyyy",
-            "dd MMMM yyyy"
-        };
+    [GeneratedRegex(@"showtopic=\d+")]
+    private static partial Regex TopicLinkValidationRegex();
 
-        // Extract date from text
-        var dateMatch = Regex.Match(text, @"(\w+ \d{1,2}(?:st|nd|rd|th)?,? \d{4})");
-        if (dateMatch.Success)
-        {
-            var dateStr = dateMatch.Groups[1].Value;
+    [GeneratedRegex(@"showtopic=(\d+)")]
+    private static partial Regex TopicIdRegex();
 
-            // Remove ordinal suffixes
-            dateStr = Regex.Replace(dateStr, @"(\d+)(st|nd|rd|th)", "$1");
-            dateStr = dateStr.Replace(",", ""); // Remove commas for consistent parsing
+    [GeneratedRegex(@"showuser=(\d+)")]
+    private static partial Regex AuthorIdRegex();
 
-            foreach (var format in formats)
-            {
-                // Try to parse with spaces condensed
-                if (DateTime.TryParse(dateStr, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
-                {
-                    return date;
-                }
+    [GeneratedRegex(@"hosted by (.+)", RegexOptions.IgnoreCase)]
+    private static partial Regex HostNameRegex();
 
-                 if (DateTime.TryParseExact(dateStr, format, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dateExact))
-                {
-                    return dateExact;
-                }
-            }
-        }
+    [GeneratedRegex(@"(\w+ \d{1,2}(?:st|nd|rd|th)?,? \d{4})")]
+    private static partial Regex DateFromTextRegex();
 
-        return null;
-    }
+    [GeneratedRegex(@"(\d+)(st|nd|rd|th)")]
+    private static partial Regex OrdinalSuffixRegex();
 
-    private DateTime ParsePostDate(string text)
-    {
-        // Format: "Dec 30 2022, 09:03 AM"
-        var match = Regex.Match(text, @"(\w{3} \d{1,2} \d{4}, \d{1,2}:\d{2} [AP]M)");
-        if (match.Success)
-        {
-            if (DateTime.TryParseExact(match.Value, "MMM dd yyyy, hh:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
-            {
-                return date;
-            }
-        }
+    [GeneratedRegex(@"(\w{3} \d{1,2} \d{4}, \d{1,2}:\d{2} [AP]M)")]
+    private static partial Regex PostDateRegex();
 
-        return DateTime.UtcNow;
-    }
-
-    private DateTime? ParseEditDate(string text)
-    {
-        // Format: "This post has been edited by <b>Name</b>: Jan 11 2023, 14:00 PM"
-        var match = Regex.Match(text, @": (\w{3} \d{1,2} \d{4}, \d{1,2}:\d{2} [AP]M)");
-        if (match.Success)
-        {
-            if (DateTime.TryParseExact(match.Value, ": MMM dd yyyy, hh:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
-            {
-                return date;
-            }
-        }
-
-        return null;
-    }
-
-    private bool IsSafeAttribute(string attributeName)
-    {
-        var safeAttributes = new[]
-        {
-            "href", "src", "alt", "title", "class", "id", "style",
-        };
-
-        return safeAttributes.Contains(attributeName.ToLowerInvariant());
-    }
-
-    private HtmlNode? FindSectionByColor(HtmlNode parentNode, string color)
-    {
-        // Look for span with specific color
-        var colorSpan = parentNode.SelectSingleNode($".//span[@style='color:{color}']");
-        if (colorSpan == null)
-        {
-            return null;
-        }
-
-        // Get parent ul element
-        var ulNode = colorSpan.ParentNode?.ParentNode;
-        return ulNode?.Name == "ul" ? ulNode : null;
-    }
+    [GeneratedRegex(@": (\w{3} \d{1,2} \d{4}, \d{1,2}:\d{2} [AP]M)")]
+    private static partial Regex EditDateRegex();
 }

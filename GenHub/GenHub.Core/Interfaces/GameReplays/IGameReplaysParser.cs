@@ -1,3 +1,4 @@
+using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameReplays;
 using GenHub.Core.Models.Results;
 using System.Collections.Generic;
@@ -22,14 +23,14 @@ public interface IGameReplaysParser
     /// </summary>
     /// <param name="html">The HTML content to parse.</param>
     /// <returns>Result containing tournament details.</returns>
-    OperationResult<TournamentModel> ParseTournamentTopic(string html);
+    OperationResult<Tournament> ParseTournamentTopic(string html);
 
     /// <summary>
-    /// Parses forum posts from a topic page.
+    /// Parses forum posts from HTML.
     /// </summary>
-    /// <param name="html">The HTML content to parse.</param>
-    /// <returns>Result containing forum posts.</returns>
-    OperationResult<IEnumerable<ForumPostModel>> ParseForumPosts(string html);
+    /// <param name="html">The HTML content.</param>
+    /// <returns>Result containing collection of forum posts.</returns>
+    OperationResult<IEnumerable<ForumPost>> ParseForumPosts(string html);
 
     /// <summary>
     /// Parses OAuth token response from JSON.

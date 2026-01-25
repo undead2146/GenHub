@@ -44,7 +44,7 @@ public class GameReplaysCommentServiceTests
         // Arrange
         var topicId = "12345";
         var htmlContent = "<html>some content</html>";
-        var posts = new List<ForumPostModel>
+        var posts = new List<ForumPost>
         {
             new()
             {
@@ -68,7 +68,7 @@ public class GameReplaysCommentServiceTests
             .ReturnsAsync(OperationResult<string>.CreateSuccess(htmlContent));
 
         _parserMock.Setup(x => x.ParseForumPosts(htmlContent))
-            .Returns(OperationResult<IEnumerable<ForumPostModel>>.CreateSuccess(posts));
+            .Returns(OperationResult<IEnumerable<ForumPost>>.CreateSuccess(posts));
 
         // Act
         var result = await _sut.GetCommentsAsync(topicId);
@@ -125,7 +125,7 @@ public class GameReplaysCommentServiceTests
             .ReturnsAsync(OperationResult<string>.CreateSuccess(htmlContent));
 
         _parserMock.Setup(x => x.ParseForumPosts(htmlContent))
-            .Returns(OperationResult<IEnumerable<ForumPostModel>>.CreateFailure("Parse error"));
+            .Returns(OperationResult<IEnumerable<ForumPost>>.CreateFailure("Parse error"));
 
         // Act
         var result = await _sut.GetCommentsAsync(topicId);

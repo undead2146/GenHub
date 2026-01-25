@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Interfaces.GameReplays;
+using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameReplays;
 using GenHub.Core.Models.Results;
 using Microsoft.Extensions.Logging;
@@ -99,11 +100,16 @@ public partial class GameReplaysViewModel(
             TournamentStatus.Upcoming => _tournaments.Upcoming,
             TournamentStatus.Active => _tournaments.Active,
             TournamentStatus.Finished => _tournaments.Finished,
-            _ => Enumerable.Empty<TournamentModel>(),
+            _ => Enumerable.Empty<Tournament>(),
         };
 
-        FilteredTournaments = new ObservableCollection<TournamentItemViewModel>(
-            items.Select(t => new TournamentItemViewModel(t)));
+        var viewModels = items.Select(t => new TournamentItemViewModel(t)).ToList();
+
+        FilteredTournaments.Clear();
+        foreach (var vm in viewModels)
+        {
+            FilteredTournaments.Add(vm);
+        }
 
         OnPropertyChanged(nameof(FilteredCount));
         OnPropertyChanged(nameof(HasFilteredTournaments));

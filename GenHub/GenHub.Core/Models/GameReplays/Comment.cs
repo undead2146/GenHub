@@ -1,9 +1,11 @@
+using System;
+
 namespace GenHub.Core.Models.GameReplays;
 
 /// <summary>
 /// Represents a comment on a forum post.
 /// </summary>
-public class CommentModel
+public class Comment
 {
     /// <summary>
     /// Gets or sets the comment ID.

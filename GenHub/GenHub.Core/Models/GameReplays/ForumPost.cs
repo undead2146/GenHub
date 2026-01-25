@@ -1,9 +1,12 @@
+using System;
+using System.Collections.Generic;
+
 namespace GenHub.Core.Models.GameReplays;
 
 /// <summary>
 /// Represents a forum post from GameReplays.org.
 /// </summary>
-public class ForumPostModel
+public class ForumPost
 {
     /// <summary>
     /// Gets or sets the post ID.
@@ -38,7 +41,7 @@ public class ForumPostModel
     /// <summary>
     /// Gets or sets the collection of comments on this post.
     /// </summary>
-    public List<CommentModel> Comments { get; set; } = [];
+    public List<Comment> Comments { get; set; } = [];
 
     /// <summary>
     /// Gets or sets a value indicating whether this post has been edited.

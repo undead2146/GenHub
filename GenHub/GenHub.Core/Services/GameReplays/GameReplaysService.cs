@@ -1,9 +1,9 @@
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.GameReplays;
+using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameReplays;
 using GenHub.Core.Models.Results;
 using Microsoft.Extensions.Logging;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -22,15 +22,8 @@ public class GameReplaysService(
     IGameReplaysCommentService commentService,
     ILogger<GameReplaysService> logger) : IGameReplaysService
 {
-    private readonly IGameReplaysHttpClient _httpClient = httpClient;
-    private readonly IGameReplaysParser _parser = parser;
-    private readonly IGameReplaysAuthService _authService = authService;
-    private readonly IGameReplaysCommentService _commentService = commentService;
-    private readonly ILogger<GameReplaysService> _logger = logger;
-
     private GameReplaysTournaments? _cachedTournaments;
-    private DateTime _cacheExpiry;
-
+    private System.DateTime _cacheExpiry;
 
     /// <inheritdoc/>
     public async Task<OperationResult<GameReplaysTournaments>> GetTournamentsAsync(
@@ -38,18 +31,18 @@ public class GameReplaysService(
     {
         try
         {
-            _logger.LogDebug("Fetching tournaments from tournament board");
+            logger.LogDebug("Fetching tournaments from tournament board");
 
             // Check cache
-            if (_cachedTournaments != null && DateTime.UtcNow < _cacheExpiry)
+            if (_cachedTournaments != null && System.DateTime.UtcNow < _cacheExpiry)
             {
-                _logger.LogDebug("Returning cached tournaments");
+                logger.LogDebug("Returning cached tournaments");
                 return OperationResult<GameReplaysTournaments>.CreateSuccess(_cachedTournaments);
             }
 
             // Fetch tournament board HTML
             var url = $"{GameReplaysConstants.BaseUrl}/community/index.php?showtopic={GameReplaysConstants.TournamentBoardTopicId}";
-            var htmlResult = await _httpClient.GetHtmlAsync(url, cancellationToken);
+            var htmlResult = await httpClient.GetHtmlAsync(url, cancellationToken);
 
             if (!htmlResult.Success)
             {
@@ -57,7 +50,7 @@ public class GameReplaysService(
             }
 
             // Parse tournaments
-            var parseResult = _parser.ParseTournamentBoard(htmlResult.Data);
+            var parseResult = parser.ParseTournamentBoard(htmlResult.Data);
 
             if (!parseResult.Success)
             {
@@ -66,9 +59,9 @@ public class GameReplaysService(
 
             // Update cache
             _cachedTournaments = parseResult.Data;
-            _cacheExpiry = DateTime.UtcNow.AddMinutes(GameReplaysConstants.CacheDurationMinutes);
+            _cacheExpiry = System.DateTime.UtcNow.AddMinutes(GameReplaysConstants.CacheDurationMinutes);
 
-            _logger.LogDebug(
+            logger.LogDebug(
                 "Successfully fetched tournaments: {SignupsOpen} signups open, {Upcoming} upcoming, {Active} active, {Finished} finished",
                 parseResult.Data.SignupsOpen.Count(),
                 parseResult.Data.Upcoming.Count(),
@@ -77,122 +70,127 @@ public class GameReplaysService(
 
             return OperationResult<GameReplaysTournaments>.CreateSuccess(parseResult.Data);
         }
-        catch (Exception ex)
+        catch (System.Exception ex)
         {
-            _logger.LogError(ex, "Error fetching tournaments");
+            logger.LogError(ex, "Error fetching tournaments");
             return OperationResult<GameReplaysTournaments>.CreateFailure($"Error: {ex.Message}");
         }
     }
 
     /// <inheritdoc/>
-    public async Task<OperationResult<IEnumerable<TournamentModel>>> GetTournamentsByStatusAsync(
+    public async Task<OperationResult<IEnumerable<Tournament>>> GetTournamentsByStatusAsync(
         TournamentStatus status,
         CancellationToken cancellationToken = default)
     {
-        var tournamentsResult = await GetTournamentsAsync(cancellationToken);
-
-        if (!tournamentsResult.Success)
+        try
         {
-            return OperationResult<IEnumerable<TournamentModel>>.CreateFailure(tournamentsResult.FirstError ?? "Failed to fetch tournaments");
+            var tournamentsResult = await GetTournamentsAsync(cancellationToken);
+
+            if (!tournamentsResult.Success)
+            {
+                return OperationResult<IEnumerable<Tournament>>.CreateFailure(tournamentsResult.FirstError ?? "Failed to fetch tournaments");
+            }
+
+            var tournaments = status switch
+            {
+                TournamentStatus.SignupsOpen => tournamentsResult.Data.SignupsOpen,
+                TournamentStatus.Upcoming => tournamentsResult.Data.Upcoming,
+                TournamentStatus.Active => tournamentsResult.Data.Active,
+                TournamentStatus.Finished => tournamentsResult.Data.Finished,
+                _ => tournamentsResult.Data.All,
+            };
+
+            return OperationResult<IEnumerable<Tournament>>.CreateSuccess(tournaments);
         }
-
-        var tournaments = status switch
+        catch (System.Exception ex)
         {
-            TournamentStatus.SignupsOpen => tournamentsResult.Data.SignupsOpen,
-            TournamentStatus.Upcoming => tournamentsResult.Data.Upcoming,
-            TournamentStatus.Active => tournamentsResult.Data.Active,
-            TournamentStatus.Finished => tournamentsResult.Data.Finished,
-            _ => Enumerable.Empty<TournamentModel>(),
-        };
-
-        return OperationResult<IEnumerable<TournamentModel>>.CreateSuccess(tournaments);
+            logger.LogError(ex, "Error fetching tournaments by status: {Status}", status);
+            return OperationResult<IEnumerable<Tournament>>.CreateFailure($"Error: {ex.Message}");
+        }
     }
 
     /// <inheritdoc/>
-    public async Task<OperationResult<TournamentModel>> GetTournamentAsync(
+    public async Task<OperationResult<Tournament>> GetTournamentAsync(
         string topicId,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            _logger.LogDebug("Fetching tournament details for topic: {TopicId}", topicId);
+            logger.LogDebug("Fetching tournament details for topic: {TopicId}", topicId);
 
             var url = $"{GameReplaysConstants.BaseUrl}/community/index.php?showtopic={topicId}";
-            var htmlResult = await _httpClient.GetHtmlAsync(url, cancellationToken);
+            var htmlResult = await httpClient.GetHtmlAsync(url, cancellationToken);
 
             if (!htmlResult.Success)
             {
-                return OperationResult<TournamentModel>.CreateFailure(htmlResult.FirstError ?? "Failed to fetch tournament");
+                return OperationResult<Tournament>.CreateFailure(htmlResult.FirstError ?? "Failed to fetch tournament");
             }
 
-            var parseResult = _parser.ParseTournamentTopic(htmlResult.Data);
+            var parseResult = parser.ParseTournamentTopic(htmlResult.Data);
 
             if (!parseResult.Success)
             {
-                return OperationResult<TournamentModel>.CreateFailure(parseResult.FirstError ?? "Failed to parse tournament");
+                return OperationResult<Tournament>.CreateFailure(parseResult.FirstError ?? "Failed to parse tournament");
             }
 
-            var tournament = parseResult.Data;
-            tournament.TopicId = topicId;
-
-            return OperationResult<TournamentModel>.CreateSuccess(tournament);
+            return parseResult;
         }
-        catch (Exception ex)
+        catch (System.Exception ex)
         {
-            _logger.LogError(ex, "Error fetching tournament details");
-            return OperationResult<TournamentModel>.CreateFailure($"Error: {ex.Message}");
+            logger.LogError(ex, "Error fetching tournament: {TopicId}", topicId);
+            return OperationResult<Tournament>.CreateFailure($"Error: {ex.Message}");
         }
     }
 
     /// <inheritdoc/>
-    public async Task<OperationResult<IEnumerable<ForumPostModel>>> GetTopicPostsAsync(
+    public async Task<OperationResult<IEnumerable<ForumPost>>> GetTopicPostsAsync(
         string topicId,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            _logger.LogDebug("Fetching posts for topic: {TopicId}", topicId);
+            logger.LogDebug("Fetching posts for topic: {TopicId}", topicId);
 
             var url = $"{GameReplaysConstants.BaseUrl}/community/index.php?showtopic={topicId}";
-            var htmlResult = await _httpClient.GetHtmlAsync(url, cancellationToken);
+            var htmlResult = await httpClient.GetHtmlAsync(url, cancellationToken);
 
             if (!htmlResult.Success)
             {
-                return OperationResult<IEnumerable<ForumPostModel>>.CreateFailure(htmlResult.FirstError ?? "Failed to fetch topic posts");
+                return OperationResult<IEnumerable<ForumPost>>.CreateFailure(htmlResult.FirstError ?? "Failed to fetch topic posts");
             }
 
-            var parseResult = _parser.ParseForumPosts(htmlResult.Data);
+            var parseResult = parser.ParseForumPosts(htmlResult.Data);
 
             if (!parseResult.Success)
             {
-                return OperationResult<IEnumerable<ForumPostModel>>.CreateFailure(parseResult.FirstError ?? "Failed to parse topic posts");
+                return OperationResult<IEnumerable<ForumPost>>.CreateFailure(parseResult.FirstError ?? "Failed to parse topic posts");
             }
 
-            // Set topic ID for all posts
+            // Set topic ID on posts
             foreach (var post in parseResult.Data)
             {
                 post.TopicId = topicId;
             }
 
-            return OperationResult<IEnumerable<ForumPostModel>>.CreateSuccess(parseResult.Data);
+            return OperationResult<IEnumerable<ForumPost>>.CreateSuccess(parseResult.Data);
         }
-        catch (Exception ex)
+        catch (System.Exception ex)
         {
-            _logger.LogError(ex, "Error fetching topic posts");
-            return OperationResult<IEnumerable<ForumPostModel>>.CreateFailure($"Error: {ex.Message}");
+            logger.LogError(ex, "Error fetching topic posts: {TopicId}", topicId);
+            return OperationResult<IEnumerable<ForumPost>>.CreateFailure($"Error: {ex.Message}");
         }
     }
 
     /// <inheritdoc/>
     public bool IsAuthenticated()
     {
-        return _authService.GetAccessToken() != null;
+        return authService.GetAccessToken() != null;
     }
 
     /// <inheritdoc/>
     public OperationResult<OAuthUserInfo> GetCurrentUser()
     {
-        var user = _authService.GetCurrentUser();
+        var user = authService.GetCurrentUser();
 
         if (user == null)
         {
@@ -203,26 +201,25 @@ public class GameReplaysService(
     }
 
     /// <inheritdoc/>
-    public async Task<OperationResult<string>> InitiateLoginAsync()
+    public Task<OperationResult<string>> InitiateLoginAsync()
     {
         try
         {
-            _logger.LogDebug("Initiating OAuth login flow");
+            logger.LogDebug("Initiating OAuth login flow");
 
-            var authUrlResult = _authService.GetAuthorizationUrl();
+            var authUrlResult = authService.GetAuthorizationUrl();
 
             if (!authUrlResult.Success)
             {
-                return OperationResult<string>.CreateFailure(authUrlResult.FirstError ?? "Failed to generate authorization URL");
+                return Task.FromResult(OperationResult<string>.CreateFailure(authUrlResult.FirstError ?? "Failed to generate authorization URL"));
             }
 
-
-            return OperationResult<string>.CreateSuccess(authUrlResult.Data);
+            return Task.FromResult(OperationResult<string>.CreateSuccess(authUrlResult.Data));
         }
-        catch (Exception ex)
+        catch (System.Exception ex)
         {
-            _logger.LogError(ex, "Error initiating login");
-            return OperationResult<string>.CreateFailure($"Error: {ex.Message}");
+            logger.LogError(ex, "Error initiating login");
+            return Task.FromResult(OperationResult<string>.CreateFailure($"Error: {ex.Message}"));
         }
     }
 
@@ -233,16 +230,16 @@ public class GameReplaysService(
     {
         try
         {
-            _logger.LogDebug("Handling OAuth callback");
+            logger.LogDebug("Handling OAuth callback");
 
             // Validate state
-            if (!_authService.ValidateState(state))
+            if (!authService.ValidateState(state))
             {
                 return OperationResult<bool>.CreateFailure("Invalid OAuth state");
             }
 
             // Exchange code for token
-            var tokenResult = await _authService.ExchangeCodeForTokenAsync(code);
+            var tokenResult = await authService.ExchangeCodeForTokenAsync(code);
 
             if (!tokenResult.Success)
             {
@@ -250,7 +247,7 @@ public class GameReplaysService(
             }
 
             // Fetch user info
-            var userInfoResult = await _authService.GetUserInfoAsync(tokenResult.Data.AccessToken);
+            var userInfoResult = await authService.GetUserInfoAsync(tokenResult.Data.AccessToken);
 
             if (!userInfoResult.Success)
             {
@@ -258,15 +255,15 @@ public class GameReplaysService(
             }
 
             // Set current user
-            _authService.SetCurrentUser(userInfoResult.Data);
+            authService.SetCurrentUser(userInfoResult.Data);
 
-            _logger.LogDebug("Successfully authenticated user: {UserId}", userInfoResult.Data.Id);
+            logger.LogDebug("Successfully authenticated user: {UserId}", userInfoResult.Data.Id);
 
             return OperationResult<bool>.CreateSuccess(true);
         }
-        catch (Exception ex)
+        catch (System.Exception ex)
         {
-            _logger.LogError(ex, "Error handling OAuth callback");
+            logger.LogError(ex, "Error handling OAuth callback");
             return OperationResult<bool>.CreateFailure($"Error: {ex.Message}");
         }
     }
@@ -276,33 +273,33 @@ public class GameReplaysService(
     {
         try
         {
-            _logger.LogDebug("Logging out user");
+            logger.LogDebug("Logging out user");
 
-            await _authService.ClearTokenAsync();
+            await authService.ClearTokenAsync();
 
             // Clear cache
             _cachedTournaments = null;
 
             return OperationResult<bool>.CreateSuccess(true);
         }
-        catch (Exception ex)
+        catch (System.Exception ex)
         {
-            _logger.LogError(ex, "Error logging out");
+            logger.LogError(ex, "Error logging out");
             return OperationResult<bool>.CreateFailure($"Error: {ex.Message}");
         }
     }
 
     /// <inheritdoc/>
-    public async Task<OperationResult<bool>> PostCommentAsync(
+    public async Task<OperationResult<bool>> PostTournamentCommentAsync(
         string topicId,
         string comment,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            _logger.LogDebug("Posting comment to topic: {TopicId}", topicId);
+            logger.LogDebug("Posting comment to topic: {TopicId}", topicId);
 
-            var result = await _commentService.PostCommentAsync(topicId, comment, cancellationToken);
+            var result = await commentService.PostCommentAsync(topicId, comment, cancellationToken);
 
             if (!result.Success)
             {
@@ -311,35 +308,35 @@ public class GameReplaysService(
 
             return OperationResult<bool>.CreateSuccess(true);
         }
-        catch (Exception ex)
+        catch (System.Exception ex)
         {
-            _logger.LogError(ex, "Error posting comment");
+            logger.LogError(ex, "Error posting comment");
             return OperationResult<bool>.CreateFailure($"Error: {ex.Message}");
         }
     }
 
     /// <inheritdoc/>
-    public async Task<OperationResult<IEnumerable<CommentModel>>> GetCommentsAsync(
+    public async Task<OperationResult<IEnumerable<Comment>>> GetTournamentCommentsAsync(
         string topicId,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            _logger.LogDebug("Fetching comments for topic: {TopicId}", topicId);
+            logger.LogDebug("Fetching comments for topic: {TopicId}", topicId);
 
-            var result = await _commentService.GetCommentsAsync(topicId, cancellationToken);
+            var result = await commentService.GetCommentsAsync(topicId, cancellationToken);
 
             if (!result.Success)
             {
-                return OperationResult<IEnumerable<CommentModel>>.CreateFailure(result.FirstError ?? "Failed to fetch comments");
+                return OperationResult<IEnumerable<Comment>>.CreateFailure(result.FirstError ?? "Failed to fetch comments");
             }
 
-            return OperationResult<IEnumerable<CommentModel>>.CreateSuccess(result.Data);
+            return OperationResult<IEnumerable<Comment>>.CreateSuccess(result.Data);
         }
-        catch (Exception ex)
+        catch (System.Exception ex)
         {
-            _logger.LogError(ex, "Error fetching comments");
-            return OperationResult<IEnumerable<CommentModel>>.CreateFailure($"Error: {ex.Message}");
+            logger.LogError(ex, "Error fetching tournament comments: {TopicId}", topicId);
+            return OperationResult<IEnumerable<Comment>>.CreateFailure($"Error: {ex.Message}");
         }
     }
 
@@ -349,6 +346,6 @@ public class GameReplaysService(
     public void ClearCache()
     {
         _cachedTournaments = null;
-        _logger.LogDebug("Cleared tournament cache");
+        logger.LogDebug("Cleared tournament cache");
     }
 }

@@ -5,6 +5,7 @@ using GenHub.Core.Models.Results;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -21,8 +22,6 @@ public class GameReplaysAuthService(
     IGameReplaysHttpClient httpClient,
     ILogger<GameReplaysAuthService> logger) : IGameReplaysAuthService
 {
-    private readonly IGameReplaysHttpClient _httpClient = httpClient;
-    private readonly ILogger<GameReplaysAuthService> _logger = logger;
     private readonly ConcurrentDictionary<string, OAuthState> _states = new();
 
     private OAuthTokenResponse? _currentToken;
@@ -41,13 +40,13 @@ public class GameReplaysAuthService(
                 $"scope={Uri.EscapeDataString(GameReplaysConstants.OAuthScope)}&" +
                 $"state={Uri.EscapeDataString(state)}";
 
-            _logger.LogDebug("Generated authorization URL with state: {State}", state);
+            logger.LogDebug("Generated authorization URL with state: {State}", state);
 
             return OperationResult<string>.CreateSuccess(authUrl);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error generating authorization URL");
+            logger.LogError(ex, "Error generating authorization URL");
             return OperationResult<string>.CreateFailure($"Error: {ex.Message}");
         }
     }
@@ -59,7 +58,7 @@ public class GameReplaysAuthService(
     {
         try
         {
-            _logger.LogDebug("Exchanging authorization code for access token");
+            logger.LogDebug("Exchanging authorization code for access token");
 
             var tokenRequest = new
             {
@@ -70,7 +69,7 @@ public class GameReplaysAuthService(
                 redirect_uri = GameReplaysConstants.OAuthRedirectUri,
             };
 
-            var response = await _httpClient.PostJsonAsync<object, OAuthTokenResponse>(
+            var response = await httpClient.PostJsonAsync<object, OAuthTokenResponse>(
                 GameReplaysConstants.OAuthTokenEndpoint,
                 tokenRequest,
                 cancellationToken);
@@ -80,16 +79,15 @@ public class GameReplaysAuthService(
                 return OperationResult<OAuthTokenResponse>.CreateFailure(response.FirstError ?? "Failed to exchange code for token");
             }
 
-            // Save the token
             await SaveTokenAsync(response.Data);
 
-            _logger.LogDebug("Successfully exchanged authorization code for access token");
+            logger.LogDebug("Successfully exchanged authorization code for access token");
 
             return response;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error exchanging authorization code for token");
+            logger.LogError(ex, "Error exchanging authorization code for token");
             return OperationResult<OAuthTokenResponse>.CreateFailure($"Error: {ex.Message}");
         }
     }
@@ -101,7 +99,7 @@ public class GameReplaysAuthService(
     {
         try
         {
-            _logger.LogDebug("Refreshing access token");
+            logger.LogDebug("Refreshing access token");
 
             var refreshRequest = new
             {
@@ -111,7 +109,7 @@ public class GameReplaysAuthService(
                 grant_type = "refresh_token",
             };
 
-            var response = await _httpClient.PostJsonAsync<object, OAuthTokenResponse>(
+            var response = await httpClient.PostJsonAsync<object, OAuthTokenResponse>(
                 GameReplaysConstants.OAuthTokenEndpoint,
                 refreshRequest,
                 cancellationToken);
@@ -121,16 +119,15 @@ public class GameReplaysAuthService(
                 return OperationResult<OAuthTokenResponse>.CreateFailure(response.FirstError ?? "Failed to refresh token");
             }
 
-            // Save the new token
             await SaveTokenAsync(response.Data);
 
-            _logger.LogDebug("Successfully refreshed access token");
+            logger.LogDebug("Successfully refreshed access token");
 
             return response;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error refreshing token");
+            logger.LogError(ex, "Error refreshing token");
             return OperationResult<OAuthTokenResponse>.CreateFailure($"Error: {ex.Message}");
         }
     }
@@ -142,23 +139,23 @@ public class GameReplaysAuthService(
     {
         try
         {
-            _logger.LogDebug("Fetching user info");
+            logger.LogDebug("Fetching user info");
 
             var userInfoUrl = $"{GameReplaysConstants.OAuthResourceEndpoint}?access_token={Uri.EscapeDataString(accessToken)}";
-            var response = await _httpClient.GetJsonAsync<OAuthUserInfo>(userInfoUrl, cancellationToken);
+            var response = await httpClient.GetJsonAsync<OAuthUserInfo>(userInfoUrl, cancellationToken);
 
             if (!response.Success)
             {
                 return OperationResult<OAuthUserInfo>.CreateFailure(response.FirstError ?? "Failed to fetch user info");
             }
 
-            _logger.LogDebug("Successfully fetched user info: {UserId}", response.Data?.Id);
+            logger.LogDebug("Successfully fetched user info: {UserId}", response.Data?.Id);
 
             return response;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error fetching user info");
+            logger.LogError(ex, "Error fetching user info");
             return OperationResult<OAuthUserInfo>.CreateFailure($"Error: {ex.Message}");
         }
     }
@@ -220,7 +217,7 @@ public class GameReplaysAuthService(
             _states.TryRemove(expiredState, out _);
         }
 
-        _logger.LogDebug("Generated OAuth state: {State}", state);
+        logger.LogDebug("Generated OAuth state: {State}", state);
 
         return state;
     }
@@ -230,22 +227,20 @@ public class GameReplaysAuthService(
     {
         try
         {
-            // TODO: Implement secure storage using platform-specific secure storage
-            // For now, store in memory
             _currentToken = tokenResponse;
 
             // Set auth cookie for HTTP requests
             var cookieValue = $"session={tokenResponse.AccessToken}";
-            _httpClient.SetAuthCookie(cookieValue);
+            httpClient.SetAuthCookie(cookieValue);
 
-            _logger.LogDebug("Saved OAuth token");
+            logger.LogDebug("Saved OAuth token");
 
             await Task.CompletedTask;
             return OperationResult<bool>.CreateSuccess(true);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error saving token");
+            logger.LogError(ex, "Error saving token");
             return OperationResult<bool>.CreateFailure($"Error: {ex.Message}");
         }
     }
@@ -255,15 +250,13 @@ public class GameReplaysAuthService(
     {
         try
         {
-            // TODO: Implement secure storage loading using platform-specific secure storage
-            // For now, return in-memory token
             await Task.CompletedTask;
 
             return OperationResult<OAuthTokenResponse?>.CreateSuccess(_currentToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error loading token");
+            logger.LogError(ex, "Error loading token");
             return OperationResult<OAuthTokenResponse?>.CreateFailure($"Error: {ex.Message}");
         }
     }
@@ -275,17 +268,16 @@ public class GameReplaysAuthService(
         {
             _currentToken = null;
             _currentUser = null;
-            _httpClient.ClearAuthCookie();
+            httpClient.ClearAuthCookie();
 
-            // TODO: Clear from secure storage
-            _logger.LogDebug("Cleared OAuth token");
+            logger.LogDebug("Cleared OAuth token");
 
             await Task.CompletedTask;
             return OperationResult<bool>.CreateSuccess(true);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error clearing token");
+            logger.LogError(ex, "Error clearing token");
             return OperationResult<bool>.CreateFailure($"Error: {ex.Message}");
         }
     }
@@ -326,6 +318,6 @@ public class GameReplaysAuthService(
     public void SetCurrentUser(OAuthUserInfo userInfo)
     {
         _currentUser = userInfo;
-        _logger.LogDebug("Set current user: {UserId}", userInfo.Id);
+        logger.LogDebug("Set current user: {UserId}", userInfo.Id);
     }
 }

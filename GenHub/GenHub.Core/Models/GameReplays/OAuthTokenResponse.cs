@@ -1,5 +1,3 @@
-
-
 namespace GenHub.Core.Models.GameReplays;
 
 /// <summary>

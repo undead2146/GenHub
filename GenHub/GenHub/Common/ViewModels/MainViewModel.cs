@@ -31,13 +31,10 @@ namespace GenHub.Common.ViewModels;
 /// <param name="toolsViewModel">Tools view model.</param>
 /// <param name="settingsViewModel">Settings view model.</param>
 /// <param name="notificationManager">Notification manager view model.</param>
-/// <param name="gameInstallationDetectionOrchestrator">Game installation orchestrator.</param>
 /// <param name="gameReplaysViewModel">GameReplays view model.</param>
 /// <param name="configurationProvider">Configuration provider service.</param>
 /// <param name="userSettingsService">User settings service for persistence operations.</param>
-/// <param name="profileEditorFacade">Profile editor facade for automatic profile creation.</param>
 /// <param name="velopackUpdateManager">The Velopack update manager for checking updates.</param>
-/// <param name="profileResourceService">Service for accessing profile resources.</param>
 /// <param name="notificationService">Service for showing notifications.</param>
 /// <param name="logger">Logger instance.</param>
 public partial class MainViewModel(
@@ -46,18 +43,14 @@ public partial class MainViewModel(
     ToolsViewModel toolsViewModel,
     SettingsViewModel settingsViewModel,
     NotificationManagerViewModel notificationManager,
-    IGameInstallationDetectionOrchestrator gameInstallationDetectionOrchestrator,
     GameReplaysViewModel gameReplaysViewModel,
     IConfigurationProviderService configurationProvider,
     IUserSettingsService userSettingsService,
-    IProfileEditorFacade profileEditorFacade,
     IVelopackUpdateManager velopackUpdateManager,
-    ProfileResourceService profileResourceService,
     INotificationService notificationService,
     ILogger<MainViewModel>? logger = null) : ObservableObject, IDisposable
 {
     private readonly CancellationTokenSource _initializationCts = new();
-    private readonly IGameInstallationDetectionOrchestrator _gameInstallationDetectionOrchestrator = gameInstallationDetectionOrchestrator;
 
     /// <summary>
     /// Gets the game profiles view model.
@@ -117,21 +110,13 @@ public partial class MainViewModel(
     {
     }
 
-    private readonly IProfileEditorFacade _profileEditorFacade = profileEditorFacade ?? throw new ArgumentNullException(nameof(profileEditorFacade));
-    private readonly IVelopackUpdateManager _velopackUpdateManager = velopackUpdateManager ?? throw new ArgumentNullException(nameof(velopackUpdateManager));
-    private readonly ProfileResourceService _profileResourceService = profileResourceService ?? throw new ArgumentNullException(nameof(profileResourceService));
-    private readonly INotificationService _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
-    private readonly IUserSettingsService _userSettingsService = userSettingsService;
-    private readonly IConfigurationProviderService _configurationProvider = configurationProvider;
-    private readonly ILogger<MainViewModel>? _logger = logger;
-
     /// <summary>
     /// Gets the collection of detected game installations.
     /// </summary>
     public ObservableCollection<string> GameInstallations { get; } = [];
 
     /// <summary>
-    /// Gets the available navigation tabs.
+    /// Gets the list of available navigation tabs.
     /// </summary>
     public NavigationTab[] AvailableTabs { get; } =
     [
@@ -147,11 +132,11 @@ public partial class MainViewModel(
     /// </summary>
     public object CurrentTabViewModel => SelectedTab switch
     {
-        NavigationTab.GameProfiles => GameProfilesViewModel,
         NavigationTab.Downloads => DownloadsViewModel,
-        NavigationTab.Tools => ToolsViewModel,
+        NavigationTab.GameProfiles => GameProfilesViewModel,
         NavigationTab.GameReplays => GameReplaysViewModel,
         NavigationTab.Settings => SettingsViewModel,
+        NavigationTab.Tools => ToolsViewModel,
         _ => GameProfilesViewModel,
     };
 
@@ -162,11 +147,11 @@ public partial class MainViewModel(
     /// <returns>The display name.</returns>
     public static string GetTabDisplayName(NavigationTab tab) => tab switch
     {
-        NavigationTab.GameProfiles => "Game Profiles",
         NavigationTab.Downloads => "Downloads",
-        NavigationTab.Tools => "Tools",
+        NavigationTab.GameProfiles => "Game Profiles",
         NavigationTab.GameReplays => "Game Replays",
         NavigationTab.Settings => "Settings",
+        NavigationTab.Tools => "Tools",
         _ => tab.ToString(),
     };
 
@@ -190,7 +175,7 @@ public partial class MainViewModel(
         await DownloadsViewModel.InitializeAsync();
         await ToolsViewModel.InitializeAsync();
         await GameReplaysViewModel.InitializeAsync();
-        _logger?.LogInformation("MainViewModel initialized");
+        logger?.LogInformation("MainViewModel initialized");
 
         // Start background check with cancellation support
         _ = CheckForUpdatesInBackgroundAsync(_initializationCts.Token);
@@ -211,28 +196,28 @@ public partial class MainViewModel(
     /// </summary>
     private async Task CheckForUpdatesAsync(CancellationToken cancellationToken = default)
     {
-        _logger?.LogDebug("Starting background update check");
+        logger?.LogDebug("Starting background update check");
 
         try
         {
-            var settings = _userSettingsService.Get();
+            var settings = userSettingsService.Get();
 
             // Push settings to update manager (important context for other components)
             if (settings.SubscribedPrNumber.HasValue)
             {
-                _velopackUpdateManager.SubscribedPrNumber = settings.SubscribedPrNumber;
+                velopackUpdateManager.SubscribedPrNumber = settings.SubscribedPrNumber;
             }
 
             // 1. Check for standard GitHub releases (Default)
             if (string.IsNullOrEmpty(settings.SubscribedBranch))
             {
-                var updateInfo = await _velopackUpdateManager.CheckForUpdatesAsync(cancellationToken);
+                var updateInfo = await velopackUpdateManager.CheckForUpdatesAsync(cancellationToken);
                 if (updateInfo != null)
                 {
-                    _logger?.LogInformation("GitHub release update available: {Version}", updateInfo.TargetFullRelease.Version);
+                    logger?.LogInformation("GitHub release update available: {Version}", updateInfo.TargetFullRelease.Version);
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        _notificationService.Show(new NotificationMessage(
+                        notificationService.Show(new NotificationMessage(
                             NotificationType.Info,
                             "Update Available",
                             $"A new version ({updateInfo.TargetFullRelease.Version}) is available.",
@@ -246,11 +231,11 @@ public partial class MainViewModel(
             else
             {
                 // 2. Check for Subscribed Branch Artifacts
-                _logger?.LogDebug("User subscribed to branch '{Branch}', checking for artifact updates", settings.SubscribedBranch);
-                _velopackUpdateManager.SubscribedBranch = settings.SubscribedBranch;
-                _velopackUpdateManager.SubscribedPrNumber = null; // Clear PR to avoid ambiguity
+                logger?.LogDebug("User subscribed to branch '{Branch}', checking for artifact updates", settings.SubscribedBranch);
+                velopackUpdateManager.SubscribedBranch = settings.SubscribedBranch;
+                velopackUpdateManager.SubscribedPrNumber = null; // Clear PR to avoid ambiguity
 
-                var artifactUpdate = await _velopackUpdateManager.CheckForArtifactUpdatesAsync(cancellationToken);
+                var artifactUpdate = await velopackUpdateManager.CheckForArtifactUpdatesAsync(cancellationToken);
 
                 if (artifactUpdate != null)
                 {
@@ -258,7 +243,7 @@ public partial class MainViewModel(
 
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        _notificationService.Show(new NotificationMessage(
+                        notificationService.Show(new NotificationMessage(
                             NotificationType.Info,
                             "Branch Update Available",
                             $"A new build ({newVersionBase}) is available on branch '{settings.SubscribedBranch}'.",
@@ -271,7 +256,7 @@ public partial class MainViewModel(
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Exception in CheckForUpdatesAsync");
+            logger?.LogError(ex, "Exception in CheckForUpdatesAsync");
         }
     }
 
@@ -287,7 +272,7 @@ public partial class MainViewModel(
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Unhandled exception in background update check");
+            logger?.LogError(ex, "Unhandled exception in background update check");
         }
     }
 
@@ -295,17 +280,17 @@ public partial class MainViewModel(
     {
         try
         {
-            _userSettingsService.Update(settings =>
+            userSettingsService.Update(settings =>
             {
                 settings.LastSelectedTab = selectedTab;
             });
 
-            _ = _userSettingsService.SaveAsync();
-            _logger?.LogDebug("Updated last selected tab to: {Tab}", selectedTab);
+            _ = userSettingsService.SaveAsync();
+            logger?.LogDebug("Updated last selected tab to: {Tab}", selectedTab);
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Failed to update selected tab setting");
+            logger?.LogError(ex, "Failed to update selected tab setting");
         }
     }
 
@@ -315,7 +300,7 @@ public partial class MainViewModel(
 
         // Log the current tab view model type
         var viewModelType = CurrentTabViewModel?.GetType().Name ?? "null";
-        _logger?.LogInformation("Switching to tab {Tab}. ViewModel Type: {ViewModelType}", value, viewModelType);
+        logger?.LogInformation("Switching to tab {Tab}. ViewModel Type: {ViewModelType}", value, viewModelType);
 
         // Notify SettingsViewModel when it becomes visible/invisible
         SettingsViewModel.IsViewVisible = value == NavigationTab.Settings;
