@@ -4,6 +4,7 @@
         <Nullable>enable</Nullable>
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <ItemGroup>
@@ -12,6 +13,7 @@
         <PackageReference Include="Avalonia.Desktop" />
         <PackageReference Include="Avalonia.Themes.Fluent" />
         <PackageReference Include="Avalonia.Fonts.Inter" />
+        <PackageReference Include="Avalonia.Controls.DataGrid" />
         <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
         <PackageReference Include="Avalonia.Diagnostics">
             <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
@@ -19,6 +21,14 @@
         </PackageReference>
 
         <PackageReference Include="CommunityToolkit.Mvvm" />
+
+
+
+        <PackageReference Include="Markdig" />
+
+
+
+        <PackageReference Include="Markdown.Avalonia" />
         <PackageReference Include="Material.Icons.Avalonia" />
         <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
@@ -30,7 +40,9 @@
         <PackageReference Include="Microsoft.Playwright" />
         <PackageReference Include="Octokit" />
         <PackageReference Include="ReactiveUI" />
-        <PackageReference Include="Serilog.Extensions.Logging.File" />
+        <PackageReference Include="Serilog" />
+        <PackageReference Include="Serilog.Sinks.File" />
+        <PackageReference Include="Serilog.Extensions.Logging" />
         <PackageReference Include="SharpCompress" />
         <PackageReference Include="Slugify.Core" />
         <PackageReference Include="StyleCop.Analyzers" />

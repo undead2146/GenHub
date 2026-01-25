@@ -9,7 +9,7 @@ namespace GenHub.Features.GameReplays.Views;
 public partial class GameReplaysView : UserControl
 {
     /// <summary>
-    /// Initializes a new instance of the GameReplaysView class.
+    /// Initializes a new instance of the <see cref="GameReplaysView"/> class.
     /// </summary>
     public GameReplaysView()
     {

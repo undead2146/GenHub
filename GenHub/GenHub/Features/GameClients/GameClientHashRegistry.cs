@@ -50,13 +50,8 @@ public class GameClientHashRegistry : IGameClientHashRegistry
         _possibleExecutableNames =
         [
 
-            // Engine files (Prefer these as they are more reliable for version detection)
-            GameClientConstants.GameExecutable,        // game.exe
             GameClientConstants.SteamGameDatExecutable, // game.dat
-
-            // Launcher stubs
-            GameClientConstants.GeneralsExecutable,
-            GameClientConstants.ZeroHourExecutable,
+            GameClientConstants.GeneralsExecutable,     // generals.exe (Standard)
 
             // Publisher clients
             GameClientConstants.SuperHackersGeneralsExecutable,
@@ -104,7 +99,7 @@ public class GameClientHashRegistry : IGameClientHashRegistry
             return info.Value.Version;
         }
 
-        return "Unknown";
+        return GameClientConstants.UnknownVersion;
     }
 
     /// <inheritdoc/>
@@ -115,7 +110,7 @@ public class GameClientHashRegistry : IGameClientHashRegistry
             return (info.Value.GameType, info.Value.Version);
         }
 
-        return (GameType.Unknown, "Unknown");
+        return (GameType.Unknown, GameClientConstants.UnknownVersion);
     }
 
     /// <inheritdoc/>

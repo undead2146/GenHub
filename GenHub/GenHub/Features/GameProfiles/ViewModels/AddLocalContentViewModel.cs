@@ -38,12 +38,45 @@ public partial class AddLocalContentViewModel(
     [
         ContentType.Mod,
         ContentType.GameClient,
+        ContentType.Executable,
+        ContentType.ModdingTool,
+        ContentType.Patch,
         ContentType.Addon,
         ContentType.Map,
         ContentType.MapPack,
         ContentType.Mission,
-        ContentType.ModdingTool,
     ];
+
+    private static FileTreeItem? FindFirstExecutable(IEnumerable<FileTreeItem> items)
+    {
+        foreach (var item in items)
+        {
+            if (item.IsExecutable)
+            {
+                return item;
+            }
+
+            var childExe = FindFirstExecutable(item.Children);
+            if (childExe != null)
+            {
+                return childExe;
+            }
+        }
+
+        return null;
+    }
+
+    private static int CountExecutables(IEnumerable<FileTreeItem> items)
+    {
+        int count = 0;
+        foreach (var item in items)
+        {
+            if (item.IsExecutable) count++;
+            count += CountExecutables(item.Children);
+        }
+
+        return count;
+    }
 
     private readonly string _stagingPath = Path.Combine(Path.GetTempPath(), "GenHub_Staging_" + Guid.NewGuid());
 
@@ -76,7 +109,7 @@ public partial class AddLocalContentViewModel(
     /// Gets or sets the selected game type.
     /// </summary>
     [ObservableProperty]
-    private GameType _selectedGameType = GameType.Generals;
+    private GameType _selectedGameType = GameType.ZeroHour;
 
     /// <summary>
     /// Gets the file structure tree for preview.
@@ -88,7 +121,14 @@ public partial class AddLocalContentViewModel(
     /// Gets or sets a value indicating whether the view model is busy.
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowLoadingOverlay))]
     private bool _isBusy;
+
+    /// <summary>
+    /// Gets a value indicating whether the loading overlay should be visible.
+    /// Virtual to allow demos to suppress it.
+    /// </summary>
+    public virtual bool ShowLoadingOverlay => IsBusy;
 
     /// <summary>
     /// Gets or sets the status message for the user.
@@ -101,6 +141,47 @@ public partial class AddLocalContentViewModel(
     /// </summary>
     [ObservableProperty]
     private bool _canAdd;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the view model is in demo mode.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isDemoMode;
+
+    /// <summary>
+    /// Gets or sets the selected executable item (for Executable/ModdingTool content type).
+    /// </summary>
+    [ObservableProperty]
+    private FileTreeItem? _selectedExecutableItem;
+
+    /// <summary>
+    /// Gets or sets the number of executables found in the staging area.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowExecutableSelection))]
+    private int _executableCount;
+
+    /// <summary>
+    /// Gets a value indicating whether the executable selection should be shown.
+    /// </summary>
+    public bool ShowExecutableSelection => (SelectedContentType == ContentType.ModdingTool || SelectedContentType == ContentType.Executable) && ExecutableCount > 1;
+
+    /// <summary>
+    /// Gets the text to display in the preview area when no content is loaded.
+    /// </summary>
+    public string PreviewIdleText => SelectedContentType switch
+    {
+        ContentType.Mod => "Import mod content (e.g. .big, .zip)",
+        ContentType.GameClient => "Import GameClient",
+        ContentType.Executable => "Import executable",
+        ContentType.ModdingTool => "Import tool executable",
+        ContentType.Patch => "Import patch",
+        ContentType.Addon => "Import addon content",
+        ContentType.Map => "Import map files",
+        ContentType.MapPack => "Import map pack files",
+        ContentType.Mission => "Import mission content",
+        _ => "Drag and drop content to begin",
+    };
 
     /// <summary>
     /// Event triggered when the window should be closed.
@@ -123,9 +204,9 @@ public partial class AddLocalContentViewModel(
     public Func<Task<string?>>? BrowseFolderAction { get; set; }
 
     /// <summary>
-    /// Gets or sets the action to browse for a file.
+    /// Gets or sets the action to browse for files.
     /// </summary>
-    public Func<Task<string?>>? BrowseFileAction { get; set; }
+    public Func<Task<IReadOnlyList<string>?>>? BrowseFileAction { get; set; }
 
     /// <summary>
     /// Imports content from the specified path into the staging directory.
@@ -142,12 +223,21 @@ public partial class AddLocalContentViewModel(
             return;
         }
 
-        SourcePath = path;
-
-        if (string.IsNullOrWhiteSpace(ContentName))
+        // Only set SourcePath if not already set or empty (support multiple imports)
+        if (string.IsNullOrEmpty(SourcePath))
         {
+            SourcePath = path;
+        }
+
+        if (string.IsNullOrWhiteSpace(ContentName) && string.IsNullOrEmpty(SourcePath))
+        {
+            // Use the folder name or first file name as default content name if not set
             ContentName = Path.GetFileNameWithoutExtension(path);
-            logger?.LogDebug("ImportContentAsync: ContentName set to {Name}", ContentName);
+        }
+        else if (string.IsNullOrWhiteSpace(ContentName))
+        {
+            // If adding more files, don't overwrite name unless empty
+            ContentName = Path.GetFileNameWithoutExtension(path);
         }
 
         try
@@ -176,23 +266,17 @@ public partial class AddLocalContentViewModel(
             }
             else if (Directory.Exists(path))
             {
-                var dirInfo = new DirectoryInfo(path);
-                var dirName = dirInfo.Name;
+                // FLATTEN: Import contents of directory directly to staging root
+                // previously: var targetSubDir = Path.Combine(_stagingPath, dirName);
+                var targetDir = new DirectoryInfo(_stagingPath);
+                var sourceDir = new DirectoryInfo(path);
 
-                // Ensure we don't try to copy to the staging root itself if Name is somehow empty
-                if (string.IsNullOrWhiteSpace(dirName))
-                {
-                    dirName = "Imported_Folder";
-                }
+                logger?.LogDebug("ImportContentAsync: Flattening directory structure. Source: {Source}, Target: {Target}", path, _stagingPath);
 
-                var targetSubDir = Path.Combine(_stagingPath, dirName);
-                logger?.LogDebug("ImportContentAsync: Preserving directory structure. Source: {Source}, Target: {Target}", path, targetSubDir);
-
-                await Task.Run(() => CopyDirectory(dirInfo, new DirectoryInfo(targetSubDir)));
+                await Task.Run(() => CopyDirectory(sourceDir, targetDir));
             }
 
             // Auto-organization: If we have .map files at the root level, move them into subdirectories
-            // This is required because the game expects maps to be in their own folders
             CreateMapFoldersIfNeeded();
 
             await RefreshStagingTreeAsync();
@@ -213,6 +297,8 @@ public partial class AddLocalContentViewModel(
     private static List<FileTreeItem> BuildDirectoryTree(DirectoryInfo dir)
     {
         var items = new List<FileTreeItem>();
+
+        if (!dir.Exists) return items;
 
         foreach (var d in dir.GetDirectories().Take(20))
         {
@@ -235,7 +321,10 @@ public partial class AddLocalContentViewModel(
 
     private static void CopyDirectory(DirectoryInfo source, DirectoryInfo target)
     {
-        Directory.CreateDirectory(target.FullName);
+        if (!target.Exists)
+        {
+            Directory.CreateDirectory(target.FullName);
+        }
 
         foreach (var file in source.GetFiles())
         {
@@ -267,10 +356,13 @@ public partial class AddLocalContentViewModel(
     {
         if (BrowseFileAction != null)
         {
-            var path = await BrowseFileAction();
-            if (!string.IsNullOrEmpty(path))
+            var paths = await BrowseFileAction();
+            if (paths != null && paths.Count > 0)
             {
-                await ImportContentAsync(path);
+                foreach (var path in paths)
+                {
+                    await ImportContentAsync(path);
+                }
             }
         }
     }
@@ -342,7 +434,7 @@ public partial class AddLocalContentViewModel(
             IsBusy = true;
             StatusMessage = "Processing content...";
 
-            var targetGame = SelectedContentType == ContentType.GameClient ? SelectedGameType : GameType.Generals;
+            var targetGame = SelectedGameType;
 
             var progress = new Progress<Core.Models.Content.ContentStorageProgress>(p =>
             {
@@ -423,7 +515,8 @@ public partial class AddLocalContentViewModel(
                 var fileNameCheck = Path.GetFileName(mapPath); // e.g. "MyMap.map"
                 var mapName = Path.GetFileNameWithoutExtension(mapPath); // e.g. "MyMap"
                 var parentDir = Path.GetDirectoryName(mapPath); // e.g. ".../Staging/Maps"
-                var parentDirName = new DirectoryInfo(parentDir!).Name; // e.g. "Maps"
+                if (parentDir == null) continue;
+                var parentDirName = new DirectoryInfo(parentDir).Name; // e.g. "Maps"
 
                 // If the map is NOT in a folder with its own name (case-insensitive check)
                 if (!string.Equals(parentDirName, mapName, StringComparison.OrdinalIgnoreCase))
@@ -431,7 +524,7 @@ public partial class AddLocalContentViewModel(
                     // Create a new correct directory: ".../Staging/Maps/MyMap"
                     // We keep it in the same parent location to preserve "Maps/" structure if it exists,
                     // but we ensure the immediate parent is the map name.
-                    var newMapDir = Path.Combine(parentDir!, mapName);
+                    var newMapDir = Path.Combine(parentDir, mapName);
 
                     if (!Directory.Exists(newMapDir))
                     {
@@ -463,6 +556,7 @@ public partial class AddLocalContentViewModel(
             if (!wasBusy) IsBusy = true;
 
             FileTree.Clear();
+            SelectedExecutableItem = null; // Clear previous selection on refresh
             if (Directory.Exists(_stagingPath))
             {
                 var dirInfo = new DirectoryInfo(_stagingPath);
@@ -471,6 +565,14 @@ public partial class AddLocalContentViewModel(
                 {
                     FileTree.Add(item);
                 }
+            }
+
+            ExecutableCount = CountExecutables(FileTree);
+
+            // Auto-select first executable if content type requires it
+            if (SelectedContentType == ContentType.ModdingTool || SelectedContentType == ContentType.Executable)
+            {
+                AutoSelectFirstExecutable();
             }
 
             Validate();
@@ -492,19 +594,75 @@ public partial class AddLocalContentViewModel(
         var stagingExists = Directory.Exists(_stagingPath);
         var stagingHasEntries = stagingExists && Directory.EnumerateFileSystemEntries(_stagingPath).Any();
 
-        CanAdd = hasName && (hasFiles || stagingHasEntries);
+        // For ModdingTool (Tool) and Executable, we also need an executable selected
+        var requiresExecutable = SelectedContentType == ContentType.ModdingTool || SelectedContentType == ContentType.Executable;
+        var hasExecutableIfNeeded = !requiresExecutable || SelectedExecutableItem != null;
+
+        CanAdd = hasName && (hasFiles || stagingHasEntries) && hasExecutableIfNeeded;
 
         logger?.LogDebug(
-            "Validate: CanAdd={CanAdd} (HasName={HasName}, HasFiles={HasFiles}, StagingExists={StagingExists}, StagingHasEntries={StagingHasEntries})", CanAdd, hasName, hasFiles, stagingExists, stagingHasEntries);
+            "Validate: CanAdd={CanAdd} (HasName={HasName}, HasFiles={HasFiles}, StagingExists={StagingExists}, StagingHasEntries={StagingHasEntries}, HasExecutableIfNeeded={HasExecutableIfNeeded})", CanAdd, hasName, hasFiles, stagingExists, stagingHasEntries, hasExecutableIfNeeded);
 
         if (!CanAdd)
         {
             if (!hasName) logger?.LogDebug("Validate failed: ContentName is empty.");
             if (!hasFiles && !stagingHasEntries) logger?.LogDebug("Validate failed: No files in tree or staging directory.");
+            if (!hasExecutableIfNeeded) logger?.LogDebug("Validate failed: Executable content type requires an executable to be selected.");
         }
     }
 
     partial void OnContentNameChanged(string value) => Validate();
 
     partial void OnFileTreeChanged(ObservableCollection<FileTreeItem> value) => Validate();
+
+    partial void OnSelectedContentTypeChanged(ContentType value)
+    {
+        OnPropertyChanged(nameof(ShowExecutableSelection));
+        OnPropertyChanged(nameof(PreviewIdleText));
+
+        // Auto-select first executable if switching to ModdingTool or Executable
+        if ((value == ContentType.ModdingTool || value == ContentType.Executable) && SelectedExecutableItem == null)
+        {
+            AutoSelectFirstExecutable();
+        }
+
+        Validate();
+    }
+
+    partial void OnSelectedExecutableItemChanged(FileTreeItem? oldValue, FileTreeItem? newValue)
+    {
+        // Clear old selection
+        if (oldValue != null)
+        {
+            oldValue.IsSelectedExecutable = false;
+        }
+
+        // Set new selection
+        if (newValue != null)
+        {
+            newValue.IsSelectedExecutable = true;
+        }
+
+        Validate();
+    }
+
+    [RelayCommand]
+    private void SelectExecutable(FileTreeItem item)
+    {
+        if (item?.IsExecutable == true)
+        {
+            SelectedExecutableItem = item;
+            logger?.LogInformation("Selected executable: {Name}", item.Name);
+        }
+    }
+
+    private void AutoSelectFirstExecutable()
+    {
+        var firstExe = FindFirstExecutable(FileTree);
+        if (firstExe != null)
+        {
+            SelectedExecutableItem = firstExe;
+            logger?.LogInformation("Auto-selected first executable: {Name}", firstExe.Name);
+        }
+    }
 }

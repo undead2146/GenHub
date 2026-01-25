@@ -8,6 +8,7 @@ using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
+using GenHub.Core.Constants;
 using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameProfiles;
@@ -328,6 +329,41 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
                     item.IsDownloaded = isDownloaded;
                     item.IsInstalled = isDownloaded;
 
+                    // Check if a newer version is available
+                    if (isDownloaded && !string.IsNullOrEmpty(item.Version))
+                    {
+                        // Find the highest version among installed variants
+                        var highestInstalledVersion = variants
+                            .Select(v => v.Version ?? string.Empty)
+                            .OrderByDescending(v => v)
+                            .FirstOrDefault();
+
+                        if (!string.IsNullOrEmpty(highestInstalledVersion))
+                        {
+                            var isNewer = IsVersionNewer(item.Version, highestInstalledVersion);
+                            item.IsUpdateAvailable = isNewer;
+
+                            if (isNewer)
+                            {
+                                item.UpdateAvailableVersion = item.Version;
+                                _logger.LogDebug(
+                                    "Update available for {Name}: installed={InstalledVersion}, available={AvailableVersion}",
+                                    item.Name,
+                                    highestInstalledVersion,
+                                    item.Version);
+                            }
+                            else
+                            {
+                                item.UpdateAvailableVersion = null;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        item.IsUpdateAvailable = false;
+                        item.UpdateAvailableVersion = null;
+                    }
+
                     // If we have a single variant, ensure the Model ID matches it
                     if (variants.Count == 1)
                     {
@@ -415,6 +451,27 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
     }
 
     /// <summary>
+    /// Determines if the available version is newer than the installed version.
+    /// Uses GameVersionHelper for consistent version parsing across the application.
+    /// </summary>
+    /// <param name="availableVersion">The available version string (e.g., "010326" or "010326_QFE1").</param>
+    /// <param name="installedVersion">The installed version string (e.g., "122025_QFE1").</param>
+    /// <returns>True if available version is newer; otherwise, false.</returns>
+    private static bool IsVersionNewer(string availableVersion, string installedVersion)
+    {
+        if (string.IsNullOrEmpty(availableVersion) || string.IsNullOrEmpty(installedVersion))
+        {
+            return false;
+        }
+
+        // Use the centralized helper to get sortable version numbers
+        var availableSortable = GameVersionHelper.GetGeneralsOnlineSortableVersion(availableVersion);
+        var installedSortable = GameVersionHelper.GetGeneralsOnlineSortableVersion(installedVersion);
+
+        return availableSortable > installedSortable;
+    }
+
+    /// <summary>
     /// Finds all installed content manifest variants that match the given content item.
     /// Used to populate <see cref="ContentItemViewModel.AvailableVariants"/>.
     /// </summary>
@@ -472,7 +529,7 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
             // For variants, the name often contains the variant suffix (e.g. "Generals", "Zero Hour", "30Hz").
             // But strict name matching might filter out variants if their names differ too much.
             // For SuperHackers: Item="weekly-2025-12-12", Manifest="TheSuperHackers-GeneralsGameCode - Generals"
-            //   -> Names don't match, but they ARE the same release (same publisher + version).
+            //   -> Names don't match, but they are the same release (same publisher + version).
             // So we check names, but if names don't match, we still proceed to version check.
             // If publisher matches AND version matches, that's sufficient for variant detection.
             var itemName = item.Name?.ToLowerInvariant() ?? string.Empty;
@@ -744,7 +801,7 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
         {
             // Manifest passed directly (from variant selection) - use its ID
             contentId = manifest.Id.Value;
-            contentName = manifest.Name ?? "Unknown";
+            contentName = manifest.Name ?? GameClientConstants.UnknownVersion;
             isDownloading = false;
         }
         else
@@ -792,10 +849,6 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
 
                 if (result.WasContentSwapped)
                 {
-                    _notificationService.ShowInfo(
-                        "Content Replaced",
-                        $"Replaced '{result.SwappedContentName}' with '{contentName}' in profile '{profile.Name}'");
-
                     _logger.LogInformation(
                         "Content swap: replaced {OldContent} with {NewContent} in profile {ProfileName}",
                         result.SwappedContentName,
@@ -875,7 +928,7 @@ public partial class PublisherCardViewModel : ObservableObject, IRecipient<Profi
         {
             // Handle ContentManifest directly from variant selection
             contentId = manifest.Id.Value;
-            contentName = manifest.Name ?? "Unknown";
+            contentName = manifest.Name ?? GameClientConstants.UnknownVersion;
         }
         else
         {

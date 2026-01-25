@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
@@ -89,7 +90,8 @@ public class GameClientProfileService(
                 EnabledContentIds = enabledContentIds,
                 ThemeColor = themeColor ?? GetThemeColorForGameType(gameClient.GameType, gameClient),
                 IconPath = !string.IsNullOrEmpty(iconPath) ? iconPath : GetIconPathForGame(gameClient.GameType),
-                CoverPath = !string.IsNullOrEmpty(coverPath) ? coverPath : GetCoverPathForGame(gameClient.GameType),
+                CoverPath = !string.IsNullOrEmpty(coverPath) ? coverPath : GetCoverPathForGame(gameClient.GameType, gameClient),
+                UseSteamLaunch = installation.InstallationType == GameInstallationType.Steam,
             };
 
             var profileResult = await profileManager.CreateProfileAsync(createRequest, cancellationToken);
@@ -334,25 +336,16 @@ public class GameClientProfileService(
     private static int CalculateManifestVersion(GameClient gameClient)
     {
         if (string.IsNullOrEmpty(gameClient.Version) ||
-            gameClient.Version.Equals("Unknown", StringComparison.OrdinalIgnoreCase) ||
+            gameClient.Version.Equals(GameClientConstants.UnknownVersion, StringComparison.OrdinalIgnoreCase) ||
             gameClient.Version.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase) ||
             gameClient.Version.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase))
         {
-            var fallbackVersion = gameClient.GameType == GameType.ZeroHour
-                ? ManifestConstants.ZeroHourManifestVersion
-                : ManifestConstants.GeneralsManifestVersion;
-
-            var normalizedFallback = fallbackVersion.Replace(".", string.Empty);
-            return int.TryParse(normalizedFallback, out var v) ? v : 0;
+            // If version is unknown, use the default version for the game type (1.04/1.08)
+            // This ensures we match the ID generated during initial scan for standard installations
+            return GetDefaultVersion(gameClient.GameType);
         }
 
-        if (gameClient.Version.Contains('.'))
-        {
-            var normalized = gameClient.Version.Replace(".", string.Empty);
-            return int.TryParse(normalized, out var v) ? v : GetDefaultVersion(gameClient.GameType);
-        }
-
-        return int.TryParse(gameClient.Version, out var parsed) ? parsed : GetDefaultVersion(gameClient.GameType);
+        return GameVersionHelper.NormalizeVersion(gameClient.Version);
     }
 
     private static int GetDefaultVersion(GameType gameType)
@@ -361,8 +354,7 @@ public class GameClientProfileService(
             ? ManifestConstants.ZeroHourManifestVersion
             : ManifestConstants.GeneralsManifestVersion;
 
-        var normalizedFallback = fallbackVersion.Replace(".", string.Empty);
-        return int.TryParse(normalizedFallback, out var v) ? v : 0;
+        return GameVersionHelper.NormalizeVersion(fallbackVersion);
     }
 
     private static string? GetThemeColorForGameType(GameType gameType, GameClient? gameClient = null)
@@ -399,16 +391,34 @@ public class GameClientProfileService(
             ? UriConstants.GeneralsIconFilename
             : UriConstants.ZeroHourIconFilename;
 
-        return $"{UriConstants.IconsBasePath}/{gameIcon}";
+        return $"{UriConstants.AvarUriScheme}GenHub{UriConstants.IconsBasePath}/{gameIcon}";
     }
 
-    private static string GetCoverPathForGame(GameType gameType)
+    private static string GetCoverPathForGame(GameType gameType, GameClient? gameClient = null)
     {
+        if (gameClient != null)
+        {
+            if (gameClient.PublisherType == PublisherTypeConstants.TheSuperHackers)
+            {
+                return $"{UriConstants.AvarUriScheme}GenHub{UriConstants.CoversBasePath}/china-cover.png";
+            }
+
+            if (gameClient.PublisherType == CommunityOutpostConstants.PublisherType)
+            {
+                return $"{UriConstants.AvarUriScheme}GenHub{UriConstants.CoversBasePath}/gla-cover.png";
+            }
+
+            if (gameClient.PublisherType == PublisherTypeConstants.GeneralsOnline)
+            {
+                return $"{UriConstants.AvarUriScheme}GenHub{UriConstants.CoversBasePath}/usa-cover.png";
+            }
+        }
+
         var gameCover = gameType == GameType.Generals
             ? UriConstants.GeneralsCoverFilename
             : UriConstants.ZeroHourCoverFilename;
 
-        return $"{UriConstants.CoversBasePath}/{gameCover}";
+        return $"{UriConstants.AvarUriScheme}GenHub{UriConstants.CoversBasePath}/{gameCover}";
     }
 
     /// <summary>

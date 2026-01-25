@@ -12,6 +12,7 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Providers;
 using GenHub.Core.Models.Results;
+using GenHub.Core.Models.Results.Content;
 using GenHub.Features.Content.Services.ContentProviders;
 using Microsoft.Extensions.Logging;
 
@@ -91,7 +92,7 @@ public class SuperHackersProvider(
                     var manifestId = ManifestIdGenerator.GenerateGitHubContentId(
                         SuperHackersConstants.GeneralsGameCodeOwner,
                         SuperHackersConstants.GeneralsGameCodeRepo,
-                        ContentType.GameClient, // Assume GameClient for SuperHackers
+                        ContentType.GameClient,
                         latestRelease.TagName);
 
                     var result = new ContentSearchResult

@@ -34,4 +34,34 @@ public static class FileTypes
     /// Default settings file name.
     /// </summary>
     public const string SettingsFileName = "settings.json";
+
+    /// <summary>
+    /// File extension for replay files.
+    /// </summary>
+    public const string ReplayFileExtension = ".rep";
+
+    /// <summary>
+    /// File extension for ZIP files.
+    /// </summary>
+    public const string ZipFileExtension = ".zip";
+
+    /// <summary>
+    /// File extension pattern for replay files.
+    /// </summary>
+    public const string ReplayFilePattern = "*.rep";
+
+    /// <summary>
+    /// File extension pattern for ZIP files.
+    /// </summary>
+    public const string ZipFilePattern = "*.zip";
+
+    /// <summary>
+    /// File extension for backup files.
+    /// </summary>
+    public const string BackupExtension = ".ghbak";
+
+    /// <summary>
+    /// File extension for user data manifest files.
+    /// </summary>
+    public const string UserDataManifestExtension = ".userdata.json";
 }

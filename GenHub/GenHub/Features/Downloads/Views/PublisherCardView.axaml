@@ -190,7 +190,7 @@
                                                             <Button Classes="link-button"
                                                                     Content="{Binding IsChangelogExpanded, Converter={x:Static converters:BoolToTextConverter.Instance}, ConverterParameter='Show Less|Show More'}"
                                                                     Command="{Binding ToggleChangelogCommand}"
-                                                                    Foreground="#2196F3"
+                                                                    Foreground="#9575CD"
                                                                     Background="Transparent"
                                                                     BorderThickness="0"
                                                                     Padding="0"

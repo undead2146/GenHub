@@ -21,9 +21,6 @@ public enum ContentType
     /// <summary>Major gameplay changes.</summary>
     Mod,
 
-    /// <summary>Major gameplay changes (alias for Mod).</summary>
-    Mods,
-
     /// <summary>Balance/configuration changes.</summary>
     Patch,
 
@@ -64,6 +61,9 @@ public enum ContentType
 
     /// <summary>Screensaver files.</summary>
     Screensaver,
+
+    /// <summary>Standalone executable file.</summary>
+    Executable,
 
     /// <summary>Modding and mapping tools/utilities.</summary>
     ModdingTool,

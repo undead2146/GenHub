@@ -34,12 +34,12 @@ public static class GeneralsOnlineConstants
     /// <summary>
     /// Cover image source path for UI display.
     /// </summary>
-    public const string CoverSource = "/Assets/Covers/zerohour-cover.png";
+    public const string CoverSource = "/Assets/Covers/usa-cover.png";
 
     /// <summary>
     /// Theme color for Generals Online content.
     /// </summary>
-    public const string ThemeColor = "#1B3A5F";
+    public const string ThemeColor = "#00A3FF";
 
     /// <summary>
     /// Publisher logo source path for UI display.
@@ -48,8 +48,8 @@ public static class GeneralsOnlineConstants
 
     // ===== Version Parsing =====
 
-    /// <summary>Format for parsing version dates (DDMMYY).</summary>
-    public const string VersionDateFormat = "ddMMyy";
+    /// <summary>Format for parsing version dates (MMddyy).</summary>
+    public const string VersionDateFormat = "MMddyy";
 
     /// <summary>Separator between date and QFE number in versions.</summary>
     public const string QfeSeparator = "_QFE";

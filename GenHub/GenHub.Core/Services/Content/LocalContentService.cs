@@ -35,6 +35,9 @@ public class LocalContentService(
         ContentType.MapPack,
         ContentType.Mission,
         ContentType.Mod,
+        ContentType.ModdingTool,
+        ContentType.Executable,
+        ContentType.Patch,
     ];
 
     /// <inheritdoc />
@@ -127,6 +130,47 @@ public class LocalContentService(
         {
             logger.LogError(ex, "Failed to create local content manifest for '{Name}'", name);
             return OperationResult<ContentManifest>.CreateFailure($"Failed to create manifest: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<OperationResult<ContentManifest>> AddLocalContentAsync(
+        string name,
+        string directoryPath,
+        ContentType contentType,
+        GameType targetGame)
+    {
+        // Forward to the main method, swapping name and directoryPath to match expected signature
+        return CreateLocalContentManifestAsync(directoryPath, name, contentType, targetGame);
+    }
+
+    /// <inheritdoc />
+    public async Task<OperationResult> DeleteLocalContentAsync(string manifestId)
+    {
+        try
+        {
+            logger.LogInformation("Deleting local content with manifest ID '{ManifestId}'", manifestId);
+
+            // Deleting local content involves:
+            // 1. Removing the manifest from the storage/pool
+            // 2. Potentially removing the local files if they were managed/copied by GenHub (via CAS)
+
+            // For now, we primarily just remove the content from the storage service
+            var result = await contentStorageService.RemoveContentAsync(ManifestId.Create(manifestId));
+
+            if (!result.Success)
+            {
+                logger.LogWarning("Failed to delete local content '{ManifestId}': {Error}", manifestId, result.FirstError);
+                return OperationResult.CreateFailure(result.FirstError ?? "Unknown error occurred during deletion");
+            }
+
+            logger.LogInformation("Successfully deleted local content '{ManifestId}'", manifestId);
+            return OperationResult.CreateSuccess();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error deleting local content '{ManifestId}'", manifestId);
+            return OperationResult.CreateFailure($"Failed to delete content: {ex.Message}");
         }
     }
 

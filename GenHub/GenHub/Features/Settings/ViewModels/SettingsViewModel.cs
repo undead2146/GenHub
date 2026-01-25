@@ -135,7 +135,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     private bool _enableDetailedLogging = false;
 
     [ObservableProperty]
-    private WorkspaceStrategy _defaultWorkspaceStrategy = WorkspaceStrategy.SymlinkOnly;
+    private WorkspaceStrategy _defaultWorkspaceStrategy = WorkspaceConstants.DefaultWorkspaceStrategy;
 
     [ObservableProperty]
     private bool _isSaving = false;
@@ -599,7 +599,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             AutoCheckForUpdatesOnStartup = true;
             AllowBackgroundDownloads = true;
             EnableDetailedLogging = false;
-            DefaultWorkspaceStrategy = WorkspaceStrategy.HybridCopySymlink;
+            DefaultWorkspaceStrategy = WorkspaceConstants.DefaultWorkspaceStrategy;
             DownloadBufferSizeKB = DownloadDefaults.BufferSizeKB; // 80KB default
             DownloadTimeoutSeconds = DownloadDefaults.TimeoutSeconds;
             DownloadUserAgent = ApiConstants.DefaultUserAgent;
@@ -875,7 +875,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             }
             else
             {
-                ManifestsInfo = "Unknown";
+                ManifestsInfo = GameClientConstants.UnknownVersion;
             }
 
             // Update Workspaces count
@@ -887,7 +887,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             }
             else
             {
-                WorkspacesInfo = "Unknown";
+                WorkspacesInfo = GameClientConstants.UnknownVersion;
             }
 
             // Update Profiles count
@@ -899,7 +899,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             }
             else
             {
-                ProfilesInfo = "Unknown";
+                ProfilesInfo = GameClientConstants.UnknownVersion;
             }
         }
         catch (Exception ex)
@@ -1078,12 +1078,8 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         await DeleteProfiles();
         await DeleteWorkspaces();
         await DeleteManifests();
-        await DeleteUserData(); // Add this call
-
-        // Force CAS deletion when deleting all data to ensure immediate UI feedback
-        _logger.LogInformation("Forcing CAS storage cleanup as part of DeleteAllData");
-        var result = await _casService.RunGarbageCollectionAsync(force: true, CancellationToken.None);
-        _logger.LogInformation("CAS cleanup completed: {Deleted} objects deleted", result.ObjectsDeleted);
+        await DeleteCasStorage();
+        await DeleteUserData();
 
         // Invalidate installation cache to force re-generation of manifests on next scan
         _installationService.InvalidateCache();
@@ -1499,7 +1495,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
                 var installations = await _installationService.GetAllInstallationsAsync();
                 if (installations.Success && installations.Data?.Any() == true)
                 {
-                    path = _storageLocationService.GetWorkspacePath(installations.Data.First());
+                    path = _storageLocationService.GetWorkspacePath(installations.Data[0]);
                 }
                 else
                 {
@@ -1547,7 +1543,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
                 var installations = await _installationService.GetAllInstallationsAsync();
                 if (installations.Success && installations.Data?.Any() == true)
                 {
-                    path = _storageLocationService.GetCasPoolPath(installations.Data.First());
+                    path = _storageLocationService.GetCasPoolPath(installations.Data[0]);
                 }
                 else
                 {

@@ -220,47 +220,7 @@ public class UserDataTrackerService(
 
             var manifest = manifestResult.Data;
 
-            foreach (var file in manifest.InstalledFiles)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                try
-                {
-                    if (File.Exists(file.AbsolutePath))
-                    {
-                        // Verify we should delete this file (hash matches or is our hard link)
-                        if (file.IsHardLink || await fileOperations.VerifyFileHashAsync(file.AbsolutePath, file.SourceHash, cancellationToken))
-                        {
-                            File.Delete(file.AbsolutePath);
-                            logger.LogDebug("[UserData] Deleted file: {Path}", file.AbsolutePath);
-
-                            // Clean up empty directories
-                            CleanupEmptyDirectories(Path.GetDirectoryName(file.AbsolutePath));
-                        }
-                        else
-                        {
-                            logger.LogWarning("[UserData] File hash mismatch, user may have modified: {Path}", file.AbsolutePath);
-                        }
-                    }
-
-                    // Restore backup if exists
-                    if (!string.IsNullOrEmpty(file.BackupPath) && File.Exists(file.BackupPath))
-                    {
-                        var targetDir = Path.GetDirectoryName(file.AbsolutePath);
-                        if (!string.IsNullOrEmpty(targetDir))
-                        {
-                            Directory.CreateDirectory(targetDir);
-                        }
-
-                        File.Move(file.BackupPath, file.AbsolutePath);
-                        logger.LogInformation("[UserData] Restored backup: {Backup} -> {Path}", file.BackupPath, file.AbsolutePath);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "[UserData] Failed to uninstall file: {Path}", file.AbsolutePath);
-                }
-            }
+            await CleanupInstalledFilesAsync(manifest, cancellationToken);
 
             // Remove the manifest file
             await DeleteUserDataManifestAsync(manifestId, profileId, cancellationToken);
@@ -449,7 +409,7 @@ public class UserDataTrackerService(
             EnsureDirectoriesExist();
 
             var manifests = new List<UserDataManifest>();
-            var manifestFiles = Directory.GetFiles(_manifestsPath, "*.userdata.json", SearchOption.TopDirectoryOnly);
+            var manifestFiles = Directory.GetFiles(_manifestsPath, "*" + FileTypes.UserDataManifestExtension, SearchOption.TopDirectoryOnly);
 
             foreach (var file in manifestFiles)
             {
@@ -633,19 +593,27 @@ public class UserDataTrackerService(
                 var index = await LoadIndexUnlockedAsync(cancellationToken);
 
                 // Uninstall all installations (this handles backup restoration and file deletion)
-                foreach(var profileId in index.ProfileInstallations.Keys.ToList())
+                foreach (var profileId in index.ProfileInstallations.Keys.ToList())
                 {
                     // Get keys for this profile
                     if (index.ProfileInstallations.TryGetValue(profileId, out var keys))
                     {
-                        foreach(var key in keys)
+                        foreach (var key in keys)
                         {
-                            // Parse key to get manifestId (key is {ManifestId}_{ProfileId})
-                            var parts = key.Split('_');
-                            if (parts.Length >= 2)
+                            try
                             {
-                                var manifestId = parts[0];
-                                await UninstallUserDataAsync(manifestId, profileId, cancellationToken);
+                                // We are already holding the lock, so we can't call UninstallUserDataAsync which tries to acquire it.
+                                // Instead, we directly clean up the files. We don't need to update the index or delete the manifest file
+                                // because we are about to delete the entire UserData directory.
+                                var manifest = await LoadUserDataManifestByKeyAsync(key, cancellationToken);
+                                if (manifest != null)
+                                {
+                                    await CleanupInstalledFilesAsync(manifest, cancellationToken);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                logger.LogError(ex, "[UserData] Failed to cleanup user data for installation key {Key}", key);
                             }
                         }
                     }
@@ -757,6 +725,51 @@ public class UserDataTrackerService(
         }
     }
 
+    private async Task CleanupInstalledFilesAsync(UserDataManifest manifest, CancellationToken cancellationToken)
+    {
+        foreach (var file in manifest.InstalledFiles)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                if (File.Exists(file.AbsolutePath))
+                {
+                    // Verify we should delete this file (hash matches or is our hard link)
+                    if (file.IsHardLink || await fileOperations.VerifyFileHashAsync(file.AbsolutePath, file.SourceHash, cancellationToken))
+                    {
+                        File.Delete(file.AbsolutePath);
+                        logger.LogDebug("[UserData] Deleted file: {Path}", file.AbsolutePath);
+
+                        // Clean up empty directories
+                        CleanupEmptyDirectories(Path.GetDirectoryName(file.AbsolutePath));
+                    }
+                    else
+                    {
+                        logger.LogWarning("[UserData] File hash mismatch, user may have modified: {Path}", file.AbsolutePath);
+                    }
+                }
+
+                // Restore backup if exists
+                if (!string.IsNullOrEmpty(file.BackupPath) && File.Exists(file.BackupPath))
+                {
+                    var targetDir = Path.GetDirectoryName(file.AbsolutePath);
+                    if (!string.IsNullOrEmpty(targetDir))
+                    {
+                        Directory.CreateDirectory(targetDir);
+                    }
+
+                    File.Move(file.BackupPath, file.AbsolutePath);
+                    logger.LogInformation("[UserData] Restored backup: {Backup} -> {Path}", file.BackupPath, file.AbsolutePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "[UserData] Failed to uninstall file: {Path}", file.AbsolutePath);
+            }
+        }
+    }
+
     private void EnsureDirectoriesExist()
     {
         Directory.CreateDirectory(_userDataTrackingPath);
@@ -774,7 +787,7 @@ public class UserDataTrackerService(
             var backupDir = Path.Combine(_backupsPath, gameType.ToString(), relativeDirPath);
             Directory.CreateDirectory(backupDir);
 
-            var backupPath = Path.Combine(backupDir, $"{Path.GetFileNameWithoutExtension(fileName)}.{timestamp}{Path.GetExtension(fileName)}.bak");
+            var backupPath = Path.Combine(backupDir, $"{Path.GetFileNameWithoutExtension(fileName)}.{timestamp}{Path.GetExtension(fileName)}{FileTypes.BackupExtension}");
 
             await Task.Run(() => File.Copy(filePath, backupPath, overwrite: true), cancellationToken);
 
@@ -789,7 +802,7 @@ public class UserDataTrackerService(
 
     private string GetManifestFilePath(string installationKey)
     {
-        return Path.Combine(_manifestsPath, $"{installationKey}.userdata.json");
+        return Path.Combine(_manifestsPath, $"{installationKey}{FileTypes.UserDataManifestExtension}");
     }
 
     private async Task SaveUserDataManifestAsync(UserDataManifest manifest, CancellationToken cancellationToken)

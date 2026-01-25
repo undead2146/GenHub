@@ -33,7 +33,7 @@ public static class CommunityOutpostConstants
     /// <summary>
     /// Cover image source path for UI display.
     /// </summary>
-    public const string CoverSource = "avares://GenHub/Assets/Covers/generals-cover.png";
+    public const string CoverSource = "/Assets/Covers/gla-cover.png";
 
     /// <summary>
     /// Theme color for Community Outpost content.
@@ -79,6 +79,23 @@ public static class CommunityOutpostConstants
     /// The file extension for GenPatcher .dat files (which are actually 7z archives).
     /// </summary>
     public const string DatFileExtension = ".dat";
+
+    /// <summary>
+    /// The URL for the patch page (used for relative URL resolution).
+    /// </summary>
+    public const string PatchPageUrl = "https://legi.cc/downloads/genpatcher/";
+
+    /// <summary>Display name for Game Clients content type.</summary>
+    public const string ContentTypeGameClients = "Game Clients";
+
+    /// <summary>Display name for Addons content type.</summary>
+    public const string ContentTypeAddons = "Addons";
+
+    /// <summary>Display name for Tools content type.</summary>
+    public const string ContentTypeTools = "Tools";
+
+    /// <summary>Display name for Maps content type.</summary>
+    public const string ContentTypeMaps = "Maps";
 
     /// <summary>
     /// Tags associated with the patch content.

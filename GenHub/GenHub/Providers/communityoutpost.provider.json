@@ -3,7 +3,7 @@
   "publisherType": "communityoutpost",
   "displayName": "Community Outpost",
   "description": "Official patches, tools, and addons from GenPatcher (Community Outpost)",
-  "iconColor": "#2196F3",
+  "iconColor": "#5E35B1",
   "providerType": "Static",
   "catalogFormat": "genpatcher-dat",
   "endpoints": {

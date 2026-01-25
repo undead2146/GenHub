@@ -1,21 +1,24 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
+using GenHub.Common.ViewModels.Dialogs;
 using GenHub.Core.Interfaces.Common;
-using GenHub.Core.Interfaces.GameInstallations;
-using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Messages;
+using GenHub.Core.Models.Dialogs;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Notifications;
 using GenHub.Features.AppUpdate.Interfaces;
 using GenHub.Features.Downloads.ViewModels;
-using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.ViewModels;
 using GenHub.Features.GameReplays.ViewModels;
+using GenHub.Features.Info.ViewModels;
 using GenHub.Features.Notifications.ViewModels;
 using GenHub.Features.Settings.ViewModels;
 using GenHub.Features.Tools.ViewModels;
@@ -24,7 +27,7 @@ using Microsoft.Extensions.Logging;
 namespace GenHub.Common.ViewModels;
 
 /// <summary>
-/// Initializes a new instance of the <see cref="MainViewModel"/> class.
+/// Initializes a new instance of <see cref="MainViewModel"/> class.
 /// </summary>
 /// <param name="gameProfilesViewModel">Game profiles view model.</param>
 /// <param name="downloadsViewModel">Downloads view model.</param>
@@ -36,6 +39,9 @@ namespace GenHub.Common.ViewModels;
 /// <param name="userSettingsService">User settings service for persistence operations.</param>
 /// <param name="velopackUpdateManager">The Velopack update manager for checking updates.</param>
 /// <param name="notificationService">Service for showing notifications.</param>
+/// <param name="dialogService">Dialog service for showing message boxes.</param>
+/// <param name="notificationFeedViewModel">Notification feed view model.</param>
+/// <param name="infoViewModel">Info view model.</param>
 /// <param name="logger">Logger instance.</param>
 public partial class MainViewModel(
     GameProfileLauncherViewModel gameProfilesViewModel,
@@ -48,9 +54,27 @@ public partial class MainViewModel(
     IUserSettingsService userSettingsService,
     IVelopackUpdateManager velopackUpdateManager,
     INotificationService notificationService,
-    ILogger<MainViewModel>? logger = null) : ObservableObject, IDisposable
+    IDialogService dialogService,
+    NotificationFeedViewModel notificationFeedViewModel,
+    InfoViewModel infoViewModel,
+    ILogger<MainViewModel> logger) : ObservableObject, IDisposable, IRecipient<NavigationMessage>
 {
     private readonly CancellationTokenSource _initializationCts = new();
+
+    /// <summary>
+    /// Gets the collection of detected game installations.
+    /// </summary>
+    public ObservableCollection<string> GameInstallations { get; } = [];
+
+    /// <summary>
+    /// Gets the info view model.
+    /// </summary>
+    public InfoViewModel InfoViewModel { get; } = infoViewModel;
+
+    /// <summary>
+    /// Gets the notification feed view model.
+    /// </summary>
+    public NotificationFeedViewModel NotificationFeed => notificationFeedViewModel;
 
     /// <summary>
     /// Gets the game profiles view model.
@@ -82,8 +106,97 @@ public partial class MainViewModel(
     /// </summary>
     public GameReplaysViewModel GameReplaysViewModel { get; } = gameReplaysViewModel;
 
+    /// <summary>
+    /// Gets the available navigation tabs.
+    /// </summary>
+    public NavigationTab[] AvailableTabs { get; } =
+    [
+        NavigationTab.GameProfiles,
+        NavigationTab.Downloads,
+        NavigationTab.GameReplays,
+        NavigationTab.Tools,
+        NavigationTab.Settings,
+        NavigationTab.Info,
+    ];
+
+    /// <summary>
+    /// Gets the current tab's ViewModel for ContentControl binding.
+    /// </summary>
+    public object CurrentTabViewModel => SelectedTab switch
+    {
+        NavigationTab.GameProfiles => GameProfilesViewModel,
+        NavigationTab.Downloads => DownloadsViewModel,
+        NavigationTab.GameReplays => GameReplaysViewModel,
+        NavigationTab.Tools => ToolsViewModel,
+        NavigationTab.Settings => SettingsViewModel,
+        NavigationTab.Info => InfoViewModel,
+        _ => GameProfilesViewModel,
+    };
+
     [ObservableProperty]
     private NavigationTab _selectedTab = LoadInitialTab(configurationProvider, logger);
+
+    /// <summary>
+    /// Gets the display name for a navigation tab.
+    /// </summary>
+    /// <param name="tab">The navigation tab.</param>
+    /// <returns>The display name.</returns>
+    public static string GetTabDisplayName(NavigationTab tab) => tab switch
+    {
+        NavigationTab.GameProfiles => "Game Profiles",
+        NavigationTab.Downloads => "Downloads",
+        NavigationTab.GameReplays => "Game Replays",
+        NavigationTab.Tools => "Tools",
+        NavigationTab.Settings => "Settings",
+        NavigationTab.Info => "Info",
+        _ => tab.ToString(),
+    };
+
+    /// <inheritdoc/>
+    public void Receive(NavigationMessage message)
+    {
+        Dispatcher.UIThread.Post(() => SelectTab(message.Tab));
+    }
+
+    /// <summary>
+    /// Selects the specified navigation tab.
+    /// </summary>
+    /// <param name="tab">The navigation tab to select.</param>
+    [RelayCommand]
+    public void SelectTab(NavigationTab tab)
+    {
+        SelectedTab = tab;
+    }
+
+    /// <summary>
+    /// Performs asynchronous initialization for the shell and all tabs.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public async Task InitializeAsync()
+    {
+        RegisterMessages();
+        await GameProfilesViewModel.InitializeAsync();
+        await DownloadsViewModel.InitializeAsync();
+        await ToolsViewModel.InitializeAsync();
+        await GameReplaysViewModel.InitializeAsync();
+        await InfoViewModel.InitializeAsync();
+        logger?.LogInformation("MainViewModel initialized");
+
+        // Start background check with cancellation support
+        _ = CheckForUpdatesInBackgroundAsync(_initializationCts.Token);
+
+        CheckForQuickStart();
+    }
+
+    /// <summary>
+    /// Disposes of managed resources.
+    /// </summary>
+    public void Dispose()
+    {
+        _initializationCts?.Cancel();
+        _initializationCts?.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     private static NavigationTab LoadInitialTab(IConfigurationProviderService configurationProvider, ILogger<MainViewModel>? logger)
     {
@@ -105,90 +218,10 @@ public partial class MainViewModel(
         }
     }
 
-    // Static constructor for any static initialization
-    static MainViewModel()
+    // Register for messages
+    private void RegisterMessages()
     {
-    }
-
-    /// <summary>
-    /// Gets the collection of detected game installations.
-    /// </summary>
-    public ObservableCollection<string> GameInstallations { get; } = [];
-
-    /// <summary>
-    /// Gets the list of available navigation tabs.
-    /// </summary>
-    public NavigationTab[] AvailableTabs { get; } =
-    [
-        NavigationTab.Downloads,
-        NavigationTab.GameProfiles,
-        NavigationTab.GameReplays,
-        NavigationTab.Settings,
-        NavigationTab.Tools,
-    ];
-
-    /// <summary>
-    /// Gets the current tab's ViewModel for ContentControl binding.
-    /// </summary>
-    public object CurrentTabViewModel => SelectedTab switch
-    {
-        NavigationTab.Downloads => DownloadsViewModel,
-        NavigationTab.GameProfiles => GameProfilesViewModel,
-        NavigationTab.GameReplays => GameReplaysViewModel,
-        NavigationTab.Settings => SettingsViewModel,
-        NavigationTab.Tools => ToolsViewModel,
-        _ => GameProfilesViewModel,
-    };
-
-    /// <summary>
-    /// Gets the display name for a navigation tab.
-    /// </summary>
-    /// <param name="tab">The navigation tab.</param>
-    /// <returns>The display name.</returns>
-    public static string GetTabDisplayName(NavigationTab tab) => tab switch
-    {
-        NavigationTab.Downloads => "Downloads",
-        NavigationTab.GameProfiles => "Game Profiles",
-        NavigationTab.GameReplays => "Game Replays",
-        NavigationTab.Settings => "Settings",
-        NavigationTab.Tools => "Tools",
-        _ => tab.ToString(),
-    };
-
-    /// <summary>
-    /// Selects the specified navigation tab.
-    /// </summary>
-    /// <param name="tab">The navigation tab to select.</param>
-    [RelayCommand]
-    public void SelectTab(NavigationTab tab)
-    {
-        SelectedTab = tab;
-    }
-
-    /// <summary>
-    /// Performs asynchronous initialization for the shell and all tabs.
-    /// </summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public async Task InitializeAsync()
-    {
-        await GameProfilesViewModel.InitializeAsync();
-        await DownloadsViewModel.InitializeAsync();
-        await ToolsViewModel.InitializeAsync();
-        await GameReplaysViewModel.InitializeAsync();
-        logger?.LogInformation("MainViewModel initialized");
-
-        // Start background check with cancellation support
-        _ = CheckForUpdatesInBackgroundAsync(_initializationCts.Token);
-    }
-
-    /// <summary>
-    /// Disposes of managed resources.
-    /// </summary>
-    public void Dispose()
-    {
-        _initializationCts?.Cancel();
-        _initializationCts?.Dispose();
-        GC.SuppressFinalize(this);
+        WeakReferenceMessenger.Default.Register(this);
     }
 
     /// <summary>
@@ -222,8 +255,14 @@ public partial class MainViewModel(
                             "Update Available",
                             $"A new version ({updateInfo.TargetFullRelease.Version}) is available.",
                             null, // Persistent
-                            "View Updates",
-                            () => { SettingsViewModel.OpenUpdateWindowCommand.Execute(null); }));
+                            actions:
+                            [
+                                new NotificationAction(
+                                    "View Updates",
+                                    () => { SettingsViewModel.OpenUpdateWindowCommand.Execute(null); },
+                                    NotificationActionStyle.Primary,
+                                    dismissOnExecute: true),
+                            ]));
                     });
                     return;
                 }
@@ -248,8 +287,14 @@ public partial class MainViewModel(
                             "Branch Update Available",
                             $"A new build ({newVersionBase}) is available on branch '{settings.SubscribedBranch}'.",
                             null, // Persistent
-                            "View Updates",
-                            () => { SettingsViewModel.OpenUpdateWindowCommand.Execute(null); }));
+                            actions:
+                            [
+                                new NotificationAction(
+                                    "View Updates",
+                                    () => { SettingsViewModel.OpenUpdateWindowCommand.Execute(null); },
+                                    NotificationActionStyle.Primary,
+                                    dismissOnExecute: true),
+                            ]));
                     });
                 }
             }
@@ -273,6 +318,59 @@ public partial class MainViewModel(
         catch (Exception ex)
         {
             logger?.LogError(ex, "Unhandled exception in background update check");
+        }
+    }
+
+    private void CheckForQuickStart()
+    {
+        var settings = userSettingsService.Get();
+        if (!settings.HasSeenQuickStart)
+        {
+            Dispatcher.UIThread.Post(async () =>
+            {
+                var actions = new[]
+                {
+                    new DialogAction
+                    {
+                        Text = "Open Quickstart",
+                        Style = NotificationActionStyle.Primary, // Switched to Primary (Purple)
+                        Action = () =>
+                        {
+                             SelectTab(NavigationTab.Info);
+
+                             // Programmatic navigation to the quickstart section
+                             InfoViewModel.OpenSection("quickstart");
+                        },
+                    },
+                    new DialogAction
+                    {
+                        Text = "Close",
+                        Style = NotificationActionStyle.Secondary,
+                    },
+                };
+
+                var content = """
+                **Welcome to GenHub!**
+
+                Your modern, community-focused command center for **C&C: Generals & Zero Hour** is ready. The **Quickstart Guide** will help you get started with:
+
+                *   Managing profiles
+                *   Setting up downloads
+                *   Adding your own mods and content
+                """;
+
+                var result = await dialogService.ShowMessageAsync(
+                    "Getting Started",
+                    content,
+                    actions,
+                    showDoNotAskAgain: true);
+
+                if (result.DoNotAskAgain)
+                {
+                    userSettingsService.Update(s => s.HasSeenQuickStart = true);
+                    _ = userSettingsService.SaveAsync();
+                }
+            });
         }
     }
 
@@ -317,6 +415,14 @@ public partial class MainViewModel(
         else if (value == NavigationTab.GameReplays)
         {
             _ = GameReplaysViewModel.OnTabActivatedAsync();
+        }
+        else if (value == NavigationTab.Tools)
+        {
+            ToolsViewModel.IsPaneOpen = true;
+        }
+        else if (value == NavigationTab.Info)
+        {
+            InfoViewModel.IsPaneOpen = true;
         }
 
         SaveSelectedTab(value);

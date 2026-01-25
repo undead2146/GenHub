@@ -24,6 +24,13 @@ public partial class AddLocalContentWindow : Window
     }
 
     /// <inheritdoc />
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+        GenHub.Infrastructure.Interop.AdminDragDropFix.Apply(this, OnAdminDrop);
+    }
+
+    /// <inheritdoc />
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
@@ -44,7 +51,7 @@ public partial class AddLocalContentWindow : Window
                     Title = "Select Content Folder",
                     AllowMultiple = false,
                 });
-                return result.FirstOrDefault()?.Path.LocalPath;
+                return result.Count > 0 ? result[0].Path.LocalPath : null;
             };
 
             vm.BrowseFileAction = async () =>
@@ -56,12 +63,22 @@ public partial class AddLocalContentWindow : Window
 
                 var result = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
                 {
-                    Title = "Select Archive File",
-                    AllowMultiple = false,
+                    Title = "Select Files",
+                    AllowMultiple = true,
                     FileTypeFilter = [FilePickerFileTypes.All, new("Zip Archives") { Patterns = ["*.zip"] }],
                 });
-                return result.FirstOrDefault()?.Path.LocalPath;
+                return result.Count > 0 ? result.Select(f => f.Path.LocalPath).ToList() : null;
             };
+        }
+    }
+
+    private async void OnAdminDrop(string[] files)
+    {
+        if (DataContext is not AddLocalContentViewModel vm) return;
+
+        foreach (var file in files)
+        {
+            await vm.ImportContentAsync(file);
         }
     }
 

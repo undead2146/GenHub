@@ -107,25 +107,7 @@ public class ProfileContentLoader(
 
             var includedManifestIds = new HashSet<string>();
 
-            foreach (var installation in installationsResult.Data)
-            {
-                foreach (var gameClient in installation.AvailableGameClients)
-                {
-                    var item = CreateGameClientDisplayItem(installation, gameClient);
-                    if (item != null)
-                    {
-                        result.Add(item);
-                        includedManifestIds.Add(gameClient.Id);
-
-                        logger.LogDebug(
-                            "Added GameClient: {DisplayName} ({Publisher})",
-                            item.DisplayName,
-                            item.Publisher);
-                    }
-                }
-            }
-
-            await AddCasStoredGameClientsAsync(result, includedManifestIds);
+            await AddCasStoredGameClientsAsync(result, []);
 
             logger.LogInformation("Loaded {Count} game client options", result.Count);
         }
@@ -292,7 +274,7 @@ public class ProfileContentLoader(
                 var displayName = !string.IsNullOrEmpty(depManifest.Name)
                     ? depManifest.Name
                     : dependency.Name;
-                var publisher = depManifest.Publisher?.Name ?? depManifest.Publisher?.PublisherType ?? "Unknown";
+                var publisher = depManifest.Publisher?.Name ?? depManifest.Publisher?.PublisherType ?? GameClientConstants.UnknownVersion;
 
                 var item = new ContentDisplayItem
                 {
@@ -383,15 +365,15 @@ public class ProfileContentLoader(
     private (string ForManifestId, string ForDisplay) GetVersionStrings(string? detectedVersion)
     {
         var isUnknown = string.IsNullOrEmpty(detectedVersion) ||
-            detectedVersion.Equals("Unknown", StringComparison.OrdinalIgnoreCase) ||
+            detectedVersion.Equals(GameClientConstants.UnknownVersion, StringComparison.OrdinalIgnoreCase) ||
             detectedVersion.Equals(
                 GameClientConstants.AutoDetectedVersion,
                 StringComparison.OrdinalIgnoreCase);
 
         if (isUnknown)
         {
-            var defaultVersion = ManifestConstants.DefaultManifestFormatVersion.ToString();
-            return ("0", displayFormatter.NormalizeVersion(defaultVersion));
+            // Show empty string for version 0
+            return ("0", string.Empty);
         }
 
         return (detectedVersion!, displayFormatter.NormalizeVersion(detectedVersion!));
@@ -496,6 +478,15 @@ public class ProfileContentLoader(
         var manifestsResult = await contentManifestPool.GetAllManifestsAsync();
         if (!manifestsResult.Success || manifestsResult.Data is null) return;
 
+        logger.LogDebug(
+            "AddCasStoredGameClientsAsync: Total manifests in pool={Count}, ExcludeIds={ExcludeCount}",
+            manifestsResult.Data.Count(),
+            excludeIds.Count);
+
+        logger.LogDebug(
+            "ExcludeIds: {Ids}",
+            string.Join(", ", excludeIds));
+
         var casGameClients = manifestsResult.Data
             .Where(m => m.ContentType == ContentType.GameClient && !excludeIds.Contains(m.Id.Value));
 
@@ -508,6 +499,10 @@ public class ProfileContentLoader(
                 manifest.Name,
                 manifest.Id.Value);
         }
+
+        logger.LogDebug(
+            "AddCasStoredGameClientsAsync: Added {Count} CAS-stored GameClients",
+            casGameClients.Count());
     }
 
     private async Task<ObservableCollection<ContentDisplayItem>> LoadGameClientsWithEnabledStateAsync(

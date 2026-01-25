@@ -34,4 +34,9 @@ public enum NavigationTab
     /// GameReplays tournaments and community integration.
     /// </summary>
     GameReplays,
+
+    /// <summary>
+    /// Information and FAQ section.
+    /// </summary>
+    Info,
 }

@@ -87,7 +87,7 @@ public class ContentStorageService : IContentStorageService
         if (string.IsNullOrEmpty(sourceDirectory) || !Directory.Exists(sourceDirectory))
         {
             _logger.LogWarning("Source directory is null, empty, or does not exist: {SourceDirectory}. Storing metadata only.", sourceDirectory);
-            return await StoreManifestOnlyAsync(manifest, cancellationToken);
+            return await StoreManifestOnlyAsync(manifest, sourceDirectory, cancellationToken);
         }
 
         // Validate manifest for security issues
@@ -100,10 +100,15 @@ public class ContentStorageService : IContentStorageService
 
         // Check if source directory is on a potentially invalid or removable drive
         bool isInvalidDrive = IsInvalidOrRemovableDrive(sourceDirectory);
-        if (isInvalidDrive)
+
+        // MapPacks and other local content might be created in temp directories on "invalid" drives (e.g. RAM disks)
+        // We should allow storage if it's a MapPack to ensure it persists after temp cleanup.
+        bool forceStorage = manifest.ContentType == ContentType.MapPack;
+
+        if (isInvalidDrive && !forceStorage)
         {
             _logger.LogWarning("Source directory {SourceDirectory} is on an invalid or removable drive, storing metadata only", sourceDirectory);
-            return await StoreManifestOnlyAsync(manifest, cancellationToken);
+            return await StoreManifestOnlyAsync(manifest, sourceDirectory, cancellationToken);
         }
 
         // Determine if this manifest requires physical file storage in CAS
@@ -112,7 +117,7 @@ public class ContentStorageService : IContentStorageService
         if (!requiresPhysicalStorage)
         {
             _logger.LogInformation("Storing {ContentType} manifest {ManifestId} metadata only (content references external source)", manifest.ContentType, manifest.Id);
-            return await StoreManifestOnlyAsync(manifest, cancellationToken);
+            return await StoreManifestOnlyAsync(manifest, sourceDirectory, cancellationToken);
         }
 
         var manifestPath = GetManifestStoragePath(manifest.Id);
@@ -240,6 +245,24 @@ public class ContentStorageService : IContentStorageService
             // Untrack CAS references before removing manifest file
             await _referenceTracker.UntrackManifestAsync(manifestId, cancellationToken);
 
+            // Remove source.path mapping file if it exists
+            var contentDir = Path.Combine(_storageRoot, DirectoryNames.Data, manifestId.Value);
+            var sourcePathFile = Path.Combine(contentDir, "source.path");
+            FileOperationsService.DeleteFileIfExists(sourcePathFile);
+
+            // Clean up the data directory if empty
+            if (Directory.Exists(contentDir) && !Directory.EnumerateFileSystemEntries(contentDir).Any())
+            {
+                try
+                {
+                    Directory.Delete(contentDir);
+                }
+                catch (Exception deleteEx)
+                {
+                    _logger.LogWarning(deleteEx, "Failed to delete empty content directory {Directory}", contentDir);
+                }
+            }
+
             // Only remove manifest file - CAS files are cleaned up via garbage collection
             await Task.Run(() => FileOperationsService.DeleteFileIfExists(manifestPath), cancellationToken);
 
@@ -334,6 +357,12 @@ public class ContentStorageService : IContentStorageService
             return false;
         }
 
+        // MapPacks created locally MUST be stored in CAS because the source (temp dir) will be deleted
+        if (manifest.ContentType == ContentType.MapPack)
+        {
+            return true;
+        }
+
         // GameClient content typically references external installations - no storage needed (old behavior)
         // Only store physically for GitHub content that requires it
         if (manifest.ContentType == ContentType.GameClient)
@@ -366,6 +395,7 @@ public class ContentStorageService : IContentStorageService
 
     private async Task<OperationResult<ContentManifest>> StoreManifestOnlyAsync(
         ContentManifest manifest,
+        string? sourceDirectory,
         CancellationToken cancellationToken)
     {
         var manifestPath = GetManifestStoragePath(manifest.Id);
@@ -384,6 +414,22 @@ public class ContentStorageService : IContentStorageService
             var manifestDir = Path.GetDirectoryName(manifestPath);
             if (!string.IsNullOrEmpty(manifestDir))
                 Directory.CreateDirectory(manifestDir);
+
+            // Create source.path mapping if we have a valid source directory
+            // This allows GetContentDirectoryAsync to resolve the content location
+            if (!string.IsNullOrWhiteSpace(sourceDirectory) && Directory.Exists(sourceDirectory))
+            {
+                var contentDir = Path.Combine(_storageRoot, DirectoryNames.Data, manifest.Id.Value);
+                Directory.CreateDirectory(contentDir);
+
+                var sourcePathFile = Path.Combine(contentDir, "source.path");
+                await File.WriteAllTextAsync(sourcePathFile, sourceDirectory, cancellationToken);
+
+                _logger.LogInformation(
+                    "Created source path mapping for {ManifestId}: {SourcePath}",
+                    manifest.Id,
+                    sourceDirectory);
+            }
 
             // Store manifest metadata only
             var manifestJson = JsonSerializer.Serialize(manifest, JsonOptions);
@@ -517,6 +563,31 @@ public class ContentStorageService : IContentStorageService
                 var sourcePath = !string.IsNullOrEmpty(manifestFile.SourcePath) && File.Exists(manifestFile.SourcePath)
                     ? manifestFile.SourcePath
                     : Path.Combine(sourceDirectory, manifestFile.RelativePath);
+
+                // Special handling for content already in CAS (e.g. pre-downloaded)
+                if (manifestFile.SourceType == ContentSourceType.ContentAddressable && !string.IsNullOrEmpty(manifestFile.Hash))
+                {
+                    // Verify if it actually exists in CAS
+                    var casPathResult = await _casService.GetContentPathAsync(manifestFile.Hash, cancellationToken);
+                    if (casPathResult.Success && !string.IsNullOrEmpty(casPathResult.Data))
+                    {
+                        _logger.LogDebug(
+                            "File {RelativePath} already exists in CAS (hash: {Hash}), skipping physical storage",
+                            manifestFile.RelativePath,
+                            manifestFile.Hash);
+
+                        // Add directly to updated files
+                        updatedFiles.Add(manifestFile);
+                        processedCount++;
+                        progress?.Report(new ContentStorageProgress
+                        {
+                            ProcessedCount = processedCount,
+                            TotalCount = totalFiles,
+                            CurrentFileName = manifestFile.RelativePath,
+                        });
+                        continue;
+                    }
+                }
 
                 if (!File.Exists(sourcePath))
                 {

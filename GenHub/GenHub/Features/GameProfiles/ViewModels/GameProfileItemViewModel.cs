@@ -37,6 +37,16 @@ public partial class GameProfileItemViewModel : ViewModelBase
     public Func<GameProfileItemViewModel, Task>? CreateShortcutAction { get; set; }
 
     /// <summary>
+    /// Gets or sets the action to stop the profile.
+    /// </summary>
+    public Func<GameProfileItemViewModel, Task>? StopProfileAction { get; set; }
+
+    /// <summary>
+    /// Gets or sets the action to toggle Steam launch mode.
+    /// </summary>
+    public Func<GameProfileItemViewModel, Task>? ToggleSteamLaunchAction { get; set; }
+
+    /// <summary>
     /// Launches the profile using the injected action.
     /// </summary>
     [RelayCommand]
@@ -81,6 +91,30 @@ public partial class GameProfileItemViewModel : ViewModelBase
         if (CreateShortcutAction != null)
         {
             await CreateShortcutAction(this);
+        }
+    }
+
+    /// <summary>
+    /// Stops the profile using the injected action.
+    /// </summary>
+    [RelayCommand]
+    private async Task StopProfile()
+    {
+        if (StopProfileAction != null)
+        {
+            await StopProfileAction(this);
+        }
+    }
+
+    /// <summary>
+    /// Toggles Steam launch mode using the injected action.
+    /// </summary>
+    [RelayCommand]
+    private async Task ToggleSteamLaunch()
+    {
+        if (ToggleSteamLaunchAction != null)
+        {
+            await ToggleSteamLaunchAction(this);
         }
     }
 
@@ -288,7 +322,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
     /// Gets or sets a value indicating whether to use Steam launch mode (generals.exe) or standalone mode (game.dat).
     /// </summary>
     [ObservableProperty]
-    private bool _useSteamLaunch = true;
+    private bool _useSteamLaunch = false;
 
     /// <summary>
     /// Gets or sets a value indicating whether this profile is in edit mode.
@@ -297,39 +331,40 @@ public partial class GameProfileItemViewModel : ViewModelBase
     private bool _isEditMode;
 
     /// <summary>
+    /// Gets or sets a value indicating whether many maps are being switched, warranting a warning.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isLargeMapCount;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the demo highlight circle for the Steam button should be visible.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDemoModeActive))]
+    private bool _isDemoSteamHighlightVisible;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the demo highlight circle for the Shortcut button should be visible.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDemoModeActive))]
+    private bool _isDemoShortcutHighlightVisible;
+
+    /// <summary>
     /// Gets or sets a value indicating whether this profile is from a Steam installation.
     /// </summary>
     [ObservableProperty]
     private bool _isSteamInstallation;
 
     /// <summary>
+    /// Gets a value indicating whether any demo highlight is active, often requiring the overlay to be always visible.
+    /// </summary>
+    public bool IsDemoModeActive => IsDemoSteamHighlightVisible || IsDemoShortcutHighlightVisible;
+
+    /// <summary>
     /// Gets the underlying game profile.
     /// </summary>
     public IGameProfile Profile { get; }
-
-    /// <summary>
-    /// Gets or sets the user data switch information when switching to this profile.
-    /// </summary>
-    [ObservableProperty]
-    private GenHub.Core.Models.UserData.UserDataSwitchInfo? _userDataSwitchInfo;
-
-    /// <summary>
-    /// Gets or sets a value indicating whether to show the user data confirmation prompt.
-    /// </summary>
-    [ObservableProperty]
-    private bool _showUserDataConfirmation;
-
-    /// <summary>
-    /// Gets or sets the message to display in the user data confirmation prompt.
-    /// </summary>
-    [ObservableProperty]
-    private string? _userDataConfirmationMessage;
-
-    /// <summary>
-    /// Gets or sets a value indicating whether many maps are being switched, warranting a warning.
-    /// </summary>
-    [ObservableProperty]
-    private bool _isLargeMapCount;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GameProfileItemViewModel"/> class.
@@ -351,9 +386,10 @@ public partial class GameProfileItemViewModel : ViewModelBase
             ? iconPath
             : UriConstants.DefaultIconUri;
 
-        // Handle cover path with fallback to icon
-        _coverPath = !string.IsNullOrEmpty(coverPath)
-            ? coverPath
+        // Handle cover path with fallback to icon, normalize old paths
+        var normalizedCoverPath = NormalizeCoverPath(coverPath);
+        _coverPath = !string.IsNullOrEmpty(normalizedCoverPath)
+            ? normalizedCoverPath
             : _iconPath;
 
         // Set cover image path (for UI binding)
@@ -380,7 +416,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
                     // Normalize version to handle Unknown, Auto-Updated, and Automatically added cases
                     var version = gameProfile.GameClient.Version;
                     if (version.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase) ||
-                        version.Equals("Unknown", StringComparison.OrdinalIgnoreCase) ||
+                        version.Equals(GameClientConstants.UnknownVersion, StringComparison.OrdinalIgnoreCase) ||
                         version.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase) ||
                         version.Contains("Automatically", StringComparison.OrdinalIgnoreCase))
                     {
@@ -403,15 +439,18 @@ public partial class GameProfileItemViewModel : ViewModelBase
                 // Generate user-friendly description with game type and version information as fallback
                 var gameTypeName = GetFriendlyGameTypeName(profile.GameClient?.GameType);
 
-                // Don't show version if it's Unknown, Auto-Updated, or Automatically added
                 var versionInfo = string.Empty;
                 if (!string.IsNullOrEmpty(_gameVersion) &&
-                    !_gameVersion.Equals("Unknown", StringComparison.OrdinalIgnoreCase) &&
+                    !_gameVersion.Equals(GameClientConstants.UnknownVersion, StringComparison.OrdinalIgnoreCase) &&
                     !_gameVersion.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase) &&
                     !_gameVersion.Equals("Automatically added", StringComparison.OrdinalIgnoreCase) &&
                     !_gameVersion.Contains("Automatically", StringComparison.OrdinalIgnoreCase))
                 {
-                    versionInfo = $"v{_gameVersion}";
+                     // If it doesn't start with 'v' (e.g. GeneralsOnline datecode), add it for description context?
+                     // Or better, just use exactly what is in _gameVersion since we formatted it nicely.
+                     // The previous code added 'v' unconditionally.
+                     // Let's rely on _gameVersion having the prefix if standard, or raw if datecode.
+                     versionInfo = _gameVersion;
                 }
 
                 var publisherInfo = !string.IsNullOrEmpty(_publisher) ? $" • {_publisher}" : string.Empty;
@@ -529,6 +568,99 @@ public partial class GameProfileItemViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Refreshes ViewModel properties from the updated profile.
+    /// Called after profile is updated (e.g., by GeneralsOnline reconciler).
+    /// </summary>
+    /// <param name="updatedProfile">The updated profile to refresh from.</param>
+    public void UpdateFromProfile(IGameProfile updatedProfile)
+    {
+        // Update basic properties
+        Name = updatedProfile.Name;
+        Version = updatedProfile.Version;
+        ExecutablePath = updatedProfile.ExecutablePath;
+
+        // Re-extract version and publisher info from updated profile
+        if (updatedProfile is GameProfile gameProfile)
+        {
+            // Reset version info before re-extracting
+            GameVersion = string.Empty;
+            Publisher = string.Empty;
+
+            // First try to get info from enabled GameInstallation manifests
+            var installationManifestId = gameProfile.EnabledContentIds?.FirstOrDefault(id => id.Contains("-installation"));
+            if (!string.IsNullOrEmpty(installationManifestId))
+            {
+                ExtractManifestInfo(installationManifestId);
+            }
+
+            // Fallback to GameClient manifest
+            else if (gameProfile.GameClient != null)
+            {
+                ExtractManifestInfo(gameProfile.GameClient.Id);
+
+                // Fallback: use GameClient.Version directly
+                if (string.IsNullOrEmpty(GameVersion) && !string.IsNullOrEmpty(gameProfile.GameClient.Version))
+                {
+                    var version = gameProfile.GameClient.Version;
+                    if (version.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase) ||
+                        version.Equals(GameClientConstants.UnknownVersion, StringComparison.OrdinalIgnoreCase) ||
+                        version.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase) ||
+                        version.Contains("Automatically", StringComparison.OrdinalIgnoreCase))
+                    {
+                        GameVersion = string.Empty;
+                    }
+                    else
+                    {
+                        GameVersion = version;
+                    }
+                }
+            }
+
+            // Update description
+            if (!string.IsNullOrEmpty(gameProfile.Description))
+            {
+                Description = gameProfile.Description;
+            }
+
+            // Update workspace info
+            ActiveWorkspaceId = gameProfile.ActiveWorkspaceId;
+            UseSteamLaunch = gameProfile.UseSteamLaunch ?? true;
+
+            // Update visuals
+            if (!string.IsNullOrEmpty(gameProfile.ThemeColor))
+            {
+                ColorValue = gameProfile.ThemeColor;
+            }
+
+            if (!string.IsNullOrEmpty(gameProfile.IconPath))
+            {
+                IconPath = gameProfile.IconPath;
+            }
+
+            if (!string.IsNullOrEmpty(gameProfile.CoverPath))
+            {
+                var normalizedCoverPath = NormalizeCoverPath(gameProfile.CoverPath);
+                CoverPath = normalizedCoverPath;
+                CoverImagePath = normalizedCoverPath;
+            }
+
+            CommandLineArguments = gameProfile.CommandLineArguments;
+        }
+
+        // Notify UI of all property changes
+        OnPropertyChanged(nameof(Name));
+        OnPropertyChanged(nameof(Version));
+        OnPropertyChanged(nameof(GameVersion));
+        OnPropertyChanged(nameof(Publisher));
+        OnPropertyChanged(nameof(Description));
+        OnPropertyChanged(nameof(ColorValue));
+        OnPropertyChanged(nameof(IconPath));
+        OnPropertyChanged(nameof(CoverPath));
+        OnPropertyChanged(nameof(CoverImagePath));
+        OnPropertyChanged(nameof(CommandLineArguments));
+    }
+
+    /// <summary>
     /// Explicitly notifies that the CanLaunch and CanEdit properties may have changed.
     /// </summary>
     public void NotifyCanLaunchChanged()
@@ -586,6 +718,39 @@ public partial class GameProfileItemViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Normalizes old cover paths to new paths for backward compatibility.
+    /// Handles migration from Assets/Images/*.png to Assets/Covers/*.png.
+    /// </summary>
+    /// <param name="coverPath">The cover path to normalize.</param>
+    /// <returns>The normalized cover path.</returns>
+    private static string NormalizeCoverPath(string coverPath)
+    {
+        if (string.IsNullOrEmpty(coverPath))
+            return coverPath;
+
+        // Map old paths to new paths for backward compatibility
+        // Images were renamed/moved: Assets/Images/china-poster.png → Assets/Covers/china-cover.png
+        return coverPath switch
+        {
+            var p when p.Contains("china-poster.png", StringComparison.OrdinalIgnoreCase) =>
+                p.Replace("china-poster.png", "china-cover.png", StringComparison.OrdinalIgnoreCase)
+                 .Replace("/Assets/Images/", "/Assets/Covers/", StringComparison.OrdinalIgnoreCase),
+            var p when p.Contains("usa-poster.png", StringComparison.OrdinalIgnoreCase) =>
+                p.Replace("usa-poster.png", "usa-cover.png", StringComparison.OrdinalIgnoreCase)
+                 .Replace("/Assets/Images/", "/Assets/Covers/", StringComparison.OrdinalIgnoreCase),
+            var p when p.Contains("gla-poster.png", StringComparison.OrdinalIgnoreCase) =>
+                p.Replace("gla-poster.png", "gla-cover.png", StringComparison.OrdinalIgnoreCase)
+                 .Replace("/Assets/Images/", "/Assets/Covers/", StringComparison.OrdinalIgnoreCase),
+
+            // Also handle just the directory change for any other files in Images/ that might reference covers
+            var p when p.Contains("/Assets/Images/", StringComparison.OrdinalIgnoreCase) &&
+                       (p.Contains("cover", StringComparison.OrdinalIgnoreCase) || p.Contains("poster", StringComparison.OrdinalIgnoreCase)) =>
+                p.Replace("/Assets/Images/", "/Assets/Covers/", StringComparison.OrdinalIgnoreCase),
+            _ => coverPath,
+        };
+    }
+
+    /// <summary>
     /// Extracts version, publisher, and content type information from a manifest ID.
     /// Expected format: schemaVersion.userVersion.publisher.contentType.contentName.
     /// Example: 1.104.steam.gameclient.zerohour → version=104 (1.04), publisher=Steam, contentType=Game Client.
@@ -602,31 +767,65 @@ public partial class GameProfileItemViewModel : ViewModelBase
 
         try
         {
+            // Parse publisher: segment[2] contains the platform/publisher
+            var publisherSegment = segments[2].ToLowerInvariant();
+            Publisher = publisherSegment switch
+            {
+                PublisherTypeConstants.Steam => "Steam",
+                PublisherTypeConstants.EaApp => "EA App",
+                "thefirstdecade" => "The First Decade",
+                PublisherTypeConstants.Retail => "Retail",
+                "cdiso" => "CD/ISO",
+                "wine" => "Wine",
+                PublisherTypeConstants.GeneralsOnline => "Generals Online",
+                PublisherTypeConstants.TheSuperHackers => "The Super Hackers",
+                CommunityOutpostConstants.PublisherType => "Community Outpost",
+                _ => segments[2].ToUpperInvariant(),
+            };
+
+            // --- Faction Branding (Round 2 Fix) ---
+            // Apply theme colors and covers based on the publisher segment
+            if (publisherSegment == PublisherTypeConstants.TheSuperHackers)
+            {
+                // Super Hackers = China branding
+                ColorValue = SuperHackersConstants.ZeroHourThemeColor; // #8B0000
+                CoverImagePath = SuperHackersConstants.ZeroHourCoverSource; // "/Assets/Covers/china-cover.png"
+            }
+            else if (publisherSegment == PublisherTypeConstants.GeneralsOnline)
+            {
+                // Generals Online = USA branding
+                ColorValue = GeneralsOnlineConstants.ThemeColor; // #00A3FF
+                CoverImagePath = GeneralsOnlineConstants.CoverSource; // "/Assets/Covers/usa-cover.png"
+            }
+            else if (publisherSegment == CommunityOutpostConstants.PublisherType)
+            {
+                // Community Outpost / GenPatcher = GLA branding
+                ColorValue = CommunityOutpostConstants.ThemeColor; // #2D5A27
+                CoverImagePath = CommunityOutpostConstants.CoverSource; // "/Assets/Covers/gla-cover.png"
+            }
+
             // Parse version: segment[1] contains the user version (e.g., 104, 108)
             if (int.TryParse(segments[1], out var versionNumber) && versionNumber > 0)
             {
-                // Convert 104 → "1.04", 108 → "1.08", 105 → "1.05"
-                GameVersion = versionNumber >= 100
-                    ? $"{versionNumber / 100}.{versionNumber % 100:D2}"
-                    : versionNumber.ToString();
+                if (publisherSegment == PublisherTypeConstants.GeneralsOnline)
+                {
+                    // For Generals Online, the version is a datecode (MMDDYY).
+                    // Format as 6 digits (e.g., 10326 -> "010326")
+                    GameVersion = versionNumber.ToString("D6");
+                }
+                else
+                {
+                    // Standard version logic: Convert 104 -> "v1.04", 108 -> "v1.08", 105 -> "v1.05"
+                    GameVersion = versionNumber >= 100
+                        ? $"v{versionNumber / 100}.{versionNumber % 100:D2}"
+                        : $"v{versionNumber}";
+                }
             }
             else
             {
                 // If version is 0 or invalid, try to extract from GameClient.Version directly
                 GameVersion = string.Empty;
             }
-
-            // Parse publisher: segment[2] contains the platform/publisher
-            Publisher = segments[2] switch
-            {
-                "steam" => "Steam",
-                "eaapp" => "EA App",
-                "thefirstdecade" => "The First Decade",
-                "retail" => "Retail",
-                "cdiso" => "CD/ISO",
-                "wine" => "Wine",
-                _ => segments[2].ToUpperInvariant(),
-            };
 
             // Parse content type from suffix in segment[3]
             var gameTypeSegment = segments[3];
@@ -635,9 +834,17 @@ public partial class GameProfileItemViewModel : ViewModelBase
                 var parts = gameTypeSegment.Split('-');
                 ContentType = parts[1] switch
                 {
-                    "installation" => "Game Installation",
-                    "client" => "Game Client",
-                    _ => parts[1],
+                    "gameinstallation" => "Game Installation",
+                    "gameclient" => "Game Client",
+                    "mod" => "Mod",
+                    "patch" => "Patch",
+                    "addon" => "Add-on",
+                    "map" => "Map",
+                    "mappack" => "Map Pack",
+                    "executable" => "Executable",
+                    "moddingtool" => "Modding Tool",
+                    "mission" => "Mission",
+                    _ => parts[1].ToUpperInvariant(),
                 };
             }
         }

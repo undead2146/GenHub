@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameProfiles;
@@ -439,6 +440,20 @@ public class GeneralsOnlineProfileReconciler(
                     logger.LogInformation(
                         "[GO Reconciler] Successfully updated profile: {ProfileName}",
                         profile.Name);
+
+                    // Notify UI to refresh this profile's ViewModel
+                    try
+                    {
+                        var updatedProfileResult = await profileManager.GetProfileAsync(profile.Id, cancellationToken);
+                        if (updatedProfileResult.Success && updatedProfileResult.Data is GameProfile updatedGameProfile)
+                        {
+                            WeakReferenceMessenger.Default.Send(new ProfileUpdatedMessage(updatedGameProfile));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "[GO Reconciler] Failed to send ProfileUpdatedMessage for {ProfileName}", profile.Name);
+                    }
                 }
                 else
                 {

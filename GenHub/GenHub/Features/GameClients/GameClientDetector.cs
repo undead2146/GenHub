@@ -15,7 +15,6 @@ using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
-using GenHub.Features.Content.Services.GeneralsOnline;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.GameClients;
@@ -31,6 +30,20 @@ public class GameClientDetector(
     IEnumerable<IGameClientIdentifier> gameClientIdentifiers,
     ILogger<GameClientDetector> logger) : IGameClientDetector
 {
+    // Directories to exclude from recursive scanning to avoid duplicates and performance issues
+    private static readonly HashSet<string> _excludedDirectories = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".genhub-backup",
+        ".git",
+        ".vs",
+        "node_modules",
+        "bin",
+        "obj",
+        "tmp",
+        "temp",
+        "GeneralsOnlineGameData", // Internal data for GO client
+    };
+
     /// <inheritdoc/>
     public async Task<DetectionResult<GameClient>> DetectGameClientsFromInstallationsAsync(
         IEnumerable<GameInstallation> installations,
@@ -124,12 +137,8 @@ public class GameClientDetector(
 
         var gameClients = new List<GameClient>();
 
-        // Search for all possible executable names
-        var allFiles = await Task.Run(() =>
-            Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories)
-                .Where(f => hashRegistry.PossibleExecutableNames
-                    .Contains(Path.GetFileName(f), StringComparer.OrdinalIgnoreCase))
-                .ToList());
+        // Search for all possible executable names using manual recursion to skip excluded directories
+        var allFiles = await Task.Run(() => FindGameExecutablesRecursively(path));
 
         foreach (var exe in allFiles)
         {
@@ -182,12 +191,12 @@ public class GameClientDetector(
             var zeroHourVersion = hashRegistry.GetVersionFromHash(hash, GameType.ZeroHour);
             GameType detectedGameType;
             string detectedVersion;
-            if (!string.Equals(generalsVersion, "Unknown", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(generalsVersion, GameClientConstants.UnknownVersion, StringComparison.OrdinalIgnoreCase))
             {
                 detectedGameType = GameType.Generals;
                 detectedVersion = generalsVersion;
             }
-            else if (!string.Equals(zeroHourVersion, "Unknown", StringComparison.OrdinalIgnoreCase))
+            else if (!string.Equals(zeroHourVersion, GameClientConstants.UnknownVersion, StringComparison.OrdinalIgnoreCase))
             {
                 detectedGameType = GameType.ZeroHour;
                 detectedVersion = zeroHourVersion;
@@ -195,10 +204,10 @@ public class GameClientDetector(
             else
             {
                 detectedGameType = GameType.Unknown;
-                detectedVersion = "Unknown";
+                detectedVersion = GameClientConstants.UnknownVersion;
             }
 
-            if (detectedGameType != GameType.Unknown && !string.Equals(detectedVersion, "Unknown", StringComparison.OrdinalIgnoreCase))
+            if (detectedGameType != GameType.Unknown && !string.Equals(detectedVersion, GameClientConstants.UnknownVersion, StringComparison.OrdinalIgnoreCase))
             {
                 var gameTypeName = detectedGameType == GameType.Generals ? "Generals" : "Zero Hour";
                 logger.LogDebug("Detected {GameType} {Version} from {ExecutablePath} with hash {Hash}", gameTypeName, detectedVersion, executablePath, hash);
@@ -221,7 +230,7 @@ public class GameClientDetector(
             {
                 Name = $"Unknown Game ({Path.GetFileName(workingDirectory)})",
                 Id = string.Empty, // Will be set by manifest generation
-                Version = "Unknown",
+                Version = GameClientConstants.UnknownVersion,
                 ExecutablePath = executablePath,
                 GameType = GameType.Generals, // Default assumption
                 WorkingDirectory = workingDirectory,
@@ -255,9 +264,23 @@ public class GameClientDetector(
                 return;
             }
 
+            // Determine publisher info from installation if available
+            PublisherInfo? publisherInfo = null;
+            if (installation != null)
+            {
+                var (publisherName, website, supportUrl) = PublisherInfoConstants.GetPublisherInfo(installation.InstallationType);
+                publisherInfo = new PublisherInfo
+                {
+                    Name = publisherName,
+                    Website = website,
+                    SupportUrl = supportUrl,
+                    PublisherType = PublisherTypeConstants.FromInstallationType(installation.InstallationType),
+                };
+            }
+
             // Generate GameClient manifest with executable included
             var builder = await manifestGenerationService.CreateGameClientManifestAsync(
-                clientPath, gameType, gameClient.Name, gameClient.Version, gameClient.ExecutablePath);
+                clientPath, gameType, gameClient.Name, gameClient.Version, gameClient.ExecutablePath, publisherInfo);
 
             var manifest = builder.Build();
             manifest.ContentType = ContentType.GameClient;
@@ -327,7 +350,7 @@ public class GameClientDetector(
     /// <param name="installationPath">The installation directory path.</param>
     /// <param name="gameType">The type of game (Generals or ZeroHour).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A tuple containing the detected version string and the actual executable path found, or ("Unknown", original path) if not recognized.</returns>
+    /// <returns>A tuple containing the detected version string and the actual executable path found, or (GameClientConstants.UnknownVersion, original path) if not recognized.</returns>
     private async Task<(string Version, string ExecutablePath)> DetectVersionFromInstallationAsync(string installationPath, GameType gameType, CancellationToken cancellationToken)
     {
         // Use the possible executable names from the registry
@@ -352,10 +375,10 @@ public class GameClientDetector(
 
                 var version = hashRegistry.GetVersionFromHash(hash, gameType);
 
-                if (!string.Equals(version, "Unknown", StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(version, GameClientConstants.UnknownVersion, StringComparison.OrdinalIgnoreCase))
                 {
-                    logger.LogDebug(
-                        "Detected {GameType} version {Version} from {ExecutableName} with hash {Hash}",
+                    logger.LogInformation(
+                        "Detected {GameType} version {Version} from {FileName} with hash {Hash}",
                         gameType,
                         version,
                         actualFileName,
@@ -377,31 +400,27 @@ public class GameClientDetector(
             }
         }
 
-        // If no recognized executable found, try to detect version from the default executable's file info
-        var defaultExecutableName = gameType == GameType.Generals ? GameClientConstants.GeneralsExecutable : GameClientConstants.ZeroHourExecutable;
+        // Fallback: try to detect version from generals.exe/generalszh.exe file info
+        var defaultExecutableName = gameType == GameType.Generals
+            ? GameClientConstants.GeneralsExecutable
+            : GameClientConstants.ZeroHourExecutable;
         var defaultPath = Path.Combine(installationPath, defaultExecutableName);
-        var fallbackVersion = "Unknown";
+
+        var fallbackVersion = GameClientConstants.UnknownVersion;
 
         if (File.Exists(defaultPath))
         {
             try
             {
                 var versionInfo = System.Diagnostics.FileVersionInfo.GetVersionInfo(defaultPath);
-
-                // Try ProductVersion first, then FileVersion
                 var rawVersion = versionInfo.ProductVersion ?? versionInfo.FileVersion;
 
                 if (!string.IsNullOrWhiteSpace(rawVersion))
                 {
-                    // Clean up version string
-                    // 1. Remove build metadata (e.g., "+buildhash" or "-beta")
                     var cleanVersion = rawVersion.Split('+')[0].Split('-')[0].Trim();
-
-                    // 2. Normalize separators
                     cleanVersion = cleanVersion.Replace(", ", ".").Replace(",", ".");
-
-                    // 3. Ensure we have at most 2 components ("Major.Minor")
                     var components = cleanVersion.Split('.');
+
                     if (components.Length > 2)
                     {
                         if (components.Length >= 3 && components[0] == "1" && components[1] == "0" && components[2] != "0")
@@ -412,28 +431,14 @@ public class GameClientDetector(
                         {
                             cleanVersion = $"{components[0]}.{components[1]}"; // 1.0.0.0 -> 1.0
                         }
-                        else
-                        {
-                            cleanVersion = components[0];
-                        }
-                    }
-
-                    // 4. Final check
-                    if (cleanVersion.Count(c => c == '.') > 1)
-                    {
-                        cleanVersion = cleanVersion.Split('.')[0];
                     }
 
                     fallbackVersion = cleanVersion;
-
                     logger.LogInformation(
-                        "Detected {GameType} version {Version} (raw: {RawVersion}) from FileVersionInfo for {ExecutableName}",
+                        "Detected {GameType} version {Version} from FileVersionInfo for {ExecutableName}",
                         gameType,
                         cleanVersion,
-                        rawVersion,
                         defaultExecutableName);
-
-                    fallbackVersion = cleanVersion;
                 }
             }
             catch (Exception ex)
@@ -443,18 +448,10 @@ public class GameClientDetector(
         }
 
         // Apply smart defaults for generic/unknown versions
-        // If we detected "1.0" (common for EA App/Steam) or "Unknown", assume latest patch
-        if (fallbackVersion == "Unknown" || fallbackVersion == "1.0" || fallbackVersion == "1.00")
+        if (fallbackVersion == GameClientConstants.UnknownVersion || fallbackVersion == "1.0" || fallbackVersion == "1.00" || fallbackVersion == "0.0" || fallbackVersion == "0.0.0.0")
         {
             var oldVersion = fallbackVersion;
-            if (gameType == GameType.Generals)
-            {
-                fallbackVersion = "1.08";
-            }
-            else if (gameType == GameType.ZeroHour)
-            {
-                fallbackVersion = "1.04";
-            }
+            fallbackVersion = gameType == GameType.Generals ? "1.08" : "1.04";
 
             if (fallbackVersion != oldVersion)
             {
@@ -864,5 +861,54 @@ public class GameClientDetector(
         }
 
         return gameClients;
+    }
+
+    /// <summary>
+    /// Recursively finds game executables in a directory, skipping excluded folders.
+    /// </summary>
+    /// <param name="rootPath">The root directory to search.</param>
+    /// <returns>List of paths to game executables found.</returns>
+    private List<string> FindGameExecutablesRecursively(string rootPath)
+    {
+        var results = new List<string>();
+        var directoriesToProcess = new Queue<string>();
+        directoriesToProcess.Enqueue(rootPath);
+
+        while (directoriesToProcess.Count > 0)
+        {
+            var currentDir = directoriesToProcess.Dequeue();
+
+            try
+            {
+                // Process files in current directory
+                foreach (var file in Directory.EnumerateFiles(currentDir))
+                {
+                    if (hashRegistry.PossibleExecutableNames.Contains(Path.GetFileName(file), StringComparer.OrdinalIgnoreCase))
+                    {
+                        results.Add(file);
+                    }
+                }
+
+                // Enqueue subdirectories if not excluded
+                foreach (var subDir in Directory.EnumerateDirectories(currentDir))
+                {
+                    var dirName = Path.GetFileName(subDir);
+                    if (!_excludedDirectories.Contains(dirName))
+                    {
+                        directoriesToProcess.Enqueue(subDir);
+                    }
+                    else
+                    {
+                        logger.LogDebug("Skipping excluded directory during game client scan: {Directory}", subDir);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to scan directory {Directory} for game clients", currentDir);
+            }
+        }
+
+        return results;
     }
 }

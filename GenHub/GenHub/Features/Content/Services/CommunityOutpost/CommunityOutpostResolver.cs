@@ -5,7 +5,6 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
-using GenHub.Core.Extensions;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Providers;
@@ -14,6 +13,7 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Providers;
 using GenHub.Core.Models.Results;
+using GenHub.Core.Models.Results.Content;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Content.Services.CommunityOutpost;
@@ -133,7 +133,7 @@ public class CommunityOutpostResolver(
                     contentMetadata.Description,
                     tags: BuildTags(discoveredItem, contentMetadata),
                     changelogUrl: patchPageUrl)
-                .WithInstallationInstructions(WorkspaceStrategy.HybridCopySymlink);
+                .WithInstallationInstructions(WorkspaceConstants.DefaultWorkspaceStrategy);
 
             // Add dependencies based on content type and category
             var dependencies = contentMetadata.GetDependencies();
@@ -177,12 +177,12 @@ public class CommunityOutpostResolver(
             // Store mirror URLs in metadata for fallback support during delivery
             if (mirrorUrls.Count > 1)
             {
-                builtManifest.Metadata.Tags ??= new List<string>();
+                builtManifest.Metadata.Tags ??= [];
                 builtManifest.Metadata.Tags.Add($"mirrors:{mirrorUrls.Count}");
             }
 
             // Store the content code for the factory to use
-            builtManifest.Metadata.Tags ??= new List<string>();
+            builtManifest.Metadata.Tags ??= [];
             builtManifest.Metadata.Tags.Add($"contentCode:{contentCode}");
             builtManifest.Metadata.Tags.Add($"installTarget:{contentMetadata.InstallTarget}");
 
@@ -207,9 +207,19 @@ public class CommunityOutpostResolver(
 
             // Override the display name to be more user-friendly
             builtManifest.Name = discoveredItem.Name ?? contentMetadata.DisplayName;
-            builtManifest.Version = !string.IsNullOrEmpty(contentMetadata.Version)
-                ? contentMetadata.Version
-                : discoveredItem.Version;
+
+            // For community-patch, prioritize discoveredItem.Version (dynamic date from legi.cc/patch)
+            // over static metadata version which may be null/empty
+            if (contentCode == "community-patch" && !string.IsNullOrEmpty(discoveredItem.Version))
+            {
+                builtManifest.Version = discoveredItem.Version;
+            }
+            else
+            {
+                builtManifest.Version = !string.IsNullOrEmpty(contentMetadata.Version)
+                    ? contentMetadata.Version
+                    : discoveredItem.Version;
+            }
 
             logger.LogInformation(
                 "Successfully resolved Community Outpost manifest: {ManifestId} for {ContentCode} ({Category})",
@@ -235,7 +245,7 @@ public class CommunityOutpostResolver(
         if (metadata.Category == GenPatcherContentCategory.OfficialPatch && !string.IsNullOrEmpty(metadata.LanguageCode))
         {
             var languageName = GetLanguageDisplayName(metadata.LanguageCode);
-            var codePrefix = contentCode.Length >= 3 ? contentCode.Substring(0, 3) : contentCode;
+            var codePrefix = contentCode.Length >= 3 ? contentCode[..3] : contentCode;
             return $"patch{codePrefix}{languageName}".ToLowerInvariant();
         }
 
@@ -374,12 +384,12 @@ public class CommunityOutpostResolver(
 
         try
         {
-            return JsonSerializer.Deserialize<List<string>>(mirrorUrlsJson) ?? new List<string>();
+            return JsonSerializer.Deserialize<List<string>>(mirrorUrlsJson) ?? [];
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to deserialize mirror URLs");
-            return new List<string>();
+            return [];
         }
     }
 }

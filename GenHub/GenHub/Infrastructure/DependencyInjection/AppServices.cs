@@ -1,7 +1,5 @@
-using System;
 using Microsoft.Extensions.DependencyInjection;
-using GenHub.Features.GameReplays;
-using GenHub.Core.Interfaces.GameReplays;
+using System;
 
 namespace GenHub.Infrastructure.DependencyInjection;
 
@@ -44,12 +42,11 @@ public static class AppServices
 
         // Register Tools services
         services.AddToolsServices();
-        // TODO: These services are missing from the current codebase after merge.
+        services.AddUploadThingServices(); // Shared cloud upload service
+        services.AddReplayManagerServices();
+        services.AddMapManager();
 
-        // services.AddUploadThingServices(); // Shared cloud upload service
-        // services.AddReplayManagerServices();
-        // services.AddMapManager();
-
+        // Register GameReplays services
         GameReplaysModule.RegisterGameReplaysServices(services);
 
         // Register Notification services
@@ -58,6 +55,7 @@ public static class AppServices
         // Register UI services last (depends on all business services)
         services.AddAppUpdateModule();
         services.AddSharedViewModelModule();
+        InfoModule.Register(services);
 
         // Register platform-specific services using the factory if provided
         platformModuleFactory?.Invoke(services);

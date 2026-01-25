@@ -440,7 +440,9 @@ public partial class GameReplaysParser(ILogger<GameReplaysParser> logger) : IGam
         if (linkNode.ParentNode != null)
         {
             var parentText = linkNode.ParentNode.InnerText;
-            if (parentText.Contains('(') && parentText.Contains(')')) // Dates are often in brackets
+
+            // Dates are often in brackets
+            if (parentText.Contains('(') && parentText.Contains(')'))
             {
                 return parentText;
             }
