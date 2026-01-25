@@ -1,0 +1,49 @@
+:root {
+    /* Primary Purple Tones */
+    --primary: #6366f1;
+    --primary-dark: #4f46e5;
+    --primary-light: #818cf8;
+    --primary-glow: rgba(99, 102, 241, 0.4);
+    
+    /* Accent Colors */
+    --accent: #22d3ee;
+    --accent-glow: rgba(34, 211, 238, 0.3);
+    --success: #10b981;
+    
+    /* Navy Blue Backgrounds */
+    --bg-deep: #050714;
+    --bg-dark: #0a0d1a;
+    --bg-card: rgba(15, 20, 40, 0.6);
+    --bg-card-solid: #0f1428;
+    --bg-elevated: rgba(20, 25, 50, 0.8);
+    
+    /* Glass Effect */
+    --glass-bg: rgba(15, 20, 45, 0.4);
+    --glass-border: rgba(99, 102, 241, 0.15);
+    --glass-highlight: rgba(255, 255, 255, 0.05);
+    
+    /* Text Colors */
+    --text-main: #f0f4ff;
+    --text-secondary: #c7d2fe;
+    --text-muted: #7c8db5;
+    
+    /* Borders */
+    --border: rgba(99, 102, 241, 0.2);
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #3730a3 100%);
+    --gradient-glow: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(34, 211, 238, 0.1) 100%);
+    --gradient-text: linear-gradient(135deg, #f0f4ff 0%, #c7d2fe 50%, #818cf8 100%);
+    
+    /* Shadows */
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.5);
+    --shadow-glow: 0 0 40px var(--primary-glow);
+    
+    /* Blur */
+    --blur-sm: 8px;
+    --blur-md: 16px;
+    --blur-lg: 24px;
+}
