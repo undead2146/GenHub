@@ -37,28 +37,12 @@ public partial class GameProfileSettingsViewModel
         SelectedContentCategory = category;
     }
 
+    /// <summary>
+    /// Loads the available content items based on current filters.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [RelayCommand]
-    private void SelectGeneralCategory(GeneralSettingsCategory category)
-    {
-        SelectedGeneralCategory = category;
-        ScrollToSectionRequested?.Invoke(category.ToString() + "Section");
-    }
-
-    [RelayCommand]
-    private void SelectContentCategory(ContentSettingsCategory category)
-    {
-        SelectedContentCategory = category;
-        ScrollToSectionRequested?.Invoke(category.ToString() + "Section");
-    }
-
-    [RelayCommand]
-    private void ScrollToSection(string sectionName)
-    {
-        ScrollToSectionRequested?.Invoke(sectionName);
-    }
-
-    [RelayCommand]
-    private async Task LoadAvailableContentAsync()
+    protected virtual async Task LoadAvailableContentAsync()
     {
         try
         {
@@ -131,6 +115,26 @@ public partial class GameProfileSettingsViewModel
         {
             IsLoadingContent = false;
         }
+    }
+
+    [RelayCommand]
+    private void SelectGeneralCategory(GeneralSettingsCategory category)
+    {
+        SelectedGeneralCategory = category;
+        ScrollToSectionRequested?.Invoke(category.ToString() + "Section");
+    }
+
+    [RelayCommand]
+    private void SelectContentCategory(ContentSettingsCategory category)
+    {
+        SelectedContentCategory = category;
+        ScrollToSectionRequested?.Invoke(category.ToString() + "Section");
+    }
+
+    [RelayCommand]
+    private void ScrollToSection(string sectionName)
+    {
+        ScrollToSectionRequested?.Invoke(sectionName);
     }
 
     [RelayCommand]

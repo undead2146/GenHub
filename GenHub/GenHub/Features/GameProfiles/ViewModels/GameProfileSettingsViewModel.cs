@@ -3,12 +3,9 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Constants;
-using GenHub.Core.Extensions;
 using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
@@ -18,7 +15,6 @@ using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
-using GenHub.Core.Models.GameProfiles;
 using GenHub.Core.Models.Manifest;
 using GenHub.Features.Notifications.Services;
 using GenHub.Features.Notifications.ViewModels;
@@ -38,34 +34,104 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
     public record FilterTypeInfo(ContentType ContentType, string DisplayName, string IconData);
 
     /// <summary>
-    /// Gets the available game types for local content.
+    /// Gets the list of available workspace strategies.
     /// </summary>
-    public static GameType[] AvailableLocalGameTypes { get; } = [Core.Models.Enums.GameType.Generals, Core.Models.Enums.GameType.ZeroHour];
+    public static WorkspaceStrategy[] AvailableWorkspaceStrategies { get; } =
+    [
+        WorkspaceStrategy.SymlinkOnly,
+        WorkspaceStrategy.FullCopy,
+        WorkspaceStrategy.HybridCopySymlink,
+        WorkspaceStrategy.HardLink,
+    ];
 
     /// <summary>
-    /// Gets the allowed content types for local content.
+    /// Gets the list of available game types for local content.
+    /// </summary>
+    public static GameType[] AvailableLocalGameTypes { get; } =
+    [
+        Core.Models.Enums.GameType.Generals,
+        Core.Models.Enums.GameType.ZeroHour,
+    ];
+
+    /// <summary>
+    /// Gets the list of allowed content types for local identification.
     /// </summary>
     public static ContentType[] AllowedLocalContentTypes { get; } =
     [
-        ContentType.Mod, ContentType.MapPack, ContentType.Addon, ContentType.Patch,
-        ContentType.ModdingTool, ContentType.Executable, ContentType.GameClient
+        ContentType.Mod,
+        ContentType.GameClient,
+        ContentType.Executable,
+        ContentType.ModdingTool,
+        ContentType.Patch,
+        ContentType.Addon,
+        ContentType.Map,
+        ContentType.MapPack,
+        ContentType.Mission,
     ];
-
-    /// <summary>
-    /// Gets the available content types for filtering.
-    /// </summary>
-    public static ContentType[] AvailableContentTypes { get; } =
-    [
-        ContentType.GameClient, ContentType.Mod, ContentType.MapPack, ContentType.Addon,
-        ContentType.Patch, ContentType.ModdingTool, ContentType.Executable
-    ];
-
-    /// <summary>
-    /// Gets the available workspace strategies.
-    /// </summary>
-    public static WorkspaceStrategy[] AvailableWorkspaceStrategies { get; } = [WorkspaceStrategy.HardLink, WorkspaceStrategy.FullCopy];
 
     private static bool _hasShownFirstLoadNotification;
+
+    private static string NormalizeResourcePath(string? path, string defaultUri)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return defaultUri;
+        if (path.StartsWith("avares://", StringComparison.OrdinalIgnoreCase)) return path;
+        if (Uri.TryCreate(path, UriKind.Absolute, out _)) return path;
+
+        // Add backward compatibility for old cover paths
+        // Images were renamed/moved: Assets/Images/china-poster.png → Assets/Covers/china-cover.png
+        var normalizedPath = path;
+        if (normalizedPath.Contains("china-poster.png", StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedPath = normalizedPath.Replace("china-poster.png", "china-cover.png", StringComparison.OrdinalIgnoreCase)
+                                           .Replace("/Assets/Images/", "/Assets/Covers/", StringComparison.OrdinalIgnoreCase);
+        }
+        else if (normalizedPath.Contains("usa-poster.png", StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedPath = normalizedPath.Replace("usa-poster.png", "usa-cover.png", StringComparison.OrdinalIgnoreCase)
+                                           .Replace("/Assets/Images/", "/Assets/Covers/", StringComparison.OrdinalIgnoreCase);
+        }
+        else if (normalizedPath.Contains("gla-poster.png", StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedPath = normalizedPath.Replace("gla-poster.png", "gla-cover.png", StringComparison.OrdinalIgnoreCase)
+                                           .Replace("/Assets/Images/", "/Assets/Covers/", StringComparison.OrdinalIgnoreCase);
+        }
+        else if (normalizedPath.Contains("/Assets/Images/", StringComparison.OrdinalIgnoreCase) &&
+                 (normalizedPath.Contains("cover", StringComparison.OrdinalIgnoreCase) ||
+                  normalizedPath.Contains("poster", StringComparison.OrdinalIgnoreCase)))
+        {
+            // Handle any other cover/poster files in the old Images directory
+            normalizedPath = normalizedPath.Replace("/Assets/Images/", "/Assets/Covers/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return $"avares://GenHub/{normalizedPath.TrimStart('/')}";
+    }
+
+    private static void PopulateGameSettings(CreateProfileRequest request, UpdateProfileRequest? gameSettings)
+    {
+        if (gameSettings != null) GameSettingsMapper.PopulateRequest(request, gameSettings);
+    }
+
+    private static void PopulateGameSettings(UpdateProfileRequest request, UpdateProfileRequest? gameSettings)
+    {
+        if (gameSettings != null) GameSettingsMapper.PopulateRequest(request, gameSettings);
+    }
+
+    private static ContentDisplayItem ConvertToViewModelContentDisplayItem(Core.Models.Content.ContentDisplayItem coreItem)
+    {
+        return new ContentDisplayItem
+        {
+            ManifestId = ManifestId.Create(coreItem.ManifestId),
+            DisplayName = coreItem.DisplayName,
+            ContentType = coreItem.ContentType,
+            GameType = coreItem.GameType,
+            InstallationType = coreItem.InstallationType,
+            Publisher = coreItem.Publisher,
+            Version = coreItem.Version,
+            SourceId = coreItem.SourceId,
+            GameClientId = coreItem.GameClientId,
+            IsEnabled = coreItem.IsEnabled,
+        };
+    }
 
     private readonly IGameProfileManager? _gameProfileManager;
     private readonly IGameSettingsService? _gameSettingsService;
@@ -85,7 +151,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
     private string? _currentProfileId;
 
     /// <summary>
-    /// Event that is raised when the window should be closed.
+    /// Event triggered when the view model requests to close.
     /// </summary>
     public event EventHandler? CloseRequested;
 
@@ -108,11 +174,11 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
     /// <param name="profileContentLoader">The profile content loader.</param>
     /// <param name="profileResourceService">The profile resource service.</param>
     /// <param name="notificationService">The notification service.</param>
-    /// <param name="manifestPool">The content manifest pool.</param>
+    /// <param name="manifestPool">The manifest pool.</param>
     /// <param name="contentStorageService">The content storage service.</param>
     /// <param name="localContentService">The local content service.</param>
-    /// <param name="logger">The logger.</param>
-    /// <param name="gameSettingsLogger">The game settings logger.</param>
+    /// <param name="logger">The logger for this view model.</param>
+    /// <param name="gameSettingsLogger">The logger for the game settings view model.</param>
     public GameProfileSettingsViewModel(
         IGameProfileManager? gameProfileManager,
         IGameSettingsService? gameSettingsService,
@@ -152,63 +218,26 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
     public void Receive(Core.Models.Content.ContentAcquiredMessage message) => _ = LoadAvailableContentAsync();
 
     /// <summary>
-    /// Refreshes the visible filters based on available content.
+    /// Refreshes the visible filters and available content based on the current game type filter.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task RefreshVisibleFiltersAsync()
-    {
-        try
-        {
-            var manifestsResult = await _manifestPool!.GetAllManifestsAsync();
-            if (!manifestsResult.Success || manifestsResult.Data == null) return;
-
-            var availableTypes = manifestsResult.Data
-                .Where(m => m.TargetGame == GameTypeFilter)
-                .Select(m => m.ContentType)
-                .Distinct()
-                .ToHashSet();
-
-            if (AvailableGameInstallations.Any(i => i.GameType == GameTypeFilter))
-            {
-                availableTypes.Add(ContentType.GameClient);
-            }
-
-            var newFilters = new List<FilterTypeInfo>();
-
-            void AddFilterIfAvailable(ContentType type, string iconData)
-            {
-                if (availableTypes.Contains(type))
-                {
-                    newFilters.Add(new FilterTypeInfo(type, type.GetDisplayName(), iconData));
-                }
-            }
-
-            AddFilterIfAvailable(ContentType.GameClient, "M20,19V7H4V19H20M20,3A2,2 0 0,1 22,5V19A2,2 0 0,1 20,21H4A2,2 0 0,1 2,19V5C2,3.89 2.9,3 4,3H20");
-            AddFilterIfAvailable(ContentType.Mod, "M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z");
-            AddFilterIfAvailable(ContentType.MapPack, "M15,19L9,16.89V5L15,7.11M20.5,3C20.44,3 20.39,3 20.34,3L15,5.1L9,3L3.36,4.9C3.15,4.97 3,5.15 3,5.38V20.5A0.5,0.5 0 0,0 3.5,21C3.55,21 3.61,21 3.66,20.97L9,18.9L15,21L20.64,19.1C20.85,19 21,18.85 21,18.62V3.5A0.5,0.5 0 0,0 20.5,3Z");
-            AddFilterIfAvailable(ContentType.ModdingTool, "M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11.03L21.54,9.37C21.73,9.22 21.78,8.97 21.68,8.76L19.68,5.29C19.58,5.08 19.33,5 19.14,5.07L16.66,6.07C16.14,5.67 15.58,5.33 14.97,5.08L14.59,2.44C14.54,2.2 14.34,2.04 14.1,2.04H10.1C9.86,2.04 9.66,2.2 9.61,2.44L9.23,5.08C8.62,5.33 8.06,5.67 7.54,6.07L5.06,5.07C4.87,5 4.62,5.08 4.52,5.29L2.52,8.76C2.42,8.97 2.47,9.22 2.66,9.37L4.77,11.03C4.73,11.34 4.7,11.67 4.7,12C4.7,12.33 4.73,12.65 4.77,12.97L2.66,14.63C2.47,14.78 2.42,15.03 2.52,15.24L4.52,18.71C4.62,18.92 4.87,19 5.06,18.93L7.54,17.93C8.06,18.33 8.62,18.67 9.23,18.92L9.61,21.56C9.66,21.8 9.86,21.96 10.1,21.96H14.1C14.34,21.96 14.54,21.8 14.59,21.56L14.97,18.92C15.58,18.67 16.14,18.33 16.66,17.93L19.14,18.93C19.33,19 19.58,18.92 19.68,18.71L21.68,15.24C21.78,15.03 21.73,14.78 21.54,14.63L19.43,12.97Z");
-            AddFilterIfAvailable(ContentType.Patch, "M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z");
-            AddFilterIfAvailable(ContentType.Addon, "M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z");
-
-            VisibleFilters = new ObservableCollection<FilterTypeInfo>(newFilters);
-
-            if (!availableTypes.Contains(SelectedContentType))
-            {
-                SelectedContentType = newFilters.FirstOrDefault()?.ContentType ?? ContentType.GameClient;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "Error refreshing visible filters");
-        }
-    }
-
-    private async Task RefreshFiltersAndContentAsync()
+    protected internal async Task RefreshFiltersAndContentAsync()
     {
         await RefreshVisibleFiltersAsync();
         await LoadAvailableContentAsync();
     }
 
+    /// <summary>
+    /// Called when the game type filter changes.
+    /// </summary>
+    partial void OnGameTypeFilterChanged(GameType value)
+    {
+        _ = RefreshFiltersAndContentAsync();
+    }
+
+    /// <summary>
+    /// Called when the selected game installation changes.
+    /// </summary>
     partial void OnSelectedGameInstallationChanged(ContentDisplayItem? value)
     {
         if (value != null && value.GameType != GameTypeFilter)
@@ -218,62 +247,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
         }
     }
 
-    partial void OnGameTypeFilterChanged(GameType value)
-    {
-        _ = RefreshFiltersAndContentAsync();
-    }
-
-    private WorkspaceStrategy GetDefaultWorkspaceStrategy() => _configurationProvider!.GetDefaultWorkspaceStrategy();
-
-    private async Task LoadAvailableGameInstallationsAsync()
-    {
-        try
-        {
-            AvailableGameInstallations.Clear();
-            var coreItems = await _profileContentLoader!.LoadAvailableGameInstallationsAsync();
-            foreach (var coreItem in coreItems)
-            {
-                try
-                {
-                    AvailableGameInstallations.Add(ConvertToViewModelContentDisplayItem(coreItem));
-                }
-                catch (ArgumentException argEx)
-                {
-                    _logger?.LogWarning("Skipping invalid game installation {DisplayName}: {Message}", coreItem.DisplayName, argEx.Message);
-                }
-            }
-
-            if (AvailableGameInstallations.Any() && SelectedGameInstallation == null)
-            {
-                SelectedGameInstallation = AvailableGameInstallations
-                    .OrderByDescending(i => i.GameType == Core.Models.Enums.GameType.ZeroHour)
-                    .First();
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "Error loading available game installations");
-        }
-    }
-
-    private async Task LoadEnabledContentForProfileAsync(GameProfile profile)
-    {
-        try
-        {
-            EnabledContent.Clear();
-            var coreItems = await _profileContentLoader!.LoadEnabledContentForProfileAsync(profile);
-            foreach (var coreItem in coreItems)
-            {
-                var viewModelItem = ConvertToViewModelContentDisplayItem(coreItem);
-                EnabledContent.Add(viewModelItem);
-                viewModelItem.IsEnabled = true;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "Error loading enabled content for profile");
-        }
-    }
+    private async Task OnContentTypeChangedAsync() => await LoadAvailableContentAsync();
 
     private async Task EnableContentInternal(ContentDisplayItem? contentItem, bool bypassLoadingGuard = false)
     {
@@ -334,6 +308,13 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
         {
             SelectedGameInstallation = contentItem;
         }
+
+        StatusMessage = $"Enabled {contentItem.DisplayName}";
+        _logger?.LogInformation("Enabled content {ContentName} for profile", contentItem.DisplayName);
+
+        _localNotificationService.ShowSuccess(
+            "Content Enabled",
+            $"Enabled '{contentItem.DisplayName}'");
 
         if (contentItem.ContentType == ContentType.GameClient && Name == "New Profile")
         {
@@ -636,36 +617,23 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
         return errors;
     }
 
-    /// <summary>
-    /// Loads available icons and covers based on the game type.
-    /// </summary>
     private void LoadAvailableIconsAndCovers(string gameType)
     {
         try
         {
-            if (_profileResourceService == null)
-            {
-                _logger?.LogWarning("ProfileResourceService is not available");
-                return;
-            }
+            if (_profileResourceService == null) return;
 
-            // Load icons for this game type
             var icons = _profileResourceService.GetIconsForGameType(gameType);
             AvailableIcons = new ObservableCollection<ProfileResourceItem>(icons);
-            _logger?.LogInformation("Loaded {Count} icons for game type {GameType}", icons.Count, gameType);
 
-            // Load ALL covers (not filtered by game type) so users can choose any cover
             var covers = _profileResourceService.GetAvailableCovers();
             AvailableCoversForSelection = new ObservableCollection<ProfileResourceItem>(covers);
-            _logger?.LogInformation("Loaded {Count} covers (all types)", covers.Count);
 
-            // Set selected icon based on current IconPath
             if (!string.IsNullOrEmpty(IconPath))
             {
                 SelectedIcon = AvailableIcons.FirstOrDefault(i => i.Path == IconPath);
             }
 
-            // Set selected cover based on current CoverPath
             if (!string.IsNullOrEmpty(CoverPath))
             {
                 SelectedCoverItem = AvailableCoversForSelection.FirstOrDefault(c => c.Path == CoverPath);
@@ -677,40 +645,55 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
         }
     }
 
-    private async Task OnContentTypeChangedAsync() => await LoadAvailableContentAsync();
-
-    private string NormalizeResourcePath(string? path, string defaultUri)
+    private async Task LoadEnabledContentForProfileAsync(GameProfile profile)
     {
-        if (string.IsNullOrWhiteSpace(path)) return defaultUri;
-        if (path.StartsWith("avares://", StringComparison.OrdinalIgnoreCase)) return path;
-        if (Uri.TryCreate(path, UriKind.Absolute, out _)) return path;
-        return $"avares://GenHub/{path.TrimStart('/')}";
-    }
-
-    private void PopulateGameSettings(CreateProfileRequest request, UpdateProfileRequest? gameSettings)
-    {
-        if (gameSettings != null) GameSettingsMapper.PopulateRequest(request, gameSettings);
-    }
-
-    private void PopulateGameSettings(UpdateProfileRequest request, UpdateProfileRequest? gameSettings)
-    {
-        if (gameSettings != null) GameSettingsMapper.PopulateRequest(request, gameSettings);
-    }
-
-    private ContentDisplayItem ConvertToViewModelContentDisplayItem(Core.Models.Content.ContentDisplayItem coreItem)
-    {
-        return new ContentDisplayItem
+        try
         {
-            ManifestId = ManifestId.Create(coreItem.ManifestId),
-            DisplayName = coreItem.DisplayName,
-            ContentType = coreItem.ContentType,
-            GameType = coreItem.GameType,
-            InstallationType = coreItem.InstallationType,
-            Publisher = coreItem.Publisher,
-            Version = coreItem.Version,
-            SourceId = coreItem.SourceId,
-            GameClientId = coreItem.GameClientId,
-            IsEnabled = coreItem.IsEnabled,
-        };
+            EnabledContent.Clear();
+            var coreItems = await _profileContentLoader!.LoadEnabledContentForProfileAsync(profile);
+            foreach (var coreItem in coreItems)
+            {
+                var viewModelItem = ConvertToViewModelContentDisplayItem(coreItem);
+                EnabledContent.Add(viewModelItem);
+                viewModelItem.IsEnabled = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error loading enabled content for profile");
+        }
     }
+
+    private async Task LoadAvailableGameInstallationsAsync()
+    {
+        try
+        {
+            AvailableGameInstallations.Clear();
+            var coreItems = await _profileContentLoader!.LoadAvailableGameInstallationsAsync();
+            foreach (var coreItem in coreItems)
+            {
+                try
+                {
+                    AvailableGameInstallations.Add(ConvertToViewModelContentDisplayItem(coreItem));
+                }
+                catch (ArgumentException argEx)
+                {
+                    _logger?.LogWarning("Skipping invalid game installation {DisplayName}: {Message}", coreItem.DisplayName, argEx.Message);
+                }
+            }
+
+            if (AvailableGameInstallations.Any() && SelectedGameInstallation == null)
+            {
+                SelectedGameInstallation = AvailableGameInstallations
+                    .OrderByDescending(i => i.GameType == Core.Models.Enums.GameType.ZeroHour)
+                    .First();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error loading available game installations");
+        }
+    }
+
+    private WorkspaceStrategy GetDefaultWorkspaceStrategy() => _configurationProvider!.GetDefaultWorkspaceStrategy();
 }

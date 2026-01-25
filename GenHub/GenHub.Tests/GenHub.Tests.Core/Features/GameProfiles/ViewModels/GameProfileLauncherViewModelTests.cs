@@ -10,6 +10,7 @@ using GenHub.Core.Interfaces.Providers;
 using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Steam;
 using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameInstallations;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Results;

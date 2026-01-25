@@ -144,9 +144,9 @@ public class FileOperationsService(
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task representing the asynchronous copy operation.</returns>
     public async Task CopyFileAsync(
-            string sourcePath,
-            string destinationPath,
-            CancellationToken cancellationToken = default)
+        string sourcePath,
+        string destinationPath,
+        CancellationToken cancellationToken = default)
     {
         const int MaxRetries = 3;
         const int InitialDelayMs = 50;

@@ -52,16 +52,6 @@ public abstract class WorkspaceStrategyBase<T>(
         ".avi", ".mp4", ".wmv", ".bik",
     ];
 
-    /// <summary>
-    /// The logger instance.
-    /// </summary>
-    private readonly ILogger<T> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
-    /// <summary>
-    /// The file operations service.
-    /// </summary>
-    private readonly IFileOperationsService _fileOperations = fileOperations ?? throw new ArgumentNullException(nameof(fileOperations));
-
     /// <inheritdoc/>
     public abstract string Name { get; }
 
@@ -77,12 +67,12 @@ public abstract class WorkspaceStrategyBase<T>(
     /// <summary>
     /// Gets the logger instance.
     /// </summary>
-    protected ILogger<T> Logger => _logger;
+    protected ILogger<T> Logger => logger;
 
     /// <summary>
     /// Gets the file operations service.
     /// </summary>
-    protected IFileOperationsService FileOperations => _fileOperations;
+    protected IFileOperationsService FileOperations => fileOperations;
 
     /// <inheritdoc/>
     public abstract bool CanHandle(WorkspaceConfiguration configuration);
@@ -278,7 +268,7 @@ public abstract class WorkspaceStrategyBase<T>(
                     workspaceInfo.WorkspacePath,
                     executableFile.RelativePath.Replace('/', Path.DirectorySeparatorChar));
 
-                _logger.LogInformation(
+                logger.LogInformation(
                     "Executable resolved from GameClient manifest: {ExecutablePath} (marked as IsExecutable)",
                     workspaceInfo.ExecutablePath);
             }
@@ -294,13 +284,13 @@ public abstract class WorkspaceStrategyBase<T>(
                         workspaceInfo.WorkspacePath,
                         executableFile.RelativePath.Replace('/', Path.DirectorySeparatorChar));
 
-                    _logger.LogWarning(
+                    logger.LogWarning(
                         "Executable resolved from GameClient manifest by .exe extension (IsExecutable not set): {ExecutablePath}",
                         workspaceInfo.ExecutablePath);
                 }
                 else
                 {
-                    _logger.LogWarning(
+                    logger.LogWarning(
                         "GameClient manifest '{ManifestId}' does not contain an executable file",
                         gameClientManifest.Id);
                 }
@@ -319,20 +309,20 @@ public abstract class WorkspaceStrategyBase<T>(
             if (executableExistsInManifest)
             {
                 workspaceInfo.ExecutablePath = Path.Combine(workspaceInfo.WorkspacePath, executableFileName);
-                _logger.LogDebug(
+                logger.LogDebug(
                     "Executable path resolved by filename search: {ExecutablePath}",
                     workspaceInfo.ExecutablePath);
             }
             else
             {
-                _logger.LogDebug(
+                logger.LogDebug(
                     "No executable found in manifests for filename: {ExecutableFileName}",
                     executableFileName);
             }
         }
         else
         {
-            _logger.LogDebug("No GameClient configuration or manifest available - executable path not set");
+            logger.LogDebug("No GameClient configuration or manifest available - executable path not set");
         }
     }
 
@@ -349,7 +339,7 @@ public abstract class WorkspaceStrategyBase<T>(
             return true;
         }
 
-        _logger.LogWarning("Source file not found: {SourcePath} (relative: {RelativePath})", sourcePath, relativePath);
+        logger.LogWarning("Source file not found: {SourcePath} (relative: {RelativePath})", sourcePath, relativePath);
         return false;
     }
 
@@ -411,7 +401,7 @@ public abstract class WorkspaceStrategyBase<T>(
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Could not get file size for {FilePath}", filePath);
+            logger.LogDebug(ex, "Could not get file size for {FilePath}", filePath);
             return 0L;
         }
     }
@@ -499,7 +489,7 @@ public abstract class WorkspaceStrategyBase<T>(
         // Log if installing to non-workspace location
         if (file.InstallTarget != ContentInstallTarget.Workspace)
         {
-            Logger.LogInformation(
+            logger.LogInformation(
                 "Installing file to {InstallTarget}: {RelativePath} -> {TargetPath}",
                 file.InstallTarget,
                 file.RelativePath,
@@ -546,7 +536,7 @@ public abstract class WorkspaceStrategyBase<T>(
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Strategy-specific CAS link creation failed for hash {Hash} at {Path}, attempting direct service fallback", file.Hash, targetPath);
+            logger.LogWarning(ex, "Strategy-specific CAS link creation failed for hash {Hash} at {Path}, attempting direct service fallback", file.Hash, targetPath);
 
             // Fallback to direct service operations
             try
@@ -564,7 +554,7 @@ public abstract class WorkspaceStrategyBase<T>(
             }
             catch (Exception fallbackEx)
             {
-                Logger.LogError(fallbackEx, "All CAS operations failed for hash {Hash} at {Path}", file.Hash, targetPath);
+                logger.LogError(fallbackEx, "All CAS operations failed for hash {Hash} at {Path}", file.Hash, targetPath);
                 throw new CasStorageException($"CAS content not available for hash {file.Hash}", fallbackEx);
             }
         }
@@ -623,7 +613,7 @@ public abstract class WorkspaceStrategyBase<T>(
 
         // Copy from extracted source to target
         await FileOperations.CopyFileAsync(file.SourcePath, targetPath, cancellationToken);
-        Logger.LogDebug("Copied extracted file: {Source} -> {Target}", file.SourcePath, targetPath);
+        logger.LogDebug("Copied extracted file: {Source} -> {Target}", file.SourcePath, targetPath);
     }
 
     /// <summary>

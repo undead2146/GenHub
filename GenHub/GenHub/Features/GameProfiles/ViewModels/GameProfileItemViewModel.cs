@@ -37,6 +37,16 @@ public partial class GameProfileItemViewModel : ViewModelBase
     public Func<GameProfileItemViewModel, Task>? CreateShortcutAction { get; set; }
 
     /// <summary>
+    /// Gets or sets the action to stop the profile.
+    /// </summary>
+    public Func<GameProfileItemViewModel, Task>? StopProfileAction { get; set; }
+
+    /// <summary>
+    /// Gets or sets the action to toggle Steam launch mode.
+    /// </summary>
+    public Func<GameProfileItemViewModel, Task>? ToggleSteamLaunchAction { get; set; }
+
+    /// <summary>
     /// Launches the profile using the injected action.
     /// </summary>
     [RelayCommand]
@@ -81,6 +91,30 @@ public partial class GameProfileItemViewModel : ViewModelBase
         if (CreateShortcutAction != null)
         {
             await CreateShortcutAction(this);
+        }
+    }
+
+    /// <summary>
+    /// Stops the profile using the injected action.
+    /// </summary>
+    [RelayCommand]
+    private async Task StopProfile()
+    {
+        if (StopProfileAction != null)
+        {
+            await StopProfileAction(this);
+        }
+    }
+
+    /// <summary>
+    /// Toggles Steam launch mode using the injected action.
+    /// </summary>
+    [RelayCommand]
+    private async Task ToggleSteamLaunch()
+    {
+        if (ToggleSteamLaunchAction != null)
+        {
+            await ToggleSteamLaunchAction(this);
         }
     }
 
@@ -288,7 +322,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
     /// Gets or sets a value indicating whether to use Steam launch mode (generals.exe) or standalone mode (game.dat).
     /// </summary>
     [ObservableProperty]
-    private bool _useSteamLaunch = true;
+    private bool _useSteamLaunch = false;
 
     /// <summary>
     /// Gets or sets a value indicating whether this profile is in edit mode.
@@ -297,39 +331,40 @@ public partial class GameProfileItemViewModel : ViewModelBase
     private bool _isEditMode;
 
     /// <summary>
+    /// Gets or sets a value indicating whether many maps are being switched, warranting a warning.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isLargeMapCount;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the demo highlight circle for the Steam button should be visible.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDemoModeActive))]
+    private bool _isDemoSteamHighlightVisible;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the demo highlight circle for the Shortcut button should be visible.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDemoModeActive))]
+    private bool _isDemoShortcutHighlightVisible;
+
+    /// <summary>
     /// Gets or sets a value indicating whether this profile is from a Steam installation.
     /// </summary>
     [ObservableProperty]
     private bool _isSteamInstallation;
 
     /// <summary>
+    /// Gets a value indicating whether any demo highlight is active, often requiring the overlay to be always visible.
+    /// </summary>
+    public bool IsDemoModeActive => IsDemoSteamHighlightVisible || IsDemoShortcutHighlightVisible;
+
+    /// <summary>
     /// Gets the underlying game profile.
     /// </summary>
     public IGameProfile Profile { get; }
-
-    /// <summary>
-    /// Gets or sets the user data switch information when switching to this profile.
-    /// </summary>
-    [ObservableProperty]
-    private GenHub.Core.Models.UserData.UserDataSwitchInfo? _userDataSwitchInfo;
-
-    /// <summary>
-    /// Gets or sets a value indicating whether to show the user data confirmation prompt.
-    /// </summary>
-    [ObservableProperty]
-    private bool _showUserDataConfirmation;
-
-    /// <summary>
-    /// Gets or sets the message to display in the user data confirmation prompt.
-    /// </summary>
-    [ObservableProperty]
-    private string? _userDataConfirmationMessage;
-
-    /// <summary>
-    /// Gets or sets a value indicating whether many maps are being switched, warranting a warning.
-    /// </summary>
-    [ObservableProperty]
-    private bool _isLargeMapCount;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GameProfileItemViewModel"/> class.
@@ -351,9 +386,10 @@ public partial class GameProfileItemViewModel : ViewModelBase
             ? iconPath
             : UriConstants.DefaultIconUri;
 
-        // Handle cover path with fallback to icon
-        _coverPath = !string.IsNullOrEmpty(coverPath)
-            ? coverPath
+        // Handle cover path with fallback to icon, normalize old paths
+        var normalizedCoverPath = NormalizeCoverPath(coverPath);
+        _coverPath = !string.IsNullOrEmpty(normalizedCoverPath)
+            ? normalizedCoverPath
             : _iconPath;
 
         // Set cover image path (for UI binding)
@@ -476,40 +512,6 @@ public partial class GameProfileItemViewModel : ViewModelBase
                     WorkspaceStrategy.HardLink => "Hard Linked",
                     _ => "Prepared",
                 };
-            }
-        }
-
-        // --- Live Fixup Logic for Round 2 Polish ---
-        // Ensure existing profiles get the correct cover images and theme colors if they were missed.
-        if (profile is GameProfile gp3)
-        {
-            var pubType = gp3.GameClient?.PublisherType ?? string.Empty;
-
-            // Fix Covers for existing profiles
-            var isGenericCover = string.IsNullOrEmpty(_coverPath) ||
-                                 _coverPath.Contains("zerohour-cover.png") ||
-                                 _coverPath.Contains("generals-cover.png");
-
-            if (isGenericCover)
-            {
-                if (pubType == PublisherTypeConstants.TheSuperHackers)
-                {
-                    CoverImagePath = $"{UriConstants.CoversBasePath}/china-poster.png";
-                }
-                else if (pubType == PublisherTypeConstants.GeneralsOnline)
-                {
-                    CoverImagePath = $"{UriConstants.CoversBasePath}/usa-poster.png";
-                }
-                else if (pubType == CommunityOutpostConstants.PublisherType)
-                {
-                    CoverImagePath = $"{UriConstants.CoversBasePath}/gla-poster.png";
-                }
-            }
-
-            // Fix Colors for existing profiles (e.g. if they have the old dark blue)
-            if (_colorValue == "#1B3A5F" && pubType == PublisherTypeConstants.GeneralsOnline)
-            {
-                ColorValue = "#00A3FF";
             }
         }
     }
@@ -637,8 +639,9 @@ public partial class GameProfileItemViewModel : ViewModelBase
 
             if (!string.IsNullOrEmpty(gameProfile.CoverPath))
             {
-                CoverPath = gameProfile.CoverPath;
-                CoverImagePath = gameProfile.CoverPath;
+                var normalizedCoverPath = NormalizeCoverPath(gameProfile.CoverPath);
+                CoverPath = normalizedCoverPath;
+                CoverImagePath = normalizedCoverPath;
             }
 
             CommandLineArguments = gameProfile.CommandLineArguments;
@@ -715,6 +718,39 @@ public partial class GameProfileItemViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Normalizes old cover paths to new paths for backward compatibility.
+    /// Handles migration from Assets/Images/*.png to Assets/Covers/*.png.
+    /// </summary>
+    /// <param name="coverPath">The cover path to normalize.</param>
+    /// <returns>The normalized cover path.</returns>
+    private static string NormalizeCoverPath(string coverPath)
+    {
+        if (string.IsNullOrEmpty(coverPath))
+            return coverPath;
+
+        // Map old paths to new paths for backward compatibility
+        // Images were renamed/moved: Assets/Images/china-poster.png → Assets/Covers/china-cover.png
+        return coverPath switch
+        {
+            var p when p.Contains("china-poster.png", StringComparison.OrdinalIgnoreCase) =>
+                p.Replace("china-poster.png", "china-cover.png", StringComparison.OrdinalIgnoreCase)
+                 .Replace("/Assets/Images/", "/Assets/Covers/", StringComparison.OrdinalIgnoreCase),
+            var p when p.Contains("usa-poster.png", StringComparison.OrdinalIgnoreCase) =>
+                p.Replace("usa-poster.png", "usa-cover.png", StringComparison.OrdinalIgnoreCase)
+                 .Replace("/Assets/Images/", "/Assets/Covers/", StringComparison.OrdinalIgnoreCase),
+            var p when p.Contains("gla-poster.png", StringComparison.OrdinalIgnoreCase) =>
+                p.Replace("gla-poster.png", "gla-cover.png", StringComparison.OrdinalIgnoreCase)
+                 .Replace("/Assets/Images/", "/Assets/Covers/", StringComparison.OrdinalIgnoreCase),
+
+            // Also handle just the directory change for any other files in Images/ that might reference covers
+            var p when p.Contains("/Assets/Images/", StringComparison.OrdinalIgnoreCase) &&
+                       (p.Contains("cover", StringComparison.OrdinalIgnoreCase) || p.Contains("poster", StringComparison.OrdinalIgnoreCase)) =>
+                p.Replace("/Assets/Images/", "/Assets/Covers/", StringComparison.OrdinalIgnoreCase),
+            _ => coverPath,
+        };
+    }
+
+    /// <summary>
     /// Extracts version, publisher, and content type information from a manifest ID.
     /// Expected format: schemaVersion.userVersion.publisher.contentType.contentName.
     /// Example: 1.104.steam.gameclient.zerohour → version=104 (1.04), publisher=Steam, contentType=Game Client.
@@ -742,8 +778,31 @@ public partial class GameProfileItemViewModel : ViewModelBase
                 "cdiso" => "CD/ISO",
                 "wine" => "Wine",
                 PublisherTypeConstants.GeneralsOnline => "Generals Online",
+                PublisherTypeConstants.TheSuperHackers => "The Super Hackers",
+                CommunityOutpostConstants.PublisherType => "Community Outpost",
                 _ => segments[2].ToUpperInvariant(),
             };
+
+            // --- Faction Branding (Round 2 Fix) ---
+            // Apply theme colors and covers based on the publisher segment
+            if (publisherSegment == PublisherTypeConstants.TheSuperHackers)
+            {
+                // Super Hackers = China branding
+                ColorValue = SuperHackersConstants.ZeroHourThemeColor; // #8B0000
+                CoverImagePath = SuperHackersConstants.ZeroHourCoverSource; // "/Assets/Covers/china-cover.png"
+            }
+            else if (publisherSegment == PublisherTypeConstants.GeneralsOnline)
+            {
+                // Generals Online = USA branding
+                ColorValue = GeneralsOnlineConstants.ThemeColor; // #00A3FF
+                CoverImagePath = GeneralsOnlineConstants.CoverSource; // "/Assets/Covers/usa-cover.png"
+            }
+            else if (publisherSegment == CommunityOutpostConstants.PublisherType)
+            {
+                // Community Outpost / GenPatcher = GLA branding
+                ColorValue = CommunityOutpostConstants.ThemeColor; // #2D5A27
+                CoverImagePath = CommunityOutpostConstants.CoverSource; // "/Assets/Covers/gla-cover.png"
+            }
 
             // Parse version: segment[1] contains the user version (e.g., 104, 108)
             if (int.TryParse(segments[1], out var versionNumber) && versionNumber > 0)
@@ -775,9 +834,17 @@ public partial class GameProfileItemViewModel : ViewModelBase
                 var parts = gameTypeSegment.Split('-');
                 ContentType = parts[1] switch
                 {
-                    "installation" => "Game Installation",
-                    "client" => "Game Client",
-                    _ => parts[1],
+                    "gameinstallation" => "Game Installation",
+                    "gameclient" => "Game Client",
+                    "mod" => "Mod",
+                    "patch" => "Patch",
+                    "addon" => "Add-on",
+                    "map" => "Map",
+                    "mappack" => "Map Pack",
+                    "executable" => "Executable",
+                    "moddingtool" => "Modding Tool",
+                    "mission" => "Mission",
+                    _ => parts[1].ToUpperInvariant(),
                 };
             }
         }
