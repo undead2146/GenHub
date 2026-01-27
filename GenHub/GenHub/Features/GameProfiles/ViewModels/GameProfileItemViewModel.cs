@@ -47,6 +47,11 @@ public partial class GameProfileItemViewModel : ViewModelBase
     public Func<GameProfileItemViewModel, Task>? ToggleSteamLaunchAction { get; set; }
 
     /// <summary>
+    /// Gets or sets the action to copy the profile.
+    /// </summary>
+    public Func<GameProfileItemViewModel, Task>? CopyProfileAction { get; set; }
+
+    /// <summary>
     /// Launches the profile using the injected action.
     /// </summary>
     [RelayCommand]
@@ -115,6 +120,18 @@ public partial class GameProfileItemViewModel : ViewModelBase
         if (ToggleSteamLaunchAction != null)
         {
             await ToggleSteamLaunchAction(this);
+        }
+    }
+
+    /// <summary>
+    /// Copies the profile using the injected action.
+    /// </summary>
+    [RelayCommand]
+    private async Task CopyProfile()
+    {
+        if (CopyProfileAction != null)
+        {
+            await CopyProfileAction(this);
         }
     }
 
