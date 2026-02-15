@@ -132,6 +132,7 @@ public class GameProfileManager(
                 IconPath = request.IconPath,
                 CoverPath = request.CoverPath,
                 CommandLineArguments = request.CommandLineArguments ?? string.Empty,
+                AutoSaveReplays = request.AutoSaveReplays,
                 GameSpyIPAddress = request.GameSpyIPAddress,
             };
 
@@ -212,6 +213,7 @@ public class GameProfileManager(
             profile.GameInstallationId = request.GameInstallationId ?? profile.GameInstallationId;
             profile.ToolContentId = request.ToolContentId ?? profile.ToolContentId;
             profile.CommandLineArguments = request.CommandLineArguments ?? profile.CommandLineArguments;
+            profile.AutoSaveReplays = request.AutoSaveReplays ?? profile.AutoSaveReplays;
 
             // Only update ActiveWorkspaceId if explicitly provided (not null or empty)
             if (!string.IsNullOrEmpty(request.ActiveWorkspaceId))

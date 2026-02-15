@@ -100,6 +100,9 @@ public partial class GameProfileSettingsViewModel
     private string _commandLineArguments = string.Empty;
 
     [ObservableProperty]
+    private bool _autoSaveReplays;
+
+    [ObservableProperty]
     private ObservableCollection<ProfileInfoItem> _availableCovers = [];
 
     [ObservableProperty]

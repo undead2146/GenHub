@@ -160,6 +160,7 @@ public partial class GameProfileSettingsViewModel
             SelectedWorkspaceStrategy = profile.WorkspaceStrategy;
             _originalWorkspaceStrategy = profile.WorkspaceStrategy;
             CommandLineArguments = profile.CommandLineArguments ?? string.Empty;
+            AutoSaveReplays = profile.AutoSaveReplays;
 
             LoadAvailableIconsAndCovers(profile.GameClient.GameType.ToString());
             GameTypeFilter = profile.GameClient.GameType;
