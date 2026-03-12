@@ -134,7 +134,7 @@ public class CommunityOutpostResolver(
                     contentMetadata.Description,
                     tags: BuildTags(discoveredItem, contentMetadata),
                     changelogUrl: patchPageUrl)
-                .WithInstallationInstructions(WorkspaceStrategy.HybridCopySymlink);
+                .WithInstallationInstructions(WorkspaceConstants.DefaultWorkspaceStrategy);
 
             // Add dependencies based on content type and category
             var dependencies = contentMetadata.GetDependencies();

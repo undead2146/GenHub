@@ -12,7 +12,6 @@ using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameSettings;
 using Microsoft.Extensions.Logging;
-using GameSettingsRecord = GenHub.Core.Models.GameSettings.GameSettings;
 
 namespace GenHub.Features.GameProfiles.ViewModels;
 
@@ -22,6 +21,11 @@ namespace GenHub.Features.GameProfiles.ViewModels;
 /// </summary>
 public partial class GameSettingsViewModel(IGameSettingsService gameSettingsService, ILogger<GameSettingsViewModel> logger) : ViewModelBase
 {
+    /// <summary>
+    /// The available texture quality levels.
+    /// </summary>
+    public static readonly TextureQuality[] TextureQualityValues = Enum.GetValues<TextureQuality>();
+
     private const TextureQuality MaxTextureQuality = TextureQuality.VeryHigh; // Will be VeryHigh when SH version supports 'very high' texture quality (see TheSuperHackers/GeneralsGameCode#1629)
     private const int TextureReductionOffset = GameSettingsConstants.TextureQuality.ReductionOffset;
 
@@ -66,8 +70,54 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
     private readonly IGameSettingsService? _gameSettingsService = gameSettingsService;
     private readonly ILogger<GameSettingsViewModel> _logger = logger;
 
+    /// <summary>
+    /// Gets or sets the action triggered when the view needs to scroll to a specific section.
+    /// </summary>
+    public Action<string>? ScrollToSectionRequested { get; set; }
+
+    [RelayCommand]
+    private void ScrollToSection(string sectionName)
+    {
+        ScrollToSectionRequested?.Invoke(sectionName);
+    }
+
     [ObservableProperty]
     private GameType _selectedGameType;
+
+    private SettingsCategory _selectedCategory = SettingsCategory.Video;
+
+    /// <summary>
+    /// Gets or sets the currently selected category in the sidebar.
+    /// </summary>
+    public SettingsCategory SelectedCategory
+    {
+        get => _selectedCategory;
+        set
+        {
+            if (SetProperty(ref _selectedCategory, value))
+            {
+                // Trigger scroll only if explicitly set (e.g. via UI click),
+                // but we need to distinguish between "User Clicked" and "Scroll Spy Updated".
+                // For now, the View will handle the distinction or we use a separate method for ScrollSpy updates.
+                ScrollToSectionRequested?.Invoke(value.ToString() + "Section");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Updates the selected category from the scroll spy without triggering a scroll request.
+    /// </summary>
+    /// <param name="category">The new active category.</param>
+    public void UpdateCategoryFromScroll(SettingsCategory category)
+    {
+        SetProperty(ref _selectedCategory, category, nameof(SelectedCategory));
+    }
+
+    [RelayCommand]
+    private void SelectCategory(SettingsCategory category)
+    {
+        SelectedCategory = category;
+    }
 
     [ObservableProperty]
     private string _statusMessage = string.Empty;
@@ -215,7 +265,7 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
     private string? _selectedResolutionPreset;
 
     [ObservableProperty]
-    private ObservableCollection<string> _lodOptions = ["Low", "Medium", "High", "VeryHigh", "Custom",];
+    private ObservableCollection<string> _lodOptions = ["Low", "Medium", "High", "VeryHigh", "Custom"];
 
     /// <summary>
     /// Gets a value indicating whether the custom LOD option is selected.
@@ -223,7 +273,7 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
     public bool IsCustomLodSelected => StaticGameLOD == "Custom";
 
     [ObservableProperty]
-    private ObservableCollection<int> _aaOptions = [1, 2, 4,];
+    private ObservableCollection<int> _aaOptions = [1, 2, 4];
 
     // ===== TheSuperHackers Client Settings =====
     [ObservableProperty]
@@ -575,17 +625,17 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
                 _logger.LogWarning("Failed to load settings for {GameType}: {Errors}", gameType, string.Join(", ", errors));
             }
 
-            // Load GameSettings separately
-            var goResult = await _gameSettingsService.LoadGameSettingsAsync();
+            // Load GeneralsOnline settings separately
+            var goResult = await _gameSettingsService.LoadGeneralsOnlineSettingsAsync();
             if (goResult?.Success == true && goResult.Data != null)
             {
-                ApplyGameSettings(goResult.Data);
-                _logger.LogInformation("Loaded GameSettings");
+                ApplyGeneralsOnlineSettings(goResult.Data);
+                _logger.LogInformation("Loaded GeneralsOnline settings");
             }
             else
             {
-                var goErrors = goResult?.Errors ?? ["LoadGameSettings result was null"];
-                _logger.LogWarning("Failed to load GameSettings: {Errors}", string.Join(", ", goErrors));
+                var goErrors = goResult?.Errors ?? ["LoadGeneralsOnlineSettings result was null"];
+                _logger.LogWarning("Failed to load GeneralsOnline settings: {Errors}", string.Join(", ", goErrors));
             }
         }
         catch (Exception ex)
@@ -735,9 +785,9 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
             var options = CreateOptionsFromViewModel();
             var result = await _gameSettingsService.SaveOptionsAsync(SelectedGameType, options);
 
-            // Save GameSettings
-            var goSettings = CreateGameSettings();
-            var goResult = await _gameSettingsService.SaveGameSettingsAsync(goSettings);
+            // Save GeneralsOnline settings
+            var goSettings = CreateGeneralsOnlineSettings();
+            var goResult = await _gameSettingsService.SaveGeneralsOnlineSettingsAsync(goSettings);
 
             if (result?.Success == true && goResult?.Success == true)
             {
@@ -752,7 +802,7 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
                 if (result?.Success == false) errors.AddRange(result.Errors);
                 if (goResult?.Success == false) errors.AddRange(goResult.Errors);
                 if (result == null) errors.Add("SaveOptions result was null");
-                if (goResult == null) errors.Add("SaveGameSettings result was null");
+                if (goResult == null) errors.Add("SaveGeneralsOnlineSettings result was null");
 
                 StatusMessage = $"Failed to save settings: {string.Join(", ", errors)}";
                 _logger.LogWarning("Failed to save settings: {Errors}", string.Join(", ", errors));
@@ -1019,7 +1069,7 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
         return options;
     }
 
-    private void ApplyGameSettings(GameSettingsRecord settings)
+    private void ApplyGeneralsOnlineSettings(GeneralsOnlineSettings settings)
     {
         GoShowFps = settings.ShowFps;
         GoShowPing = settings.ShowPing;
@@ -1029,27 +1079,27 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
         GoEnableNotifications = settings.EnableNotifications;
         GoEnableSoundNotifications = settings.EnableSoundNotifications;
         GoChatFontSize = settings.ChatFontSize;
-        GoCameraMaxHeightOnlyWhenLobbyHost = settings.CameraMaxHeightOnlyWhenLobbyHost;
-        GoCameraMinHeight = settings.CameraMinHeight;
-        GoCameraMoveSpeedRatio = settings.CameraMoveSpeedRatio;
-        GoChatDurationSecondsUntilFadeOut = settings.ChatDurationSecondsUntilFadeOut;
-        GoDebugVerboseLogging = settings.DebugVerboseLogging;
-        GoRenderFpsLimit = settings.RenderFpsLimit;
-        GoRenderLimitFramerate = settings.RenderLimitFramerate;
-        GoRenderStatsOverlay = settings.RenderStatsOverlay;
-        GoSocialNotificationFriendComesOnlineGameplay = settings.SocialNotificationFriendComesOnlineGameplay;
-        GoSocialNotificationFriendComesOnlineMenus = settings.SocialNotificationFriendComesOnlineMenus;
-        GoSocialNotificationFriendGoesOfflineGameplay = settings.SocialNotificationFriendGoesOfflineGameplay;
-        GoSocialNotificationFriendGoesOfflineMenus = settings.SocialNotificationFriendGoesOfflineMenus;
-        GoSocialNotificationPlayerAcceptsRequestGameplay = settings.SocialNotificationPlayerAcceptsRequestGameplay;
-        GoSocialNotificationPlayerAcceptsRequestMenus = settings.SocialNotificationPlayerAcceptsRequestMenus;
-        GoSocialNotificationPlayerSendsRequestGameplay = settings.SocialNotificationPlayerSendsRequestGameplay;
-        GoSocialNotificationPlayerSendsRequestMenus = settings.SocialNotificationPlayerSendsRequestMenus;
+        GoCameraMaxHeightOnlyWhenLobbyHost = settings.Camera.MaxHeightOnlyWhenLobbyHost;
+        GoCameraMinHeight = settings.Camera.MinHeight;
+        GoCameraMoveSpeedRatio = settings.Camera.MoveSpeedRatio;
+        GoChatDurationSecondsUntilFadeOut = settings.Chat.DurationSecondsUntilFadeOut;
+        GoDebugVerboseLogging = settings.Debug.VerboseLogging;
+        GoRenderFpsLimit = settings.Render.FpsLimit;
+        GoRenderLimitFramerate = settings.Render.LimitFramerate;
+        GoRenderStatsOverlay = settings.Render.StatsOverlay;
+        GoSocialNotificationFriendComesOnlineGameplay = settings.Social.NotificationFriendComesOnlineGameplay;
+        GoSocialNotificationFriendComesOnlineMenus = settings.Social.NotificationFriendComesOnlineMenus;
+        GoSocialNotificationFriendGoesOfflineGameplay = settings.Social.NotificationFriendGoesOfflineGameplay;
+        GoSocialNotificationFriendGoesOfflineMenus = settings.Social.NotificationFriendGoesOfflineMenus;
+        GoSocialNotificationPlayerAcceptsRequestGameplay = settings.Social.NotificationPlayerAcceptsRequestGameplay;
+        GoSocialNotificationPlayerAcceptsRequestMenus = settings.Social.NotificationPlayerAcceptsRequestMenus;
+        GoSocialNotificationPlayerSendsRequestGameplay = settings.Social.NotificationPlayerSendsRequestGameplay;
+        GoSocialNotificationPlayerSendsRequestMenus = settings.Social.NotificationPlayerSendsRequestMenus;
     }
 
-    private GameSettingsRecord CreateGameSettings()
+    private GeneralsOnlineSettings CreateGeneralsOnlineSettings()
     {
-        return new GameSettingsRecord
+        var settings = new GeneralsOnlineSettings
         {
             ShowFps = GoShowFps,
             ShowPing = GoShowPing,
@@ -1059,41 +1109,25 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
             EnableNotifications = GoEnableNotifications,
             EnableSoundNotifications = GoEnableSoundNotifications,
             ChatFontSize = GoChatFontSize,
-            CameraMaxHeightOnlyWhenLobbyHost = GoCameraMaxHeightOnlyWhenLobbyHost,
-            CameraMinHeight = GoCameraMinHeight,
-            CameraMoveSpeedRatio = GoCameraMoveSpeedRatio,
-            ChatDurationSecondsUntilFadeOut = GoChatDurationSecondsUntilFadeOut,
-            DebugVerboseLogging = GoDebugVerboseLogging,
-            RenderFpsLimit = GoRenderFpsLimit,
-            RenderLimitFramerate = GoRenderLimitFramerate,
-            RenderStatsOverlay = GoRenderStatsOverlay,
-            SocialNotificationFriendComesOnlineGameplay = GoSocialNotificationFriendComesOnlineGameplay,
-            SocialNotificationFriendComesOnlineMenus = GoSocialNotificationFriendComesOnlineMenus,
-            SocialNotificationFriendGoesOfflineGameplay = GoSocialNotificationFriendGoesOfflineGameplay,
-            SocialNotificationFriendGoesOfflineMenus = GoSocialNotificationFriendGoesOfflineMenus,
-            SocialNotificationPlayerAcceptsRequestGameplay = GoSocialNotificationPlayerAcceptsRequestGameplay,
-            SocialNotificationPlayerAcceptsRequestMenus = GoSocialNotificationPlayerAcceptsRequestMenus,
-            SocialNotificationPlayerSendsRequestGameplay = GoSocialNotificationPlayerSendsRequestGameplay,
-            SocialNotificationPlayerSendsRequestMenus = GoSocialNotificationPlayerSendsRequestMenus,
-
-            // TSH Properties (added to GameSettings record) - ensuring defaults or mapping if available in VM
-            // These were previously inherited in GeneralsOnlineSettings, but now GameSettings is a standalone record.
-            // If they are not managed in the "Generals Online" section of the VM, they might just take defaults.
-            // However, looking at the VM, there are TSH properties managed separately:
-            ArchiveReplays = TshArchiveReplays,
-            ShowMoneyPerMinute = TshShowMoneyPerMinute,
-            PlayerObserverEnabled = TshPlayerObserverEnabled,
-            SystemTimeFontSize = TshSystemTimeFontSize,
-            NetworkLatencyFontSize = TshNetworkLatencyFontSize,
-            RenderFpsFontSize = TshRenderFpsFontSize,
-            ResolutionFontAdjustment = TshResolutionFontAdjustment,
-            CursorCaptureEnabledInFullscreenGame = TshCursorCaptureEnabledInFullscreenGame,
-            CursorCaptureEnabledInFullscreenMenu = TshCursorCaptureEnabledInFullscreenMenu,
-            CursorCaptureEnabledInWindowedGame = TshCursorCaptureEnabledInWindowedGame,
-            CursorCaptureEnabledInWindowedMenu = TshCursorCaptureEnabledInWindowedMenu,
-            ScreenEdgeScrollEnabledInFullscreenApp = TshScreenEdgeScrollEnabledInFullscreenApp,
-            ScreenEdgeScrollEnabledInWindowedApp = TshScreenEdgeScrollEnabledInWindowedApp,
-            MoneyTransactionVolume = TshMoneyTransactionVolume,
         };
+
+        settings.Camera.MaxHeightOnlyWhenLobbyHost = GoCameraMaxHeightOnlyWhenLobbyHost;
+        settings.Camera.MinHeight = GoCameraMinHeight;
+        settings.Camera.MoveSpeedRatio = GoCameraMoveSpeedRatio;
+        settings.Chat.DurationSecondsUntilFadeOut = GoChatDurationSecondsUntilFadeOut;
+        settings.Debug.VerboseLogging = GoDebugVerboseLogging;
+        settings.Render.FpsLimit = GoRenderFpsLimit;
+        settings.Render.LimitFramerate = GoRenderLimitFramerate;
+        settings.Render.StatsOverlay = GoRenderStatsOverlay;
+        settings.Social.NotificationFriendComesOnlineGameplay = GoSocialNotificationFriendComesOnlineGameplay;
+        settings.Social.NotificationFriendComesOnlineMenus = GoSocialNotificationFriendComesOnlineMenus;
+        settings.Social.NotificationFriendGoesOfflineGameplay = GoSocialNotificationFriendGoesOfflineGameplay;
+        settings.Social.NotificationFriendGoesOfflineMenus = GoSocialNotificationFriendGoesOfflineMenus;
+        settings.Social.NotificationPlayerAcceptsRequestGameplay = GoSocialNotificationPlayerAcceptsRequestGameplay;
+        settings.Social.NotificationPlayerAcceptsRequestMenus = GoSocialNotificationPlayerAcceptsRequestMenus;
+        settings.Social.NotificationPlayerSendsRequestGameplay = GoSocialNotificationPlayerSendsRequestGameplay;
+        settings.Social.NotificationPlayerSendsRequestMenus = GoSocialNotificationPlayerSendsRequestMenus;
+
+        return settings;
     }
 }
