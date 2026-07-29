@@ -189,9 +189,9 @@
           </Button>
           <StackPanel Orientation="Horizontal" Spacing="0">
             <Button Command="{Binding UploadAndShareCommand}"
-                    Classes="Primary" IsEnabled="{Binding SelectedMaps.Count}"
+                    Classes="Primary" IsEnabled="False"
                     CornerRadius="4,0,0,4"
-                    ToolTip.Tip="Upload the selected maps to the cloud (UploadThing) and copy the shareable link to your clipboard.">
+                    ToolTip.Tip="Cloud uploads are temporarily disabled while short-lived credentials are implemented.">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <TextBlock Text="☁️"/>
                 <TextBlock Text="Upload"/>
@@ -204,8 +204,6 @@
                     ToolTip.Tip="View the history of your uploaded maps.">
               <TextBlock Text="▼" FontSize="10" VerticalAlignment="Center"/>
             </Button>
-            <TextBlock Text="(max 10MB per file)" FontSize="10" Opacity="0.5" VerticalAlignment="Center" Margin="8,0,0,0"/>
-
             <Popup IsOpen="{Binding IsHistoryOpen}"
                    Placement="Bottom" PlacementTarget="{Binding $parent[StackPanel]}"
                    IsLightDismissEnabled="True">
