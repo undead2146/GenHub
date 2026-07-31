@@ -48,6 +48,9 @@ public partial class AddContentDialogViewModel : ObservableValidator
     private string _tagsInput = string.Empty;
 
     [ObservableProperty]
+    private string? _extendsContentId;
+
+    [ObservableProperty]
     private string? _validationError;
 
     [ObservableProperty]
@@ -58,12 +61,28 @@ public partial class AddContentDialogViewModel : ObservableValidator
     /// </summary>
     public IReadOnlyList<ContentType> AvailableContentTypes { get; } =
     [
+        // Primary content types
         ContentType.Mod,
-        ContentType.Addon,
         ContentType.Map,
         ContentType.MapPack,
-        ContentType.LanguagePack,
+        ContentType.Mission,
+        ContentType.Addon,
         ContentType.Patch,
+
+        // Media types
+        ContentType.Video,
+        ContentType.Replay,
+        ContentType.Skin,
+
+        // Tools and utilities
+        ContentType.ModdingTool,
+        ContentType.Executable,
+
+        // Localization
+        ContentType.LanguagePack,
+
+        // Collections
+        ContentType.ContentBundle,
     ];
 
     /// <summary>
@@ -74,6 +93,37 @@ public partial class AddContentDialogViewModel : ObservableValidator
         GameType.ZeroHour,
         GameType.Generals,
     ];
+
+    /// <summary>
+    /// Gets a value indicating whether the dialog is in edit mode.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isEditMode;
+
+    /// <summary>
+    /// Gets the dialog title based on the current mode.
+    /// </summary>
+    public string DialogTitle => IsEditMode ? "Edit Content" : "Add New Content";
+
+    /// <summary>
+    /// Gets the submit button text based on the current mode.
+    /// </summary>
+    public string SubmitButtonText => IsEditMode ? "Save Changes" : "Add Content";
+
+    /// <summary>
+    /// Gets a value indicating whether the addon parent selection should be visible.
+    /// </summary>
+    public bool ShowAddonParentSelection => SelectedContentType == ContentType.Addon;
+
+    /// <summary>
+    /// Gets the available parent content items for addon selection.
+    /// </summary>
+    public ObservableCollection<CatalogContentItem> AvailableParentContent { get; } = new();
+
+    /// <summary>
+    /// Gets the suggested content ID based on the content name.
+    /// </summary>
+    public string SuggestedContentId => GenerateContentId(ContentName);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AddContentDialogViewModel"/> class.
@@ -90,7 +140,33 @@ public partial class AddContentDialogViewModel : ObservableValidator
             {
                 Validate();
             }
+
+            if (e.PropertyName == nameof(SelectedContentType))
+            {
+                OnPropertyChanged(nameof(ShowAddonParentSelection));
+            }
         };
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AddContentDialogViewModel"/> class in edit mode,
+    /// pre-populated with an existing content item's data.
+    /// </summary>
+    /// <param name="existing">The existing content item to edit.</param>
+    /// <param name="onContentCreated">Callback invoked when content is successfully saved.</param>
+    public AddContentDialogViewModel(CatalogContentItem existing, Action<CatalogContentItem> onContentCreated)
+        : this(onContentCreated)
+    {
+        ArgumentNullException.ThrowIfNull(existing);
+
+        IsEditMode = true;
+        ContentId = existing.Id;
+        ContentName = existing.Name;
+        Description = existing.Description;
+        SelectedContentType = existing.ContentType;
+        SelectedTargetGame = existing.TargetGame;
+        TagsInput = string.Join(", ", existing.Tags);
+        ExtendsContentId = existing.ExtendsContentId;
     }
 
     /// <summary>
@@ -134,11 +210,6 @@ public partial class AddContentDialogViewModel : ObservableValidator
             .Distinct()
             .ToList();
     }
-
-    /// <summary>
-    /// Gets the suggested content ID based on the content name.
-    /// </summary>
-    public string SuggestedContentId => GenerateContentId(ContentName);
 
     /// <summary>
     /// Applies the suggested content ID.
@@ -186,6 +257,7 @@ public partial class AddContentDialogViewModel : ObservableValidator
             ContentType = SelectedContentType,
             TargetGame = SelectedTargetGame,
             Tags = new ObservableCollection<string>(tags),
+            ExtendsContentId = SelectedContentType == ContentType.Addon ? ExtendsContentId : null,
         };
 
         _onContentCreated(contentItem);

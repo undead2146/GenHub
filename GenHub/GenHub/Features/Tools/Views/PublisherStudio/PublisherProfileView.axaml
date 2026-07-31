@@ -121,182 +121,155 @@
         </Style>
     </UserControl.Styles>
 
-    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="40" MaxWidth="1100" HorizontalAlignment="Left">
-            <!-- ==================== PAGE HEADER ==================== -->
-            <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,32">
-                <Border Width="64" Height="64"
-                        CornerRadius="16"
-                        Background="{DynamicResource PSPrimaryGradient}"
-                        BoxShadow="0 8 24 0 #408B5CF6">
-                    <PathIcon Data="{StaticResource PersonIcon}"
-                              Width="32" Height="32"
-                              Foreground="White"/>
-                </Border>
-                <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center" Margin="20,0,0,0">
-                    <TextBlock Text="Publisher Identity" FontSize="32" FontWeight="Bold" Foreground="White" />
-                    <TextBlock Text="Configure your publisher profile, branding, and cloud hosting connection." FontSize="16" Foreground="#9CA3AF"/>
-                </StackPanel>
-            </Grid>
-
-            <Grid ColumnDefinitions="*,40,320" RowDefinitions="Auto,Auto">
-                <!-- Left Column: Primary Info -->
-                <StackPanel Grid.Column="0" Spacing="24">
-                    <Border Classes="glass-card" Padding="32">
-                        <StackPanel Spacing="24">
-                            <TextBlock Text="General Information" FontSize="20" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,8"/>
-
-                            <Grid ColumnDefinitions="*,24,*" RowDefinitions="Auto,Auto,Auto">
-                                <!-- Row 1: Publisher ID & Name -->
-                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="8">
-                                    <StackPanel Orientation="Horizontal" Spacing="4">
-                                        <TextBlock Text="Publisher ID" Classes="field-label"/>
-                                        <TextBlock Text="*" Classes="required"/>
-                                    </StackPanel>
-                                    <TextBox Text="{Binding PublisherId, Mode=TwoWay}" Watermark="my-awesome-mods"/>
-                                    <TextBlock Text="Lowercase, numbers, and hyphens only" Classes="field-hint"/>
-                                </StackPanel>
-
-                                <StackPanel Grid.Row="0" Grid.Column="2" Spacing="8">
-                                    <StackPanel Orientation="Horizontal" Spacing="4">
-                                        <TextBlock Text="Display Name" Classes="field-label"/>
-                                        <TextBlock Text="*" Classes="required"/>
-                                    </StackPanel>
-                                    <TextBox Text="{Binding PublisherName, Mode=TwoWay}" Watermark="My Awesome Mods"/>
-                                    <TextBlock Text="How your name appears to users" Classes="field-hint"/>
-                                </StackPanel>
-
-                                <!-- Row 2: Website & Email -->
-                                <StackPanel Grid.Row="1" Grid.Column="0" Spacing="8" Margin="0,16,0,0">
-                                    <TextBlock Text="Website" Classes="field-label"/>
-                                    <TextBox Text="{Binding WebsiteUrl, Mode=TwoWay}" Watermark="https://myawesomemods.com"/>
-                                </StackPanel>
-
-                                <StackPanel Grid.Row="1" Grid.Column="2" Spacing="8" Margin="0,16,0,0">
-                                    <TextBlock Text="Contact Email" Classes="field-label"/>
-                                    <TextBox Text="{Binding ContactEmail, Mode=TwoWay}" Watermark="contact@myawesomemods.com"/>
-                                </StackPanel>
-
-                                <!-- Row 3: Support URL & Tags -->
-                                <StackPanel Grid.Row="2" Grid.Column="0" Spacing="8" Margin="0,16,0,0">
-                                    <TextBlock Text="Support URL" Classes="field-label"/>
-                                    <TextBox Text="{Binding SupportUrl, Mode=TwoWay}" Watermark="https://discord.gg/myawesomemods"/>
-                                </StackPanel>
-
-                                <StackPanel Grid.Row="2" Grid.Column="2" Spacing="8" Margin="0,16,0,0">
-                                    <TextBlock Text="Tags" Classes="field-label"/>
-                                    <TextBox Text="{Binding TagsString, Mode=TwoWay}" Watermark="mods, maps, community"/>
-                                </StackPanel>
-                            </Grid>
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+        <Border Classes="glass-card"
+                Padding="48"
+                Margin="32"
+                HorizontalAlignment="Center"
+                MaxWidth="720">
+            <StackPanel Spacing="32">
+                <!-- ==================== SECTION HEADER ==================== -->
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="16">
+                        <Border Width="48" Height="48"
+                                CornerRadius="14"
+                                Background="{DynamicResource PSPrimaryGradient}"
+                                BoxShadow="0 4 16 0 #408B5CF6">
+                            <PathIcon Data="{StaticResource PersonIcon}"
+                                      Width="24" Height="24"
+                                      Foreground="White"/>
+                        </Border>
+                        <StackPanel Spacing="4" VerticalAlignment="Center">
+                            <TextBlock Text="Publisher Identity" Classes="section-title"/>
+                            <TextBlock Text="Configure your publisher profile and branding" Classes="section-subtitle"/>
                         </StackPanel>
-                    </Border>
-
-                    <Border Classes="glass-card" Padding="32" Margin="0,24,0,0">
-                        <StackPanel Spacing="16">
-                            <TextBlock Text="Description" FontSize="20" FontWeight="SemiBold" Foreground="White"/>
-                            <TextBox Text="{Binding Description, Mode=TwoWay}"
-                                     Watermark="Tell users about your mods and what makes them special..."
-                                     AcceptsReturn="True"
-                                     Height="120"
-                                     TextWrapping="Wrap"/>
-                        </StackPanel>
-                    </Border>
-
-                    <Button Classes="primary-btn"
-                            Command="{Binding SaveProfileCommand}"
-                            HorizontalAlignment="Right"
-                            Margin="0,24,0,0"
-                            Padding="32,16">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <PathIcon Data="{StaticResource SaveIcon}" Width="20" Height="20" Foreground="White"/>
-                            <TextBlock Text="Save Profile Changes" FontSize="16"/>
-                        </StackPanel>
-                    </Button>
+                    </StackPanel>
                 </StackPanel>
 
-                <!-- Right Column: Avatar & Connection Status -->
-                <StackPanel Grid.Column="2" Spacing="24">
-                    <!-- Avatar Card -->
-                    <Border Classes="glass-card" Padding="24">
-                        <StackPanel Spacing="16" HorizontalAlignment="Center">
-                            <TextBlock Text="Publisher Avatar" FontSize="18" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Left" Width="272"/>
-                            <Border Width="160" Height="160"
-                                    CornerRadius="80"
-                                    Background="#15FFFFFF"
-                                    BorderBrush="#25FFFFFF"
-                                    BorderThickness="4"
-                                    ClipToBounds="True"
-                                    BoxShadow="0 8 32 0 #40000000">
-                                <Image Source="{Binding AvatarUrl, Converter={StaticResource StringToImageConverter}}"
-                                       Stretch="UniformToFill">
-                                    <Image.Transitions>
-                                        <Transitions>
-                                            <DoubleTransition Property="Opacity" Duration="0:0:0.3"/>
-                                        </Transitions>
-                                    </Image.Transitions>
-                                </Image>
-                            </Border>
-                            <TextBox Text="{Binding AvatarUrl, Mode=TwoWay}"
-                                     Watermark="https://example.com/avatar.png"
-                                     FontSize="12"
-                                     HorizontalAlignment="Stretch"/>
-                            <TextBlock Text="Enter a URL for your avatar image" Classes="field-hint" HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
+                <Rectangle Classes="divider"/>
 
-                    <!-- Google Connection Card -->
-                    <Border Classes="glass-card" Padding="24">
-                        <StackPanel Spacing="16">
-                            <TextBlock Text="Cloud Hosting" FontSize="18" FontWeight="SemiBold" Foreground="White" />
-
-                            <Border Background="#10FFFFFF" CornerRadius="12" Padding="16">
-                                <StackPanel Spacing="12">
-                                    <Grid ColumnDefinitions="Auto,*,Auto">
-                                        <PathIcon Data="{StaticResource GoogleDriveIcon}" Width="24" Height="24" Foreground="White"/>
-                                        <TextBlock Grid.Column="1" Text="Google Drive" FontWeight="Bold" Foreground="White" VerticalAlignment="Center" Margin="12,0,0,0"/>
-
-                                        <Border Grid.Column="2"
-                                                Background="#2040FF40"
-                                                CornerRadius="4"
-                                                Padding="8,4"
-                                                IsVisible="{Binding IsGoogleConnected, FallbackValue=False}">
-                                            <TextBlock Text="✓ Connected" FontSize="10" Foreground="#40FF40" FontWeight="Bold"/>
-                                        </Border>
-                                    </Grid>
-
-                                    <TextBlock Text="Connect your Google account to automatically host artifacts and catalogs."
-                                               FontSize="12" Foreground="#9CA3AF" TextWrapping="Wrap"/>
-
-                                    <Button Command="{Binding ConnectGoogleCommand}"
-                                            Classes="primary-btn"
-                                            HorizontalAlignment="Stretch"
-                                            Padding="12"
-                                            Background="#15FFFFFF"
-                                            BorderThickness="1"
-                                            BorderBrush="#25FFFFFF"
-                                            IsVisible="{Binding !IsGoogleConnected, FallbackValue=True}">
-                                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                                            <PathIcon Data="{StaticResource PersonIcon}" Width="16" Height="16" Foreground="White"/>
-                                            <TextBlock Text="Connect Google Drive" FontSize="13" Foreground="White"/>
-                                        </StackPanel>
-                                    </Button>
-
-                                    <Button Command="{Binding DisconnectGoogleCommand}"
-                                            Classes="glass-btn"
-                                            HorizontalAlignment="Stretch"
-                                            Padding="12"
-                                            IsVisible="{Binding IsGoogleConnected, FallbackValue=False}">
-                                        <TextBlock Text="Sign Out" FontSize="12" Foreground="#FF6060" HorizontalAlignment="Center"/>
-                                    </Button>
-                                </StackPanel>
-                            </Border>
-
-                            <TextBlock Text="Hosting on Google Drive ensures your subscription links are always working."
-                                       FontSize="11" Foreground="#6B7280" TextWrapping="Wrap"/>
-                        </StackPanel>
-                    </Border>
+                <!-- ==================== PUBLISHER ID ==================== -->
+                <StackPanel Spacing="10">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Publisher ID" Classes="field-label"/>
+                        <TextBlock Text="*" Classes="required"/>
+                    </StackPanel>
+                    <TextBox Text="{Binding PublisherId, Mode=TwoWay}"
+                             Watermark="my-awesome-mods"/>
+                    <TextBlock Text="Unique identifier using lowercase letters, numbers, and hyphens" Classes="field-hint"/>
                 </StackPanel>
-            </Grid>
-        </StackPanel>
+
+                <!-- ==================== DISPLAY NAME ==================== -->
+                <StackPanel Spacing="10">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Display Name" Classes="field-label"/>
+                        <TextBlock Text="*" Classes="required"/>
+                    </StackPanel>
+                    <TextBox Text="{Binding PublisherName, Mode=TwoWay}"
+                             Watermark="My Awesome Mods"/>
+                </StackPanel>
+
+                <!-- ==================== AVATAR URL WITH PREVIEW ==================== -->
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Avatar URL" Classes="field-label"/>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding AvatarUrl, Mode=TwoWay}"
+                                 Watermark="https://example.com/avatar.png"/>
+                        <!-- Avatar Preview -->
+                        <Border Grid.Column="1"
+                                Margin="16,0,0,0"
+                                Width="56" Height="56"
+                                CornerRadius="28"
+                                Background="#15FFFFFF"
+                                BorderBrush="#25FFFFFF"
+                                BorderThickness="2"
+                                ClipToBounds="True"
+                                BoxShadow="0 4 16 0 #30000000">
+                            <Image Source="{Binding AvatarUrl, Converter={StaticResource StringToImageConverter}}"
+                                   Stretch="UniformToFill">
+                                <Image.Transitions>
+                                    <Transitions>
+                                        <DoubleTransition Property="Opacity" Duration="0:0:0.3"/>
+                                    </Transitions>
+                                </Image.Transitions>
+                            </Image>
+                        </Border>
+                    </Grid>
+                    <TextBlock Text="Link to your publisher avatar image (optional)" Classes="field-hint"/>
+                </StackPanel>
+
+                <Rectangle Classes="divider"/>
+
+                <!-- ==================== CONTACT SECTION ==================== -->
+                <TextBlock Text="Contact Information"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Foreground="#D1D5DB"/>
+
+                <!-- Website -->
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Website" Classes="field-label"/>
+                    <TextBox Text="{Binding WebsiteUrl, Mode=TwoWay}"
+                             Watermark="https://myawesomemods.com"/>
+                </StackPanel>
+
+                <!-- Support URL -->
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Support URL" Classes="field-label"/>
+                    <TextBox Text="{Binding SupportUrl, Mode=TwoWay}"
+                             Watermark="https://discord.gg/myawesomemods"/>
+                    <TextBlock Text="Discord server, forum, or help page for users" Classes="field-hint"/>
+                </StackPanel>
+
+                <!-- Contact Email -->
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Contact Email" Classes="field-label"/>
+                    <TextBox Text="{Binding ContactEmail, Mode=TwoWay}"
+                             Watermark="contact@myawesomemods.com"/>
+                </StackPanel>
+
+                <Rectangle Classes="divider"/>
+
+                <!-- ==================== ADDITIONAL INFO ==================== -->
+                <TextBlock Text="Additional Information"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Foreground="#D1D5DB"/>
+
+                <!-- Description -->
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Description" Classes="field-label"/>
+                    <TextBox Text="{Binding Description, Mode=TwoWay}"
+                             Watermark="Tell users about your mods and what makes them special..."
+                             AcceptsReturn="True"
+                             Height="100"
+                             TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <!-- Tags -->
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Tags" Classes="field-label"/>
+                    <TextBox Text="{Binding TagsString, Mode=TwoWay}"
+                             Watermark="mods, maps, community, total-conversion"/>
+                    <TextBlock Text="Comma-separated tags for discovery (optional)" Classes="field-hint"/>
+                </StackPanel>
+
+                <Rectangle Classes="divider"/>
+
+                <!-- ==================== SAVE BUTTON ==================== -->
+                <Button Classes="primary-btn"
+                        Command="{Binding SaveProfileCommand}"
+                        HorizontalAlignment="Right">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <PathIcon Data="{StaticResource SaveIcon}"
+                                  Width="18" Height="18"
+                                  Foreground="White"/>
+                        <TextBlock Text="Save Profile"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Border>
     </ScrollViewer>
 </UserControl>

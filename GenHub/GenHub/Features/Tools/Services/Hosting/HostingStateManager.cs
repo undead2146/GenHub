@@ -49,7 +49,7 @@ public interface IHostingStateManager
 /// <summary>
 /// Default implementation of IHostingStateManager.
 /// </summary>
-public class HostingStateManager : IHostingStateManager
+public class HostingStateManager(ILogger<HostingStateManager> logger) : IHostingStateManager
 {
     private const string StateFileName = "hosting_state.json";
 
@@ -58,17 +58,6 @@ public class HostingStateManager : IHostingStateManager
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
-
-    private readonly ILogger<HostingStateManager> _logger;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="HostingStateManager"/> class.
-    /// </summary>
-    /// <param name="logger">The logger.</param>
-    public HostingStateManager(ILogger<HostingStateManager> logger)
-    {
-        _logger = logger;
-    }
 
     /// <inheritdoc />
     public string GetStateFilePath(string projectPath)
@@ -103,7 +92,7 @@ public class HostingStateManager : IHostingStateManager
 
             if (!File.Exists(stateFilePath))
             {
-                _logger.LogDebug("No hosting state file found at {Path}", stateFilePath);
+                logger.LogDebug("No hosting state file found at {Path}", stateFilePath);
                 return OperationResult<HostingState?>.CreateSuccess(null);
             }
 
@@ -112,11 +101,11 @@ public class HostingStateManager : IHostingStateManager
 
             if (state == null)
             {
-                _logger.LogWarning("Failed to deserialize hosting state from {Path}", stateFilePath);
+                logger.LogWarning("Failed to deserialize hosting state from {Path}", stateFilePath);
                 return OperationResult<HostingState?>.CreateSuccess(null);
             }
 
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Loaded hosting state: Provider={Provider}, Definition={HasDef}, Catalogs={CatalogCount}",
                 state.ProviderId,
                 state.Definition != null,
@@ -126,7 +115,7 @@ public class HostingStateManager : IHostingStateManager
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load hosting state from {ProjectPath}", projectPath);
+            logger.LogError(ex, "Failed to load hosting state from {ProjectPath}", projectPath);
             return OperationResult<HostingState?>.CreateFailure($"Failed to load hosting state: {ex.Message}");
         }
     }
@@ -141,7 +130,7 @@ public class HostingStateManager : IHostingStateManager
             var json = JsonSerializer.Serialize(state, JsonOptions);
             await File.WriteAllTextAsync(stateFilePath, json, cancellationToken);
 
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Saved hosting state to {Path}: Provider={Provider}, Catalogs={CatalogCount}",
                 stateFilePath,
                 state.ProviderId,
@@ -151,7 +140,7 @@ public class HostingStateManager : IHostingStateManager
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to save hosting state to {ProjectPath}", projectPath);
+            logger.LogError(ex, "Failed to save hosting state to {ProjectPath}", projectPath);
             return OperationResult<bool>.CreateFailure($"Failed to save hosting state: {ex.Message}");
         }
     }

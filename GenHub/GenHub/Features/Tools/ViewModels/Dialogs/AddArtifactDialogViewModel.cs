@@ -5,10 +5,13 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Core.Models.Providers;
-using GenHub.Features.Tools.Interfaces;
 
 namespace GenHub.Features.Tools.ViewModels.Dialogs;
 
@@ -19,7 +22,6 @@ namespace GenHub.Features.Tools.ViewModels.Dialogs;
 public partial class AddArtifactDialogViewModel : ObservableValidator
 {
     private readonly Action<ReleaseArtifact> _onArtifactCreated;
-    private readonly IHostingProviderFactory _hostingProviderFactory;
 
     [ObservableProperty]
     [NotifyDataErrorInfo]
@@ -41,7 +43,7 @@ public partial class AddArtifactDialogViewModel : ObservableValidator
     private bool _isPrimary = true;
 
     [ObservableProperty]
-    private bool _useExistingUrl = true;
+    private bool _useLocalFile = true;
 
     [ObservableProperty]
     private string? _localFilePath;
@@ -59,10 +61,61 @@ public partial class AddArtifactDialogViewModel : ObservableValidator
     private string _fileSizeDisplay = string.Empty;
 
     [ObservableProperty]
-    private bool _isUploading;
+    private string _artifactStatus = "No file configured";
 
-    [ObservableProperty]
-    private int _uploadProgress;
+    /// <summary>
+    /// Gets or sets a value indicating whether to use an existing URL instead of uploading a file.
+    /// </summary>
+    public bool UseExistingUrl
+    {
+        get => !UseLocalFile;
+        set
+        {
+            if (UseLocalFile == !value) return;
+            UseLocalFile = !value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether a local file has been selected.
+    /// </summary>
+    public bool IsLocalFile => !string.IsNullOrEmpty(LocalFilePath);
+
+    /// <summary>
+    /// Gets a value indicating whether the artifact is hosted remotely (URL set, no local file).
+    /// </summary>
+    public bool IsHosted => !string.IsNullOrEmpty(DownloadUrl) && !IsLocalFile;
+
+    partial void OnUseLocalFileChanged(bool value)
+    {
+        OnPropertyChanged(nameof(UseExistingUrl));
+        UpdateArtifactStatus();
+    }
+
+    partial void OnLocalFilePathChanged(string? value)
+    {
+        OnPropertyChanged(nameof(IsLocalFile));
+        OnPropertyChanged(nameof(IsHosted));
+        UpdateArtifactStatus();
+    }
+
+    partial void OnDownloadUrlChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsLocalFile));
+        OnPropertyChanged(nameof(IsHosted));
+        UpdateArtifactStatus();
+    }
+
+    private void UpdateArtifactStatus()
+    {
+        if (!string.IsNullOrEmpty(LocalFilePath))
+            ArtifactStatus = "Local file selected - will be uploaded during publish";
+        else if (!string.IsNullOrEmpty(DownloadUrl))
+            ArtifactStatus = "Hosted remotely";
+        else
+            ArtifactStatus = "No file configured";
+    }
 
     private static string FormatFileSize(long bytes)
     {
@@ -80,16 +133,81 @@ public partial class AddArtifactDialogViewModel : ObservableValidator
     }
 
     /// <summary>
+    /// Opens a file picker dialog and populates artifact fields from the selected file.
+    /// Auto-fills filename, file size, and computes SHA256 hash asynchronously.
+    /// </summary>
+    [RelayCommand]
+    private async Task BrowseLocalFileAsync()
+    {
+        try
+        {
+            var lifetime = Application.Current?.ApplicationLifetime
+                as IClassicDesktopStyleApplicationLifetime;
+            var mainWindow = lifetime?.MainWindow;
+            if (mainWindow == null) return;
+
+            var topLevel = TopLevel.GetTopLevel(mainWindow);
+            if (topLevel == null) return;
+
+            var files = await topLevel.StorageProvider.OpenFilePickerAsync(
+                new FilePickerOpenOptions
+                {
+                    Title = "Select Artifact File",
+                    AllowMultiple = false,
+                    FileTypeFilter = new[]
+                    {
+                        new FilePickerFileType("Archives") { Patterns = new[] { "*.zip", "*.rar", "*.7z" } },
+                        new FilePickerFileType("All Files") { Patterns = new[] { "*" } },
+                    },
+                });
+
+            if (files.Count > 0)
+            {
+                var file = files[0];
+                var path = file.TryGetLocalPath();
+                if (!string.IsNullOrEmpty(path))
+                {
+                    LocalFilePath = path;
+                    Filename = Path.GetFileName(path);
+
+                    var fileInfo = new FileInfo(path);
+                    FileSize = fileInfo.Length;
+                    FileSizeDisplay = FormatFileSize(FileSize);
+
+                    // Compute SHA256 in background
+                    IsComputingHash = true;
+                    try
+                    {
+                        Sha256Hash = await Task.Run(() => ComputeSha256(path));
+                    }
+                    finally
+                    {
+                        IsComputingHash = false;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ArtifactStatus = $"Error: {ex.Message}";
+        }
+    }
+
+    private static string ComputeSha256(string filePath)
+    {
+        using var sha256 = SHA256.Create();
+        using var stream = File.OpenRead(filePath);
+        var hash = sha256.ComputeHash(stream);
+        return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
+    }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="AddArtifactDialogViewModel"/> class.
     /// </summary>
     /// <param name="onArtifactCreated">Callback invoked when artifact is successfully created.</param>
-    /// <param name="hostingProviderFactory">The hosting provider factory.</param>
-    public AddArtifactDialogViewModel(
-        Action<ReleaseArtifact> onArtifactCreated,
-        IHostingProviderFactory hostingProviderFactory)
+    public AddArtifactDialogViewModel(Action<ReleaseArtifact> onArtifactCreated)
     {
         _onArtifactCreated = onArtifactCreated ?? throw new ArgumentNullException(nameof(onArtifactCreated));
-        _hostingProviderFactory = hostingProviderFactory;
 
         PropertyChanged += (_, e) =>
         {
@@ -156,61 +274,6 @@ public partial class AddArtifactDialogViewModel : ObservableValidator
     }
 
     /// <summary>
-    /// Uploads the selected file to Google Drive.
-    /// </summary>
-    [RelayCommand]
-    private async Task UploadToCloudAsync()
-    {
-        if (string.IsNullOrWhiteSpace(LocalFilePath) || !File.Exists(LocalFilePath))
-        {
-            ValidationError = "Please select a local file first";
-            return;
-        }
-
-        var provider = _hostingProviderFactory.GetProvider("google_drive");
-        if (provider == null)
-        {
-            ValidationError = "Google Drive hosting provider not found";
-            return;
-        }
-
-        if (!provider.IsAuthenticated)
-        {
-            ValidationError = "Please connect Google Drive in the 'Publisher Profile' tab first";
-            return;
-        }
-
-        IsUploading = true;
-        UploadProgress = 0;
-        ValidationError = null;
-
-        try
-        {
-            await using var stream = File.OpenRead(LocalFilePath);
-            var progress = new Progress<int>(p => UploadProgress = p);
-
-            var result = await provider.UploadFileAsync(stream, Filename, progress: progress);
-            if (result.Success && result.Data != null)
-            {
-                DownloadUrl = result.Data.DirectDownloadUrl;
-                ValidationError = "Successfully uploaded to Google Drive!";
-            }
-            else
-            {
-                ValidationError = $"Upload failed: {result.FirstError}";
-            }
-        }
-        catch (Exception ex)
-        {
-            ValidationError = $"Upload error: {ex.Message}";
-        }
-        finally
-        {
-            IsUploading = false;
-        }
-    }
-
-    /// <summary>
     /// Creates the artifact if validation passes.
     /// </summary>
     [RelayCommand]
@@ -225,12 +288,26 @@ public partial class AddArtifactDialogViewModel : ObservableValidator
             return;
         }
 
-        // Validate URL if using existing URL
-        if (UseExistingUrl && !Uri.TryCreate(DownloadUrl, UriKind.Absolute, out var uri))
+        // Validate based on selection mode
+        if (UseLocalFile)
         {
-            ValidationError = "Please enter a valid download URL";
-            IsValid = false;
-            return;
+            // Local file mode - require local file path
+            if (string.IsNullOrWhiteSpace(LocalFilePath) || !System.IO.File.Exists(LocalFilePath))
+            {
+                ValidationError = "Please select a local file to upload";
+                IsValid = false;
+                return;
+            }
+        }
+        else
+        {
+            // URL mode - require valid URL
+            if (string.IsNullOrWhiteSpace(DownloadUrl) || !Uri.TryCreate(DownloadUrl, UriKind.Absolute, out var uri))
+            {
+                ValidationError = "Please enter a valid download URL";
+                IsValid = false;
+                return;
+            }
         }
 
         var artifact = new ReleaseArtifact

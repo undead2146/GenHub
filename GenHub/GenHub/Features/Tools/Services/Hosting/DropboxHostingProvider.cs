@@ -19,30 +19,21 @@ namespace GenHub.Features.Tools.Services.Hosting;
 /// </summary>
 /// <remarks>
 /// Dropbox is a good option for publishers who:
-/// - Already use Dropbox for file storage
-/// - Want simple, reliable hosting with direct download links
-/// - Need more storage than GitHub gists allow
+/// - Already use Dropbox for file storage.
+/// - Want simple, reliable hosting with direct download links.
+/// - Need more storage than GitHub gists allow.
 /// </remarks>
-public class DropboxHostingProvider : IHostingProvider, IDisposable
+public class DropboxHostingProvider(ILogger<DropboxHostingProvider> logger, IHttpClientFactory httpClientFactory) : IHostingProvider, IDisposable
 {
     private const string DropboxApiUrl = "https://api.dropboxapi.com/2";
     private const string DropboxContentUrl = "https://content.dropboxapi.com/2";
     private const string PublisherFolderPath = "/GenHub_Publisher";
 
-    private readonly ILogger<DropboxHostingProvider> _logger;
-    private readonly HttpClient _httpClient;
+    private readonly ILogger<DropboxHostingProvider> _logger = logger;
+    private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
+    private readonly HttpClient _httpClient = httpClientFactory.CreateClient();
     private string? _accessToken;
     private bool _disposed;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="DropboxHostingProvider"/> class.
-    /// </summary>
-    /// <param name="logger">The logger.</param>
-    public DropboxHostingProvider(ILogger<DropboxHostingProvider> logger)
-    {
-        _logger = logger;
-        _httpClient = new HttpClient();
-    }
 
     /// <inheritdoc/>
     public string ProviderId => "dropbox";
@@ -96,11 +87,12 @@ public class DropboxHostingProvider : IHostingProvider, IDisposable
         try
         {
             // Verify the token by getting current account info
-            using var request = new HttpRequestMessage(HttpMethod.Post, $"{DropboxApiUrl}/users/get_current_account");
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-            request.Content = new StringContent("null", Encoding.UTF8, "application/json");
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-            var response = await _httpClient.SendAsync(request, cancellationToken);
+            var response = await _httpClient.PostAsync(
+                $"{DropboxApiUrl}/users/get_current_account",
+                new StringContent("null", Encoding.UTF8, "application/json"),
+                cancellationToken);
 
             if (response.IsSuccessStatusCode)
             {
@@ -126,6 +118,7 @@ public class DropboxHostingProvider : IHostingProvider, IDisposable
     public Task SignOutAsync()
     {
         _accessToken = null;
+        _httpClient.DefaultRequestHeaders.Authorization = null;
         _logger.LogInformation("Signed out from Dropbox");
         return Task.CompletedTask;
     }
@@ -144,7 +137,7 @@ public class DropboxHostingProvider : IHostingProvider, IDisposable
             var createRequest = new
             {
                 path = PublisherFolderPath,
-                autorename = false
+                autorename = false,
             };
 
             var response = await _httpClient.PostAsync(
@@ -208,7 +201,7 @@ public class DropboxHostingProvider : IHostingProvider, IDisposable
                 path = filePath,
                 mode = "overwrite",
                 autorename = false,
-                mute = true
+                mute = true,
             };
 
             using var request = new HttpRequestMessage(HttpMethod.Post, $"{DropboxContentUrl}/files/upload");
@@ -313,7 +306,7 @@ public class DropboxHostingProvider : IHostingProvider, IDisposable
         try
         {
             // First try to get existing shared link
-            var listRequest = new { path };
+            var listRequest = new { path, };
             var listResponse = await _httpClient.PostAsync(
                 $"{DropboxApiUrl}/sharing/list_shared_links",
                 new StringContent(JsonSerializer.Serialize(listRequest), Encoding.UTF8, "application/json"),
@@ -338,8 +331,8 @@ public class DropboxHostingProvider : IHostingProvider, IDisposable
                 {
                     requested_visibility = "public",
                     audience = "public",
-                    access = "viewer"
-                }
+                    access = "viewer",
+                },
             };
 
             var response = await _httpClient.PostAsync(
@@ -380,7 +373,9 @@ public class DropboxHostingProvider : IHostingProvider, IDisposable
         return shareUrl;
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Disposes resources used by the provider.
+    /// </summary>
     public void Dispose()
     {
         Dispose(true);
@@ -388,21 +383,19 @@ public class DropboxHostingProvider : IHostingProvider, IDisposable
     }
 
     /// <summary>
-    /// Disposes the managed resources.
+    /// Disposes resources used by the provider.
     /// </summary>
-    /// <param name="disposing">True if disposing from Dispose method.</param>
+    /// <param name="disposing">True if disposing managed resources.</param>
     protected virtual void Dispose(bool disposing)
     {
-        if (_disposed)
+        if (!_disposed)
         {
-            return;
-        }
+            if (disposing)
+            {
+                // Dispose managed resources if any
+            }
 
-        if (disposing)
-        {
-            _httpClient.Dispose();
+            _disposed = true;
         }
-
-        _disposed = true;
     }
 }

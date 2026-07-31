@@ -199,7 +199,7 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
     }
 
     /// <inheritdoc/>
-    public async Task<OperationResult<GeneralsOnlineSettings>> LoadGeneralsOnlineSettingsAsync()
+    public async Task<OperationResult<Core.Models.GameSettings.GameSettings>> LoadGameSettingsAsync()
     {
         using var scope = _logger.BeginScope(new Dictionary<string, object> { ["Section"] = "GeneralsOnline" });
 
@@ -211,30 +211,30 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
             if (!File.Exists(settingsPath))
             {
                 _logger.LogWarning("GeneralsOnline settings file not found at {SettingsPath}, returning defaults", settingsPath);
-                return OperationResult<GeneralsOnlineSettings>.CreateSuccess(new GeneralsOnlineSettings());
+                return OperationResult<Core.Models.GameSettings.GameSettings>.CreateSuccess(new Core.Models.GameSettings.GameSettings());
             }
 
             var json = await File.ReadAllTextAsync(settingsPath);
-            var settings = JsonSerializer.Deserialize<GeneralsOnlineSettings>(json, _jsonSerializerOptions);
+            var settings = JsonSerializer.Deserialize<Core.Models.GameSettings.GameSettings>(json, _jsonSerializerOptions);
 
             if (settings == null)
             {
                 _logger.LogWarning("Failed to deserialize GeneralsOnline settings, returning defaults");
-                return OperationResult<GeneralsOnlineSettings>.CreateSuccess(new GeneralsOnlineSettings());
+                return OperationResult<Core.Models.GameSettings.GameSettings>.CreateSuccess(new Core.Models.GameSettings.GameSettings());
             }
 
             _logger.LogInformation("Loaded GeneralsOnline settings from {SettingsPath}", settingsPath);
-            return OperationResult<GeneralsOnlineSettings>.CreateSuccess(settings);
+            return OperationResult<Core.Models.GameSettings.GameSettings>.CreateSuccess(settings);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load GeneralsOnline settings");
-            return OperationResult<GeneralsOnlineSettings>.CreateFailure($"Failed to load GeneralsOnline settings: {ex.Message}");
+            return OperationResult<Core.Models.GameSettings.GameSettings>.CreateFailure($"Failed to load GeneralsOnline settings: {ex.Message}");
         }
     }
 
     /// <inheritdoc/>
-    public async Task<OperationResult<bool>> SaveGeneralsOnlineSettingsAsync(GeneralsOnlineSettings settings)
+    public async Task<OperationResult<bool>> SaveGameSettingsAsync(Core.Models.GameSettings.GameSettings settings)
     {
         using var scope = _logger.BeginScope(new Dictionary<string, object> { ["Section"] = "GeneralsOnline" });
 

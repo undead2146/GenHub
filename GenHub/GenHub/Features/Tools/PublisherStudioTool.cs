@@ -40,7 +40,8 @@ public class PublisherStudioTool : IToolPlugin
     /// <inheritdoc/>
     public void OnActivated(IServiceProvider serviceProvider)
     {
-        _viewModel = serviceProvider.GetRequiredService<PublisherStudioViewModel>();
+        // Only create ViewModel once - preserve state across activations
+        _viewModel ??= serviceProvider.GetRequiredService<PublisherStudioViewModel>();
 
         if (_view != null)
         {
@@ -52,7 +53,22 @@ public class PublisherStudioTool : IToolPlugin
     /// <inheritdoc/>
     public void OnDeactivated()
     {
-        // Optional: clear state or notify ViewModel
+        // Auto-save if project has a path and has unsaved changes
+        if (_viewModel?.CurrentProject != null
+            && _viewModel.HasUnsavedChanges
+            && !string.IsNullOrEmpty(_viewModel.CurrentProject.ProjectPath))
+        {
+
+            // Execute save command synchronously to ensure it completes before deactivation
+            try
+            {
+                _viewModel.SaveProjectCommand.Execute(null);
+            }
+            catch (Exception)
+            {
+                // Silently fail on deactivation - user will be prompted on next activation if needed
+            }
+        }
     }
 
     /// <inheritdoc/>

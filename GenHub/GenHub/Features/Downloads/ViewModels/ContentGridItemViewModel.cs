@@ -58,6 +58,7 @@ public partial class ContentGridItemViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(searchResult);
         SearchResult = searchResult;
         _logger = logger;
+        _logger?.LogInformation("[TEMP] ContentGridItemViewModel created - Item: {Name}, Provider: {Provider}", searchResult.Name, searchResult.ProviderName);
         _ = LoadIconAsync();
     }
 

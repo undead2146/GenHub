@@ -67,7 +67,7 @@ public partial class DownloadsBrowserViewModel(
     /// Gets the catalog tabs for the currently selected multi-catalog publisher.
     /// </summary>
     [ObservableProperty]
-    private ObservableCollection<CatalogTabViewModel> _catalogTabs = [];
+    private ObservableCollection<CatalogTabViewModel> _catalogTabs = new();
 
     /// <summary>
     /// Gets or sets the selected catalog tab (null means show all).
@@ -223,7 +223,7 @@ public partial class DownloadsBrowserViewModel(
                 CatalogId = "_all",
                 CatalogName = "All",
                 CatalogUrl = string.Empty,
-                IsSelected = true,
+                IsSelected = true
             });
 
             // Add individual catalog tabs
@@ -233,7 +233,7 @@ public partial class DownloadsBrowserViewModel(
                 {
                     CatalogId = entry.CatalogId,
                     CatalogName = entry.CatalogName,
-                    CatalogUrl = entry.CatalogUrl,
+                    CatalogUrl = entry.CatalogUrl
                 });
             }
         }

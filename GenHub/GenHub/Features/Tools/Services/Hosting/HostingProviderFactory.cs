@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using GenHub.Features.Tools.Interfaces;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Tools.Services.Hosting;
@@ -17,14 +17,14 @@ public class HostingProviderFactory : IHostingProviderFactory
     /// Initializes a new instance of the <see cref="HostingProviderFactory"/> class.
     /// </summary>
     /// <param name="loggerFactory">The logger factory.</param>
-    /// <param name="configuration">The application configuration.</param>
-    public HostingProviderFactory(ILoggerFactory loggerFactory, IConfiguration configuration)
+    /// <param name="httpClientFactory">The HTTP client factory.</param>
+    public HostingProviderFactory(ILoggerFactory loggerFactory, IHttpClientFactory httpClientFactory)
     {
         _providers = new List<IHostingProvider>
         {
-            new GoogleDriveHostingProvider(loggerFactory.CreateLogger<GoogleDriveHostingProvider>(), configuration),
+            new GoogleDriveHostingProvider(loggerFactory.CreateLogger<GoogleDriveHostingProvider>()),
             new GitHubHostingProvider(loggerFactory.CreateLogger<GitHubHostingProvider>()),
-            new DropboxHostingProvider(loggerFactory.CreateLogger<DropboxHostingProvider>()),
+            new DropboxHostingProvider(loggerFactory.CreateLogger<DropboxHostingProvider>(), httpClientFactory),
             new ManualHostingProvider(),
         };
     }

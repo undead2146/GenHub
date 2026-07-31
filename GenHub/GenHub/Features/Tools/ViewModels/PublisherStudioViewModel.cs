@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -19,6 +20,11 @@ namespace GenHub.Features.Tools.ViewModels;
 /// </summary>
 public partial class PublisherStudioViewModel : ObservableObject
 {
+    private static readonly string SettingsPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "GenHub",
+        "publisher_studio_settings.json");
+
     private readonly ILogger<PublisherStudioViewModel> _logger;
     private readonly IPublisherStudioService _publisherStudioService;
     private readonly IPublisherStudioDialogService _dialogService;
@@ -48,6 +54,11 @@ public partial class PublisherStudioViewModel : ObservableObject
     private bool _isRecoveryNeeded;
 
     /// <summary>
+    /// Gets a value indicating whether the selected catalog can be removed.
+    /// </summary>
+    public bool CanRemoveCatalog => Catalogs.Count > 1;
+
+    /// <summary>
     /// Gets a value indicating whether the publisher setup is complete.
     /// Setup is complete when Publisher ID and Name are configured.
     /// </summary>
@@ -61,11 +72,6 @@ public partial class PublisherStudioViewModel : ObservableObject
     /// </summary>
     public bool ShouldShowSetupOverlay => !IsSetupComplete && SelectedTabIndex != 0;
 
-    partial void OnSelectedTabIndexChanged(int value)
-    {
-        OnPropertyChanged(nameof(ShouldShowSetupOverlay));
-    }
-
     [ObservableProperty]
     private GenHub.Features.Tools.ViewModels.PublisherProfileViewModel? _publisherProfileViewModel;
 
@@ -78,10 +84,23 @@ public partial class PublisherStudioViewModel : ObservableObject
     [ObservableProperty]
     private GenHub.Features.Tools.ViewModels.ReferralsViewModel? _referralsViewModel;
 
+    partial void OnSelectedTabIndexChanged(int value)
+    {
+        OnPropertyChanged(nameof(ShouldShowSetupOverlay));
+    }
+
+    partial void OnSelectedCatalogChanged(NamedCatalog? value)
+    {
+        if (value != null && CurrentProject != null)
+        {
+            ContentLibraryViewModel = new GenHub.Features.Tools.ViewModels.ContentLibraryViewModel(CurrentProject, value, this, _logger, _dialogService);
+        }
+    }
+
     /// <summary>
     /// Initializes a new instance of the <see cref="PublisherStudioViewModel"/> class.
     /// </summary>
-    /// <param name="logger">The logger.</param>
+    /// <param name="logger">The logger instance.</param>
     /// <param name="publisherStudioService">The publisher studio service.</param>
     /// <param name="dialogService">The dialog service.</param>
     /// <param name="hostingProviderFactory">The hosting provider factory.</param>
@@ -102,12 +121,12 @@ public partial class PublisherStudioViewModel : ObservableObject
         _hostingStateManager = hostingStateManager ?? new HostingStateManager(Microsoft.Extensions.Logging.LoggerFactory.Create(b => { }).CreateLogger<HostingStateManager>());
         _notificationService = notificationService;
 
-        // Initialize with a new project (Silent)
-        _ = CreateNewProjectInternalAsync(showWizard: false);
+        // Initialize: auto-load last project or create a new one
+        _ = InitializeAsync();
     }
 
     /// <summary>
-    /// Marks the project as having unsaved changes.
+    /// Marks the current project as dirty (having unsaved changes).
     /// </summary>
     public void MarkDirty()
     {
@@ -117,6 +136,174 @@ public partial class PublisherStudioViewModel : ObservableObject
             HasUnsavedChanges = true;
             OnPropertyChanged(nameof(IsSetupComplete));
             OnPropertyChanged(nameof(ShouldShowSetupOverlay));
+        }
+    }
+
+    private async Task InitializeAsync()
+    {
+        // Check if this is a first-time user (no previous project)
+        var lastPath = await LoadLastProjectPathAsync();
+        var isFirstTime = string.IsNullOrEmpty(lastPath) || !File.Exists(lastPath);
+
+        if (isFirstTime)
+        {
+            // Show welcome screen for first-time users
+            var welcomeResult = await _dialogService.ShowWelcomeScreenAsync();
+
+            if (welcomeResult == null || welcomeResult.Action == WelcomeAction.Skip)
+            {
+                // User skipped or cancelled - create default project
+                await CreateNewProjectInternalAsync(showWizard: false);
+                return;
+            }
+
+            if (welcomeResult.Action == WelcomeAction.Import && !string.IsNullOrEmpty(welcomeResult.ImportPath))
+            {
+                // User wants to import existing profile
+                await LoadProjectFromPathAsync(welcomeResult.ImportPath);
+                return;
+            }
+
+            if (welcomeResult.Action == WelcomeAction.CreateNew)
+            {
+                // User wants to create new profile - show setup wizard
+                await CreateNewProjectInternalAsync(showWizard: true);
+                return;
+            }
+        }
+
+        // Returning user - load last project
+        if (!string.IsNullOrEmpty(lastPath) && File.Exists(lastPath))
+        {
+            await LoadProjectFromPathAsync(lastPath);
+        }
+        else
+        {
+            await CreateNewProjectInternalAsync(showWizard: false);
+        }
+    }
+
+    [RelayCommand]
+    private async Task LoadProjectAsync()
+    {
+        try
+        {
+            var filePath = await _dialogService.ShowProjectOpenPromptAsync("Load Project");
+            if (string.IsNullOrEmpty(filePath))
+                return;
+
+            await LoadProjectFromPathAsync(filePath);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error loading project: {ex.Message}";
+            _logger.LogError(ex, "Error loading project");
+        }
+    }
+
+    private async Task LoadProjectFromPathAsync(string filePath)
+    {
+        var result = await _publisherStudioService.LoadProjectAsync(filePath);
+        if (result.Success && result.Data != null)
+        {
+            CurrentProject = result.Data;
+            HasUnsavedChanges = false;
+            await InitializeChildViewModelsAsync();
+            StatusMessage = $"Loaded project: {CurrentProject.ProjectName}";
+            _logger.LogInformation("Loaded project from: {Path}", filePath);
+
+            // Save as last opened project
+            await SaveLastProjectPathAsync(filePath);
+
+            _notificationService?.ShowSuccess(
+                "Project Loaded",
+                $"Publisher project '{CurrentProject.ProjectName}' loaded successfully.",
+                autoDismissMs: 4000);
+        }
+        else
+        {
+            StatusMessage = $"Failed to load project: {result.FirstError}";
+            _logger.LogError("Failed to load project: {Error}", result.FirstError);
+            _notificationService?.ShowError("Load Failed", result.FirstError ?? "Unknown error");
+        }
+    }
+
+    private async Task SaveLastProjectPathAsync(string projectPath)
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(SettingsPath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+
+            var settings = new { LastProjectPath = projectPath, LastOpened = DateTime.UtcNow };
+            var json = System.Text.Json.JsonSerializer.Serialize(settings);
+            await File.WriteAllTextAsync(SettingsPath, json);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to save publisher studio settings");
+        }
+    }
+
+    private async Task<string?> LoadLastProjectPathAsync()
+    {
+        try
+        {
+            if (!File.Exists(SettingsPath))
+                return null;
+            var json = await File.ReadAllTextAsync(SettingsPath);
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            return doc.RootElement.TryGetProperty("LastProjectPath", out var prop) ? prop.GetString() : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load last project path from settings");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Creates a new publisher project (Interactive).
+    /// </summary>
+    [RelayCommand]
+    private async Task CreateNewProjectAsync()
+    {
+        // Check for unsaved changes
+        if (HasUnsavedChanges && CurrentProject != null)
+        {
+            // Auto-save before creating new if project has been saved before
+            if (!string.IsNullOrEmpty(CurrentProject.ProjectPath))
+            {
+                await SaveProjectAsync();
+            }
+        }
+
+        await CreateNewProjectInternalAsync(showWizard: true);
+    }
+
+    private async Task CreateNewProjectInternalAsync(bool showWizard)
+    {
+        try
+        {
+            var result = await _publisherStudioService.CreateProjectAsync("New Publisher");
+            if (result.Success && result.Data != null)
+            {
+                CurrentProject = result.Data;
+                await InitializeChildViewModelsAsync();
+                StatusMessage = showWizard ? "New project created - configure your publisher profile to get started" : "New project created";
+                _logger.LogInformation("Created new publisher project");
+            }
+            else
+            {
+                StatusMessage = $"Failed to create project: {result.FirstError}";
+                _logger.LogError("Failed to create new project: {Error}", result.FirstError);
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error: {ex.Message}";
+            _logger.LogError(ex, "Error creating new project");
         }
     }
 
@@ -156,6 +343,12 @@ public partial class PublisherStudioViewModel : ObservableObject
                 StatusMessage = "Project saved. Go to 'Publish & Share' to export and release.";
                 _logger.LogInformation("Saved project: {ProjectName}", CurrentProject.ProjectName);
 
+                // Persist the project path for auto-load on next launch
+                if (!string.IsNullOrEmpty(CurrentProject.ProjectPath))
+                {
+                    await SaveLastProjectPathAsync(CurrentProject.ProjectPath);
+                }
+
                 _notificationService?.ShowSuccess(
                     "Project Saved",
                     $"Your publisher project '{CurrentProject.ProjectName}' has been saved successfully.",
@@ -185,48 +378,6 @@ public partial class PublisherStudioViewModel : ObservableObject
         }
     }
 
-    partial void OnSelectedCatalogChanged(NamedCatalog? value)
-    {
-        if (value != null && CurrentProject != null)
-        {
-            ContentLibraryViewModel = new GenHub.Features.Tools.ViewModels.ContentLibraryViewModel(CurrentProject, value, this, _logger, _dialogService);
-        }
-    }
-
-    private async Task CreateNewProjectInternalAsync(bool showWizard)
-    {
-        try
-        {
-            var result = await _publisherStudioService.CreateProjectAsync("New Publisher");
-            if (result.Success && result.Data != null)
-            {
-                CurrentProject = result.Data;
-                await InitializeChildViewModelsAsync();
-                StatusMessage = showWizard ? "New project created - configure your publisher profile to get started" : "New project created";
-                _logger.LogInformation("Created new publisher project");
-            }
-            else
-            {
-                StatusMessage = $"Failed to create project: {result.FirstError}";
-                _logger.LogError("Failed to create new project: {Error}", result.FirstError);
-            }
-        }
-        catch (Exception ex)
-        {
-            StatusMessage = $"Error: {ex.Message}";
-            _logger.LogError(ex, "Error creating new project");
-        }
-    }
-
-    /// <summary>
-    /// Creates a new publisher project (Interactive).
-    /// </summary>
-    [RelayCommand]
-    private async Task CreateNewProjectAsync()
-    {
-        await CreateNewProjectInternalAsync(showWizard: true);
-    }
-
     /// <summary>
     /// Adds a new catalog to the project.
     /// </summary>
@@ -247,6 +398,7 @@ public partial class PublisherStudioViewModel : ObservableObject
         Catalogs.Add(newCatalog);
         SelectedCatalog = newCatalog;
         MarkDirty();
+        OnPropertyChanged(nameof(CanRemoveCatalog));
         _logger.LogInformation("Added new catalog: {CatalogId}", newId);
     }
 
@@ -267,6 +419,7 @@ public partial class PublisherStudioViewModel : ObservableObject
         Catalogs.Remove(catalog);
         SelectedCatalog = Catalogs.FirstOrDefault();
         MarkDirty();
+        OnPropertyChanged(nameof(CanRemoveCatalog));
         _logger.LogInformation("Removed catalog: {CatalogId}", catalog.Id);
     }
 
@@ -348,8 +501,7 @@ public partial class PublisherStudioViewModel : ObservableObject
 
         SelectedCatalog = Catalogs.FirstOrDefault();
 
-        PublisherProfileViewModel = new GenHub.Features.Tools.ViewModels.PublisherProfileViewModel(CurrentProject, this, _hostingProviderFactory!, _logger);
-        PublisherProfileViewModel.RefreshConnectionStatus();
+        PublisherProfileViewModel = new GenHub.Features.Tools.ViewModels.PublisherProfileViewModel(CurrentProject, this, _logger);
         ContentLibraryViewModel = new GenHub.Features.Tools.ViewModels.ContentLibraryViewModel(CurrentProject, SelectedCatalog!, this, _logger, _dialogService);
         PublishShareViewModel = new GenHub.Features.Tools.ViewModels.PublishShareViewModel(CurrentProject, _publisherStudioService, _logger, _hostingProviderFactory, _hostingStateManager);
         ReferralsViewModel = new GenHub.Features.Tools.ViewModels.ReferralsViewModel(CurrentProject, this, _logger, _dialogService);
@@ -359,5 +511,7 @@ public partial class PublisherStudioViewModel : ObservableObject
 
         OnPropertyChanged(nameof(IsSetupComplete));
         OnPropertyChanged(nameof(ShouldShowSetupOverlay));
+
+        await Task.CompletedTask;
     }
 }

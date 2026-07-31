@@ -80,6 +80,9 @@ public partial class AODMapsPageParser(
             return string.Empty;
         }
 
+        // [TEMP] Log original URL
+        logger.LogInformation("[TEMP] MakeAbsoluteUrl processing: {Url}", url);
+
         // Fix for PashaCNC links - they are dead, replace with current domain
         if (url.Contains("pashacnc.com", StringComparison.OrdinalIgnoreCase))
         {
@@ -90,6 +93,7 @@ public partial class AODMapsPageParser(
 
         if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
         {
+            logger.LogInformation("[TEMP] Returning absolute URL: {Url}", url);
             return url;
         }
 

@@ -65,7 +65,7 @@
         <!-- Header -->
         <!-- Header -->
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,24">
-            <TextBlock Text="Add New Release"
+            <TextBlock Text="{Binding DialogTitle}"
                        FontSize="22" FontWeight="Bold"
                        Foreground="White"/>
             <Button Grid.Column="1"
@@ -200,7 +200,7 @@
                         TextWrapping="Wrap"
                         MaxWidth="300"/>
 
-             <Button Content="Create Release"
+             <Button Content="{Binding SubmitButtonText}"
                      Command="{Binding CreateReleaseCommand}"
                      Background="{DynamicResource PrimaryGradientBrush}"
                      Foreground="White"

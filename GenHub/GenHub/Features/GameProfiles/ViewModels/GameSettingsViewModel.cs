@@ -12,6 +12,7 @@ using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameSettings;
 using Microsoft.Extensions.Logging;
+using GameSettingsModel = GenHub.Core.Models.GameSettings.GameSettings;
 
 namespace GenHub.Features.GameProfiles.ViewModels;
 
@@ -626,10 +627,10 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
             }
 
             // Load GeneralsOnline settings separately
-            var goResult = await _gameSettingsService.LoadGeneralsOnlineSettingsAsync();
+            var goResult = await _gameSettingsService.LoadGameSettingsAsync();
             if (goResult?.Success == true && goResult.Data != null)
             {
-                ApplyGeneralsOnlineSettings(goResult.Data);
+                ApplyGameSettings(goResult.Data);
                 _logger.LogInformation("Loaded GeneralsOnline settings");
             }
             else
@@ -786,8 +787,8 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
             var result = await _gameSettingsService.SaveOptionsAsync(SelectedGameType, options);
 
             // Save GeneralsOnline settings
-            var goSettings = CreateGeneralsOnlineSettings();
-            var goResult = await _gameSettingsService.SaveGeneralsOnlineSettingsAsync(goSettings);
+            var goSettings = CreateGameSettings();
+            var goResult = await _gameSettingsService.SaveGameSettingsAsync(goSettings);
 
             if (result?.Success == true && goResult?.Success == true)
             {
@@ -1069,7 +1070,7 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
         return options;
     }
 
-    private void ApplyGeneralsOnlineSettings(GeneralsOnlineSettings settings)
+    private void ApplyGameSettings(GameSettingsModel settings)
     {
         GoShowFps = settings.ShowFps;
         GoShowPing = settings.ShowPing;
@@ -1079,27 +1080,27 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
         GoEnableNotifications = settings.EnableNotifications;
         GoEnableSoundNotifications = settings.EnableSoundNotifications;
         GoChatFontSize = settings.ChatFontSize;
-        GoCameraMaxHeightOnlyWhenLobbyHost = settings.Camera.MaxHeightOnlyWhenLobbyHost;
-        GoCameraMinHeight = settings.Camera.MinHeight;
-        GoCameraMoveSpeedRatio = settings.Camera.MoveSpeedRatio;
-        GoChatDurationSecondsUntilFadeOut = settings.Chat.DurationSecondsUntilFadeOut;
-        GoDebugVerboseLogging = settings.Debug.VerboseLogging;
-        GoRenderFpsLimit = settings.Render.FpsLimit;
-        GoRenderLimitFramerate = settings.Render.LimitFramerate;
-        GoRenderStatsOverlay = settings.Render.StatsOverlay;
-        GoSocialNotificationFriendComesOnlineGameplay = settings.Social.NotificationFriendComesOnlineGameplay;
-        GoSocialNotificationFriendComesOnlineMenus = settings.Social.NotificationFriendComesOnlineMenus;
-        GoSocialNotificationFriendGoesOfflineGameplay = settings.Social.NotificationFriendGoesOfflineGameplay;
-        GoSocialNotificationFriendGoesOfflineMenus = settings.Social.NotificationFriendGoesOfflineMenus;
-        GoSocialNotificationPlayerAcceptsRequestGameplay = settings.Social.NotificationPlayerAcceptsRequestGameplay;
-        GoSocialNotificationPlayerAcceptsRequestMenus = settings.Social.NotificationPlayerAcceptsRequestMenus;
-        GoSocialNotificationPlayerSendsRequestGameplay = settings.Social.NotificationPlayerSendsRequestGameplay;
-        GoSocialNotificationPlayerSendsRequestMenus = settings.Social.NotificationPlayerSendsRequestMenus;
+        GoCameraMaxHeightOnlyWhenLobbyHost = settings.CameraMaxHeightOnlyWhenLobbyHost;
+        GoCameraMinHeight = settings.CameraMinHeight;
+        GoCameraMoveSpeedRatio = settings.CameraMoveSpeedRatio;
+        GoChatDurationSecondsUntilFadeOut = settings.ChatDurationSecondsUntilFadeOut;
+        GoDebugVerboseLogging = settings.DebugVerboseLogging;
+        GoRenderFpsLimit = settings.RenderFpsLimit;
+        GoRenderLimitFramerate = settings.RenderLimitFramerate;
+        GoRenderStatsOverlay = settings.RenderStatsOverlay;
+        GoSocialNotificationFriendComesOnlineGameplay = settings.SocialNotificationFriendComesOnlineGameplay;
+        GoSocialNotificationFriendComesOnlineMenus = settings.SocialNotificationFriendComesOnlineMenus;
+        GoSocialNotificationFriendGoesOfflineGameplay = settings.SocialNotificationFriendGoesOfflineGameplay;
+        GoSocialNotificationFriendGoesOfflineMenus = settings.SocialNotificationFriendGoesOfflineMenus;
+        GoSocialNotificationPlayerAcceptsRequestGameplay = settings.SocialNotificationPlayerAcceptsRequestGameplay;
+        GoSocialNotificationPlayerAcceptsRequestMenus = settings.SocialNotificationPlayerAcceptsRequestMenus;
+        GoSocialNotificationPlayerSendsRequestGameplay = settings.SocialNotificationPlayerSendsRequestGameplay;
+        GoSocialNotificationPlayerSendsRequestMenus = settings.SocialNotificationPlayerSendsRequestMenus;
     }
 
-    private GeneralsOnlineSettings CreateGeneralsOnlineSettings()
+    private GameSettingsModel CreateGameSettings()
     {
-        var settings = new GeneralsOnlineSettings
+        return new GameSettingsModel
         {
             ShowFps = GoShowFps,
             ShowPing = GoShowPing,
@@ -1109,25 +1110,22 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
             EnableNotifications = GoEnableNotifications,
             EnableSoundNotifications = GoEnableSoundNotifications,
             ChatFontSize = GoChatFontSize,
+            CameraMaxHeightOnlyWhenLobbyHost = GoCameraMaxHeightOnlyWhenLobbyHost,
+            CameraMinHeight = GoCameraMinHeight,
+            CameraMoveSpeedRatio = GoCameraMoveSpeedRatio,
+            ChatDurationSecondsUntilFadeOut = GoChatDurationSecondsUntilFadeOut,
+            DebugVerboseLogging = GoDebugVerboseLogging,
+            RenderFpsLimit = GoRenderFpsLimit,
+            RenderLimitFramerate = GoRenderLimitFramerate,
+            RenderStatsOverlay = GoRenderStatsOverlay,
+            SocialNotificationFriendComesOnlineGameplay = GoSocialNotificationFriendComesOnlineGameplay,
+            SocialNotificationFriendComesOnlineMenus = GoSocialNotificationFriendComesOnlineMenus,
+            SocialNotificationFriendGoesOfflineGameplay = GoSocialNotificationFriendGoesOfflineGameplay,
+            SocialNotificationFriendGoesOfflineMenus = GoSocialNotificationFriendGoesOfflineMenus,
+            SocialNotificationPlayerAcceptsRequestGameplay = GoSocialNotificationPlayerAcceptsRequestGameplay,
+            SocialNotificationPlayerAcceptsRequestMenus = GoSocialNotificationPlayerAcceptsRequestMenus,
+            SocialNotificationPlayerSendsRequestGameplay = GoSocialNotificationPlayerSendsRequestGameplay,
+            SocialNotificationPlayerSendsRequestMenus = GoSocialNotificationPlayerSendsRequestMenus,
         };
-
-        settings.Camera.MaxHeightOnlyWhenLobbyHost = GoCameraMaxHeightOnlyWhenLobbyHost;
-        settings.Camera.MinHeight = GoCameraMinHeight;
-        settings.Camera.MoveSpeedRatio = GoCameraMoveSpeedRatio;
-        settings.Chat.DurationSecondsUntilFadeOut = GoChatDurationSecondsUntilFadeOut;
-        settings.Debug.VerboseLogging = GoDebugVerboseLogging;
-        settings.Render.FpsLimit = GoRenderFpsLimit;
-        settings.Render.LimitFramerate = GoRenderLimitFramerate;
-        settings.Render.StatsOverlay = GoRenderStatsOverlay;
-        settings.Social.NotificationFriendComesOnlineGameplay = GoSocialNotificationFriendComesOnlineGameplay;
-        settings.Social.NotificationFriendComesOnlineMenus = GoSocialNotificationFriendComesOnlineMenus;
-        settings.Social.NotificationFriendGoesOfflineGameplay = GoSocialNotificationFriendGoesOfflineGameplay;
-        settings.Social.NotificationFriendGoesOfflineMenus = GoSocialNotificationFriendGoesOfflineMenus;
-        settings.Social.NotificationPlayerAcceptsRequestGameplay = GoSocialNotificationPlayerAcceptsRequestGameplay;
-        settings.Social.NotificationPlayerAcceptsRequestMenus = GoSocialNotificationPlayerAcceptsRequestMenus;
-        settings.Social.NotificationPlayerSendsRequestGameplay = GoSocialNotificationPlayerSendsRequestGameplay;
-        settings.Social.NotificationPlayerSendsRequestMenus = GoSocialNotificationPlayerSendsRequestMenus;
-
-        return settings;
     }
 }

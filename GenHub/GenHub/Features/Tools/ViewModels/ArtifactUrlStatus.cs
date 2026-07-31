@@ -25,6 +25,12 @@ public partial class ArtifactUrlStatus : ObservableObject
     [ObservableProperty]
     private string _statusMessage = string.Empty;
 
+    [ObservableProperty]
+    private bool _hasLocalFile;
+
+    [ObservableProperty]
+    private string _localFilePath = string.Empty;
+
     /// <summary>
     /// Gets or sets the download URL. Updates the underlying artifact.
     /// </summary>
@@ -54,6 +60,8 @@ public partial class ArtifactUrlStatus : ObservableObject
         ContentName = contentName;
         ReleaseVersion = version;
         ArtifactName = artifact.Filename;
+        LocalFilePath = artifact.LocalFilePath ?? string.Empty;
+        HasLocalFile = !string.IsNullOrEmpty(artifact.LocalFilePath);
         Validate();
     }
 
@@ -62,21 +70,33 @@ public partial class ArtifactUrlStatus : ObservableObject
     /// </summary>
     public void Validate()
     {
-        if (string.IsNullOrWhiteSpace(DownloadUrl))
+        HasLocalFile = !string.IsNullOrEmpty(_artifact.LocalFilePath);
+        LocalFilePath = _artifact.LocalFilePath ?? string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(DownloadUrl))
         {
-            IsValid = false;
-            StatusMessage = "Missing URL";
+            if (System.Uri.TryCreate(DownloadUrl, System.UriKind.Absolute, out var uri)
+                && (uri.Scheme == System.Uri.UriSchemeHttp || uri.Scheme == System.Uri.UriSchemeHttps))
+            {
+                IsValid = true;
+                StatusMessage = HasLocalFile ? "Hosted (local file available)" : "Hosted";
+            }
+            else
+            {
+                IsValid = false;
+                StatusMessage = "Invalid URL format";
+            }
         }
-        else if (System.Uri.TryCreate(DownloadUrl, System.UriKind.Absolute, out var uri)
-                 && (uri.Scheme == System.Uri.UriSchemeHttp || uri.Scheme == System.Uri.UriSchemeHttps))
+        else if (HasLocalFile)
         {
+            // Has local file but no URL - will be uploaded during publish
             IsValid = true;
-            StatusMessage = "Valid URL";
+            StatusMessage = "Pending upload";
         }
         else
         {
             IsValid = false;
-            StatusMessage = "Invalid URL format";
+            StatusMessage = "No file or URL configured";
         }
     }
 }

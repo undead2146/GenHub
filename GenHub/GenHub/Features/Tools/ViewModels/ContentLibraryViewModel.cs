@@ -1,3 +1,8 @@
+using System;
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.Linq;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Core.Models.Providers;
@@ -5,11 +10,6 @@ using GenHub.Core.Models.Publishers;
 using GenHub.Features.Tools.Interfaces;
 using GenHub.Features.Tools.Services;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.ObjectModel;
-using System.Collections.Specialized;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace GenHub.Features.Tools.ViewModels;
 
@@ -103,6 +103,34 @@ public partial class ContentLibraryViewModel : ObservableObject
 
             _parentViewModel.MarkDirty();
             _logger.LogInformation("Added new content item: {ContentId} to catalog: {CatalogId}", newContent.Id, _activeCatalog.Id);
+        }
+    }
+
+    /// <summary>
+    /// Edits the selected content item using a pre-populated dialog.
+    /// </summary>
+    [RelayCommand]
+    private async Task EditContentAsync()
+    {
+        if (SelectedContent == null) return;
+
+        var edited = await _dialogService.ShowEditContentDialogAsync(SelectedContent);
+        if (edited != null)
+        {
+            // Update the existing item's properties
+            SelectedContent.Name = edited.Name;
+            SelectedContent.Description = edited.Description;
+            SelectedContent.ContentType = edited.ContentType;
+            SelectedContent.TargetGame = edited.TargetGame;
+            SelectedContent.Tags = edited.Tags;
+
+            // Force UI refresh
+            var current = SelectedContent;
+            SelectedContent = null;
+            SelectedContent = current;
+
+            _parentViewModel.MarkDirty();
+            _logger.LogInformation("Edited content item: {ContentId}", SelectedContent.Id);
         }
     }
 
@@ -204,5 +232,80 @@ public partial class ContentLibraryViewModel : ObservableObject
         var current = SelectedContent;
         SelectedContent = null;
         SelectedContent = current;
+    }
+
+    /// <summary>
+    /// Edits a specific release using a pre-populated dialog.
+    /// </summary>
+    [RelayCommand]
+    private async Task EditReleaseAsync(ContentRelease release)
+    {
+        if (SelectedContent == null || release == null) return;
+
+        var edited = await _dialogService.ShowEditReleaseDialogAsync(release, SelectedContent, _activeCatalog.Catalog);
+        if (edited != null)
+        {
+            release.Version = edited.Version;
+            release.Changelog = edited.Changelog;
+            release.IsLatest = edited.IsLatest;
+            release.IsPrerelease = edited.IsPrerelease;
+            release.IsFeatured = edited.IsFeatured;
+            release.ReleaseDate = edited.ReleaseDate;
+            release.Artifacts = edited.Artifacts;
+            release.Dependencies = edited.Dependencies;
+
+            // Force UI refresh
+            var current = SelectedContent;
+            SelectedContent = null;
+            SelectedContent = current;
+
+            _parentViewModel.MarkDirty();
+            _logger.LogInformation("Edited release v{Version} of {ContentId}", release.Version, SelectedContent.Id);
+        }
+    }
+
+    /// <summary>
+    /// Adds an artifact to an existing release.
+    /// </summary>
+    [RelayCommand]
+    private async Task AddArtifactToReleaseAsync(ContentRelease release)
+    {
+        if (release == null) return;
+
+        var artifact = await _dialogService.ShowAddArtifactDialogAsync();
+        if (artifact != null)
+        {
+            release.Artifacts.Add(artifact);
+            _parentViewModel.MarkDirty();
+
+            // Force UI refresh
+            var current = SelectedContent;
+            SelectedContent = null;
+            SelectedContent = current;
+
+            _logger.LogInformation("Added artifact to release v{Version}", release.Version);
+        }
+    }
+
+    /// <summary>
+    /// Adds a dependency to an existing release.
+    /// </summary>
+    [RelayCommand]
+    private async Task AddDependencyToReleaseAsync(ContentRelease release)
+    {
+        if (SelectedContent == null || release == null) return;
+
+        var dependency = await _dialogService.ShowAddDependencyDialogAsync(_activeCatalog.Catalog, SelectedContent);
+        if (dependency != null)
+        {
+            release.Dependencies.Add(dependency);
+            _parentViewModel.MarkDirty();
+
+            var current = SelectedContent;
+            SelectedContent = null;
+            SelectedContent = current;
+
+            _logger.LogInformation("Added dependency to release v{Version}", release.Version);
+        }
     }
 }

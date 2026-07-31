@@ -107,6 +107,11 @@ public partial class AODMapsManifestFactory(
 
         // 6. Add download file - Download and store in CAS
         var fileName = ExtractFileNameFromUrl(details.DownloadUrl);
+        logger.LogInformation(
+            "[TEMP] AODMapsManifestFactory - Adding file: {FileName} from URL: {Url}",
+            fileName,
+            details.DownloadUrl);
+        logger.LogInformation("[TEMP] Referer URL: {Referer}", details.RefererUrl);
 
         manifest = await manifest.AddRemoteFileAsync(
             fileName,
@@ -114,6 +119,8 @@ public partial class AODMapsManifestFactory(
             ContentSourceType.ContentAddressable,
             isExecutable: false,
             permissions: null);
+
+        logger.LogInformation("[TEMP] AODMapsManifestFactory - File added to manifest with CAS storage");
 
         // 7. Add dependencies
         manifest = AddGameDependencies(manifest, details.TargetGame);

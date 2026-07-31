@@ -4,9 +4,9 @@ using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using System.Threading.Tasks;
 using GenHub.Core.Models.Providers;
 using GenHub.Features.Tools.Interfaces;
 using GenHub.Features.Tools.Services;
@@ -23,6 +23,7 @@ public partial class AddReleaseDialogViewModel : ObservableValidator
     private readonly PublisherCatalog _catalog;
     private readonly Action<ContentRelease> _onReleaseCreated;
     private readonly IPublisherStudioDialogService _dialogService;
+    private string? _originalVersion;
 
     [ObservableProperty]
     [NotifyDataErrorInfo]
@@ -62,6 +63,22 @@ public partial class AddReleaseDialogViewModel : ObservableValidator
     public ObservableCollection<CatalogDependency> Dependencies { get; } = [];
 
     /// <summary>
+    /// Gets a value indicating whether the dialog is in edit mode.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isEditMode;
+
+    /// <summary>
+    /// Gets the dialog title based on the current mode.
+    /// </summary>
+    public string DialogTitle => IsEditMode ? "Edit Release" : "Add New Release";
+
+    /// <summary>
+    /// Gets the submit button text based on the current mode.
+    /// </summary>
+    public string SubmitButtonText => IsEditMode ? "Save Changes" : "Create Release";
+
+    /// <summary>
     /// Gets the content item name for display in the dialog title.
     /// </summary>
     public string ContentName => _contentItem.Name;
@@ -74,7 +91,7 @@ public partial class AddReleaseDialogViewModel : ObservableValidator
     [GeneratedRegex("^(\\d+)\\.(\\d+)\\.(\\d+)")]
     private static partial Regex VersionRegex();
 
-    private static string GetNextVersion(ObservableCollection<ContentRelease> existingReleases)
+    private static string GetNextVersion(IReadOnlyList<ContentRelease> existingReleases)
     {
         if (existingReleases.Count == 0)
         {
@@ -142,6 +159,45 @@ public partial class AddReleaseDialogViewModel : ObservableValidator
                 Validate();
             }
         };
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AddReleaseDialogViewModel"/> class in edit mode,
+    /// pre-populated with an existing release's data.
+    /// </summary>
+    /// <param name="existing">The existing release to edit.</param>
+    /// <param name="contentItem">The content item the release belongs to.</param>
+    /// <param name="catalog">The publisher catalog.</param>
+    /// <param name="onReleaseCreated">Callback invoked when release is successfully saved.</param>
+    /// <param name="dialogService">The dialog service.</param>
+    public AddReleaseDialogViewModel(
+        ContentRelease existing,
+        CatalogContentItem contentItem,
+        PublisherCatalog catalog,
+        Action<ContentRelease> onReleaseCreated,
+        IPublisherStudioDialogService dialogService)
+        : this(contentItem, catalog, onReleaseCreated, dialogService)
+    {
+        ArgumentNullException.ThrowIfNull(existing);
+
+        IsEditMode = true;
+        _originalVersion = existing.Version;
+        Version = existing.Version;
+        ReleaseDate = existing.ReleaseDate;
+        IsLatest = existing.IsLatest;
+        IsPrerelease = existing.IsPrerelease;
+        IsFeatured = existing.IsFeatured;
+        Changelog = existing.Changelog ?? string.Empty;
+
+        foreach (var artifact in existing.Artifacts)
+        {
+            Artifacts.Add(artifact);
+        }
+
+        foreach (var dependency in existing.Dependencies)
+        {
+            Dependencies.Add(dependency);
+        }
     }
 
     /// <summary>
@@ -234,8 +290,10 @@ public partial class AddReleaseDialogViewModel : ObservableValidator
             return;
         }
 
-        // Check for duplicate version
-        if (_contentItem.Releases.Any(r => r.Version.Equals(Version, StringComparison.OrdinalIgnoreCase)))
+        // Check for duplicate version (skip check if version hasn't changed in edit mode)
+        var isDuplicateVersion = _contentItem.Releases.Any(r => r.Version.Equals(Version, StringComparison.OrdinalIgnoreCase));
+        var isOriginalVersion = IsEditMode && _originalVersion != null && _originalVersion.Equals(Version, StringComparison.OrdinalIgnoreCase);
+        if (isDuplicateVersion && !isOriginalVersion)
         {
             ValidationError = $"Version {Version} already exists for this content";
             IsValid = false;

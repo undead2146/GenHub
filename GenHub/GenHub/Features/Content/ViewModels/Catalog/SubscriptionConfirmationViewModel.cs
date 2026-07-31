@@ -68,7 +68,7 @@ public partial class SubscriptionConfirmationViewModel(
     private bool _isProviderDefinition;
 
     /// <summary>
-    /// Gets whether this is a multi-catalog definition.
+    /// Gets a value indicating whether this is a multi-catalog definition.
     /// </summary>
     public bool HasMultipleCatalogs => AvailableCatalogs.Count > 1;
 
@@ -186,7 +186,7 @@ public partial class SubscriptionConfirmationViewModel(
                         CatalogId = selectable.Entry.Id,
                         CatalogName = selectable.Entry.Name,
                         CatalogUrl = selectable.Entry.Url,
-                        IsEnabled = true
+                        IsEnabled = true,
                     });
                 }
             }
@@ -241,7 +241,7 @@ public partial class SubscriptionConfirmationViewModel(
 public partial class SelectableCatalogEntry : ObservableObject
 {
     /// <summary>
-    /// Gets the catalog entry.
+    /// Gets or sets the catalog entry.
     /// </summary>
     public CatalogEntry Entry { get; init; } = new();
 
@@ -249,17 +249,17 @@ public partial class SelectableCatalogEntry : ObservableObject
     private bool _isSelected = true;
 
     /// <summary>
-    /// Gets the ID of the catalog.
+    /// Gets the catalog ID.
     /// </summary>
     public string Id => Entry.Id;
 
     /// <summary>
-    /// Gets the name of the catalog.
+    /// Gets the catalog name.
     /// </summary>
     public string Name => Entry.Name;
 
     /// <summary>
-    /// Gets the description of the catalog.
+    /// Gets the catalog description.
     /// </summary>
     public string? Description => Entry.Description;
 }

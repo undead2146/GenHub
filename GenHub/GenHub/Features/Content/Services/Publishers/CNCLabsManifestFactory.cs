@@ -198,10 +198,17 @@ public partial class CNCLabsManifestFactory(
 
         if (!string.IsNullOrEmpty(details.DownloadUrl))
         {
+            _logger.LogInformation(
+                "[TEMP] CNCLabsManifestFactory - Adding file: {FileName} from URL: {Url}",
+                fileName,
+                details.DownloadUrl);
+
             await builder.AddRemoteFileAsync(
                 fileName,
                 details.DownloadUrl,
                 ContentSourceType.ContentAddressable);
+
+            _logger.LogInformation("[TEMP] CNCLabsManifestFactory - File added to manifest with CAS storage");
         }
         else
         {

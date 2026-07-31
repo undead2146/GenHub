@@ -7,7 +7,7 @@ namespace GenHub.Infrastructure.Converters;
 
 /// <summary>
 /// Converts a boolean value to a SolidColorBrush based on a parameter.
-/// Format for parameter: "TrueColorHex|FalseColorHex" (e.g., "#FF0000|#00FF00")
+/// Format for parameter: "TrueColorHex|FalseColorHex" (e.g., "#FF0000|#00FF00").
 /// </summary>
 public class BoolToBrushConverter : IValueConverter
 {

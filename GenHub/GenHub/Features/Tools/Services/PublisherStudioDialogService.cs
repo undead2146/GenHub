@@ -8,8 +8,11 @@ using Avalonia.Controls.ApplicationLifetimes;
 using GenHub.Core.Models.Providers;
 using GenHub.Core.Models.Publishers;
 using GenHub.Features.Tools.Interfaces;
+using GenHub.Features.Tools.Services.Hosting;
+using GenHub.Features.Tools.ViewModels;
 using GenHub.Features.Tools.ViewModels.Dialogs;
 using GenHub.Features.Tools.Views.Dialogs;
+using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Tools.Services;
 
@@ -44,6 +47,13 @@ public class PublisherStudioDialogService(IHostingProviderFactory hostingProvide
     }
 
     /// <inheritdoc/>
+    public async Task<CatalogContentItem?> ShowEditContentDialogAsync(CatalogContentItem existing)
+    {
+        return await ShowDialogAsync<AddContentDialogViewModel, AddContentDialogView, CatalogContentItem>(
+            callback => new AddContentDialogViewModel(existing, callback));
+    }
+
+    /// <inheritdoc/>
     public async Task<ContentRelease?> ShowAddReleaseDialogAsync(CatalogContentItem contentItem, PublisherCatalog catalog)
     {
          return await ShowDialogAsync<AddReleaseDialogViewModel, AddReleaseDialogView, ContentRelease>(
@@ -51,10 +61,17 @@ public class PublisherStudioDialogService(IHostingProviderFactory hostingProvide
     }
 
     /// <inheritdoc/>
+    public async Task<ContentRelease?> ShowEditReleaseDialogAsync(ContentRelease existing, CatalogContentItem parent, PublisherCatalog catalog)
+    {
+        return await ShowDialogAsync<AddReleaseDialogViewModel, AddReleaseDialogView, ContentRelease>(
+            callback => new AddReleaseDialogViewModel(existing, parent, catalog, callback, this));
+    }
+
+    /// <inheritdoc/>
     public async Task<ReleaseArtifact?> ShowAddArtifactDialogAsync()
     {
          return await ShowDialogAsync<AddArtifactDialogViewModel, AddArtifactDialogView, ReleaseArtifact>(
-            callback => new AddArtifactDialogViewModel(callback, _hostingProviderFactory));
+            callback => new AddArtifactDialogViewModel(callback));
     }
 
     /// <inheritdoc/>
@@ -76,6 +93,26 @@ public class PublisherStudioDialogService(IHostingProviderFactory hostingProvide
     }
 
     /// <inheritdoc/>
+    public async Task<string?> ShowProjectOpenPromptAsync(string title)
+    {
+        var mainWindow = GetMainWindow();
+        if (mainWindow == null) return null;
+
+        var options = new Avalonia.Platform.Storage.FilePickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new Avalonia.Platform.Storage.FilePickerFileType("JSON Files") { Patterns = ["*.json"] },
+            ],
+        };
+
+        var files = await mainWindow.StorageProvider.OpenFilePickerAsync(options);
+        return files.Count > 0 ? files[0].Path.LocalPath : null;
+    }
+
+    /// <inheritdoc/>
     public async Task<string?> ShowProjectSavePromptAsync(string title)
     {
         var mainWindow = GetMainWindow();
@@ -94,6 +131,40 @@ public class PublisherStudioDialogService(IHostingProviderFactory hostingProvide
 
         var file = await mainWindow.StorageProvider.SaveFilePickerAsync(options);
         return file?.Path.LocalPath;
+    }
+
+    /// <inheritdoc/>
+    public async Task<string?> ShowFilePickerAsync(string title)
+    {
+        var mainWindow = GetMainWindow();
+        if (mainWindow == null) return null;
+
+        var options = new Avalonia.Platform.Storage.FilePickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new Avalonia.Platform.Storage.FilePickerFileType("Archive Files")
+                {
+                    Patterns = ["*.zip", "*.rar", "*.7z", "*.tar", "*.gz", "*.bz2"],
+                },
+                new Avalonia.Platform.Storage.FilePickerFileType("All Files") { Patterns = ["*"] },
+            ],
+        };
+
+        var files = await mainWindow.StorageProvider.OpenFilePickerAsync(options);
+        return files.Count > 0 ? files[0].Path.LocalPath : null;
+    }
+
+    /// <inheritdoc/>
+    public async Task<WelcomeScreenResult?> ShowWelcomeScreenAsync()
+    {
+        var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+        var logger = loggerFactory.CreateLogger<WelcomeScreenViewModel>();
+
+        return await ShowDialogAsync<WelcomeScreenViewModel, WelcomeScreenView, WelcomeScreenResult>(
+            callback => new WelcomeScreenViewModel(logger, this, callback));
     }
 
     /// <summary>

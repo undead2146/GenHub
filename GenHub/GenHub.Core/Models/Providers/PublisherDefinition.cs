@@ -48,6 +48,7 @@ public class PublisherDefinition
             {
                 Catalogs.Add(new CatalogEntry { Id = "default", Name = "Content" });
             }
+
             Catalogs[0].Url = value;
         }
     }
@@ -66,6 +67,7 @@ public class PublisherDefinition
             {
                 Catalogs.Add(new CatalogEntry { Id = "default", Name = "Content" });
             }
+
             Catalogs[0].Mirrors = value;
         }
     }

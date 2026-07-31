@@ -1,10 +1,8 @@
 using System;
 using System.ComponentModel.DataAnnotations;
-using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Core.Models.Publishers;
-using GenHub.Features.Tools.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Tools.ViewModels;
@@ -16,7 +14,6 @@ public partial class PublisherProfileViewModel : ObservableValidator
 {
     private readonly PublisherStudioProject _project;
     private readonly PublisherStudioViewModel _parentViewModel;
-    private readonly IHostingProviderFactory _hostingProviderFactory;
     private readonly ILogger _logger;
 
     [ObservableProperty]
@@ -54,17 +51,14 @@ public partial class PublisherProfileViewModel : ObservableValidator
     /// </summary>
     /// <param name="project">The publisher studio project.</param>
     /// <param name="parentViewModel">The parent view model.</param>
-    /// <param name="hostingProviderFactory">The hosting provider factory.</param>
     /// <param name="logger">The logger.</param>
     public PublisherProfileViewModel(
         PublisherStudioProject project,
         PublisherStudioViewModel parentViewModel,
-        IHostingProviderFactory hostingProviderFactory,
         ILogger logger)
     {
         _project = project;
         _parentViewModel = parentViewModel;
-        _hostingProviderFactory = hostingProviderFactory;
         _logger = logger;
 
         // Load existing values
@@ -99,68 +93,11 @@ public partial class PublisherProfileViewModel : ObservableValidator
         };
     }
 
-    [ObservableProperty]
-    private bool _isGoogleConnected;
-
-    /// <summary>
-    /// Checks the current connection status of Google Drive.
-    /// </summary>
-    public void RefreshConnectionStatus()
-    {
-        var provider = _hostingProviderFactory.GetProvider("google_drive");
-        IsGoogleConnected = provider?.IsAuthenticated ?? false;
-    }
-
-    [RelayCommand]
-    private async Task ConnectGoogleAsync()
-    {
-        try
-        {
-            var provider = _hostingProviderFactory.GetProvider("google_drive");
-            if (provider == null) return;
-
-            var result = await provider.AuthenticateAsync();
-            if (result.Success)
-            {
-                RefreshConnectionStatus();
-                _logger.LogInformation("Connected to Google Drive");
-                _parentViewModel.StatusMessage = "Successfully connected to Google Drive.";
-            }
-            else
-            {
-                _logger.LogError("Failed to connect to Google Drive: {Error}", result.FirstError);
-                _parentViewModel.StatusMessage = $"Connection failed: {result.FirstError}";
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error connecting to Google Drive");
-        }
-    }
-
-    [RelayCommand]
-    private async Task DisconnectGoogleAsync()
-    {
-        try
-        {
-            var provider = _hostingProviderFactory.GetProvider("google_drive");
-            if (provider == null) return;
-
-            await provider.SignOutAsync();
-            RefreshConnectionStatus();
-            _logger.LogInformation("Disconnected from Google Drive");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error disconnecting from Google Drive");
-        }
-    }
-
     /// <summary>
     /// Saves the publisher profile to the project.
     /// </summary>
     [RelayCommand]
-    private async Task SaveProfileAsync()
+    private void SaveProfile()
     {
         ValidateAllProperties();
 
@@ -186,10 +123,6 @@ public partial class PublisherProfileViewModel : ObservableValidator
             _project.Tags.AddRange(TagsString.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
             _parentViewModel.MarkDirty();
-
-            // Actually persist the project to disk
-            await _parentViewModel.SaveProjectAsync();
-
             _logger.LogInformation("Saved publisher profile: {PublisherId}", PublisherId);
         }
         catch (Exception ex)

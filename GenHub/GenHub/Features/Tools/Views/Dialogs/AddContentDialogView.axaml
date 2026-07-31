@@ -51,7 +51,7 @@
     <Grid RowDefinitions="Auto,*,Auto" Margin="24">
         <!-- Header -->
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,24">
-            <TextBlock Text="Add New Content"
+            <TextBlock Text="{Binding DialogTitle}"
                        FontSize="22" FontWeight="Bold"
                        Foreground="White"/>
             <Button Grid.Column="1"
@@ -102,7 +102,8 @@
                         <TextBlock Text="Content ID" Classes="label"/>
                         <TextBlock Text="*" Foreground="#FF5555"/>
                     </StackPanel>
-                    <TextBox Text="{Binding ContentId}" Watermark="e.g. modern-wars"/>
+                    <TextBox Text="{Binding ContentId}" Watermark="e.g. modern-wars"
+                             IsReadOnly="{Binding IsEditMode}"/>
                     <TextBlock Text="Unique identifier for this content (lowercase, alphanumeric, hyphens)."
                                Classes="hint"/>
                 </StackPanel>
@@ -122,6 +123,15 @@
                                   HorizontalAlignment="Stretch"/>
                     </StackPanel>
                 </Grid>
+
+                <!-- Addon Parent Selection (only visible when ContentType is Addon) -->
+                <StackPanel Spacing="8" IsVisible="{Binding ShowAddonParentSelection}">
+                    <TextBlock Text="Extends Content" Classes="label"/>
+                    <TextBox Text="{Binding ExtendsContentId}"
+                             Watermark="e.g. my-mod or publisher-id/content-id"/>
+                    <TextBlock Text="The content ID this addon extends. Use 'content-id' for same catalog, or 'publisher-id/content-id' for cross-publisher."
+                               Classes="hint"/>
+                </StackPanel>
 
                 <!-- Description -->
                 <StackPanel Spacing="8">
@@ -152,7 +162,7 @@
                        TextWrapping="Wrap"
                        MaxWidth="300"/>
 
-            <Button Content="Add Content"
+            <Button Content="{Binding SubmitButtonText}"
                     Command="{Binding CreateContentCommand}"
                     Background="{DynamicResource PrimaryGradientBrush}"
                     Foreground="White"

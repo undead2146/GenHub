@@ -16,7 +16,10 @@ namespace GenHub.Core.Services.Publishers;
 /// <summary>
 /// Service for fetching and processing publisher definitions.
 /// </summary>
-public class PublisherDefinitionService : IPublisherDefinitionService
+public class PublisherDefinitionService(
+    IHttpClientFactory httpClientFactory,
+    IPublisherCatalogParser catalogParser,
+    ILogger<PublisherDefinitionService> logger) : IPublisherDefinitionService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -25,26 +28,6 @@ public class PublisherDefinitionService : IPublisherDefinitionService
         AllowTrailingCommas = true,
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: true) },
     };
-
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IPublisherCatalogParser _catalogParser;
-    private readonly ILogger<PublisherDefinitionService> _logger;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="PublisherDefinitionService"/> class.
-    /// </summary>
-    /// <param name="httpClientFactory">The HTTP client factory for making HTTP requests.</param>
-    /// <param name="catalogParser">The catalog parser for parsing publisher catalogs.</param>
-    /// <param name="logger">The logger for logging operations.</param>
-    public PublisherDefinitionService(
-        IHttpClientFactory httpClientFactory,
-        IPublisherCatalogParser catalogParser,
-        ILogger<PublisherDefinitionService> logger)
-    {
-        _httpClientFactory = httpClientFactory;
-        _catalogParser = catalogParser;
-        _logger = logger;
-    }
 
     /// <inheritdoc />
     public async Task<OperationResult<PublisherDefinition>> FetchDefinitionAsync(
@@ -59,12 +42,12 @@ public class PublisherDefinitionService : IPublisherDefinitionService
                 return OperationResult<PublisherDefinition>.CreateFailure("Invalid definition URL");
             }
 
-            using var client = _httpClientFactory.CreateClient("PublisherDefinition");
+            using var client = httpClientFactory.CreateClient("PublisherDefinition");
             var response = await client.GetAsync(uri, ct);
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Failed to fetch definition from {Url}: {StatusCode}", definitionUrl, response.StatusCode);
+                logger.LogWarning("Failed to fetch definition from {Url}: {StatusCode}", definitionUrl, response.StatusCode);
                 return OperationResult<PublisherDefinition>.CreateFailure(
                     $"Failed to fetch definition: {response.StatusCode}");
             }
@@ -88,16 +71,16 @@ public class PublisherDefinitionService : IPublisherDefinitionService
                     Id = "default",
                     Name = "Content",
                     Url = definition.CatalogUrl,
-                    Mirrors = definition.CatalogMirrors ?? new List<string>()
+                    Mirrors = definition.CatalogMirrors ?? new List<string>(),
                 });
-                _logger.LogInformation("Migrated V1 definition to V2 format for publisher {PublisherId}", definition.Publisher?.Id);
+                logger.LogInformation("Migrated V1 definition to V2 format for publisher {PublisherId}", definition.Publisher?.Id);
             }
 
             return OperationResult<PublisherDefinition>.CreateSuccess(definition);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception fetching definition from {Url}", definitionUrl);
+            logger.LogError(ex, "Exception fetching definition from {Url}", definitionUrl);
             return OperationResult<PublisherDefinition>.CreateFailure($"Exception fetching definition: {ex.Message}");
         }
     }
@@ -115,7 +98,7 @@ public class PublisherDefinitionService : IPublisherDefinitionService
                 urlsToTry.AddRange(definition.CatalogMirrors);
             }
 
-            using var client = _httpClientFactory.CreateClient("PublisherCatalog");
+            using var client = httpClientFactory.CreateClient("PublisherCatalog");
             var errors = new System.Collections.Generic.List<string>();
 
             foreach (var url in urlsToTry)
@@ -124,7 +107,7 @@ public class PublisherDefinitionService : IPublisherDefinitionService
 
                 try
                 {
-                    _logger.LogInformation("Attempting to fetch catalog from: {Url}", url);
+                    logger.LogInformation("Attempting to fetch catalog from: {Url}", url);
 
                     var response = await client.GetAsync(url, ct);
                     if (!response.IsSuccessStatusCode)
@@ -134,7 +117,7 @@ public class PublisherDefinitionService : IPublisherDefinitionService
                     }
 
                     var json = await response.Content.ReadAsStringAsync(ct);
-                    var parseResult = await _catalogParser.ParseCatalogAsync(json, ct);
+                    var parseResult = await catalogParser.ParseCatalogAsync(json, ct);
 
                     if (parseResult.Success)
                     {
@@ -147,7 +130,7 @@ public class PublisherDefinitionService : IPublisherDefinitionService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Exception fetching/parsing catalog from {Url}", url);
+                    logger.LogWarning(ex, "Exception fetching/parsing catalog from {Url}", url);
                     errors.Add($"Exception processing {url}: {ex.Message}");
                 }
             }
@@ -156,7 +139,7 @@ public class PublisherDefinitionService : IPublisherDefinitionService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Critical error in FetchCatalogFromDefinitionAsync");
+            logger.LogError(ex, "Critical error in FetchCatalogFromDefinitionAsync");
             return OperationResult<PublisherCatalog>.CreateFailure($"Critical error: {ex.Message}");
         }
     }
@@ -185,7 +168,7 @@ public class PublisherDefinitionService : IPublisherDefinitionService
             // Check if catalog URL has changed
             if (!string.Equals(subscription.CatalogUrl, definition.CatalogUrl, StringComparison.OrdinalIgnoreCase))
             {
-                _logger.LogInformation(
+                logger.LogInformation(
                     "Updating catalog URL for subscription {PublisherId} from {OldUrl} to {NewUrl}",
                     subscription.PublisherId,
                     subscription.CatalogUrl,
@@ -201,7 +184,7 @@ public class PublisherDefinitionService : IPublisherDefinitionService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error checking for definition update for {PublisherId}", subscription.PublisherId);
+            logger.LogError(ex, "Error checking for definition update for {PublisherId}", subscription.PublisherId);
             return OperationResult<bool>.CreateFailure($"Error checking update: {ex.Message}");
         }
     }
@@ -227,11 +210,12 @@ public class PublisherDefinitionService : IPublisherDefinitionService
                 {
                     return OperationResult<Dictionary<string, PublisherCatalog>>.CreateFailure(catalogResult);
                 }
+
                 return OperationResult<Dictionary<string, PublisherCatalog>>.CreateSuccess(results);
             }
 
             // Handle V2 definitions (multiple catalogs)
-            using var client = _httpClientFactory.CreateClient("PublisherCatalog");
+            using var client = httpClientFactory.CreateClient("PublisherCatalog");
             var errors = new List<string>();
 
             foreach (var catalogEntry in definition.Catalogs)
@@ -246,13 +230,13 @@ public class PublisherDefinitionService : IPublisherDefinitionService
 
                     try
                     {
-                        _logger.LogInformation("Fetching catalog '{CatalogId}' from: {Url}", catalogEntry.Id, url);
+                        logger.LogInformation("Fetching catalog '{CatalogId}' from: {Url}", catalogEntry.Id, url);
 
                         var response = await client.GetAsync(url, ct);
                         if (!response.IsSuccessStatusCode) continue;
 
                         var json = await response.Content.ReadAsStringAsync(ct);
-                        var parseResult = await _catalogParser.ParseCatalogAsync(json, ct);
+                        var parseResult = await catalogParser.ParseCatalogAsync(json, ct);
 
                         if (parseResult.Success && parseResult.Data != null)
                         {
@@ -263,7 +247,7 @@ public class PublisherDefinitionService : IPublisherDefinitionService
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "Failed to fetch catalog '{CatalogId}' from {Url}", catalogEntry.Id, url);
+                        logger.LogWarning(ex, "Failed to fetch catalog '{CatalogId}' from {Url}", catalogEntry.Id, url);
                     }
                 }
 
@@ -282,7 +266,7 @@ public class PublisherDefinitionService : IPublisherDefinitionService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Critical error in FetchAllCatalogsAsync");
+            logger.LogError(ex, "Critical error in FetchAllCatalogsAsync");
             return OperationResult<Dictionary<string, PublisherCatalog>>.CreateFailure($"Critical error: {ex.Message}");
         }
     }

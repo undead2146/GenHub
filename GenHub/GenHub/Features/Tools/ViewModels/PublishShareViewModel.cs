@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -89,6 +90,20 @@ public partial class PublishShareViewModel : ObservableObject
     [ObservableProperty]
     private string _authenticationStatusMessage = string.Empty;
 
+    [ObservableProperty]
+    private int _currentPublishStep;
+
+    [ObservableProperty]
+    private bool _publishCompleted;
+
+    [ObservableProperty]
+    private string _publishSummary = string.Empty;
+
+    /// <summary>
+    /// Gets the collection of catalog publish statuses.
+    /// </summary>
+    public ObservableCollection<CatalogPublishStatus> CatalogStatuses { get; } = new();
+
     /// <summary>
     /// Gets a value indicating whether the selected provider requires authentication.
     /// </summary>
@@ -120,9 +135,22 @@ public partial class PublishShareViewModel : ObservableObject
     public bool ShowDropboxTokenInput => SelectedHostingProvider?.ProviderId == "dropbox" && !IsProviderAuthenticated;
 
     /// <summary>
+    /// Gets the available catalogs in the project.
+    /// </summary>
+    public ObservableCollection<NamedCatalog> AvailableCatalogs { get; } = new();
+
+    [ObservableProperty]
+    private NamedCatalog? _activeCatalog;
+
+    /// <summary>
     /// Gets the list of artifact URL statuses.
     /// </summary>
     public ObservableCollection<ArtifactUrlStatus> ArtifactStatuses { get; } = new();
+
+    /// <summary>
+    /// Gets the upload queue for tracking artifact uploads.
+    /// </summary>
+    public ObservableCollection<ArtifactUploadTask> UploadQueue { get; } = new();
 
     /// <summary>
     /// Gets the available hosting providers.
@@ -165,12 +193,33 @@ public partial class PublishShareViewModel : ObservableObject
             SelectedHostingProvider = HostingProviders.FirstOrDefault();
         }
 
+        // Load available catalogs
+        foreach (var catalog in _project.Catalogs)
+        {
+            AvailableCatalogs.Add(catalog);
+        }
+
+        // Select the first catalog by default
+        ActiveCatalog = AvailableCatalogs.FirstOrDefault();
+
+        // Initialize catalog statuses
+        InitializeCatalogStatuses();
+
         // Load existing hosting state if available
         _ = LoadHostingStateAsync();
 
         // Validate on load
         RefreshArtifactStatuses();
         _ = ValidateCatalogAsync();
+    }
+
+    partial void OnActiveCatalogChanged(NamedCatalog? value)
+    {
+        if (value == null) return;
+        RefreshArtifactStatuses();
+        _ = ValidateCatalogAsync();
+        OnPropertyChanged(nameof(ContentItemCount));
+        OnPropertyChanged(nameof(TotalReleaseCount));
     }
 
     partial void OnSelectedHostingProviderChanged(IHostingProvider? value)
@@ -183,10 +232,23 @@ public partial class PublishShareViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowGoogleOAuthButton));
         OnPropertyChanged(nameof(ShowDropboxTokenInput));
 
-        // Clear authentication status when switching providers
-        AuthenticationStatusMessage = string.Empty;
-        GitHubPersonalAccessToken = string.Empty;
-        DropboxAccessToken = string.Empty;
+        if (value == null) return;
+
+        // Check if hosting state has saved credentials for this provider
+        if (_currentHostingState != null
+            && _currentHostingState.ProviderId == value.ProviderId
+            && !string.IsNullOrEmpty(_currentHostingState.AuthToken))
+        {
+            // Restore saved authentication
+            _ = RestoreAuthenticationAsync();
+        }
+        else
+        {
+            // Different provider - clear auth state
+            AuthenticationStatusMessage = string.Empty;
+            GitHubPersonalAccessToken = string.Empty;
+            DropboxAccessToken = string.Empty;
+        }
     }
 
     /// <summary>
@@ -218,6 +280,7 @@ public partial class PublishShareViewModel : ObservableObject
 
                 result = await githubProvider.AuthenticateWithTokenAsync(GitHubPersonalAccessToken);
             }
+
             // Handle Dropbox token authentication
             else if (SelectedHostingProvider.ProviderId == "dropbox" && SelectedHostingProvider is DropboxHostingProvider dropboxProvider)
             {
@@ -238,6 +301,9 @@ public partial class PublishShareViewModel : ObservableObject
             {
                 AuthenticationStatusMessage = "✓ Authenticated successfully";
                 _logger.LogInformation("Authenticated with {Provider}", SelectedHostingProvider.DisplayName);
+
+                // Save token to hosting state for persistence
+                await SaveAuthTokenAsync();
 
                 _notificationService?.ShowSuccess(
                     "Connected",
@@ -309,7 +375,13 @@ public partial class PublishShareViewModel : ObservableObject
     private void RefreshArtifactStatuses()
     {
         ArtifactStatuses.Clear();
-        foreach (var content in _project.Catalog.Content)
+
+        if (ActiveCatalog == null)
+        {
+            return;
+        }
+
+        foreach (var content in ActiveCatalog.Catalog.Content)
         {
             foreach (var release in content.Releases)
             {
@@ -346,27 +418,40 @@ public partial class PublishShareViewModel : ObservableObject
 
             GenerateSubscriptionUrl();
             _logger.LogInformation("Loaded hosting state with {CatalogCount} catalogs", _currentHostingState.Catalogs.Count);
+
+            // After loading state, try to restore authentication
+            if (_currentHostingState != null && !string.IsNullOrEmpty(_currentHostingState.AuthToken))
+            {
+                await RestoreAuthenticationAsync();
+            }
         }
     }
 
     /// <summary>
-    /// Gets the content item count in the catalog.
+    /// Gets the content item count in the active catalog.
     /// </summary>
-    public int ContentItemCount => _project.Catalog.Content.Count;
+    public int ContentItemCount => ActiveCatalog?.Catalog.Content.Count ?? 0;
 
     /// <summary>
-    /// Gets the total release count across all content items.
+    /// Gets the total release count across all content items in the active catalog.
     /// </summary>
-    public int TotalReleaseCount => _project.Catalog.Content.Sum(c => c.Releases.Count);
+    public int TotalReleaseCount => ActiveCatalog?.Catalog.Content.Sum(c => c.Releases.Count) ?? 0;
 
     /// <summary>
-    /// Validates the catalog.
+    /// Validates the active catalog.
     /// </summary>
     [RelayCommand]
     private async Task ValidateCatalogAsync()
     {
         try
         {
+            if (ActiveCatalog == null)
+            {
+                IsValid = false;
+                ValidationMessage = "✗ No catalog selected";
+                return;
+            }
+
             // Update artifact validations
             foreach (var status in ArtifactStatuses)
             {
@@ -381,11 +466,11 @@ public partial class PublishShareViewModel : ObservableObject
                 return;
             }
 
-            var result = await _publisherStudioService.ValidateCatalogAsync(_project.Catalog);
+            var result = await _publisherStudioService.ValidateCatalogAsync(ActiveCatalog.Catalog);
             IsValid = result.Success;
-            ValidationMessage = result.Success ? "✓ Catalog is valid" : $"✗ {result.FirstError}";
+            ValidationMessage = result.Success ? $"✓ Catalog '{ActiveCatalog.Name}' is valid" : $"✗ {result.FirstError}";
 
-            _logger.LogInformation("Catalog validation: {IsValid}", IsValid);
+            _logger.LogInformation("Catalog '{CatalogName}' validation: {IsValid}", ActiveCatalog.Name, IsValid);
         }
         catch (Exception ex)
         {
@@ -396,22 +481,28 @@ public partial class PublishShareViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Exports the catalog to JSON.
+    /// Exports the active catalog to JSON.
     /// </summary>
     [RelayCommand]
     private async Task ExportCatalogAsync()
     {
         try
         {
-            var result = await _publisherStudioService.ExportCatalogAsync(_project);
+            if (ActiveCatalog == null)
+            {
+                _logger.LogWarning("Cannot export catalog: no active catalog selected");
+                return;
+            }
+
+            var result = await _publisherStudioService.ExportCatalogAsync(_project, ActiveCatalog);
             if (result.Success && result.Data != null)
             {
                 CatalogJson = result.Data;
-                _logger.LogInformation("Exported catalog JSON");
+                _logger.LogInformation("Exported catalog '{CatalogName}' JSON", ActiveCatalog.Name);
             }
             else
             {
-                _logger.LogError("Failed to export catalog: {Error}", result.FirstError);
+                _logger.LogError("Failed to export catalog '{CatalogName}': {Error}", ActiveCatalog.Name, result.FirstError);
             }
         }
         catch (Exception ex)
@@ -443,6 +534,9 @@ public partial class PublishShareViewModel : ObservableObject
             IsUploading = true;
             UploadProgress = 0;
             UploadStatusMessage = "Preparing to publish...";
+            PublishCompleted = false;
+            CurrentPublishStep = 0;
+            PublishSummary = string.Empty;
 
             // Check authentication first
             if (SelectedHostingProvider.RequiresAuthentication && !SelectedHostingProvider.IsAuthenticated)
@@ -457,6 +551,7 @@ public partial class PublishShareViewModel : ObservableObject
             }
 
             // 1. Upload Pending Artifacts
+            CurrentPublishStep = 1;
             var artifactsUploaded = await UploadPendingArtifactsAsync(SelectedHostingProvider);
             if (!artifactsUploaded)
             {
@@ -464,9 +559,16 @@ public partial class PublishShareViewModel : ObservableObject
                return;
             }
 
-            // 2. Export Catalog (Now includes new URLs)
-            UploadStatusMessage = "Generatng catalog...";
-            var exportResult = await _publisherStudioService.ExportCatalogAsync(_project);
+            // 2. Export Active Catalog (Now includes new URLs)
+            CurrentPublishStep = 2;
+            if (ActiveCatalog == null)
+            {
+                UploadStatusMessage = "No catalog selected";
+                return;
+            }
+
+            UploadStatusMessage = $"Generating catalog '{ActiveCatalog.Name}'...";
+            var exportResult = await _publisherStudioService.ExportCatalogAsync(_project, ActiveCatalog);
             if (!exportResult.Success || string.IsNullOrEmpty(exportResult.Data))
             {
                 UploadStatusMessage = $"Failed to export catalog: {exportResult.FirstError}";
@@ -475,9 +577,10 @@ public partial class PublishShareViewModel : ObservableObject
 
             CatalogJson = exportResult.Data;
             UploadProgress = 80;
-            UploadStatusMessage = "Uploading catalog to " + SelectedHostingProvider.DisplayName + "...";
+            UploadStatusMessage = $"Uploading catalog '{ActiveCatalog.Name}' to {SelectedHostingProvider.DisplayName}...";
 
             // 3. Upload Catalog
+            CurrentPublishStep = 3;
             var progress = new Progress<int>(p =>
             {
                 // Map 0-100 to 80-100
@@ -485,14 +588,19 @@ public partial class PublishShareViewModel : ObservableObject
             });
 
             // Check if we should update existing file or create new
-            var existingCatalogFileId = _currentHostingState?.Catalogs.FirstOrDefault()?.FileId;
+            var existingCatalogFileId = _currentHostingState?.Catalogs
+                .FirstOrDefault(c => c.CatalogId == ActiveCatalog.Id)?.FileId;
             OperationResult<HostingUploadResult> uploadResult;
+
+            var catalogFileName = string.IsNullOrEmpty(ActiveCatalog.FileName)
+                ? $"catalog-{ActiveCatalog.Id}.json"
+                : ActiveCatalog.FileName;
 
             if (!string.IsNullOrEmpty(existingCatalogFileId) && SelectedHostingProvider.SupportsUpdate)
             {
-                UploadStatusMessage = "Updating existing catalog...";
+                UploadStatusMessage = $"Updating existing catalog '{ActiveCatalog.Name}'...";
                 using var stream = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(CatalogJson));
-                uploadResult = await SelectedHostingProvider.UpdateFileAsync(existingCatalogFileId, stream, "catalog.json", progress);
+                uploadResult = await SelectedHostingProvider.UpdateFileAsync(existingCatalogFileId, stream, catalogFileName, progress);
             }
             else
             {
@@ -516,6 +624,59 @@ public partial class PublishShareViewModel : ObservableObject
 
                 // Save hosting state
                 await SaveHostingStateAsync(uploadResult.Data.FileId, uploadResult.Data.DirectDownloadUrl);
+
+                // 4. Generate and upload provider definition
+                CurrentPublishStep = 4;
+                UploadStatusMessage = "Generating provider definition...";
+                await GenerateProviderDefinitionAsync();
+
+                if (!string.IsNullOrWhiteSpace(ProviderDefinitionJson))
+                {
+                    CurrentPublishStep = 5;
+                    UploadStatusMessage = "Uploading provider definition...";
+                    var defFileName = "provider.json";
+
+                    var existingDefFileId = _currentHostingState?.Definition?.FileId;
+                    OperationResult<HostingUploadResult> defUploadResult;
+
+                    using var defStream = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(ProviderDefinitionJson));
+
+                    if (!string.IsNullOrEmpty(existingDefFileId) && SelectedHostingProvider.SupportsUpdate)
+                    {
+                        defUploadResult = await SelectedHostingProvider.UpdateFileAsync(existingDefFileId, defStream, defFileName);
+                    }
+                    else
+                    {
+                        defUploadResult = await SelectedHostingProvider.UploadFileAsync(defStream, defFileName);
+                    }
+
+                    if (defUploadResult.Success && defUploadResult.Data != null)
+                    {
+                        ProviderDefinitionUrl = defUploadResult.Data.DirectDownloadUrl;
+
+                        // Update hosting state with definition info
+                        if (_currentHostingState != null)
+                        {
+                            _currentHostingState.Definition = new HostedFileInfo
+                            {
+                                FileId = defUploadResult.Data.FileId,
+                                Url = defUploadResult.Data.DirectDownloadUrl,
+                                LastUpdated = DateTime.UtcNow,
+                            };
+                        }
+
+                        // Save updated hosting state with definition info
+                        await _hostingStateManager.SaveStateAsync(_project.ProjectPath!, _currentHostingState!);
+                    }
+                }
+
+                // 5. Generate subscription URL (uses definition URL if available)
+                GenerateSubscriptionUrl();
+
+                CurrentPublishStep = 6;
+                PublishCompleted = true;
+                PublishSummary = BuildPublishSummary();
+                UploadStatusMessage = "Published successfully!";
             }
             else
             {
@@ -535,7 +696,12 @@ public partial class PublishShareViewModel : ObservableObject
 
     private async Task<bool> UploadPendingArtifactsAsync(IHostingProvider provider)
     {
-        var allReleases = _project.Catalog.Content.SelectMany(c => c.Releases).ToList();
+        if (ActiveCatalog == null)
+        {
+            return true;
+        }
+
+        var allReleases = ActiveCatalog.Catalog.Content.SelectMany(c => c.Releases).ToList();
         var pendingArtifacts = allReleases
             .SelectMany(r => r.Artifacts)
             .Where(a => !string.IsNullOrEmpty(a.LocalFilePath) && string.IsNullOrEmpty(a.DownloadUrl))
@@ -552,44 +718,86 @@ public partial class PublishShareViewModel : ObservableObject
              return false;
         }
 
-        int total = pendingArtifacts.Count;
-        int current = 0;
+        // Clear previous upload queue
+        UploadQueue.Clear();
 
+        // Create upload tasks for all pending artifacts
         foreach (var artifact in pendingArtifacts)
         {
+            // Find the content and release for this artifact
+            var content = ActiveCatalog.Catalog.Content.FirstOrDefault(c =>
+                c.Releases.Any(r => r.Artifacts.Contains(artifact)));
+            var release = content?.Releases.FirstOrDefault(r => r.Artifacts.Contains(artifact));
+
+            if (content != null && release != null)
+            {
+                UploadQueue.Add(new ArtifactUploadTask
+                {
+                    ContentId = content.Id,
+                    Version = release.Version,
+                    Artifact = artifact,
+                    Status = UploadStatus.Pending,
+                });
+            }
+        }
+
+        int total = UploadQueue.Count;
+        int current = 0;
+
+        foreach (var task in UploadQueue)
+        {
             current++;
-            UploadStatusMessage = $"Uploading artifact {current}/{total}: {artifact.Filename}";
+            task.Status = UploadStatus.Uploading;
+            UploadStatusMessage = $"Uploading artifact {current}/{total}: {task.Artifact.Filename}";
 
             // Scale progress from 0 to 80
             UploadProgress = (int)((double)(current - 1) / total * 80);
 
             try
             {
-                if (!System.IO.File.Exists(artifact.LocalFilePath))
+                if (!System.IO.File.Exists(task.Artifact.LocalFilePath))
                 {
-                    UploadStatusMessage = $"File not found: {artifact.LocalFilePath}";
+                    task.Status = UploadStatus.Failed;
+                    task.ErrorMessage = "File not found";
+                    UploadStatusMessage = $"File not found: {task.Artifact.LocalFilePath}";
                     return false;
                 }
 
-                using var stream = System.IO.File.OpenRead(artifact.LocalFilePath);
-                var result = await provider.UploadFileAsync(stream, artifact.Filename);
+                using var stream = System.IO.File.OpenRead(task.Artifact.LocalFilePath);
+
+                // Create progress reporter for this artifact
+                var progress = new Progress<int>(p =>
+                {
+                    task.Progress = p;
+
+                    // Update overall progress: base progress + (current artifact progress / total)
+                    UploadProgress = (int)(((double)(current - 1) / total * 80) + (p / total * 80.0 / 100.0));
+                });
+
+                var result = await provider.UploadFileAsync(stream, task.Artifact.Filename, null, progress);
 
                 if (result.Success && result.Data != null)
                 {
-                    artifact.DownloadUrl = result.Data.DirectDownloadUrl;
+                    task.Artifact.DownloadUrl = result.Data.DirectDownloadUrl;
+                    task.Status = UploadStatus.Uploaded;
+                    task.Progress = 100;
 
-                    // Optional: Update Hash if provider returns it, or size
-                    _logger.LogInformation("Uploaded artifact {File} to {Url}", artifact.Filename, artifact.DownloadUrl);
+                    _logger.LogInformation("Uploaded artifact {File} to {Url}", task.Artifact.Filename, task.Artifact.DownloadUrl);
                 }
                 else
                 {
-                    UploadStatusMessage = $"Failed to upload {artifact.Filename}: {result.FirstError}";
+                    task.Status = UploadStatus.Failed;
+                    task.ErrorMessage = result.FirstError ?? "Upload failed";
+                    UploadStatusMessage = $"Failed to upload {task.Artifact.Filename}: {result.FirstError}";
                     return false;
                 }
             }
             catch (Exception ex)
             {
-                UploadStatusMessage = $"Error uploading {artifact.Filename}: {ex.Message}";
+                task.Status = UploadStatus.Failed;
+                task.ErrorMessage = ex.Message;
+                UploadStatusMessage = $"Error uploading {task.Artifact.Filename}: {ex.Message}";
+                _logger.LogError(ex, "Error uploading artifact {Filename}", task.Artifact.Filename);
                 return false;
             }
         }
@@ -607,11 +815,12 @@ public partial class PublishShareViewModel : ObservableObject
             ProviderId = SelectedHostingProvider?.ProviderId ?? "unknown",
         };
 
-        // Update or add catalog entry
-        var catalogEntry = _currentHostingState.Catalogs.FirstOrDefault(c => c.CatalogId == "default");
+        // Update or add catalog entry using the active catalog ID
+        var catalogId = ActiveCatalog?.Id ?? "default";
+        var catalogEntry = _currentHostingState.Catalogs.FirstOrDefault(c => c.CatalogId == catalogId);
         if (catalogEntry == null)
         {
-            catalogEntry = new CatalogHostingInfo { CatalogId = "default" };
+            catalogEntry = new CatalogHostingInfo { CatalogId = catalogId };
             _currentHostingState.Catalogs.Add(catalogEntry);
         }
 
@@ -629,33 +838,109 @@ public partial class PublishShareViewModel : ObservableObject
         }
     }
 
+    private async Task SaveAuthTokenAsync()
+    {
+        if (string.IsNullOrEmpty(_project.ProjectPath) || SelectedHostingProvider == null)
+            return;
+
+        _currentHostingState ??= new HostingState { ProviderId = SelectedHostingProvider.ProviderId };
+        _currentHostingState.ProviderId = SelectedHostingProvider.ProviderId;
+
+        // Store the token
+        if (SelectedHostingProvider.ProviderId == "github")
+            _currentHostingState.AuthToken = GitHubPersonalAccessToken;
+        else if (SelectedHostingProvider.ProviderId == "dropbox")
+            _currentHostingState.AuthToken = DropboxAccessToken;
+
+        await _hostingStateManager.SaveStateAsync(_project.ProjectPath, _currentHostingState);
+    }
+
+    private async Task RestoreAuthenticationAsync()
+    {
+        if (_currentHostingState == null || string.IsNullOrEmpty(_currentHostingState.AuthToken))
+            return;
+
+        // Find the matching provider
+        var provider = HostingProviders.FirstOrDefault(p => p.ProviderId == _currentHostingState.ProviderId);
+        if (provider == null) return;
+
+        SelectedHostingProvider = provider;
+
+        try
+        {
+            if (provider.ProviderId == "github" && provider is GitHubHostingProvider githubProvider)
+            {
+                GitHubPersonalAccessToken = _currentHostingState.AuthToken;
+                var result = await githubProvider.AuthenticateWithTokenAsync(_currentHostingState.AuthToken);
+                if (result.Success)
+                {
+                    AuthenticationStatusMessage = "Restored connection";
+                    _logger.LogInformation("Restored GitHub authentication from hosting state");
+                }
+            }
+            else if (provider.ProviderId == "dropbox" && provider is DropboxHostingProvider dropboxProvider)
+            {
+                DropboxAccessToken = _currentHostingState.AuthToken;
+                var result = await dropboxProvider.AuthenticateWithTokenAsync(_currentHostingState.AuthToken);
+                if (result.Success)
+                {
+                    AuthenticationStatusMessage = "Restored connection";
+                    _logger.LogInformation("Restored Dropbox authentication from hosting state");
+                }
+            }
+
+            // Notify computed properties
+            OnPropertyChanged(nameof(IsProviderAuthenticated));
+            OnPropertyChanged(nameof(NeedsAuthentication));
+            OnPropertyChanged(nameof(ShowGitHubPatInput));
+            OnPropertyChanged(nameof(ShowGoogleOAuthButton));
+            OnPropertyChanged(nameof(ShowDropboxTokenInput));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to restore authentication");
+        }
+    }
+
     /// <summary>
     /// Generates the provider definition JSON.
     /// </summary>
     [RelayCommand]
     private async Task GenerateProviderDefinitionAsync()
     {
-        if (string.IsNullOrWhiteSpace(CatalogUrl) && string.IsNullOrWhiteSpace(PrimaryCatalogUrl))
+        if (_currentHostingState == null || _currentHostingState.Catalogs.Count == 0)
         {
-            UploadStatusMessage = "Catalog URL is required to generate definition";
+            UploadStatusMessage = "No catalogs have been published yet";
             return;
         }
 
-        // Use CatalogUrl from upload if PrimaryCatalogUrl is not set
-        var catalogUrlToUse = !string.IsNullOrWhiteSpace(PrimaryCatalogUrl) ? PrimaryCatalogUrl : CatalogUrl;
-
         try
         {
+            // Build catalog hosting info dictionary from hosting state
+            var catalogHostingInfo = new Dictionary<string, string>();
+            foreach (var catalogInfo in _currentHostingState.Catalogs)
+            {
+                if (!string.IsNullOrEmpty(catalogInfo.Url))
+                {
+                    catalogHostingInfo[catalogInfo.CatalogId] = catalogInfo.Url;
+                }
+            }
+
+            if (catalogHostingInfo.Count == 0)
+            {
+                UploadStatusMessage = "No catalog URLs available for definition";
+                return;
+            }
+
             var result = await _publisherStudioService.ExportProviderDefinitionAsync(
                 _project,
-                catalogUrlToUse,
-                CatalogMirrorUrls.ToList(),
+                catalogHostingInfo,
                 ProviderDefinitionUrl);
 
             if (result.Success && result.Data != null)
             {
                 ProviderDefinitionJson = result.Data;
-                _logger.LogInformation("Generated provider definition JSON");
+                _logger.LogInformation("Generated provider definition JSON with {CatalogCount} catalogs", catalogHostingInfo.Count);
             }
             else
             {
@@ -746,29 +1031,18 @@ public partial class PublishShareViewModel : ObservableObject
     [RelayCommand]
     private void GenerateSubscriptionUrl()
     {
-        // Prefer Provider Definition URL if available
+        // Always prefer Provider Definition URL (Tier 1)
         if (!string.IsNullOrWhiteSpace(ProviderDefinitionUrl))
         {
             SubscriptionUrl = $"genhub://subscribe?url={Uri.EscapeDataString(ProviderDefinitionUrl)}";
-        }
-        else if (!string.IsNullOrWhiteSpace(CatalogUrl))
-        {
-             // Fallback to direct catalog URL
-             if (SelectedHostingProvider != null)
-             {
-                 SubscriptionUrl = SelectedHostingProvider.GetSubscriptionLink(CatalogUrl);
-             }
-             else
-             {
-                 SubscriptionUrl = $"genhub://subscribe?url={Uri.EscapeDataString(CatalogUrl)}";
-             }
+            _logger.LogInformation("Generated subscription URL using definition URL");
         }
         else
         {
-            SubscriptionUrl = "Please upload catalog or definition first";
+            // No definition URL available - this should not happen in normal flow
+            SubscriptionUrl = "Please publish to generate subscription URL";
+            _logger.LogWarning("Cannot generate subscription URL: definition URL not available");
         }
-
-        _logger.LogInformation("Generated subscription URL: {Url}", SubscriptionUrl);
     }
 
     /// <summary>
@@ -861,6 +1135,179 @@ public partial class PublishShareViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to copy provider definition to clipboard");
+        }
+    }
+
+    /// <summary>
+    /// Copies the provider definition URL to clipboard.
+    /// </summary>
+    [RelayCommand]
+    private async Task CopyProviderDefinitionUrlAsync()
+    {
+        if (string.IsNullOrWhiteSpace(ProviderDefinitionUrl))
+        {
+            return;
+        }
+
+        try
+        {
+            var lifetime = Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
+            var clipboard = lifetime?.MainWindow?.Clipboard;
+            if (clipboard != null)
+            {
+                await clipboard.SetTextAsync(ProviderDefinitionUrl);
+                _logger.LogInformation("Copied provider definition URL to clipboard");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to copy provider definition URL to clipboard");
+        }
+    }
+
+    /// <summary>
+    /// Copies the catalog URL to clipboard.
+    /// </summary>
+    [RelayCommand]
+    private async Task CopyCatalogUrlAsync()
+    {
+        if (string.IsNullOrEmpty(CatalogUrl))
+        {
+            return;
+        }
+
+        try
+        {
+            var lifetime = Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
+            var clipboard = lifetime?.MainWindow?.Clipboard;
+            if (clipboard != null)
+            {
+                await clipboard.SetTextAsync(CatalogUrl);
+                _logger.LogInformation("Copied catalog URL to clipboard");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to copy catalog URL to clipboard");
+        }
+    }
+
+    private string BuildPublishSummary()
+    {
+        var sb = new System.Text.StringBuilder();
+        if (!string.IsNullOrEmpty(CatalogUrl))
+            sb.AppendLine($"Catalog URL: {CatalogUrl}");
+        if (!string.IsNullOrEmpty(ProviderDefinitionUrl))
+            sb.AppendLine($"Definition URL: {ProviderDefinitionUrl}");
+        if (!string.IsNullOrEmpty(SubscriptionUrl))
+            sb.AppendLine($"Subscription URL: {SubscriptionUrl}");
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Initializes catalog statuses from project and hosting state.
+    /// </summary>
+    private void InitializeCatalogStatuses()
+    {
+        CatalogStatuses.Clear();
+
+        foreach (var catalog in _project.Catalogs)
+        {
+            var status = new CatalogPublishStatus(catalog);
+
+            // Check if published
+            var hostingInfo = _currentHostingState?.Catalogs
+                .FirstOrDefault(c => c.CatalogId == catalog.Id);
+
+            if (hostingInfo != null)
+            {
+                status.IsPublished = true;
+                status.PublishedUrl = hostingInfo.Url;
+                status.LastPublished = hostingInfo.LastUpdated;
+            }
+
+            CatalogStatuses.Add(status);
+        }
+    }
+
+    /// <summary>
+    /// Publishes a specific catalog.
+    /// </summary>
+    [RelayCommand]
+    private async Task PublishCatalogAsync(NamedCatalog catalog)
+    {
+        // Set as active catalog temporarily
+        var previousActive = ActiveCatalog;
+        ActiveCatalog = catalog;
+
+        try
+        {
+            await UploadCatalogAsync();
+
+            // Update status
+            var status = CatalogStatuses.FirstOrDefault(s => s.Catalog.Id == catalog.Id);
+            if (status != null)
+            {
+                status.IsPublished = true;
+                status.LastPublished = DateTime.UtcNow;
+                status.HasChanges = false;
+            }
+        }
+        finally
+        {
+            // Restore previous active catalog
+            ActiveCatalog = previousActive;
+        }
+    }
+
+    /// <summary>
+    /// Publishes all catalogs in sequence.
+    /// </summary>
+    [RelayCommand]
+    private async Task PublishAllCatalogsAsync()
+    {
+        if (SelectedHostingProvider == null || !IsValid)
+        {
+            return;
+        }
+
+        IsUploading = true;
+        PublishCompleted = false;
+
+        try
+        {
+            var totalCatalogs = _project.Catalogs.Count;
+            var currentCatalog = 0;
+
+            foreach (var catalog in _project.Catalogs)
+            {
+                currentCatalog++;
+                UploadStatusMessage = $"Publishing catalog {currentCatalog}/{totalCatalogs}: {catalog.Name}";
+
+                await PublishCatalogAsync(catalog);
+            }
+
+            // Generate provider definition with all catalogs
+            await GenerateProviderDefinitionAsync();
+
+            // Upload definition
+            if (!string.IsNullOrWhiteSpace(ProviderDefinitionJson))
+            {
+                await UploadProviderDefinitionAsync();
+            }
+
+            GenerateSubscriptionUrl();
+            PublishCompleted = true;
+            UploadStatusMessage = $"Successfully published {totalCatalogs} catalogs!";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to publish all catalogs");
+            UploadStatusMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            IsUploading = false;
         }
     }
 }

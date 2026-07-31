@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using GenHub.Core.Models.Enums;
 
 namespace GenHub.Core.Models.Providers;
 
@@ -30,6 +31,12 @@ public class CatalogDependency
     /// </summary>
     [JsonPropertyName("isOptional")]
     public bool IsOptional { get; set; }
+
+    /// <summary>
+    /// Gets or sets the dependency type (Required, Recommended, Bundled).
+    /// </summary>
+    [JsonPropertyName("dependencyType")]
+    public DependencyType DependencyType { get; set; } = DependencyType.Required;
 
     /// <summary>
     /// Gets or sets a hint for where to find this dependency (catalog URL).

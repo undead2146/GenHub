@@ -111,6 +111,23 @@
             <Setter Property="CornerRadius" Value="6"/>
             <Setter Property="Padding" Value="10,5"/>
         </Style>
+
+        <!-- ==================== UNSAVED PULSE ANIMATION ==================== -->
+        <Style Selector="Border.unsaved-pulse">
+            <Style.Animations>
+                <Animation Duration="0:0:1.5" IterationCount="INFINITE">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="1"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="50%">
+                        <Setter Property="Opacity" Value="0.3"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="1"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
     </UserControl.Styles>
 
     <!-- Main Container with Deep Purple Background -->
@@ -169,9 +186,16 @@
                                        FontSize="18"
                                        FontWeight="Bold"
                                        Foreground="White"/>
-                            <TextBlock Text="{Binding CurrentProject.ProjectName, FallbackValue='Create and manage your content catalog'}"
-                                       FontSize="12"
-                                       Foreground="#9CA3AF"/>
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="{Binding CurrentProject.ProjectName, FallbackValue='Create and manage your content catalog'}"
+                                           FontSize="12"
+                                           Foreground="#9CA3AF"/>
+                                <TextBlock Text="*"
+                                           FontSize="12"
+                                           FontWeight="Bold"
+                                           Foreground="#F59E0B"
+                                           IsVisible="{Binding HasUnsavedChanges}"/>
+                            </StackPanel>
                         </StackPanel>
                     </StackPanel>
 
@@ -190,11 +214,69 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Catalog Selector -->
+                        <Border Background="#10FFFFFF"
+                                BorderBrush="#20FFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="10"
+                                Padding="12,8"
+                                IsVisible="{Binding IsSetupComplete}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <PathIcon Data="{StaticResource ContentIcon}"
+                                          Width="14" Height="14"
+                                          Foreground="#AA00FF"
+                                          VerticalAlignment="Center"/>
+                                <ComboBox SelectedItem="{Binding SelectedCatalog}"
+                                          ItemsSource="{Binding Catalogs}"
+                                          MinWidth="180"
+                                          Background="Transparent"
+                                          BorderThickness="0">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                                <TextBlock Text="{Binding Catalog.Content.Count, StringFormat='({0})'}"
+                                                           FontSize="11"
+                                                           Foreground="#888888"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <Button Classes="glass-btn-icon"
+                                        Command="{Binding AddCatalogCommand}"
+                                        ToolTip.Tip="Add New Catalog"
+                                        Padding="6">
+                                    <PathIcon Data="{StaticResource AddIcon}"
+                                              Width="14" Height="14"
+                                              Foreground="#AA00FF"/>
+                                </Button>
+                                <Button Classes="glass-btn-icon"
+                                        Command="{Binding RemoveCatalogCommand}"
+                                        CommandParameter="{Binding SelectedCatalog}"
+                                        IsEnabled="{Binding CanRemoveCatalog}"
+                                        ToolTip.Tip="Remove Catalog"
+                                        Padding="6">
+                                    <PathIcon Data="{StaticResource DeleteIcon}"
+                                              Width="14" Height="14"
+                                              Foreground="#FF6060"/>
+                                </Button>
+                            </StackPanel>
+                        </Border>
+
                         <!-- New Project Button -->
                         <Button Classes="glass-btn-icon"
                                 Command="{Binding CreateNewProjectCommand}"
                                 ToolTip.Tip="Create New Project">
                             <PathIcon Data="{StaticResource AddIcon}"
+                                      Width="18" Height="18"
+                                      Foreground="#9CA3AF"/>
+                        </Button>
+
+                        <!-- Load Project Button -->
+                        <Button Classes="glass-btn-icon"
+                                Command="{Binding LoadProjectCommand}"
+                                ToolTip.Tip="Load Existing Project">
+                            <PathIcon Data="{StaticResource FolderOpenIcon}"
                                       Width="18" Height="18"
                                       Foreground="#9CA3AF"/>
                         </Button>
@@ -293,13 +375,27 @@
                 <Grid ColumnDefinitions="*,Auto,*">
                     <!-- Left: Project Info -->
                     <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                        <Border Width="8" Height="8"
-                                CornerRadius="4"
-                                Background="{Binding HasUnsavedChanges, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#F59E0B|#22C55E}">
-                            <Border.Effect>
-                                <BlurEffect Radius="4"/>
-                            </Border.Effect>
-                        </Border>
+                        <Panel Width="8" Height="8">
+                            <!-- Green dot: shown when saved -->
+                            <Border Width="8" Height="8"
+                                    CornerRadius="4"
+                                    Background="#22C55E"
+                                    IsVisible="{Binding !HasUnsavedChanges}">
+                                <Border.Effect>
+                                    <BlurEffect Radius="4"/>
+                                </Border.Effect>
+                            </Border>
+                            <!-- Yellow dot with pulse: shown when unsaved -->
+                            <Border Width="8" Height="8"
+                                    CornerRadius="4"
+                                    Background="#F59E0B"
+                                    Classes.unsaved-pulse="{Binding HasUnsavedChanges}"
+                                    IsVisible="{Binding HasUnsavedChanges}">
+                                <Border.Effect>
+                                    <BlurEffect Radius="4"/>
+                                </Border.Effect>
+                            </Border>
+                        </Panel>
                         <TextBlock Text="{Binding CurrentProject.ProjectName, FallbackValue='No project loaded'}"
                                    FontSize="12"
                                    FontWeight="Medium"

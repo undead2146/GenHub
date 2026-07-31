@@ -71,13 +71,13 @@ public partial class GameProfileSettingsViewModel
             {
                 try
                 {
-                    var existingGoSettings = await _gameSettingsService.LoadGeneralsOnlineSettingsAsync();
+                    var existingGoSettings = await _gameSettingsService.LoadGameSettingsAsync();
                     if (existingGoSettings.Success && existingGoSettings.Data != null)
                     {
                         _logger?.LogInformation("Pre-loading existing GeneralsOnline settings for new profile");
                         var data = existingGoSettings.Data;
                         var tempProfile = new GameProfile { Id = "temp_new" };
-                        GameSettingsMapper.ApplyFromGeneralsOnlineSettings(data, tempProfile);
+                        GameSettingsMapper.ApplyFromGameSettings(data, tempProfile);
                         await GameSettingsViewModel.InitializeForProfileAsync(null, tempProfile);
                     }
                     else

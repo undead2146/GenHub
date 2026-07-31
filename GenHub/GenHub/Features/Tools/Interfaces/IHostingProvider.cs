@@ -104,6 +104,12 @@ public interface IHostingProvider
     /// <summary>
     /// Updates an existing file on the hosting provider, keeping the same URL.
     /// </summary>
+    /// <param name="fileId">The ID of the file to update.</param>
+    /// <param name="fileStream">The stream containing the file data.</param>
+    /// <param name="fileName">The name of the file.</param>
+    /// <param name="progress">Optional progress reporter.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The result containing upload information.</returns>
     Task<OperationResult<HostingUploadResult>> UpdateFileAsync(
         string fileId,
         Stream fileStream,
@@ -114,11 +120,15 @@ public interface IHostingProvider
     /// <summary>
     /// Gets or creates the publisher folder on the hosting provider.
     /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The result containing the folder ID.</returns>
     Task<OperationResult<string>> GetOrCreatePublisherFolderAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Attempts to recover hosting state from the provider by scanning for existing files.
     /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The result containing the recovered hosting state, if any.</returns>
     Task<OperationResult<HostingState?>> RecoverHostingStateAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

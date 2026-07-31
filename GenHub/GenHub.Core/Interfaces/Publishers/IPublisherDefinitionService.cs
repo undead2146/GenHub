@@ -44,6 +44,9 @@ public interface IPublisherDefinitionService
     /// <summary>
     /// Fetches all catalogs defined in a publisher definition.
     /// </summary>
+    /// <param name="definition">The publisher definition containing catalog URLs.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>A dictionary mapping catalog IDs to their parsed catalog data.</returns>
     Task<OperationResult<Dictionary<string, PublisherCatalog>>> FetchAllCatalogsAsync(
         PublisherDefinition definition,
         CancellationToken ct = default);

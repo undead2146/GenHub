@@ -64,6 +64,9 @@ public class FileSystemDiscoverer : IContentDiscoverer
         _manifestDiscoveryService = manifestDiscoveryService;
         _configurationProvider = configurationProvider;
 
+        // [TEMP] DEBUG: FileSystemDiscoverer constructor
+        _logger.LogInformation("[TEMP] FileSystemDiscoverer constructor called");
+
         InitializeContentDirectories();
     }
 
@@ -85,6 +88,13 @@ public class FileSystemDiscoverer : IContentDiscoverer
     public async Task<OperationResult<ContentDiscoveryResult>> DiscoverAsync(
         ContentSearchQuery query, CancellationToken cancellationToken = default)
     {
+        // [TEMP] DEBUG: DiscoverAsync entry point
+        _logger.LogInformation(
+            "[TEMP] FileSystemDiscoverer.DiscoverAsync called - SearchTerm: '{Search}', ContentType: {ContentType}, TargetGame: {TargetGame}",
+            query.SearchTerm,
+            query.ContentType,
+            query.TargetGame);
+
         var discoveredItems = new List<ContentSearchResult>();
 
         // Use ManifestDiscoveryService for comprehensive discovery
@@ -147,6 +157,8 @@ public class FileSystemDiscoverer : IContentDiscoverer
                 discoveredItems.Add(discovered);
             }
         }
+
+        _logger.LogInformation("[TEMP] FileSystemDiscoverer.DiscoverAsync completed - Found {Count} items", discoveredItems.Count);
 
         return OperationResult<ContentDiscoveryResult>.CreateSuccess(new ContentDiscoveryResult
         {

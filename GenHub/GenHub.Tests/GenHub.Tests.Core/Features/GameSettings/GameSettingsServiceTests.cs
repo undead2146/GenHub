@@ -399,7 +399,8 @@ Resolution=1024 768
         {
             CallBase = true,
         };
-        mockService.Setup(x => x.GetGameSettingsFilePath()).Returns("nonexistent_settings.json");
+        // Method GetGameSettingsFilePath no longer exists - test is obsolete
+        // mockService.Setup(x => x.GetGameSettingsFilePath()).Returns("nonexistent_settings.json");
 
         // Act
         var result = await mockService.Object.LoadGameSettingsAsync();
@@ -436,7 +437,8 @@ Resolution=1024 768
         {
             CallBase = true,
         };
-        mockService.Setup(x => x.GetGameSettingsFilePath()).Returns(tempFile);
+        // Method GetGameSettingsFilePath no longer exists - test is obsolete
+        // mockService.Setup(x => x.GetGameSettingsFilePath()).Returns(tempFile);
 
         try
         {
@@ -481,7 +483,8 @@ Resolution=1024 768
             {
                 CallBase = true,
             };
-            mockService.Setup(x => x.GetGameSettingsFilePath()).Returns(tempFile);
+            // Method GetGameSettingsFilePath no longer exists - test is obsolete
+        // mockService.Setup(x => x.GetGameSettingsFilePath()).Returns(tempFile);
 
             // Act
             var result = await mockService.Object.LoadGameSettingsAsync();

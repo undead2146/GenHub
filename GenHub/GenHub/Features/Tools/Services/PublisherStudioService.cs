@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,9 +22,6 @@ public class PublisherStudioService(
     ILogger<PublisherStudioService> logger,
     IPublisherCatalogParser catalogParser) : IPublisherStudioService
 {
-    private readonly ILogger<PublisherStudioService> _logger = logger;
-    private readonly IPublisherCatalogParser _catalogParser = catalogParser;
-
     /// <inheritdoc />
     public Task<OperationResult<PublisherStudioProject>> CreateProjectAsync(
         string name,
@@ -62,12 +60,12 @@ public class PublisherStudioService(
                 IsDirty = true,
             };
 
-            _logger.LogInformation("Created new publisher project: {ProjectName} at {Path}", name, projectPath);
+            logger.LogInformation("Created new publisher project: {ProjectName} at {Path}", name, projectPath);
             return Task.FromResult(OperationResult<PublisherStudioProject>.CreateSuccess(project));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create publisher project");
+            logger.LogError(ex, "Failed to create publisher project");
             return Task.FromResult(
                 OperationResult<PublisherStudioProject>.CreateFailure($"Failed to create project: {ex.Message}"));
         }
@@ -96,12 +94,12 @@ public class PublisherStudioService(
             project.ProjectPath = path;
             project.IsDirty = false;
 
-            _logger.LogInformation("Loaded publisher project from: {Path}", path);
+            logger.LogInformation("Loaded publisher project from: {Path}", path);
             return OperationResult<PublisherStudioProject>.CreateSuccess(project);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load publisher project from {Path}", path);
+            logger.LogError(ex, "Failed to load publisher project from {Path}", path);
             return OperationResult<PublisherStudioProject>.CreateFailure($"Failed to load project: {ex.Message}");
         }
     }
@@ -130,12 +128,12 @@ public class PublisherStudioService(
 
             project.IsDirty = false;
 
-            _logger.LogInformation("Saved publisher project to: {Path}", project.ProjectPath);
+            logger.LogInformation("Saved publisher project to: {Path}", project.ProjectPath);
             return OperationResult<bool>.CreateSuccess(true);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to save publisher project to {Path}", project.ProjectPath);
+            logger.LogError(ex, "Failed to save publisher project to {Path}", project.ProjectPath);
             return OperationResult<bool>.CreateFailure($"Failed to save project: {ex.Message}");
         }
     }
@@ -143,24 +141,28 @@ public class PublisherStudioService(
     /// <inheritdoc />
     public Task<OperationResult<string>> ExportCatalogAsync(
         PublisherStudioProject project,
+        NamedCatalog? catalog = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
+            var catalogToExport = catalog?.Catalog ?? project.Catalog;
+            var catalogName = catalog?.Name ?? "default";
+
             var options = new JsonSerializerOptions
             {
                 WriteIndented = true,
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             };
 
-            var json = JsonSerializer.Serialize(project.Catalog, options);
+            var json = JsonSerializer.Serialize(catalogToExport, options);
 
-            _logger.LogInformation("Exported catalog for project: {ProjectName}", project.ProjectName);
+            logger.LogInformation("Exported catalog '{CatalogName}' for project: {ProjectName}", catalogName, project.ProjectName);
             return Task.FromResult(OperationResult<string>.CreateSuccess(json));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to export catalog");
+            logger.LogError(ex, "Failed to export catalog");
             return Task.FromResult(OperationResult<string>.CreateFailure($"Failed to export catalog: {ex.Message}"));
         }
     }
@@ -220,23 +222,133 @@ public class PublisherStudioService(
                 }
             }
 
+            // Validate content references (ExtendsContentId)
+            var referenceValidation = ValidateContentReferences(catalog);
+            if (!referenceValidation.Success)
+            {
+                return OperationResult<bool>.CreateFailure(referenceValidation);
+            }
+
             // Use the catalog parser to validate JSON structure
             var json = JsonSerializer.Serialize(catalog);
-            var parseResult = await _catalogParser.ParseCatalogAsync(json, cancellationToken);
+            var parseResult = await catalogParser.ParseCatalogAsync(json, cancellationToken);
 
             if (!parseResult.Success)
             {
                 return OperationResult<bool>.CreateFailure(parseResult);
             }
 
-            _logger.LogInformation("Catalog validation successful");
+            logger.LogInformation("Catalog validation successful");
             return OperationResult<bool>.CreateSuccess(true);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to validate catalog");
+            logger.LogError(ex, "Failed to validate catalog");
             return OperationResult<bool>.CreateFailure($"Validation failed: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Validates content references (ExtendsContentId) in the catalog.
+    /// </summary>
+    /// <param name="catalog">The catalog to validate.</param>
+    /// <returns>An operation result indicating validation success or failure.</returns>
+    private OperationResult<bool> ValidateContentReferences(PublisherCatalog catalog)
+    {
+        var errors = new List<string>();
+        var contentIds = new HashSet<string>(catalog.Content.Select(c => c.Id));
+
+        // Regex for valid ExtendsContentId format: "contentId" or "publisherId/contentId"
+        var extendsIdRegex = new System.Text.RegularExpressions.Regex(@"^([a-z0-9-]+/)?[a-z0-9-]+$");
+
+        foreach (var content in catalog.Content)
+        {
+            if (string.IsNullOrWhiteSpace(content.ExtendsContentId))
+            {
+                continue; // No reference to validate
+            }
+
+            // Validate format
+            if (!extendsIdRegex.IsMatch(content.ExtendsContentId))
+            {
+                errors.Add($"Content '{content.Name}' has invalid ExtendsContentId format: '{content.ExtendsContentId}'. " +
+                          "Must be 'contentId' or 'publisherId/contentId' with lowercase alphanumeric and hyphens only.");
+                continue;
+            }
+
+            // Check if it's a same-catalog reference (no slash)
+            if (!content.ExtendsContentId.Contains('/'))
+            {
+                // Validate that the referenced content exists in this catalog
+                if (!contentIds.Contains(content.ExtendsContentId))
+                {
+                    errors.Add($"Content '{content.Name}' extends '{content.ExtendsContentId}' which does not exist in this catalog.");
+                }
+            }
+
+            // Cross-publisher references are validated for format only (can't verify external catalogs)
+        }
+
+        // Check for circular dependencies
+        var circularErrors = DetectCircularDependencies(catalog);
+        errors.AddRange(circularErrors);
+
+        if (errors.Count > 0)
+        {
+            logger.LogWarning("Content reference validation failed with {ErrorCount} errors", errors.Count);
+            return OperationResult<bool>.CreateFailure(errors);
+        }
+
+        return OperationResult<bool>.CreateSuccess(true);
+    }
+
+    /// <summary>
+    /// Detects circular addon chains in the catalog.
+    /// </summary>
+    /// <param name="catalog">The catalog to check.</param>
+    /// <returns>A list of error messages for any circular dependencies found.</returns>
+    private List<string> DetectCircularDependencies(PublisherCatalog catalog)
+    {
+        var errors = new List<string>();
+        var contentMap = catalog.Content.ToDictionary(c => c.Id, c => c);
+
+        foreach (var content in catalog.Content)
+        {
+            if (string.IsNullOrWhiteSpace(content.ExtendsContentId) || content.ExtendsContentId.Contains('/'))
+            {
+                continue; // Skip if no reference or cross-publisher reference
+            }
+
+            var visited = new HashSet<string>();
+            var currentId = content.Id;
+
+            while (!string.IsNullOrWhiteSpace(currentId))
+            {
+                if (!visited.Add(currentId))
+                {
+                    // Found a cycle
+                    var chain = string.Join(" → ", visited) + $" → {currentId}";
+                    errors.Add($"Circular addon dependency detected: {chain}");
+                    break;
+                }
+
+                if (!contentMap.TryGetValue(currentId, out var currentContent))
+                {
+                    break; // Reference doesn't exist (already caught by other validation)
+                }
+
+                // Move to the next content in the chain
+                if (string.IsNullOrWhiteSpace(currentContent.ExtendsContentId) ||
+                    currentContent.ExtendsContentId.Contains('/'))
+                {
+                    break; // End of chain or cross-publisher reference
+                }
+
+                currentId = currentContent.ExtendsContentId;
+            }
+        }
+
+        return errors;
     }
 
     /// <inheritdoc />
@@ -253,8 +365,7 @@ public class PublisherStudioService(
     /// <inheritdoc />
     public Task<OperationResult<string>> ExportProviderDefinitionAsync(
         PublisherStudioProject project,
-        string primaryCatalogUrl,
-        IEnumerable<string>? catalogMirrorUrls,
+        Dictionary<string, string> catalogHostingInfo,
         string definitionUrl,
         CancellationToken cancellationToken = default)
     {
@@ -265,11 +376,30 @@ public class PublisherStudioService(
                 return Task.FromResult(OperationResult<string>.CreateFailure("Publisher profile is missing"));
             }
 
+            var catalogEntries = new List<CatalogEntry>();
+            foreach (var catalog in project.Catalogs)
+            {
+                if (catalogHostingInfo.TryGetValue(catalog.Id, out var catalogUrl))
+                {
+                    catalogEntries.Add(new CatalogEntry
+                    {
+                        Id = catalog.Id,
+                        Name = catalog.Name,
+                        Description = catalog.Description,
+                        Url = catalogUrl,
+                        Mirrors = [],
+                    });
+                }
+            }
+
+            if (catalogEntries.Count == 0)
+            {
+                return Task.FromResult(OperationResult<string>.CreateFailure("No catalogs have been published yet"));
+            }
+
             var definition = new PublisherDefinition
             {
-                // PublisherDefinition specific fields
-                // Assuming PublisherDefinition has similar structure or mapping required
-                // If PublisherDefinition is the NEW wrapper:
+                SchemaVersion = 2,
                 Publisher = new PublisherProfile
                 {
                     Id = project.Catalog.Publisher.Id,
@@ -280,8 +410,7 @@ public class PublisherStudioService(
                     SupportUrl = project.Catalog.Publisher.SupportUrl,
                     ContactEmail = project.Catalog.Publisher.ContactEmail,
                 },
-                CatalogUrl = primaryCatalogUrl,
-                CatalogMirrors = catalogMirrorUrls != null ? new List<string>(catalogMirrorUrls) : [],
+                Catalogs = catalogEntries,
                 DefinitionUrl = definitionUrl,
                 Referrals = new List<PublisherReferral>(project.Catalog.Referrals),
                 Tags = new List<string>(project.Tags),
@@ -297,12 +426,15 @@ public class PublisherStudioService(
 
             var json = JsonSerializer.Serialize(definition, options);
 
-            _logger.LogInformation("Exported provider definition for: {ProviderId}", definition.Publisher.Id);
+            logger.LogInformation(
+                "Exported provider definition for: {ProviderId} with {CatalogCount} catalogs",
+                definition.Publisher.Id,
+                catalogEntries.Count);
             return Task.FromResult(OperationResult<string>.CreateSuccess(json));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to export provider definition");
+            logger.LogError(ex, "Failed to export provider definition");
             return Task.FromResult(
                 OperationResult<string>.CreateFailure($"Failed to export definition: {ex.Message}"));
         }
@@ -347,7 +479,7 @@ public class PublisherStudioService(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to validate artifact URLs");
+            logger.LogError(ex, "Failed to validate artifact URLs");
             return Task.FromResult(OperationResult<bool>.CreateFailure($"URL validation failed: {ex.Message}"));
         }
     }

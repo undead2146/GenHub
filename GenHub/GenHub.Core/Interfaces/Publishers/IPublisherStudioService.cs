@@ -46,10 +46,12 @@ public interface IPublisherStudioService
     /// Exports the catalog to JSON.
     /// </summary>
     /// <param name="project">The project containing the catalog.</param>
+    /// <param name="catalog">The specific catalog to export. If null, exports the default catalog.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Operation result containing the JSON string.</returns>
     Task<OperationResult<string>> ExportCatalogAsync(
         PublisherStudioProject project,
+        NamedCatalog? catalog = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -73,15 +75,13 @@ public interface IPublisherStudioService
     /// Exports the provider definition to JSON.
     /// </summary>
     /// <param name="project">The project to export definition for.</param>
-    /// <param name="primaryCatalogUrl">The primary URL where the catalog will be hosted.</param>
-    /// <param name="catalogMirrorUrls">Optional list of mirror URLs for the catalog.</param>
+    /// <param name="catalogHostingInfo">Dictionary mapping catalog IDs to their hosted URLs.</param>
     /// <param name="definitionUrl">The URL where this definition file will be hosted (for self-updates).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Operation result containing the JSON string.</returns>
     Task<OperationResult<string>> ExportProviderDefinitionAsync(
         PublisherStudioProject project,
-        string primaryCatalogUrl,
-        IEnumerable<string>? catalogMirrorUrls,
+        Dictionary<string, string> catalogHostingInfo,
         string definitionUrl,
         CancellationToken cancellationToken = default);
 

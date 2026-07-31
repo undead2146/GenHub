@@ -92,14 +92,8 @@
                                             <PathIcon Grid.Column="2"
                                                       Data="M9,16.17L4.83,12L3.41,13.41L9,19L21,7L19.59,5.59L9,16.17Z"
                                                       Width="18" Height="18"
-                                                      Foreground="#40FF40">
-                                                <PathIcon.IsVisible>
-                                                    <MultiBinding Converter="{StaticResource StringEqualityMultiConverter}">
-                                                        <Binding Path="#RootView.((vm:AddReferralDialogViewModel)DataContext).SelectedPublisher.PublisherId"/>
-                                                        <Binding Path="PublisherId"/>
-                                                    </MultiBinding>
-                                                </PathIcon.IsVisible>
-                                            </PathIcon>
+                                                      Foreground="#40FF40"
+                                                      IsVisible="{Binding #RootView.((vm:AddReferralDialogViewModel)DataContext).SelectedPublisher.PublisherId, Converter={StaticResource StringEqualsConverter}, ConverterParameter={Binding PublisherId}}"/>
                                         </Grid>
                                     </Button>
                                 </DataTemplate>

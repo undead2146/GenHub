@@ -13,9 +13,7 @@ using Google.Apis.Drive.v3;
 using Google.Apis.Drive.v3.Data;
 using Google.Apis.Services;
 using Google.Apis.Util.Store;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using GenHub.Core.Constants;
 
 namespace GenHub.Features.Tools.Services.Hosting;
 
@@ -25,10 +23,10 @@ namespace GenHub.Features.Tools.Services.Hosting;
 /// </summary>
 /// <remarks>
 /// Google Drive is the recommended hosting option because:
-/// - Free storage (15GB shared with Gmail/Photos)
-/// - Stable URLs when updating files in-place
-/// - OAuth flow for secure authentication
-/// - No technical setup required (unlike GitHub Pages)
+/// - Free storage (15GB shared with Gmail/Photos).
+/// - Stable URLs when updating files in-place.
+/// - OAuth flow for secure authentication.
+/// - No technical setup required (unlike GitHub Pages).
 /// </remarks>
 public class GoogleDriveHostingProvider : IHostingProvider
 {
@@ -37,19 +35,16 @@ public class GoogleDriveHostingProvider : IHostingProvider
     private static readonly string[] Scopes = { DriveService.Scope.DriveFile };
 
     private readonly ILogger<GoogleDriveHostingProvider> _logger;
-    private readonly IConfiguration _configuration;
     private DriveService? _driveService;
     private string? _publisherFolderId;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GoogleDriveHostingProvider"/> class.
     /// </summary>
-    /// <param name="logger">The logger.</param>
-    /// <param name="configuration">The configuration.</param>
-    public GoogleDriveHostingProvider(ILogger<GoogleDriveHostingProvider> logger, IConfiguration configuration)
+    /// <param name="logger">The logger instance.</param>
+    public GoogleDriveHostingProvider(ILogger<GoogleDriveHostingProvider> logger)
     {
         _logger = logger;
-        _configuration = configuration;
     }
 
     /// <inheritdoc />
@@ -87,22 +82,20 @@ public class GoogleDriveHostingProvider : IHostingProvider
             _logger.LogInformation("Starting Google Drive authentication...");
 
             // Check for credentials from environment or configuration
-            var clientId = Environment.GetEnvironmentVariable("GENHUB_GOOGLE_CLIENT_ID")
-                        ?? _configuration[ConfigurationKeys.GoogleDriveClientId];
-            var clientSecret = Environment.GetEnvironmentVariable("GENHUB_GOOGLE_CLIENT_SECRET")
-                        ?? _configuration[ConfigurationKeys.GoogleDriveClientSecret];
+            var clientId = Environment.GetEnvironmentVariable("GENHUB_GOOGLE_CLIENT_ID");
+            var clientSecret = Environment.GetEnvironmentVariable("GENHUB_GOOGLE_CLIENT_SECRET");
 
             if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
             {
-                _logger.LogWarning("Google Drive credentials not configured. Please set GENHUB_GOOGLE_CLIENT_ID and GENHUB_GOOGLE_CLIENT_SECRET environment variables or update appsettings.json.");
+                _logger.LogWarning("Google Drive credentials not configured. Please set GENHUB_GOOGLE_CLIENT_ID and GENHUB_GOOGLE_CLIENT_SECRET environment variables.");
                 return OperationResult<bool>.CreateFailure(
-                    "Google Drive is not configured. Please set the required credentials in environment variables or appsettings.json.");
+                    "Google Drive is not configured. Set GENHUB_GOOGLE_CLIENT_ID and GENHUB_GOOGLE_CLIENT_SECRET environment variables, or use a different hosting provider.");
             }
 
             var clientSecrets = new ClientSecrets
             {
                 ClientId = clientId,
-                ClientSecret = clientSecret
+                ClientSecret = clientSecret,
             };
 
             var credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
@@ -166,7 +159,7 @@ public class GoogleDriveHostingProvider : IHostingProvider
             var folderMetadata = new Google.Apis.Drive.v3.Data.File
             {
                 Name = PublisherFolderName,
-                MimeType = "application/vnd.google-apps.folder"
+                MimeType = "application/vnd.google-apps.folder",
             };
 
             var createRequest = _driveService.Files.Create(folderMetadata);
@@ -212,7 +205,7 @@ public class GoogleDriveHostingProvider : IHostingProvider
             var fileMetadata = new Google.Apis.Drive.v3.Data.File
             {
                 Name = fileName,
-                Parents = new List<string> { _publisherFolderId! }
+                Parents = new List<string> { _publisherFolderId! },
             };
 
             var request = _driveService.Files.Create(fileMetadata, fileStream, "application/octet-stream");

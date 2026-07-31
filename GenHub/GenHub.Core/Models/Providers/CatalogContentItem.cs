@@ -64,4 +64,11 @@ public class CatalogContentItem
     /// </summary>
     [JsonPropertyName("bundledItems")]
     public ObservableCollection<CatalogDependency> BundledItems { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the content ID that this addon extends (for Addon type).
+    /// Format: "contentId" for same catalog, or "publisherId/contentId" for cross-publisher.
+    /// </summary>
+    [JsonPropertyName("extendsContentId")]
+    public string? ExtendsContentId { get; set; }
 }

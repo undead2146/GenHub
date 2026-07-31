@@ -161,6 +161,67 @@ public static class GameSettingsMapper
     }
 
     /// <summary>
+    /// Applies settings from GameSettings to a GameProfile.
+    /// Used when creating new profiles to inherit existing game settings.
+    /// </summary>
+    /// <param name="settings">The GameSettings containing the settings.</param>
+    /// <param name="profile">The GameProfile to populate.</param>
+    public static void ApplyFromGameSettings(GameSettings settings, GameProfile profile)
+    {
+        // GeneralsOnline settings
+        profile.GoShowFps = settings.ShowFps;
+        profile.GoShowPing = settings.ShowPing;
+        profile.GoShowPlayerRanks = settings.ShowPlayerRanks;
+        profile.GoAutoLogin = settings.AutoLogin;
+        profile.GoRememberUsername = settings.RememberUsername;
+        profile.GoEnableNotifications = settings.EnableNotifications;
+        profile.GoEnableSoundNotifications = settings.EnableSoundNotifications;
+        profile.GoChatFontSize = settings.ChatFontSize;
+
+        // Camera settings
+        profile.GoCameraMaxHeightOnlyWhenLobbyHost = settings.CameraMaxHeightOnlyWhenLobbyHost;
+        profile.GoCameraMinHeight = settings.CameraMinHeight;
+        profile.GoCameraMoveSpeedRatio = settings.CameraMoveSpeedRatio;
+
+        // Chat settings
+        profile.GoChatDurationSecondsUntilFadeOut = settings.ChatDurationSecondsUntilFadeOut;
+
+        // Debug settings
+        profile.GoDebugVerboseLogging = settings.DebugVerboseLogging;
+
+        // Render settings
+        profile.GoRenderFpsLimit = settings.RenderFpsLimit;
+        profile.GoRenderLimitFramerate = settings.RenderLimitFramerate;
+        profile.GoRenderStatsOverlay = settings.RenderStatsOverlay;
+
+        // Social notification settings
+        profile.GoSocialNotificationFriendComesOnlineGameplay = settings.SocialNotificationFriendComesOnlineGameplay;
+        profile.GoSocialNotificationFriendComesOnlineMenus = settings.SocialNotificationFriendComesOnlineMenus;
+        profile.GoSocialNotificationFriendGoesOfflineGameplay = settings.SocialNotificationFriendGoesOfflineGameplay;
+        profile.GoSocialNotificationFriendGoesOfflineMenus = settings.SocialNotificationFriendGoesOfflineMenus;
+        profile.GoSocialNotificationPlayerAcceptsRequestGameplay = settings.SocialNotificationPlayerAcceptsRequestGameplay;
+        profile.GoSocialNotificationPlayerAcceptsRequestMenus = settings.SocialNotificationPlayerAcceptsRequestMenus;
+        profile.GoSocialNotificationPlayerSendsRequestGameplay = settings.SocialNotificationPlayerSendsRequestGameplay;
+        profile.GoSocialNotificationPlayerSendsRequestMenus = settings.SocialNotificationPlayerSendsRequestMenus;
+
+        // TSH settings
+        profile.TshArchiveReplays = settings.ArchiveReplays;
+        profile.TshMoneyTransactionVolume = settings.MoneyTransactionVolume;
+        profile.TshShowMoneyPerMinute = settings.ShowMoneyPerMinute;
+        profile.TshPlayerObserverEnabled = settings.PlayerObserverEnabled;
+        profile.TshSystemTimeFontSize = settings.SystemTimeFontSize;
+        profile.TshNetworkLatencyFontSize = settings.NetworkLatencyFontSize;
+        profile.TshRenderFpsFontSize = settings.RenderFpsFontSize;
+        profile.TshResolutionFontAdjustment = settings.ResolutionFontAdjustment;
+        profile.TshCursorCaptureEnabledInFullscreenGame = settings.CursorCaptureEnabledInFullscreenGame;
+        profile.TshCursorCaptureEnabledInFullscreenMenu = settings.CursorCaptureEnabledInFullscreenMenu;
+        profile.TshCursorCaptureEnabledInWindowedGame = settings.CursorCaptureEnabledInWindowedGame;
+        profile.TshCursorCaptureEnabledInWindowedMenu = settings.CursorCaptureEnabledInWindowedMenu;
+        profile.TshScreenEdgeScrollEnabledInFullscreenApp = settings.ScreenEdgeScrollEnabledInFullscreenApp;
+        profile.TshScreenEdgeScrollEnabledInWindowedApp = settings.ScreenEdgeScrollEnabledInWindowedApp;
+    }
+
+    /// <summary>
     /// Applies settings from a GameProfile to a GeneralsOnlineSettings object.
     /// Used by GameLauncher to prepare settings.json for launch.
     /// </summary>
@@ -220,6 +281,70 @@ public static class GameSettingsMapper
         settings.CursorCaptureEnabledInWindowedMenu = profile.TshCursorCaptureEnabledInWindowedMenu ?? false;
         settings.ScreenEdgeScrollEnabledInFullscreenApp = profile.TshScreenEdgeScrollEnabledInFullscreenApp ?? false;
         settings.ScreenEdgeScrollEnabledInWindowedApp = profile.TshScreenEdgeScrollEnabledInWindowedApp ?? false;
+    }
+
+    /// <summary>
+    /// Creates a new GameSettings record from a GameProfile.
+    /// Used by GameLauncher to prepare settings.json for launch.
+    /// </summary>
+    /// <param name="profile">The GameProfile source.</param>
+    /// <returns>A new GameSettings record populated with profile values.</returns>
+    public static GameSettings CreateGameSettingsFromProfile(GameProfile profile)
+    {
+        return new GameSettings
+        {
+            // GeneralsOnline settings - use null-coalescing with model defaults
+            ShowFps = profile.GoShowFps ?? false,
+            ShowPing = profile.GoShowPing ?? true,
+            ShowPlayerRanks = profile.GoShowPlayerRanks ?? true,
+            AutoLogin = profile.GoAutoLogin ?? false,
+            RememberUsername = profile.GoRememberUsername ?? true,
+            EnableNotifications = profile.GoEnableNotifications ?? true,
+            EnableSoundNotifications = profile.GoEnableSoundNotifications ?? true,
+            ChatFontSize = profile.GoChatFontSize ?? GameSettingsGeneralsOnlineConstants.DefaultChatFontSize,
+
+            // Camera settings
+            CameraMaxHeightOnlyWhenLobbyHost = profile.GoCameraMaxHeightOnlyWhenLobbyHost ?? 310.0f,
+            CameraMinHeight = profile.GoCameraMinHeight ?? 310.0f,
+            CameraMoveSpeedRatio = profile.GoCameraMoveSpeedRatio ?? 1.5f,
+
+            // Chat settings
+            ChatDurationSecondsUntilFadeOut = profile.GoChatDurationSecondsUntilFadeOut ?? 30,
+
+            // Debug settings
+            DebugVerboseLogging = profile.GoDebugVerboseLogging ?? false,
+
+            // Render settings
+            RenderFpsLimit = profile.GoRenderFpsLimit ?? 144,
+            RenderLimitFramerate = profile.GoRenderLimitFramerate ?? true,
+            RenderStatsOverlay = profile.GoRenderStatsOverlay ?? true,
+
+            // Social notification settings
+            SocialNotificationFriendComesOnlineGameplay = profile.GoSocialNotificationFriendComesOnlineGameplay ?? true,
+            SocialNotificationFriendComesOnlineMenus = profile.GoSocialNotificationFriendComesOnlineMenus ?? true,
+            SocialNotificationFriendGoesOfflineGameplay = profile.GoSocialNotificationFriendGoesOfflineGameplay ?? true,
+            SocialNotificationFriendGoesOfflineMenus = profile.GoSocialNotificationFriendGoesOfflineMenus ?? true,
+            SocialNotificationPlayerAcceptsRequestGameplay = profile.GoSocialNotificationPlayerAcceptsRequestGameplay ?? true,
+            SocialNotificationPlayerAcceptsRequestMenus = profile.GoSocialNotificationPlayerAcceptsRequestMenus ?? true,
+            SocialNotificationPlayerSendsRequestGameplay = profile.GoSocialNotificationPlayerSendsRequestGameplay ?? true,
+            SocialNotificationPlayerSendsRequestMenus = profile.GoSocialNotificationPlayerSendsRequestMenus ?? true,
+
+            // TSH settings - use null-coalescing with defaults
+            ArchiveReplays = profile.TshArchiveReplays ?? false,
+            MoneyTransactionVolume = profile.TshMoneyTransactionVolume ?? 0,
+            ShowMoneyPerMinute = profile.TshShowMoneyPerMinute ?? false,
+            PlayerObserverEnabled = profile.TshPlayerObserverEnabled ?? true,
+            SystemTimeFontSize = profile.TshSystemTimeFontSize ?? 8,
+            NetworkLatencyFontSize = profile.TshNetworkLatencyFontSize ?? 8,
+            RenderFpsFontSize = profile.TshRenderFpsFontSize ?? 8,
+            ResolutionFontAdjustment = profile.TshResolutionFontAdjustment ?? -100,
+            CursorCaptureEnabledInFullscreenGame = profile.TshCursorCaptureEnabledInFullscreenGame ?? true,
+            CursorCaptureEnabledInFullscreenMenu = profile.TshCursorCaptureEnabledInFullscreenMenu ?? true,
+            CursorCaptureEnabledInWindowedGame = profile.TshCursorCaptureEnabledInWindowedGame ?? true,
+            CursorCaptureEnabledInWindowedMenu = profile.TshCursorCaptureEnabledInWindowedMenu ?? false,
+            ScreenEdgeScrollEnabledInFullscreenApp = profile.TshScreenEdgeScrollEnabledInFullscreenApp ?? true,
+            ScreenEdgeScrollEnabledInWindowedApp = profile.TshScreenEdgeScrollEnabledInWindowedApp ?? false,
+        };
     }
 
     /// <summary>
