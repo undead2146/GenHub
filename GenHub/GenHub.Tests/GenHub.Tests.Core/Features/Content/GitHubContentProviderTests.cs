@@ -23,7 +23,6 @@ public class GitHubContentProviderTests
     private readonly Mock<IContentDeliverer> _delivererMock;
     private readonly Mock<IContentValidator> _validatorMock;
     private readonly Mock<ILogger<GitHubContentProvider>> _loggerMock;
-    private readonly Mock<IGitHubApiClient> _gitHubApiClientMock = new();
     private readonly GitHubContentProvider _provider;
 
     /// <summary>

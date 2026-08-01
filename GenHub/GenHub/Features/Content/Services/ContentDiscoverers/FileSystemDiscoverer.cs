@@ -22,32 +22,10 @@ namespace GenHub.Features.Content.Services.ContentDiscoverers;
 /// </summary>
 public class FileSystemDiscoverer : IContentDiscoverer
 {
-    private readonly List<string> _contentDirectories = [];
+    private readonly List<string> _contentDirectories = new();
     private readonly ILogger<FileSystemDiscoverer> _logger;
     private readonly ManifestDiscoveryService _manifestDiscoveryService;
     private readonly IConfigurationProviderService _configurationProvider;
-
-    private static bool MatchesQuery(ContentManifest manifest, ContentSearchQuery query)
-    {
-        if (!string.IsNullOrWhiteSpace(query.SearchTerm) &&
-            !manifest.Name.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase) &&
-            !manifest.Id.Value.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (query.ContentType.HasValue && manifest.ContentType != query.ContentType.Value)
-        {
-            return false;
-        }
-
-        if (query.TargetGame.HasValue && manifest.TargetGame != query.TargetGame.Value)
-        {
-            return false;
-        }
-
-        return true;
-    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FileSystemDiscoverer"/> class.
@@ -63,10 +41,6 @@ public class FileSystemDiscoverer : IContentDiscoverer
         _logger = logger;
         _manifestDiscoveryService = manifestDiscoveryService;
         _configurationProvider = configurationProvider;
-
-        // [TEMP] DEBUG: FileSystemDiscoverer constructor
-        _logger.LogInformation("[TEMP] FileSystemDiscoverer constructor called");
-
         InitializeContentDirectories();
     }
 
@@ -88,13 +62,6 @@ public class FileSystemDiscoverer : IContentDiscoverer
     public async Task<OperationResult<ContentDiscoveryResult>> DiscoverAsync(
         ContentSearchQuery query, CancellationToken cancellationToken = default)
     {
-        // [TEMP] DEBUG: DiscoverAsync entry point
-        _logger.LogInformation(
-            "[TEMP] FileSystemDiscoverer.DiscoverAsync called - SearchTerm: '{Search}', ContentType: {ContentType}, TargetGame: {TargetGame}",
-            query.SearchTerm,
-            query.ContentType,
-            query.TargetGame);
-
         var discoveredItems = new List<ContentSearchResult>();
 
         // Use ManifestDiscoveryService for comprehensive discovery
@@ -158,13 +125,14 @@ public class FileSystemDiscoverer : IContentDiscoverer
             }
         }
 
-        _logger.LogInformation("[TEMP] FileSystemDiscoverer.DiscoverAsync completed - Found {Count} items", discoveredItems.Count);
-
-        return OperationResult<ContentDiscoveryResult>.CreateSuccess(new ContentDiscoveryResult
+        _logger.LogInformation("FileSystemDiscoverer found {Count} manifests matching query", discoveredItems.Count);
+        var result = new ContentDiscoveryResult
         {
             Items = discoveredItems,
             HasMoreItems = false,
-        });
+            TotalItems = discoveredItems.Count,
+        };
+        return OperationResult<ContentDiscoveryResult>.CreateSuccess(result);
     }
 
     private void InitializeContentDirectories()
@@ -173,5 +141,27 @@ public class FileSystemDiscoverer : IContentDiscoverer
         _contentDirectories.AddRange(userDefinedDirs.Where(Directory.Exists));
 
         _logger.LogInformation("FileSystemDiscoverer initialized with {Count} directories", _contentDirectories.Count);
+    }
+
+    private bool MatchesQuery(ContentManifest manifest, ContentSearchQuery query)
+    {
+        if (!string.IsNullOrWhiteSpace(query.SearchTerm) &&
+            !manifest.Name.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase) &&
+            !manifest.Id.Value.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (query.ContentType.HasValue && manifest.ContentType != query.ContentType.Value)
+        {
+            return false;
+        }
+
+        if (query.TargetGame.HasValue && manifest.TargetGame != query.TargetGame.Value)
+        {
+            return false;
+        }
+
+        return true;
     }
 }

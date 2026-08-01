@@ -25,7 +25,6 @@ public class ModDBDiscoverer(ILogger<ModDBDiscoverer> logger) : IContentDiscover
     private static readonly SemaphoreSlim _browserLock = new(1, 1);
     private static IPlaywright? _playwright;
     private static IBrowser? _browser;
-    private readonly ILogger<ModDBDiscoverer> _logger = logger;
 
     /// <inheritdoc />
     public string SourceName => ModDBConstants.DiscovererSourceName;
@@ -49,7 +48,7 @@ public class ModDBDiscoverer(ILogger<ModDBDiscoverer> logger) : IContentDiscover
             await EnsurePlaywrightInitializedAsync();
 
             var gameType = query.TargetGame ?? GameType.ZeroHour;
-            _logger.LogInformation("Discovering ModDB content for {Game} using Playwright", gameType);
+            logger.LogInformation("Discovering ModDB content for {Game} using Playwright", gameType);
 
             List<ContentSearchResult> results = [];
             bool hasMoreItems = false;
@@ -67,7 +66,7 @@ public class ModDBDiscoverer(ILogger<ModDBDiscoverer> logger) : IContentDiscover
                 }
             }
 
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Discovered {Count} ModDB items across {Sections} sections",
                 results.Count,
                 sectionsToSearch.Count);
@@ -80,7 +79,7 @@ public class ModDBDiscoverer(ILogger<ModDBDiscoverer> logger) : IContentDiscover
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to discover ModDB content");
+            logger.LogError(ex, "Failed to discover ModDB content");
             return OperationResult<ContentDiscoveryResult>.CreateFailure($"Discovery failed: {ex.Message}");
         }
     }
@@ -317,7 +316,7 @@ public class ModDBDiscoverer(ILogger<ModDBDiscoverer> logger) : IContentDiscover
             var pageSuffix = filter.Page > 1 ? $"/page/{filter.Page}" : string.Empty;
             var url = baseUrl + pageSuffix + queryString;
 
-            _logger.LogInformation(
+            logger.LogInformation(
                 "[ModDB] Fetching page {Page} from section '{Section}': {Url}",
                 filter.Page,
                 section,
@@ -341,7 +340,7 @@ public class ModDBDiscoverer(ILogger<ModDBDiscoverer> logger) : IContentDiscover
             }
             catch
             {
-                _logger.LogWarning("Timeout waiting for content selector on {Url}, parsing what we have...", url);
+                logger.LogWarning("Timeout waiting for content selector on {Url}, parsing what we have...", url);
             }
 
             var html = await page.ContentAsync();
@@ -369,48 +368,15 @@ public class ModDBDiscoverer(ILogger<ModDBDiscoverer> logger) : IContentDiscover
                 }
             }
 
-            // NEW LOGGING:
-            _logger.LogInformation("[ModDB] Pagination Logic Starting...");
-            var pagesDiv = document.QuerySelector("div.pages");
-            if (pagesDiv != null)
-            {
-                _logger.LogInformation("[ModDB] found div.pages. Html content length: {Length}", pagesDiv.InnerHtml.Length);
-                var allLinks = pagesDiv.QuerySelectorAll("a");
-                foreach (var link in allLinks)
-                {
-                    _logger.LogInformation("[ModDB] Link in pages: Text='{Text}', Href='{Href}', Class='{Class}'", link.TextContent?.Trim(), link.GetAttribute("href"), link.ClassName);
-                }
-            }
-            else
-            {
-                _logger.LogWarning("[ModDB] div.pages NOT FOUND");
-            }
-
             // Check for pagination "next" button
-            // ModDB typically has a 'a.next' or 'span.next' inside a div.pages
             var nextLink = document.QuerySelector("div.pages a.next") ?? document.QuerySelector("a.next");
-
-            if (nextLink == null)
-            {
-                 _logger.LogWarning("[ModDB] NEXT LINK IS NULL. Trying broader search...");
-                 var anyNext = document.QuerySelectorAll("a").FirstOrDefault(a => a.TextContent != null && a.TextContent.Contains("next", StringComparison.OrdinalIgnoreCase));
-                 if (anyNext != null)
-                 {
-                     _logger.LogInformation("[ModDB] Found a link containing 'next' (but not matching selector): Text='{Text}', Href='{Href}', Class='{Class}'", anyNext.TextContent, anyNext.GetAttribute("href"), anyNext.ClassName);
-                 }
-            }
-            else
-            {
-                _logger.LogInformation("[ModDB] Found next link via selector: {Url}", nextLink.GetAttribute("href"));
-            }
-
             var hasMoreItems = nextLink != null;
 
             return (results, hasMoreItems);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to discover from {Section} with Playwright", section);
+            logger.LogError(ex, "Failed to discover from {Section} with Playwright", section);
             return ([], false);
         }
         finally

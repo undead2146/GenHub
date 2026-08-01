@@ -36,8 +36,7 @@ export default withMermaid(
                         { text: 'Introduction', link: '/' },
                         { text: 'Developer Onboarding', link: '/onboarding' },
                         { text: 'Architecture Overview', link: '/architecture' },
-                        { text: 'Velopack Integration', link: '/velopack-integration' },
-                        { text: 'Contributor Guidelines', link: '/dev/contribution-guidelines' }
+                        { text: 'Velopack Integration', link: '/velopack-integration' }
                     ]
                 },
                 {
@@ -46,13 +45,20 @@ export default withMermaid(
                         { text: 'Overview', link: '/features/index' },
                         { text: 'App Update & Installer', link: '/velopack-integration' },
                         { text: 'Content System', link: '/features/content' },
+                        { text: 'Content Reconciliation', link: '/features/reconciliation' },
                         { text: 'Manifest Service', link: '/features/manifest' },
                         { text: 'Storage & CAS', link: '/features/storage' },
                         { text: 'Validation', link: '/features/validation' },
                         { text: 'Workspace', link: '/features/workspace' },
                         { text: 'Launching', link: '/features/launching' },
                         { text: 'GameProfiles System', link: '/features/gameprofiles' },
-                        { text: 'Game Installations', link: '/features/game-installations' }
+                        { text: 'Game Installations', link: '/features/game-installations/' },
+                        { text: 'User Data Management', link: '/features/userdata' },
+                        { text: 'Downloads UI', link: '/features/downloads-ui' },
+                        { text: 'Notifications', link: '/features/notifications' },
+                        { text: 'Desktop Shortcuts', link: '/features/desktop-shortcuts' },
+                        { text: 'Steam Proxy Launcher', link: '/features/steam-proxy-launcher' },
+                        { text: 'Danger Zone', link: '/features/danger-zone' }
                     ]
                 },
                 {
@@ -76,9 +82,11 @@ export default withMermaid(
                         { text: 'Result Pattern', link: '/dev/result-pattern' },
                         { text: 'Constants', link: '/dev/constants' },
                         { text: 'Models', link: '/dev/models' },
-                        { text: 'Content Manifest', link: '/dev/content-manifest' },
                         { text: 'Manifest ID System', link: '/dev/manifest-id-system' },
-                        { text: 'Publisher Architecture', link: '/dev/publisher-architecture' }
+                        { text: 'Content Manifest', link: '/dev/content-manifest' },
+                        { text: 'Game Settings Architecture', link: '/dev/game-settings-architecture' },
+                        { text: 'Uploading API', link: '/dev/uploading-api' },
+                        { text: 'Debugging', link: '/dev/debugging' }
                     ]
                 },
                 {
@@ -91,14 +99,20 @@ export default withMermaid(
                         { text: 'Content Acquisition', link: '/FlowCharts/Acquisition-Flow' },
                         { text: 'Workspace Assembly', link: '/FlowCharts/Assembly-Flow' },
                         { text: 'Manifest Creation', link: '/FlowCharts/Manifest-Creation-Flow' },
-                        { text: 'Complete User Flow', link: '/FlowCharts/Complete-User-Flow' }
+                        { text: 'Complete User Flow', link: '/FlowCharts/Complete-User-Flow' },
+                        { text: 'CAS Storage Flow', link: '/FlowCharts/CAS-Storage-Flow' },
+                        { text: 'Dependency Resolution', link: '/FlowCharts/Dependency-Resolution-Flow' },
+                        { text: 'Profile Lifecycle', link: '/FlowCharts/Profile-Lifecycle-Flow' },
+                        { text: 'Publisher Studio Workflow', link: '/FlowCharts/Publisher-Studio-Workflow' },
+                        { text: 'Subscription System', link: '/FlowCharts/Subscription-System-Flow' }
                     ]
                 },
                 {
                     text: 'Tools',
                     items: [
+                        { text: 'Overview', link: '/tools/' },
                         { text: 'Replay Manager', link: '/tools/replay-manager' },
-                        { text: 'Publisher Studio', link: '/features/tools/publisher-studio' }
+                        { text: 'Map Manager', link: '/tools/map-manager' }
                     ]
                 }
             ],

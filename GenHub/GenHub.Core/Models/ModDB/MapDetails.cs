@@ -36,4 +36,4 @@ public record MapDetails(
     string? FileType = null,
     float? Rating = null,
     string? RefererUrl = null,
-    List<Parsers.File>? AdditionalFiles = null);
+    List<GenHub.Core.Models.Parsers.File>? AdditionalFiles = null);

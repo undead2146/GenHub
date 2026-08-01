@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 
@@ -24,13 +25,61 @@ public static partial class GameVersionHelper
         // Extract all digits from the version string
         var digits = NonDigitRegex().Replace(version, string.Empty);
 
-        // Take first 8 digits (YYYYMMDD format) to avoid overflow
-        if (digits.Length > 8)
+        // If it looks like a long date (YYYYMMDD) preceded by a segment (e.g. "1.20260116"),
+        // we might want the latter part if it's the date.
+        // But for now, let's just avoid the 8-digit truncation if it causes mangling
+        // and only truncate IF it would actually overflow int.
+        if (digits.Length > 9 && digits.StartsWith('0'))
         {
-            digits = digits[..8];
+            digits = digits.TrimStart('0');
         }
 
-        return int.TryParse(digits, out var result) ? result : 0;
+        if (digits.Length > 10)
+        {
+             // int.MaxValue is ~2.1 billion (10 digits)
+            digits = digits[..10];
+        }
+
+        if (long.TryParse(digits, out var longResult))
+        {
+            if (longResult > int.MaxValue)
+            {
+                // If it's still too large for int, cap at int.MaxValue to prevent incorrect comparisons
+                // Most callers expect int.
+                return int.MaxValue;
+            }
+
+            return (int)longResult;
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Checks if a version string is a "default" version that shouldn't be displayed.
+    /// Matches "0", "0.0", "0.0.0", "1.0", "1.0.0", etc.
+    /// </summary>
+    /// <param name="version">The version string to check.</param>
+    /// <returns>True if it is a default version, false otherwise.</returns>
+    public static bool IsDefaultVersion(string? version)
+    {
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            return true;
+        }
+
+        var normalized = version.Trim().ToLowerInvariant();
+
+        // Remove 'v' prefix if present
+        if (normalized.StartsWith("v"))
+        {
+            normalized = normalized.Substring(1);
+        }
+
+        // Common default versions
+        string[] defaultVersions = { "0", "0.0", "0.0.0", "0.0.0.0", "1.0", "1.0.0", "1.0.0.0", "1" };
+
+        return defaultVersions.Contains(normalized);
     }
 
     /// <summary>
@@ -74,69 +123,66 @@ public static partial class GameVersionHelper
     }
 
     /// <summary>
-    /// Parses a version string (MMDDYY_QFE#) used by Generals Online.
-    /// </summary>
-    /// <param name="version">The version string to parse.</param>
-    /// <returns>A tuple containing the extracted date and QFE number, or null if parsing fails.</returns>
-    public static (DateTime Date, int Qfe)? ParseGeneralsOnlineVersion(string? version)
-    {
-        if (string.IsNullOrWhiteSpace(version))
-        {
-            return null;
-        }
-
-        try
-        {
-            // Format: MMDDYY_QFE# or DDMMYY_QFE# (General Online CDN uses MMDDYY)
-            var parts = version.Split('_', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (parts.Length != 2)
-            {
-                return null;
-            }
-
-            var datePart = parts[0];
-            var qfePart = parts[1].Replace("QFE", string.Empty, StringComparison.OrdinalIgnoreCase);
-
-            if (datePart.Length != 6 || !int.TryParse(qfePart, out var qfe))
-            {
-                return null;
-            }
-
-            var month = int.Parse(datePart[0..2]);
-            var day = int.Parse(datePart[2..4]);
-            var year = 2000 + int.Parse(datePart[4..6]);
-
-            return (new DateTime(year, month, day), qfe);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Gets a sortable integer version for Generals Online versions.
+    /// Builds the numeric version component of a Generals Online manifest ID.
     /// Converts "101525_QFE2" to 1015252.
     /// </summary>
+    /// <remarks>
+    /// This value identifies a release inside an existing manifest ID; it is not a sort key.
+    /// MMddyy is month-major and drops leading zeros, so it does not order across months or
+    /// years — use <see cref="Interfaces.Providers.IContentVersionComparer"/> for that. The
+    /// encoding is frozen because changing it would invalidate the IDs of installed content.
+    /// </remarks>
     /// <param name="version">The version string to convert.</param>
-    /// <returns>A sortable integer, or 0 if parsing fails.</returns>
-    public static int GetGeneralsOnlineSortableVersion(string? version)
+    /// <returns>The manifest ID component, or 0 if parsing fails.</returns>
+    public static int GetGeneralsOnlineManifestIdComponent(string? version)
     {
         if (string.IsNullOrWhiteSpace(version))
         {
             return 0;
         }
 
-        var parsed = ParseGeneralsOnlineVersion(version);
-        if (parsed != null)
+        // Preserve the exact legacy behavior used to generate installed manifest IDs.
+        // Extended versions previously fell through to digit extraction, so this encoder
+        // intentionally accepts only the original two-segment format.
+        var parts = version.Split(
+            '_',
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length != 2)
         {
-            var dateValue = int.Parse(parsed.Value.Date.ToString("MMddyy"));
-            return (dateValue * 10) + parsed.Value.Qfe;
+            return ExtractVersionFromVersionString(version);
         }
 
-        // Fallback: extract all digits
-        var digitsOnly = string.Concat(version.Where(char.IsDigit));
-        return int.TryParse(digitsOnly, out var result) ? result : 0;
+        var datePart = parts[0];
+        var qfePart = parts[1];
+        var hasQfePrefix = qfePart.StartsWith("QFE", StringComparison.OrdinalIgnoreCase);
+        var qfeDigits = hasQfePrefix ? qfePart[3..] : string.Empty;
+
+        if (datePart.Length != 6
+            || !datePart.All(character => character is >= '0' and <= '9')
+            || qfeDigits.Length == 0
+            || !qfeDigits.All(character => character is >= '0' and <= '9')
+            || !int.TryParse(qfeDigits, NumberStyles.None, CultureInfo.InvariantCulture, out var qfe)
+            || !int.TryParse(datePart[0..2], NumberStyles.None, CultureInfo.InvariantCulture, out var month)
+            || !int.TryParse(datePart[2..4], NumberStyles.None, CultureInfo.InvariantCulture, out var day)
+            || !int.TryParse(datePart[4..6], NumberStyles.None, CultureInfo.InvariantCulture, out var twoDigitYear))
+        {
+            return ExtractVersionFromVersionString(version);
+        }
+
+        try
+        {
+            _ = new DateTime(2000 + twoDigitYear, month, day);
+            var mmddyy = (month * 10000) + (day * 100) + twoDigitYear;
+            return checked((mmddyy * 10) + qfe);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return ExtractVersionFromVersionString(version);
+        }
+        catch (OverflowException)
+        {
+            return ExtractVersionFromVersionString(version);
+        }
     }
 
     /// <summary>

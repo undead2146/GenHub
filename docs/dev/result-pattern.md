@@ -3,8 +3,6 @@ title: Result Pattern
 description: Documentation for the Result pattern used in GenHub
 ---
 
-# Result Pattern Documentation
-
 GenHub uses a consistent Result pattern for handling operations that may succeed or fail. This pattern provides a standardized way to return data and error information from methods.
 
 ## Overview
@@ -33,16 +31,16 @@ The Result pattern in GenHub consists of several key components:
 ### ResultBase Constructors
 
 ```csharp
-// Success with no errors
-protected ResultBase(bool success, IEnumerable&lt;string&gt;? errors = null, TimeSpan elapsed = default)
+// Result with optional errors
+protected ResultBase(bool success, IEnumerable<string>? errors = null, TimeSpan elapsed = default)
 
 // Success/failure with single error
 protected ResultBase(bool success, string? error = null, TimeSpan elapsed = default)
 ```
 
-## OperationResult&lt;T&gt;
+## `OperationResult<T>`
 
-`OperationResult&lt;T&gt;` extends `ResultBase` and adds support for returning data from operations.
+`OperationResult<T>` extends `ResultBase` and adds support for returning data from operations.
 
 ### OperationResult Properties
 
@@ -61,6 +59,12 @@ OperationResult<T> CreateFailure(string error, TimeSpan elapsed = default)
 // Create failed result with multiple errors
 OperationResult<T> CreateFailure(IEnumerable<string> errors, TimeSpan elapsed = default)
 
+// Create failed result with single error and partial data
+OperationResult<T> CreateFailure(string error, T data, TimeSpan elapsed)
+
+// Create failed result with multiple errors and partial data
+OperationResult<T> CreateFailure(IEnumerable<string> errors, T data, TimeSpan elapsed)
+
 // Create failed result copying errors from another result
 OperationResult<T> CreateFailure(ResultBase result, TimeSpan elapsed = default)
 ```
@@ -73,15 +77,16 @@ GenHub includes several specialized result types for different domains:
 
 Result of a game launch operation.
 
-### LaunchResult Properties
+**Properties:**
 
 - `ProcessId`: The launched process ID
 - `Exception`: Exception that occurred during launch
 - `StartTime`: When the launch started
 - `LaunchDuration`: How long the launch took
-- `FirstError`: First error message of the launch operation
+- `FirstError`: First error message
 
-### LaunchResult Factory Methods
+**Factory Methods:**
+
 ```csharp
 LaunchResult CreateSuccess(int processId, DateTime startTime, TimeSpan launchDuration)
 LaunchResult CreateFailure(string errorMessage, Exception? exception = null)
@@ -91,47 +96,75 @@ LaunchResult CreateFailure(string errorMessage, Exception? exception = null)
 
 Result of a validation operation.
 
-### ValidationResult Properties
+**Properties:**
 
 - `ValidatedTargetId`: ID of the validated target
 - `Issues`: List of validation issues
 - `IsValid`: Whether validation passed
 - `CriticalIssueCount`: Number of critical issues
 - `WarningIssueCount`: Number of warning issues
-- `InfoIssueCount`: Number of informational issues in validation
+- `InfoIssueCount`: Number of informational issues
 
-### UpdateCheckResult
+**Constructors:**
 
-Result of an update check operation.
-
-### UpdateCheckResult Properties
-
-- `IsUpdateAvailable`: Whether an update is available
-- `CurrentVersion`: Current application version
-- `LatestVersion`: Latest available version
-- `UpdateUrl`: URL for the update
-- `ReleaseNotes`: Release notes
-- `ReleaseTitle`: Release title
-- `ErrorMessages`: List of error messages
-- `Assets`: Release assets
-- `HasErrors`: Whether there are errors in update check
-
-### UpdateCheckResult Factory Methods
 ```csharp
-UpdateCheckResult NoUpdateAvailable()
-UpdateCheckResult UpdateAvailable(GitHubRelease release)
-UpdateCheckResult Error(string errorMessage)
+// Standard constructor
+public ValidationResult(string validatedTargetId, IEnumerable<ValidationIssue> issues)
 ```
 
-### DetectionResult&lt;T&gt;
+**Factory Methods:**
+
+```csharp
+// Result with no issues
+public static ValidationResult CreateSuccess(string validatedTargetId)
+
+// Failure with issues
+public static ValidationResult CreateFailure(string validatedTargetId, IEnumerable<ValidationIssue> issues)
+```
+
+
+### ContentUpdateCheckResult
+
+Result of a content update check operation.
+
+**Properties:**
+
+- `IsUpdateAvailable`: Whether an update is available
+- `CurrentVersion`: Current content version
+- `LatestVersion`: Latest available version
+- `DownloadUrl`: URL for the update package
+- `Changelog`: Release notes or changelog content
+- `HasErrors`: Inherited from `ResultBase`, indicates whether any errors are present
+- `FirstError`: Inherited from `ResultBase`, provides the first error message, if any
+
+**Factory Methods:**
+
+- `ContentUpdateCheckResult.CreateUpdateAvailable(string latestVersion, ...)`: When an update for existing content is found.
+- `ContentUpdateCheckResult.CreateNoUpdateAvailable(string currentVersion, ...)`: When the current version is up to date.
+- `ContentUpdateCheckResult.CreateContentAvailable(string latestVersion, ...)`: **Semantic Difference**: Use this when search returns content that is *not currently installed* but available for first-time acquisition.
+- `ContentUpdateCheckResult.CreateFailure(string error, ...)`: When the update check itself fails.
+
+> [!TIP]
+> Always check `result.Success` before accessing version properties, as they may be null in failure results.
+
+```csharp
+var result = await updateService.CheckForUpdatesAsync(manifest);
+if (result.Success && result.IsUpdateAvailable)
+{
+    // Handle update
+}
+```
+
+### `DetectionResult<T>`
 
 Generic result for detection operations.
 
-### DetectionResult Properties
+**Properties:**
 
 - `Items`: Detected items
 
-### DetectionResult Factory Methods
+**Factory Methods:**
+
 ```csharp
 DetectionResult<T> Succeeded(IEnumerable<T> items, TimeSpan elapsed)
 DetectionResult<T> Failed(string error)
@@ -141,7 +174,7 @@ DetectionResult<T> Failed(string error)
 
 Result of a file download operation.
 
-### DownloadResult Properties
+**Properties:**
 
 - `FilePath`: Path to the downloaded file
 - `BytesDownloaded`: Number of bytes downloaded
@@ -149,65 +182,81 @@ Result of a file download operation.
 - `AverageSpeedBytesPerSecond`: Download speed
 - `FormattedBytesDownloaded`: Formatted bytes (e.g., "1.2 MB")
 - `FormattedSpeed`: Formatted speed (e.g., "1.2 MB/s")
-- `FirstError`: First error message of the download
+- `FirstError`: First error message
 
-### DownloadResult Factory Methods
+**Factory Methods:**
+
 ```csharp
 DownloadResult CreateSuccess(string filePath, long bytesDownloaded, TimeSpan elapsed, bool hashVerified = false)
+DownloadResult CreateFailure(string errorMessage, long bytesDownloaded = 0, TimeSpan elapsed = default)
 ```
 
 ### GitHubUrlParseResult
 
 Result of parsing GitHub repository URLs.
 
-### GitHubUrlParseResult Properties
+**Properties:**
 
 - `Owner`: Repository owner
 - `Repo`: Repository name
 - `Tag`: Release tag
 
-### GitHubUrlParseResult Factory Methods
+**Factory Methods:**
 
 ```csharp
 GitHubUrlParseResult CreateSuccess(string owner, string repo, string? tag)
 GitHubUrlParseResult CreateFailure(params string[] errors)
 ```
 
-## CAS Results
+### CAS Results
 
-### CasGarbageCollectionResult
+#### CasGarbageCollectionResult
 
 Result of CAS garbage collection.
 
-### CasGarbageCollectionResult Properties
+**Properties:**
 
 - `ObjectsDeleted`: Number of objects deleted
 - `BytesFreed`: Bytes freed
-- `ObjectsScanned`: Objects scanned
-- `ObjectsReferenced`: Objects kept
-- `PercentageFreed`: Percentage of storage freed
+- `ObjectsScanned`: Total objects scanned
+- `ObjectsReferenced`: Objects kept (referenced)
+- `PercentageFreed`: Percentage of objects freed relative to scanned objects
 
-### CasValidationResult
+**Factory Methods:**
+
+- `CreateSuccess(int deleted, long bytes, int scanned, int referenced, TimeSpan elapsed)`
+- `CreateFailure(string error, TimeSpan elapsed)` or `CreateFailure(IEnumerable<string> errors, TimeSpan elapsed)`
+
+#### CasValidationResult
 
 Result of CAS integrity validation.
 
-### CasValidationResult Properties
+**Properties:**
 
 - `Issues`: Validation issues
 - `IsValid`: Whether validation passed
 - `ObjectsValidated`: Objects validated
 - `ObjectsWithIssues`: Objects with issues
 
-### CasStats
+**Constructors:**
+
+- `CasValidationResult()`: Creates a successful validation result with no issues.
+- `CasValidationResult(issues, objectsValidated, elapsed)`: Creates a result with validation issues. Note that `Success` will be `false` only if critical issues are present.
+
+#### CasStats
 
 Summary of CAS system state.
 
-### CasStats Properties
+**Properties:**
 
 - `TotalObjects`: Number of objects in CAS
 - `TotalBytes`: Total disk space consumed
 - `LastGcTimestamp`: When garbage collection was last run
 - `IsGcPending`: Whether a cleanup is recommended
+
+**Factory Methods:**
+
+- `Create(objectCount, totalSize, spaceSaved, hitRate, recentAccesses)`
 
 ## Usage Examples
 
@@ -275,16 +324,56 @@ public async Task<LaunchResult> LaunchGame(GameProfile profile)
 }
 ```
 
+### Content Update Check Result
+
+```csharp
+public async Task<ContentUpdateCheckResult> CheckForUpdatesAsync(ContentManifest manifest)
+{
+    try
+    {
+        var latestRelease = await _gitHubService.GetLatestReleaseAsync(manifest.Publisher.Id);
+
+        if (latestRelease.Version == manifest.Version)
+        {
+            return ContentUpdateCheckResult.CreateNoUpdateAvailable(manifest.Version);
+        }
+
+        return ContentUpdateCheckResult.CreateUpdateAvailable(
+            latestRelease.Version,
+            manifest.Version,
+            manifest.Publisher.Id,
+            manifest.Publisher.Name,
+            manifest.Id,
+            manifest.Name,
+            latestRelease.ReleaseDate,
+            latestRelease.DownloadUrl,
+            latestRelease.Changelog);
+    }
+    catch (Exception ex)
+    {
+        return ContentUpdateCheckResult.CreateFailure($"Update check failed: {ex.Message}");
+    }
+}
+```
+
 ## Best Practices
+
 1. **Always check Success/Failed**: Before accessing Data or other properties, check if the operation succeeded.
+
 2. **Use appropriate result types**: Choose the most specific result type for your operation.
+
 3. **Provide meaningful errors**: Include descriptive error messages that help users understand what went wrong.
+
 4. **Include timing information**: Pass elapsed time when available for performance monitoring.
+
 5. **Handle exceptions**: Convert exceptions to appropriate result failures.
+
 6. **Test thoroughly**: Ensure all success and failure paths are tested.
 
 ## Testing
+
 All result types include comprehensive unit tests covering:
+
 - Constructor behavior
 - Property access
 - Factory method functionality

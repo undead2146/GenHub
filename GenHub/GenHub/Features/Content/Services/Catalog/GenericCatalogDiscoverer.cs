@@ -16,6 +16,7 @@ using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Providers;
+using PublisherSubscription = GenHub.Core.Models.Providers.PublisherSubscription;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Results.Content;
 using Microsoft.Extensions.Logging;

@@ -25,8 +25,16 @@ namespace GenHub.Features.Content.Services.ContentDiscoverers;
 public partial class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabsMapDiscoverer> logger) : IContentDiscoverer
 {
     private static readonly char[] TagSeparator = [',', ';', ' '];
-    private readonly HttpClient _httpClient = httpClient;
     private readonly ILogger<CNCLabsMapDiscoverer> _logger = logger;
+
+    [GeneratedRegex(@"(?:Date submitted|Date reviewed|Date added|Date updated|Added|Updated|reviewed):\s*(\d{1,2}/\d{1,2}/\d{4})", RegexOptions.IgnoreCase)]
+    private static partial Regex DateRegex();
+
+    [GeneratedRegex(@"(?:File Size|Size):\s*([\d\.]+\s*[KMGT]?B)", RegexOptions.IgnoreCase)]
+    private static partial Regex FileSizeRegex();
+
+    [GeneratedRegex(@"(\d+)\s*downloads|Downloads:\s*(\d+)", RegexOptions.IgnoreCase)]
+    private static partial Regex DownloadCountRegex();
 
     /// <summary>
     /// Gets the source name for this discoverer.
@@ -126,7 +134,7 @@ public partial class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabs
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, CNCLabsConstants.DiscoveryFailureLogMessage);
+            logger.LogError(ex, CNCLabsConstants.DiscoveryFailureLogMessage);
             return OperationResult<ContentDiscoveryResult>.CreateFailure(string.Format(CNCLabsConstants.DiscoveryFailedErrorTemplate, ex.Message));
         }
     }
@@ -221,7 +229,7 @@ public partial class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabs
         CancellationToken cancellationToken = default)
     {
         var url = CNCLabsHelper.BuildSearchUrl(query);
-        _logger.LogInformation("[CNCLabs] Fetching from URL: {Url}", url);
+        logger.LogInformation("[CNCLabs] Fetching from URL: {Url}", url);
         if (string.IsNullOrWhiteSpace(url))
         {
             throw new ArgumentNullException(nameof(query));
@@ -234,7 +242,7 @@ public partial class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabs
 
         var mapList = new List<MapListItem>();
 
-        var html = await _httpClient.GetStringAsync(url, cancellationToken).ConfigureAwait(false);
+        var html = await httpClient.GetStringAsync(url, cancellationToken).ConfigureAwait(false);
 
         var context = BrowsingContext.New(Configuration.Default);
         var document = await context.OpenAsync(req => req.Content(html), cancellationToken).ConfigureAwait(false);
@@ -339,17 +347,17 @@ public partial class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabs
 
         if (pagingLinks.Length > 0)
         {
-            _logger.LogInformation("[CNCLabs] Found {Count} paging links", pagingLinks.Length);
+            logger.LogInformation("[CNCLabs] Found {Count} paging links", pagingLinks.Length);
             foreach (var link in pagingLinks)
             {
                 var text = link.TextContent.Trim();
                 var href = link.GetAttribute("href");
-                _logger.LogDebug("[CNCLabs] Paging link: Text='{Text}', Href='{Href}'", text, href);
+                logger.LogDebug("[CNCLabs] Paging link: Text='{Text}', Href='{Href}'", text, href);
 
                 // Check for "Next" or "..."
                 if (text.Contains("Next", StringComparison.OrdinalIgnoreCase) || text.Contains("...", StringComparison.Ordinal) || (href != null && href.Contains("page=" + (query.Page + 1))))
                 {
-                    _logger.LogInformation("[CNCLabs] Found Next/Ellipsis link match: {Text} (href: {Href})", text, href);
+                    logger.LogInformation("[CNCLabs] Found Next/Ellipsis link match: {Text} (href: {Href})", text, href);
                     hasMoreItems = true;
 
                     // Dont break, keep logging for debug
@@ -361,7 +369,7 @@ public partial class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabs
                     int currentPage = query.Page ?? 1;
                     if (pNum > currentPage)
                     {
-                        _logger.LogInformation("[CNCLabs] Found page {PageNum} > current {CurrentPage}", pNum, currentPage);
+                        logger.LogInformation("[CNCLabs] Found page {PageNum} > current {CurrentPage}", pNum, currentPage);
                         hasMoreItems = true;
                     }
                 }
@@ -369,7 +377,7 @@ public partial class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabs
         }
         else
         {
-            _logger.LogInformation("[CNCLabs] No paging links found using selectors: .paging a, .pager a, #ctl00_MainContent_Pager1 a, etc.");
+            logger.LogInformation("[CNCLabs] No paging links found using selectors: .paging a, .pager a, #ctl00_MainContent_Pager1 a, etc.");
         }
 
         return (mapList, hasMoreItems);
@@ -415,7 +423,7 @@ public partial class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabs
             throw new ArgumentException(CNCLabsConstants.UrlRequiredMessage, nameof(detailsPageUrl));
         }
 
-        var html = await _httpClient.GetStringAsync(detailsPageUrl, cancellationToken).ConfigureAwait(false);
+        var html = await httpClient.GetStringAsync(detailsPageUrl, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
 
         var context = BrowsingContext.New(Configuration.Default);
@@ -584,7 +592,7 @@ public partial class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabs
         string? IconUrl,
         IEnumerable<string> Tags);
 
-    private static long? ParseFileSize(string size)
+    private long? ParseFileSize(string size)
     {
         // Simple parser for "7.2 MB" etc if needed, or return generic
         // For now just return null as the UI uses the formatted string string usually,
@@ -611,19 +619,11 @@ public partial class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabs
                 return (long)(val * multiplier);
             }
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to parse file size '{Size}'", size);
         }
 
         return null;
     }
-
-    [GeneratedRegex(@"(?:Date submitted|Date reviewed|Date added|Date updated|Added|Updated|reviewed):\s*(\d{1,2}/\d{1,2}/\d{4})", RegexOptions.IgnoreCase)]
-    private static partial Regex DateRegex();
-
-    [GeneratedRegex(@"(?:File Size|Size):\s*([\d\.]+\s*[KMGT]?B)", RegexOptions.IgnoreCase)]
-    private static partial Regex FileSizeRegex();
-
-    [GeneratedRegex(@"(\d+)\s*downloads|Downloads:\s*(\d+)", RegexOptions.IgnoreCase)]
-    private static partial Regex DownloadCountRegex();
 }

@@ -17,6 +17,7 @@ using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Providers;
+using PublisherSubscription = GenHub.Core.Models.Providers.PublisherSubscription;
 using GenHub.Features.Content.Services.Catalog;
 using GenHub.Features.Content.Services.GeneralsOnline;
 using GenHub.Features.Downloads.ViewModels.Filters;

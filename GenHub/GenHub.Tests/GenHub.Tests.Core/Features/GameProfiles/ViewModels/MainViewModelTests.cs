@@ -6,6 +6,7 @@ using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.GitHub;
+using GenHub.Core.Interfaces.Info;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Providers; // Added
@@ -23,6 +24,7 @@ using GenHub.Features.Content.Services.Publishers;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.ViewModels;
+using GenHub.Features.Info.ViewModels;
 using GenHub.Features.Notifications.ViewModels;
 using GenHub.Features.Settings.ViewModels;
 using GenHub.Features.Tools.ViewModels;
@@ -60,7 +62,7 @@ public class MainViewModelTests
         // Act
         var vm = new MainViewModel(
             gameProfilesViewModel: CreateGameProfileLauncherViewModel(),
-            downloadsViewModel: CreateDownloadsViewModel(),
+            downloadsViewModel: CreateDownloadsViewModel(configProvider),
             toolsViewModel: toolsVm,
             settingsViewModel: settingsVm,
             notificationManager: mockNotificationManager.Object,
@@ -68,7 +70,9 @@ public class MainViewModelTests
             userSettingsService: userSettingsMock.Object,
             velopackUpdateManager: mockVelopackUpdateManager.Object,
             notificationService: mockNotificationService.Object,
+            dialogService: new Mock<IDialogService>().Object,
             notificationFeedViewModel: notificationFeedVm,
+            infoViewModel: CreateInfoViewModel(),
             logger: mockLogger.Object);
 
         // Assert
@@ -85,6 +89,7 @@ public class MainViewModelTests
     [InlineData(NavigationTab.Downloads)]
     [InlineData(NavigationTab.Tools)]
     [InlineData(NavigationTab.Settings)]
+    [InlineData(NavigationTab.Info)]
     public void SelectTabCommand_SetsSelectedTab(NavigationTab tab)
     {
         var (settingsVm, userSettingsMock) = CreateSettingsVm();
@@ -101,7 +106,7 @@ public class MainViewModelTests
 
         var vm = new MainViewModel(
             gameProfilesViewModel: CreateGameProfileLauncherViewModel(),
-            downloadsViewModel: CreateDownloadsViewModel(),
+            downloadsViewModel: CreateDownloadsViewModel(configProvider),
             toolsViewModel: toolsVm,
             settingsViewModel: settingsVm,
             notificationManager: mockNotificationManager.Object,
@@ -109,7 +114,9 @@ public class MainViewModelTests
             userSettingsService: userSettingsMock.Object,
             velopackUpdateManager: mockVelopackUpdateManager.Object,
             notificationService: mockNotificationService.Object,
+            dialogService: new Mock<IDialogService>().Object,
             notificationFeedViewModel: notificationFeedVm,
+            infoViewModel: CreateInfoViewModel(),
             logger: mockLogger.Object);
         vm.SelectTabCommand.Execute(tab);
         Assert.Equal(tab, vm.SelectedTab);
@@ -139,7 +146,7 @@ public class MainViewModelTests
 
         var vm = new MainViewModel(
             gameProfilesViewModel: CreateGameProfileLauncherViewModel(),
-            downloadsViewModel: CreateDownloadsViewModel(),
+            downloadsViewModel: CreateDownloadsViewModel(configProvider),
             toolsViewModel: toolsVm,
             settingsViewModel: settingsVm,
             notificationManager: mockNotificationManager.Object,
@@ -147,7 +154,9 @@ public class MainViewModelTests
             userSettingsService: userSettingsMock.Object,
             velopackUpdateManager: mockVelopackUpdateManager.Object,
             notificationService: mockNotificationService.Object,
+            dialogService: new Mock<IDialogService>().Object,
             notificationFeedViewModel: notificationFeedVm,
+            infoViewModel: CreateInfoViewModel(),
             logger: mockLogger.Object);
         await vm.InitializeAsync(); // Should not throw
         Assert.True(true);
@@ -162,6 +171,7 @@ public class MainViewModelTests
     [InlineData(NavigationTab.Downloads)]
     [InlineData(NavigationTab.Tools)]
     [InlineData(NavigationTab.Settings)]
+    [InlineData(NavigationTab.Info)]
     public void CurrentTabViewModel_ReturnsCorrectViewModel(NavigationTab tab)
     {
         var (settingsVm, userSettingsMock) = CreateSettingsVm();
@@ -178,7 +188,7 @@ public class MainViewModelTests
 
         var vm = new MainViewModel(
             gameProfilesViewModel: CreateGameProfileLauncherViewModel(),
-            downloadsViewModel: CreateDownloadsViewModel(),
+            downloadsViewModel: CreateDownloadsViewModel(configProvider),
             toolsViewModel: toolsVm,
             settingsViewModel: settingsVm,
             notificationManager: mockNotificationManager.Object,
@@ -186,7 +196,9 @@ public class MainViewModelTests
             userSettingsService: userSettingsMock.Object,
             velopackUpdateManager: mockVelopackUpdateManager.Object,
             notificationService: mockNotificationService.Object,
+            dialogService: new Mock<IDialogService>().Object,
             notificationFeedViewModel: notificationFeedVm,
+            infoViewModel: CreateInfoViewModel(),
             logger: mockLogger.Object);
         vm.SelectTabCommand.Execute(tab);
         var currentViewModel = vm.CurrentTabViewModel;
@@ -204,6 +216,9 @@ public class MainViewModelTests
                 break;
             case NavigationTab.Settings:
                 Assert.IsType<SettingsViewModel>(currentViewModel);
+                break;
+            case NavigationTab.Info:
+                Assert.IsType<InfoViewModel>(currentViewModel);
                 break;
         }
     }
@@ -266,13 +281,16 @@ public class MainViewModelTests
 
         // Minimal defaults used by MainViewModel
         mock.Setup(x => x.GetLastSelectedTab()).Returns(NavigationTab.GameProfiles);
+        var tempPath = Path.Combine(Path.GetTempPath(), "GenHub", "Manifests", Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempPath);
+        mock.Setup(x => x.GetManifestsPath()).Returns(tempPath);
         return mock.Object;
     }
 
     /// <summary>
     /// Helper method to create a DownloadsBrowserViewModel with mocked dependencies.
     /// </summary>
-    private static DownloadsBrowserViewModel CreateDownloadsViewModel()
+    private static DownloadsBrowserViewModel CreateDownloadsViewModel(IConfigurationProviderService configProvider)
     {
         var mockServiceProvider = new Mock<IServiceProvider>();
         var mockLogger = new Mock<ILogger<DownloadsBrowserViewModel>>();
@@ -356,5 +374,10 @@ public class MainViewModelTests
         var mockLoggerFactory = new Mock<ILoggerFactory>();
         var mockLogger = new Mock<ILogger<NotificationFeedViewModel>>();
         return new NotificationFeedViewModel(notificationService, mockLoggerFactory.Object, mockLogger.Object);
+    }
+
+    private static InfoViewModel CreateInfoViewModel()
+    {
+        return new InfoViewModel([]);
     }
 }

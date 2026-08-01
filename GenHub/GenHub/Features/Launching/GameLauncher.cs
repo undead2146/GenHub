@@ -47,9 +47,13 @@ public class GameLauncher(
     IStorageLocationService storageLocationService,
     IGameSettingsService gameSettingsService,
     IProfileContentLinker profileContentLinker,
-    ISteamLauncher steamLauncher) : IGameLauncher
+    ISteamLauncher steamLauncher,
+    IConfigurationProviderService configurationProvider) : IGameLauncher
 {
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _profileLaunchLocks = new();
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> _steamInstallationLaunchLocks =
+        new(InstallationPathLockKey.Comparer);
+
     private static readonly SearchValues<char> InvalidArgChars = SearchValues.Create(";|&\n\r`$%");
 
     /// <inheritdoc/>
@@ -57,6 +61,18 @@ public class GameLauncher(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(profileId);
         var semaphore = _profileLaunchLocks.GetOrAdd(profileId, _ => new SemaphoreSlim(1, 1));
+        await semaphore.WaitAsync(cancellationToken);
+        return new SemaphoreReleaser(semaphore);
+    }
+
+    private static async Task<IDisposable> AcquireSteamInstallationLockAsync(
+        string installationPath,
+        CancellationToken cancellationToken)
+    {
+        var normalizedPath = InstallationPathLockKey.Create(installationPath);
+        var semaphore = _steamInstallationLaunchLocks.GetOrAdd(
+            normalizedPath,
+            _ => new SemaphoreSlim(1, 1));
         await semaphore.WaitAsync(cancellationToken);
         return new SemaphoreReleaser(semaphore);
     }
@@ -453,6 +469,8 @@ public class GameLauncher(
 
     private async Task<LaunchOperationResult<GameLaunchInfo>> LaunchProfileAsync(GameProfile profile, bool skipUserDataCleanup, IProgress<LaunchProgress>? progress, string launchId, CancellationToken cancellationToken)
     {
+        IDisposable? steamInstallationLock = null;
+
         try
         {
             logger.LogInformation("[GameLauncher] === Starting launch for profile '{ProfileName}' (ID: {ProfileId}) ===", profile.Name, profile.Id);
@@ -559,18 +577,34 @@ public class GameLauncher(
             }
 
             // Resolve the installation
-            var installationResult = await gameInstallationService.GetInstallationAsync(profile.GameInstallationId, cancellationToken);
-            if (!installationResult.Success || installationResult.Data == null)
+            if (string.IsNullOrWhiteSpace(profile.GameInstallationId))
             {
-                logger.LogError("[GameLauncher] Failed to resolve game installation for profile {ProfileId}", profile.Id);
-                return LaunchOperationResult<GameLaunchInfo>.CreateFailure("Failed to resolve game installation.", launchId, profile.Id);
+                logger.LogError("[GameLauncher] Profile {ProfileId} has no GameInstallationId set", profile.Id);
+                await launchRegistry.UnregisterLaunchAsync(launchId);
+                return LaunchOperationResult<GameLaunchInfo>.CreateFailure("Game installation not configured for this profile.", launchId, profile.Id);
+            }
+
+            var installationResult = await gameInstallationService.GetInstallationAsync(profile.GameInstallationId, cancellationToken);
+            if (!installationResult.Success)
+            {
+                logger.LogError("[GameLauncher] Failed to retrieve installation {InstallationId}: {Error}", profile.GameInstallationId, installationResult.FirstError);
+                await launchRegistry.UnregisterLaunchAsync(launchId);
+                return LaunchOperationResult<GameLaunchInfo>.CreateFailure($"Failed to retrieve game installation: {installationResult.FirstError}", launchId, profile.Id);
             }
 
             var installation = installationResult.Data;
+            if (installation == null)
+            {
+                logger.LogError("[GameLauncher] Installation record not found for {InstallationId}", profile.GameInstallationId);
+                await launchRegistry.UnregisterLaunchAsync(launchId);
+                return LaunchOperationResult<GameLaunchInfo>.CreateFailure("Game installation not found.", launchId, profile.Id);
+            }
+
             var gameClient = profile.GameClient;
             if (gameClient == null)
             {
                 logger.LogError("[GameLauncher] GameClient is not set for profile {ProfileId}", profile.Id);
+                await launchRegistry.UnregisterLaunchAsync(launchId);
                 return LaunchOperationResult<GameLaunchInfo>.CreateFailure("GameClient not configured for profile.", launchId, profile.Id);
             }
 
@@ -590,6 +624,9 @@ public class GameLauncher(
 
             if (isSteamLaunch)
             {
+                steamInstallationLock = await AcquireSteamInstallationLockAsync(
+                    actualInstallationPath,
+                    cancellationToken);
                 logger.LogInformation("[GameLauncher] Steam launch detected - workspace will be adjacent to installation in .genhub-workspace directory");
 
                 // Workspace should be adjacent to the installation directory, not inside it
@@ -599,13 +636,14 @@ public class GameLauncher(
             }
 
             logger.LogDebug("[GameLauncher] Using dynamic workspace path: {WorkspacePath} (Installation: {InstallPath})", dynamicWorkspacePath, actualInstallationPath);
-            logger.LogDebug("[GameLauncher] Creating workspace configuration - Strategy: {Strategy}", profile.WorkspaceStrategy);
+            var effectiveStrategy = profile.WorkspaceStrategy ?? configurationProvider.GetDefaultWorkspaceStrategy();
+            logger.LogDebug("[GameLauncher] Creating workspace configuration - Strategy: {Strategy} (Effective)", effectiveStrategy);
             var workspaceConfig = new WorkspaceConfiguration
             {
                 Id = profile.Id,
                 Manifests = workspaceManifests,
                 GameClient = gameClient,
-                Strategy = profile.WorkspaceStrategy,
+                Strategy = effectiveStrategy,
 
                 // Always rebuild the workspace for Steam launches so we don't accidentally reuse
                 // a cached workspace that still contains the proxy launcher instead of the real client.
@@ -631,7 +669,20 @@ public class GameLauncher(
 
                     // Always use generals.exe for Steam cleanup (the actual Steam executable)
                     var steamExecutableName = GameClientConstants.GeneralsExecutable;
-                    await steamLauncher.CleanupGameDirectoryAsync(actualInstallationPath, steamExecutableName, cancellationToken);
+                    var cleanupResult = await steamLauncher.CleanupGameDirectoryAsync(
+                        actualInstallationPath,
+                        steamExecutableName,
+                        cancellationToken);
+                    if (!cleanupResult.Success)
+                    {
+                        logger.LogError(
+                            "[GameLauncher] Pre-launch Steam cleanup failed: {Error}",
+                            cleanupResult.FirstError);
+                        return LaunchOperationResult<GameLaunchInfo>.CreateFailure(
+                            $"Failed to restore the Steam installation before launch: {cleanupResult.FirstError}",
+                            launchId,
+                            profile.Id);
+                    }
                 }
             }
 
@@ -955,7 +1006,7 @@ public class GameLauncher(
                 string gameProcessName;
                 if (executableFileForMonitor != null &&
                     executableFileForMonitor.SourceType == ContentSourceType.ContentAddressable &&
-                    profile.WorkspaceStrategy == WorkspaceStrategy.SymlinkOnly)
+                    effectiveStrategy == WorkspaceStrategy.SymlinkOnly)
                 {
                     // For CAS symlinked executables, the process name IS the hash
                     // This is because Windows reports the symlink target hash as the process name
@@ -1029,6 +1080,10 @@ public class GameLauncher(
             logger.LogError(ex, "Failed to launch profile {ProfileId}, cleaning up placeholder entry", profile.Id);
             await launchRegistry.UnregisterLaunchAsync(launchId);
             return LaunchOperationResult<GameLaunchInfo>.CreateFailure($"Launch failed: {ex.Message}", launchId, profile.Id);
+        }
+        finally
+        {
+            steamInstallationLock?.Dispose();
         }
     }
 
@@ -1150,7 +1205,7 @@ public class GameLauncher(
             {
                 foreach (var file in manifest.Files.Where(f => f.SourceType == ContentSourceType.ContentAddressable && !string.IsNullOrEmpty(f.Hash)))
                 {
-                    var existsResult = await casService.ExistsAsync(file.Hash, cancellationToken);
+                    var existsResult = await casService.ExistsAsync(file.Hash, manifest.ContentType, cancellationToken);
                     if (!existsResult.Success || !existsResult.Data)
                     {
                         missingHashes.Add(file.Hash);

@@ -14,6 +14,7 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
+using GenHub.Core.Models.Results.CAS;
 using GenHub.Core.Models.Storage;
 using GenHub.Core.Models.Workspace;
 using GenHub.Features.AppUpdate.Interfaces;
@@ -146,7 +147,7 @@ public class SettingsViewModelTests
 
         // Assert
         _mockConfigService.Verify(x => x.Update(It.IsAny<Action<UserSettings>>()), Times.Once);
-        _mockConfigService.Verify(x => x.SaveAsync(), Times.Once);
+        _mockConfigService.Verify(x => x.SaveAsync(default), Times.Once);
     }
 
     /// <summary>
@@ -301,7 +302,7 @@ public class SettingsViewModelTests
     public async Task SaveSettingsCommand_HandlesUserSettingsServiceException()
     {
         // Arrange
-        _mockConfigService.Setup(x => x.SaveAsync()).ThrowsAsync(new IOException("Disk full"));
+        _mockConfigService.Setup(x => x.SaveAsync(default)).ThrowsAsync(new IOException("Disk full"));
         var viewModel = new SettingsViewModel(
             _mockConfigService.Object,
             _mockLogger.Object,
@@ -370,7 +371,7 @@ public class SettingsViewModelTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task DeleteCasStorageCommand_CallsService()
+    public async Task DeleteCasStorageCommand_ReportsGarbageCollectionIsDisabled()
     {
         // Arrange
         // Setup stats to return valid data so update method works
@@ -382,6 +383,9 @@ public class SettingsViewModelTests
             .ReturnsAsync(OperationResult<IEnumerable<WorkspaceInfo>>.CreateSuccess([]));
         _mockProfileManager.Setup(x => x.GetAllProfilesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(ProfileOperationResult<IReadOnlyList<GameProfile>>.CreateSuccess([]));
+        _mockCasService
+            .Setup(x => x.RunGarbageCollectionAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CasGarbageCollectionResult.CreateDisabled());
 
         var viewModel = new SettingsViewModel(
             _mockConfigService.Object,
@@ -405,6 +409,20 @@ public class SettingsViewModelTests
 
         // Assert
         _mockCasService.Verify(x => x.RunGarbageCollectionAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Once);
+        _mockNotificationService.Verify(
+            service => service.ShowInfo(
+                "CAS Cleanup Disabled",
+                CasDefaults.GarbageCollectionDisabledMessage,
+                (int)TimeIntervals.NotificationHideDelay.TotalMilliseconds,
+                It.IsAny<bool>()),
+            Times.Once);
+        _mockNotificationService.Verify(
+            service => service.ShowSuccess(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<int?>(),
+                It.IsAny<bool>()),
+            Times.Never);
     }
 
     /// <summary>
