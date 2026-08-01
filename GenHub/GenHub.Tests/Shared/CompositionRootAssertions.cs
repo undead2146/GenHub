@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
@@ -82,6 +83,34 @@ public static class CompositionRootAssertions
     ];
 
     /// <summary>
+    /// Known captive dependencies as (singleton, scoped service) pairs, using the full
+    /// service names exactly as <c>ValidateScopes</c> reports them.
+    /// See community-outpost/GenHub#320.
+    /// <para>
+    /// A singleton that consumes a scoped service pins that instance for the process
+    /// lifetime, which defeats the scoping. Every pair here is a real defect that
+    /// predates scope validation being turned on. This list is SHRINK-ONLY: never add
+    /// an entry — fix the lifetime instead. When a capture is fixed the ratchet fails
+    /// with a "remove me" message until its pair is deleted, so the list can only get
+    /// shorter over time. Pairs (rather than singleton names) are the key so that an
+    /// already-listed singleton gaining a NEW scoped dependency still fails.
+    /// </para>
+    /// </summary>
+    private static readonly (string Singleton, string Scoped)[] KnownCaptiveDependencies =
+    [
+        ("GenHub.Core.Interfaces.Content.IContentValidator", "GenHub.Core.Interfaces.Workspace.IFileOperationsService"),
+        ("GenHub.Core.Interfaces.GameInstallations.IGameInstallationService", "GenHub.Core.Interfaces.Common.IDownloadService"),
+        ("GenHub.Core.Interfaces.GameInstallations.IGameInstallationService", "GenHub.Core.Interfaces.Manifest.IManifestGenerationService"),
+        ("GenHub.Core.Interfaces.Launching.ILaunchRegistry", "GenHub.Core.Interfaces.Workspace.IWorkspaceManager"),
+        ("GenHub.Core.Interfaces.Tools.ReplayManager.IReplayImportService", "GenHub.Core.Interfaces.Common.IDownloadService"),
+        ("Microsoft.Extensions.Hosting.IHostedService", "GenHub.Features.Manifest.ManifestDiscoveryService"),
+    ];
+
+    private static readonly Regex CaptiveDependencyMessage = new(
+        "Cannot consume scoped service '(?<scoped>[^']+)' from singleton '(?<singleton>[^']+)'",
+        RegexOptions.Compiled);
+
+    /// <summary>
     /// Builds a host's real container and asserts it is complete.
     /// </summary>
     /// <param name="platformModule">
@@ -97,18 +126,19 @@ public static class CompositionRootAssertions
         var services = new ServiceCollection();
         services.ConfigureApplicationServices(platformModule);
 
+        // Scope validation runs first as a shrink-only ratchet: every captive
+        // dependency the container can detect must either be fixed or be a
+        // pre-existing entry in KnownCaptiveDependencies.
+        AssertScopeValidationIsShrinkOnly(services);
+
         // ValidateOnBuild surfaces unresolvable constructor dependencies at build time
         // instead of at first use.
         //
-        // ValidateScopes stays OFF deliberately. Turning it on currently fails on every
-        // host with roughly forty captive-dependency errors: singletons that consume
-        // scoped services (IGameInstallationService takes IDownloadService and
-        // IManifestGenerationService, IContentValidator takes IFileOperationsService,
-        // ILaunchRegistry takes IWorkspaceManager, and so on). Those are real defects —
-        // a captured scoped service is pinned for the process lifetime, which defeats
-        // the scoping — but they are pre-existing, cross-platform, and far too large to
-        // fix here. See TODOS.md "Captive dependency audit". Turn this on once that
-        // lands; it is the point of the option.
+        // ValidateScopes is OFF for THIS provider only because the known captive
+        // dependencies in KnownCaptiveDependencies would make the build throw before the
+        // resolution assertions below could run. The ratchet above already enforced
+        // scope validation against the same registrations; once its allowlist is empty
+        // this flag can simply be flipped on and the ratchet deleted.
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions
         {
             ValidateOnBuild = true,
@@ -157,5 +187,83 @@ public static class CompositionRootAssertions
 
             Assert.True(failure is null, failureMessage);
         }
+    }
+
+    /// <summary>
+    /// Builds the container with <c>ValidateScopes</c> enabled and diffs the captive
+    /// dependency pairs it reports against <see cref="KnownCaptiveDependencies"/>.
+    /// <para>
+    /// Fails when a (singleton, scoped service) pair is reported that is not on the
+    /// list (fix the lifetime — do not extend the list), and also fails when a listed
+    /// pair is no longer reported (remove its entry), so the allowlist can only
+    /// shrink.
+    /// </para>
+    /// </summary>
+    private static void AssertScopeValidationIsShrinkOnly(IServiceCollection services)
+    {
+        var violations = MeasureCaptiveDependencies(services);
+
+        var newViolations = violations
+            .Except(KnownCaptiveDependencies)
+            .OrderBy(pair => pair, Comparer<(string Singleton, string Scoped)>.Default)
+            .ToList();
+
+        var newViolationsMessage =
+            "ValidateScopes found captive dependencies that are not in KnownCaptiveDependencies:\n"
+            + string.Join("\n", newViolations.Select(pair => $"  singleton '{pair.Singleton}' captures scoped '{pair.Scoped}'"))
+            + "\nA singleton pins any scoped service it consumes for the process lifetime. "
+            + "Fix the lifetime instead of extending the allowlist; it is shrink-only (see issue #320).";
+
+        Assert.True(newViolations.Count == 0, newViolationsMessage);
+
+        var staleEntries = KnownCaptiveDependencies
+            .Except(violations)
+            .OrderBy(pair => pair, Comparer<(string Singleton, string Scoped)>.Default)
+            .ToList();
+
+        var staleMessage =
+            "These KnownCaptiveDependencies entries are no longer reported — remove me:\n"
+            + string.Join("\n", staleEntries.Select(pair => $"  singleton '{pair.Singleton}' captures scoped '{pair.Scoped}'"))
+            + "\nDeleting fixed entries is what keeps the allowlist shrink-only (see issue #320).";
+
+        Assert.True(staleEntries.Count == 0, staleMessage);
+    }
+
+    /// <summary>
+    /// Runs the container's own build-time scope validation and returns every reported
+    /// captive dependency as a (singleton, scoped service) pair.
+    /// </summary>
+    private static HashSet<(string Singleton, string Scoped)> MeasureCaptiveDependencies(
+        IServiceCollection services)
+    {
+        var violations = new HashSet<(string Singleton, string Scoped)>();
+
+        try
+        {
+            using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+            {
+                ValidateOnBuild = true,
+                ValidateScopes = true,
+            });
+        }
+        catch (AggregateException aggregate)
+        {
+            foreach (var error in aggregate.InnerExceptions)
+            {
+                // ValidateOnBuild wraps each failure in "Error while validating the
+                // service descriptor '...'"; the scope-validation detail is the inner
+                // exception when present.
+                var message = error.InnerException?.Message ?? error.Message;
+                var match = CaptiveDependencyMessage.Match(message);
+
+                Assert.True(
+                    match.Success,
+                    $"Container validation failed for a reason other than a captive dependency: {error.Message}");
+
+                violations.Add((match.Groups["singleton"].Value, match.Groups["scoped"].Value));
+            }
+        }
+
+        return violations;
     }
 }
