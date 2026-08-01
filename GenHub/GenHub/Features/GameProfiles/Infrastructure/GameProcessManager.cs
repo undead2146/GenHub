@@ -68,6 +68,16 @@ public class GameProcessManager(
                 return OperationResult<GameProcessInfo>.CreateFailure($"Executable not found: {configuration.ExecutablePath}");
             }
 
+            // Verify, never fix. Setting the bit here could mutate a shared content-store
+            // blob under the hard-link workspace strategy; the workspace build already
+            // applies it to a copy it owns. A failure here means that step did not run.
+            if (!OperatingSystem.IsWindows() && !HasExecutePermission(configuration.ExecutablePath))
+            {
+                logger.LogError("[Process] Executable is not marked executable: {ExecutablePath}", configuration.ExecutablePath);
+                return OperationResult<GameProcessInfo>.CreateFailure(
+                    $"'{configuration.ExecutablePath}' does not have the execute permission set, so it cannot be launched.");
+            }
+
             logger.LogInformation("[Process] Starting process for executable: {ExecutablePath}", configuration.ExecutablePath);
 
             var workingDirectory = configuration.WorkingDirectory
@@ -89,6 +99,12 @@ public class GameProcessManager(
                 FileName = configuration.ExecutablePath,
                 UseShellExecute = false,
                 CreateNoWindow = false,
+
+                // Captured so that a process which dies during startup can say why.
+                // A dynamic-loader failure prints "library not loaded" here and then exits;
+                // without this the user sees no window and no error, and the exit code
+                // alone does not identify the missing library.
+                RedirectStandardError = true,
             };
 
             // Add arguments using Arguments string
@@ -190,6 +206,20 @@ public class GameProcessManager(
 
             logger.LogDebug("[Process] Process {ProcessId} started successfully", process.Id);
 
+            // Drained continuously via the event handler rather than read at exit, so a
+            // chatty process cannot fill the pipe buffer and deadlock. Only a bounded tail
+            // is retained.
+            var capturedErrors = new BoundedErrorBuffer();
+            process.ErrorDataReceived += (_, e) => capturedErrors.Append(e.Data);
+            try
+            {
+                process.BeginErrorReadLine();
+            }
+            catch (InvalidOperationException ex)
+            {
+                logger.LogDebug(ex, "[Process] Could not capture stderr for process {ProcessId}", process.Id);
+            }
+
             // Check if process exited immediately (launcher pattern)
             // Only apply delay if we need to detect a spawned process
             if (!isBatchFile)
@@ -201,9 +231,18 @@ public class GameProcessManager(
                 {
                     var exitCode = process.ExitCode;
 
-                    // For Generals/Zero Hour, exit code 0 indicates the launcher spawned the actual game and exited
-                    // Try to find the actual game process by executable name
-                    if (exitCode == 0)
+                    // Windows-only launcher-stub heuristic. Some Windows game clients are
+                    // stubs that spawn the real process and exit 0, so the PID that was
+                    // started is not the one to track. Finding the replacement matches on
+                    // the executable's base name.
+                    //
+                    // Not applied on Unix, for two reasons. Native clients exec directly and
+                    // never fork-and-exit, so there is nothing to find. And base-name
+                    // matching strips the extension, which makes the native "generalszh"
+                    // indistinguishable from TheSuperHackers' "generalszh.exe" — so a
+                    // running Windows client under Wine could be adopted as if it were this
+                    // launch, and later terminated on its owner's behalf.
+                    if (exitCode == 0 && OperatingSystem.IsWindows())
                     {
                         logger.LogInformation(
                             "[Process] Launcher process {ProcessId} exited with code 0 - attempting to find spawned game process",
@@ -264,18 +303,46 @@ public class GameProcessManager(
 
                     logger.LogWarning("Process {ProcessId} exited immediately with code {ExitCode}", process.Id, exitCode);
 
+                    // The process has exited, but the async stderr handlers may not have
+                    // delivered their final lines yet — and this is exactly the path where
+                    // that output explains the failure. The parameterless overload is the
+                    // documented way to wait for those handlers; the timed overloads
+                    // return as soon as the process is gone and leave the capture short.
+                    DrainStandardError(process, capturedErrors);
+
                     process.Dispose();
 
                     // If it exits immediately with a non-zero code (like a crash or missing DLL), this is a genuine failure
                     if (exitCode != 0)
                     {
-                        return OperationResult<GameProcessInfo>.CreateFailure($"Process exited immediately with code {exitCode}");
+                        var stderrTail = capturedErrors.ToString();
+                        var detail = string.IsNullOrWhiteSpace(stderrTail)
+                            ? "No output was captured."
+                            : stderrTail;
+
+                        logger.LogError(
+                            "[Process] Process exited immediately with code {ExitCode}. Output: {Output}",
+                            exitCode,
+                            detail);
+
+                        return OperationResult<GameProcessInfo>.CreateFailure(
+                            $"Process exited immediately with code {exitCode}. {detail}");
                     }
                     else
                     {
-                        // If it exits with 0 and we didn't find a spawned child, still fail the launch
-                        // because we don't have a valid process to track, preventing the UI from getting stuck in a 'running' state
-                        return OperationResult<GameProcessInfo>.CreateFailure("Process exited immediately after launch.");
+                        // A clean exit with no spawned child is still an unexplained failure, and
+                        // stderr was already drained above — reporting it only on a non-zero exit
+                        // discarded the one diagnostic available for this case.
+                        var stderrTail = capturedErrors.ToString();
+                        var suffix = string.IsNullOrWhiteSpace(stderrTail) ? string.Empty : $" {stderrTail}";
+
+                        logger.LogError(
+                            "[Process] Process exited immediately with code 0 and no spawned process was found. Output: {Output}",
+                            string.IsNullOrWhiteSpace(stderrTail) ? "No output was captured." : stderrTail);
+
+                        // Still a failure: without a process to track the UI would sit in 'running'.
+                        return OperationResult<GameProcessInfo>.CreateFailure(
+                            $"Process exited immediately after launch.{suffix}");
                     }
                 }
             }
@@ -285,7 +352,13 @@ public class GameProcessManager(
             if (configuration.WaitForExit)
             {
                 var timeoutMs = configuration.Timeout.HasValue ? (int)configuration.Timeout.Value.TotalMilliseconds : Timeout.Infinite;
-                process.WaitForExit(timeoutMs);
+                if (process.WaitForExit(timeoutMs))
+                {
+                    // Only once the process is known to have exited: the timed overload
+                    // does not wait for the redirected-output handlers, so the capture
+                    // would otherwise be read while lines are still in flight.
+                    DrainStandardError(process, capturedErrors);
+                }
             }
 
             try
@@ -692,6 +765,32 @@ public class GameProcessManager(
         }
     }
 
+    /// <summary>
+    /// Determines whether a file carries the Unix execute bit for the current user.
+    /// </summary>
+    /// <param name="path">The executable path.</param>
+    /// <returns><c>true</c> on Windows, or when any execute bit is set.</returns>
+    private static bool HasExecutePermission(string path)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return true;
+        }
+
+        try
+        {
+            var mode = File.GetUnixFileMode(path);
+            return mode.HasFlag(UnixFileMode.UserExecute)
+                || mode.HasFlag(UnixFileMode.GroupExecute)
+                || mode.HasFlag(UnixFileMode.OtherExecute);
+        }
+        catch (Exception)
+        {
+            // Unreadable metadata should not block a launch that might otherwise work.
+            return true;
+        }
+    }
+
     private void OnProcessExited(object? sender, EventArgs e)
     {
         if (sender is not Process process)
@@ -795,6 +894,140 @@ public class GameProcessManager(
         {
             logger.LogWarning(ex, "Failed to find spawned game process for {ExecutableName}", executableName);
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Waits for the asynchronous stderr handlers to finish before the capture is read.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Process.WaitForExit()"/> without a timeout additionally waits for
+    /// redirected-output handlers to complete; the timed overloads do not, so reading the
+    /// buffer straight after the process exits can miss the final lines. Only stderr is
+    /// redirected, so there is no stdout stream to drain.
+    /// </remarks>
+    /// <param name="process">The exited process.</param>
+    /// <param name="capturedErrors">The buffer receiving stderr lines.</param>
+    private void DrainStandardError(Process process, BoundedErrorBuffer capturedErrors)
+    {
+        try
+        {
+            process.WaitForExit();
+        }
+        catch (Exception ex)
+        {
+            // The process may already be disposed or inaccessible; the capture is then
+            // whatever arrived, which is better than propagating from a diagnostics path.
+            logger.LogDebug(ex, "[Process] Could not wait for stderr handlers to complete");
+        }
+
+        if (!capturedErrors.EndOfStreamReached)
+        {
+            logger.LogDebug(
+                "[Process] stderr did not signal end of stream; the captured output may be incomplete");
+        }
+    }
+
+    /// <summary>
+    /// Retains a bounded excerpt of a process's stderr for diagnostics.
+    /// </summary>
+    /// <remarks>
+    /// Keeps the first lines as well as the last. A tail-only buffer loses the startup
+    /// context — the missing library, the rejected argument — which is usually where the
+    /// cause is, while the tail holds the symptom. Both are bounded by line count, by
+    /// individual line length and by total size, so a process writing a pathological
+    /// volume cannot exhaust memory.
+    /// </remarks>
+    private sealed class BoundedErrorBuffer
+    {
+        private const int MaxHeadLines = 10;
+        private const int MaxTailLines = 20;
+        private const int MaxLineLength = 2000;
+        private const int MaxTotalChars = 64 * 1024;
+
+        private readonly List<string> _head = [];
+        private readonly Queue<string> _tail = new();
+        private readonly object _gate = new();
+        private int _retainedChars;
+        private int _droppedLines;
+        private bool _endOfStream;
+
+        /// <inheritdoc/>
+        public override string ToString()
+        {
+            lock (_gate)
+            {
+                var parts = new List<string>(_head);
+
+                if (_droppedLines > 0)
+                {
+                    parts.Add($"…[{_droppedLines} line(s) omitted]");
+                }
+
+                parts.AddRange(_tail);
+
+                return string.Join(" | ", parts);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether the stream signalled end of output.
+        /// </summary>
+        /// <remarks>
+        /// The framework raises the handler once with a null <c>Data</c> when the stream
+        /// closes. That, not process exit, is the point at which the capture is known to
+        /// be complete.
+        /// </remarks>
+        internal bool EndOfStreamReached
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _endOfStream;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Appends a line, or records end of stream when <paramref name="line"/> is null.
+        /// </summary>
+        /// <param name="line">The line received, or null at end of stream.</param>
+        internal void Append(string? line)
+        {
+            lock (_gate)
+            {
+                if (line is null)
+                {
+                    _endOfStream = true;
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    return;
+                }
+
+                var trimmed = line.Length > MaxLineLength
+                    ? string.Concat(line.AsSpan(0, MaxLineLength), "…[line truncated]")
+                    : line;
+
+                if (_head.Count < MaxHeadLines)
+                {
+                    _head.Add(trimmed);
+                    _retainedChars += trimmed.Length;
+                    return;
+                }
+
+                _tail.Enqueue(trimmed);
+                _retainedChars += trimmed.Length;
+
+                while (_tail.Count > MaxTailLines || (_retainedChars > MaxTotalChars && _tail.Count > 0))
+                {
+                    _retainedChars -= _tail.Dequeue().Length;
+                    _droppedLines++;
+                }
+            }
         }
     }
 }
