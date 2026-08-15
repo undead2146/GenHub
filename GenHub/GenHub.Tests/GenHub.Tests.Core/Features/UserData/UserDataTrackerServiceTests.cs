@@ -828,6 +828,7 @@ public sealed class UserDataTrackerServiceTests : IDisposable
     }
 
     /// <summary>
+<<<<<<< HEAD
     /// Verifies that when a profile is deactivated, another profile can install the same user data files without encountering a conflict.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
@@ -835,10 +836,26 @@ public sealed class UserDataTrackerServiceTests : IDisposable
     public async Task InstallUserDataAsync_WhenPriorOwnerProfileIsDeactivated_SucceedsWithoutConflictAsync()
     {
         // Arrange
+=======
+    /// Verifies that when CAS materialization throws an exception during install of a pre-existing user file, the original user file is restored.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task InstallUserDataAsync_WhenMaterializationThrowsExceptionWithPreExistingUserFile_RestoresOriginalUserFile()
+    {
+        // Arrange
+        var gameDataDir = Path.Combine(_zeroHourDataDir, "GeneralsOnlineGameData");
+        Directory.CreateDirectory(gameDataDir);
+        var splashPath = Path.Combine(gameDataDir, "splash.bmp");
+        var originalUserContent = "original-user-splash-for-throw";
+        File.WriteAllText(splashPath, originalUserContent);
+
+>>>>>>> 1c3268c4 (fix(userdata,gameprofiles): handle CAS materialization exceptions, use ordinal containment check, and derive live-sync gametype)
         var files = new List<ManifestFile>
         {
             new()
             {
+<<<<<<< HEAD
                 RelativePath = "Maps/Arabia v2/AdrianeMapSettings.ini",
                 Hash = "hash-map-settings",
                 Size = 500,
@@ -1051,5 +1068,110 @@ public sealed class UserDataTrackerServiceTests : IDisposable
         var index = JsonSerializer.Deserialize<UserDataIndex>(indexJson);
         Assert.NotNull(index);
         Assert.False(index.FileToInstallationMap.ContainsKey(Path.GetFullPath(targetPath)));
+    }
+
+    /// <summary>
+    /// Verifies that when CAS materialization throws an exception during install, changes are rolled back and original files are restored.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task InstallUserDataAsync_WhenMaterializationThrowsException_RestoresOriginalFile()
+    {
+        // Arrange
+        var gameDataDir = Path.Combine(_zeroHourDataDir, "GeneralsOnlineGameData");
+        Directory.CreateDirectory(gameDataDir);
+        var splashPath = Path.Combine(gameDataDir, "splash.bmp");
+        var originalUserContent = "original-user-splash-for-throw";
+        File.WriteAllText(splashPath, originalUserContent);
+
+        var files = new List<ManifestFile>
+        {
+            new()
+            {
+                RelativePath = "GeneralsOnlineGameData/splash.bmp",
+                Hash = "throwhash123",
+                Size = 100,
+                InstallTarget = ContentInstallTarget.UserDataDirectory,
+            },
+        };
+
+        _fileOperationsMock.Setup(f => f.LinkFromCasAsync("throwhash123", It.IsAny<string>(), true, null, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("Simulated disk error"));
+
+        // Act
+        var result = await _trackerService.InstallUserDataAsync(
+            "1.1015255.generalsonline.patch.gamedata",
+            "profile-fail-install-throw",
+            GameType.ZeroHour,
+            files,
+            "101525_QFE5",
+            "GameData Patch",
+            CancellationToken.None);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.True(File.Exists(splashPath));
+        Assert.Equal(originalUserContent, File.ReadAllText(splashPath));
+    }
+
+    /// <summary>
+    /// Verifies that when CAS materialization throws an exception during activation, activated files are rolled back and original backups are restored.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ActivateUserDataManifestsAsync_WhenMaterializationThrowsException_RollsBackActivatedFilesAndRestoresBackups()
+    {
+        // Arrange
+        var gameDataDir = Path.Combine(_zeroHourDataDir, "GeneralsOnlineGameData");
+        Directory.CreateDirectory(gameDataDir);
+        var splashPath = Path.Combine(gameDataDir, "splash.bmp");
+        var originalUserContent = "original-user-splash-for-activation-throw";
+        File.WriteAllText(splashPath, originalUserContent);
+
+        var files = new List<ManifestFile>
+        {
+            new()
+            {
+                RelativePath = "GeneralsOnlineGameData/splash.bmp",
+                Hash = "actthrowhash123",
+                Size = 100,
+                InstallTarget = ContentInstallTarget.UserDataDirectory,
+            },
+        };
+
+        _fileOperationsMock.Setup(f => f.LinkFromCasAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<ContentType?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _fileOperationsMock.Setup(f => f.VerifyFileHashAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var installResult = await _trackerService.InstallUserDataAsync(
+            "1.1015255.generalsonline.patch.gamedata",
+            "profile-act-throw",
+            GameType.ZeroHour,
+            files,
+            "101525_QFE5",
+            "GameData Patch",
+            CancellationToken.None);
+
+        Assert.True(installResult.Success);
+
+        // Now de-activate
+        await _trackerService.DeactivateProfileUserDataAsync("profile-act-throw", CancellationToken.None);
+
+        // On re-activation, the file is restored to original user content (doesn't match CAS hash), and materialization throws
+        _fileOperationsMock.Setup(f => f.VerifyFileHashAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        _fileOperationsMock.Setup(f => f.LinkFromCasAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<ContentType?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("Simulated activation disk error"));
+        _fileOperationsMock.Setup(f => f.CopyFromCasAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<ContentType?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("Simulated activation disk error"));
+
+        // Act
+        var activateResult = await _trackerService.ActivateProfileUserDataAsync("profile-act-throw", CancellationToken.None);
+
+        // Assert
+        Assert.False(activateResult.Success);
+        Assert.True(File.Exists(splashPath));
+        Assert.Equal(originalUserContent, File.ReadAllText(splashPath));
     }
 }

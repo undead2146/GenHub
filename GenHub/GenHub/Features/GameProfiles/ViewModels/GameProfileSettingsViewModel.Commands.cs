@@ -488,10 +488,11 @@ public partial class GameProfileSettingsViewModel
                         return;
                     }
 
+                    var liveGameType = SelectedGameInstallation?.GameType ?? GameTypeFilter;
                     var liveUpdateResult = await _profileContentLinker.UpdateProfileUserDataAsync(
                         CurrentProfileId,
                         manifests,
-                        GameTypeFilter);
+                        liveGameType);
 
                     if (!liveUpdateResult.Success)
                     {
@@ -531,6 +532,7 @@ public partial class GameProfileSettingsViewModel
                     // Roll back live synchronization if profile persistence failed
                     if (isProfileRunning && _profileContentLinker != null && _manifestPool != null)
                     {
+                        var liveGameType = SelectedGameInstallation?.GameType ?? GameTypeFilter;
                         var originalManifests = new List<ContentManifest>();
                         var missingOriginalIds = new List<string>();
                         foreach (var id in _originalEnabledContentIds)
@@ -551,13 +553,16 @@ public partial class GameProfileSettingsViewModel
                             _logger?.LogError("Live sync rollback for profile {ProfileId} had missing original manifests: {Ids}", CurrentProfileId, string.Join(", ", missingOriginalIds));
                             _localNotificationService.ShowError(
                                 "Live Rollback Warning",
-                                $"Profile save failed ({string.Join(", ", result.Errors)}), and original content could not be fully resolved for rollback: {string.Join(", ", missingOriginalIds)}");
+                                $"Profile save failed ({string.Join(", ", result.Errors)}), and original content could not be fully resolved for rollback: {string.Join(", ", missingOriginalIds)}. Live content was left as synchronized and may not match the saved profile.");
+                            StatusMessage = $"Failed to update profile: {string.Join(", ", result.Errors)}. Live rollback skipped: unresolved original manifests.";
+                            _logger?.LogWarning("Failed to update profile {ProfileId}: {Errors}", _currentProfileId, string.Join(", ", result.Errors));
+                            return;
                         }
 
                         var rollbackResult = await _profileContentLinker.UpdateProfileUserDataAsync(
                             CurrentProfileId,
                             originalManifests,
-                            GameTypeFilter);
+                            liveGameType);
 
                         if (!rollbackResult.Success)
                         {
