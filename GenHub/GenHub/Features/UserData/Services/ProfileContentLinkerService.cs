@@ -327,7 +327,8 @@ public class ProfileContentLinkerService(
                 var activateResult = await userDataTracker.ActivateProfileUserDataAsync(profileId, cancellationToken);
                 if (!activateResult.Success)
                 {
-                    logger.LogWarning("[ProfileContentLinker] Failed to activate user data: {Error}", activateResult.FirstError);
+                    logger.LogError("[ProfileContentLinker] Failed to activate user data for profile {ProfileId}: {Error}", profileId, activateResult.FirstError);
+                    return OperationResult<bool>.CreateFailure($"Failed to activate user data: {activateResult.FirstError}");
                 }
             }
 
