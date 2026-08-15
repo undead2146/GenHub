@@ -285,9 +285,10 @@ public class ProfileContentLinkerService(
         {
             // Get current user data for the profile
             var currentResult = await userDataTracker.GetProfileUserDataAsync(profileId, cancellationToken);
-            var currentManifestIds = currentResult.Success && currentResult.Data != null
-                ? currentResult.Data.Select(m => m.ManifestId).ToHashSet()
+            var currentManifests = currentResult.Success && currentResult.Data != null
+                ? currentResult.Data.ToList()
                 : [];
+            var currentManifestIds = currentManifests.Select(m => m.ManifestId).ToHashSet();
 
             // Filter to manifests with user data
             var userDataManifests = newManifests
@@ -338,7 +339,34 @@ public class ProfileContentLinkerService(
                 if (!activateResult.Success)
                 {
                     logger.LogError("[ProfileContentLinker] Failed to activate user data for profile {ProfileId}: {Error}", profileId, activateResult.FirstError);
-                    return OperationResult<bool>.CreateFailure($"Failed to activate user data: {activateResult.FirstError}");
+
+                    // Roll back live changes to restore previous session state
+                    foreach (var manifest in toAdd)
+                    {
+                        await userDataTracker.UninstallUserDataAsync(manifest.Id.Value, profileId, cancellationToken);
+                    }
+
+                    foreach (var manifest in currentManifests.Where(m => toRemove.Contains(m.ManifestId)))
+                    {
+                        await userDataTracker.InstallUserDataAsync(
+                            manifest.ManifestId,
+                            profileId,
+                            targetGame,
+                            manifest.InstalledFiles.Select(f => new ManifestFile
+                            {
+                                RelativePath = f.RelativePath,
+                                Hash = f.CasHash ?? string.Empty,
+                                Size = f.FileSize,
+                                InstallTarget = f.InstallTarget,
+                            }),
+                            manifest.ManifestVersion,
+                            manifest.ManifestName,
+                            cancellationToken);
+                    }
+
+                    await userDataTracker.ActivateProfileUserDataAsync(profileId, cancellationToken);
+
+                    return OperationResult<bool>.CreateFailure($"Failed to activate user data: {activateResult.FirstError ?? "unknown error"}");
                 }
             }
 
