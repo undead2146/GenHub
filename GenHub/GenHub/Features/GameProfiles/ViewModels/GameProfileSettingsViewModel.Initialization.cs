@@ -183,7 +183,7 @@ public partial class GameProfileSettingsViewModel
             if (_launchRegistry != null)
             {
                 var activeLaunches = await _launchRegistry.GetAllActiveLaunchesAsync();
-                IsHotswapMode = activeLaunches.Any(l => string.Equals(l.ProfileId, profileId, StringComparison.OrdinalIgnoreCase));
+                IsHotswapMode = activeLaunches.Any(l => string.Equals(l.ProfileId, profileId, StringComparison.OrdinalIgnoreCase) && !l.TerminatedAt.HasValue);
             }
             else
             {

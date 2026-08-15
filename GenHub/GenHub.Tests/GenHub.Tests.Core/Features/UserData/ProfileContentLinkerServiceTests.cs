@@ -178,7 +178,7 @@ public class ProfileContentLinkerServiceTests
         _userDataTrackerMock.Setup(t => t.ActivateProfileUserDataAsync(profileId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<bool>.CreateFailure("Activation locked by file"));
 
-        // Simulate that this profile is the active profile
+        // Simulate that this profile is the active profile (empty manifest list sets active profile without activating user data)
         await _linkerService.PrepareProfileUserDataAsync(profileId, [], gameType);
 
         var manifest = new ContentManifest
@@ -202,11 +202,15 @@ public class ProfileContentLinkerServiceTests
             It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<UserDataManifest>.CreateSuccess(new UserDataManifest { ManifestId = manifest.Id.Value, ProfileId = profileId }));
 
+        _userDataTrackerMock.Setup(t => t.UninstallUserDataAsync(manifest.Id.Value, profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+
         // Act
         var result = await _linkerService.UpdateProfileUserDataAsync(profileId, [manifest], gameType);
 
         // Assert
         Assert.False(result.Success);
         Assert.Contains("Failed to activate user data", result.FirstError, StringComparison.OrdinalIgnoreCase);
+        _userDataTrackerMock.Verify(t => t.UninstallUserDataAsync(manifest.Id.Value, profileId, It.IsAny<CancellationToken>()), Times.Once);
     }
 }

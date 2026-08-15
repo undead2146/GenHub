@@ -460,7 +460,7 @@ public partial class GameProfileSettingsViewModel
                 if (_launchRegistry != null && !string.IsNullOrEmpty(CurrentProfileId))
                 {
                     var activeLaunches = await _launchRegistry.GetAllActiveLaunchesAsync();
-                    isProfileRunning = isProfileRunning || activeLaunches.Any(l => string.Equals(l.ProfileId, CurrentProfileId, StringComparison.OrdinalIgnoreCase));
+                    isProfileRunning = isProfileRunning || activeLaunches.Any(l => string.Equals(l.ProfileId, CurrentProfileId, StringComparison.OrdinalIgnoreCase) && !l.TerminatedAt.HasValue);
                 }
 
                 if (isProfileRunning && _profileContentLinker != null && _manifestPool != null)
