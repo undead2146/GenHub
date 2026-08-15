@@ -619,6 +619,7 @@
                                 <TextBlock Classes="form-label" Text="Workspace Strategy" />
                                 <ComboBox ItemsSource="{x:Static vm:GameProfileSettingsViewModel.AvailableWorkspaceStrategies}"
                                           SelectedItem="{Binding SelectedWorkspaceStrategy}"
+                                          IsEnabled="{Binding CanEditImmutableMetadata}"
                                           HorizontalAlignment="Stretch">
                                     <ComboBox.Styles>
                                         <Style Selector="ComboBoxItem">

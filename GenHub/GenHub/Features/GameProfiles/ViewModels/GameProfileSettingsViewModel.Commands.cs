@@ -463,6 +463,37 @@ public partial class GameProfileSettingsViewModel
                         await GameSettingsViewModel.SaveSettingsCommand.ExecuteAsync(null);
                     }
 
+                    if (IsHotswapMode && _profileContentLinker != null && _manifestPool != null)
+                    {
+                        var manifests = new List<ContentManifest>();
+                        foreach (var id in enabledContentIds)
+                        {
+                            var manifestRes = await _manifestPool.GetManifestAsync(ManifestId.Create(id));
+                            if (manifestRes.Success && manifestRes.Data != null)
+                            {
+                                manifests.Add(manifestRes.Data);
+                            }
+                        }
+
+                        var liveUpdateResult = await _profileContentLinker.UpdateProfileUserDataAsync(
+                            _currentProfileId,
+                            manifests,
+                            GameTypeFilter);
+
+                        if (liveUpdateResult.Success)
+                        {
+                            _localNotificationService.ShowSuccess(
+                                "Live Update Complete",
+                                "Content changes have been applied to the active game session.");
+                        }
+                        else
+                        {
+                            _localNotificationService.ShowWarning(
+                                "Live Update Warning",
+                                $"Profile saved, but live user data sync reported: {liveUpdateResult.FirstError}");
+                        }
+                    }
+
                     StatusMessage = "Profile updated successfully";
                     _logger?.LogInformation("Updated profile {ProfileId} with {ContentCount} enabled content items", CurrentProfileId, enabledContentIds.Count);
 

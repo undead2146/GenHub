@@ -418,10 +418,25 @@
                                        Stretch="UniformToFill" />
                             </Border>
                             <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Name, Mode=OneWay, FallbackValue='New Profile'}"
-                                           Foreground="White"
-                                           FontSize="18"
-                                           FontWeight="Bold" />
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Name, Mode=OneWay, FallbackValue='New Profile'}"
+                                               Foreground="White"
+                                               FontSize="18"
+                                               FontWeight="Bold" />
+                                    <Border IsVisible="{Binding IsHotswapMode}"
+                                            Background="#254CAF50"
+                                            BorderBrush="#804CAF50"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            Padding="6,2"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="HOTSWAP MODE"
+                                                   Foreground="#81C784"
+                                                   FontSize="10"
+                                                   FontWeight="Bold"
+                                                   LetterSpacing="0.5" />
+                                    </Border>
+                                </StackPanel>
                                 <TextBlock Text="Profile Settings"
                                            Foreground="{DynamicResource AccentLightBrush}"
                                            FontSize="10"

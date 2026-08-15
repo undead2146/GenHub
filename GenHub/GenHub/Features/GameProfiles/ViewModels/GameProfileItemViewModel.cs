@@ -525,9 +525,9 @@ public partial class GameProfileItemViewModel : ViewModelBase
     public bool IsWorkspacePrepared => !string.IsNullOrEmpty(ActiveWorkspaceId);
 
     /// <summary>
-    /// Gets a value indicating whether the profile can be edited (not running and not being prepared).
+    /// Gets a value indicating whether the profile can be edited (not being prepared).
     /// </summary>
-    public bool CanEdit => !IsProcessRunning && !IsPreparingWorkspace;
+    public bool CanEdit => !IsPreparingWorkspace;
 
     /// <summary>
     /// Gets a value indicating whether the profile can be launched (not running).

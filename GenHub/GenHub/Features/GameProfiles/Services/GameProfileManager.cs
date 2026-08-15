@@ -8,11 +8,13 @@ using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GameSettings;
+using GenHub.Core.Interfaces.Launching;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
+using GenHub.Core.Models.Workspace;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.GameProfiles.Services;
@@ -25,7 +27,8 @@ public class GameProfileManager(
     IGameInstallationService installationService,
     IContentManifestPool manifestPool,
     IGameSettingsService gameSettingsService,
-    ILogger<GameProfileManager> logger) : IGameProfileManager
+    ILogger<GameProfileManager> logger,
+    ILaunchRegistry? launchRegistry = null) : IGameProfileManager
 {
     /// <inheritdoc/>
     public async Task<ProfileOperationResult<GameProfile>> CreateProfileAsync(CreateProfileRequest request, CancellationToken cancellationToken = default)
@@ -190,6 +193,67 @@ public class GameProfileManager(
             var previousEnabledContentIds = profile.EnabledContentIds?.ToList() ?? [];
             var previousGameClientId = profile.GameClient?.Id;
 
+            // Check if profile is currently running
+            var isRunning = false;
+            if (launchRegistry != null)
+            {
+                var activeLaunches = await launchRegistry.GetAllActiveLaunchesAsync();
+                isRunning = activeLaunches.Any(l => string.Equals(l.ProfileId, profileId, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (isRunning)
+            {
+                // Validate immutable metadata
+                if (request.WorkspaceStrategy.HasValue && request.WorkspaceStrategy.Value != profile.WorkspaceStrategy)
+                {
+                    return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change workspace strategy while profile is running.");
+                }
+
+                if (!string.IsNullOrEmpty(request.GameInstallationId) && !string.Equals(request.GameInstallationId, profile.GameInstallationId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change game installation while profile is running.");
+                }
+
+                if (request.CustomExecutablePath != null && !string.Equals(request.CustomExecutablePath, profile.CustomExecutablePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change custom executable path while profile is running.");
+                }
+
+                if (request.WorkingDirectory != null && !string.Equals(request.WorkingDirectory, profile.WorkingDirectory, StringComparison.OrdinalIgnoreCase))
+                {
+                    return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change working directory while profile is running.");
+                }
+
+                if (request.GameClient != null && !string.Equals(request.GameClient.Id, profile.GameClient?.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change game client while profile is running.");
+                }
+
+                // Validate changed content is hotswappable
+                if (request.EnabledContentIds != null)
+                {
+                    var newContentIds = request.EnabledContentIds.ToList();
+                    var addedIds = newContentIds.Except(previousEnabledContentIds, StringComparer.OrdinalIgnoreCase).ToList();
+                    var removedIds = previousEnabledContentIds.Except(newContentIds, StringComparer.OrdinalIgnoreCase).ToList();
+                    var changedIds = addedIds.Concat(removedIds).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+                    foreach (var id in changedIds)
+                    {
+                        var manifestResult = await manifestPool.GetManifestAsync(ManifestId.Create(id), cancellationToken);
+                        if (!manifestResult.Success || manifestResult.Data == null)
+                        {
+                            return ProfileOperationResult<GameProfile>.CreateFailure($"Cannot modify content '{id}' while profile is running: manifest not found.");
+                        }
+
+                        var manifest = manifestResult.Data;
+                        if (!ContentHotswapClassification.IsHotswappable(manifest.ContentType))
+                        {
+                            return ProfileOperationResult<GameProfile>.CreateFailure($"Cannot modify content '{manifest.Name}' of type '{manifest.ContentType}' while profile is running. Only maps and map packs can be hot swapped during an active game session.");
+                        }
+                    }
+                }
+            }
+
             if (request.Name != null)
             {
                 if (!TryValidateProfileName(request.Name, out var nameValidationError))
@@ -200,7 +264,7 @@ public class GameProfileManager(
                 profile.Name = request.Name;
             }
 
-            CheckAndHandleContentChanges(profile, request, previousEnabledContentIds, previousGameClientId);
+            CheckAndHandleContentChanges(profile, request, previousEnabledContentIds, previousGameClientId, isRunning);
             ApplyUpdateRequestToProfile(profile, request);
             GameSettingsMapper.UpdateFromRequest(profile, request);
 
@@ -399,7 +463,8 @@ public class GameProfileManager(
         GameProfile profile,
         UpdateProfileRequest request,
         List<string> previousEnabledContentIds,
-        string? previousGameClientId)
+        string? previousGameClientId,
+        bool isRunning)
     {
         bool contentChanged = false;
         if (request.EnabledContentIds != null)
@@ -414,7 +479,7 @@ public class GameProfileManager(
             contentChanged = contentChanged || !string.Equals(previousGameClientId, newGameClientId, StringComparison.OrdinalIgnoreCase);
         }
 
-        if (contentChanged && !string.IsNullOrEmpty(profile.ActiveWorkspaceId))
+        if (contentChanged && !isRunning && !string.IsNullOrEmpty(profile.ActiveWorkspaceId))
         {
             logger.LogDebug(
                 "Profile '{ProfileName}' content changed - clearing ActiveWorkspaceId '{WorkspaceId}' to force workspace rebuild on next launch",
