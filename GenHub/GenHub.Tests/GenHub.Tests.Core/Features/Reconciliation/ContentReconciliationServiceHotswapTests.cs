@@ -48,11 +48,11 @@ public class ContentReconciliationServiceHotswapTests
     }
 
     /// <summary>
-    /// Verifies that ReconcileBulkManifestReplacementAsync skips workspace cleanup for running profiles.
+    /// Verifies that ReconcileBulkManifestReplacementAsync updates the manifest reference while preserving the workspace for running profiles.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ReconcileBulkManifestReplacementAsync_WhenProfileRunning_SkipsWorkspaceCleanup()
+    public async Task ReconcileBulkManifestReplacementAsync_WhenProfileRunning_PreservesWorkspaceAndUpdatesProfile()
     {
         // Arrange
         const string runningProfileId = "running-profile-1";
@@ -75,6 +75,8 @@ public class ContentReconciliationServiceHotswapTests
 
         _profileManagerMock.Setup(p => p.GetAllProfilesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(ProfileOperationResult<IReadOnlyList<GameProfile>>.CreateSuccess([runningProfile]));
+        _profileManagerMock.Setup(p => p.UpdateProfileAsync(runningProfileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(runningProfile));
 
         _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
             .ReturnsAsync([CreateActiveLaunch(runningProfileId)]);
@@ -93,15 +95,20 @@ public class ContentReconciliationServiceHotswapTests
         // Assert
         Assert.True(result.Success);
         _workspaceManagerMock.Verify(w => w.CleanupWorkspaceAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-        _profileManagerMock.Verify(p => p.UpdateProfileAsync(runningProfileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        _profileManagerMock.Verify(
+            p => p.UpdateProfileAsync(
+                runningProfileId,
+                It.Is<UpdateProfileRequest>(r => r.ActiveWorkspaceId == "workspace-live-1" && r.EnabledContentIds!.Contains(newManifestId)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     /// <summary>
-    /// Verifies that ReconcileManifestRemovalAsync skips workspace cleanup for running profiles.
+    /// Verifies that OrchestrateBulkRemovalAsync protects manifests from removal when active profiles are running.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ReconcileManifestRemovalAsync_WhenProfileRunning_SkipsWorkspaceCleanup()
+    public async Task OrchestrateBulkRemovalAsync_WhenProfileRunning_ProtectsManifestFromRemoval()
     {
         // Arrange
         const string runningProfileId = "running-profile-2";
@@ -127,12 +134,13 @@ public class ContentReconciliationServiceHotswapTests
             .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
 
         // Act
-        var result = await _reconciliationService.ReconcileManifestRemovalAsync(ManifestId.Create(manifestId));
+        var result = await _reconciliationService.OrchestrateBulkRemovalAsync([ManifestId.Create(manifestId)]);
 
         // Assert
         Assert.True(result.Success);
         _workspaceManagerMock.Verify(w => w.CleanupWorkspaceAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-        _profileManagerMock.Verify(p => p.UpdateProfileAsync(runningProfileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        _manifestPoolMock.Verify(m => m.RemoveManifestAsync(It.IsAny<ManifestId>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+        _casReferenceTrackerMock.Verify(c => c.UntrackManifestAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private static GameLaunchInfo CreateActiveLaunch(string profileId, string launchId = "launch-1", string workspaceId = "ws-1") => new()

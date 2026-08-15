@@ -330,6 +330,193 @@ public class GameProfileSettingsViewModelHotswapTests
             Times.Once);
     }
 
+    /// <summary>
+    /// Verifies that SaveAsync reports a failure status message when live content sync fails.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task SaveAsync_WhenLiveSyncFails_SetsStatusMessageWarning()
+    {
+        // Arrange
+        const string profileId = "profile-live-3";
+        const string installId = "1.108.steam.gameinstallation.zh";
+        const string mapId = "1.0.0.map.desert";
+
+        var profile = new GameProfile
+        {
+            Id = profileId,
+            Name = "Live Profile",
+            EnabledContentIds = [installId, mapId],
+            GameClient = new GameClient
+            {
+                Id = "client-zh",
+                Name = "Zero Hour",
+                GameType = GameType.ZeroHour,
+            },
+        };
+
+        _gameProfileManagerMock.Setup(m => m.GetProfileAsync(profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
+        _gameProfileManagerMock.Setup(m => m.UpdateProfileAsync(profileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
+
+        _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
+            .ReturnsAsync([CreateActiveLaunch(profileId)]);
+
+        var enabledItems = new ObservableCollection<CoreContentDisplayItem>
+        {
+            new()
+            {
+                Id = installId,
+                ManifestId = installId,
+                DisplayName = "Command & Conquer: Zero Hour",
+                ContentType = ContentType.GameInstallation,
+                GameType = GameType.ZeroHour,
+            },
+            new()
+            {
+                Id = mapId,
+                ManifestId = mapId,
+                DisplayName = "Tournament Desert",
+                ContentType = ContentType.Map,
+                GameType = GameType.ZeroHour,
+            },
+        };
+
+        _contentLoaderMock.Setup(c => c.LoadEnabledContentForProfileAsync(profile))
+            .ReturnsAsync(enabledItems);
+        _contentLoaderMock.Setup(c => c.LoadAvailableGameInstallationsAsync())
+            .ReturnsAsync([]);
+        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IReadOnlyList<string>>()))
+            .ReturnsAsync([]);
+        _manifestPoolMock.Setup(m => m.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([]));
+
+        var mapManifest = new ContentManifest
+        {
+            Id = ManifestId.Create(mapId),
+            Name = "Tournament Desert",
+            ContentType = ContentType.Map,
+        };
+        var installManifest = new ContentManifest
+        {
+            Id = ManifestId.Create(installId),
+            Name = "Zero Hour",
+            ContentType = ContentType.GameInstallation,
+        };
+
+        _manifestPoolMock.Setup(m => m.GetManifestAsync(ManifestId.Create(mapId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(mapManifest));
+        _manifestPoolMock.Setup(m => m.GetManifestAsync(ManifestId.Create(installId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(installManifest));
+
+        _profileContentLinkerMock.Setup(p => p.UpdateProfileUserDataAsync(
+            profileId,
+            It.IsAny<IEnumerable<ContentManifest>>(),
+            It.IsAny<GameType>(),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateFailure("Live file locked by process"));
+
+        await _viewModel.InitializeForProfileAsync(profileId);
+
+        // Act
+        await _viewModel.SaveCommand.ExecuteAsync(null);
+
+        // Assert
+        Assert.Contains("live sync failed", _viewModel.StatusMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Verifies that SaveAsync aborts live sync without calling UpdateProfileUserDataAsync if any enabled manifest cannot be resolved.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task SaveAsync_WhenManifestResolutionFails_AbortsLiveSyncAndDoesNotInvokeLinker()
+    {
+        // Arrange
+        const string profileId = "profile-live-4";
+        const string installId = "1.108.steam.gameinstallation.zh";
+        const string mapId = "1.0.0.map.desert";
+
+        var profile = new GameProfile
+        {
+            Id = profileId,
+            Name = "Live Profile",
+            EnabledContentIds = [installId, mapId],
+            GameClient = new GameClient
+            {
+                Id = "client-zh",
+                Name = "Zero Hour",
+                GameType = GameType.ZeroHour,
+            },
+        };
+
+        _gameProfileManagerMock.Setup(m => m.GetProfileAsync(profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
+        _gameProfileManagerMock.Setup(m => m.UpdateProfileAsync(profileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
+
+        _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
+            .ReturnsAsync([CreateActiveLaunch(profileId)]);
+
+        var enabledItems = new ObservableCollection<CoreContentDisplayItem>
+        {
+            new()
+            {
+                Id = installId,
+                ManifestId = installId,
+                DisplayName = "Command & Conquer: Zero Hour",
+                ContentType = ContentType.GameInstallation,
+                GameType = GameType.ZeroHour,
+            },
+            new()
+            {
+                Id = mapId,
+                ManifestId = mapId,
+                DisplayName = "Tournament Desert",
+                ContentType = ContentType.Map,
+                GameType = GameType.ZeroHour,
+            },
+        };
+
+        _contentLoaderMock.Setup(c => c.LoadEnabledContentForProfileAsync(profile))
+            .ReturnsAsync(enabledItems);
+        _contentLoaderMock.Setup(c => c.LoadAvailableGameInstallationsAsync())
+            .ReturnsAsync([]);
+        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IReadOnlyList<string>>()))
+            .ReturnsAsync([]);
+        _manifestPoolMock.Setup(m => m.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([]));
+
+        // Setup install manifest resolution success, but map manifest resolution failure
+        var installManifest = new ContentManifest
+        {
+            Id = ManifestId.Create(installId),
+            Name = "Zero Hour",
+            ContentType = ContentType.GameInstallation,
+        };
+
+        _manifestPoolMock.Setup(m => m.GetManifestAsync(ManifestId.Create(installId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(installManifest));
+        _manifestPoolMock.Setup(m => m.GetManifestAsync(ManifestId.Create(mapId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest?>.CreateFailure("Manifest not found in pool"));
+
+        await _viewModel.InitializeForProfileAsync(profileId);
+
+        // Act
+        await _viewModel.SaveCommand.ExecuteAsync(null);
+
+        // Assert
+        Assert.Contains("failed to resolve manifests", _viewModel.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        _profileContentLinkerMock.Verify(
+            p => p.UpdateProfileUserDataAsync(
+                It.IsAny<string>(),
+                It.IsAny<IEnumerable<ContentManifest>>(),
+                It.IsAny<GameType>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static GameLaunchInfo CreateActiveLaunch(string profileId, string launchId = "launch-1", string workspaceId = "ws-1") => new()
     {
         LaunchId = launchId,
