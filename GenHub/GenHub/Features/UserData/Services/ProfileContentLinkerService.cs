@@ -38,6 +38,27 @@ public class ProfileContentLinkerService(
 
         try
         {
+            // Ensure any lingering active user data from other profiles for this target game is deactivated first
+            var gameUserDataResult = await userDataTracker.GetGameUserDataAsync(targetGame, cancellationToken);
+            if (gameUserDataResult.Success && gameUserDataResult.Data != null)
+            {
+                var otherActiveProfiles = gameUserDataResult.Data
+                    .Where(m => m.IsActive && !string.Equals(m.ProfileId, profileId, StringComparison.OrdinalIgnoreCase))
+                    .Select(m => m.ProfileId)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                foreach (var otherProfileId in otherActiveProfiles)
+                {
+                    logger.LogInformation("[ProfileContentLinker] Deactivating lingering user data from profile {OtherProfileId}", otherProfileId);
+                    var deactivateResult = await userDataTracker.DeactivateProfileUserDataAsync(otherProfileId, cancellationToken);
+                    if (!deactivateResult.Success)
+                    {
+                        logger.LogWarning("[ProfileContentLinker] Failed to deactivate lingering user data for profile {OtherProfileId}: {Error}", otherProfileId, deactivateResult.FirstError);
+                    }
+                }
+            }
+
             // Filter to manifests with user data files
             var userDataManifests = manifests
                 .Where(HasProfileUserData)
@@ -109,27 +130,6 @@ public class ProfileContentLinkerService(
             else
             {
                 logger.LogDebug("[ProfileContentLinker] No user data manifests for profile {ProfileId}", profileId);
-            }
-
-            // Ensure any lingering active user data from other profiles for this target game is deactivated first
-            var gameUserDataResult = await userDataTracker.GetGameUserDataAsync(targetGame, cancellationToken);
-            if (gameUserDataResult.Success && gameUserDataResult.Data != null)
-            {
-                var otherActiveProfiles = gameUserDataResult.Data
-                    .Where(m => m.IsActive && !string.Equals(m.ProfileId, profileId, StringComparison.OrdinalIgnoreCase))
-                    .Select(m => m.ProfileId)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-
-                foreach (var otherProfileId in otherActiveProfiles)
-                {
-                    logger.LogInformation("[ProfileContentLinker] Deactivating lingering user data from profile {OtherProfileId}", otherProfileId);
-                    var deactivateResult = await userDataTracker.DeactivateProfileUserDataAsync(otherProfileId, cancellationToken);
-                    if (!deactivateResult.Success)
-                    {
-                        logger.LogWarning("[ProfileContentLinker] Failed to deactivate lingering user data for profile {OtherProfileId}: {Error}", otherProfileId, deactivateResult.FirstError);
-                    }
-                }
             }
 
             if (userDataManifests.Count > 0)
@@ -208,7 +208,7 @@ public class ProfileContentLinkerService(
                             manifest.InstalledFiles.Select(f => new ManifestFile
                             {
                                 RelativePath = f.RelativePath,
-                                Hash = f.CasHash ?? string.Empty,
+                                Hash = f.SourceHash ?? f.CasHash ?? string.Empty,
                                 Size = f.FileSize,
                                 InstallTarget = f.InstallTarget,
                             }),
@@ -340,33 +340,53 @@ public class ProfileContentLinkerService(
                 {
                     logger.LogError("[ProfileContentLinker] Failed to activate user data for profile {ProfileId}: {Error}", profileId, activateResult.FirstError);
 
-                    // Roll back live changes to restore previous session state
+                    bool rollbackFailed = false;
                     foreach (var manifest in toAdd)
                     {
-                        await userDataTracker.UninstallUserDataAsync(manifest.Id.Value, profileId, cancellationToken);
+                        var uninstallRes = await userDataTracker.UninstallUserDataAsync(manifest.Id.Value, profileId, cancellationToken);
+                        if (!uninstallRes.Success)
+                        {
+                            rollbackFailed = true;
+                            logger.LogWarning("[ProfileContentLinker] Rollback uninstall failed for manifest {ManifestId}: {Error}", manifest.Id.Value, uninstallRes.FirstError);
+                        }
                     }
 
                     foreach (var manifest in currentManifests.Where(m => toRemove.Contains(m.ManifestId)))
                     {
-                        await userDataTracker.InstallUserDataAsync(
+                        var installRes = await userDataTracker.InstallUserDataAsync(
                             manifest.ManifestId,
                             profileId,
                             targetGame,
                             manifest.InstalledFiles.Select(f => new ManifestFile
                             {
                                 RelativePath = f.RelativePath,
-                                Hash = f.CasHash ?? string.Empty,
+                                Hash = f.SourceHash ?? f.CasHash ?? string.Empty,
                                 Size = f.FileSize,
                                 InstallTarget = f.InstallTarget,
                             }),
                             manifest.ManifestVersion,
                             manifest.ManifestName,
                             cancellationToken);
+
+                        if (!installRes.Success)
+                        {
+                            rollbackFailed = true;
+                            logger.LogWarning("[ProfileContentLinker] Rollback reinstall failed for manifest {ManifestId}: {Error}", manifest.ManifestId, installRes.FirstError);
+                        }
                     }
 
-                    await userDataTracker.ActivateProfileUserDataAsync(profileId, cancellationToken);
+                    var activateRestoreRes = await userDataTracker.ActivateProfileUserDataAsync(profileId, cancellationToken);
+                    if (!activateRestoreRes.Success)
+                    {
+                        rollbackFailed = true;
+                        logger.LogWarning("[ProfileContentLinker] Rollback activation failed for profile {ProfileId}: {Error}", profileId, activateRestoreRes.FirstError);
+                    }
 
-                    return OperationResult<bool>.CreateFailure($"Failed to activate user data: {activateResult.FirstError ?? "unknown error"}");
+                    var errorMessage = rollbackFailed
+                        ? $"Failed to activate user data: {activateResult.FirstError ?? "unknown error"} (live rollback was incomplete)"
+                        : $"Failed to activate user data: {activateResult.FirstError ?? "unknown error"}";
+
+                    return OperationResult<bool>.CreateFailure(errorMessage);
                 }
             }
 

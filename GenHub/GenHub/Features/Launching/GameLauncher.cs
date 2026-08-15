@@ -1072,6 +1072,10 @@ public class GameLauncher(
                 logger.LogInformation("[GameLauncher] User data content prepared for profile {ProfileId}", profile.Id);
             }
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "[GameLauncher] Unexpected error in user data linkage for profile {ProfileId}", profile.Id);

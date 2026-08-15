@@ -125,10 +125,16 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         if (gameSettings != null) GameSettingsMapper.PopulateRequest(request, gameSettings);
     }
 
+    private (bool IsLocked, bool CanToggle) GetItemHotswapState(ContentType contentType)
+    {
+        var isLocked = IsHotswapMode && ContentHotswapClassification.IsLocked(contentType);
+        var canToggle = !IsHotswapMode || ContentHotswapClassification.IsHotswappable(contentType);
+        return (isLocked, canToggle);
+    }
+
     private ContentDisplayItem ConvertToViewModelContentDisplayItem(Core.Models.Content.ContentDisplayItem coreItem)
     {
-        var isLocked = IsHotswapMode && ContentHotswapClassification.IsLocked(coreItem.ContentType);
-        var canToggle = !IsHotswapMode || ContentHotswapClassification.IsHotswappable(coreItem.ContentType);
+        var (isLocked, canToggle) = GetItemHotswapState(coreItem.ContentType);
 
         return new ContentDisplayItem
         {
@@ -209,14 +215,16 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     {
         foreach (var item in EnabledContent)
         {
-            item.IsLocked = IsHotswapMode && ContentHotswapClassification.IsLocked(item.ContentType);
-            item.CanToggle = !IsHotswapMode || ContentHotswapClassification.IsHotswappable(item.ContentType);
+            var (isLocked, canToggle) = GetItemHotswapState(item.ContentType);
+            item.IsLocked = isLocked;
+            item.CanToggle = canToggle;
         }
 
         foreach (var item in AvailableContent)
         {
-            item.IsLocked = IsHotswapMode && ContentHotswapClassification.IsLocked(item.ContentType);
-            item.CanToggle = !IsHotswapMode || ContentHotswapClassification.IsHotswappable(item.ContentType);
+            var (isLocked, canToggle) = GetItemHotswapState(item.ContentType);
+            item.IsLocked = isLocked;
+            item.CanToggle = canToggle;
         }
 
         foreach (var item in AvailableGameInstallations)
