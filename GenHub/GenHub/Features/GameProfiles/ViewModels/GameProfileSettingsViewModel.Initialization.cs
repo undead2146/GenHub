@@ -199,9 +199,21 @@ public partial class GameProfileSettingsViewModel
             var enabledInstallation = EnabledContent.FirstOrDefault(c => c.ContentType == Core.Models.Enums.ContentType.GameInstallation);
             if (enabledInstallation != null)
             {
+                enabledInstallation.IsEnabled = true;
                 SelectedGameInstallation = AvailableGameInstallations
                     .FirstOrDefault(a => a.ManifestId.Value == enabledInstallation.ManifestId.Value)
                     ?? enabledInstallation;
+                SelectedGameInstallation.IsEnabled = true;
+            }
+            else if (!string.IsNullOrEmpty(profile.GameInstallationId))
+            {
+                var matchingInstallation = AvailableGameInstallations
+                    .FirstOrDefault(a => a.SourceId == profile.GameInstallationId && (profile.GameClient == null || a.GameType == profile.GameClient.GameType));
+                if (matchingInstallation != null)
+                {
+                    SelectedGameInstallation = matchingInstallation;
+                    SelectedGameInstallation.IsEnabled = true;
+                }
             }
 
             StatusMessage = $"Profile loaded with {EnabledContent.Count} enabled content items";
