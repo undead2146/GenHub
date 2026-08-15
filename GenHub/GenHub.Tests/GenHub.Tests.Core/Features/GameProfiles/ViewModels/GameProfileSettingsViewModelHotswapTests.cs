@@ -418,12 +418,16 @@ public class GameProfileSettingsViewModelHotswapTests
             .ReturnsAsync(OperationResult<bool>.CreateFailure("Live file locked by process"));
 
         await _viewModel.InitializeForProfileAsync(profileId);
+        _gameProfileManagerMock.Invocations.Clear();
 
         // Act
         await _viewModel.SaveCommand.ExecuteAsync(null);
 
         // Assert
         Assert.Contains("live sync failed", _viewModel.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        _gameProfileManagerMock.Verify(
+            m => m.UpdateProfileAsync(It.IsAny<string>(), It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     /// <summary>
@@ -502,6 +506,7 @@ public class GameProfileSettingsViewModelHotswapTests
             .ReturnsAsync(OperationResult<ContentManifest?>.CreateFailure("Manifest not found in pool"));
 
         await _viewModel.InitializeForProfileAsync(profileId);
+        _gameProfileManagerMock.Invocations.Clear();
 
         // Act
         await _viewModel.SaveCommand.ExecuteAsync(null);
@@ -514,6 +519,9 @@ public class GameProfileSettingsViewModelHotswapTests
                 It.IsAny<IEnumerable<ContentManifest>>(),
                 It.IsAny<GameType>(),
                 It.IsAny<CancellationToken>()),
+            Times.Never);
+        _gameProfileManagerMock.Verify(
+            m => m.UpdateProfileAsync(It.IsAny<string>(), It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
