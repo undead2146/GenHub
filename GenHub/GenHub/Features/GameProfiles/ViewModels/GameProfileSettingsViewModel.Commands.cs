@@ -532,6 +532,7 @@ public partial class GameProfileSettingsViewModel
                     if (isProfileRunning && _profileContentLinker != null && _manifestPool != null)
                     {
                         var originalManifests = new List<ContentManifest>();
+                        var missingOriginalIds = new List<string>();
                         foreach (var id in _originalEnabledContentIds)
                         {
                             var manifestRes = await _manifestPool.GetManifestAsync(ManifestId.Create(id));
@@ -539,17 +540,44 @@ public partial class GameProfileSettingsViewModel
                             {
                                 originalManifests.Add(manifestRes.Data);
                             }
+                            else
+                            {
+                                missingOriginalIds.Add(id);
+                            }
                         }
 
-                        await _profileContentLinker.UpdateProfileUserDataAsync(
-                            _currentProfileId,
+                        if (missingOriginalIds.Count > 0)
+                        {
+                            _logger?.LogError("Live sync rollback for profile {ProfileId} had missing original manifests: {Ids}", CurrentProfileId, string.Join(", ", missingOriginalIds));
+                            _localNotificationService.ShowError(
+                                "Live Rollback Warning",
+                                $"Profile save failed ({string.Join(", ", result.Errors)}), and original content could not be fully resolved for rollback: {string.Join(", ", missingOriginalIds)}");
+                        }
+
+                        var rollbackResult = await _profileContentLinker.UpdateProfileUserDataAsync(
+                            CurrentProfileId,
                             originalManifests,
                             GameTypeFilter);
 
-                        _logger?.LogInformation("Rolled back live user data sync for profile {ProfileId} after profile update failure", _currentProfileId);
+                        if (!rollbackResult.Success)
+                        {
+                            _logger?.LogError("Failed to roll back live user data sync for profile {ProfileId}: {Error}", CurrentProfileId, rollbackResult.FirstError);
+                            _localNotificationService.ShowError(
+                                "Live Rollback Failed",
+                                $"Profile save failed ({string.Join(", ", result.Errors)}), and live content rollback reported: {rollbackResult.FirstError}");
+                            StatusMessage = $"Failed to update profile: {string.Join(", ", result.Errors)}. Live rollback failed: {rollbackResult.FirstError}";
+                        }
+                        else
+                        {
+                            _logger?.LogInformation("Rolled back live user data sync for profile {ProfileId} after profile update failure", CurrentProfileId);
+                            StatusMessage = $"Failed to update profile: {string.Join(", ", result.Errors)}";
+                        }
+                    }
+                    else
+                    {
+                        StatusMessage = $"Failed to update profile: {string.Join(", ", result.Errors)}";
                     }
 
-                    StatusMessage = $"Failed to update profile: {string.Join(", ", result.Errors)}";
                     _logger?.LogWarning("Failed to update profile {ProfileId}: {Errors}", CurrentProfileId, string.Join(", ", result.Errors));
                 }
             }
