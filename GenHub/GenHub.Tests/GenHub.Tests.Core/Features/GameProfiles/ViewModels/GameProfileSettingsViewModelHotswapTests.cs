@@ -838,8 +838,7 @@ public class GameProfileSettingsViewModelHotswapTests
         _viewModel.AvailableContent.Add(mapPackVmItem);
 
         // Act
-        _viewModel.EnableContentCommand.Execute(mapPackVmItem);
-        await Task.Delay(50);
+        await _viewModel.EnableContentCommand.ExecuteAsync(mapPackVmItem);
 
         // Assert
         Assert.True(_viewModel.IsHotswapMode);
