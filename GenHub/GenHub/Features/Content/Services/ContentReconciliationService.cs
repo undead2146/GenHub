@@ -79,7 +79,7 @@ public class ContentReconciliationService(
         {
             var result = await ReconcileManifestRemovalInternalAsync(manifestId, cancellationToken);
 
-            if (result.Success && !skipUntrack)
+            if (result.Success && (result.Data?.FailedProfilesCount ?? 0) == 0 && !skipUntrack)
             {
                 logger.LogInformation("Untracking CAS references for manifest '{ManifestId}'", manifestId.Value);
                 var untrackResult = await referenceTracker.UntrackManifestAsync(manifestId.Value, cancellationToken);
@@ -88,6 +88,11 @@ public class ContentReconciliationService(
                     logger.LogError("Failed to untrack CAS references for manifest '{ManifestId}': {Error}", manifestId.Value, untrackResult.FirstError);
                     return OperationResult<ReconciliationResult>.CreateFailure($"Failed to untrack CAS references for {manifestId.Value}");
                 }
+            }
+
+            if (result.Success && (result.Data?.FailedProfilesCount ?? 0) > 0)
+            {
+                return OperationResult<ReconciliationResult>.CreateFailure($"Cannot remove manifest '{manifestId.Value}' because {result.Data!.FailedProfilesCount} profile(s) are active or failed reconciliation.");
             }
 
             return result;

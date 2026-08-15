@@ -455,6 +455,55 @@ public partial class GameProfileSettingsViewModel
 
                 PopulateGameSettings(updateRequest, gameSettings);
 
+                bool isProfileRunning = IsHotswapMode;
+                if (_launchRegistry != null && !string.IsNullOrEmpty(CurrentProfileId))
+                {
+                    var activeLaunches = await _launchRegistry.GetAllActiveLaunchesAsync();
+                    isProfileRunning = isProfileRunning || activeLaunches.Any(l => string.Equals(l.ProfileId, CurrentProfileId, StringComparison.OrdinalIgnoreCase));
+                }
+
+                if (isProfileRunning && _profileContentLinker != null && _manifestPool != null)
+                {
+                    var manifests = new List<ContentManifest>();
+                    var missingManifestIds = new List<string>();
+                    foreach (var id in enabledContentIds)
+                    {
+                        var manifestRes = await _manifestPool.GetManifestAsync(ManifestId.Create(id));
+                        if (manifestRes.Success && manifestRes.Data != null)
+                        {
+                            manifests.Add(manifestRes.Data);
+                        }
+                        else
+                        {
+                            missingManifestIds.Add(id);
+                        }
+                    }
+
+                    if (missingManifestIds.Count > 0)
+                    {
+                        var error = $"Cannot live-sync active session: failed to resolve manifests for {string.Join(", ", missingManifestIds)}";
+                        StatusMessage = error;
+                        _localNotificationService.ShowWarning("Live Update Warning", error);
+                        _logger?.LogWarning("Profile {ProfileId} live sync aborted due to missing manifests: {Ids}", CurrentProfileId, string.Join(", ", missingManifestIds));
+                        return;
+                    }
+
+                    var liveUpdateResult = await _profileContentLinker.UpdateProfileUserDataAsync(
+                        CurrentProfileId,
+                        manifests,
+                        GameTypeFilter);
+
+                    if (!liveUpdateResult.Success)
+                    {
+                        StatusMessage = $"Live sync failed: {liveUpdateResult.FirstError}";
+                        _localNotificationService.ShowWarning(
+                            "Live Update Failed",
+                            $"Live content synchronization failed: {liveUpdateResult.FirstError}. Profile changes were not saved.");
+                        _logger?.LogWarning("Profile {ProfileId} live sync failed: {Error}", CurrentProfileId, liveUpdateResult.FirstError);
+                        return;
+                    }
+                }
+
                 var result = await _gameProfileManager.UpdateProfileAsync(CurrentProfileId, updateRequest);
                 if (result.Success && result.Data != null)
                 {
@@ -463,56 +512,8 @@ public partial class GameProfileSettingsViewModel
                         await GameSettingsViewModel.SaveSettingsCommand.ExecuteAsync(null);
                     }
 
-                    bool isProfileRunning = IsHotswapMode;
-                    if (_launchRegistry != null && !string.IsNullOrEmpty(_currentProfileId))
+                    if (isProfileRunning)
                     {
-                        var activeLaunches = await _launchRegistry.GetAllActiveLaunchesAsync();
-                        isProfileRunning = isProfileRunning || activeLaunches.Any(l => string.Equals(l.ProfileId, _currentProfileId, StringComparison.OrdinalIgnoreCase));
-                    }
-
-                    if (isProfileRunning && _profileContentLinker != null && _manifestPool != null)
-                    {
-                        var manifests = new List<ContentManifest>();
-                        var missingManifestIds = new List<string>();
-                        foreach (var id in enabledContentIds)
-                        {
-                            var manifestRes = await _manifestPool.GetManifestAsync(ManifestId.Create(id));
-                            if (manifestRes.Success && manifestRes.Data != null)
-                            {
-                                manifests.Add(manifestRes.Data);
-                            }
-                            else
-                            {
-                                missingManifestIds.Add(id);
-                            }
-                        }
-
-                        if (missingManifestIds.Count > 0)
-                        {
-                            var error = $"Cannot live-sync active session: failed to resolve manifests for {string.Join(", ", missingManifestIds)}";
-                            StatusMessage = error;
-                            _localNotificationService.ShowWarning("Live Update Warning", error);
-                            _logger?.LogWarning("Profile {ProfileId} live sync aborted due to missing manifests: {Ids}", _currentProfileId, string.Join(", ", missingManifestIds));
-                            WeakReferenceMessenger.Default.Send(new ProfileUpdatedMessage(result.Data));
-                            return;
-                        }
-
-                        var liveUpdateResult = await _profileContentLinker.UpdateProfileUserDataAsync(
-                            _currentProfileId,
-                            manifests,
-                            GameTypeFilter);
-
-                        if (!liveUpdateResult.Success)
-                        {
-                            StatusMessage = $"Profile saved, but live sync failed: {liveUpdateResult.FirstError}";
-                            _localNotificationService.ShowWarning(
-                                "Live Update Failed",
-                                $"Profile was saved, but live content sync failed: {liveUpdateResult.FirstError}");
-                            _logger?.LogWarning("Profile {ProfileId} saved but live sync failed: {Error}", _currentProfileId, liveUpdateResult.FirstError);
-                            WeakReferenceMessenger.Default.Send(new ProfileUpdatedMessage(result.Data));
-                            return;
-                        }
-
                         _localNotificationService.ShowSuccess(
                             "Live Update Complete",
                             "Content changes have been applied to the active game session.");

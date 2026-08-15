@@ -143,6 +143,41 @@ public class ContentReconciliationServiceHotswapTests
         _casReferenceTrackerMock.Verify(c => c.UntrackManifestAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    /// <summary>
+    /// Verifies that ReconcileManifestRemovalAsync returns failure and does not untrack CAS references when an active profile references the manifest.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ReconcileManifestRemovalAsync_WhenProfileRunning_ReturnsFailureAndProtectsManifest()
+    {
+        // Arrange
+        const string runningProfileId = "running-profile-3";
+        const string manifestId = "1.0.0.mod.runningmod";
+
+        var runningProfile = new GameProfile
+        {
+            Id = runningProfileId,
+            Name = "Running Profile 3",
+            ActiveWorkspaceId = "workspace-live-3",
+            EnabledContentIds = [manifestId],
+        };
+
+        _profileManagerMock.Setup(p => p.GetAllProfilesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<IReadOnlyList<GameProfile>>.CreateSuccess([runningProfile]));
+
+        _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
+            .ReturnsAsync([CreateActiveLaunch(runningProfileId)]);
+
+        // Act
+        var result = await _reconciliationService.ReconcileManifestRemovalAsync(ManifestId.Create(manifestId));
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("active or failed reconciliation", result.FirstError, StringComparison.OrdinalIgnoreCase);
+        _workspaceManagerMock.Verify(w => w.CleanupWorkspaceAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _casReferenceTrackerMock.Verify(c => c.UntrackManifestAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private static GameLaunchInfo CreateActiveLaunch(string profileId, string launchId = "launch-1", string workspaceId = "ws-1") => new()
     {
         LaunchId = launchId,
