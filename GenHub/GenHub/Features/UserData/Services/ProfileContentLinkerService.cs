@@ -43,79 +43,104 @@ public class ProfileContentLinkerService(
                 .Where(HasProfileUserData)
                 .ToList();
 
-            if (userDataManifests.Count == 0)
+            if (userDataManifests.Count > 0)
             {
-                logger.LogDebug("[ProfileContentLinker] No user data manifests for profile {ProfileId}", profileId);
-                return OperationResult<bool>.CreateSuccess(true);
-            }
+                logger.LogInformation("[ProfileContentLinker] Processing {Count} manifests with user data", userDataManifests.Count);
 
-            logger.LogInformation("[ProfileContentLinker] Processing {Count} manifests with user data", userDataManifests.Count);
-
-            // Install/update each manifest's user data
-            foreach (var manifest in userDataManifests)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                // Check if already installed
-                var existingResult = await userDataTracker.GetUserDataManifestAsync(
-                    manifest.Id.Value,
-                    profileId,
-                    cancellationToken);
-
-                if (existingResult.Success && existingResult.Data != null)
+                // Install/update each manifest's user data
+                foreach (var manifest in userDataManifests)
                 {
-                    // Already installed - verify and activate if needed
-                    var verifyResult = await userDataTracker.VerifyInstallationAsync(
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    // Check if already installed
+                    var existingResult = await userDataTracker.GetUserDataManifestAsync(
                         manifest.Id.Value,
                         profileId,
                         cancellationToken);
 
-                    if (!verifyResult.Success || !verifyResult.Data)
+                    if (existingResult.Success && existingResult.Data != null)
                     {
-                        logger.LogWarning(
-                            "[ProfileContentLinker] User data verification failed for {ManifestId}, reinstalling",
-                            manifest.Id.Value);
+                        // Already installed - verify and activate if needed
+                        var verifyResult = await userDataTracker.VerifyInstallationAsync(
+                            manifest.Id.Value,
+                            profileId,
+                            cancellationToken);
 
-                        // Reinstall, but never on top of an uninstall that could not put the user's
-                        // originals back: redeploying would bury the unfinished restore.
-                        var uninstallResult = await userDataTracker.UninstallUserDataAsync(manifest.Id.Value, profileId, cancellationToken);
-                        if (!uninstallResult.Success)
+                        if (!verifyResult.Success || !verifyResult.Data)
                         {
-                            logger.LogError(
-                                "[ProfileContentLinker] Cannot reinstall {ManifestId}: the previous installation could not be fully removed: {Error}",
-                                manifest.Id.Value,
-                                uninstallResult.FirstError);
-                            return OperationResult<bool>.CreateFailure(uninstallResult.Errors);
+                            logger.LogWarning(
+                                "[ProfileContentLinker] User data verification failed for {ManifestId}, reinstalling",
+                                manifest.Id.Value);
+
+                            // Reinstall, but never on top of an uninstall that could not put the user's
+                            // originals back: redeploying would bury the unfinished restore.
+                            var uninstallResult = await userDataTracker.UninstallUserDataAsync(manifest.Id.Value, profileId, cancellationToken);
+                            if (!uninstallResult.Success)
+                            {
+                                logger.LogError(
+                                    "[ProfileContentLinker] Cannot reinstall {ManifestId}: the previous installation could not be fully removed: {Error}",
+                                    manifest.Id.Value,
+                                    uninstallResult.FirstError);
+                                return OperationResult<bool>.CreateFailure(uninstallResult.Errors);
+                            }
+
+                            var reinstallResult = await InstallManifestUserDataAsync(manifest, profileId, targetGame, cancellationToken);
+                            if (!reinstallResult.Success)
+                            {
+                                return OperationResult<bool>.CreateFailure(reinstallResult);
+                            }
                         }
-
-                        var reinstallResult = await InstallManifestUserDataAsync(manifest, profileId, targetGame, cancellationToken);
-                        if (!reinstallResult.Success)
+                        else if (!existingResult.Data.IsActive)
                         {
-                            return OperationResult<bool>.CreateFailure(reinstallResult);
+                            logger.LogDebug("[ProfileContentLinker] Activating existing user data for {ManifestId}", manifest.Id.Value);
                         }
                     }
-                    else if (!existingResult.Data.IsActive)
+                    else
                     {
-                        logger.LogDebug("[ProfileContentLinker] Activating existing user data for {ManifestId}", manifest.Id.Value);
+                        // New installation needed
+                        var installResult = await InstallManifestUserDataAsync(manifest, profileId, targetGame, cancellationToken);
+                        if (!installResult.Success)
+                        {
+                            return OperationResult<bool>.CreateFailure(installResult);
+                        }
                     }
                 }
-                else
+            }
+            else
+            {
+                logger.LogDebug("[ProfileContentLinker] No user data manifests for profile {ProfileId}", profileId);
+            }
+
+            // Ensure any lingering active user data from other profiles for this target game is deactivated first
+            var gameUserDataResult = await userDataTracker.GetGameUserDataAsync(targetGame, cancellationToken);
+            if (gameUserDataResult.Success && gameUserDataResult.Data != null)
+            {
+                var otherActiveProfiles = gameUserDataResult.Data
+                    .Where(m => m.IsActive && !string.Equals(m.ProfileId, profileId, StringComparison.OrdinalIgnoreCase))
+                    .Select(m => m.ProfileId)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                foreach (var otherProfileId in otherActiveProfiles)
                 {
-                    // New installation needed
-                    var installResult = await InstallManifestUserDataAsync(manifest, profileId, targetGame, cancellationToken);
-                    if (!installResult.Success)
+                    logger.LogInformation("[ProfileContentLinker] Deactivating lingering user data from profile {OtherProfileId}", otherProfileId);
+                    var deactivateResult = await userDataTracker.DeactivateProfileUserDataAsync(otherProfileId, cancellationToken);
+                    if (!deactivateResult.Success)
                     {
-                        return OperationResult<bool>.CreateFailure(installResult);
+                        logger.LogWarning("[ProfileContentLinker] Failed to deactivate lingering user data for profile {OtherProfileId}: {Error}", otherProfileId, deactivateResult.FirstError);
                     }
                 }
             }
 
-            // Activate all user data for this profile
-            var activateResult = await userDataTracker.ActivateProfileUserDataAsync(profileId, cancellationToken);
-            if (!activateResult.Success)
+            if (userDataManifests.Count > 0)
             {
-                logger.LogError("[ProfileContentLinker] Failed to activate user data for profile {ProfileId}", profileId);
-                return OperationResult<bool>.CreateFailure(activateResult.FirstError ?? "Failed to activate user data");
+                // Activate all user data for this profile
+                var activateResult = await userDataTracker.ActivateProfileUserDataAsync(profileId, cancellationToken);
+                if (!activateResult.Success)
+                {
+                    logger.LogError("[ProfileContentLinker] Failed to activate user data for profile {ProfileId}", profileId);
+                    return OperationResult<bool>.CreateFailure(activateResult.FirstError ?? "Failed to activate user data");
+                }
             }
 
             // Set as active profile
@@ -156,21 +181,7 @@ public class ProfileContentLinkerService(
 
         try
         {
-            // Deactivate old profile's user data (if any) unless skipping cleanup
-            if (!skipCleanup && !string.IsNullOrEmpty(oldProfileId) && oldProfileId != newProfileId)
-            {
-                var deactivateResult = await userDataTracker.DeactivateProfileUserDataAsync(oldProfileId, cancellationToken);
-                if (!deactivateResult.Success)
-                {
-                    logger.LogWarning(
-                        "[ProfileContentLinker] Failed to deactivate old profile user data: {Error}",
-                        deactivateResult.FirstError);
-
-                    // Continue anyway - activation of new profile is more important
-                }
-            }
-
-            // If skipping cleanup, we might have many maps to link/verify
+            // If skipping cleanup, adopt old profile's manifests for the new profile
             if (skipCleanup && !string.IsNullOrEmpty(oldProfileId))
             {
                 var oldUserDataResult = await userDataTracker.GetProfileUserDataAsync(oldProfileId, cancellationToken);
@@ -180,11 +191,10 @@ public class ProfileContentLinkerService(
                     if (fileCount > 100)
                     {
                         logger.LogInformation("[ProfileContentLinker] Linking large number of maps ({Count}). This might take a while.", fileCount);
-
-                        // The UI will show a warning based on this log or via the progress reporting (if we had it here)
                     }
 
-                    // Adopt old profile's manifests for the new profile
+                    // Register this manifest's files for the new profile as well
+                    // This ensures they are tracked and won't be deleted when switching FROM the new profile later
                     foreach (var manifest in oldUserDataResult.Data)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
@@ -214,7 +224,7 @@ public class ProfileContentLinkerService(
                 }
             }
 
-            // Prepare new profile's user data
+            // Prepare new profile's user data (deactivates other active profiles for targetGame)
             return await PrepareProfileUserDataAsync(newProfileId, newManifests, targetGame, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
