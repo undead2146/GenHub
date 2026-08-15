@@ -631,6 +631,111 @@ public class GameProfileSettingsViewModelHotswapTests
             Times.Exactly(2));
     }
 
+    /// <summary>
+    /// Verifies that SaveAsync notifies user with an error when rollback live synchronization fails.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task SaveAsync_WhenLiveSyncRollbackFails_ShowsErrorNotification()
+    {
+        // Arrange
+        const string profileId = "profile-live-6";
+        const string installId = "1.108.steam.gameinstallation.zh";
+        const string originalMapId = "1.0.0.map.desert";
+
+        var profile = new GameProfile
+        {
+            Id = profileId,
+            Name = "Live Profile",
+            EnabledContentIds = [installId, originalMapId],
+            GameClient = new GameClient
+            {
+                Id = "client-zh",
+                Name = "Zero Hour",
+                GameType = GameType.ZeroHour,
+            },
+        };
+
+        _gameProfileManagerMock.Setup(m => m.GetProfileAsync(profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
+        _gameProfileManagerMock.Setup(m => m.UpdateProfileAsync(profileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateFailure("Database lock failure"));
+
+        _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
+            .ReturnsAsync([CreateActiveLaunch(profileId)]);
+
+        var enabledItems = new ObservableCollection<CoreContentDisplayItem>
+        {
+            new()
+            {
+                Id = installId,
+                ManifestId = installId,
+                DisplayName = "Command & Conquer: Zero Hour",
+                ContentType = ContentType.GameInstallation,
+                GameType = GameType.ZeroHour,
+            },
+            new()
+            {
+                Id = originalMapId,
+                ManifestId = originalMapId,
+                DisplayName = "Tournament Desert",
+                ContentType = ContentType.Map,
+                GameType = GameType.ZeroHour,
+            },
+        };
+
+        _contentLoaderMock.Setup(c => c.LoadEnabledContentForProfileAsync(profile))
+            .ReturnsAsync(enabledItems);
+        _contentLoaderMock.Setup(c => c.LoadAvailableGameInstallationsAsync())
+            .ReturnsAsync([]);
+        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IReadOnlyList<string>>()))
+            .ReturnsAsync([]);
+        _manifestPoolMock.Setup(m => m.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([]));
+
+        var mapManifest = new ContentManifest
+        {
+            Id = ManifestId.Create(originalMapId),
+            Name = "Tournament Desert",
+            ContentType = ContentType.Map,
+        };
+        var installManifest = new ContentManifest
+        {
+            Id = ManifestId.Create(installId),
+            Name = "Zero Hour",
+            ContentType = ContentType.GameInstallation,
+        };
+
+        _manifestPoolMock.Setup(m => m.GetManifestAsync(ManifestId.Create(originalMapId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(mapManifest));
+        _manifestPoolMock.Setup(m => m.GetManifestAsync(ManifestId.Create(installId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(installManifest));
+
+        int callCount = 0;
+        _profileContentLinkerMock.Setup(p => p.UpdateProfileUserDataAsync(
+            profileId,
+            It.IsAny<IEnumerable<ContentManifest>>(),
+            It.IsAny<GameType>(),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            {
+                callCount++;
+                return callCount == 1
+                    ? OperationResult<bool>.CreateSuccess(true)
+                    : OperationResult<bool>.CreateFailure("Rollback disk IO error");
+            });
+
+        await _viewModel.InitializeForProfileAsync(profileId);
+        _gameProfileManagerMock.Invocations.Clear();
+
+        // Act
+        await _viewModel.SaveCommand.ExecuteAsync(null);
+
+        // Assert
+        Assert.Contains("Failed to update profile", _viewModel.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Live rollback failed: Rollback disk IO error", _viewModel.StatusMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static GameLaunchInfo CreateActiveLaunch(string profileId, string launchId = "launch-1", string workspaceId = "ws-1") => new()
     {
         LaunchId = launchId,
