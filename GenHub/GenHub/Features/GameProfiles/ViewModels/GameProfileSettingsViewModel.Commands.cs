@@ -199,6 +199,7 @@ public partial class GameProfileSettingsViewModel
         {
             StatusMessage = "This content item is locked and cannot be modified";
             _logger?.LogWarning("DisableContent: Cannot disable locked item {DisplayName}", contentItem.DisplayName);
+            _localNotificationService.ShowWarning("Content Locked", $"'{contentItem.DisplayName}' is locked and cannot be modified while the game is running.");
             return;
         }
 

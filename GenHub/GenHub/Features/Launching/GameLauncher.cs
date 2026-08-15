@@ -793,7 +793,7 @@ public class GameLauncher(
             }
 
             progress?.Report(new LaunchProgress { Phase = LaunchPhase.PreparingUserData, PercentComplete = 82 });
-            TriggerBackgroundUserDataSwitch(profile, manifests, skipUserDataCleanup);
+            await PrepareUserDataAsync(profile, manifests, skipUserDataCleanup, cancellationToken);
 
             progress?.Report(new LaunchProgress { Phase = LaunchPhase.Starting, PercentComplete = 90 });
             var executableResult = ResolveAndValidateExecutablePath(profile, workspaceInfo);
@@ -1042,43 +1042,39 @@ public class GameLauncher(
         return OperationResult<WorkspaceInfo>.CreateSuccess(workspaceInfo);
     }
 
-    private void TriggerBackgroundUserDataSwitch(
+    private async Task PrepareUserDataAsync(
         GameProfile profile,
         List<ContentManifest> manifests,
-        bool skipUserDataCleanup)
+        bool skipUserDataCleanup,
+        CancellationToken cancellationToken)
     {
         var previousActiveProfileId = profileContentLinker.GetActiveProfileId();
-        _ = Task.Run(
-            async () =>
+        try
+        {
+            logger.LogDebug(
+                "[GameLauncher] Switching user data from profile {OldProfile} to {NewProfile}",
+                previousActiveProfileId ?? "(none)",
+                profile.Id);
+            var userDataResult = await profileContentLinker.SwitchProfileUserDataAsync(
+                previousActiveProfileId,
+                profile.Id,
+                manifests,
+                profile.GameClient?.GameType ?? GameType.ZeroHour,
+                skipUserDataCleanup,
+                cancellationToken);
+            if (!userDataResult.Success)
             {
-                try
-                {
-                    logger.LogDebug(
-                        "[GameLauncher] Background: Switching user data from profile {OldProfile} to {NewProfile}",
-                        previousActiveProfileId ?? "(none)",
-                        profile.Id);
-                    var userDataResult = await profileContentLinker.SwitchProfileUserDataAsync(
-                        previousActiveProfileId,
-                        profile.Id,
-                        manifests,
-                        profile.GameClient?.GameType ?? GameType.ZeroHour,
-                        skipUserDataCleanup,
-                        CancellationToken.None);
-                    if (!userDataResult.Success)
-                    {
-                        logger.LogWarning("[GameLauncher] Background user data preparation had issues: {Error}", userDataResult.FirstError);
-                    }
-                    else
-                    {
-                        logger.LogInformation("[GameLauncher] Background user data content prepared for profile {ProfileId}", profile.Id);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "[GameLauncher] Unexpected error in background user data linkage for profile {ProfileId}", profile.Id);
-                }
-            },
-            CancellationToken.None);
+                logger.LogWarning("[GameLauncher] User data preparation had issues: {Error}", userDataResult.FirstError);
+            }
+            else
+            {
+                logger.LogInformation("[GameLauncher] User data content prepared for profile {ProfileId}", profile.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[GameLauncher] Unexpected error in user data linkage for profile {ProfileId}", profile.Id);
+        }
     }
 
     private OperationResult<string> ResolveAndValidateExecutablePath(
