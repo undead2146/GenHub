@@ -615,20 +615,33 @@ public class GameProfileSettingsViewModelHotswapTests
         await _viewModel.InitializeForProfileAsync(profileId);
         _gameProfileManagerMock.Invocations.Clear();
 
+        // Simulate user disabling the map during active session
+        var mapItem = _viewModel.EnabledContent.First(i => i.ManifestId.Value == originalMapId);
+        _viewModel.EnabledContent.Remove(mapItem);
+
         // Act
         await _viewModel.SaveCommand.ExecuteAsync(null);
 
         // Assert
         Assert.Contains("Failed to update profile", _viewModel.StatusMessage, StringComparison.OrdinalIgnoreCase);
 
-        // Linker must have been called twice: first for the live update, and second for rollback
+        // First call: forward live update with new enabled content (map removed)
         _profileContentLinkerMock.Verify(
             p => p.UpdateProfileUserDataAsync(
                 profileId,
-                It.IsAny<IEnumerable<ContentManifest>>(),
+                It.Is<IEnumerable<ContentManifest>>(m => m.Count() == 1 && m.Any(x => x.Id.Value == installId)),
                 It.IsAny<GameType>(),
                 It.IsAny<CancellationToken>()),
-            Times.Exactly(2));
+            Times.Once);
+
+        // Second call: rollback live update with original enabled content (map restored)
+        _profileContentLinkerMock.Verify(
+            p => p.UpdateProfileUserDataAsync(
+                profileId,
+                It.Is<IEnumerable<ContentManifest>>(m => m.Count() == 2 && m.Any(x => x.Id.Value == originalMapId)),
+                It.IsAny<GameType>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     /// <summary>
