@@ -431,10 +431,26 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     /// </summary>
     partial void OnSelectedGameInstallationChanged(ContentDisplayItem? value)
     {
-        if (value is { GameType: var gameType } && gameType != GameTypeFilter)
+        if (value != null)
         {
-            GameTypeFilter = gameType;
-            _logger?.LogInformation("Auto-synced GameTypeFilter to {GameType} based on SelectedGameInstallation", gameType);
+            value.IsEnabled = true;
+            foreach (var item in AvailableGameInstallations)
+            {
+                item.IsEnabled = item.ManifestId.Value == value.ManifestId.Value;
+            }
+
+            if (value.GameType != GameTypeFilter)
+            {
+                GameTypeFilter = value.GameType;
+                _logger?.LogInformation("Auto-synced GameTypeFilter to {GameType} based on SelectedGameInstallation", value.GameType);
+            }
+        }
+        else
+        {
+            foreach (var item in AvailableGameInstallations)
+            {
+                item.IsEnabled = false;
+            }
         }
     }
 
@@ -704,12 +720,19 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
 
         if (compatibleInstallation != null)
         {
-            if (!autoEnabledNames.Contains(compatibleInstallation.DisplayName))
+            if (!compatibleInstallation.IsLocked && compatibleInstallation.CanToggle)
             {
-                autoEnabledNames.Add(compatibleInstallation.DisplayName);
-            }
+                if (!autoEnabledNames.Contains(compatibleInstallation.DisplayName))
+                {
+                    autoEnabledNames.Add(compatibleInstallation.DisplayName);
+                }
 
-            await EnableContentInternal(compatibleInstallation, bypassLoadingGuard: true, isRootOperation: false, autoEnabledNames, cancellationToken);
+                await EnableContentInternal(compatibleInstallation, bypassLoadingGuard: true, isRootOperation: false, autoEnabledNames, cancellationToken);
+            }
+            else
+            {
+                _logger?.LogWarning("Auto-resolve skipped: Installation {DisplayName} is locked or cannot toggle", compatibleInstallation.DisplayName);
+            }
         }
     }
 
@@ -747,7 +770,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         if (match != null)
         {
             var viewModelItem = ConvertToViewModelContentDisplayItem(match);
-            if (!viewModelItem.IsEnabled)
+            if (!viewModelItem.IsEnabled && !viewModelItem.IsLocked && viewModelItem.CanToggle)
             {
                 if (!autoEnabledNames.Contains(viewModelItem.DisplayName))
                 {
@@ -755,6 +778,10 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
                 }
 
                 await EnableContentInternal(viewModelItem, bypassLoadingGuard: true, isRootOperation: false, autoEnabledNames, cancellationToken);
+            }
+            else if (viewModelItem.IsLocked || !viewModelItem.CanToggle)
+            {
+                _logger?.LogWarning("Auto-resolve skipped: Content {DisplayName} is locked or cannot toggle", viewModelItem.DisplayName);
             }
         }
     }
@@ -944,6 +971,15 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
                 SelectedGameInstallation = AvailableGameInstallations
                     .OrderByDescending(i => i.GameType == Core.Models.Enums.GameType.ZeroHour)
                     .First();
+                SelectedGameInstallation.IsEnabled = true;
+            }
+            else if (SelectedGameInstallation != null)
+            {
+                var match = AvailableGameInstallations.FirstOrDefault(a => a.ManifestId.Value == SelectedGameInstallation.ManifestId.Value);
+                if (match != null)
+                {
+                    match.IsEnabled = true;
+                }
             }
         }
         catch (Exception ex)

@@ -21,6 +21,7 @@ using Moq;
 using Xunit;
 using ContentType = GenHub.Core.Models.Enums.ContentType;
 using CoreContentDisplayItem = GenHub.Core.Models.Content.ContentDisplayItem;
+using GameInstallationType = GenHub.Core.Models.Enums.GameInstallationType;
 using GameType = GenHub.Core.Models.Enums.GameType;
 
 namespace GenHub.Tests.Core.Features.GameProfiles.ViewModels;
@@ -747,6 +748,104 @@ public class GameProfileSettingsViewModelHotswapTests
         // Assert
         Assert.Contains("Failed to update profile", _viewModel.StatusMessage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Live rollback failed: Rollback disk IO error", _viewModel.StatusMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Verifies that enabling a hotswappable map pack during hotswap mode succeeds without triggering locked installation errors.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task EnableContent_DuringHotswap_EnablesHotswappableMapPackWithoutAttemptingToModifyLockedInstallation()
+    {
+        // Arrange
+        const string profileId = "profile-live-hotswap";
+        const string installId = "1.104.steam.gameinstallation.zerohour";
+        const string mapPackId = "1.813262.generalsonline.mappack.quickmatchmaps";
+
+        var profile = new GameProfile
+        {
+            Id = profileId,
+            Name = "GeneralsOnline 60Hz",
+            EnabledContentIds = [installId],
+            GameInstallationId = "steam_zh",
+            GameClient = new GameClient
+            {
+                Id = "client-60hz",
+                Name = "GeneralsOnline 60Hz",
+                GameType = GameType.ZeroHour,
+            },
+        };
+
+        _gameProfileManagerMock.Setup(m => m.GetProfileAsync(profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
+        _gameProfileManagerMock.Setup(m => m.UpdateProfileAsync(profileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
+        _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
+            .ReturnsAsync([CreateActiveLaunch(profileId)]);
+
+        var installItem = new CoreContentDisplayItem
+        {
+            Id = installId,
+            ManifestId = installId,
+            DisplayName = "Zero Hour v1.04",
+            ContentType = ContentType.GameInstallation,
+            GameType = GameType.ZeroHour,
+            InstallationType = GameInstallationType.Steam,
+            IsEnabled = true,
+        };
+
+        _contentLoaderMock.Setup(c => c.LoadEnabledContentForProfileAsync(profile))
+            .ReturnsAsync([installItem]);
+        _contentLoaderMock.Setup(c => c.LoadAvailableGameInstallationsAsync())
+            .ReturnsAsync([installItem]);
+        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IReadOnlyList<string>>()))
+            .ReturnsAsync([]);
+        _manifestPoolMock.Setup(m => m.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([]));
+
+        var mapPackManifest = new ContentManifest
+        {
+            Id = ManifestId.Create(mapPackId),
+            Name = "GeneralsOnline QuickMatch Maps",
+            ContentType = ContentType.MapPack,
+            TargetGame = GameType.ZeroHour,
+            Dependencies =
+            [
+                new()
+                {
+                    DependencyType = ContentType.GameInstallation,
+                    CompatibleGameTypes = [GameType.ZeroHour],
+                },
+            ],
+        };
+
+        _manifestPoolMock.Setup(m => m.GetManifestAsync(ManifestId.Create(mapPackId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(mapPackManifest));
+
+        await _viewModel.InitializeForProfileAsync(profileId);
+
+        var mapPackVmItem = new ContentDisplayItem
+        {
+            ManifestId = ManifestId.Create(mapPackId),
+            DisplayName = "GeneralsOnline QuickMatch Maps",
+            ContentType = ContentType.MapPack,
+            GameType = GameType.ZeroHour,
+            InstallationType = GameInstallationType.Steam,
+            IsEnabled = false,
+            CanToggle = true,
+            IsLocked = false,
+        };
+        _viewModel.AvailableContent.Add(mapPackVmItem);
+
+        // Act
+        _viewModel.EnableContentCommand.Execute(mapPackVmItem);
+        await Task.Delay(50);
+
+        // Assert
+        Assert.True(_viewModel.IsHotswapMode);
+        Assert.Contains(_viewModel.EnabledContent, c => c.ManifestId.Value == mapPackId);
+        Assert.True(_viewModel.EnabledContent.First(c => c.ManifestId.Value == mapPackId).IsEnabled);
+        Assert.Equal(installId, _viewModel.SelectedGameInstallation?.ManifestId.Value);
     }
 
     private static GameLaunchInfo CreateActiveLaunch(string profileId, string launchId = "launch-1", string workspaceId = "ws-1") => new()
