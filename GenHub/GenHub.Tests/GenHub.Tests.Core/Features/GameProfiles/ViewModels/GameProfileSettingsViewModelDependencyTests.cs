@@ -597,8 +597,7 @@ public class GameProfileSettingsViewModelDependencyTests
         _viewModel.AvailableContent.Add(mapPackItem);
 
         // Act
-        _viewModel.EnableContentCommand.Execute(mapPackItem);
-        await Task.Delay(50);
+        await _viewModel.EnableContentCommand.ExecuteAsync(mapPackItem);
 
         // Assert
         Assert.Equal(zeroHourInstall, _viewModel.SelectedGameInstallation);
