@@ -158,6 +158,7 @@ public partial class GameProfileSettingsViewModel
             CoverPath = NormalizeResourcePath(profile.CoverPath, defaultCoverPath);
             SelectedWorkspaceStrategy = profile.WorkspaceStrategy ?? GetDefaultWorkspaceStrategy();
             OriginalWorkspaceStrategy = profile.WorkspaceStrategy ?? GetDefaultWorkspaceStrategy();
+            _originalEnabledContentIds = profile.EnabledContentIds?.ToList() ?? [];
             CommandLineArguments = profile.CommandLineArguments ?? string.Empty;
 
             LoadAvailableIconsAndCovers(profile.GameClient?.GameType.ToString() ?? "ZeroHour");

@@ -528,6 +528,27 @@ public partial class GameProfileSettingsViewModel
                 }
                 else
                 {
+                    // Roll back live synchronization if profile persistence failed
+                    if (isProfileRunning && _profileContentLinker != null && _manifestPool != null)
+                    {
+                        var originalManifests = new List<ContentManifest>();
+                        foreach (var id in _originalEnabledContentIds)
+                        {
+                            var manifestRes = await _manifestPool.GetManifestAsync(ManifestId.Create(id));
+                            if (manifestRes.Success && manifestRes.Data != null)
+                            {
+                                originalManifests.Add(manifestRes.Data);
+                            }
+                        }
+
+                        await _profileContentLinker.UpdateProfileUserDataAsync(
+                            _currentProfileId,
+                            originalManifests,
+                            GameTypeFilter);
+
+                        _logger?.LogInformation("Rolled back live user data sync for profile {ProfileId} after profile update failure", _currentProfileId);
+                    }
+
                     StatusMessage = $"Failed to update profile: {string.Join(", ", result.Errors)}";
                     _logger?.LogWarning("Failed to update profile {ProfileId}: {Errors}", CurrentProfileId, string.Join(", ", result.Errors));
                 }
