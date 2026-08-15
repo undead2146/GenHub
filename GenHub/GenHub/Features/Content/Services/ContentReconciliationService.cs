@@ -297,7 +297,7 @@ public class ContentReconciliationService(
             {
                 // 1. Reconcile Profiles (Remove manifest references)
                 var reconcileResult = await ReconcileManifestRemovalInternalAsync(manifestId, cancellationToken);
-                if (reconcileResult.Success)
+                if (reconcileResult.Success && (reconcileResult.Data?.FailedProfilesCount ?? 0) == 0)
                 {
                     totalResult += reconcileResult.Data!;
 
@@ -316,7 +316,12 @@ public class ContentReconciliationService(
                 }
                 else
                 {
-                    logger.LogWarning("Skipping removal of manifest '{ManifestId}' because profile reconciliation failed: {Error}", manifestId.Value, reconcileResult.FirstError);
+                    logger.LogWarning("Skipping removal of manifest '{ManifestId}' because profile reconciliation had failures or active profile references: {Error}", manifestId.Value, reconcileResult.FirstError);
+                    if (reconcileResult.Success && reconcileResult.Data != null)
+                    {
+                        totalResult += reconcileResult.Data;
+                    }
+
                     failedManifests.Add(manifestId.Value);
                 }
             }
@@ -502,20 +507,17 @@ public class ContentReconciliationService(
                     };
                 }
 
-                bool workspaceInvalidated = false;
-
+                bool isRunning = false;
                 if (launchRegistry != null)
                 {
                     var activeLaunches = await launchRegistry.GetAllActiveLaunchesAsync();
-                    if (activeLaunches.Any(l => string.Equals(l.ProfileId, profile.Id, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        logger.LogWarning("Skipping workspace cleanup for running profile '{ProfileName}'", profile.Name);
-                        continue;
-                    }
+                    isRunning = activeLaunches.Any(l => string.Equals(l.ProfileId, profile.Id, StringComparison.OrdinalIgnoreCase));
                 }
 
-                // Clear workspace to force launch-time sync
-                if (!string.IsNullOrEmpty(profile.ActiveWorkspaceId))
+                bool workspaceInvalidated = false;
+
+                // Clear workspace to force launch-time sync only if not running
+                if (!isRunning && !string.IsNullOrEmpty(profile.ActiveWorkspaceId))
                 {
                     logger.LogDebug("Cleaning up workspace '{WorkspaceId}' for stale profile '{ProfileName}'", profile.ActiveWorkspaceId, profile.Name);
                     var cleanupResult = await workspaceManager.CleanupWorkspaceAsync(profile.ActiveWorkspaceId, cancellationToken);
@@ -531,7 +533,7 @@ public class ContentReconciliationService(
                 {
                     EnabledContentIds = newContentIds,
                     GameClient = newGameClient,
-                    ActiveWorkspaceId = string.Empty,
+                    ActiveWorkspaceId = isRunning ? profile.ActiveWorkspaceId : string.Empty,
                 };
 
                 var updateResult = await profileManager.UpdateProfileAsync(profile.Id, updateRequest, cancellationToken);
@@ -604,7 +606,8 @@ public class ContentReconciliationService(
                     var activeLaunches = await launchRegistry.GetAllActiveLaunchesAsync();
                     if (activeLaunches.Any(l => string.Equals(l.ProfileId, profile.Id, StringComparison.OrdinalIgnoreCase)))
                     {
-                        logger.LogWarning("Skipping workspace cleanup for running profile '{ProfileName}'", profile.Name);
+                        logger.LogWarning("Cannot remove manifest '{ManifestId}' because profile '{ProfileName}' is actively running", manifestId.Value, profile.Name);
+                        failedProfiles.Add(profile.Name);
                         continue;
                     }
                 }
