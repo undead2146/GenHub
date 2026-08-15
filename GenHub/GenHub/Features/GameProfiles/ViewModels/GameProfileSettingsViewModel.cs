@@ -13,11 +13,14 @@ using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GameSettings;
+using GenHub.Core.Interfaces.Launching;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Interfaces.UserData;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
+using GenHub.Core.Models.Workspace;
 using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.Notifications.Services;
 using GenHub.Features.Notifications.ViewModels;
@@ -121,8 +124,11 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         if (gameSettings != null) GameSettingsMapper.PopulateRequest(request, gameSettings);
     }
 
-    private static ContentDisplayItem ConvertToViewModelContentDisplayItem(Core.Models.Content.ContentDisplayItem coreItem)
+    private ContentDisplayItem ConvertToViewModelContentDisplayItem(Core.Models.Content.ContentDisplayItem coreItem)
     {
+        var isLocked = IsHotswapMode && ContentHotswapClassification.IsLocked(coreItem.ContentType);
+        var canToggle = !IsHotswapMode || ContentHotswapClassification.IsHotswappable(coreItem.ContentType);
+
         return new ContentDisplayItem
         {
             ManifestId = ManifestId.Create(coreItem.ManifestId),
@@ -137,8 +143,8 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
             IsEnabled = coreItem.IsEnabled,
             IsEditable = coreItem.IsEditable,
             SourcePath = coreItem.SourcePath,
-            IsLocked = false,
-            CanToggle = true,
+            IsLocked = isLocked,
+            CanToggle = canToggle,
         };
     }
 
@@ -198,6 +204,27 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     private static bool HasCompatibleCatalogMatch(string declaredId, string availableId) =>
         DependencyResolver.HasCompatibleCatalogIdentity(declaredId, availableId);
 
+    private void UpdateAllItemsHotswapState()
+    {
+        foreach (var item in EnabledContent)
+        {
+            item.IsLocked = IsHotswapMode && ContentHotswapClassification.IsLocked(item.ContentType);
+            item.CanToggle = !IsHotswapMode || ContentHotswapClassification.IsHotswappable(item.ContentType);
+        }
+
+        foreach (var item in AvailableContent)
+        {
+            item.IsLocked = IsHotswapMode && ContentHotswapClassification.IsLocked(item.ContentType);
+            item.CanToggle = !IsHotswapMode || ContentHotswapClassification.IsHotswappable(item.ContentType);
+        }
+
+        foreach (var item in AvailableGameInstallations)
+        {
+            item.IsLocked = IsHotswapMode;
+            item.CanToggle = !IsHotswapMode;
+        }
+    }
+
     private readonly IGameProfileManager? _gameProfileManager;
     private readonly IGameSettingsService? _gameSettingsService;
     private readonly IConfigurationProviderService? _configurationProvider;
@@ -211,6 +238,8 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     private readonly IDialogService? _dialogService;
     private readonly ILogger<GameProfileSettingsViewModel>? _logger;
     private readonly ILogger<GameSettingsViewModel>? _gameSettingsLogger;
+    private readonly IProfileContentLinker? _profileContentLinker;
+    private readonly ILaunchRegistry? _launchRegistry;
 
     private readonly NotificationService _localNotificationService = new(NullLogger<NotificationService>.Instance);
 
@@ -249,6 +278,8 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     /// <param name="dialogService">The dialog service.</param>
     /// <param name="logger">The logger for this view model.</param>
     /// <param name="gameSettingsLogger">The logger for the game settings view model.</param>
+    /// <param name="profileContentLinker">The profile content linker service.</param>
+    /// <param name="launchRegistry">The launch registry service.</param>
     public GameProfileSettingsViewModel(
         IGameProfileManager? gameProfileManager,
         IGameSettingsService? gameSettingsService,
@@ -262,7 +293,9 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         IGenLauncherNormalizationService? genLauncherNormalizationService,
         IDialogService? dialogService,
         ILogger<GameProfileSettingsViewModel>? logger,
-        ILogger<GameSettingsViewModel>? gameSettingsLogger)
+        ILogger<GameSettingsViewModel>? gameSettingsLogger,
+        IProfileContentLinker? profileContentLinker = null,
+        ILaunchRegistry? launchRegistry = null)
     {
         _gameProfileManager = gameProfileManager;
         _gameSettingsService = gameSettingsService;
@@ -277,6 +310,8 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         _dialogService = dialogService;
         _logger = logger;
         _gameSettingsLogger = gameSettingsLogger;
+        _profileContentLinker = profileContentLinker;
+        _launchRegistry = launchRegistry;
 
         NotificationManager = new NotificationManagerViewModel(
             _localNotificationService,

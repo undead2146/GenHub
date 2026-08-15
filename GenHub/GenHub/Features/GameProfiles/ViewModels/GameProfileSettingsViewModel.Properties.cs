@@ -197,4 +197,13 @@ public partial class GameProfileSettingsViewModel
 
     [ObservableProperty]
     private GameType _selectedLocalGameType = Core.Models.Enums.GameType.ZeroHour;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanEditImmutableMetadata))]
+    private bool _isHotswapMode;
+
+    /// <summary>
+    /// Gets a value indicating whether immutable profile metadata can be edited (i.e. not in hotswap mode).
+    /// </summary>
+    public bool CanEditImmutableMetadata => !IsHotswapMode;
 }

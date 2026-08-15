@@ -36,6 +36,7 @@ public partial class GameProfileSettingsViewModel
             }
 
             CurrentProfileId = null;
+            IsHotswapMode = false;
             Name = ProfileConstants.DefaultProfileName;
             Description = "A new game profile";
             ColorValue = "#1976D2";
@@ -178,9 +179,20 @@ public partial class GameProfileSettingsViewModel
                 }
             }
 
+            if (_launchRegistry != null)
+            {
+                var activeLaunches = await _launchRegistry.GetAllActiveLaunchesAsync();
+                IsHotswapMode = activeLaunches.Any(l => string.Equals(l.ProfileId, profileId, StringComparison.OrdinalIgnoreCase));
+            }
+            else
+            {
+                IsHotswapMode = false;
+            }
+
             await LoadEnabledContentForProfileAsync(profile);
             await LoadAvailableGameInstallationsAsync();
             await LoadAvailableContentAsync();
+            UpdateAllItemsHotswapState();
             await RefreshVisibleFiltersAsync();
 
             var enabledInstallation = EnabledContent.FirstOrDefault(c => c.ContentType == Core.Models.Enums.ContentType.GameInstallation);

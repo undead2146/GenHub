@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.Launching;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Storage;
 using GenHub.Core.Interfaces.Workspace;
@@ -29,7 +30,8 @@ public class ContentReconciliationService(
     IContentManifestPool manifestPool,
     ICasReferenceTracker referenceTracker,
     ICasLifecycleManager casLifecycleManager,
-    ILogger<ContentReconciliationService> logger) : IContentReconciliationService, IDisposable
+    ILogger<ContentReconciliationService> logger,
+    ILaunchRegistry? launchRegistry = null) : IContentReconciliationService, IDisposable
 {
     private readonly SemaphoreSlim _reconciliationLock = new(1, 1);
 
@@ -395,6 +397,16 @@ public class ContentReconciliationService(
         int invalidatedCount = 0;
         foreach (var profile in affectedProfiles)
         {
+            if (launchRegistry != null)
+            {
+                var activeLaunches = await launchRegistry.GetAllActiveLaunchesAsync();
+                if (activeLaunches.Any(l => string.Equals(l.ProfileId, profile.Id, StringComparison.OrdinalIgnoreCase)))
+                {
+                    logger.LogWarning("Skipping workspace invalidation for running profile '{ProfileName}'", profile.Name);
+                    continue;
+                }
+            }
+
             logger.LogDebug("Invalidating workspace for profile '{ProfileName}' due to manifest update", profile.Name);
             var cleanupResult = await workspaceManager.CleanupWorkspaceAsync(profile.ActiveWorkspaceId!, cancellationToken);
             if (!cleanupResult.Success)
@@ -492,6 +504,16 @@ public class ContentReconciliationService(
 
                 bool workspaceInvalidated = false;
 
+                if (launchRegistry != null)
+                {
+                    var activeLaunches = await launchRegistry.GetAllActiveLaunchesAsync();
+                    if (activeLaunches.Any(l => string.Equals(l.ProfileId, profile.Id, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        logger.LogWarning("Skipping workspace cleanup for running profile '{ProfileName}'", profile.Name);
+                        continue;
+                    }
+                }
+
                 // Clear workspace to force launch-time sync
                 if (!string.IsNullOrEmpty(profile.ActiveWorkspaceId))
                 {
@@ -576,6 +598,17 @@ public class ContentReconciliationService(
                     .ToList();
 
                 bool workspaceInvalidated = false;
+
+                if (launchRegistry != null)
+                {
+                    var activeLaunches = await launchRegistry.GetAllActiveLaunchesAsync();
+                    if (activeLaunches.Any(l => string.Equals(l.ProfileId, profile.Id, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        logger.LogWarning("Skipping workspace cleanup for running profile '{ProfileName}'", profile.Name);
+                        continue;
+                    }
+                }
+
                 if (!string.IsNullOrEmpty(profile.ActiveWorkspaceId))
                 {
                     logger.LogDebug("Cleaning up workspace '{WorkspaceId}' for deleted content in profile '{ProfileName}'", profile.ActiveWorkspaceId, profile.Name);
