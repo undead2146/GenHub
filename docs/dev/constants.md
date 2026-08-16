@@ -768,7 +768,7 @@ public static string FromInstallationType(GameInstallationType installationType)
 
 ## IoConstants Class
 
-- `DefaultFileBufferSize`: 4096
+- `DefaultFileBufferSize`: 65536
 
 ---
 

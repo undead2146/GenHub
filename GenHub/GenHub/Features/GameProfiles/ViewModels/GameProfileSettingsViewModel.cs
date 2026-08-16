@@ -47,7 +47,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
     /// </summary>
     public static ContentType[] AllowedLocalContentTypes { get; } =
     [
-        ContentType.Mod, ContentType.MapPack, ContentType.Addon, ContentType.Patch,
+        ContentType.Mod, ContentType.Map, ContentType.MapPack, ContentType.Mission, ContentType.Addon, ContentType.Patch,
         ContentType.ModdingTool, ContentType.Executable, ContentType.GameClient
     ];
 
@@ -56,14 +56,20 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
     /// </summary>
     public static ContentType[] AvailableContentTypes { get; } =
     [
-        ContentType.GameClient, ContentType.Mod, ContentType.MapPack, ContentType.Addon,
+        ContentType.GameClient, ContentType.Mod, ContentType.Map, ContentType.MapPack, ContentType.Mission, ContentType.Addon,
         ContentType.Patch, ContentType.ModdingTool, ContentType.Executable
     ];
 
     /// <summary>
     /// Gets the available workspace strategies.
     /// </summary>
-    public static WorkspaceStrategy[] AvailableWorkspaceStrategies { get; } = [WorkspaceStrategy.HardLink, WorkspaceStrategy.FullCopy];
+    public static WorkspaceStrategy[] AvailableWorkspaceStrategies { get; } =
+    [
+        WorkspaceStrategy.HardLink,
+        WorkspaceStrategy.FullCopy,
+        WorkspaceStrategy.SymlinkOnly,
+        WorkspaceStrategy.HybridCopySymlink
+    ];
 
     private static bool _hasShownFirstLoadNotification;
 
@@ -193,6 +199,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
 
             AddFilterIfAvailable(ContentType.GameClient, "M20,19V7H4V19H20M20,3A2,2 0 0,1 22,5V19A2,2 0 0,1 20,21H4A2,2 0 0,1 2,19V5C2,3.89 2.9,3 4,3H20");
             AddFilterIfAvailable(ContentType.Mod, "M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z");
+            AddFilterIfAvailable(ContentType.Map, "M15,19L9,16.89V5L15,7.11M20.5,3C20.44,3 20.39,3 20.34,3L15,5.1L9,3L3.36,4.9C3.15,4.97 3,5.15 3,5.38V20.5A0.5,0.5 0 0,0 3.5,21C3.55,21 3.61,21 3.66,20.97L9,18.9L15,21L20.64,19.1C20.85,19 21,18.85 21,18.62V3.5A0.5,0.5 0 0,0 20.5,3Z");
             AddFilterIfAvailable(ContentType.MapPack, "M15,19L9,16.89V5L15,7.11M20.5,3C20.44,3 20.39,3 20.34,3L15,5.1L9,3L3.36,4.9C3.15,4.97 3,5.15 3,5.38V20.5A0.5,0.5 0 0,0 3.5,21C3.55,21 3.61,21 3.66,20.97L9,18.9L15,21L20.64,19.1C20.85,19 21,18.85 21,18.62V3.5A0.5,0.5 0 0,0 20.5,3Z");
             AddFilterIfAvailable(ContentType.ModdingTool, "M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11.03L21.54,9.37C21.73,9.22 21.78,8.97 21.68,8.76L19.68,5.29C19.58,5.08 19.33,5 19.14,5.07L16.66,6.07C16.14,5.67 15.58,5.33 14.97,5.08L14.59,2.44C14.54,2.2 14.34,2.04 14.1,2.04H10.1C9.86,2.04 9.66,2.2 9.61,2.44L9.23,5.08C8.62,5.33 8.06,5.67 7.54,6.07L5.06,5.07C4.87,5 4.62,5.08 4.52,5.29L2.52,8.76C2.42,8.97 2.47,9.22 2.66,9.37L4.77,11.03C4.73,11.34 4.7,11.67 4.7,12C4.7,12.33 4.73,12.65 4.77,12.97L2.66,14.63C2.47,14.78 2.42,15.03 2.52,15.24L4.52,18.71C4.62,18.92 4.87,19 5.06,18.93L7.54,17.93C8.06,18.33 8.62,18.67 9.23,18.92L9.61,21.56C9.66,21.8 9.86,21.96 10.1,21.96H14.1C14.34,21.96 14.54,21.8 14.59,21.56L14.97,18.92C15.58,18.67 16.14,18.33 16.66,17.93L19.14,18.93C19.33,19 19.58,18.92 19.68,18.71L21.68,15.24C21.78,15.03 21.73,14.78 21.54,14.63L19.43,12.97Z");
             AddFilterIfAvailable(ContentType.Patch, "M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z");
@@ -231,14 +238,16 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
         _ = RefreshFiltersAndContentAsync();
     }
 
-    private WorkspaceStrategy GetDefaultWorkspaceStrategy() => _configurationProvider!.GetDefaultWorkspaceStrategy();
+    private WorkspaceStrategy GetDefaultWorkspaceStrategy() =>
+        _configurationProvider?.GetDefaultWorkspaceStrategy() ?? WorkspaceConstants.DefaultWorkspaceStrategy;
 
     private async Task LoadAvailableGameInstallationsAsync()
     {
         try
         {
             AvailableGameInstallations.Clear();
-            var coreItems = await _profileContentLoader!.LoadAvailableGameInstallationsAsync();
+            if (_profileContentLoader == null) return;
+            var coreItems = await _profileContentLoader.LoadAvailableGameInstallationsAsync();
             foreach (var coreItem in coreItems)
             {
                 try
@@ -300,7 +309,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
             {
                 if (existing.ContentType == ContentType.GameClient && Name == existing.DisplayName)
                 {
-                    Name = "New Profile";
+                    Name = ProfileConstants.DefaultProfileName;
                 }
 
                 existing.IsEnabled = false;
@@ -343,7 +352,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
             SelectedGameInstallation = contentItem;
         }
 
-        if (contentItem.ContentType == ContentType.GameClient && Name == "New Profile")
+        if (contentItem.ContentType == ContentType.GameClient && Name == ProfileConstants.DefaultProfileName)
         {
             Name = contentItem.DisplayName;
         }
@@ -459,9 +468,9 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
                         alreadyEnabled = EnabledContent.Any(x => x.ContentType == dependency.DependencyType);
                     }
 
-                    if (!alreadyEnabled && !dependency.IsOptional)
+                    if (!alreadyEnabled && !dependency.IsOptional && _profileContentLoader != null)
                     {
-                        var availableOfTargetType = await _profileContentLoader!.LoadAvailableContentAsync(
+                        var availableOfTargetType = await _profileContentLoader.LoadAvailableContentAsync(
                             dependency.DependencyType,
                             new ObservableCollection<Core.Models.Content.ContentDisplayItem>(AvailableGameInstallations.Select(x => new Core.Models.Content.ContentDisplayItem
                             {
