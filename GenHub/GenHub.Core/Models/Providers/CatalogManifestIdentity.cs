@@ -178,7 +178,7 @@ public static class CatalogManifestIdentity
                     }
 
                     // Standard 3-part semantic version (e.g. 1.0.0 -> 10000, 1.2.3 -> 10203)
-                    if (p0 >= 0 && p1 >= 0 && p2 >= 0)
+                    if (p0 >= 0 && p1 >= 0 && p1 < 100 && p2 >= 0 && p2 < 100)
                     {
                         var val = ((long)p0 * 10000) + ((long)p1 * 100) + p2;
                         if (val <= int.MaxValue)
@@ -188,14 +188,14 @@ public static class CatalogManifestIdentity
                     }
                 }
 
-                // Standard 4-part semantic version (e.g. 1.0.0.0 -> 10000)
+                // Standard 4-part semantic version (e.g. 1.0.0.1 -> 1000001)
                 if (parts.Length == 4 &&
                     int.TryParse(parts[0], out var m0) && m0 >= 0 &&
-                    int.TryParse(parts[1], out var m1) && m1 >= 0 &&
-                    int.TryParse(parts[2], out var m2) && m2 >= 0 &&
-                    int.TryParse(parts[3], out var m3) && m3 >= 0)
+                    int.TryParse(parts[1], out var m1) && m1 >= 0 && m1 < 100 &&
+                    int.TryParse(parts[2], out var m2) && m2 >= 0 && m2 < 100 &&
+                    int.TryParse(parts[3], out var m3) && m3 >= 0 && m3 < 100)
                 {
-                    var val = ((long)m0 * 10000) + ((long)m1 * 100) + m2;
+                    var val = ((long)m0 * 1_000_000) + ((long)m1 * 10_000) + ((long)m2 * 100) + m3;
                     if (val <= int.MaxValue)
                     {
                         return (int)val;
@@ -205,7 +205,7 @@ public static class CatalogManifestIdentity
                 // Standard 2-part semantic version (e.g. 1.04 -> 104, 1.3 -> 103, 8.9 -> 809)
                 if (parts.Length == 2 &&
                     int.TryParse(parts[0], out var major) && major >= 0 &&
-                    int.TryParse(parts[1], out var minor) && minor >= 0)
+                    int.TryParse(parts[1], out var minor) && minor >= 0 && minor < 100)
                 {
                     var normalized = $"{major}{minor.ToString().PadLeft(2, '0')}";
                     if (int.TryParse(normalized, out var dotted) && dotted >= 0)

@@ -299,22 +299,28 @@ public static partial class ContentCardBadgeHelper
 
         if (!string.IsNullOrWhiteSpace(categoryBadge))
         {
-            excluded.Add(categoryBadge);
+            excluded.Add(categoryBadge.Trim());
         }
 
         // Also drop the raw source tags that the badges were promoted from, so chips
         // do not duplicate a "3 Players" or "category:AOA" tag that already fed a badge.
         foreach (var tag in result.Tags)
         {
-            if (PlayerCountTagRegex().IsMatch(tag) || CategoryTagRegex().IsMatch(tag))
+            if (string.IsNullOrWhiteSpace(tag))
             {
-                excluded.Add(tag);
+                continue;
+            }
+
+            var trimmedTag = tag.Trim();
+            if (PlayerCountTagRegex().IsMatch(trimmedTag) || CategoryTagRegex().IsMatch(trimmedTag))
+            {
+                excluded.Add(trimmedTag);
             }
         }
 
         return [.. result.Tags
-            .Where(t => !string.IsNullOrWhiteSpace(t) && !excluded.Contains(t))
-            .Select(t => t.Trim())];
+            .Select(t => t?.Trim() ?? string.Empty)
+            .Where(t => !string.IsNullOrWhiteSpace(t) && !excluded.Contains(t))];
     }
 
     /// <summary>
@@ -362,6 +368,6 @@ public static partial class ContentCardBadgeHelper
     [GeneratedRegex(@"^category:\s*(?<category>.+)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex CategoryTagRegex();
 
-    [GeneratedRegex(@"(?<date>\d{4}-\d{2}-\d{2})$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^(?:(?:weekly|nightly|daily|build|dev|snapshot|stamp)[-_])?(?<date>\d{4}-\d{2}-\d{2})$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex BuildStampDateRegex();
 }

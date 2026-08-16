@@ -121,7 +121,7 @@ public static partial class HtmlTextHelper
     [GeneratedRegex(@"</?(?:div|li|h[1-6]|tr|section|article|blockquote|header|footer|hr)\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex BlockCloseTagRegex();
 
-    [GeneratedRegex(@"<[^>]+>", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"</?[A-Za-z][^>]*>", RegexOptions.CultureInvariant)]
     private static partial Regex HtmlTagRegex();
 
     [GeneratedRegex(@"[ \t]+\n", RegexOptions.CultureInvariant)]

@@ -55,12 +55,7 @@ public static class ContentPathPolicy
         var fullRoot = Path.GetFullPath(normalizedRoot);
         var fullCandidate = Path.GetFullPath(Path.Combine(fullRoot, normalizedRelative));
 
-        var rootPrefix = fullRoot.EndsWith(Path.DirectorySeparatorChar)
-            ? fullRoot
-            : fullRoot + Path.DirectorySeparatorChar;
-
-        if (!fullCandidate.StartsWith(rootPrefix, PathHelper.PathComparison) &&
-            !fullCandidate.Equals(fullRoot, PathHelper.PathComparison))
+        if (!IsContainedInternal(fullRoot, fullCandidate))
         {
             return OperationResult<string>.CreateFailure(
                 $"Path '{relativePath}' escapes target root directory '{rootDirectory}'.");
@@ -92,16 +87,82 @@ public static class ContentPathPolicy
             var fullRoot = Path.GetFullPath(normalizedRoot);
             var fullCandidate = Path.GetFullPath(normalizedCandidate);
 
-            var rootPrefix = fullRoot.EndsWith(Path.DirectorySeparatorChar)
-                ? fullRoot
-                : fullRoot + Path.DirectorySeparatorChar;
-
-            return fullCandidate.StartsWith(rootPrefix, PathHelper.PathComparison) ||
-                   fullCandidate.Equals(fullRoot, PathHelper.PathComparison);
+            return IsContainedInternal(fullRoot, fullCandidate);
         }
         catch
         {
             return false;
         }
+    }
+
+    private static bool IsContainedInternal(string fullRoot, string fullCandidate)
+    {
+        var rootPrefix = fullRoot.EndsWith(Path.DirectorySeparatorChar)
+            ? fullRoot
+            : fullRoot + Path.DirectorySeparatorChar;
+
+        if (!fullCandidate.StartsWith(rootPrefix, PathHelper.PathComparison) &&
+            !fullCandidate.Equals(fullRoot, PathHelper.PathComparison))
+        {
+            return false;
+        }
+
+        var realRoot = ResolveRealPath(fullRoot);
+        var realCandidate = ResolveRealPath(fullCandidate);
+
+        var realRootPrefix = realRoot.EndsWith(Path.DirectorySeparatorChar)
+            ? realRoot
+            : realRoot + Path.DirectorySeparatorChar;
+
+        return realCandidate.StartsWith(realRootPrefix, PathHelper.PathComparison) ||
+               realCandidate.Equals(realRoot, PathHelper.PathComparison);
+    }
+
+    private static string ResolveRealPath(string path)
+    {
+        try
+        {
+            var current = path;
+            while (!string.IsNullOrEmpty(current))
+            {
+                if (File.Exists(current))
+                {
+                    var fileInfo = new FileInfo(current);
+                    if (fileInfo.LinkTarget != null)
+                    {
+                        var target = fileInfo.ResolveLinkTarget(returnFinalTarget: true);
+                        if (target != null)
+                        {
+                            var relativeSuffix = Path.GetRelativePath(current, path);
+                            return relativeSuffix == "." ? target.FullName : Path.GetFullPath(Path.Combine(target.FullName, relativeSuffix));
+                        }
+                    }
+
+                    break;
+                }
+
+                if (Directory.Exists(current))
+                {
+                    var dirInfo = new DirectoryInfo(current);
+                    if (dirInfo.LinkTarget != null)
+                    {
+                        var target = dirInfo.ResolveLinkTarget(returnFinalTarget: true);
+                        if (target != null)
+                        {
+                            var relativeSuffix = Path.GetRelativePath(current, path);
+                            return relativeSuffix == "." ? target.FullName : Path.GetFullPath(Path.Combine(target.FullName, relativeSuffix));
+                        }
+                    }
+                }
+
+                current = Path.GetDirectoryName(current);
+            }
+        }
+        catch
+        {
+            // Fallback to path if resolution fails
+        }
+
+        return path;
     }
 }

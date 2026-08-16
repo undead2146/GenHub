@@ -73,7 +73,7 @@ public interface IWebPageParser
                 var page = await ParseFileDetailAsync(url, cancellationToken);
                 results[url] = page;
             }
-            catch (Exception)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // soft failure per url in batch
             }

@@ -84,7 +84,7 @@ public static partial class ManifestIdGenerator
         var safePublisher = Normalize(publisherId);
         var contentTypeString = contentType.ToManifestIdString();
         var safeName = Normalize(contentName);
-        var dateVersion = releaseDate.ToString("yyyyMMdd");
+        var dateVersion = releaseDate.ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture);
         var fullVersion = $"{ManifestConstants.DefaultManifestFormatVersion}.{dateVersion}";
 
         return $"{fullVersion}.{safePublisher}.{contentTypeString}.{safeName}";

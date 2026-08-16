@@ -17,7 +17,7 @@ public class ContentRelease
     /// Gets or sets the release date.
     /// </summary>
     [JsonPropertyName("releaseDate")]
-    public DateTime ReleaseDate { get; set; } = DateTime.UtcNow;
+    public DateTime? ReleaseDate { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether this is a prerelease version.

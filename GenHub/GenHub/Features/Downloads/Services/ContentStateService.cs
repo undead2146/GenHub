@@ -510,6 +510,11 @@ public sealed partial class ContentStateService(
                 return false;
             }
 
+            if (Version.TryParse(cleanedP, out var vP) && Version.TryParse(cleanedL, out var vL))
+            {
+                return vP > vL;
+            }
+
             var pNum = CatalogManifestIdentity.ExtractVersionNumber(prospectiveVersionStr);
             var lNum = CatalogManifestIdentity.ExtractVersionNumber(localVersionStr);
             if (pNum > 0 && lNum > 0)

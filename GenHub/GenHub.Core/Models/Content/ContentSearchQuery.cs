@@ -176,9 +176,12 @@ public class ContentSearchQuery
     /// <returns>A string cache key.</returns>
     public string ToCacheKey()
     {
-        var tags = Tags.Count > 0 ? string.Join(",", Tags.OrderBy(t => t, StringComparer.OrdinalIgnoreCase)) : string.Empty;
-        var cncTags = CNCLabsMapTags.Count > 0 ? string.Join(",", CNCLabsMapTags.OrderBy(t => t, StringComparer.OrdinalIgnoreCase)) : string.Empty;
-        return $"search::{ProviderName}::{SearchTerm}::{ContentType}::{TargetGame}::{Skip}::{Take}::{SortOrder}::{Sort}::{IncludeInstalled}::{IncludeOlderVersions}::{NumberOfPlayers}::{Page}::{ModDBCategory}::{ModDBAddonCategory}::{ModDBLicense}::{ModDBTimeframe}::{ModDBSection}::{AODMapsPlayerCount}::{AODMapsCategory}::{AODMapsMapType}::{GitHubTopic}::{GitHubAuthor}::{Language}::{tags}::{cncTags}";
+        static string Escape(string? value) => System.Uri.EscapeDataString(value ?? string.Empty);
+        var tags = Tags.Count > 0 ? string.Join(",", Tags.OrderBy(t => t, StringComparer.OrdinalIgnoreCase).Select(Escape)) : string.Empty;
+        var cncTags = CNCLabsMapTags.Count > 0 ? string.Join(",", CNCLabsMapTags.OrderBy(t => t, StringComparer.OrdinalIgnoreCase).Select(Escape)) : string.Empty;
+        var minDate = MinDate?.ToString("o", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+        var maxDate = MaxDate?.ToString("o", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+        return $"search::{Escape(ProviderName)}::{Escape(SearchTerm)}::{Escape(AuthorName)}::{ContentType}::{TargetGame}::{Skip}::{Take}::{SortOrder}::{Escape(Sort)}::{IncludeInstalled}::{IncludeOlderVersions}::{NumberOfPlayers}::{Page}::{minDate}::{maxDate}::{Escape(ModDBCategory)}::{Escape(ModDBAddonCategory)}::{Escape(ModDBLicense)}::{Escape(ModDBTimeframe)}::{Escape(ModDBSection)}::{Escape(AODMapsPlayerCount)}::{Escape(AODMapsCategory)}::{Escape(AODMapsMapType)}::{Escape(GitHubTopic)}::{Escape(GitHubAuthor)}::{Escape(Language)}::{tags}::{cncTags}";
     }
 
     private static readonly Dictionary<string, string> LanguageMap =

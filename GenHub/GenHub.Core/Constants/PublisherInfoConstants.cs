@@ -286,46 +286,57 @@ public static class PublisherInfoConstants
     /// <returns>An avares:// URI string pointing to the logo image asset, or null if unmapped.</returns>
     public static string? GetPublisherLogo(string? publisherIdOrName, string? contentIdOrName = null)
     {
-        var combined = $"{publisherIdOrName} {contentIdOrName}";
-        if (string.IsNullOrWhiteSpace(combined))
+        return MatchLogo(publisherIdOrName) ?? MatchLogo(contentIdOrName);
+    }
+
+    private static string? MatchLogo(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
         {
             return null;
         }
 
-        if (combined.Contains("superhacker", StringComparison.OrdinalIgnoreCase))
-        {
-            return TheSuperHackers.LogoSource;
-        }
-
-        if (combined.Contains("communityoutpost", StringComparison.OrdinalIgnoreCase) ||
-            combined.Contains("community outpost", StringComparison.OrdinalIgnoreCase))
+        if (input.Contains("communityoutpost", StringComparison.OrdinalIgnoreCase) ||
+            input.Contains("community outpost", StringComparison.OrdinalIgnoreCase) ||
+            input.Contains("community-outpost", StringComparison.OrdinalIgnoreCase))
         {
             return CommunityOutpost.LogoSource;
         }
 
-        if (combined.Contains("generalsonline", StringComparison.OrdinalIgnoreCase) ||
-            combined.Contains("generals online", StringComparison.OrdinalIgnoreCase))
+        if (input.Contains("superhacker", StringComparison.OrdinalIgnoreCase))
+        {
+            return TheSuperHackers.LogoSource;
+        }
+
+        if (input.Contains("generalsonline", StringComparison.OrdinalIgnoreCase) ||
+            input.Contains("generals online", StringComparison.OrdinalIgnoreCase) ||
+            input.Contains("generals-online", StringComparison.OrdinalIgnoreCase))
         {
             return GeneralsOnline.LogoSource;
         }
 
-        if (combined.Contains("moddb", StringComparison.OrdinalIgnoreCase))
+        if (input.Contains("moddb", StringComparison.OrdinalIgnoreCase) ||
+            input.Contains("mod db", StringComparison.OrdinalIgnoreCase) ||
+            input.Contains("mod-db", StringComparison.OrdinalIgnoreCase))
         {
             return ModDB.LogoSource;
         }
 
-        if (combined.Contains("cnclabs", StringComparison.OrdinalIgnoreCase) ||
-            combined.Contains("cnc labs", StringComparison.OrdinalIgnoreCase))
+        if (input.Contains("cnclabs", StringComparison.OrdinalIgnoreCase) ||
+            input.Contains("cnc labs", StringComparison.OrdinalIgnoreCase) ||
+            input.Contains("cnc-labs", StringComparison.OrdinalIgnoreCase))
         {
             return CNCLabs.LogoSource;
         }
 
-        if (combined.Contains("aodmaps", StringComparison.OrdinalIgnoreCase))
+        if (input.Contains("aodmaps", StringComparison.OrdinalIgnoreCase) ||
+            input.Contains("aod maps", StringComparison.OrdinalIgnoreCase) ||
+            input.Contains("aod-maps", StringComparison.OrdinalIgnoreCase))
         {
             return AODMaps.LogoSource;
         }
 
-        if (combined.Contains("github", StringComparison.OrdinalIgnoreCase))
+        if (input.Contains("github", StringComparison.OrdinalIgnoreCase))
         {
             return GitHub.LogoSource;
         }
