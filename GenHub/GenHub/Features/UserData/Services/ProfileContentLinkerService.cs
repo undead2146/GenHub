@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -23,6 +24,7 @@ public class ProfileContentLinkerService(
     IUserDataTracker userDataTracker,
     ILogger<ProfileContentLinkerService> logger) : IProfileContentLinker
 {
+    private readonly ConcurrentDictionary<GameType, SemaphoreSlim> _gameSyncLocks = new();
     private readonly object _activeProfileLock = new();
 
     private string? _activeProfileId;
@@ -34,10 +36,12 @@ public class ProfileContentLinkerService(
         GameType targetGame,
         CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("[ProfileContentLinker] Preparing user data for profile {ProfileId}", profileId);
-
+        var gameLock = GetGameLock(targetGame);
+        await gameLock.WaitAsync(cancellationToken);
         try
         {
+            logger.LogInformation("[ProfileContentLinker] Preparing user data for profile {ProfileId}", profileId);
+
             // Ensure any lingering active user data from other profiles for this target game is deactivated first
             var gameUserDataResult = await userDataTracker.GetGameUserDataAsync(targetGame, cancellationToken);
             if (gameUserDataResult.Success && gameUserDataResult.Data != null)
@@ -57,6 +61,10 @@ public class ProfileContentLinkerService(
                         logger.LogWarning("[ProfileContentLinker] Failed to deactivate lingering user data for profile {OtherProfileId}: {Error}", otherProfileId, deactivateResult.FirstError);
                     }
                 }
+            }
+            else if (!gameUserDataResult.Success)
+            {
+                logger.LogWarning("[ProfileContentLinker] Failed to query existing user data for game {GameType} while checking lingering active profiles: {Error}", targetGame, gameUserDataResult.FirstError);
             }
 
             // Filter to manifests with user data files
@@ -112,10 +120,6 @@ public class ProfileContentLinkerService(
                                 return OperationResult<bool>.CreateFailure(installRes.Errors);
                             }
                         }
-                        else if (!existingResult.Data.IsActive)
-                        {
-                            logger.LogDebug("[ProfileContentLinker] Activating existing user data for {ManifestId}", manifest.Id.Value);
-                        }
                     }
                     else
                     {
@@ -162,6 +166,10 @@ public class ProfileContentLinkerService(
         {
             logger.LogError(ex, "[ProfileContentLinker] Failed to prepare user data for profile {ProfileId}", profileId);
             return OperationResult<bool>.CreateFailure($"Failed to prepare user data: {ex.Message}");
+        }
+        finally
+        {
+            gameLock.Release();
         }
     }
 
@@ -268,8 +276,8 @@ public class ProfileContentLinkerService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "[ProfileContentLinker] Failed to cleanup profile {ProfileId}", profileId);
-            return OperationResult<bool>.CreateFailure($"Failed to cleanup profile: {ex.Message}");
+            logger.LogError(ex, "[ProfileContentLinker] Failed to cleanup deleted profile {ProfileId}", profileId);
+            return OperationResult<bool>.CreateFailure($"Failed to cleanup deleted profile: {ex.Message}");
         }
     }
 
@@ -283,9 +291,12 @@ public class ProfileContentLinkerService(
     {
         logger.LogInformation("[ProfileContentLinker] Updating user data for profile {ProfileId}", profileId);
 
+        var gameLock = GetGameLock(targetGame);
+        await gameLock.WaitAsync(cancellationToken);
+
         try
         {
-            // Get current user data for the profile
+            // Get current installed manifests for this profile
             var currentResult = await userDataTracker.GetProfileUserDataAsync(profileId, cancellationToken);
             var currentManifests = currentResult.Success && currentResult.Data != null
                 ? currentResult.Data.ToList()
@@ -307,6 +318,7 @@ public class ProfileContentLinkerService(
 
             var uninstalledSoFar = new List<string>();
             var installedSoFar = new List<ContentManifest>();
+            var uninstallErrors = new List<string>();
 
             // Find manifests to remove (in current but not in new)
             var toRemove = currentManifestIds.Except(newManifestIds).ToList();
@@ -380,6 +392,10 @@ public class ProfileContentLinkerService(
             logger.LogError(ex, "[ProfileContentLinker] Failed to update profile {ProfileId}", profileId);
             return OperationResult<bool>.CreateFailure($"Failed to update profile: {ex.Message}");
         }
+        finally
+        {
+            gameLock.Release();
+        }
     }
 
     /// <inheritdoc />
@@ -438,6 +454,9 @@ public class ProfileContentLinkerService(
             PackageInfo = file.PackageInfo,
         };
     }
+
+    private SemaphoreSlim GetGameLock(GameType gameType) =>
+        _gameSyncLocks.GetOrAdd(gameType, static _ => new SemaphoreSlim(1, 1));
 
     /// <summary>
     /// Rolls back partially applied installations and uninstalls during live synchronization failure.

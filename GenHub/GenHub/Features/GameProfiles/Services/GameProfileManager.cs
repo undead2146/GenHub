@@ -246,9 +246,9 @@ public class GameProfileManager(
                         }
 
                         var manifest = manifestResult.Data;
-                        if (!ContentHotswapClassification.IsHotswappable(manifest.ContentType))
+                        if (!ContentHotswapClassification.IsHotswappable(manifest))
                         {
-                            return ProfileOperationResult<GameProfile>.CreateFailure($"Cannot modify content '{manifest.Name}' of type '{manifest.ContentType}' while profile is running. Only maps and map packs can be hot swapped during an active game session.");
+                            return ProfileOperationResult<GameProfile>.CreateFailure($"Cannot modify content '{manifest.Name}' while profile is running. Only content targeting user documents (such as maps and replays) can be hot swapped during an active game session.");
                         }
                     }
                 }

@@ -67,4 +67,51 @@ public class ContentHotswapClassificationTests
         // Assert
         Assert.Equal(expected, result);
     }
+
+    /// <summary>
+    /// Verifies that IsHotswappable with ContentManifest returns false if any file targets Workspace or System.
+    /// </summary>
+    [Fact]
+    public void IsHotswappable_ManifestWithWorkspaceFiles_ReturnsFalse()
+    {
+        // Arrange
+        var manifest = new GenHub.Core.Models.Manifest.ContentManifest
+        {
+            Id = GenHub.Core.Models.Manifest.ManifestId.Create("1.0.0.mappack.mixed"),
+            Name = "Mixed MapPack",
+            ContentType = ContentType.MapPack,
+            Files =
+            [
+                new GenHub.Core.Models.Manifest.ManifestFile { RelativePath = "Maps/desert.map", InstallTarget = GenHub.Core.Models.Enums.ContentInstallTarget.UserMapsDirectory },
+                new GenHub.Core.Models.Manifest.ManifestFile { RelativePath = "INIData.big", InstallTarget = GenHub.Core.Models.Enums.ContentInstallTarget.Workspace },
+            ],
+        };
+
+        // Act & Assert
+        Assert.False(ContentHotswapClassification.IsHotswappable(manifest));
+        Assert.True(ContentHotswapClassification.IsLocked(manifest));
+    }
+
+    /// <summary>
+    /// Verifies that IsHotswappable with ContentManifest returns true when all files target user data.
+    /// </summary>
+    [Fact]
+    public void IsHotswappable_ManifestWithOnlyUserDataFiles_ReturnsTrue()
+    {
+        // Arrange
+        var manifest = new GenHub.Core.Models.Manifest.ContentManifest
+        {
+            Id = GenHub.Core.Models.Manifest.ManifestId.Create("1.0.0.map.desert"),
+            Name = "Desert Map",
+            ContentType = ContentType.Map,
+            Files =
+            [
+                new GenHub.Core.Models.Manifest.ManifestFile { RelativePath = "Maps/desert.map", InstallTarget = GenHub.Core.Models.Enums.ContentInstallTarget.UserMapsDirectory },
+            ],
+        };
+
+        // Act & Assert
+        Assert.True(ContentHotswapClassification.IsHotswappable(manifest));
+        Assert.False(ContentHotswapClassification.IsLocked(manifest));
+    }
 }
