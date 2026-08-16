@@ -129,7 +129,7 @@ public class GameProfileSettingsViewModelHotswapTests
             .ReturnsAsync(enabledItems);
         _contentLoaderMock.Setup(c => c.LoadAvailableGameInstallationsAsync())
             .ReturnsAsync([]);
-        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IReadOnlyList<string>>()))
+        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync([]);
 
         _manifestPoolMock.Setup(m => m.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
@@ -210,7 +210,7 @@ public class GameProfileSettingsViewModelHotswapTests
             .ReturnsAsync(enabledItems);
         _contentLoaderMock.Setup(c => c.LoadAvailableGameInstallationsAsync())
             .ReturnsAsync([]);
-        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IReadOnlyList<string>>()))
+        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync([]);
 
         _manifestPoolMock.Setup(m => m.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
@@ -286,7 +286,7 @@ public class GameProfileSettingsViewModelHotswapTests
             .ReturnsAsync(enabledItems);
         _contentLoaderMock.Setup(c => c.LoadAvailableGameInstallationsAsync())
             .ReturnsAsync([]);
-        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IReadOnlyList<string>>()))
+        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync([]);
         _manifestPoolMock.Setup(m => m.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([]));
@@ -388,7 +388,7 @@ public class GameProfileSettingsViewModelHotswapTests
             .ReturnsAsync(enabledItems);
         _contentLoaderMock.Setup(c => c.LoadAvailableGameInstallationsAsync())
             .ReturnsAsync([]);
-        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IReadOnlyList<string>>()))
+        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync([]);
         _manifestPoolMock.Setup(m => m.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([]));
@@ -488,7 +488,7 @@ public class GameProfileSettingsViewModelHotswapTests
             .ReturnsAsync(enabledItems);
         _contentLoaderMock.Setup(c => c.LoadAvailableGameInstallationsAsync())
             .ReturnsAsync([]);
-        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IReadOnlyList<string>>()))
+        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync([]);
         _manifestPoolMock.Setup(m => m.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([]));
@@ -583,7 +583,7 @@ public class GameProfileSettingsViewModelHotswapTests
             .ReturnsAsync(enabledItems);
         _contentLoaderMock.Setup(c => c.LoadAvailableGameInstallationsAsync())
             .ReturnsAsync([]);
-        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IReadOnlyList<string>>()))
+        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync([]);
         _manifestPoolMock.Setup(m => m.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([]));
@@ -702,7 +702,7 @@ public class GameProfileSettingsViewModelHotswapTests
             .ReturnsAsync(enabledItems);
         _contentLoaderMock.Setup(c => c.LoadAvailableGameInstallationsAsync())
             .ReturnsAsync([]);
-        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IReadOnlyList<string>>()))
+        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync([]);
         _manifestPoolMock.Setup(m => m.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([]));
@@ -798,7 +798,7 @@ public class GameProfileSettingsViewModelHotswapTests
             .ReturnsAsync([installItem]);
         _contentLoaderMock.Setup(c => c.LoadAvailableGameInstallationsAsync())
             .ReturnsAsync([installItem]);
-        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IReadOnlyList<string>>()))
+        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync([]);
         _manifestPoolMock.Setup(m => m.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([]));
