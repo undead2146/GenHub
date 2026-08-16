@@ -1,4 +1,5 @@
 using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameInstallations;
@@ -20,7 +21,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Net.Http;
+using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -31,14 +35,11 @@ namespace GenHub.Features.Content.Services.CommunityOutpost;
 /// Downloads packages (ZIP or 7z/.dat files), extracts files, and creates manifests via factory.
 /// Supports multiple download mirrors for fallback.
 /// </summary>
-public class CommunityOutpostDeliverer(
+public partial class CommunityOutpostDeliverer(
    IDownloadService downloadService,
-   IContentManifestPool manifestPool,
-   CommunityOutpostManifestFactory manifestFactory,
-   IGameInstallationService installationService,
-   IInstallationCasPoolService installationCasPoolService,
    CompressedImageToTgaConverter avifConverter,
-   ILogger<CommunityOutpostDeliverer> logger)
+   ILogger<CommunityOutpostDeliverer> logger,
+   IHttpClientFactory? httpClientFactory = null)
    : IContentDeliverer
 {
     private static (string Code, GenPatcherContentMetadata Metadata) NormalizeContentCode(string contentCode)
@@ -73,10 +74,135 @@ public class CommunityOutpostDeliverer(
 
         if (!string.IsNullOrEmpty(contentCodeTag))
         {
-            return contentCodeTag["contentCode:".Length..];
+            var tagValue = contentCodeTag["contentCode:".Length..];
+            var directMeta = GenPatcherContentRegistry.GetMetadata(tagValue);
+            if (directMeta.ContentType != ContentType.UnknownContentType)
+            {
+                return directMeta.ContentCode;
+            }
+
+            var dashIdx = tagValue.IndexOf('-');
+            if (dashIdx > 0)
+            {
+                var prefix = tagValue[..dashIdx];
+                var prefixMeta = GenPatcherContentRegistry.GetMetadata(prefix);
+                if (prefixMeta.ContentType != ContentType.UnknownContentType)
+                {
+                    return prefixMeta.ContentCode;
+                }
+            }
+
+            return tagValue;
+        }
+
+        // Try to extract from manifest ID
+        // Format: 1.version.communityoutpost.contentType.contentName
+        var idParts = manifest.Id.Value?.Split('.') ?? [];
+        if (idParts.Length >= 5)
+        {
+            var contentName = idParts[4];
+            var metadata = GenPatcherContentRegistry.GetMetadata(contentName);
+            if (metadata.ContentType != ContentType.UnknownContentType)
+            {
+                return metadata.ContentCode;
+            }
+
+            var dashIndex = contentName.IndexOf('-');
+            var codePrefix = dashIndex > 0 ? contentName[..dashIndex] : contentName;
+            var prefixMetadata = GenPatcherContentRegistry.GetMetadata(codePrefix);
+            if (prefixMetadata.ContentType != ContentType.UnknownContentType)
+            {
+                return prefixMetadata.ContentCode;
+            }
+
+            foreach (var code in GenPatcherContentRegistry.GetKnownContentCodes())
+            {
+                if (contentName.StartsWith(code, StringComparison.OrdinalIgnoreCase))
+                {
+                    return code;
+                }
+            }
+
+            return codePrefix;
         }
 
         return "unknown";
+    }
+
+    [GeneratedRegex(@"href=[""']([^""']*generals-?zh.*?(\d{4}-\d{2}-\d{2}|\d{2}-\d{2}-\d{4}|\d{8}|\d{6}).*?\.(?:zip|7z|rar|exe))[""']", RegexOptions.IgnoreCase)]
+    private static partial Regex CommunityPatchRegex();
+
+    private static void EnsureValidArchivePayload(string archivePath)
+    {
+        var info = new FileInfo(archivePath);
+        if (!info.Exists || info.Length == 0)
+        {
+            throw new InvalidDataException($"Archive file is missing or empty: {archivePath}");
+        }
+
+        Span<byte> header = stackalloc byte[16];
+        using (var stream = File.OpenRead(archivePath))
+        {
+            var read = stream.Read(header);
+            if (read == 0)
+            {
+                throw new InvalidDataException($"Archive file is empty: {archivePath}");
+            }
+
+            header = header[..read];
+        }
+
+        if (LooksLikeHtml(header))
+        {
+            var preview = ReadTextPreview(archivePath, maxChars: 120);
+            throw new InvalidDataException(
+                $"Downloaded file is HTML, not an archive (likely a broken download URL or HTTP error page): {archivePath}. Preview: {preview}");
+        }
+    }
+
+    private static bool LooksLikeHtml(ReadOnlySpan<byte> header)
+    {
+        if (header.Length >= 3 && header[0] == 0xEF && header[1] == 0xBB && header[2] == 0xBF)
+        {
+            header = header[3..];
+        }
+
+        while (header.Length > 0 && (header[0] == (byte)' ' || header[0] == (byte)'\t' || header[0] == (byte)'\r' || header[0] == (byte)'\n'))
+        {
+            header = header[1..];
+        }
+
+        if (header.Length < 5)
+        {
+            return false;
+        }
+
+        Span<char> ascii = stackalloc char[Math.Min(header.Length, 9)];
+        for (var i = 0; i < ascii.Length; i++)
+        {
+            ascii[i] = (char)header[i];
+        }
+
+        ReadOnlySpan<char> prefix = ascii;
+        return prefix.StartsWith("<!doctype", StringComparison.OrdinalIgnoreCase)
+            || prefix.StartsWith("<html", StringComparison.OrdinalIgnoreCase)
+            || prefix.StartsWith("<?xml", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ReadTextPreview(string path, int maxChars)
+    {
+        try
+        {
+            using var reader = new StreamReader(path, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            var buffer = new char[maxChars];
+            var read = reader.Read(buffer, 0, buffer.Length);
+            var text = new string(buffer, 0, read).Replace('\r', ' ').Replace('\n', ' ').Trim();
+            return text.Length <= maxChars ? text : text[..maxChars];
+        }
+        catch
+        {
+            return "(unavailable)";
+        }
     }
 
     /// <summary>
@@ -97,7 +223,9 @@ public class CommunityOutpostDeliverer(
                     throw new FileNotFoundException($"Archive file not found or empty: {archivePath}");
                 }
 
-                using var archive = ArchiveFactory.Open(archivePath);
+                EnsureValidArchivePayload(archivePath);
+
+                using var archive = ArchiveFactory.OpenArchive(archivePath);
                 foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -155,8 +283,10 @@ public class CommunityOutpostDeliverer(
         {
             Id = originalManifest.Id,
             Name = originalManifest.Name,
-            Version = originalManifest.Version,
-            ManifestVersion = originalManifest.ManifestVersion,
+            Version = !string.IsNullOrWhiteSpace(originalManifest.Version)
+                ? originalManifest.Version
+                : CommunityOutpostCatalogConstants.DefaultMetadataVersion,
+            SchemaVersion = originalManifest.SchemaVersion,
             ContentType = originalManifest.ContentType,
             TargetGame = originalManifest.TargetGame,
             Publisher = originalManifest.Publisher,
@@ -186,9 +316,14 @@ public class CommunityOutpostDeliverer(
     {
         // Can deliver if it's a Community Outpost manifest with a downloadable file
         // Note: PublisherType in manifest is "communityoutpost" (no hyphen)
-        return manifest.Publisher?.PublisherType?.Equals(
+        var publisherMatches = manifest.Publisher?.PublisherType?.Equals(
                    CommunityOutpostConstants.PublisherType,
-                   StringComparison.OrdinalIgnoreCase) == true &&
+                   StringComparison.OrdinalIgnoreCase) == true ||
+               manifest.OriginalProviderName?.Equals(
+                   CommunityOutpostConstants.PublisherType,
+                   StringComparison.OrdinalIgnoreCase) == true;
+
+        return publisherMatches &&
                manifest.Files.Any(f =>
                    !string.IsNullOrEmpty(f.DownloadUrl) &&
                    (f.DownloadUrl.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
@@ -230,6 +365,68 @@ public class CommunityOutpostDeliverer(
             var archiveExtension = isSevenZip ? ".7z" : ".zip";
             var archivePath = Path.Combine(targetDirectory, $"content{archiveExtension}");
 
+            // Determine candidate URLs for download with fallback
+            var candidateUrls = new List<string>();
+            if (!string.IsNullOrEmpty(archiveFile.DownloadUrl))
+            {
+                if (archiveFile.DownloadUrl.Contains("/patch/", StringComparison.OrdinalIgnoreCase) &&
+                    archiveFile.DownloadUrl.EndsWith(CommunityOutpostConstants.DatFileExtension, StringComparison.OrdinalIgnoreCase))
+                {
+                    candidateUrls.Add(archiveFile.DownloadUrl.Replace("/patch/", "/gp2/f/", StringComparison.OrdinalIgnoreCase));
+                }
+
+                candidateUrls.Add(archiveFile.DownloadUrl);
+            }
+
+            var contentCode = GetContentCodeFromManifest(packageManifest);
+            if (!string.IsNullOrEmpty(contentCode) && !string.Equals(contentCode, "unknown", StringComparison.OrdinalIgnoreCase))
+            {
+                var (normalizedCode, _) = NormalizeContentCode(contentCode);
+
+                if (string.Equals(normalizedCode, "community-patch", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(normalizedCode, "communitypatch", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Community patch live scraping and fallback
+                    try
+                    {
+                        using var client = httpClientFactory?.CreateClient() ?? new HttpClient();
+                        var pageContent = await client.GetStringAsync(CommunityOutpostConstants.PatchPageUrl, cancellationToken);
+                        var match = CommunityPatchRegex().Match(pageContent);
+                        if (match.Success)
+                        {
+                            var liveUrl = match.Groups[1].Value;
+                            if (!liveUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                            {
+                                liveUrl = $"{CommunityOutpostConstants.PatchPageUrl.TrimEnd('/')}/{liveUrl.TrimStart('/')}";
+                            }
+
+                            if (!candidateUrls.Contains(liveUrl, StringComparer.OrdinalIgnoreCase))
+                            {
+                                candidateUrls.Insert(0, liveUrl);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogDebug(ex, "Could not scrape live community patch URL from {Url}", CommunityOutpostConstants.PatchPageUrl);
+                    }
+
+                    const string githubFallbackUrl = "https://github.com/TheSuperHackers/GeneralsGameCode/releases/download/weekly-2026-07-31/generalszh-weekly-2026-07-31.zip";
+                    if (!candidateUrls.Contains(githubFallbackUrl, StringComparer.OrdinalIgnoreCase))
+                    {
+                        candidateUrls.Add(githubFallbackUrl);
+                    }
+                }
+                else
+                {
+                    var fallbackGp2Url = $"{CommunityOutpostCatalogConstants.DefaultFilesBaseUrl.TrimEnd('/')}/{normalizedCode}.dat";
+                    if (!candidateUrls.Contains(fallbackGp2Url, StringComparer.OrdinalIgnoreCase))
+                    {
+                        candidateUrls.Add(fallbackGp2Url);
+                    }
+                }
+            }
+
             progress?.Report(new ContentAcquisitionProgress
             {
                 Phase = ContentAcquisitionPhase.Downloading,
@@ -238,19 +435,7 @@ public class CommunityOutpostDeliverer(
                 CurrentFile = archiveFile.RelativePath,
             });
 
-            // Try downloading with mirror fallback
-            var downloadResult = await DownloadWithMirrorFallbackAsync(
-                archiveFile.DownloadUrl!,
-                archivePath,
-                cancellationToken);
-
-            if (!downloadResult.Success)
-            {
-                return OperationResult<ContentManifest>.CreateFailure(
-                    $"Failed to download package: {downloadResult.FirstError}");
-            }
-
-            // Step 2: Extract archive
+            // Step 2: Download and extract archive with fallback
             var extractPath = Path.Combine(targetDirectory, "extracted");
             Directory.CreateDirectory(extractPath);
 
@@ -265,14 +450,65 @@ public class CommunityOutpostDeliverer(
 
             logger.LogDebug("Extracting {ArchiveType} to {Path}", isSevenZip ? "7z" : "ZIP", extractPath);
 
-            try
+            var extracted = false;
+            string? lastError = null;
+
+            foreach (var downloadUrl in candidateUrls)
             {
-                await ExtractArchiveAsync(archivePath, extractPath, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var downloadResult = await DownloadWithMirrorFallbackAsync(
+                    downloadUrl,
+                    archivePath,
+                    cancellationToken);
+
+                if (!downloadResult.Success)
+                {
+                    lastError = downloadResult.FirstError;
+                    continue;
+                }
+
+                try
+                {
+                    await ExtractArchiveAsync(archivePath, extractPath, cancellationToken);
+                    extracted = true;
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to extract archive downloaded from {Url}, attempting fallback if available", downloadUrl);
+                    lastError = ex.Message;
+
+                    if (Directory.Exists(extractPath))
+                    {
+                        try
+                        {
+                            Directory.Delete(extractPath, recursive: true);
+                        }
+                        catch
+                        {
+                        }
+
+                        Directory.CreateDirectory(extractPath);
+                    }
+
+                    if (File.Exists(archivePath))
+                    {
+                        try
+                        {
+                            File.Delete(archivePath);
+                        }
+                        catch
+                        {
+                        }
+                    }
+                }
             }
-            catch (Exception ex)
+
+            if (!extracted)
             {
-                logger.LogError(ex, "Failed to extract archive from {Path}", archivePath);
-                return OperationResult<ContentManifest>.CreateFailure($"Extraction failed: {ex.Message}");
+                logger.LogError("Failed to extract Community Outpost archive from all attempted URLs: {Error}", lastError);
+                return OperationResult<ContentManifest>.CreateFailure($"Extraction failed: {lastError}");
             }
 
             // Step 2.5: Repack main content if needed (e.g. for Hotkeys)
@@ -288,103 +524,20 @@ public class CommunityOutpostDeliverer(
                 extractPath,
                 cancellationToken);
 
-            // Step 3: Create manifests using the factory
-            progress?.Report(new ContentAcquisitionProgress
+            // The orchestrator owns manifest creation, validation, and CAS storage. This
+            // deliverer only obtains and prepares the package-specific source files.
+            var moveResult = await MoveExtractedFilesToStagingRootAsync(extractPath, targetDirectory);
+            if (!moveResult.Success)
             {
-                Phase = ContentAcquisitionPhase.Copying,
-                ProgressPercentage = 50,
-                CurrentOperation = "Creating manifests from extracted content",
-            });
-
-            logger.LogInformation("Creating manifests for Community Outpost content");
-            var manifests = await manifestFactory.CreateManifestsFromExtractedContentAsync(
-                packageManifest,
-                extractPath,
-                cancellationToken);
-
-            if (manifests.Count == 0)
-            {
-                // If no specialized manifests were created, create a single manifest from all files
-                logger.LogWarning(
-                    "No specialized content detected, creating generic manifest");
-
-                manifests = await CreateGenericManifestAsync(
-                    packageManifest,
-                    extractPath,
-                    cancellationToken);
+                return OperationResult<ContentManifest>.CreateFailure(moveResult);
             }
 
-            // Step 4: Register manifests to CAS
-            progress?.Report(new ContentAcquisitionProgress
-            {
-                Phase = ContentAcquisitionPhase.Copying,
-                ProgressPercentage = 70,
-                CurrentOperation = "Registering manifests to content library",
-            });
-
-            logger.LogInformation(
-                "Registering {Count} manifest(s) to pool",
-                manifests.Count);
-
-            // For GameClient content, ensure InstallationPoolRootPath is set before storing
-            // This prevents content from being stored in the wrong CAS pool (e.g., C: drive instead of game-adjacent pool)
-            var hasGameClientManifest = manifests.Any(m => m.ContentType == ContentType.GameClient);
-            if (hasGameClientManifest)
-            {
-                var poolPathReady = await EnsureInstallationPoolPathAsync(cancellationToken);
-                if (!poolPathReady)
-                {
-                    return OperationResult<ContentManifest>.CreateFailure(
-                        "Could not ensure storage for GameClient content.");
-                }
-            }
-
-            foreach (var manifest in manifests)
-            {
-                var addResult = await manifestPool.AddManifestAsync(
-                    manifest,
-                    extractPath,
-                    null,
-                    cancellationToken);
-
-                if (!addResult.Success)
-                {
-                    logger.LogWarning(
-                        "Failed to register manifest {ManifestId}: {Error}",
-                        manifest.Id,
-                        addResult.FirstError);
-                }
-                else
-                {
-                    // After successful storage, update SourceType to ContentAddressable
-                    // since the files are now in CAS
-                    foreach (var file in manifest.Files)
-                    {
-                        file.SourceType = ContentSourceType.ContentAddressable;
-                    }
-
-                    logger.LogInformation(
-                        "Successfully registered manifest: {ManifestId}",
-                        manifest.Id);
-                }
-            }
-
-            // Step 5: Cleanup temporary files
             await CleanupTemporaryFilesAsync(archivePath, extractPath);
-
-            progress?.Report(new ContentAcquisitionProgress
-            {
-                Phase = ContentAcquisitionPhase.Completed,
-                ProgressPercentage = 100,
-                CurrentOperation = "Community Outpost content delivered successfully",
-            });
-
-            var primaryManifest = manifests.FirstOrDefault() ?? packageManifest;
-            logger.LogInformation(
-                "Successfully delivered Community Outpost content: {ManifestCount} manifest(s) created",
-                manifests.Count);
-
-            return OperationResult<ContentManifest>.CreateSuccess(primaryManifest);
+            return OperationResult<ContentManifest>.CreateSuccess(packageManifest);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -437,6 +590,28 @@ public class CommunityOutpostDeliverer(
 
         if (result.Success)
         {
+            if (File.Exists(targetPath))
+            {
+                try
+                {
+                    EnsureValidArchivePayload(targetPath);
+                    return OperationResult<bool>.CreateSuccess(true);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Downloaded file from {Url} is not a valid archive: {Message}", primaryUrl, ex.Message);
+                    try
+                    {
+                        File.Delete(targetPath);
+                    }
+                    catch
+                    {
+                    }
+
+                    return OperationResult<bool>.CreateFailure($"Downloaded payload from {primaryUrl} is not a valid archive: {ex.Message}");
+                }
+            }
+
             return OperationResult<bool>.CreateSuccess(true);
         }
 
@@ -447,6 +622,52 @@ public class CommunityOutpostDeliverer(
         // to the original metadata here. In a future enhancement, we could
         // store mirror URLs in the manifest or pass them through.
         return OperationResult<bool>.CreateFailure($"Download failed: {result.FirstError}");
+    }
+
+    /// <summary>
+    /// Moves all extracted files from the extraction subdirectory into the staging root so that
+    /// downstream orchestrator stages (factory post-processing, validation) can find them.
+    /// </summary>
+    /// <param name="extractPath">The extraction subdirectory.</param>
+    /// <param name="stagingRoot">The staging root directory.</param>
+    private async Task<OperationResult<bool>> MoveExtractedFilesToStagingRootAsync(string extractPath, string stagingRoot)
+    {
+        return await Task.Run(() =>
+        {
+            if (!Directory.Exists(extractPath))
+            {
+                return OperationResult<bool>.CreateSuccess(true);
+            }
+
+            foreach (var file in Directory.GetFiles(extractPath, "*", SearchOption.AllDirectories))
+            {
+                var relativePath = Path.GetRelativePath(extractPath, file);
+                var pathResult = ContentPathPolicy.ResolveContainedFile(stagingRoot, relativePath);
+                if (!pathResult.Success)
+                {
+                    return OperationResult<bool>.CreateFailure(pathResult);
+                }
+
+                var targetPath = pathResult.Data!;
+                var targetDir = Path.GetDirectoryName(targetPath);
+                if (!string.IsNullOrEmpty(targetDir))
+                {
+                    Directory.CreateDirectory(targetDir);
+                }
+
+                try
+                {
+                    File.Move(file, targetPath, overwrite: true);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Failed to move extracted file {File} to staging root", file);
+                    return OperationResult<bool>.CreateFailure($"Failed to move extracted file '{relativePath}': {ex.Message}");
+                }
+            }
+
+            return OperationResult<bool>.CreateSuccess(true);
+        });
     }
 
     /// <summary>
@@ -495,7 +716,7 @@ public class CommunityOutpostDeliverer(
         CancellationToken cancellationToken)
     {
         var contentCode = GetContentCodeFromManifest(manifest);
-        var metadata = GenPatcherContentRegistry.GetMetadata(contentCode);
+        var (actualCode, metadata) = NormalizeContentCode(contentCode);
 
         if (metadata.RequiresRepacking && !string.IsNullOrEmpty(metadata.OutputFilename))
         {
@@ -614,41 +835,6 @@ public class CommunityOutpostDeliverer(
     }
 
     /// <summary>
-    /// Ensures the InstallationPoolRootPath is set before storing GameClient content.
-    /// This prevents content from being stored in the wrong CAS pool.
-    /// </summary>
-    /// <returns><c>true</c> when content acquisition may continue; otherwise, <c>false</c>.</returns>
-    private async Task<bool> EnsureInstallationPoolPathAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            // ALWAYS force installation detection and reset the path
-            // Even if a path is set, it might be stale (from before user deleted data)
-            // or point to the wrong installation
-            logger.LogInformation("Forcing installation detection to ensure correct InstallationPoolRootPath");
-            installationService.InvalidateCache();
-
-            // Get all installations (this will trigger detection if cache is empty)
-            var installationsResult = await installationService.GetAllInstallationsAsync(cancellationToken);
-            if (!installationsResult.Success || installationsResult.Data == null)
-            {
-                logger.LogWarning(
-                    "Failed to get installations for CAS pool path resolution: {Error}; the primary CAS pool will be used",
-                    installationsResult.FirstError);
-                return true;
-            }
-
-            var installations = installationsResult.Data.ToList();
-            return await installationCasPoolService.EnsurePoolPathAsync(installations, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to ensure InstallationPoolRootPath is set");
-            return false;
-        }
-    }
-
-    /// <summary>
     /// Processes AutoInstall dependencies by downloading, repacking them, and copying their BIG files
     /// into the main extract path so they become part of the same manifest.
     /// </summary>
@@ -658,7 +844,7 @@ public class CommunityOutpostDeliverer(
         CancellationToken cancellationToken)
     {
         var packageContentCode = GetContentCodeFromManifest(packageManifest);
-        var packageMetadata = GenPatcherContentRegistry.GetMetadata(packageContentCode);
+        var (actualPackageCode, packageMetadata) = NormalizeContentCode(packageContentCode);
         var hasControlBarProBigs = false;
 
         if (packageMetadata.Category == GenPatcherContentCategory.ControlBar && packageMetadata.SupportsVariants)
@@ -667,8 +853,15 @@ public class CommunityOutpostDeliverer(
                 .Any(path => !Path.GetFileName(path).Contains("Core", StringComparison.OrdinalIgnoreCase));
         }
 
-        var autoInstallDeps = (packageManifest.Dependencies ?? Enumerable.Empty<ContentDependency>())
-            .Where(d => d.InstallBehavior == DependencyInstallBehavior.AutoInstall)
+        var metadataDeps = packageMetadata.GetDependencies()
+            .Where(d => d.InstallBehavior == DependencyInstallBehavior.AutoInstall);
+        var manifestDeps = (packageManifest.Dependencies ?? Enumerable.Empty<ContentDependency>())
+            .Where(d => d.InstallBehavior == DependencyInstallBehavior.AutoInstall);
+
+        var autoInstallDeps = metadataDeps
+            .Concat(manifestDeps)
+            .GroupBy(d => d.Id.Value, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
             .ToList();
 
         if (autoInstallDeps.Count == 0)
@@ -711,47 +904,84 @@ public class CommunityOutpostDeliverer(
                     (string.Equals(depMetadata.OutputFilename, "400_ControlBarProCoreZH.big", StringComparison.OrdinalIgnoreCase) ||
                      string.Equals(depMetadata.OutputFilename, "400_ControlBarHDBaseZH.big", StringComparison.OrdinalIgnoreCase)))
                 {
+                    // Only skip when the dependency's own BIG is already present. Presence of
+                    // Control Bar Pro UI BIGs does not satisfy Core/Base — skipping without the
+                    // payload leaves a dangling AutoInstall dependency that breaks Add to Profile.
+                    var outputName = depMetadata.OutputFilename;
+                    var payloadAlreadyPresent = !string.IsNullOrEmpty(outputName) &&
+                        Directory.GetFiles(extractPath, Path.GetFileName(outputName), SearchOption.AllDirectories).Length > 0;
+
+                    if (payloadAlreadyPresent)
+                    {
+                        logger.LogInformation(
+                            "Skipping dependency {Name} because payload {Filename} already exists in extracted content",
+                            dep.Name ?? dep.Id.Value,
+                            outputName);
+                        continue;
+                    }
+
                     logger.LogInformation(
-                        "Skipping dependency {Name} because Control Bar Pro BIGs already exist in extracted content",
+                        "Control Bar Pro BIGs exist but {Filename} is missing — downloading dependency {Name}",
+                        outputName,
                         dep.Name ?? dep.Id.Value);
-                    continue;
                 }
 
                 // Download dependency archive
                 var urlsToTry = new List<string>
                 {
-                    $"https://legi.cc/gp2/f/{actualContentCode}.dat",
+                    $"{CommunityOutpostCatalogConstants.DefaultFilesBaseUrl.TrimEnd('/')}/{actualContentCode}.dat",
                     $"https://legi.cc/patch/{actualContentCode}.dat",
                 };
 
                 var uniqueId = Guid.NewGuid().ToString("N");
                 var tempDir = Path.Combine(Path.GetTempPath(), "GenHub", "DepBigFiles", uniqueId);
                 var depArchive = Path.Combine(tempDir, $"{actualContentCode}.dat");
+                var depExtractPath = Path.Combine(tempDir, actualContentCode);
                 Directory.CreateDirectory(tempDir);
 
-                OperationResult<bool> downloadResult = OperationResult<bool>.CreateFailure("No URLs attempted");
+                var extractedDep = false;
                 foreach (var depUrl in urlsToTry)
                 {
                     logger.LogDebug("Trying dependency download from {Url}", depUrl);
-                    downloadResult = await DownloadWithMirrorFallbackAsync(depUrl, depArchive, cancellationToken);
-                    if (downloadResult.Success) break;
+                    var downloadResult = await DownloadWithMirrorFallbackAsync(depUrl, depArchive, cancellationToken);
+                    if (!downloadResult.Success)
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        if (Directory.Exists(depExtractPath))
+                        {
+                            Directory.Delete(depExtractPath, recursive: true);
+                        }
+
+                        Directory.CreateDirectory(depExtractPath);
+                        await ExtractArchiveAsync(depArchive, depExtractPath, cancellationToken);
+                        extractedDep = true;
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Failed to extract dependency archive from {Url}, trying next fallback", depUrl);
+                        if (File.Exists(depArchive))
+                        {
+                            try
+                            {
+                                File.Delete(depArchive);
+                            }
+                            catch
+                            {
+                            }
+                        }
+                    }
                 }
 
-                if (!downloadResult.Success)
+                if (!extractedDep)
                 {
-                    logger.LogError("Failed to download dependency {Name}: {Error}", dep.Name, downloadResult.FirstError);
+                    logger.LogError("Failed to download and extract dependency {Name}", dep.Name);
                     continue;
                 }
-
-                // Extract dependency
-                var depExtractPath = Path.Combine(tempDir, actualContentCode);
-                if (Directory.Exists(depExtractPath))
-                {
-                    Directory.Delete(depExtractPath, recursive: true);
-                }
-
-                Directory.CreateDirectory(depExtractPath);
-                await ExtractArchiveAsync(depArchive, depExtractPath, cancellationToken);
 
                 // Convert AVIF to TGA
                 await avifConverter.ConvertDirectoryAsync(depExtractPath, cancellationToken);

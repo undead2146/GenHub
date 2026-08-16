@@ -7,12 +7,12 @@ using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
+using GenHub.Core.Models.Parsers;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Results.Content;
 using GenHub.Features.Content.Services.Parsers;
 using GenHub.Features.Content.Services.Publishers;
 using Microsoft.Extensions.Logging;
-using File = GenHub.Core.Models.Parsers.File;
 using ParsedContentDetails = GenHub.Core.Models.Content.ParsedContentDetails;
 
 namespace GenHub.Features.Content.Services.ContentResolvers;
@@ -29,7 +29,7 @@ public class AODMapsResolver(
     /// <summary>
     /// Gets the unique resolver ID for AODMaps.
     /// </summary>
-    public string ResolverId => AODMapsConstants.PublisherType;
+    public string ResolverId => AODMapsConstants.ResolverId;
 
     /// <summary>
     /// Resolves the details of a discovered AODMaps content item.
@@ -48,10 +48,21 @@ public class AODMapsResolver(
 
         try
         {
-            logger.LogInformation("Resolving AODMaps content from {Url}", discoveredItem.SourceUrl);
+            string pageUrl;
+            if (discoveredItem.ResolverMetadata.TryGetValue(AODMapsConstants.ListPageUrlMetadataKey, out var listPageUrl))
+            {
+                pageUrl = listPageUrl;
+                logger.LogInformation("Resolving AODMaps content from list page: {Url}", pageUrl);
+            }
+            else
+            {
+                // Fallback to SourceUrl if ListPageUrl not available (backward compatibility)
+                pageUrl = discoveredItem.SourceUrl;
+                logger.LogWarning("ListPageUrl not found in metadata, falling back to SourceUrl: {Url}", pageUrl);
+            }
 
             // Parse the web page (which is likely a list/gallery page)
-            var parsedPage = await pageParser.ParseAsync(discoveredItem.SourceUrl, cancellationToken);
+            var parsedPage = await pageParser.ParseAsync(pageUrl, cancellationToken);
 
             // Find the specific file section that corresponds to our discovered item
             // We use the DownloadURL from metadata to identify it
@@ -62,7 +73,7 @@ public class AODMapsResolver(
             }
 
             // Fallback: If no download URL match, try Name match
-            var section = parsedPage.Sections.OfType<File>().FirstOrDefault(f =>
+            var section = parsedPage.Sections.OfType<DownloadableFile>().FirstOrDefault(f =>
                 string.Equals(f.DownloadUrl, targetDownloadUrl, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(f.Name, discoveredItem.Name, StringComparison.OrdinalIgnoreCase));
 
@@ -92,7 +103,7 @@ public class AODMapsResolver(
         }
     }
 
-    private static ParsedContentDetails ConvertToMapDetails(File file, GenHub.Core.Models.Parsers.GlobalContext context, ContentSearchResult item)
+    private static ParsedContentDetails ConvertToMapDetails(DownloadableFile file, GlobalContext context, ContentSearchResult item)
     {
         // Determine GameType and ContentType
         // AODMaps are mostly Zero Hour or Generals.
@@ -110,11 +121,21 @@ public class AODMapsResolver(
         var subDate = file.UploadDate ?? DateTime.MinValue;
 
         // Use Author as request
-        var author = file.Uploader ?? context.Developer ?? AODMapsConstants.DefaultAuthorName;
+        var author = !string.IsNullOrWhiteSpace(file.Uploader) && !file.Uploader.Equals(AODMapsConstants.DefaultAuthorName, StringComparison.OrdinalIgnoreCase)
+            ? file.Uploader
+            : (!string.IsNullOrWhiteSpace(item.AuthorName) && !item.AuthorName.Equals(AODMapsConstants.DefaultAuthorName, StringComparison.OrdinalIgnoreCase)
+                ? item.AuthorName
+                : (context.Developer ?? AODMapsConstants.DefaultAuthorName));
+
+        var description = !string.IsNullOrWhiteSpace(file.SizeDisplay)
+            ? file.SizeDisplay
+            : (!string.IsNullOrWhiteSpace(item.Description)
+                ? item.Description
+                : context.Title);
 
         return new ParsedContentDetails(
             Name: file.Name,
-            Description: file.SizeDisplay ?? context.Title, // Use SizeDisplay (where we stored info) or Title
+            Description: description,
             Author: author,
             PreviewImage: file.ThumbnailUrl ?? string.Empty,
             Screenshots: file.ThumbnailUrl != null ? [file.ThumbnailUrl] : [],

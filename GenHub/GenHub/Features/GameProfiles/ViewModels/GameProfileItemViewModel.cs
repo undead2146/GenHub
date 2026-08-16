@@ -113,7 +113,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Stops profile using the injected action.
+    /// Stops the profile using the injected action.
     /// </summary>
     [RelayCommand]
     private async Task StopProfile()
@@ -137,7 +137,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Toggles edit mode for this specific profile.
+    /// Toggles the edit mode for this specific profile.
     /// </summary>
     [RelayCommand]
     private void ToggleEditMode()
@@ -483,6 +483,21 @@ public partial class GameProfileItemViewModel : ViewModelBase
             UpdateDescription(gameProfile);
         }
 
+        // If icon path is generic or default, upgrade to publisher logo if available
+        if (string.IsNullOrEmpty(_iconPath) ||
+            _iconPath.EndsWith("zerohour-icon.png", StringComparison.OrdinalIgnoreCase) ||
+            _iconPath.EndsWith("generals-icon.png", StringComparison.OrdinalIgnoreCase) ||
+            _iconPath.EndsWith("generalshub-icon.png", StringComparison.OrdinalIgnoreCase))
+        {
+            var logo = PublisherInfoConstants.GetPublisherLogo(
+                _publisher,
+                $"{profile.Name} {string.Join(" ", (profile as GameProfile)?.EnabledContentIds ?? [])}");
+            if (!string.IsNullOrEmpty(logo))
+            {
+                _iconPath = logo;
+            }
+        }
+
         // Set color value with game type defaults or profile theme
         if (profile is GameProfile gp && !string.IsNullOrEmpty(gp.ThemeColor))
         {
@@ -651,6 +666,30 @@ public partial class GameProfileItemViewModel : ViewModelBase
             // Update description
             // Update description layout
             UpdateDescription(gameProfile);
+
+            // Update workspace info
+            ActiveWorkspaceId = gameProfile.ActiveWorkspaceId;
+            UseSteamLaunch = gameProfile.UseSteamLaunch ?? true;
+
+            // Update visuals
+            if (!string.IsNullOrEmpty(gameProfile.ThemeColor))
+            {
+                ColorValue = gameProfile.ThemeColor;
+            }
+
+            if (!string.IsNullOrEmpty(gameProfile.IconPath))
+            {
+                IconPath = gameProfile.IconPath;
+            }
+
+            if (!string.IsNullOrEmpty(gameProfile.CoverPath))
+            {
+                var normalizedCoverPath = NormalizeCoverPath(gameProfile.CoverPath);
+                CoverPath = normalizedCoverPath;
+                CoverImagePath = normalizedCoverPath;
+            }
+
+            CommandLineArguments = gameProfile.CommandLineArguments;
         }
 
         // Notify UI of all property changes
@@ -664,6 +703,9 @@ public partial class GameProfileItemViewModel : ViewModelBase
         OnPropertyChanged(nameof(CoverPath));
         OnPropertyChanged(nameof(CoverImagePath));
         OnPropertyChanged(nameof(CommandLineArguments));
+
+        OnPropertyChanged(nameof(IsWorkspacePrepared));
+        OnPropertyChanged(nameof(WorkspaceStatus));
     }
 
     private static string GetPublisherNameFromId(string manifestId)
@@ -910,6 +952,14 @@ public partial class GameProfileItemViewModel : ViewModelBase
                     // For Generals Online, the version is a datecode (MMDDYY).
                     // Format as 6 digits (e.g., 10326 -> "010326")
                     GameVersion = versionNumber.ToString("D6");
+                }
+                else if (publisherSegment == PublisherTypeConstants.TheSuperHackers || (segments[1].Length == 8 && versionNumber >= 20000000))
+                {
+                    // For 8-digit datecodes (YYYYMMDD), format as vYYYY.MM.DD
+                    var year = versionNumber / 10000;
+                    var month = (versionNumber % 10000) / 100;
+                    var day = versionNumber % 100;
+                    GameVersion = $"v{year}.{month:D2}.{day:D2}";
                 }
                 else
                 {

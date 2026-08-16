@@ -71,7 +71,7 @@ public class CasReferenceTracker(
                 ManifestId = manifestId,
                 References = references,
                 TrackedAt = DateTime.UtcNow,
-                manifest.ManifestVersion,
+                manifest.SchemaVersion,
             };
 
             var json = JsonSerializer.Serialize(refData, JsonOptions);

@@ -1,0 +1,241 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:GenHub.Features.Downloads.ViewModels"
+             xmlns:views="clr-namespace:GenHub.Features.Downloads.Views"
+             xmlns:converters="clr-namespace:GenHub.Infrastructure.Converters;assembly=GenHub"
+             xmlns:constants="clr-namespace:GenHub.Core.Constants;assembly=GenHub.Core"
+             xmlns:controls="clr-namespace:GenHub.Common.Controls"
+             xmlns:infraControls="clr-namespace:GenHub.Infrastructure.Controls;assembly=GenHub"
+             mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+             x:Class="GenHub.Features.Downloads.Views.DownloadsBrowserView"
+             x:DataType="vm:DownloadsBrowserViewModel"
+             Background="#1A1A1A">
+
+    <UserControl.Styles>
+        <!-- Header style -->
+        <Style Selector="TextBlock.page-title">
+            <Setter Property="FontSize" Value="24" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+
+        <!-- Search box style -->
+        <Style Selector="TextBox.search-box">
+            <Setter Property="Background" Value="#2A2A2A" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderBrush" Value="#404040" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Watermark" Value="Search..." />
+        </Style>
+    </UserControl.Styles>
+
+    <UserControl.DataTemplates>
+        <DataTemplate DataType="vm:ContentDetailViewModel">
+            <views:ContentDetailView />
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
+    <controls:SidebarLayout PaneTitle="Publishers"
+                            ItemsSource="{Binding Publishers}"
+                            SelectedItem="{Binding SelectedPublisher, Mode=TwoWay}"
+                            IsPaneOpen="{Binding IsPaneOpen, Mode=TwoWay}"
+                            ItemTemplate="{StaticResource PublisherItemTemplate}">
+
+        <controls:SidebarLayout.Resources>
+            <converters:StringToImageConverter x:Key="StringToImageConverter" />
+            <DataTemplate x:Key="PublisherItemTemplate" DataType="vm:PublisherItemViewModel">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <!-- Publisher Logo -->
+                    <Panel Width="20" Height="20" VerticalAlignment="Center">
+                        <Image infraControls:ImageLoader.Source="{Binding LogoSource}"
+                               Width="20" Height="20"
+                               Stretch="UniformToFill"
+                               IsVisible="{Binding LogoSource, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                            <Image.Clip>
+                                <EllipseGeometry Center="10,10" RadiusX="10" RadiusY="10" />
+                            </Image.Clip>
+                        </Image>
+                        <!-- Fallback icon -->
+                        <Border Width="20" Height="20"
+                                CornerRadius="10"
+                                Background="#555555"
+                                IsVisible="{Binding LogoSource, Converter={x:Static StringConverters.IsNullOrEmpty}}">
+                            <TextBlock Text="●"
+                                       FontSize="10"
+                                       Foreground="White"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                    </Panel>
+
+                    <!-- Publisher Name -->
+                    <TextBlock Text="{Binding DisplayName}"
+                               FontSize="13"
+                               VerticalAlignment="Center" />
+
+                    <!-- Content count badge -->
+                    <Border Background="#505050"
+                            CornerRadius="8"
+                            Padding="6,2"
+                            IsVisible="{Binding ContentCount, Converter={x:Static converters:ComparisonConverters.IsPositive}}"
+                            VerticalAlignment="Center">
+                        <TextBlock Text="{Binding ContentCount}"
+                                   FontSize="10"
+                                   Foreground="#AAAAAA" />
+                    </Border>
+                </StackPanel>
+            </DataTemplate>
+        </controls:SidebarLayout.Resources>
+
+        <!-- Main Content Area -->
+        <Grid Margin="16,8,16,16">
+            <!-- Browser View: dock the toolbar so the card grid cannot scroll underneath it. -->
+            <DockPanel IsVisible="{Binding !IsDetailViewVisible}">
+                <Grid DockPanel.Dock="Top"
+                      Margin="0,0,0,10"
+                      Background="#1A1A1A"
+                      IsVisible="{Binding CanSearchOrFilter}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox Grid.Column="0"
+                             Classes="search-box"
+                             Text="{Binding SearchTerm}"
+                             Watermark="Search content..."
+                             VerticalAlignment="Center"
+                             IsVisible="{Binding CanSearch}" />
+
+                    <Button Grid.Column="1"
+                            Content="Search"
+                            Command="{Binding SearchCommand}"
+                            Background="#404040"
+                            Foreground="White"
+                            CornerRadius="6"
+                            Padding="16,8"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding CanSearch}" />
+
+                    <ToggleButton Grid.Column="2"
+                                  Content="Filters"
+                                  IsChecked="{Binding IsFilterPanelVisible}"
+                                  IsVisible="{Binding CanShowFilters}"
+                                  Background="#2A2A2A"
+                                  Foreground="White"
+                                  BorderBrush="#404040"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="16,8"
+                                  Margin="8,0,0,0"
+                                  VerticalAlignment="Center">
+                        <ToggleButton.Styles>
+                            <Style Selector="ToggleButton:checked">
+                                <Setter Property="Background" Value="#9C27B0" />
+                                <Setter Property="BorderBrush" Value="#9C27B0" />
+                            </Style>
+                        </ToggleButton.Styles>
+                    </ToggleButton>
+                </Grid>
+
+                <!-- Filter Panel (Collapsible) -->
+                <Border DockPanel.Dock="Top"
+                        Background="#252525"
+                        CornerRadius="8"
+                        Padding="16"
+                        Margin="0,0,0,10"
+                        IsVisible="{Binding IsFilterPanelVisible}">
+                    <views:FilterPanelView DataContext="{Binding CurrentFilterViewModel}" />
+                </Border>
+
+                <!-- Content Grid with Load More. Clip so scrolled cards cannot paint into the toolbar. -->
+                <Border ClipToBounds="True">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <ItemsControl ItemsSource="{Binding ContentItems}" HorizontalAlignment="Center">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Panel Margin="6">
+                                        <views:ContentCardView DataContext="{Binding}" />
+                                    </Panel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Load More Button -->
+                        <Button Content="Load More"
+                                Command="{Binding LoadMoreCommand}"
+                                IsEnabled="{Binding !IsLoading}"
+                                IsVisible="{Binding CanLoadMore}"
+                                HorizontalAlignment="Center"
+                                Margin="0,20,0,40"
+                                Padding="30,10"
+                                Background="#333333"
+                                Foreground="White"
+                                FontSize="16"
+                                CornerRadius="8"
+                                BorderBrush="#555555"
+                                BorderThickness="1">
+                            <Button.Styles>
+                                <Style Selector="Button:pointerover /template/ ContentPresenter">
+                                    <Setter Property="Background" Value="#444444" />
+                                </Style>
+                            </Button.Styles>
+                        </Button>
+
+                        <!-- Loading Indicator (Bottom) -->
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    Margin="0,10,0,40"
+                                    IsVisible="{Binding IsLoading}">
+                            <TextBlock Text="⟳"
+                                       FontSize="24"
+                                       Foreground="#9C27B0"
+                                       Margin="0,0,10,0">
+                                <TextBlock.RenderTransform>
+                                    <RotateTransform Angle="0"/>
+                                </TextBlock.RenderTransform>
+                                <TextBlock.Styles>
+                                    <Style Selector="TextBlock">
+                                        <Style.Animations>
+                                            <Animation Duration="0:0:1" IterationCount="Infinite">
+                                                <KeyFrame KeyTime="0:0:0">
+                                                    <Setter Property="RotateTransform.Angle" Value="0"/>
+                                                </KeyFrame>
+                                                <KeyFrame KeyTime="0:0:1">
+                                                    <Setter Property="RotateTransform.Angle" Value="360"/>
+                                                </KeyFrame>
+                                            </Animation>
+                                        </Style.Animations>
+                                    </Style>
+                                </TextBlock.Styles>
+                            </TextBlock>
+                            <TextBlock Text="Loading details..."
+                                       FontSize="16"
+                                       Foreground="#AAAAAA"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </StackPanel>
+                    </ScrollViewer>
+                </Border>
+            </DockPanel>
+
+            <!-- Detail View Overlay -->
+            <Grid IsVisible="{Binding IsDetailViewVisible}" Background="#1A1A1A">
+                <ContentControl Content="{Binding SelectedContent}" />
+            </Grid>
+        </Grid>
+    </controls:SidebarLayout>
+</UserControl>

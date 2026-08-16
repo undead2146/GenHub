@@ -21,21 +21,10 @@ public class GeneralsOnlineDependencyBuilder : BaseDependencyBuilder
     /// <returns>A content dependency for Zero Hour 1.04 installation.</returns>
     public static ContentDependency CreateZeroHourDependencyForGeneralsOnline()
     {
-        return new ContentDependency
-        {
-            Id = ManifestId.Create("1.104.genhub.gameinstallation.zerohour"),
-            Name = GameClientConstants.ZeroHourInstallationDependencyName,
-            DependencyType = ContentType.GameInstallation,
-
-            // "1.04"
-            MinVersion = ManifestConstants.ZeroHourManifestVersion,
-            InstallBehavior = DependencyInstallBehavior.RequireExisting,
-            IsOptional = false,
-
-            // Any publisher's ZH installation will work
-            StrictPublisher = false,
-            CompatibleGameTypes = new List<GameType> { GameType.ZeroHour },
-        };
+        // Use the shared type-only constraint (publisher segment "any"). A concrete
+        // installation such as steam/eaapp is injected by ProfileContentService;
+        // DependencyResolver must not look up a non-existent "genhub" installation ID.
+        return CreateZeroHour104Dependency();
     }
 
     /// <summary>
@@ -88,7 +77,7 @@ public class GeneralsOnlineDependencyBuilder : BaseDependencyBuilder
             // Must be from GeneralsOnline publisher
             StrictPublisher = true,
             PublisherType = PublisherTypeConstants.GeneralsOnline,
-            CompatibleGameTypes = new List<GameType> { GameType.ZeroHour },
+            CompatibleGameTypes = [GameType.ZeroHour],
         };
     }
 
@@ -100,11 +89,11 @@ public class GeneralsOnlineDependencyBuilder : BaseDependencyBuilder
     /// <returns>List of dependencies for 60Hz variant.</returns>
     public static List<ContentDependency> GetDependenciesFor60Hz(int mapPackVersion = 0)
     {
-        return new List<ContentDependency>
-        {
+        return
+        [
             CreateZeroHourDependencyForGeneralsOnline(),
             CreateQuickMatchMapPackDependency(mapPackVersion),
-        };
+        ];
     }
 
     /// <summary>

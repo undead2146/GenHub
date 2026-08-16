@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using GenHub.Core.Constants;
 using GenHub.Core.Utilities;
 
 namespace GenHub.Core.Models.Manifest;
@@ -135,7 +136,8 @@ public static class ManifestVariantResolver
         var executable = files
             .Where(f =>
                 f.IsExecutable
-                && ExecutableFileClassifier.IsLegacyLaunchCandidateFromName(f.RelativePath))
+                && (ExecutableFileClassifier.IsLegacyLaunchCandidateFromName(f.RelativePath)
+                    || IsPrimaryGameExecutable(f.RelativePath)))
             .ToList();
         if (executable.Count == 1)
         {
@@ -145,12 +147,23 @@ public static class ManifestVariantResolver
         if (executable.Count == 0)
         {
             var legacy = files
-                .Where(f => ExecutableFileClassifier.IsLegacyLaunchCandidateFromName(f.RelativePath))
+                .Where(f =>
+                    ExecutableFileClassifier.IsLegacyLaunchCandidateFromName(f.RelativePath)
+                    || IsPrimaryGameExecutable(f.RelativePath))
                 .ToList();
 
             if (legacy.Count == 1)
             {
                 return EntryPointResolution.Resolved(legacy[0].RelativePath, "only launch candidate by extension");
+            }
+
+            var primaryFromLegacy = legacy
+                .Where(f => IsPrimaryGameExecutable(f.RelativePath))
+                .ToList();
+
+            if (primaryFromLegacy.Count == 1)
+            {
+                return EntryPointResolution.Resolved(primaryFromLegacy[0].RelativePath, "primary game executable candidate");
             }
 
             return EntryPointResolution.Failed(
@@ -160,10 +173,31 @@ public static class ManifestVariantResolver
                 files);
         }
 
+        var primaryExecutables = executable
+            .Where(f => IsPrimaryGameExecutable(f.RelativePath))
+            .ToList();
+
+        if (primaryExecutables.Count == 1)
+        {
+            return EntryPointResolution.Resolved(primaryExecutables[0].RelativePath, "primary game executable candidate");
+        }
+
         return EntryPointResolution.Failed(
             $"Manifest '{manifest.Id}' marks {executable.Count} files as requiring execute permission and "
             + "declares no entry point, so the launch target is ambiguous.",
             files);
+    }
+
+    private static bool IsPrimaryGameExecutable(string relativePath)
+    {
+        var fileName = System.IO.Path.GetFileName(relativePath.Replace('\\', '/'));
+        return string.Equals(fileName, GameClientConstants.SuperHackersZeroHourExecutable, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fileName, GameClientConstants.SuperHackersGeneralsExecutable, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fileName, GameClientConstants.GeneralsExecutable, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fileName, GameClientConstants.SteamGameDatExecutable, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fileName, GameClientConstants.GameExecutable, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fileName, GameClientConstants.GeneralsOnline60HzExecutable, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fileName, GameClientConstants.GeneralsOnlineDefaultExecutable, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool PathsMatch(string left, string right) =>

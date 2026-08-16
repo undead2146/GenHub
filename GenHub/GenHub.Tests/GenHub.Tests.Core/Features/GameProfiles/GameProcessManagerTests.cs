@@ -349,7 +349,17 @@ public class GameProcessManagerTests
         }
         finally
         {
-            File.Delete(tempExe);
+            try
+            {
+                if (File.Exists(tempExe))
+                {
+                    File.Delete(tempExe);
+                }
+            }
+            catch (IOException)
+            {
+                // Best-effort cleanup for transient OS process locks
+            }
         }
     }
 

@@ -4,9 +4,12 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Interfaces.Tools;
+using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
@@ -19,12 +22,13 @@ namespace GenHub.Features.Content.Services.ContentDeliverers;
 /// Delivers remote HTTP content.
 /// Pure delivery - downloads and extracts content.
 /// </summary>
-public class HttpContentDeliverer(IDownloadService downloadService, IContentManifestBuilder manifestBuilder, ILogger<HttpContentDeliverer> logger) : IContentDeliverer
+public class HttpContentDeliverer(
+    IDownloadService downloadService,
+    IPlaywrightService playwrightService,
+    Func<IContentManifestBuilder> manifestBuilderFactory,
+    IFileHashProvider fileHashProvider,
+    ILogger<HttpContentDeliverer> logger) : IContentDeliverer
 {
-    private readonly IDownloadService _downloadService = downloadService;
-    private readonly IContentManifestBuilder _manifestBuilder = manifestBuilder;
-    private readonly ILogger<HttpContentDeliverer> _logger = logger;
-
     /// <inheritdoc />
     public string SourceName => ContentSourceNames.HttpDeliverer;
 
@@ -40,11 +44,22 @@ public class HttpContentDeliverer(IDownloadService downloadService, IContentMani
     /// <inheritdoc />
     public bool CanDeliver(ContentManifest manifest)
     {
-        // Can deliver if files have HTTP download URLs
+        if (manifest?.Files == null)
+        {
+            return false;
+        }
+
+        // Dependency-only packages (e.g. ContentBundle) have no remote files to fetch.
+        if (manifest.Files.Count == 0)
+        {
+            return true;
+        }
+
+        // Can deliver if files have HTTP/HTTPS download URLs
         return manifest.Files.Any(f =>
             !string.IsNullOrEmpty(f.DownloadUrl) &&
             Uri.TryCreate(f.DownloadUrl, UriKind.Absolute, out var uri) &&
-            (uri.Scheme == "http" || uri.Scheme == "https"));
+            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps));
     }
 
     /// <inheritdoc />
@@ -56,19 +71,23 @@ public class HttpContentDeliverer(IDownloadService downloadService, IContentMani
     {
         try
         {
+            // Fresh builder per operation: the builder's internal manifest state is never reset,
+            // so a shared instance would accumulate files/dependencies across deliveries.
+            var builder = manifestBuilderFactory();
+
             // Extract publisher from the manifest ID (3rd segment)
             var idSegments = packageManifest.Id.Value.Split('.');
             var publisherId = idSegments.Length >= 3 ? idSegments[2] : "unknown";
 
-            var manifestVersionInt = int.TryParse(packageManifest.Version, out var parsedVersion) ? parsedVersion : 0;
-            var deliveredManifest = _manifestBuilder
-                .WithBasicInfo(publisherId, packageManifest.Name, manifestVersionInt)
+            var deliveredManifest = builder
+                .WithBasicInfo(publisherId, packageManifest.Name, packageManifest.Version)
                 .WithContentType(packageManifest.ContentType, packageManifest.TargetGame)
                 .WithPublisher(
                     packageManifest.Publisher?.Name ?? string.Empty,
                     packageManifest.Publisher?.Website ?? string.Empty,
                     packageManifest.Publisher?.SupportUrl ?? string.Empty,
-                    packageManifest.Publisher?.ContactEmail ?? string.Empty)
+                    packageManifest.Publisher?.ContactEmail ?? string.Empty,
+                    packageManifest.Publisher?.PublisherType ?? publisherId)
                 .WithMetadata(
                     packageManifest.Metadata?.Description ?? string.Empty,
                     packageManifest.Metadata?.Tags,
@@ -100,7 +119,13 @@ public class HttpContentDeliverer(IDownloadService downloadService, IContentMani
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var localPath = Path.Combine(targetDirectory, file.RelativePath);
+                var pathResult = ContentPathPolicy.ResolveContainedFile(targetDirectory, file.RelativePath);
+                if (!pathResult.Success)
+                {
+                    return OperationResult<ContentManifest>.CreateFailure(pathResult);
+                }
+
+                var localPath = pathResult.Data!;
 
                 // Ensure directory exists
                 var directory = Path.GetDirectoryName(localPath);
@@ -120,9 +145,48 @@ public class HttpContentDeliverer(IDownloadService downloadService, IContentMani
                     TotalFiles = totalFiles,
                 });
 
-                // Download the file
-                var downloadResult = await _downloadService.DownloadFileAsync(
-                    new Uri(file.DownloadUrl!), localPath, file.Hash, null, cancellationToken);
+                if (!Uri.TryCreate(file.DownloadUrl, UriKind.Absolute, out var downloadUri) ||
+                    (downloadUri.Scheme != Uri.UriSchemeHttp && downloadUri.Scheme != Uri.UriSchemeHttps))
+                {
+                    return OperationResult<ContentManifest>.CreateFailure(
+                        $"Invalid remote download URL for {file.RelativePath}: '{file.DownloadUrl}'. Remote content must use HTTP/HTTPS.");
+                }
+
+                var downloadProgress = new Progress<DownloadProgress>(download =>
+                {
+                    progress?.Report(new ContentAcquisitionProgress
+                    {
+                        Phase = ContentAcquisitionPhase.Downloading,
+                        ProgressPercentage = totalFiles == 0
+                            ? 0
+                            : (((double)processedFiles + (download.Percentage / 100)) / totalFiles) * 100,
+                        CurrentOperation = $"Downloading {download.FormattedProgress} at {download.FormattedSpeed}",
+                        CurrentFile = file.RelativePath,
+                        BytesProcessed = download.BytesReceived,
+                        TotalBytes = download.TotalBytes,
+                        FilesProcessed = processedFiles,
+                        TotalFiles = totalFiles,
+                        EstimatedTimeRemaining = download.EstimatedTimeRemaining ?? TimeSpan.Zero,
+                    });
+                });
+
+                DownloadResult downloadResult;
+                if (IsModDbUrl(downloadUri))
+                {
+                    downloadResult = await DownloadProtectedModDbFileAsync(downloadUri, localPath, packageManifest, cancellationToken);
+                    if (downloadResult.Success && !string.IsNullOrEmpty(file.Hash))
+                    {
+                        var computedHash = await fileHashProvider.ComputeFileHashAsync(localPath, cancellationToken);
+                        if (!string.Equals(computedHash, file.Hash, StringComparison.OrdinalIgnoreCase))
+                        {
+                            downloadResult = DownloadResult.CreateFailure($"Hash verification failed for {file.RelativePath}");
+                        }
+                    }
+                }
+                else
+                {
+                    downloadResult = await downloadService.DownloadFileAsync(downloadUri, localPath, file.Hash, downloadProgress, cancellationToken);
+                }
 
                 if (!downloadResult.Success)
                 {
@@ -130,10 +194,11 @@ public class HttpContentDeliverer(IDownloadService downloadService, IContentMani
                         $"Failed to download {file.RelativePath}: {downloadResult.FirstError}");
                 }
 
-                // Add the delivered file using the builder
-                await deliveredManifest.AddRemoteFileAsync(
+                // The file has already been downloaded into staging. Use its local path so the
+                // manifest contains a real hash and Stage 3 can extract archive contents.
+                await deliveredManifest.AddLocalFileAsync(
                     file.RelativePath,
-                    file.DownloadUrl ?? string.Empty,
+                    localPath,
                     ContentSourceType.ContentAddressable,
                     isExecutable: file.IsExecutable,
                     permissions: file.Permissions);
@@ -163,9 +228,14 @@ public class HttpContentDeliverer(IDownloadService downloadService, IContentMani
 
             return OperationResult<ContentManifest>.CreateSuccess(deliveredManifest.Build());
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            logger.LogInformation("HTTP delivery cancelled for manifest {ManifestId}", packageManifest.Id);
+            throw;
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to deliver HTTP content for manifest {ManifestId}", packageManifest.Id);
+            logger.LogError(ex, "Failed to deliver HTTP content for manifest {ManifestId}", packageManifest.Id);
             return OperationResult<ContentManifest>.CreateFailure($"Content delivery failed: {ex.Message}");
         }
     }
@@ -188,10 +258,41 @@ public class HttpContentDeliverer(IDownloadService downloadService, IContentMani
 
             return Task.FromResult(OperationResult<bool>.CreateSuccess(true));
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Validation failed for HTTP content manifest {ManifestId}", manifest.Id);
+            logger.LogError(ex, "Validation failed for HTTP content manifest {ManifestId}", manifest.Id);
             return Task.FromResult(OperationResult<bool>.CreateFailure($"Validation failed: {ex.Message}"));
         }
+    }
+
+    private static bool IsModDbUrl(Uri uri)
+    {
+        return uri.Host.Equals("moddb.com", StringComparison.OrdinalIgnoreCase) ||
+               uri.Host.EndsWith(".moddb.com", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task<DownloadResult> DownloadProtectedModDbFileAsync(
+        Uri downloadUri,
+        string destinationPath,
+        ContentManifest packageManifest,
+        CancellationToken cancellationToken)
+    {
+        var configuration = new DownloadConfiguration
+        {
+            Url = downloadUri,
+            DestinationPath = destinationPath,
+            OverwriteExisting = true,
+        };
+
+        if (!string.IsNullOrWhiteSpace(packageManifest.Publisher?.SupportUrl))
+        {
+            configuration.Headers["Referer"] = packageManifest.Publisher.SupportUrl;
+        }
+
+        return await playwrightService.DownloadFileAsync(configuration, cancellationToken);
     }
 }

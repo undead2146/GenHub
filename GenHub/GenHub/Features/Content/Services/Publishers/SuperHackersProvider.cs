@@ -103,7 +103,7 @@ public class SuperHackersProvider(
                         Version = latestRelease.TagName ?? "latest",
                         AuthorName = SuperHackersConstants.GeneralsGameCodeOwner,
                         ContentType = ContentType.GameClient,
-                        TargetGame = GameType.Generals, // Simplification, could infer
+                        TargetGame = GameType.Unknown,
                         IsInferred = false,
                         ProviderName = SourceName,
                         RequiresResolution = true,

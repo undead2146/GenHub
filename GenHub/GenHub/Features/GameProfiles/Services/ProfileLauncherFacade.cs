@@ -878,6 +878,13 @@ public class ProfileLauncherFacade(
                 return ProfileOperationResult<WorkspaceInfo>.CreateFailure(string.Join(", ", resolutionResult.Errors));
             }
 
+            // Check for missing dependencies (can occur even on success-with-warnings)
+            if (resolutionResult.MissingContentIds?.Any() == true)
+            {
+                return ProfileOperationResult<WorkspaceInfo>.CreateFailure(
+                    $"Missing or invalid content IDs: {string.Join(", ", resolutionResult.MissingContentIds)}");
+            }
+
             manifests = [.. resolutionResult.ResolvedManifests];
 
             // CAS preflight check - verify all CAS content is available before workspace preparation.
@@ -924,10 +931,23 @@ public class ProfileLauncherFacade(
                 }
                 else
                 {
-                    logger.LogWarning(
-                        "[Workspace] Could not resolve source path for manifest {ManifestId} ({ContentType})",
-                        manifest.Id.Value,
-                        manifest.ContentType);
+                    bool isCasBacked = manifest.Files != null && manifest.Files.Count > 0 &&
+                        manifest.Files.All(f => f.SourceType == ContentSourceType.ContentAddressable);
+
+                    if (isCasBacked)
+                    {
+                        logger.LogDebug(
+                            "[Workspace] Source path for CAS-backed manifest {ManifestId} ({ContentType}) is managed by CAS pool",
+                            manifest.Id.Value,
+                            manifest.ContentType);
+                    }
+                    else
+                    {
+                        logger.LogWarning(
+                            "[Workspace] Could not resolve source path for manifest {ManifestId} ({ContentType})",
+                            manifest.Id.Value,
+                            manifest.ContentType);
+                    }
                 }
             }
 
@@ -1295,8 +1315,11 @@ public class ProfileLauncherFacade(
                         continue;
                     }
 
-                    // Check if specific dependency ID is required (not a generic type-based constraint)
-                    if (dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId)
+                    // Check if this dependency is a generic type-only constraint
+                    var isGenericConstraint = dependency.Id.ToString() == ManifestConstants.DefaultContentDependencyId ||
+                                              DependencyResolver.CommunityOutpostDependencyIdentity.IsGenericTypeDependency(dependency);
+
+                    if (!isGenericConstraint)
                     {
                         ContentManifest? requiredManifest = null;
 
@@ -1306,16 +1329,70 @@ public class ProfileLauncherFacade(
                             requiredManifest = exactMatch;
                         }
 
+                        // Community Outpost matching (by content code / tags / aliases)
+                        if (requiredManifest == null &&
+                            DependencyResolver.CommunityOutpostDependencyIdentity.TryGetCommunityOutpostContentCode(
+                                dependency.Id.Value,
+                                out var depContentType,
+                                out var depContentCode))
+                        {
+                            requiredManifest = potentialMatches.FirstOrDefault(m =>
+                            {
+                                if (!string.Equals(
+                                        m.Publisher?.PublisherType,
+                                        CommunityOutpostConstants.PublisherType,
+                                        StringComparison.OrdinalIgnoreCase) &&
+                                    !DependencyResolver.CommunityOutpostDependencyIdentity.TryGetCommunityOutpostContentCode(
+                                        m.Id.Value,
+                                        out _,
+                                        out _))
+                                {
+                                    return false;
+                                }
+
+                                var candidateCode = DependencyResolver.CommunityOutpostDependencyIdentity.GetCommunityOutpostContentCode(m);
+                                return m.ContentType.ToString().Equals(depContentType, StringComparison.OrdinalIgnoreCase) &&
+                                       candidateCode.Equals(depContentCode, StringComparison.OrdinalIgnoreCase);
+                            });
+
+                            if (requiredManifest != null)
+                            {
+                                logger.LogDebug(
+                                    "Community Outpost dependency match: {DependencyId} satisfied by {MatchedId}",
+                                    dependency.Id,
+                                    requiredManifest.Id);
+                            }
+                        }
+
+                        // Catalog identity matching (version-independent / variant suffix)
+                        if (requiredManifest == null)
+                        {
+                            var depIdParts = dependency.Id.ToString().Split('.');
+                            requiredManifest = potentialMatches.FirstOrDefault(m =>
+                            {
+                                var manifestIdParts = m.Id.ToString().Split('.');
+                                return DependencyResolver.HasCompatibleCatalogIdentity(depIdParts, manifestIdParts);
+                            });
+
+                            if (requiredManifest != null)
+                            {
+                                logger.LogDebug(
+                                    "Catalog identity dependency match: {DependencyId} satisfied by {MatchedId}",
+                                    dependency.Id,
+                                    requiredManifest.Id);
+                            }
+                        }
+
                         // If StrictPublisher is false, try semantic matching (any publisher satisfies the dependency)
-                        else if (!dependency.StrictPublisher)
+                        if (requiredManifest == null && !dependency.StrictPublisher)
                         {
                             // Parse the dependency ID to get contentType and contentName segments
                             // Format: schemaVersion.userVersion.publisher.contentType.contentName
                             var depIdSegments = dependency.Id.ToString().Split('.');
                             if (depIdSegments.Length >= 5)
                             {
-                                var depContentType = depIdSegments[3];
-                                var depContentName = depIdSegments[4];
+                                var targetContentType = depIdSegments[3];
+                                var targetContentName = depIdSegments[4];
 
                                 // Find any manifest that matches contentType and contentName (regardless of publisher)
                                 requiredManifest = potentialMatches.FirstOrDefault(m =>
@@ -1325,8 +1402,9 @@ public class ProfileLauncherFacade(
                                     {
                                         var manifestContentType = manifestIdSegments[3];
                                         var manifestContentName = manifestIdSegments[4];
-                                        return string.Equals(manifestContentType, depContentType, StringComparison.OrdinalIgnoreCase) &&
-                                               string.Equals(manifestContentName, depContentName, StringComparison.OrdinalIgnoreCase);
+                                        return string.Equals(manifestContentType, targetContentType, StringComparison.OrdinalIgnoreCase) &&
+                                               (string.Equals(manifestContentName, targetContentName, StringComparison.OrdinalIgnoreCase) ||
+                                                manifestContentName.StartsWith(targetContentName + "-", StringComparison.OrdinalIgnoreCase));
                                     }
 
                                     return false;

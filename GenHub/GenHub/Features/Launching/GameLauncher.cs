@@ -735,6 +735,19 @@ public class GameLauncher(
             }
 
             var manifests = resolutionResult.Data;
+            logger.LogInformation(
+                "[GameLauncher] Resolved {Count} manifests (from {EnabledCount} enabled IDs, including dependencies)",
+                manifests.Count,
+                enabledIds.Count());
+            foreach (var manifest in manifests)
+            {
+                logger.LogDebug(
+                    "[GameLauncher] Manifest details - ID: {Id}, Name: {Name}, Type: {Type}, Files: {FileCount}",
+                    manifest.Id.Value,
+                    manifest.Name,
+                    manifest.ContentType,
+                    manifest.Files?.Count ?? 0);
+            }
             logger.LogDebug("[GameLauncher] Applying profile settings to Options.ini before workspace preparation");
             await ApplyProfileSettingsToIniOptionsAsync(profile);
 
@@ -1087,6 +1100,19 @@ public class GameLauncher(
             {
                 logger.LogError("[GameLauncher] Security violation - executable outside workspace");
                 return OperationResult<string>.CreateFailure($"Security violation: Workspace executable path '{finalExecutablePath}' is outside workspace");
+            }
+        }
+        else if (profile.GameClient != null && !string.IsNullOrEmpty(profile.GameClient.WorkingDirectory))
+        {
+            var normalizedWorkingDir = NormalizePath(profile.GameClient.WorkingDirectory);
+            var normalizedWorkingDirPrefix = normalizedWorkingDir.TrimEnd('/') + '/';
+            var normalizedExecutablePath = NormalizePath(finalExecutablePath);
+            if (!normalizedExecutablePath.StartsWith(normalizedWorkingDirPrefix, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(normalizedExecutablePath, normalizedWorkingDir.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+            {
+                logger.LogError("[GameLauncher] Security violation - profile fallback executable outside working directory");
+                return OperationResult<string>.CreateFailure(
+                    $"Security violation: Fallback executable path '{finalExecutablePath}' is outside working directory");
             }
         }
 

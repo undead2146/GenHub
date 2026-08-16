@@ -17,6 +17,7 @@ using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
+using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.Notifications.Services;
 using GenHub.Features.Notifications.ViewModels;
 using Microsoft.Extensions.Logging;
@@ -191,6 +192,18 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
             if (manifestsById.TryGetValue(conflictId.ToString(), out var conflicting))
                 warnings.Add($"'{manifest.Name}' conflicts with '{conflicting.Name}' - these cannot be used together.");
         }
+    }
+
+    private static bool HasCompatibleCatalogMatch(string declaredId, string availableId)
+    {
+        if (string.Equals(declaredId, availableId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var declaredParts = declaredId.Split('.');
+        var availableParts = availableId.Split('.');
+        return DependencyResolver.HasCompatibleCatalogIdentity(declaredParts, availableParts);
     }
 
     private readonly IGameProfileManager? _gameProfileManager;

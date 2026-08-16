@@ -43,13 +43,51 @@
     </UserControl.Styles>
 
     <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="190" MinWidth="68" MaxWidth="300" />
+            <ColumnDefinition Width="4" />
+            <ColumnDefinition Width="*" MinWidth="0" />
+        </Grid.ColumnDefinitions>
 
+        <!-- Sidebar Navigation -->
+        <Border Grid.Column="0"
+                Background="#10000000"
+                BorderBrush="#20FFFFFF"
+                BorderThickness="0,0,1,0"
+                Padding="12,24"
+                ClipToBounds="True">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="2">
+                    <Button Classes="sidebar-btn"
+                            Classes.selected="{Binding SelectedContentCategory, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static vm:ContentSettingsCategory.Selection}}"
+                            Command="{Binding SelectContentCategoryCommand}"
+                            CommandParameter="{x:Static vm:ContentSettingsCategory.Selection}"
+                            ToolTip.Tip="Enabled Content">
+                        <StackPanel Orientation="Horizontal">
+                            <PathIcon Data="M9,10A3.04,3.04 0 0,1 12,7A3.04,3.04 0 0,1 15,10A3.04,3.04 0 0,1 12,13A3.04,3.04 0 0,1 9,10M12,19L16,20V16.92A7.54,7.54 0 0,1 12,18A7.54,7.54 0 0,1 8,16.92V20M12,4A5.78,5.78 0 0,0 7.76,5.74A5.78,5.78 0 0,0 6,10A5.78,5.78 0 0,0 7.76,14.23A5.78,5.78 0 0,0 12,16A5.78,5.78 0 0,0 16.24,14.23A5.78,5.78 0 0,0 18,10A5.78,5.78 0 0,0 16.24,5.74A5.78,5.78 0 0,0 12,4M20,10A8.04,8.04 0 0,1 19.43,12.8A7.84,7.84 0 0,1 18,15.28V23L12,21L6,23V15.28A7.9,7.9 0 0,1 4,10A7.68,7.68 0 0,1 6,4.47A7.73,7.73 0 0,1 12,2A7.73,7.73 0 0,1 18,4.47A7.68,7.68 0 0,1 20,10Z" />
+                            <TextBlock Text="Enabled" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
 
+                    <Button Classes="sidebar-btn"
+                            Classes.selected="{Binding SelectedContentCategory, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static vm:ContentSettingsCategory.Discovery}}"
+                            Command="{Binding SelectContentCategoryCommand}"
+                            CommandParameter="{x:Static vm:ContentSettingsCategory.Discovery}"
+                            ToolTip.Tip="Available Content">
+                        <StackPanel Orientation="Horizontal">
+                            <PathIcon Data="M19,20H4C2.89,20 2,19.1 2,18V6C2,4.89 2.89,4 4,4H10L12,6H19A2,2 0 0,1 21,8H21L4,8V18L6.14,10H23.21L20.93,18.5C20.7,19.37 19.92,20 19,20Z" />
+                            <TextBlock Text="Available" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
 
+        <!-- Resizer -->
+        <GridSplitter Grid.Column="1" Background="Transparent" ResizeDirection="Columns" />
 
         <!-- Content Area -->
-        <!-- Content Area -->
-        <ScrollViewer x:Name="ContentSettingsScrollViewer" Padding="0,24,0,80" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" BringIntoViewOnFocusChange="False">
+        <ScrollViewer x:Name="ContentSettingsScrollViewer" Grid.Column="2" Padding="0,24,0,80" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" BringIntoViewOnFocusChange="False">
             <StackPanel Spacing="0">
 
                 <!-- Enabled Content Section -->

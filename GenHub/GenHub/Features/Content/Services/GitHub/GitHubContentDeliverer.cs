@@ -27,8 +27,8 @@ namespace GenHub.Features.Content.Services.GitHub;
 /// </summary>
 public class GitHubContentDeliverer(
     IDownloadService downloadService,
-    IContentManifestPool manifestPool,
     PublisherManifestFactoryResolver factoryResolver,
+    IFileHashProvider hashProvider,
     ILogger<GitHubContentDeliverer> logger) : IContentDeliverer
 {
     /// <inheritdoc />
@@ -103,12 +103,9 @@ public class GitHubContentDeliverer(
                 {
                     downloadProgress = new Progress<DownloadProgress>(dp =>
                     {
-                        // Map download progress (0-100) to the Downloading phase range (40-65%)
-                        // We start at 40 (ProgressStepDownloading) and use 25% of the range for downloads
-                        double downloadRange = 25.0; // 40% to 65%
-                        double fileProgressRange = downloadRange / totalFiles;
-                        double baseProgress = ContentConstants.ProgressStepDownloading + ((currentFileIndex - 1) * fileProgressRange);
-                        double currentProgress = baseProgress + (dp.Percentage / 100.0 * fileProgressRange);
+                        // The orchestrator owns the overall five-stage scale. Report only
+                        // relative delivery progress so it cannot regress the stage display.
+                        double currentProgress = ((currentFileIndex - 1) + (dp.Percentage / 100.0)) / totalFiles * 100;
 
                         progress.Report(new ContentAcquisitionProgress
                         {
@@ -162,29 +159,92 @@ public class GitHubContentDeliverer(
                         logger.LogInformation("Extracted {ArchiveFile}", Path.GetFileName(archiveFile));
                         File.Delete(archiveFile);
                     }
+                    catch (OperationCanceledException)
+                    {
+                        logger.LogWarning("Extraction of {ArchiveFile} was cancelled; cleaning up target directory", Path.GetFileName(archiveFile));
+                        try
+                        {
+                            Directory.Delete(targetDirectory, recursive: true);
+                        }
+                        catch
+                        {
+                            // Best-effort cleanup
+                        }
+
+                        throw;
+                    }
                     catch (Exception ex)
                     {
                         logger.LogError(ex, "Failed to extract {ArchiveFile}", Path.GetFileName(archiveFile));
+                        try
+                        {
+                            Directory.Delete(targetDirectory, recursive: true);
+                        }
+                        catch
+                        {
+                            // Best-effort cleanup
+                        }
+
                         return OperationResult<ContentManifest>.CreateFailure(
                             $"Failed to extract {Path.GetFileName(archiveFile)}: {ex.Message}");
                     }
                 }
 
                 logger.LogInformation(
-                    "Successfully extracted {Count} archive file(s) for {ManifestId}. Using publisher factory for manifest generation...",
+                    "Successfully extracted {Count} archive file(s) for {ManifestId}. Deferring manifest generation to the orchestrator.",
                     archiveFiles.Count,
                     packageManifest.Id);
 
-                // Use publisher-specific factory to create manifests
-                return await HandleExtractedContentAsync(packageManifest, targetDirectory, progress, cancellationToken);
+                return OperationResult<ContentManifest>.CreateSuccess(packageManifest);
             }
 
-            // For content without archives, return original manifest
+            // For content without archives, compute hashes directly for downloaded files
+            foreach (var file in filesToDownload)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var localPath = Path.Combine(targetDirectory, file.RelativePath);
+                if (File.Exists(localPath))
+                {
+                    file.Hash = await hashProvider.ComputeFileHashAsync(localPath, cancellationToken);
+                    file.Size = new FileInfo(localPath).Length;
+                    file.SourceType = ContentSourceType.ContentAddressable;
+                }
+            }
+
             return OperationResult<ContentManifest>.CreateSuccess(packageManifest);
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogWarning("GitHub content delivery was cancelled for manifest {ManifestId}", packageManifest.Id);
+            try
+            {
+                if (Directory.Exists(targetDirectory))
+                {
+                    Directory.Delete(targetDirectory, recursive: true);
+                }
+            }
+            catch
+            {
+                // Best-effort cleanup
+            }
+
+            return OperationResult<ContentManifest>.CreateFailure("Content delivery was cancelled.");
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to deliver GitHub content for manifest {ManifestId}", packageManifest.Id);
+            try
+            {
+                if (Directory.Exists(targetDirectory))
+                {
+                    Directory.Delete(targetDirectory, recursive: true);
+                }
+            }
+            catch
+            {
+                // Best-effort cleanup
+            }
+
             return OperationResult<ContentManifest>.CreateFailure($"Content delivery failed: {ex.Message}");
         }
     }
@@ -246,6 +306,88 @@ public class GitHubContentDeliverer(
     }
 
     /// <summary>
+    /// Extracts an archive file to a target directory with progress reporting and bounds enforcement.
+    /// </summary>
+    /// <param name="archiveFile">Path to the archive file.</param>
+    /// <param name="targetDirectory">Directory to extract files to.</param>
+    /// <param name="progress">Progress reporter for extraction updates.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    private static async Task ExtractArchiveAsync(
+        string archiveFile,
+        string targetDirectory,
+        IProgress<ContentAcquisitionProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        await Task.Run(
+            () =>
+            {
+                using var archive = ArchiveFactory.OpenArchive(archiveFile);
+                int totalEntries = archive.Entries.Count(e => !e.IsDirectory);
+                int currentEntry = 0;
+                long totalUncompressedSize = 0;
+
+                var rootPath = Path.GetFullPath(targetDirectory) + Path.DirectorySeparatorChar;
+
+                foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    currentEntry++;
+                    if (currentEntry > CatalogConstants.MaxZipEntryCount)
+                    {
+                        throw new InvalidDataException(
+                            $"Archive exceeds maximum entry count of {CatalogConstants.MaxZipEntryCount}");
+                    }
+
+                    totalUncompressedSize += entry.Size;
+                    if (totalUncompressedSize > CatalogConstants.MaxZipUncompressedSizeBytes)
+                    {
+                        throw new InvalidDataException(
+                            $"Archive exceeds maximum uncompressed size of {CatalogConstants.MaxZipUncompressedSizeBytes} bytes");
+                    }
+
+                    var destinationPath = Path.GetFullPath(Path.Combine(targetDirectory, entry.Key ?? string.Empty));
+
+                    // Containment guard: reject entries whose canonical path escapes the target
+                    // directory (zip-slip / absolute entry keys from a remote-controlled archive).
+                    if (!destinationPath.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidDataException($"Archive entry has an unsafe path: {entry.Key}");
+                    }
+
+                    var destinationDir = Path.GetDirectoryName(destinationPath);
+                    if (!string.IsNullOrEmpty(destinationDir))
+                    {
+                        Directory.CreateDirectory(destinationDir);
+                    }
+
+                    entry.WriteToFile(
+                        destinationPath,
+                        new ExtractionOptions
+                        {
+                            ExtractFullPath = true,
+                            Overwrite = true,
+                        });
+
+                    double currentPercentage = (double)currentEntry / totalEntries * 100;
+
+                    progress?.Report(
+                        new ContentAcquisitionProgress
+                        {
+                            Phase = ContentAcquisitionPhase.Extracting,
+                            ProgressPercentage = currentPercentage,
+                            CurrentOperation = $"{Path.GetFileName(entry.Key)} ({currentEntry}/{totalEntries})",
+                            FilesProcessed = currentEntry,
+                            TotalFiles = totalEntries,
+                            CurrentFile = Path.GetFileName(entry.Key) ?? string.Empty,
+                        });
+                }
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
     /// Handles extracted content by using publisher-specific factories to create manifests.
     /// May return multiple manifests if the publisher factory detects multi-variant content.
     /// </summary>
@@ -293,55 +435,6 @@ public class GitHubContentDeliverer(
                 manifests.Count,
                 string.Join(", ", manifests.Select(m => m.Id.Value)));
 
-            // Store all manifests to CAS via manifest pool
-            // This ensures files are available in CAS before validation runs
-            foreach (var manifest in manifests)
-            {
-                var manifestDirectory = factory.GetManifestDirectory(manifest, extractedDirectory);
-
-                logger.LogInformation(
-                    "Storing manifest {ManifestId} to pool from directory {Directory}",
-                    manifest.Id,
-                    manifestDirectory);
-
-                // Create adapter for storage progress
-                var storageProgress = new Progress<ContentStorageProgress>(p =>
-                {
-                    progress?.Report(new ContentAcquisitionProgress
-                    {
-                        Phase = ContentAcquisitionPhase.StoringInCas,
-                        ProgressPercentage = ContentConstants.ProgressStepStoring + (p.Percentage * 0.1), // Map to Storing phase
-                        CurrentOperation = $"Storing content: {p.CurrentFileName} ({p.ProcessedCount}/{p.TotalCount})",
-                        FilesProcessed = p.ProcessedCount,
-                        TotalFiles = p.TotalCount,
-                        CurrentFile = p.CurrentFileName ?? string.Empty,
-                    });
-                });
-
-                var addResult = await manifestPool.AddManifestAsync(manifest, manifestDirectory, progress: storageProgress, cancellationToken: cancellationToken);
-                if (!addResult.Success)
-                {
-                    logger.LogWarning(
-                        "Failed to store manifest {ManifestId} to pool: {Errors}",
-                        manifest.Id,
-                        string.Join(", ", addResult.Errors));
-                }
-                else
-                {
-                    logger.LogInformation(
-                        "Successfully stored manifest {ManifestId} to pool",
-                        manifest.Id);
-
-                    // Update file source types to ContentAddressable since files are now in CAS
-                    // This ensures validation checks CAS instead of filesystem paths
-                    foreach (var file in manifest.Files)
-                    {
-                        file.SourceType = ContentSourceType.ContentAddressable;
-                    }
-                }
-            }
-
-            // Return primary manifest
             var primaryManifest = manifests[0];
 
             return OperationResult<ContentManifest>.CreateSuccess(primaryManifest);
@@ -351,73 +444,5 @@ public class GitHubContentDeliverer(
             logger.LogError(ex, "Failed to handle extracted content using factory");
             return OperationResult<ContentManifest>.CreateFailure($"Factory content handling failed: {ex.Message}");
         }
-    }
-
-    /// <summary>
-    /// Extracts an archive file asynchronously to prevent UI blocking.
-    /// </summary>
-    /// <param name="archiveFile">Path to the archive file.</param>
-    /// <param name="targetDirectory">Directory to extract files to.</param>
-    /// <param name="progress">Progress reporter for extraction updates.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    private async Task ExtractArchiveAsync(
-        string archiveFile,
-        string targetDirectory,
-        IProgress<ContentAcquisitionProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        await Task.Run(
-            () =>
-            {
-                using (var archive = ArchiveFactory.Open(archiveFile))
-                {
-                    int totalEntries = archive.Entries.Count(e => !e.IsDirectory);
-                    int currentEntry = 0;
-
-                    foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
-                    {
-                        if (cancellationToken.IsCancellationRequested)
-                        {
-                            break;
-                        }
-
-                        var destinationPath = Path.Combine(targetDirectory, entry.Key ?? string.Empty);
-                        var destinationDir = Path.GetDirectoryName(destinationPath);
-                        if (!string.IsNullOrEmpty(destinationDir))
-                        {
-                            Directory.CreateDirectory(destinationDir);
-                        }
-
-                        entry.WriteToFile(
-                            destinationPath,
-                            new ExtractionOptions
-                            {
-                                ExtractFullPath = true,
-                                Overwrite = true,
-                            });
-
-                        currentEntry++;
-
-                        // Map extraction progress from ProgressStepValidatingFiles to ProgressStepExtracting
-                        double extractStart = ContentConstants.ProgressStepValidatingFiles;
-                        double extractEnd = ContentConstants.ProgressStepExtracting;
-                        double progressRange = extractEnd - extractStart;
-                        double currentPercentage = extractStart + ((double)currentEntry / totalEntries * progressRange);
-
-                        progress?.Report(
-                            new ContentAcquisitionProgress
-                            {
-                                Phase = ContentAcquisitionPhase.Extracting,
-                                ProgressPercentage = currentPercentage,
-                                CurrentOperation = $"{Path.GetFileName(entry.Key)} ({currentEntry}/{totalEntries})",
-                                FilesProcessed = currentEntry,
-                                TotalFiles = totalEntries,
-                                CurrentFile = Path.GetFileName(entry.Key) ?? string.Empty,
-                            });
-                    }
-                }
-            },
-            cancellationToken);
     }
 }

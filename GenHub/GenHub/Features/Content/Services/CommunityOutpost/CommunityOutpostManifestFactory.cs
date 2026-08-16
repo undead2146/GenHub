@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,7 +13,10 @@ using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Models.CommunityOutpost;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
+using GenHub.Features.Content.Services.Common;
 using Microsoft.Extensions.Logging;
+using SharpCompress.Archives;
+using SharpCompress.Common;
 
 namespace GenHub.Features.Content.Services.CommunityOutpost;
 
@@ -24,9 +28,9 @@ namespace GenHub.Features.Content.Services.CommunityOutpost;
 public class CommunityOutpostManifestFactory(
     ILogger<CommunityOutpostManifestFactory> logger,
     IFileHashProvider hashProvider,
-    CompressedImageToTgaConverter avifConverter) : IPublisherManifestFactory
+    IArchivePayloadProcessor archivePayloadProcessor,
+    IControlBarPackageProcessor? controlBarProcessor = null) : IPublisherManifestFactory
 {
-    private const string ControlBarMetadataBigBase64 = "QklHRngBAAAAAAACAAAAUwAAAFMAAAEkQ29udHJvbEJhclByby50eHQAAAABdwAAAAFHZW5Ub29sXGZ1bGx2aWV3cG9ydC5kYXQAAAAAAAAAAABDb250cm9sIEJhciBQcm8gZm9yIENPTU1BTkQgQU5EIENPTlFVRVIgR0VORVJBTFM6IFpFUk8gSE9VUg0KDQpBVVRIT1I6DQpFQSBHYW1lcywgRkFTLCB4ZXpvbg0KDQpPUklHSU5BTCBET1dOTE9BRCBVUkw6DQpodHRwOi8vZ2VudG9vbC5uZXQvZG93bmxvYWQvY29udHJvbGJhcnBybw0KDQpTT1VSQ0UgQ09ERSAmIEFTU0VUUzoNCmh0dHBzOi8vZ2l0aHViLmNvbS9UaGVTdXBlckhhY2tlcnMvR2VuZXJhbHNDb250cm9sQmFyDQoNCkRPTkFUSU9OIExJTks6DQpodHRwczovL3d3dy5wYXlwYWwubWUvZ2VudG9vbA0KMQ==";
     private static readonly ConcurrentDictionary<string, Regex> RegexCache = new();
 
     private static Regex GetCachedRegex(string pattern)
@@ -45,13 +49,17 @@ public class CommunityOutpostManifestFactory(
     {
         var publisherMatches = manifest.Publisher?.PublisherType?.Equals(
             CommunityOutpostConstants.PublisherType,
+            StringComparison.OrdinalIgnoreCase) == true ||
+            manifest.OriginalProviderName?.Equals(
+            CommunityOutpostConstants.PublisherType,
             StringComparison.OrdinalIgnoreCase) == true;
 
         logger.LogDebug(
-            "CanHandle check for manifest {ManifestId}: Publisher={Publisher}, Type={PublisherType}, Result={Result}",
+            "CanHandle check for manifest {ManifestId}: Publisher={Publisher}, Type={PublisherType}, OriginalProvider={OriginalProvider}, Result={Result}",
             manifest.Id,
             manifest.Publisher?.Name,
             manifest.Publisher?.PublisherType,
+            manifest.OriginalProviderName,
             publisherMatches);
 
         return publisherMatches;
@@ -73,29 +81,47 @@ public class CommunityOutpostManifestFactory(
             return [];
         }
 
+        await archivePayloadProcessor.ProcessPayloadAsync(
+            extractedDirectory,
+            originalManifest.ContentType,
+            originalManifest.TargetGame,
+            cancellationToken);
+
         // Get the content code and install target from the original manifest metadata
         var contentCode = GetContentCodeFromManifest(originalManifest);
         var contentMetadata = GenPatcherContentRegistry.GetMetadata(contentCode);
+        var requestedVariantId = GetRequestedVariantIdFromManifest(originalManifest);
 
         logger.LogInformation(
-            "Processing content: {Name} ({ContentType}) with content code {Code}, InstallTarget={InstallTarget}, SupportsVariants={SupportsVariants}",
+            "Processing content: {Name} ({ContentType}) with content code {Code}, InstallTarget={InstallTarget}, SupportsVariants={SupportsVariants}, RequestedVariant={RequestedVariant}",
             originalManifest.Name,
             originalManifest.ContentType,
             contentCode,
             contentMetadata.InstallTarget,
-            contentMetadata.SupportsVariants);
+            contentMetadata.SupportsVariants,
+            requestedVariantId ?? "none");
 
         // If content supports variants (e.g., resolution options), create separate manifests for each variant
         if (contentMetadata.SupportsVariants && contentMetadata.Variants != null && contentMetadata.Variants.Count > 0)
         {
+            var variantsToBuild = contentMetadata.Variants;
+            if (!string.IsNullOrEmpty(requestedVariantId))
+            {
+                var specificVariant = contentMetadata.Variants.FirstOrDefault(v => string.Equals(v.Id, requestedVariantId, StringComparison.OrdinalIgnoreCase));
+                if (specificVariant != null)
+                {
+                    variantsToBuild = [specificVariant];
+                }
+            }
+
             logger.LogInformation(
                 "Creating {VariantCount} variant manifests for {Name}",
-                contentMetadata.Variants.Count,
+                variantsToBuild.Count,
                 originalManifest.Name);
 
             var variantManifests = new List<ContentManifest>();
 
-            foreach (var variant in contentMetadata.Variants)
+            foreach (var variant in variantsToBuild)
             {
                 var variantManifest = await BuildManifestWithFilesAsync(
                     originalManifest,
@@ -143,6 +169,15 @@ public class CommunityOutpostManifestFactory(
     /// <inheritdoc />
     public string GetManifestDirectory(ContentManifest manifest, string extractedDirectory)
     {
+        // Control Bar (and similar) variants place BIG files at the extract root while a ZH/
+        // folder may also exist from merged language deps. Prefer the root whenever the
+        // manifest's RelativePaths are root-level so SourcePath validation does not fail.
+        if (manifest.Files is { Count: > 0 } &&
+            manifest.Files.All(IsRootRelativeManifestPath))
+        {
+            return extractedDirectory;
+        }
+
         // Get the content code to determine the correct subdirectory
         var contentCode = GetContentCodeFromManifest(manifest);
 
@@ -171,8 +206,20 @@ public class CommunityOutpostManifestFactory(
         return extractedDirectory;
     }
 
+    private static bool IsRootRelativeManifestPath(ManifestFile file)
+    {
+        var relative = (file.RelativePath ?? string.Empty).Replace('\\', '/').TrimStart('/');
+        if (string.IsNullOrEmpty(relative))
+        {
+            return true;
+        }
+
+        return !relative.StartsWith("ZH/", StringComparison.OrdinalIgnoreCase)
+            && !relative.StartsWith("CCG/", StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <summary>
-    /// Extracts the content code from manifest metadata tags.
+    /// Extracts the content code from manifest metadata tags or manifest ID.
     /// </summary>
     private static string GetContentCodeFromManifest(ContentManifest manifest)
     {
@@ -182,7 +229,25 @@ public class CommunityOutpostManifestFactory(
 
         if (!string.IsNullOrEmpty(contentCodeTag))
         {
-            return contentCodeTag["contentCode:".Length..];
+            var tagValue = contentCodeTag["contentCode:".Length..];
+            var directMeta = GenPatcherContentRegistry.GetMetadata(tagValue);
+            if (directMeta.ContentType != ContentType.UnknownContentType)
+            {
+                return directMeta.ContentCode;
+            }
+
+            var dashIdx = tagValue.IndexOf('-');
+            if (dashIdx > 0)
+            {
+                var prefix = tagValue[..dashIdx];
+                var prefixMeta = GenPatcherContentRegistry.GetMetadata(prefix);
+                if (prefixMeta.ContentType != ContentType.UnknownContentType)
+                {
+                    return prefixMeta.ContentCode;
+                }
+            }
+
+            return tagValue;
         }
 
         // Try to extract from manifest ID
@@ -190,10 +255,118 @@ public class CommunityOutpostManifestFactory(
         var idParts = manifest.Id.Value?.Split('.') ?? [];
         if (idParts.Length >= 5)
         {
-            return idParts[4]; // The content name part
+            var contentName = idParts[4];
+            var metadata = GenPatcherContentRegistry.GetMetadata(contentName);
+            if (metadata.ContentType != ContentType.UnknownContentType)
+            {
+                return metadata.ContentCode;
+            }
+
+            var dashIndex = contentName.IndexOf('-');
+            var codePrefix = dashIndex > 0 ? contentName[..dashIndex] : contentName;
+            var prefixMetadata = GenPatcherContentRegistry.GetMetadata(codePrefix);
+            if (prefixMetadata.ContentType != ContentType.UnknownContentType)
+            {
+                return prefixMetadata.ContentCode;
+            }
+
+            foreach (var code in GenPatcherContentRegistry.GetKnownContentCodes())
+            {
+                if (contentName.StartsWith(code, StringComparison.OrdinalIgnoreCase))
+                {
+                    return code;
+                }
+            }
+
+            return codePrefix;
         }
 
         return "unknown";
+    }
+
+    /// <summary>
+    /// Extracts requested variant ID from manifest metadata, tags, ID, or name (e.g. cbpr-1080p -> 1080p).
+    /// </summary>
+    private static string? GetRequestedVariantIdFromManifest(ContentManifest manifest)
+    {
+        // 1. Check Metadata.SelectedVariantId
+        if (!string.IsNullOrEmpty(manifest.Metadata?.SelectedVariantId))
+        {
+            return manifest.Metadata.SelectedVariantId;
+        }
+
+        // 2. Check tags for requestedVariant:, selectedVariant:, variant:
+        if (manifest.Metadata?.Tags != null)
+        {
+            var variantTag = manifest.Metadata.Tags.FirstOrDefault(t =>
+                t.StartsWith("requestedVariant:", StringComparison.OrdinalIgnoreCase) ||
+                t.StartsWith("selectedVariant:", StringComparison.OrdinalIgnoreCase) ||
+                t.StartsWith("variant:", StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrEmpty(variantTag))
+            {
+                var colonIndex = variantTag.IndexOf(':');
+                if (colonIndex >= 0 && colonIndex < variantTag.Length - 1)
+                {
+                    return variantTag[(colonIndex + 1)..].Trim();
+                }
+            }
+        }
+
+        var contentCode = GetContentCodeFromManifest(manifest);
+        var metadata = GenPatcherContentRegistry.GetMetadata(contentCode);
+
+        // 3. Try to extract from manifest ID
+        var idParts = manifest.Id.Value?.Split('.') ?? [];
+        if (idParts.Length >= 5)
+        {
+            var contentName = idParts[4];
+            var dashIndex = contentName.IndexOf('-');
+            if (dashIndex > 0 && dashIndex < contentName.Length - 1)
+            {
+                return contentName[(dashIndex + 1)..];
+            }
+
+            if (metadata.Variants != null && metadata.Variants.Count > 0)
+            {
+                if (contentName.StartsWith(contentCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    var suffix = contentName[contentCode.Length..];
+                    var matchingVariant = metadata.Variants.FirstOrDefault(v =>
+                        string.Equals(v.Id, suffix, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(v.Id.Replace("-", string.Empty), suffix, StringComparison.OrdinalIgnoreCase));
+                    if (matchingVariant != null)
+                    {
+                        return matchingVariant.Id;
+                    }
+                }
+
+                foreach (var variant in metadata.Variants)
+                {
+                    var cleanVariantId = variant.Id.Replace("-", string.Empty);
+                    if (contentName.EndsWith(variant.Id, StringComparison.OrdinalIgnoreCase) ||
+                        contentName.EndsWith(cleanVariantId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return variant.Id;
+                    }
+                }
+            }
+        }
+
+        // 4. Try to extract from manifest Name
+        if (!string.IsNullOrEmpty(manifest.Name) && metadata.Variants != null && metadata.Variants.Count > 0)
+        {
+            foreach (var variant in metadata.Variants)
+            {
+                if (manifest.Name.EndsWith(variant.Name, StringComparison.OrdinalIgnoreCase) ||
+                    manifest.Name.Contains(variant.Name, StringComparison.OrdinalIgnoreCase) ||
+                    manifest.Name.EndsWith(variant.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    return variant.Id;
+                }
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -241,45 +414,6 @@ public class CommunityOutpostManifestFactory(
 
         // Use the content type's default target
         return defaultTarget;
-    }
-
-    private static string? FindControlBarVariantBigRoot(string extractedDirectory, string variantId)
-    {
-        var candidates = new[]
-        {
-            Path.Combine(extractedDirectory, "ZH", variantId, "BIG EN"),
-            Path.Combine(extractedDirectory, "ZH", variantId, "BIG"),
-            Path.Combine(extractedDirectory, "CCG", variantId, "BIG EN"),
-            Path.Combine(extractedDirectory, "CCG", variantId, "BIG"),
-        };
-
-        foreach (var candidate in candidates)
-        {
-            if (Directory.Exists(candidate))
-            {
-                return candidate;
-            }
-        }
-
-        return null;
-    }
-
-    private static string GetControlBarVariantSuffix(string variantId)
-    {
-        return variantId.EndsWith("p", StringComparison.OrdinalIgnoreCase)
-            ? variantId[..^1]
-            : variantId;
-    }
-
-    private static bool IsAllowedControlBarBig(string fileName, string variantSuffix)
-    {
-        return fileName.Equals($"340_ControlBarProArt{variantSuffix}ZH.big", StringComparison.OrdinalIgnoreCase)
-            || fileName.Equals($"340_ControlBarProData{variantSuffix}ZH.big", StringComparison.OrdinalIgnoreCase)
-            || fileName.Equals($"340_ControlBarPro{variantSuffix}ZH.big", StringComparison.OrdinalIgnoreCase)
-            || fileName.Equals($"340_ControlBarPro-Fix{variantSuffix}ZH.big", StringComparison.OrdinalIgnoreCase)
-            || fileName.Equals("340_ControlBarProZH.big", StringComparison.OrdinalIgnoreCase)
-            || fileName.Equals("400_ControlBarHDEnglishZH.big", StringComparison.OrdinalIgnoreCase)
-            || fileName.Equals("400_ControlBarProCoreZH.big", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -346,6 +480,29 @@ public class CommunityOutpostManifestFactory(
         }
     }
 
+    private static bool IsDependencyPayloadBundled(
+        ContentDependency dependency,
+        IEnumerable<ManifestFile> files)
+    {
+        var dependencyId = dependency.Id.Value;
+        var separatorIndex = dependencyId.LastIndexOf('.');
+        if (separatorIndex < 0 || separatorIndex == dependencyId.Length - 1)
+        {
+            return false;
+        }
+
+        var metadata = GenPatcherContentRegistry.GetMetadata(dependencyId[(separatorIndex + 1)..]);
+        if (string.IsNullOrWhiteSpace(metadata.OutputFilename))
+        {
+            return false;
+        }
+
+        return files.Any(file => string.Equals(
+            Path.GetFileName(file.RelativePath),
+            metadata.OutputFilename,
+            StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>
     /// Builds a manifest with all files from the extracted directory.
     /// If variant is provided, filters files based on variant's IncludePatterns and ExcludePatterns.
@@ -403,261 +560,18 @@ public class CommunityOutpostManifestFactory(
 
             if (isControlBarVariant)
             {
-                var variantSuffix = GetControlBarVariantSuffix(variant!.Id);
-                var variantBigRoot = FindControlBarVariantBigRoot(extractedDirectory, variant.Id);
+                var processor = controlBarProcessor;
 
-                if (!string.IsNullOrEmpty(variantBigRoot))
+                if (processor != null)
                 {
-                    // cbpr-style: Has ZH/{variant}/BIG folder structure
-                    var prebuiltBigs = Directory.GetFiles(variantBigRoot, "*.big", SearchOption.TopDirectoryOnly)
-                        .Where(path => IsAllowedControlBarBig(Path.GetFileName(path), variantSuffix))
-                        .ToArray();
-
-                    if (prebuiltBigs.Length > 0)
+                    var repacked = await processor.ProcessAndRepackControlBarAsync(
+                        extractedDirectory,
+                        originalManifest,
+                        variant!.Id,
+                        cancellationToken);
+                    foreach (var f in repacked)
                     {
-                        logger.LogInformation(
-                            "Using prebuilt control bar BIG files from {VariantRoot}",
-                            variantBigRoot);
-
-                        foreach (var prebuiltBig in prebuiltBigs)
-                        {
-                            var bigName = Path.GetFileName(prebuiltBig);
-                            var targetPath = Path.Combine(extractedDirectory, bigName);
-
-                            // Skip copy if source and target are the same file (already in root)
-                            if (!string.Equals(Path.GetFullPath(prebuiltBig), Path.GetFullPath(targetPath), StringComparison.OrdinalIgnoreCase))
-                            {
-                                await TryCopyFileWithRetryAsync(prebuiltBig, targetPath, logger);
-                            }
-
-                            controlBarRepackedOutputs.Add(bigName);
-                        }
-                    }
-                    else
-                    {
-                        // No prebuilt BIGs in variant root, need to repack from source
-                        var artBigName = $"340_ControlBarProArt{variantSuffix}ZH.big";
-                        var dataBigName = $"340_ControlBarProData{variantSuffix}ZH.big";
-
-                        var artBigPath = Path.Combine(extractedDirectory, artBigName);
-                        var dataBigPath = Path.Combine(extractedDirectory, dataBigName);
-
-                        if (!File.Exists(artBigPath) || !File.Exists(dataBigPath))
-                        {
-                            logger.LogInformation(
-                                "Repacking control bar variant {Variant} into Art/Data BIG files",
-                                variant.Name);
-
-                            var artSource = Path.Combine(variantBigRoot, "Art");
-                            var dataSource = Path.Combine(variantBigRoot, "Data");
-                            var windowSource = Path.Combine(variantBigRoot, "Window");
-                            var genToolSource = Path.Combine(variantBigRoot, "GenTool");
-
-                            var tempRoot = Path.Combine(extractedDirectory, $"cbpro-pack-{variant.Id}");
-                            var artPackRoot = Path.Combine(tempRoot, "ArtPack");
-                            var dataPackRoot = Path.Combine(tempRoot, "DataPack");
-
-                            if (Directory.Exists(tempRoot))
-                            {
-                                Directory.Delete(tempRoot, recursive: true);
-                            }
-
-                            Directory.CreateDirectory(artPackRoot);
-                            Directory.CreateDirectory(dataPackRoot);
-
-                            if (Directory.Exists(artSource))
-                            {
-                                CopyDirectory(artSource, Path.Combine(artPackRoot, "Art"));
-                            }
-
-                            if (Directory.Exists(dataSource))
-                            {
-                                CopyDirectory(dataSource, Path.Combine(dataPackRoot, "Data"));
-                            }
-
-                            if (Directory.Exists(windowSource))
-                            {
-                                CopyDirectory(windowSource, Path.Combine(dataPackRoot, "Window"));
-                            }
-
-                            if (Directory.Exists(genToolSource))
-                            {
-                                CopyDirectory(genToolSource, Path.Combine(dataPackRoot, "GenTool"));
-                            }
-
-                            try
-                            {
-                                // Convert AVIF to TGA prior to packing to ensure game compatibility
-                                await avifConverter.ConvertDirectoryAsync(artPackRoot, cancellationToken);
-                                await avifConverter.ConvertDirectoryAsync(dataPackRoot, cancellationToken);
-
-                                await BigFilePacker.PackAsync(artPackRoot, artBigPath);
-                                await BigFilePacker.PackAsync(dataPackRoot, dataBigPath);
-                            }
-                            finally
-                            {
-                                try
-                                {
-                                    if (Directory.Exists(tempRoot))
-                                    {
-                                        Directory.Delete(tempRoot, recursive: true);
-                                    }
-                                }
-                                catch (Exception ex)
-                                {
-                                    logger.LogWarning(ex, "Failed to cleanup temp root {TempRoot}", tempRoot);
-                                }
-                            }
-                        }
-
-                        if (File.Exists(artBigPath))
-                        {
-                            controlBarRepackedOutputs.Add(artBigName);
-                        }
-
-                        if (File.Exists(dataBigPath))
-                        {
-                            controlBarRepackedOutputs.Add(dataBigName);
-                        }
-                    }
-                }
-                else
-                {
-                    // cbpx-style: Flat structure with BIG files in root (no ZH/{variant}/BIG folders)
-                    logger.LogInformation(
-                        "Control bar has flat structure (cbpx-style), searching for prebuilt BIG files in root");
-
-                    var prebuiltCandidates = Directory.GetFiles(extractedDirectory, "*ControlBarPro*ZH.big", SearchOption.TopDirectoryOnly)
-                        .Where(path => IsAllowedControlBarBig(Path.GetFileName(path), variantSuffix))
-                        .ToArray();
-
-                    // Check if Art/Data split files exist - prefer them over monolithic
-                    var hasArtDataSplit = prebuiltCandidates.Any(p =>
-                        Path.GetFileName(p).StartsWith("340_ControlBarProArt", StringComparison.OrdinalIgnoreCase) ||
-                        Path.GetFileName(p).StartsWith("340_ControlBarProData", StringComparison.OrdinalIgnoreCase));
-
-                    if (hasArtDataSplit)
-                    {
-                        // Filter OUT monolithic files when Art/Data split exists
-                        // Monolithic pattern: 340_ControlBarPro{variant}ZH.big (no Art/Data/Fix suffix)
-                        prebuiltCandidates = [.. prebuiltCandidates
-                            .Where(p =>
-                            {
-                                var name = Path.GetFileName(p);
-
-                                // Keep Art/Data split files
-                                if (name.StartsWith("340_ControlBarProArt", StringComparison.OrdinalIgnoreCase) ||
-                                    name.StartsWith("340_ControlBarProData", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    return true;
-                                }
-
-                                // Keep fix files (cbpr-style, but may exist)
-                                if (name.Contains("-Fix", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    return true;
-                                }
-
-                                // Keep metadata BIG (tiny file, no variant suffix)
-                                if (name.Equals("340_ControlBarProZH.big", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    return true;
-                                }
-
-                                // Exclude monolithic files (340_ControlBarPro{variant}ZH.big without Art/Data)
-                                logger.LogDebug(
-                                    "Excluding monolithic BIG {Name} in favor of Art/Data split files",
-                                    name);
-                                return false;
-                            })];
-                    }
-
-                    if (prebuiltCandidates.Length > 0)
-                    {
-                        logger.LogInformation(
-                            "Using {Count} prebuilt control bar BIG files from flat structure: {Files}",
-                            prebuiltCandidates.Length,
-                            string.Join(", ", prebuiltCandidates.Select(Path.GetFileName)));
-
-                        foreach (var candidate in prebuiltCandidates)
-                        {
-                            controlBarRepackedOutputs.Add(Path.GetFileName(candidate));
-                        }
-                    }
-                    else
-                    {
-                        logger.LogWarning(
-                            "No prebuilt control bar BIG files found for variant {Variant} in flat structure",
-                            variant.Name);
-                    }
-                }
-
-                // Explicitly ensure the metadata BIG file (340_ControlBarProZH.big) is included
-                // This file may be in the root, ZH folder, or variant subfolder
-                var metadataFileName = "340_ControlBarProZH.big";
-                var metadataTargetPath = Path.Combine(extractedDirectory, metadataFileName);
-
-                if (!File.Exists(metadataTargetPath))
-                {
-                    // Search for metadata file in common locations
-                    var metadataSearchPaths = new[]
-                    {
-                        Path.Combine(extractedDirectory, "ZH", metadataFileName),
-                        Path.Combine(extractedDirectory, "CCG", metadataFileName),
-                        Path.Combine(extractedDirectory, "ZH", variant!.Id, metadataFileName),
-                        Path.Combine(extractedDirectory, "CCG", variant!.Id, metadataFileName),
-                        Path.Combine(extractedDirectory, "ZH", variant!.Id, "BIG EN", metadataFileName),
-                        Path.Combine(extractedDirectory, "ZH", variant!.Id, "BIG", metadataFileName),
-                        Path.Combine(extractedDirectory, "CCG", variant!.Id, "BIG EN", metadataFileName),
-                        Path.Combine(extractedDirectory, "CCG", variant!.Id, "BIG", metadataFileName),
-                    };
-
-                    foreach (var searchPath in metadataSearchPaths)
-                    {
-                        if (File.Exists(searchPath))
-                        {
-                            logger.LogInformation(
-                                "Found Control Bar metadata file at {SourcePath}, copying to root",
-                                searchPath);
-
-                            await TryCopyFileWithRetryAsync(searchPath, metadataTargetPath, logger);
-
-                            break;
-                        }
-                    }
-                }
-
-                // Ensure metadata file is tracked in outputs if it exists
-                if (File.Exists(metadataTargetPath))
-                {
-                    controlBarRepackedOutputs.Add(metadataFileName);
-                    logger.LogInformation(
-                        "Including Control Bar metadata file {FileName} in manifest",
-                        metadataFileName);
-                }
-                else
-                {
-                    // Control Bar metadata file is missing from download - create it
-                    // This is a known issue with some Community Outpost Control Bar packages
-                    logger.LogWarning(
-                        "Control Bar metadata file {FileName} not found in extracted content - creating fallback version",
-                        metadataFileName);
-
-                    try
-                    {
-                        // Base64-encoded 376-byte Control Bar metadata BIG file (340_ControlBarProZH.big)
-                        // This identifies the mod to GenTool and prevents the "Control Bar Pro" watermark
-                        var metadataBytes = Convert.FromBase64String(ControlBarMetadataBigBase64);
-                        File.WriteAllBytes(metadataTargetPath, metadataBytes);
-
-                        controlBarRepackedOutputs.Add(metadataFileName);
-                        logger.LogInformation(
-                            "Created Control Bar metadata file {FileName} from embedded fallback",
-                            metadataFileName);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex, "Failed to create Control Bar metadata file - manifest will be incomplete");
+                        controlBarRepackedOutputs.Add(f);
                     }
                 }
             }
@@ -813,25 +727,40 @@ public class CommunityOutpostManifestFactory(
             var manifestId = originalManifest.Id;
             var manifestName = originalManifest.Name;
 
+            string? variantGroupId = null;
+            string? variantFamilyName = null;
             if (variant != null)
             {
-                // Get the base content code from the original manifest ID
-                // Format: 1.version.publisher.contentType.contentCode
+                // Get the base content code from contentMetadata.ContentCode or the original manifest ID
                 var idParts = originalManifest.Id.Value.Split('.');
                 if (idParts.Length >= 5)
                 {
-                    var contentCode = idParts[4]; // Get the content code (e.g., "cbpx")
+                    var baseCode = !string.IsNullOrEmpty(contentMetadata.ContentCode) && !string.Equals(contentMetadata.ContentCode, "unknown", StringComparison.OrdinalIgnoreCase)
+                        ? contentMetadata.ContentCode
+                        : idParts[4];
+                    var existingDash = baseCode.IndexOf('-');
+                    if (existingDash > 0)
+                    {
+                        baseCode = baseCode[..existingDash];
+                    }
 
-                    // Create new content name with variant suffix (e.g., "cbpx-1080p")
+                    // Stable group key shared by every sibling variant, scoped to publisher +
+                    // content type + content code so distinct releases never collide.
+                    variantGroupId = $"{idParts[2].ToLowerInvariant()}.{idParts[3].ToLowerInvariant()}.{baseCode.ToLowerInvariant()}";
+
+                    // Create new content name with variant suffix (e.g., "cbpr-1080p")
                     // This maintains the 5-segment format: schemaVersion.userVersion.publisher.contentType.contentName-variant
-                    var variantContentName = $"{contentCode}-{variant.Id}";
+                    var variantContentName = $"{baseCode}-{variant.Id}";
 
                     // Rebuild manifest ID with variant-suffixed content name (still 5 segments)
                     manifestId = ManifestId.Create($"{idParts[0]}.{idParts[1]}.{idParts[2]}.{idParts[3]}.{variantContentName}");
                 }
 
-                // Append variant name to manifest name (e.g., "Control Bar Pro (Xezon) - 1080p")
-                manifestName = $"{originalManifest.Name} - {variant.Name}";
+                // Use registry display name as the stable family so we never double-append
+                // a resolution that was already present on the resolved catalog name
+                // (e.g. "Control Bar Pro (ExiLe) - 720p" + "1080p" → "... - 720p - 1080p").
+                variantFamilyName = contentMetadata.DisplayName;
+                manifestName = $"{contentMetadata.DisplayName} - {variant.Name}";
 
                 logger.LogInformation(
                     "Creating variant manifest: {ManifestId} ({ManifestName}) with {FileCount} files",
@@ -845,31 +774,54 @@ public class CommunityOutpostManifestFactory(
             {
                 Id = manifestId,
                 Name = manifestName,
-                Version = originalManifest.Version,
-                ManifestVersion = originalManifest.ManifestVersion,
+                Version = !string.IsNullOrWhiteSpace(originalManifest.Version)
+                    ? originalManifest.Version
+                    : (!string.IsNullOrWhiteSpace(contentMetadata.Version)
+                        ? contentMetadata.Version
+                        : CommunityOutpostCatalogConstants.DefaultMetadataVersion),
+                SchemaVersion = originalManifest.SchemaVersion,
                 ContentType = originalManifest.ContentType,
                 TargetGame = (variant != null && variant.TargetGame.HasValue) ? variant.TargetGame.Value : originalManifest.TargetGame,
                 Files = fileEntries,
 
-                // Remove auto-install dependencies from the list since they're bundled into the files
-                Dependencies = [.. contentMetadata.GetDependencies().Where(d => d.InstallBehavior != DependencyInstallBehavior.AutoInstall)],
+                // Only remove an auto-install dependency when its generated payload was
+                // actually merged into this manifest. Some dependencies (for example
+                // GenTool's DLL) are not BIG files and must remain resolvable at profile
+                // activation time.
+                Dependencies = [.. contentMetadata.GetDependencies().Where(dependency =>
+                    dependency.InstallBehavior != DependencyInstallBehavior.AutoInstall ||
+                    !IsDependencyPayloadBundled(dependency, fileEntries))],
                 InstallationInstructions = originalManifest.InstallationInstructions ?? new InstallationInstructions(),
                 Publisher = originalManifest.Publisher,
+
+                // Carry source provenance onto every output manifest so the in-session
+                // correlation path (ContentStateService origin match + session-downloads map)
+                // keeps working even when a publisher factory renames or splits content.
+                OriginalProviderName = originalManifest.OriginalProviderName,
+                OriginalContentId = originalManifest.OriginalContentId,
+
                 Metadata = new ContentMetadata
                 {
-                    Description = originalManifest.Metadata.Description,
-                    ReleaseDate = originalManifest.Metadata.ReleaseDate,
+                    Description = originalManifest.Metadata?.Description ?? string.Empty,
+                    ReleaseDate = originalManifest.Metadata?.ReleaseDate ?? DateTime.UtcNow,
                     IconUrl = CommunityOutpostConstants.LogoSource,
                     CoverUrl = CommunityOutpostConstants.CoverSource,
                     ThemeColor = CommunityOutpostConstants.ThemeColor,
-                    ScreenshotUrls = originalManifest.Metadata.ScreenshotUrls,
-                    Tags = originalManifest.Metadata.Tags,
-                    ChangelogUrl = originalManifest.Metadata.ChangelogUrl,
+                    ScreenshotUrls = originalManifest.Metadata?.ScreenshotUrls ?? [],
+                    Tags = originalManifest.Metadata?.Tags?.Any(t => t.StartsWith("contentCode:", StringComparison.OrdinalIgnoreCase)) == true
+                        ? originalManifest.Metadata.Tags
+                        : [.. originalManifest.Metadata?.Tags ?? [], $"contentCode:{contentMetadata.ContentCode}"],
+                    ChangelogUrl = originalManifest.Metadata?.ChangelogUrl,
 
-                    // For variant-specific manifests, don't include the Variants list (each manifest IS a variant)
-                    Variants = variant != null ? [] : (contentMetadata.Variants ?? []),
-                    RequiresVariantSelection = false, // Variant already selected for this manifest
-                    SelectedVariantId = variant?.Id, // Mark which variant this manifest represents
+                    // Every sibling variant carries the full variant list so the UI can render
+                    // the whole family from any one manifest, and declares that selection is
+                    // required (a user must pick a resolution). SelectedVariantId marks which
+                    // sibling this manifest physically represents.
+                    Variants = contentMetadata.Variants ?? [],
+                    RequiresVariantSelection = variant != null,
+                    SelectedVariantId = variant?.Id,
+                    VariantGroupId = variantGroupId,
+                    VariantFamilyName = variantFamilyName,
                 },
             };
 

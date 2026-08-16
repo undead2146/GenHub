@@ -10,6 +10,7 @@ using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Interfaces.Providers;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Dialogs;
 using GenHub.Core.Models.Enums;
@@ -32,7 +33,8 @@ public class SuperHackersProfileReconciler(
     INotificationService notificationService,
     IDialogService dialogService,
     IUserSettingsService userSettingsService,
-    IGameProfileManager profileManager) : ISuperHackersProfileReconciler, IPublisherReconciler
+    IGameProfileManager profileManager,
+    IContentVersionComparer versionComparer) : ISuperHackersProfileReconciler, IPublisherReconciler
 {
     /// <inheritdoc/>
     public string PublisherType => PublisherTypeConstants.TheSuperHackers;
@@ -180,7 +182,7 @@ public class SuperHackersProfileReconciler(
             }
             else
             {
-                var manifestMapping = BuildManifestMapping(oldManifests, newManifests);
+                var manifestMapping = BuildManifestMapping(oldManifests, newManifests, versionComparer.GetScheme(PublisherTypeConstants.TheSuperHackers));
                 var bulkUpdateResult = await reconciliationService.OrchestrateBulkUpdateAsync(
                     manifestMapping,
                     shouldDeleteOldVersions,
@@ -244,7 +246,8 @@ public class SuperHackersProfileReconciler(
 
     private static Dictionary<string, string> BuildManifestMapping(
         List<ContentManifest> oldManifests,
-        List<ContentManifest> newManifests)
+        List<ContentManifest> newManifests,
+        IVersionScheme versionScheme)
     {
         var mapping = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -252,9 +255,10 @@ public class SuperHackersProfileReconciler(
         {
             var newManifest = newManifests
                 .Where(n =>
-                    n.ContentType == oldManifest.ContentType &&
+                    (n.ContentType == oldManifest.ContentType ||
+                     (oldManifest.ContentType == ContentType.Mod && n.ContentType == ContentType.GameClient)) &&
                     MatchesByVariant(oldManifest.Id.Value, n.Id.Value))
-                .OrderByDescending(n => GameVersionHelper.ParseVersionToInt(n.Version))
+                .OrderByDescending(n => n.Version, versionScheme)
                 .FirstOrDefault();
 
             if (newManifest != null)
@@ -382,7 +386,7 @@ public class SuperHackersProfileReconciler(
         CancellationToken cancellationToken)
     {
         var oldIds = oldManifests.Select(m => m.Id.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var manifestMapping = BuildManifestMapping(oldManifests, newManifests);
+        var manifestMapping = BuildManifestMapping(oldManifests, newManifests, versionComparer.GetScheme(PublisherTypeConstants.TheSuperHackers));
         int createdCount = 0;
 
         var allProfiles = await profileManager.GetAllProfilesAsync(cancellationToken);
@@ -398,13 +402,26 @@ public class SuperHackersProfileReconciler(
 
             try
             {
+                // Format new profile name cleanly (avoid redundant "v" if newVersion already has prefix)
+                var formattedVersion = newVersion.StartsWith("weekly-", StringComparison.OrdinalIgnoreCase) ||
+                                       newVersion.StartsWith('v') || newVersion.StartsWith('V')
+                    ? newVersion
+                    : $"v{newVersion}";
+
                 // Clone the profile
                 var cloneRequest = new Core.Models.GameProfile.CreateProfileRequest
                 {
-                   Name = $"{profile.Name} (v{newVersion})",
+                   Name = $"{profile.Name} ({formattedVersion})",
+                   Description = profile.Description,
                    GameInstallationId = profile.GameInstallationId,
                    WorkspaceStrategy = profile.WorkspaceStrategy,
                    GameClient = profile.GameClient, // Default to old, override below if mapping exists
+                   ThemeColor = profile.ThemeColor,
+                   IconPath = profile.IconPath,
+                   CoverPath = profile.CoverPath,
+                   UseSteamLaunch = profile.UseSteamLaunch,
+                   CommandLineArguments = profile.CommandLineArguments,
+                   GameSpyIPAddress = profile.GameSpyIPAddress,
                 };
 
                 // Update GameClient if mapped
@@ -423,6 +440,7 @@ public class SuperHackersProfileReconciler(
                             PublisherType = matchedManifest.Publisher?.PublisherType,
                             InstallationId = profile.GameClient.InstallationId,
                         };
+                        cloneRequest.GameClientId = matchedManifest.Id.Value;
                     }
                 }
                 else if (profile.GameClient != null)

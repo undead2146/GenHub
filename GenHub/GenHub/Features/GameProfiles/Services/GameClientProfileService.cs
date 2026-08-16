@@ -89,7 +89,10 @@ public class GameClientProfileService(
                 WorkspaceStrategy = preferredStrategy,
                 EnabledContentIds = enabledContentIds,
                 ThemeColor = themeColor ?? GetThemeColorForGameType(gameClient.GameType, gameClient),
-                IconPath = !string.IsNullOrEmpty(iconPath) ? iconPath : GetIconPathForGame(gameClient.GameType),
+                IconPath = !string.IsNullOrEmpty(iconPath)
+                    ? iconPath
+                    : PublisherInfoConstants.GetPublisherLogo(gameClient.PublisherType, $"{gameClient.Id} {gameClient.Name}")
+                      ?? GetIconPathForGame(gameClient.GameType),
                 CoverPath = !string.IsNullOrEmpty(coverPath) ? coverPath : GetCoverPathForGame(gameClient.GameType, gameClient),
                 UseSteamLaunch = installation.InstallationType == GameInstallationType.Steam,
             };

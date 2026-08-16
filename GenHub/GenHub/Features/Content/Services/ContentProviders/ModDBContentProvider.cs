@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Models.Content;
+using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
 using Microsoft.Extensions.Logging;
@@ -75,17 +76,50 @@ public class ModDBContentProvider(
     }
 
     /// <inheritdoc />
-    protected override Task<OperationResult<ContentManifest>> PrepareContentInternalAsync(
+    protected override async Task<OperationResult<ContentManifest>> PrepareContentInternalAsync(
         ContentManifest manifest,
         string workingDirectory,
         IProgress<ContentAcquisitionProgress>? progress,
         CancellationToken cancellationToken)
     {
-        // Implementation-specific content preparation for ModDB
-        Logger.LogDebug("Preparing ModDB content for manifest {ManifestId}", manifest.Id);
+        try
+        {
+            Logger.LogDebug("Preparing ModDB content for manifest {ManifestId}", manifest.Id);
 
-        // For now, return the manifest as-is since ModDB content preparation
-        // would be implemented based on ModDB's specific requirements
-        return Task.FromResult(OperationResult<ContentManifest>.CreateSuccess(manifest));
+            // The manifest factory downloads the file into CAS during resolution, so there is
+            // usually nothing left to deliver: every file is ContentAddressable with a hash.
+            // ContentValidator and ContentStorageService both resolve such files via CAS.
+            var allFilesInCas = manifest.Files.Count > 0 && manifest.Files.All(f =>
+                f.SourceType == ContentSourceType.ContentAddressable &&
+                !string.IsNullOrEmpty(f.Hash));
+
+            if (allFilesInCas)
+            {
+                Logger.LogInformation(
+                    "All {Count} file(s) of {ManifestId} are already stored in CAS; skipping delivery",
+                    manifest.Files.Count,
+                    manifest.Id);
+                return OperationResult<ContentManifest>.CreateSuccess(manifest);
+            }
+
+            if (!Deliverer.CanDeliver(manifest))
+            {
+                return OperationResult<ContentManifest>.CreateFailure($"Cannot deliver content for manifest {manifest.Id}");
+            }
+
+            // Use the deliverer to handle content acquisition
+            var deliveryResult = await Deliverer.DeliverContentAsync(manifest, workingDirectory, progress, cancellationToken);
+            if (!deliveryResult.Success)
+            {
+                return OperationResult<ContentManifest>.CreateFailure($"ModDB content delivery failed: {deliveryResult.FirstError}");
+            }
+
+            return OperationResult<ContentManifest>.CreateSuccess(deliveryResult.Data ?? manifest);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to prepare ModDB content for manifest {ManifestId}", manifest.Id);
+            return OperationResult<ContentManifest>.CreateFailure($"ModDB content preparation failed: {ex.Message}");
+        }
     }
 }

@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using GenHub.Core.Models.Enums;
 
 namespace GenHub.Core.Models.Content;
@@ -125,6 +128,23 @@ public class ContentSearchQuery
     /// </summary>
     public Collection<string> CNCLabsMapTags { get; } = [];
 
+    // ===== AODMaps-specific filters =====
+
+    /// <summary>
+    /// Gets or sets the AODMaps player count filter (2, 3, 4, 6, 8 players).
+    /// </summary>
+    public string? AODMapsPlayerCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets the AODMaps category filter (Compstomp, Air, Race, Map Packs).
+    /// </summary>
+    public string? AODMapsCategory { get; set; }
+
+    /// <summary>
+    /// Gets or sets the AODMaps map type filter (1v1, 2v2, FFA).
+    /// </summary>
+    public string? AODMapsMapType { get; set; }
+
     // ===== GitHub-specific filters =====
 
     /// <summary>
@@ -148,6 +168,17 @@ public class ContentSearchQuery
     {
         get => _language;
         set => _language = NormalizeLanguage(value);
+    }
+
+    /// <summary>
+    /// Generates a deterministic cache key representing the query and all its active filters.
+    /// </summary>
+    /// <returns>A string cache key.</returns>
+    public string ToCacheKey()
+    {
+        var tags = Tags.Count > 0 ? string.Join(",", Tags.OrderBy(t => t, StringComparer.OrdinalIgnoreCase)) : string.Empty;
+        var cncTags = CNCLabsMapTags.Count > 0 ? string.Join(",", CNCLabsMapTags.OrderBy(t => t, StringComparer.OrdinalIgnoreCase)) : string.Empty;
+        return $"search::{ProviderName}::{SearchTerm}::{ContentType}::{TargetGame}::{Skip}::{Take}::{SortOrder}::{Sort}::{IncludeInstalled}::{IncludeOlderVersions}::{NumberOfPlayers}::{Page}::{ModDBCategory}::{ModDBAddonCategory}::{ModDBLicense}::{ModDBTimeframe}::{ModDBSection}::{AODMapsPlayerCount}::{AODMapsCategory}::{AODMapsMapType}::{GitHubTopic}::{GitHubAuthor}::{Language}::{tags}::{cncTags}";
     }
 
     private static readonly Dictionary<string, string> LanguageMap =

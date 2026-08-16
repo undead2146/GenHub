@@ -97,14 +97,31 @@ public class CommunityOutpostResolver(
                 mirrorUrls.Count,
                 fileSize);
 
-            // Generate a deterministic content name from the content code
+            // Generate a deterministic content name from the content code.
+            // Preserve a catalog variant suffix (e.g. cbpr-1080p) so the factory builds
+            // only the selected resolution instead of every variant.
             var contentName = GenerateContentName(contentCode, contentMetadata);
+            var requestedVariantSuffix = TryExtractVariantSuffix(discoveredItem, contentMetadata);
+            if (!string.IsNullOrEmpty(requestedVariantSuffix) &&
+                contentName.IndexOf('-') < 0)
+            {
+                contentName = $"{contentCode}-{requestedVariantSuffix}".ToLowerInvariant();
+            }
 
-            // Extract version number for manifest ID
-            var versionSource = !string.IsNullOrEmpty(contentMetadata.Version)
-                ? contentMetadata.Version
-                : discoveredItem.Version;
-            var manifestVersion = ExtractManifestVersion(versionSource);
+            // Extract version number for manifest ID: prefer version segment in discoveredItem.Id if 5 segments
+            string manifestVersion;
+            var idParts = discoveredItem.Id?.Split('.') ?? [];
+            if (idParts.Length >= 5 && int.TryParse(idParts[1], out _))
+            {
+                manifestVersion = idParts[1];
+            }
+            else
+            {
+                var versionSource = !string.IsNullOrEmpty(contentMetadata.Version)
+                    ? contentMetadata.Version
+                    : discoveredItem.Version;
+                manifestVersion = ExtractManifestVersion(versionSource);
+            }
 
             logger.LogDebug(
                 "Generating manifest ID: Publisher={Publisher}, ContentType={ContentType}, ContentName={ContentName}, Version={Version}",
@@ -166,13 +183,21 @@ public class CommunityOutpostResolver(
 
             // Store additional metadata in the manifest for the deliverer
             var builtManifest = manifest.Build();
-            builtManifest.ManifestVersion = manifestVersion;
 
             // Store the install target from content metadata
             builtManifest.InstallationInstructions ??= new InstallationInstructions();
 
             // Add custom properties to track mirrors and archive type
             builtManifest.Metadata ??= new ContentMetadata();
+
+            if (!string.IsNullOrEmpty(requestedVariantSuffix))
+            {
+                builtManifest.Metadata.SelectedVariantId = requestedVariantSuffix;
+                builtManifest.Metadata.Tags ??= [];
+                builtManifest.Metadata.Tags.Add($"requestedVariant:{requestedVariantSuffix}");
+                builtManifest.Metadata.Tags.Add($"selectedVariant:{requestedVariantSuffix}");
+                builtManifest.Metadata.Tags.Add($"variant:{requestedVariantSuffix}");
+            }
 
             // Store mirror URLs in metadata for fallback support during delivery
             if (mirrorUrls.Count > 1)
@@ -205,20 +230,31 @@ public class CommunityOutpostResolver(
                 builtManifest.Files[0].Size = fileSize;
             }
 
-            // Override the display name to be more user-friendly
-            builtManifest.Name = discoveredItem.Name ?? contentMetadata.DisplayName;
+            // Override the display name to be more user-friendly.
+            // Prefer registry display name for variant-bearing content so factory naming
+            // does not inherit a previously composed "Family - resolution" catalog title.
+            if (contentMetadata.SupportsVariants && !string.IsNullOrEmpty(contentMetadata.DisplayName))
+            {
+                builtManifest.Name = contentMetadata.DisplayName;
+            }
+            else
+            {
+                builtManifest.Name = discoveredItem.Name ?? contentMetadata.DisplayName;
+            }
 
             // For community-patch, prioritize discoveredItem.Version (dynamic date from legi.cc/patch)
             // over static metadata version which may be null/empty
-            if (contentCode == "community-patch" && !string.IsNullOrEmpty(discoveredItem.Version))
+            if (contentCode == "community-patch" && !string.IsNullOrWhiteSpace(discoveredItem.Version))
             {
                 builtManifest.Version = discoveredItem.Version;
             }
             else
             {
-                builtManifest.Version = !string.IsNullOrEmpty(contentMetadata.Version)
+                builtManifest.Version = !string.IsNullOrWhiteSpace(contentMetadata.Version)
                     ? contentMetadata.Version
-                    : discoveredItem.Version;
+                    : (!string.IsNullOrWhiteSpace(discoveredItem.Version)
+                        ? discoveredItem.Version
+                        : CommunityOutpostCatalogConstants.DefaultMetadataVersion);
             }
 
             logger.LogInformation(
@@ -291,10 +327,16 @@ public class CommunityOutpostResolver(
             return "0";
         }
 
-        // Handle date versions like "2025-11-07" (YYYY-MM-DD)
-        if (version.Length == 10 && version[4] == '-' && version[7] == '-')
+        var trimmed = version.Trim();
+        if (trimmed == "1.0" || trimmed == "1.0.0" || trimmed == "0")
         {
-            var dateDigits = version.Replace("-", string.Empty);
+            return "0";
+        }
+
+        // Handle date versions like "2025-11-07" (YYYY-MM-DD)
+        if (trimmed.Length == 10 && trimmed[4] == '-' && trimmed[7] == '-')
+        {
+            var dateDigits = trimmed.Replace("-", string.Empty);
             if (dateDigits.Length == 8 && int.TryParse(dateDigits, out var dateValue))
             {
                 return dateValue.ToString();
@@ -302,10 +344,10 @@ public class CommunityOutpostResolver(
         }
 
         // Handle date versions like "13-02-2025" (DD-MM-YYYY)
-        if (version.Length == 10 && version[2] == '-' && version[5] == '-')
+        if (trimmed.Length == 10 && trimmed[2] == '-' && trimmed[5] == '-')
         {
             // Reorder to YYYYMMDD
-            var parts = version.Split('-');
+            var parts = trimmed.Split('-');
             if (parts.Length == 3)
             {
                 var dateDigits = $"{parts[2]}{parts[1]}{parts[0]}";
@@ -317,7 +359,7 @@ public class CommunityOutpostResolver(
         }
 
         // Remove dots and leading zeros to get numeric version
-        var digits = version.Replace(".", string.Empty);
+        var digits = trimmed.Replace(".", string.Empty);
 
         if (int.TryParse(digits, out var numericVersion))
         {
@@ -325,6 +367,71 @@ public class CommunityOutpostResolver(
         }
 
         return "0";
+    }
+
+    /// <summary>
+    /// Extracts a variant suffix from a search result ID, metadata, or name (e.g. cbpr-1080p -> 1080p).
+    /// </summary>
+    private static string? TryExtractVariantSuffix(ContentSearchResult item, GenPatcherContentMetadata metadata)
+    {
+        // 1. Check ResolverMetadata
+        if (item.ResolverMetadata != null)
+        {
+            if (item.ResolverMetadata.TryGetValue("selectedVariant", out var selectedVariant) && !string.IsNullOrWhiteSpace(selectedVariant))
+            {
+                return selectedVariant.Trim();
+            }
+
+            if (item.ResolverMetadata.TryGetValue("requestedVariant", out var requestedVariant) && !string.IsNullOrWhiteSpace(requestedVariant))
+            {
+                return requestedVariant.Trim();
+            }
+
+            if (item.ResolverMetadata.TryGetValue("variant", out var variant) && !string.IsNullOrWhiteSpace(variant))
+            {
+                return variant.Trim();
+            }
+        }
+
+        // 2. Check Id segment (e.g. 1.0.communityoutpost.addon.cbpr-1080p -> 1080p)
+        if (!string.IsNullOrEmpty(item.Id))
+        {
+            var parts = item.Id.Split('.');
+            var contentName = parts.Length >= 5 ? parts[4] : item.Id;
+            var dashIndex = contentName.IndexOf('-');
+            if (dashIndex > 0 && dashIndex < contentName.Length - 1)
+            {
+                return contentName[(dashIndex + 1)..];
+            }
+
+            if (metadata.Variants != null && metadata.Variants.Count > 0)
+            {
+                foreach (var v in metadata.Variants)
+                {
+                    if (contentName.EndsWith(v.Id, StringComparison.OrdinalIgnoreCase) ||
+                        contentName.EndsWith(v.Id.Replace("-", string.Empty), StringComparison.OrdinalIgnoreCase))
+                    {
+                        return v.Id;
+                    }
+                }
+            }
+        }
+
+        // 3. Check Name against known variants
+        if (!string.IsNullOrEmpty(item.Name) && metadata.Variants != null && metadata.Variants.Count > 0)
+        {
+            foreach (var v in metadata.Variants)
+            {
+                if (item.Name.EndsWith(v.Name, StringComparison.OrdinalIgnoreCase) ||
+                    item.Name.Contains(v.Name, StringComparison.OrdinalIgnoreCase) ||
+                    item.Name.EndsWith(v.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    return v.Id;
+                }
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

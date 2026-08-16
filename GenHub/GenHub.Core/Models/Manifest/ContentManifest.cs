@@ -13,8 +13,8 @@ public class ContentManifest
 {
     private List<ArtifactVariant> _variants = [];
 
-    /// <summary>Gets or sets the manifest format version.</summary>
-    public string ManifestVersion { get; set; } = ManifestConstants.DefaultManifestVersion;
+    /// <summary>Gets or sets the manifest format/schema version.</summary>
+    public string SchemaVersion { get; set; } = ManifestConstants.DefaultManifestVersion;
 
     /// <summary>Gets or sets the unique identifier for this content package.</summary>
     public ManifestId Id { get; set; }

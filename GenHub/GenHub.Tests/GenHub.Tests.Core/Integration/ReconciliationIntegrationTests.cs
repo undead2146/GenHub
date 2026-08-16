@@ -374,7 +374,8 @@ public class ReconciliationIntegrationTests : IDisposable
             _notificationServiceMock.Object,
             _dialogServiceMock.Object,
             _userSettingsServiceMock.Object,
-            _profileManagerMock.Object);
+            _profileManagerMock.Object,
+            TestVersionComparer.CreateDefault());
 
         // Act
         var result = await reconciler.CheckAndReconcileIfNeededAsync(profile.Id);

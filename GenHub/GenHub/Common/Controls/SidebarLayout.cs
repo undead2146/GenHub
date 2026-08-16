@@ -53,13 +53,30 @@ public class SidebarLayout : ContentControl
     /// Defines the <see cref="SelectedItem"/> property.
     /// </summary>
     public static readonly StyledProperty<object?> SelectedItemProperty =
-        AvaloniaProperty.Register<SidebarLayout, object?>(nameof(SelectedItem), defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
+        AvaloniaProperty.Register<SidebarLayout, object?>(
+            nameof(SelectedItem),
+            defaultBindingMode: Avalonia.Data.BindingMode.TwoWay,
+            coerce: CoerceSelectedItem);
 
     /// <summary>
     /// Defines the <see cref="ItemTemplate"/> property.
     /// </summary>
     public static readonly StyledProperty<IDataTemplate?> ItemTemplateProperty =
         AvaloniaProperty.Register<SidebarLayout, IDataTemplate?>(nameof(ItemTemplate));
+
+    private static object? CoerceSelectedItem(AvaloniaObject sender, object? value)
+    {
+        if (value == null && sender is SidebarLayout sidebar && sidebar.SelectedItem != null && sidebar.ItemsSource != null)
+        {
+            var enumerator = sidebar.ItemsSource.GetEnumerator();
+            if (enumerator != null && enumerator.MoveNext())
+            {
+                return sidebar.SelectedItem;
+            }
+        }
+
+        return value;
+    }
 
     private Panel? _triggerZone;
     private Panel? _contentOverlay;

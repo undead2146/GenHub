@@ -14,6 +14,9 @@ public static class CommunityOutpostCatalogConstants
     /// <summary>Default base URL for making relative URLs absolute.</summary>
     public const string DefaultBaseUrl = "https://legi.cc/patch";
 
+    /// <summary>Default base URL for downloading GenPatcher content .dat packages.</summary>
+    public const string DefaultFilesBaseUrl = "https://legi.cc/gp2/f";
+
     /// <summary>Metadata key for the content code.</summary>
     public const string ContentCodeKey = "contentCode";
 

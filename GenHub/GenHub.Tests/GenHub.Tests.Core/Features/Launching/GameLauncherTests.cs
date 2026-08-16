@@ -31,6 +31,9 @@ namespace GenHub.Tests.Core.Features.Launching;
 public class GameLauncherTests : IDisposable
 {
     private static readonly string[] TestContentIds = ["1.0.genhub.mod.test"];
+    private static readonly string TestWorkspacePath = Path.Combine(Path.GetTempPath(), "test_workspace");
+    private static readonly string TestExecutablePath = Path.Combine(TestWorkspacePath, "generals.exe");
+
     private readonly Mock<IGameProfileManager> _profileManagerMock = new();
     private readonly Mock<IWorkspaceManager> _workspaceManagerMock = new();
     private readonly Mock<IGameProcessManager> _processManagerMock = new();
@@ -47,7 +50,6 @@ public class GameLauncherTests : IDisposable
     private readonly Mock<IProfileContentLinker> _profileContentLinkerMock = new();
     private readonly Mock<ISteamLauncher> _steamLauncherMock = new();
     private readonly GameLauncher _gameLauncher;
-
     private readonly string _retailRoot;
 
     /// <summary>
@@ -157,8 +159,8 @@ public class GameLauncherTests : IDisposable
         var workspaceInfo = new WorkspaceInfo
         {
             Id = profile.Id,
-            WorkspacePath = @"C:\workspace",
-            ExecutablePath = @"C:\workspace\generals.exe",
+            WorkspacePath = TestWorkspacePath,
+            ExecutablePath = TestExecutablePath,
         };
         var processInfo = new GameProcessInfo { ProcessId = 123, ProcessName = "generals.exe" };
         var manifest = new ContentManifest { Id = "1.0.genhub.mod.test", Name = "Test Content" };
@@ -301,7 +303,7 @@ public class GameLauncherTests : IDisposable
     {
         // Arrange
         var profile = CreateTestProfile();
-        var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = @"C:\workspace", ExecutablePath = @"C:\workspace\generals.exe" };
+        var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = TestWorkspacePath, ExecutablePath = TestExecutablePath };
         var manifest = new ContentManifest { Id = "1.0.genhub.mod.test", Name = "Test Content" };
         _profileManagerMock.Setup(x => x.GetProfileAsync(profile.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
@@ -385,7 +387,7 @@ public class GameLauncherTests : IDisposable
     {
         // Arrange
         var profile = CreateTestProfile();
-        var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = @"C:\workspace", IsPrepared = true, ExecutablePath = @"C:\workspace\generals.exe" };
+        var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = TestWorkspacePath, IsPrepared = true, ExecutablePath = TestExecutablePath };
         var processInfo = new GameProcessInfo { ProcessId = 123, ProcessName = "generals.exe" };
         var manifest = new ContentManifest { Id = "1.0.genhub.mod.test", Name = "Test Content" };
         var progressReports = new ConcurrentBag<LaunchProgress>();
@@ -588,7 +590,7 @@ public class GameLauncherTests : IDisposable
         // Arrange
         var profile = CreateTestProfile();
         profile.EnabledContentIds = []; // Empty content
-        var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = @"C:\workspace" };
+        var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = TestWorkspacePath };
         var processInfo = new GameProcessInfo { ProcessId = 123, ProcessName = "generals.exe" };
 
         _profileManagerMock.Setup(x => x.GetProfileAsync(profile.Id, It.IsAny<CancellationToken>()))
@@ -710,7 +712,7 @@ public class GameLauncherTests : IDisposable
         // Arrange
         var profile = CreateTestProfile();
         profile.EnabledContentIds = ["1.0.genhub.mod.manifest1mod", "1.0.genhub.mod.manifest2mod", "1.0.genhub.mod.manifest3mod"];
-        var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = @"C:\workspace" };
+        var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = TestWorkspacePath };
         var processInfo = new GameProcessInfo { ProcessId = 123, ProcessName = "generals.exe" };
 
         _profileManagerMock.Setup(x => x.GetProfileAsync(profile.Id, It.IsAny<CancellationToken>()))
@@ -762,7 +764,7 @@ public class GameLauncherTests : IDisposable
         profile.AudioSoundVolume = 80;
         profile.AudioMusicVolume = 60;
 
-        var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = @"C:\workspace" };
+        var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = TestWorkspacePath };
         var processInfo = new GameProcessInfo { ProcessId = 123, ProcessName = "generals.exe" };
 
         _profileManagerMock.Setup(x => x.GetProfileAsync(profile.Id, It.IsAny<CancellationToken>()))
@@ -821,7 +823,7 @@ public class GameLauncherTests : IDisposable
         var profile = CreateTestProfile();
         profile.VideoWindowed = true;
 
-        var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = @"C:\workspace" };
+        var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = TestWorkspacePath };
         var processInfo = new GameProcessInfo { ProcessId = 123, ProcessName = "generals.exe" };
 
         _profileManagerMock.Setup(x => x.GetProfileAsync(profile.Id, It.IsAny<CancellationToken>()))
@@ -869,7 +871,7 @@ public class GameLauncherTests : IDisposable
         // Arrange
         var profile = CreateTestProfile();
 
-        var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = @"C:\workspace" };
+        var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = TestWorkspacePath };
         var processInfo = new GameProcessInfo { ProcessId = 123, ProcessName = "generals.exe" };
 
         _profileManagerMock.Setup(x => x.GetProfileAsync(profile.Id, It.IsAny<CancellationToken>()))
@@ -924,7 +926,13 @@ public class GameLauncherTests : IDisposable
             Id = Guid.NewGuid().ToString(),
             Name = "Test Profile",
             GameInstallationId = "install-1",
-            GameClient = new GameClient { Id = "version-1", ExecutablePath = @"C:\Games\generals.exe", GameType = GameType.Generals },
+            GameClient = new GameClient
+            {
+                Id = "version-1",
+                ExecutablePath = TestExecutablePath,
+                WorkingDirectory = TestWorkspacePath,
+                GameType = GameType.Generals,
+            },
             EnabledContentIds = ["1.0.genhub.mod.test"],
         };
     }

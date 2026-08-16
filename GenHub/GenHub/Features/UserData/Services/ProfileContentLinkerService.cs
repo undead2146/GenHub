@@ -9,6 +9,7 @@ using GenHub.Core.Interfaces.UserData;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
+using GenHub.Core.Models.UserData;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.UserData.Services;
@@ -39,9 +40,7 @@ public class ProfileContentLinkerService(
         {
             // Filter to manifests with user data files
             var userDataManifests = manifests
-                .Where(m => m.Files.Any(f =>
-                    f.InstallTarget != ContentInstallTarget.Workspace &&
-                    f.InstallTarget != ContentInstallTarget.System))
+                .Where(HasProfileUserData)
                 .ToList();
 
             if (userDataManifests.Count == 0)
@@ -79,7 +78,11 @@ public class ProfileContentLinkerService(
 
                         // Reinstall
                         await userDataTracker.UninstallUserDataAsync(manifest.Id.Value, profileId, cancellationToken);
-                        await InstallManifestUserDataAsync(manifest, profileId, targetGame, cancellationToken);
+                        var reinstallResult = await InstallManifestUserDataAsync(manifest, profileId, targetGame, cancellationToken);
+                        if (!reinstallResult.Success)
+                        {
+                            return OperationResult<bool>.CreateFailure(reinstallResult);
+                        }
                     }
                     else if (!existingResult.Data.IsActive)
                     {
@@ -89,7 +92,11 @@ public class ProfileContentLinkerService(
                 else
                 {
                     // New installation needed
-                    await InstallManifestUserDataAsync(manifest, profileId, targetGame, cancellationToken);
+                    var installResult = await InstallManifestUserDataAsync(manifest, profileId, targetGame, cancellationToken);
+                    if (!installResult.Success)
+                    {
+                        return OperationResult<bool>.CreateFailure(installResult);
+                    }
                 }
             }
 
@@ -109,6 +116,10 @@ public class ProfileContentLinkerService(
 
             logger.LogInformation("[ProfileContentLinker] Successfully prepared user data for profile {ProfileId}", profileId);
             return OperationResult<bool>.CreateSuccess(true);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -170,7 +181,7 @@ public class ProfileContentLinkerService(
 
                         // Register this manifest's files for the new profile as well
                         // This ensures they are tracked and won't be deleted when switching FROM the new profile later
-                        await userDataTracker.InstallUserDataAsync(
+                        var adoptResult = await userDataTracker.InstallUserDataAsync(
                             manifest.ManifestId,
                             newProfileId,
                             targetGame,
@@ -184,12 +195,21 @@ public class ProfileContentLinkerService(
                             manifest.ManifestVersion,
                             manifest.ManifestName,
                             cancellationToken);
+
+                        if (!adoptResult.Success)
+                        {
+                            logger.LogWarning("[ProfileContentLinker] Failed to adopt manifest {ManifestId} for profile {ProfileId}: {Error}", manifest.ManifestId, newProfileId, adoptResult.FirstError);
+                        }
                     }
                 }
             }
 
             // Prepare new profile's user data
             return await PrepareProfileUserDataAsync(newProfileId, newManifests, targetGame, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -220,6 +240,10 @@ public class ProfileContentLinkerService(
             var cleanupResult = await userDataTracker.CleanupProfileAsync(profileId, cancellationToken);
             return cleanupResult;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "[ProfileContentLinker] Failed to cleanup profile {ProfileId}", profileId);
@@ -247,9 +271,7 @@ public class ProfileContentLinkerService(
 
             // Filter to manifests with user data
             var userDataManifests = newManifests
-                .Where(m => m.Files.Any(f =>
-                    f.InstallTarget != ContentInstallTarget.Workspace &&
-                    f.InstallTarget != ContentInstallTarget.System))
+                .Where(HasProfileUserData)
                 .ToList();
 
             var newManifestIds = userDataManifests.Select(m => m.Id.Value).ToHashSet();
@@ -259,7 +281,11 @@ public class ProfileContentLinkerService(
             foreach (var manifestId in toRemove)
             {
                 logger.LogInformation("[ProfileContentLinker] Removing deselected content: {ManifestId}", manifestId);
-                await userDataTracker.UninstallUserDataAsync(manifestId, profileId, cancellationToken);
+                var uninstallResult = await userDataTracker.UninstallUserDataAsync(manifestId, profileId, cancellationToken);
+                if (!uninstallResult.Success)
+                {
+                    logger.LogWarning("[ProfileContentLinker] Failed to uninstall user data for {ManifestId}: {Error}", manifestId, uninstallResult.FirstError);
+                }
             }
 
             // Find manifests to add (in new but not in current)
@@ -267,7 +293,11 @@ public class ProfileContentLinkerService(
             foreach (var manifest in toAdd)
             {
                 logger.LogInformation("[ProfileContentLinker] Installing new content: {ManifestId}", manifest.Id.Value);
-                await InstallManifestUserDataAsync(manifest, profileId, targetGame, cancellationToken);
+                var installResult = await InstallManifestUserDataAsync(manifest, profileId, targetGame, cancellationToken);
+                if (!installResult.Success)
+                {
+                    return OperationResult<bool>.CreateFailure(installResult);
+                }
             }
 
             // Activate if this is the active profile
@@ -293,6 +323,10 @@ public class ProfileContentLinkerService(
                 toAdd.Count);
 
             return OperationResult<bool>.CreateSuccess(true);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -321,24 +355,56 @@ public class ProfileContentLinkerService(
         }
     }
 
+    private static bool HasProfileUserData(ContentManifest manifest)
+    {
+        return manifest.Files.Any(f =>
+            f.InstallTarget != ContentInstallTarget.System &&
+            (f.InstallTarget != ContentInstallTarget.Workspace ||
+             manifest.ContentType is ContentType.Map or ContentType.MapPack));
+    }
+
+    private static ManifestFile CreateUserMapsFile(ManifestFile file)
+    {
+        return new ManifestFile
+        {
+            RelativePath = file.RelativePath,
+            SourceType = file.SourceType,
+            InstallTarget = ContentInstallTarget.UserMapsDirectory,
+            Size = file.Size,
+            Hash = file.Hash,
+            Permissions = file.Permissions,
+            IsExecutable = file.IsExecutable,
+            DownloadUrl = file.DownloadUrl,
+            IsRequired = file.IsRequired,
+            SourcePath = file.SourcePath,
+            PatchSourceFile = file.PatchSourceFile,
+            PackageInfo = file.PackageInfo,
+        };
+    }
+
     /// <summary>
     /// Installs user data files from a manifest for a specific profile.
     /// </summary>
     /// <returns>A task representing the asynchronous installation operation.</returns>
-    private async Task InstallManifestUserDataAsync(
+    private async Task<OperationResult<UserDataManifest>> InstallManifestUserDataAsync(
         ContentManifest manifest,
         string profileId,
         GameType targetGame,
         CancellationToken cancellationToken)
     {
         var userDataFiles = manifest.Files
-            .Where(f => f.InstallTarget != ContentInstallTarget.Workspace &&
-                       f.InstallTarget != ContentInstallTarget.System)
+            .Where(file => file.InstallTarget != ContentInstallTarget.System &&
+                           (file.InstallTarget != ContentInstallTarget.Workspace ||
+                            manifest.ContentType is ContentType.Map or ContentType.MapPack))
+            .Select(file => (manifest.ContentType is ContentType.Map or ContentType.MapPack) &&
+                            file.InstallTarget == ContentInstallTarget.Workspace
+                ? CreateUserMapsFile(file)
+                : file)
             .ToList();
 
         if (userDataFiles.Count == 0)
         {
-            return;
+            return OperationResult<UserDataManifest>.CreateSuccess(new UserDataManifest());
         }
 
         logger.LogDebug(
@@ -346,7 +412,7 @@ public class ProfileContentLinkerService(
             userDataFiles.Count,
             manifest.Id.Value);
 
-        await userDataTracker.InstallUserDataAsync(
+        return await userDataTracker.InstallUserDataAsync(
             manifest.Id.Value,
             profileId,
             targetGame,

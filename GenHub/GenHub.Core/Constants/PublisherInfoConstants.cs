@@ -269,7 +269,67 @@ public static class PublisherInfoConstants
             GameInstallationType.Wine => (Wine.Name, Wine.Website, Wine.SupportUrl),
             GameInstallationType.CDISO => (CdIso.Name, CdIso.Website, CdIso.SupportUrl),
             GameInstallationType.Retail => (Retail.Name, Retail.Website, Retail.SupportUrl),
+
+            // Unknown is the enum default for unrecognized installs and Lutris is a legitimate Linux
+            // install type; both fall back to Retail, matching InstallationTypeDisplayConverter.
+            GameInstallationType.Unknown => (Retail.Name, Retail.Website, Retail.SupportUrl),
+            GameInstallationType.Lutris => (Retail.Name, Retail.Website, Retail.SupportUrl),
             _ => (Retail.Name, Retail.Website, Retail.SupportUrl), // Default to retail
         };
+    }
+
+    /// <summary>
+    /// Gets the logo source URI for a publisher or content item based on publisher ID, provider name, or title.
+    /// </summary>
+    /// <param name="publisherIdOrName">The publisher ID or provider display name.</param>
+    /// <param name="contentIdOrName">The content ID, title, or manifest ID context.</param>
+    /// <returns>An avares:// URI string pointing to the logo image asset, or null if unmapped.</returns>
+    public static string? GetPublisherLogo(string? publisherIdOrName, string? contentIdOrName = null)
+    {
+        var combined = $"{publisherIdOrName} {contentIdOrName}";
+        if (string.IsNullOrWhiteSpace(combined))
+        {
+            return null;
+        }
+
+        if (combined.Contains("superhacker", StringComparison.OrdinalIgnoreCase))
+        {
+            return TheSuperHackers.LogoSource;
+        }
+
+        if (combined.Contains("communityoutpost", StringComparison.OrdinalIgnoreCase) ||
+            combined.Contains("community outpost", StringComparison.OrdinalIgnoreCase))
+        {
+            return CommunityOutpost.LogoSource;
+        }
+
+        if (combined.Contains("generalsonline", StringComparison.OrdinalIgnoreCase) ||
+            combined.Contains("generals online", StringComparison.OrdinalIgnoreCase))
+        {
+            return GeneralsOnline.LogoSource;
+        }
+
+        if (combined.Contains("moddb", StringComparison.OrdinalIgnoreCase))
+        {
+            return ModDB.LogoSource;
+        }
+
+        if (combined.Contains("cnclabs", StringComparison.OrdinalIgnoreCase) ||
+            combined.Contains("cnc labs", StringComparison.OrdinalIgnoreCase))
+        {
+            return CNCLabs.LogoSource;
+        }
+
+        if (combined.Contains("aodmaps", StringComparison.OrdinalIgnoreCase))
+        {
+            return AODMaps.LogoSource;
+        }
+
+        if (combined.Contains("github", StringComparison.OrdinalIgnoreCase))
+        {
+            return GitHub.LogoSource;
+        }
+
+        return null;
     }
 }

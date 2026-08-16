@@ -1,13 +1,15 @@
 using System.Reactive.Linq;
+using System.Threading;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.GitHub;
-using GenHub.Core.Interfaces.Info;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Interfaces.Providers;
 using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Steam;
 using GenHub.Core.Interfaces.Storage;
@@ -17,8 +19,10 @@ using GenHub.Core.Interfaces.Workspace;
 using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Notifications;
+using GenHub.Core.Models.Providers;
+using GenHub.Core.Models.Results;
 using GenHub.Features.AppUpdate.Interfaces;
-using GenHub.Features.Content.Services.ContentDiscoverers;
+using GenHub.Features.Downloads.Services;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.ViewModels;
@@ -60,7 +64,7 @@ public class MainViewModelTests
         // Act
         var vm = new MainViewModel(
             gameProfilesViewModel: CreateGameProfileLauncherViewModel(),
-            downloadsViewModel: CreateDownloadsViewModel(configProvider),
+            downloadsBrowserViewModel: CreateDownloadsBrowserViewModel(configProvider),
             toolsViewModel: toolsVm,
             settingsViewModel: settingsVm,
             notificationManager: mockNotificationManager.Object,
@@ -104,7 +108,7 @@ public class MainViewModelTests
 
         var vm = new MainViewModel(
             gameProfilesViewModel: CreateGameProfileLauncherViewModel(),
-            downloadsViewModel: CreateDownloadsViewModel(configProvider),
+            downloadsBrowserViewModel: CreateDownloadsBrowserViewModel(configProvider),
             toolsViewModel: toolsVm,
             settingsViewModel: settingsVm,
             notificationManager: mockNotificationManager.Object,
@@ -144,7 +148,7 @@ public class MainViewModelTests
 
         var vm = new MainViewModel(
             gameProfilesViewModel: CreateGameProfileLauncherViewModel(),
-            downloadsViewModel: CreateDownloadsViewModel(configProvider),
+            downloadsBrowserViewModel: CreateDownloadsBrowserViewModel(configProvider),
             toolsViewModel: toolsVm,
             settingsViewModel: settingsVm,
             notificationManager: mockNotificationManager.Object,
@@ -186,7 +190,7 @@ public class MainViewModelTests
 
         var vm = new MainViewModel(
             gameProfilesViewModel: CreateGameProfileLauncherViewModel(),
-            downloadsViewModel: CreateDownloadsViewModel(configProvider),
+            downloadsBrowserViewModel: CreateDownloadsBrowserViewModel(configProvider),
             toolsViewModel: toolsVm,
             settingsViewModel: settingsVm,
             notificationManager: mockNotificationManager.Object,
@@ -207,7 +211,7 @@ public class MainViewModelTests
                 Assert.IsType<GameProfileLauncherViewModel>(currentViewModel);
                 break;
             case NavigationTab.Downloads:
-                Assert.IsType<DownloadsViewModel>(currentViewModel);
+                Assert.IsType<DownloadsBrowserViewModel>(currentViewModel);
                 break;
             case NavigationTab.Tools:
                 Assert.IsType<ToolsViewModel>(currentViewModel);
@@ -261,6 +265,9 @@ public class MainViewModelTests
             mockWorkspaceManager.Object,
             mockManifestPool.Object,
             mockUpdateManager.Object,
+            new Mock<IPublisherSubscriptionStore>().Object,
+            new Mock<IPublisherCatalogRefreshService>().Object,
+            new Mock<IGitHubApiClient>().Object,
             mockNotificationServiceForSettings.Object,
             mockConfigurationProvider.Object,
             mockInstallationService.Object,
@@ -283,29 +290,34 @@ public class MainViewModelTests
     }
 
     /// <summary>
-    /// Helper method to create a DownloadsViewModel with mocked dependencies.
+    /// Helper method to create a DownloadsBrowserViewModel with mocked dependencies.
     /// </summary>
-    private static DownloadsViewModel CreateDownloadsViewModel(IConfigurationProviderService configProvider)
+    private static DownloadsBrowserViewModel CreateDownloadsBrowserViewModel(IConfigurationProviderService configProvider)
     {
         var mockServiceProvider = new Mock<IServiceProvider>();
-        var mockLogger = new Mock<ILogger<DownloadsViewModel>>();
+        var mockLogger = new Mock<ILogger<DownloadsBrowserViewModel>>();
+        var mockDiscoverers = new List<IContentDiscoverer>();
+        var mockContentStateService = new Mock<IContentStateService>();
+        var mockContentOrchestrator = new Mock<IContentOrchestrator>();
+        var mockProfileContentService = new Mock<IProfileContentService>();
+        var mockProfileManager = new Mock<IGameProfileManager>();
         var mockNotificationService = new Mock<INotificationService>();
+        var mockSubscriptionStore = new Mock<IPublisherSubscriptionStore>();
+        mockSubscriptionStore
+            .Setup(s => s.GetSubscriptionsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IReadOnlyList<PublisherSubscription>>.CreateSuccess([]));
 
-        // Create the three required dependencies for the discoverer
-        var mockGitHubClient = new Mock<IGitHubApiClient>();
-        var mockDiscovererLogger = new Mock<ILogger<GitHubTopicsDiscoverer>>();
-
-        // Instantiate the real class with the two mocks
-        var realGitHubDiscoverer = new GitHubTopicsDiscoverer(
-            mockGitHubClient.Object,
-            mockDiscovererLogger.Object);
-
-        return new DownloadsViewModel(
+        return new DownloadsBrowserViewModel(
             mockServiceProvider.Object,
             mockLogger.Object,
+            mockDiscoverers,
+            mockContentStateService.Object,
+            mockContentOrchestrator.Object,
+            mockProfileContentService.Object,
+            mockProfileManager.Object,
             mockNotificationService.Object,
-            realGitHubDiscoverer,
-            configProvider);
+            new Mock<ILoggerFactory>().Object,
+            mockSubscriptionStore.Object);
     }
 
     /// <summary>
