@@ -299,6 +299,15 @@ public class ProfileContentLinkerService(
 
             var newManifestIds = userDataManifests.Select(m => m.Id.Value).ToHashSet();
 
+            bool shouldActivate;
+            lock (_activeProfileLock)
+            {
+                shouldActivate = _activeProfileId == profileId;
+            }
+
+            var uninstalledSoFar = new List<string>();
+            var installedSoFar = new List<ContentManifest>();
+
             // Find manifests to remove (in current but not in new)
             var toRemove = currentManifestIds.Except(newManifestIds).ToList();
             foreach (var manifestId in toRemove)
@@ -308,8 +317,14 @@ public class ProfileContentLinkerService(
                 if (!uninstallRes.Success)
                 {
                     logger.LogError("[ProfileContentLinker] Failed to uninstall user data for manifest {ManifestId}: {Error}", manifestId, uninstallRes.FirstError);
-                    return OperationResult<bool>.CreateFailure(uninstallRes.FirstError ?? $"Failed to remove user data for manifest {manifestId}");
+                    var rollbackFailed = await RollbackSyncAsync(profileId, targetGame, installedSoFar, uninstalledSoFar, currentManifests, shouldActivate, cancellationToken);
+                    var errorMessage = rollbackFailed
+                        ? $"Failed to remove user data for manifest {manifestId}: {uninstallRes.FirstError ?? "unknown error"} (live rollback was incomplete)"
+                        : uninstallRes.FirstError ?? $"Failed to remove user data for manifest {manifestId}";
+                    return OperationResult<bool>.CreateFailure(errorMessage);
                 }
+
+                uninstalledSoFar.Add(manifestId);
             }
 
             // Find manifests to add (in new but not in current)
@@ -321,15 +336,14 @@ public class ProfileContentLinkerService(
                 if (!installRes.Success)
                 {
                     logger.LogError("[ProfileContentLinker] Failed to install user data for manifest {ManifestId}: {Error}", manifest.Id.Value, installRes.FirstError);
-                    return OperationResult<bool>.CreateFailure(installRes.FirstError ?? $"Failed to install user data for manifest {manifest.Id.Value}");
+                    var rollbackFailed = await RollbackSyncAsync(profileId, targetGame, installedSoFar, uninstalledSoFar, currentManifests, shouldActivate, cancellationToken);
+                    var errorMessage = rollbackFailed
+                        ? $"Failed to install user data for manifest {manifest.Id.Value}: {installRes.FirstError ?? "unknown error"} (live rollback was incomplete)"
+                        : installRes.FirstError ?? $"Failed to install user data for manifest {manifest.Id.Value}";
+                    return OperationResult<bool>.CreateFailure(errorMessage);
                 }
-            }
 
-            // Activate if this is the active profile
-            bool shouldActivate = false;
-            lock (_activeProfileLock)
-            {
-                shouldActivate = _activeProfileId == profileId;
+                installedSoFar.Add(manifest);
             }
 
             if (shouldActivate)
@@ -338,49 +352,7 @@ public class ProfileContentLinkerService(
                 if (!activateResult.Success)
                 {
                     logger.LogError("[ProfileContentLinker] Failed to activate user data for profile {ProfileId}: {Error}", profileId, activateResult.FirstError);
-
-                    bool rollbackFailed = false;
-                    foreach (var manifest in toAdd)
-                    {
-                        var uninstallRes = await userDataTracker.UninstallUserDataAsync(manifest.Id.Value, profileId, cancellationToken);
-                        if (!uninstallRes.Success)
-                        {
-                            rollbackFailed = true;
-                            logger.LogWarning("[ProfileContentLinker] Rollback uninstall failed for manifest {ManifestId}: {Error}", manifest.Id.Value, uninstallRes.FirstError);
-                        }
-                    }
-
-                    foreach (var manifest in currentManifests.Where(m => toRemove.Contains(m.ManifestId)))
-                    {
-                        var installRes = await userDataTracker.InstallUserDataAsync(
-                            manifest.ManifestId,
-                            profileId,
-                            targetGame,
-                            manifest.InstalledFiles.Select(f => new ManifestFile
-                            {
-                                RelativePath = f.RelativePath,
-                                Hash = f.SourceHash ?? f.CasHash ?? string.Empty,
-                                Size = f.FileSize,
-                                InstallTarget = f.InstallTarget,
-                            }),
-                            manifest.ManifestVersion,
-                            manifest.ManifestName,
-                            cancellationToken);
-
-                        if (!installRes.Success)
-                        {
-                            rollbackFailed = true;
-                            logger.LogWarning("[ProfileContentLinker] Rollback reinstall failed for manifest {ManifestId}: {Error}", manifest.ManifestId, installRes.FirstError);
-                        }
-                    }
-
-                    var activateRestoreRes = await userDataTracker.ActivateProfileUserDataAsync(profileId, cancellationToken);
-                    if (!activateRestoreRes.Success)
-                    {
-                        rollbackFailed = true;
-                        logger.LogWarning("[ProfileContentLinker] Rollback activation failed for profile {ProfileId}: {Error}", profileId, activateRestoreRes.FirstError);
-                    }
-
+                    var rollbackFailed = await RollbackSyncAsync(profileId, targetGame, toAdd, toRemove, currentManifests, shouldActivate: true, cancellationToken);
                     var errorMessage = rollbackFailed
                         ? $"Failed to activate user data: {activateResult.FirstError ?? "unknown error"} (live rollback was incomplete)"
                         : $"Failed to activate user data: {activateResult.FirstError ?? "unknown error"}";
@@ -465,6 +437,78 @@ public class ProfileContentLinkerService(
             PatchSourceFile = file.PatchSourceFile,
             PackageInfo = file.PackageInfo,
         };
+    }
+
+    /// <summary>
+    /// Rolls back partially applied installations and uninstalls during live synchronization failure.
+    /// </summary>
+    private async Task<bool> RollbackSyncAsync(
+        string profileId,
+        GameType targetGame,
+        IReadOnlyList<ContentManifest> installedSoFar,
+        IReadOnlyList<string> uninstalledSoFar,
+        IReadOnlyList<UserDataManifest> originalManifests,
+        bool shouldActivate,
+        CancellationToken cancellationToken)
+    {
+        bool rollbackFailed = false;
+
+        // Uninstall manifests added during the failed pass
+        foreach (var manifest in installedSoFar)
+        {
+            var uninstallRes = await userDataTracker.UninstallUserDataAsync(manifest.Id.Value, profileId, cancellationToken);
+            if (!uninstallRes.Success)
+            {
+                rollbackFailed = true;
+                logger.LogWarning("[ProfileContentLinker] Rollback uninstall failed for manifest {ManifestId}: {Error}", manifest.Id.Value, uninstallRes.FirstError);
+            }
+        }
+
+        // Reinstall manifests removed during the failed pass
+        foreach (var manifest in originalManifests.Where(m => uninstalledSoFar.Contains(m.ManifestId)))
+        {
+            var installRes = await userDataTracker.InstallUserDataAsync(
+                manifest.ManifestId,
+                profileId,
+                targetGame,
+                manifest.InstalledFiles.Select(f => new ManifestFile
+                {
+                    RelativePath = f.RelativePath,
+                    Hash = f.SourceHash ?? f.CasHash ?? string.Empty,
+                    Size = f.FileSize,
+                    InstallTarget = f.InstallTarget,
+                }),
+                manifest.ManifestVersion,
+                manifest.ManifestName,
+                cancellationToken);
+
+            if (!installRes.Success)
+            {
+                rollbackFailed = true;
+                logger.LogWarning("[ProfileContentLinker] Rollback reinstall failed for manifest {ManifestId}: {Error}", manifest.ManifestId, installRes.FirstError);
+            }
+        }
+
+        if (shouldActivate)
+        {
+            var reactivateRes = await userDataTracker.ActivateProfileUserDataAsync(profileId, cancellationToken);
+            if (!reactivateRes.Success)
+            {
+                rollbackFailed = true;
+                logger.LogWarning("[ProfileContentLinker] Rollback activation failed for profile {ProfileId}: {Error}", profileId, reactivateRes.FirstError);
+            }
+        }
+
+        if (rollbackFailed)
+        {
+            logger.LogError("[ProfileContentLinker] Rollback after failure completed with errors for profile {ProfileId}", profileId);
+        }
+        else
+        {
+            logger.LogInformation("[ProfileContentLinker] Successfully rolled back user data changes for profile {ProfileId}", profileId);
+        }
+
+        return rollbackFailed;
     }
 
     /// <summary>

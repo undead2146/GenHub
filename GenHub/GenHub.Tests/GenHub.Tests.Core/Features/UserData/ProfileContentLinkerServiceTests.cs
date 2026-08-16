@@ -213,4 +213,135 @@ public class ProfileContentLinkerServiceTests
         Assert.Contains("Failed to activate user data", result.FirstError, StringComparison.OrdinalIgnoreCase);
         _userDataTrackerMock.Verify(t => t.UninstallUserDataAsync(manifest.Id.Value, profileId, It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    /// <summary>
+    /// Verifies that UpdateProfileUserDataAsync rolls back previously uninstalled manifests when a subsequent uninstall fails.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task UpdateProfileUserDataAsync_WhenSecondUninstallFails_RollsBackFirstUninstall()
+    {
+        // Arrange
+        const string profileId = "profile-uninstall-fail";
+        const GameType gameType = GameType.ZeroHour;
+        const string manifest1Id = "1.0.0.map.desert1";
+        const string manifest2Id = "1.0.0.map.desert2";
+
+        var existing1 = new UserDataManifest
+        {
+            ManifestId = manifest1Id,
+            ProfileId = profileId,
+            TargetGame = gameType,
+            InstalledFiles = [new UserDataFileEntry { AbsolutePath = "C:\\path\\1.map", RelativePath = "1.map", InstallTarget = ContentInstallTarget.UserMapsDirectory }],
+        };
+        var existing2 = new UserDataManifest
+        {
+            ManifestId = manifest2Id,
+            ProfileId = profileId,
+            TargetGame = gameType,
+            InstalledFiles = [new UserDataFileEntry { AbsolutePath = "C:\\path\\2.map", RelativePath = "2.map", InstallTarget = ContentInstallTarget.UserMapsDirectory }],
+        };
+
+        _userDataTrackerMock.Setup(t => t.GetProfileUserDataAsync(profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IReadOnlyList<UserDataManifest>>.CreateSuccess([existing1, existing2]));
+
+        _userDataTrackerMock.Setup(t => t.UninstallUserDataAsync(manifest1Id, profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+        _userDataTrackerMock.Setup(t => t.UninstallUserDataAsync(manifest2Id, profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateFailure("File locked"));
+
+        _userDataTrackerMock.Setup(t => t.InstallUserDataAsync(
+            manifest1Id,
+            profileId,
+            gameType,
+            It.IsAny<IEnumerable<ManifestFile>>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<UserDataManifest>.CreateSuccess(existing1));
+
+        // Act - remove both manifests
+        var result = await _linkerService.UpdateProfileUserDataAsync(profileId, [], gameType);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("File locked", result.FirstError, StringComparison.OrdinalIgnoreCase);
+
+        // Verify manifest-1 was reinstalled as part of rollback
+        _userDataTrackerMock.Verify(
+            t => t.InstallUserDataAsync(
+                manifest1Id,
+                profileId,
+                gameType,
+                It.IsAny<IEnumerable<ManifestFile>>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Verifies that UpdateProfileUserDataAsync rolls back previously installed manifests when a subsequent install fails.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task UpdateProfileUserDataAsync_WhenSecondInstallFails_RollsBackFirstInstall()
+    {
+        // Arrange
+        const string profileId = "profile-install-fail";
+        const GameType gameType = GameType.ZeroHour;
+        const string manifest1Id = "1.0.0.map.desert1";
+        const string manifest2Id = "1.0.0.map.desert2";
+
+        _userDataTrackerMock.Setup(t => t.GetProfileUserDataAsync(profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IReadOnlyList<UserDataManifest>>.CreateSuccess([]));
+
+        var manifest1 = new ContentManifest
+        {
+            Id = ManifestId.Create(manifest1Id),
+            Name = "Map 1",
+            ContentType = ContentType.Map,
+            Files = [new ManifestFile { RelativePath = "Maps\\1.map", InstallTarget = ContentInstallTarget.UserMapsDirectory, Hash = "hash-1" }],
+        };
+        var manifest2 = new ContentManifest
+        {
+            Id = ManifestId.Create(manifest2Id),
+            Name = "Map 2",
+            ContentType = ContentType.Map,
+            Files = [new ManifestFile { RelativePath = "Maps\\2.map", InstallTarget = ContentInstallTarget.UserMapsDirectory, Hash = "hash-2" }],
+        };
+
+        _userDataTrackerMock.Setup(t => t.InstallUserDataAsync(
+            manifest1Id,
+            profileId,
+            gameType,
+            It.IsAny<IEnumerable<ManifestFile>>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<UserDataManifest>.CreateSuccess(new UserDataManifest { ManifestId = manifest1Id, ProfileId = profileId }));
+
+        _userDataTrackerMock.Setup(t => t.InstallUserDataAsync(
+            manifest2Id,
+            profileId,
+            gameType,
+            It.IsAny<IEnumerable<ManifestFile>>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<UserDataManifest>.CreateFailure("Disk full"));
+
+        _userDataTrackerMock.Setup(t => t.UninstallUserDataAsync(manifest1Id, profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+
+        // Act - install both manifests
+        var result = await _linkerService.UpdateProfileUserDataAsync(profileId, [manifest1, manifest2], gameType);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("Disk full", result.FirstError, StringComparison.OrdinalIgnoreCase);
+
+        // Verify manifest-1 was uninstalled as part of rollback
+        _userDataTrackerMock.Verify(t => t.UninstallUserDataAsync(manifest1Id, profileId, It.IsAny<CancellationToken>()), Times.Once);
+    }
 }
