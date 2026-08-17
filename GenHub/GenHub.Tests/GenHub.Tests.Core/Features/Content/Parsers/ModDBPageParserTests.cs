@@ -1331,7 +1331,7 @@ public sealed class ModDBPageParserTests
     [InlineData("9,72 MB", 10192158L)]
     [InlineData("1.07mb (1,125,450 bytes)", 1125450L)]
     [InlineData("289.6 MB", 303667609L)]
-    public async Task ParseFileDetailAsync_WithVariousSizeFormats_CorrectlyParsesSizeBytesAsync(string sizeString, long expectedBytes)
+    public async Task ParseFileDetail_WithVariousSizeFormats_CorrectlyParsesSizeBytesAsync(string sizeString, long expectedBytes)
     {
         // Arrange
         var playwright = CreatePlaywrightMock();

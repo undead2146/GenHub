@@ -496,7 +496,7 @@ public class CommunityOutpostResolver(
     /// <summary>
     /// Gets the filename from the download URI or generates one from the content code.
     /// </summary>
-    private string GetFilenameFromUri(Uri downloadUri, string contentCode)
+    private static string GetFilenameFromUri(Uri downloadUri, string contentCode)
     {
         var lastSegment = downloadUri.Segments.Length > 0 ? downloadUri.Segments[^1].Trim('/') : string.Empty;
 

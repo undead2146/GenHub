@@ -210,15 +210,15 @@ public class CommunityOutpostManifestFactoryTests : IDisposable
     {
         // Arrange
         var zipPath = Path.Combine(_tempDir, "community-patch.zip");
-        using (var zip = System.IO.Compression.ZipFile.Open(zipPath, System.IO.Compression.ZipArchiveMode.Create))
         {
-            using (var writer1 = new StreamWriter(zip.CreateEntry("generals.exe").Open()))
+            using var zip = System.IO.Compression.ZipFile.Open(zipPath, System.IO.Compression.ZipArchiveMode.Create);
             {
+                using var writer1 = new StreamWriter(zip.CreateEntry("generals.exe").Open());
                 writer1.Write("mock exe content");
             }
 
-            using (var writer2 = new StreamWriter(zip.CreateEntry("Patch.big").Open()))
             {
+                using var writer2 = new StreamWriter(zip.CreateEntry("Patch.big").Open());
                 writer2.Write("mock big content");
             }
         }

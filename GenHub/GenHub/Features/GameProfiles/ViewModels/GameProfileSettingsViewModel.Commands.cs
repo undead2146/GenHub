@@ -154,17 +154,10 @@ public partial class GameProfileSettingsViewModel
     [RelayCommand]
     private void SelectContentEditorCategory(ContentEditorCategory category)
     {
-        System.Diagnostics.Debug.WriteLine($"[ViewModel] SelectContentEditorCategory called with category: {category}");
-        System.Diagnostics.Debug.WriteLine($"[ViewModel] ScrollToSectionRequested is null: {ScrollToSectionRequested == null}");
-
         SelectedContentEditorCategory = category;
 
         var sectionName = category.ToString() + "Section";
-        System.Diagnostics.Debug.WriteLine($"[ViewModel] Invoking ScrollToSectionRequested with: {sectionName}");
-
         ScrollToSectionRequested?.Invoke(sectionName);
-
-        System.Diagnostics.Debug.WriteLine("[ViewModel] ScrollToSectionRequested invoked");
     }
 
     [RelayCommand]
