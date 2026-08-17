@@ -126,7 +126,7 @@ public class ContentReconciliationServiceTests
         _profileManagerMock.Verify(
             x => x.UpdateProfileAsync(
                 "profile-1",
-                It.Is<UpdateProfileRequest>(r => r.GameClient != null && r.GameClient.Id.Equals(newId)),
+                It.Is<UpdateProfileRequest>(r => HasGameClientId(r, newId)),
                 It.IsAny<CancellationToken>()),
             Times.Once,
             "Should update profile with new manifest ID");
@@ -280,4 +280,7 @@ public class ContentReconciliationServiceTests
         result.FirstError.Should().Be(
             GenHub.Core.Constants.CasDefaults.GarbageCollectionDisabledMessage);
     }
+
+    private static bool HasGameClientId(UpdateProfileRequest? req, string expectedId) =>
+        req?.GameClient?.Id == expectedId;
 }

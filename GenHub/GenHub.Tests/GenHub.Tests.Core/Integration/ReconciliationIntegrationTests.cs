@@ -304,7 +304,7 @@ public class ReconciliationIntegrationTests : IDisposable
         _profileManagerMock.Verify(
             x => x.UpdateProfileAsync(
                 profile.Id,
-                It.Is<UpdateProfileRequest>(r => r.EnabledContentIds != null && r.EnabledContentIds.Any(id => id == newMapPack.Id.Value)),
+                It.Is<UpdateProfileRequest>(r => HasEnabledContentId(r, newMapPack.Id.Value)),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -386,11 +386,17 @@ public class ReconciliationIntegrationTests : IDisposable
         // Verify that the profile was updated with the generals GameClient ID (not zerohour)
         _profileManagerMock.Verify(
             x => x.CreateProfileAsync(
-                It.Is<CreateProfileRequest>(req => req.GameClient != null && req.GameClient.Id.Equals(newGeneralsParams.Id.Value)),
+                It.Is<CreateProfileRequest>(req => HasCreateProfileGameClientId(req, newGeneralsParams.Id.Value)),
                 It.IsAny<CancellationToken>()),
             Times.Once,
             "Should preserve the generals GameClient ID variant");
     }
+
+    private static bool HasEnabledContentId(UpdateProfileRequest? req, string expectedId) =>
+        req?.EnabledContentIds?.Contains(expectedId) == true;
+
+    private static bool HasCreateProfileGameClientId(CreateProfileRequest? req, string expectedId) =>
+        req?.GameClient?.Id == expectedId;
 
     private static ContentManifest CreateManifest(string id, string version, ContentType type, string publisher, GameType targetGame)
     {

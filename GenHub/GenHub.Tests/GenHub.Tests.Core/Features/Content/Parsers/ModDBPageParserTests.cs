@@ -1320,17 +1320,25 @@ public sealed class ModDBPageParserTests
     }
 
     /// <summary>
-    /// Verifies ParseFileDetailAsync correctly parses various size formats including comma decimals and parenthetical exact bytes.
+    /// Gets test data for size parsing formats.
+    /// </summary>
+    public static TheoryData<string, long> SizeTestData => new()
+    {
+        { "188.3kb (192,819 bytes)", 192819L },
+        { "188.3kb", 192819L },
+        { "9,72 MB", 10192158L },
+        { "1.07mb (1,125,450 bytes)", 1125450L },
+        { "289.6 MB", 303667609L },
+    };
+
+    /// <summary>
+    /// Tests that ParseFileDetail handles various size formats correctly.
     /// </summary>
     /// <param name="sizeString">The raw size string to test.</param>
     /// <param name="expectedBytes">The expected parsed size in bytes.</param>
     /// <returns>A task representing the asynchronous test.</returns>
     [Theory]
-    [InlineData("188.3kb (192,819 bytes)", 192_819L)]
-    [InlineData("188.3kb", 192_819L)]
-    [InlineData("9,72 MB", 10_192_158L)]
-    [InlineData("1.07mb (1,125,450 bytes)", 1_125_450L)]
-    [InlineData("289.6 MB", 303_667_609L)]
+    [MemberData(nameof(SizeTestData))]
     public async Task ParseFileDetail_WithVariousSizeFormats_CorrectlyParsesSizeBytesAsync(string sizeString, long expectedBytes)
     {
         // Arrange

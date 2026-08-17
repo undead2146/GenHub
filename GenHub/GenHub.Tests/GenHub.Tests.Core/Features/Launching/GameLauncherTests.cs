@@ -973,4 +973,12 @@ public class GameLauncherTests : IDisposable
         process.WaitForExit();
         Assert.Equal(0, process.ExitCode);
     }
+
+    private static bool HasWinArgument(GameLaunchConfiguration? config) =>
+        config?.Arguments?.ContainsKey("-win") == true;
+
+    private static bool HasEmptyWinArgument(GameLaunchConfiguration? config) =>
+        config?.Arguments != null &&
+        config.Arguments.TryGetValue("-win", out var value) &&
+        value == string.Empty;
 }
