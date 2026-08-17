@@ -399,8 +399,9 @@ public sealed class BuildEngineService(
 
     private async Task ExecuteBigBundleItemStageAsync(BuildSetup setup, CancellationToken cancellationToken)
     {
-        var rawDir = Path.Combine(setup.Folders?.AbsBuildDir ?? ModBuilderConstants.DefaultBuildDir, ModBuilderConstants.RawBundleItemsSubdir);
-        var bundlesDir = Path.Combine(setup.Folders?.AbsBuildDir ?? ModBuilderConstants.DefaultBuildDir, ModBuilderConstants.BundlesSubdir);
+        var buildDir = setup.Folders?.AbsBuildDir ?? ModBuilderConstants.DefaultBuildDir;
+        var rawDir = Path.Combine(buildDir, ModBuilderConstants.RawBundleItemsSubdir);
+        var bundlesDir = Path.Combine(buildDir, ModBuilderConstants.BundlesSubdir);
 
         if (!Directory.Exists(rawDir))
         {
@@ -419,68 +420,23 @@ public sealed class BuildEngineService(
 
         foreach (var item in setup.Bundles.Items.Where(i => i.IsBig))
         {
-            var suffix = item.BigSuffix ?? string.Empty;
-            var bigFileName = suffix.EndsWith(".big", StringComparison.OrdinalIgnoreCase)
-                ? $"{item.GetFullName()}{suffix}"
-                : $"{item.GetFullName()}{suffix}.big";
+            var itemRawDir = Path.Combine(rawDir, item.Name);
+            if (!Directory.Exists(itemRawDir))
+            {
+                continue;
+            }
+
+            var prefix = item.NamePrefix ?? string.Empty;
+            var suffix = item.NameSuffix ?? string.Empty;
+            var bigSuffix = item.BigSuffix ?? string.Empty;
+            var bigFileName = $"{prefix}{item.Name}{suffix}{bigSuffix}.big";
             var bigFilePath = Path.Combine(bundlesDir, bigFileName);
 
-            var itemStagingDir = Path.Combine(setup.Folders?.AbsBuildDir ?? ModBuilderConstants.DefaultBuildDir, ".staging", item.Name);
-            if (Directory.Exists(itemStagingDir))
-            {
-                Directory.Delete(itemStagingDir, true);
-            }
-
-            Directory.CreateDirectory(itemStagingDir);
-
-            foreach (var file in item.Files)
-            {
-                var targetRel = file.RelTargetFile;
-                if (string.IsNullOrEmpty(targetRel))
-                {
-                    targetRel = !string.IsNullOrEmpty(file.GetRelSourceFile())
-                        ? file.GetRelSourceFile()
-                        : Path.GetFileName(file.AbsSourceFile);
-                }
-
-                if (!string.IsNullOrEmpty(targetRel))
-                {
-                    var srcInRaw = Path.Combine(rawDir, targetRel.TrimStart('/', '\\'));
-                    if (File.Exists(srcInRaw))
-                    {
-                        var destInStaging = Path.Combine(itemStagingDir, targetRel.TrimStart('/', '\\'));
-                        var destDir = Path.GetDirectoryName(destInStaging);
-                        if (!string.IsNullOrEmpty(destDir))
-                        {
-                            Directory.CreateDirectory(destDir);
-                        }
-
-                        File.Copy(srcInRaw, destInStaging, overwrite: true);
-                    }
-                }
-            }
-
-            var sourceToPack = Directory.Exists(itemStagingDir) && Directory.EnumerateFileSystemEntries(itemStagingDir).Any()
-                ? itemStagingDir
-                : rawDir;
-
-            var archiveResult = await archiveService.CreateBigArchiveAsync(sourceToPack, bigFilePath, null, cancellationToken).ConfigureAwait(false);
+            var archiveResult = await archiveService.CreateBigArchiveAsync(itemRawDir, bigFilePath, null, cancellationToken).ConfigureAwait(false);
             if (!archiveResult.Success)
             {
                 logger.LogError("Failed to create BIG archive {Archive}: {Error}", bigFilePath, archiveResult.FirstError);
                 Interlocked.Increment(ref _filesFailed);
-            }
-
-            if (Directory.Exists(itemStagingDir))
-            {
-                try
-                {
-                    Directory.Delete(itemStagingDir, true);
-                }
-                catch
-                {
-                    // Ignore cleanup failure
-                }
             }
         }
     }
@@ -668,7 +624,7 @@ public sealed class BuildEngineService(
 
                         if (!string.IsNullOrEmpty(relPath))
                         {
-                            return Path.Combine(buildDir, ModBuilderConstants.RawBundleItemsSubdir, relPath.TrimStart('/', '\\'));
+                            return Path.Combine(buildDir, ModBuilderConstants.RawBundleItemsSubdir, item.Name, relPath.TrimStart('/', '\\'));
                         }
                     }
                 }

@@ -40,17 +40,17 @@ public static class ModBuilderConstants
     /// <summary>
     /// Subdirectory name for raw bundle items within build directory.
     /// </summary>
-    public const string RawBundleItemsSubdir = "raw_bundle_items";
+    public const string RawBundleItemsSubdir = "RawBundleItems";
 
     /// <summary>
     /// Subdirectory name for compiled big bundles within build directory.
     /// </summary>
-    public const string BundlesSubdir = "bundles";
+    public const string BundlesSubdir = "BigBundleItems";
 
     /// <summary>
-    /// Subdirectory name for bundle packs within build directory.
+    /// Subdirectory name for raw bundle packs within build directory.
     /// </summary>
-    public const string BundlePacksSubdir = "bundle_packs";
+    public const string BundlePacksSubdir = "RawBundlePacks";
 
     /// <summary>
     /// Directory name for edited game source files.
