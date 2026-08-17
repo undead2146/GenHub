@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Services.Dependencies;
@@ -25,10 +26,14 @@ public class GeneralsOnlineDependencyBuilder : BaseDependencyBuilder
             Id = ManifestId.Create($"1.104.genhub.gameinstallation.zerohour"),
             Name = GameClientConstants.ZeroHourInstallationDependencyName,
             DependencyType = ContentType.GameInstallation,
-            MinVersion = ManifestConstants.ZeroHourManifestVersion, // "1.04"
+
+            // "1.04"
+            MinVersion = ManifestConstants.ZeroHourManifestVersion,
             InstallBehavior = DependencyInstallBehavior.RequireExisting,
             IsOptional = false,
-            StrictPublisher = false, // Any publisher's ZH installation will work
+
+            // Any publisher's ZH installation will work
+            StrictPublisher = false,
             CompatibleGameTypes = new List<GameType> { GameType.ZeroHour },
         };
     }
@@ -52,7 +57,36 @@ public class GeneralsOnlineDependencyBuilder : BaseDependencyBuilder
             DependencyType = ContentType.MapPack,
             InstallBehavior = DependencyInstallBehavior.AutoInstall,
             IsOptional = false,
-            StrictPublisher = true, // Must be from GeneralsOnline publisher
+
+            // Must be from GeneralsOnline publisher
+            StrictPublisher = true,
+            PublisherType = PublisherTypeConstants.GeneralsOnline,
+            CompatibleGameTypes = new List<GameType> { GameType.ZeroHour },
+        };
+    }
+
+    /// <summary>
+    /// Creates a dependency on the GeneralsOnline 60Hz GameClient.
+    /// This is required for GeneralsOnline data patches to work.
+    /// </summary>
+    /// <param name="version">Optional version constraint for the game client.</param>
+    /// <returns>A content dependency for the 60Hz GameClient.</returns>
+    public static ContentDependency CreateGameClient60HzDependency(int version = 0)
+    {
+        return new ContentDependency
+        {
+            Id = ManifestId.Create(ManifestIdGenerator.GeneratePublisherContentId(
+                PublisherTypeConstants.GeneralsOnline,
+                ContentType.GameClient,
+                GeneralsOnlineConstants.Variant60HzSuffix,
+                version)),
+            Name = $"{GameClientConstants.GeneralsOnline60HzDisplayName} (Required)",
+            DependencyType = ContentType.GameClient,
+            InstallBehavior = DependencyInstallBehavior.AutoInstall,
+            IsOptional = false,
+
+            // Must be from GeneralsOnline publisher
+            StrictPublisher = true,
             PublisherType = PublisherTypeConstants.GeneralsOnline,
             CompatibleGameTypes = new List<GameType> { GameType.ZeroHour },
         };
@@ -74,6 +108,21 @@ public class GeneralsOnlineDependencyBuilder : BaseDependencyBuilder
     }
 
     /// <summary>
+    /// Gets the list of dependencies for the GeneralsOnlineGameData data patch.
+    /// Includes Zero Hour installation and GeneralsOnline 60Hz GameClient.
+    /// </summary>
+    /// <param name="clientVersion">The version of the GameClient to depend on.</param>
+    /// <returns>List of dependencies for GameData data patch.</returns>
+    public static List<ContentDependency> GetDependenciesForGameData(int clientVersion = 0)
+    {
+        return new List<ContentDependency>
+        {
+            CreateZeroHourDependencyForGeneralsOnline(),
+            CreateGameClient60HzDependency(clientVersion),
+        };
+    }
+
+    /// <summary>
     /// Gets the dependencies for Generals Online content.
     /// </summary>
     /// <param name="manifest">The content manifest.</param>
@@ -82,16 +131,36 @@ public class GeneralsOnlineDependencyBuilder : BaseDependencyBuilder
     {
         var dependencies = new List<ContentDependency>();
 
+        var userVersion = 0;
+        if (!string.IsNullOrWhiteSpace(manifest.Version))
+        {
+            userVersion = GameVersionHelper.GetGeneralsOnlineManifestIdComponent(manifest.Version);
+        }
+        else if (!string.IsNullOrWhiteSpace(manifest.Id.Value))
+        {
+            var parts = manifest.Id.Value.Split('.');
+            if (parts.Length >= 2 && int.TryParse(parts[1], out var parsedVersion))
+            {
+                userVersion = parsedVersion;
+            }
+        }
+
         // All Generals Online game clients require Zero Hour 1.04 and the QuickMatch MapPack
         if (manifest.ContentType == ContentType.GameClient)
         {
             dependencies.Add(CreateZeroHourDependencyForGeneralsOnline());
-            dependencies.Add(CreateQuickMatchMapPackDependency());
+            dependencies.Add(CreateQuickMatchMapPackDependency(userVersion));
         }
         else if (manifest.ContentType == ContentType.MapPack)
         {
             // MapPacks only require Zero Hour installation
             dependencies.Add(CreateZeroHourDependencyForGeneralsOnline());
+        }
+        else if (manifest.ContentType == ContentType.Patch)
+        {
+            // Data patch requires Zero Hour installation and GeneralsOnline GameClient
+            dependencies.Add(CreateZeroHourDependencyForGeneralsOnline());
+            dependencies.Add(CreateGameClient60HzDependency(userVersion));
         }
 
         return dependencies;
