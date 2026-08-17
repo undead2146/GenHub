@@ -126,7 +126,7 @@ public class ProfileEditorFacade(
                 workspaceConfig.WorkspaceRootPath = _storageLocationService.GetWorkspacePath(install.Data);
 
                 // Build manifests from enabled content IDs
-                if (profile.EnabledContentIds != null && profile.EnabledContentIds.Count > 0)
+                if (profile.EnabledContentIds is { Count: > 0 })
                 {
                     var resolutionResult = await _dependencyResolver.ResolveDependenciesWithManifestsAsync(profile.EnabledContentIds, cancellationToken);
                     if (!resolutionResult.Success)
@@ -176,7 +176,7 @@ public class ProfileEditorFacade(
                         }
                         else
                         {
-                            bool isCasBacked = manifest.Files != null && manifest.Files.Count > 0 &&
+                            bool isCasBacked = manifest.Files is { Count: > 0 } &&
                                 manifest.Files.All(f => f.SourceType == ContentSourceType.ContentAddressable);
 
                             if (isCasBacked)
@@ -332,7 +332,7 @@ public class ProfileEditorFacade(
             }
 
             // Validate content manifests exist
-            if (profile.EnabledContentIds != null && profile.EnabledContentIds.Count > 0)
+            if (profile.EnabledContentIds is { Count: > 0 })
             {
                 var manifestsResult = await _manifestPool.GetAllManifestsAsync(cancellationToken);
                 if (manifestsResult.Success && manifestsResult.Data != null)

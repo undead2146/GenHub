@@ -32,7 +32,6 @@ public sealed class ContentBundleDownloadIntegrationTests
     {
         // Arrange
         var contentStateServiceMock = new Mock<IContentStateService>();
-        var httpClientFactoryMock = new Mock<IHttpClientFactory>();
 
         var patchComponent = new BundleComponentViewModel
         {

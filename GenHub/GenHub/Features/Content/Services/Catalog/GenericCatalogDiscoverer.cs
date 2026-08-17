@@ -187,7 +187,7 @@ public class GenericCatalogDiscoverer(
         searchResult.ResolverMetadata[CatalogConstants.PublisherProfileJsonMetadataKey] = JsonSerializer.Serialize(catalog.Publisher);
         searchResult.ResolverMetadata[CatalogConstants.CatalogContentIdMetadataKey] = contentItem.Id;
 
-        if (catalog.Referrals != null && catalog.Referrals.Count > 0)
+        if (catalog.Referrals is { Count: > 0 })
         {
             searchResult.ResolverMetadata[CatalogConstants.CatalogReferralsJsonMetadataKey] = JsonSerializer.Serialize(catalog.Referrals);
         }

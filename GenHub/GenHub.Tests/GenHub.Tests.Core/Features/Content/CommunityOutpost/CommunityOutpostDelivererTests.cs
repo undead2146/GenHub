@@ -115,15 +115,12 @@ public sealed class CommunityOutpostDelivererTests
 
             downloadService
                 .Setup(d => d.DownloadFileAsync(
-                    new Uri("https://legi.cc/gp2/f/gent.dat"),
-                    It.IsAny<string>(),
-                    It.IsAny<string>(),
-                    It.IsAny<IProgress<DownloadProgress>>(),
-                    It.IsAny<CancellationToken>()))
-                .Callback<Uri, string, string?, IProgress<DownloadProgress>?, CancellationToken>((_, dest, _, _, _) =>
-                {
-                    File.WriteAllBytes(dest, validZipBytes);
-                })
+                     new Uri("https://legi.cc/gp2/f/gent.dat"),
+                     It.IsAny<string>(),
+                     It.IsAny<string>(),
+                     It.IsAny<IProgress<DownloadProgress>>(),
+                     It.IsAny<CancellationToken>()))
+                .Callback<Uri, string, string?, IProgress<DownloadProgress>?, CancellationToken>((_, dest, _, _, _) => File.WriteAllBytes(dest, validZipBytes))
                 .ReturnsAsync(DownloadResult.CreateSuccess("content.zip", validZipBytes.Length, TimeSpan.FromMilliseconds(100)));
 
             // Act
@@ -205,10 +202,7 @@ public sealed class CommunityOutpostDelivererTests
                     It.IsAny<string>(),
                     It.IsAny<IProgress<DownloadProgress>>(),
                     It.IsAny<CancellationToken>()))
-                .Callback<Uri, string, string?, IProgress<DownloadProgress>?, CancellationToken>((_, dest, _, _, _) =>
-                {
-                    File.WriteAllBytes(dest, htmlErrorBytes);
-                })
+                .Callback<Uri, string, string?, IProgress<DownloadProgress>?, CancellationToken>((_, dest, _, _, _) => File.WriteAllBytes(dest, htmlErrorBytes))
                 .ReturnsAsync(DownloadResult.CreateSuccess("content.zip", htmlErrorBytes.Length, TimeSpan.FromMilliseconds(50)));
 
             // Fallback GitHub URL writes valid zip archive
@@ -219,10 +213,7 @@ public sealed class CommunityOutpostDelivererTests
                     It.IsAny<string>(),
                     It.IsAny<IProgress<DownloadProgress>>(),
                     It.IsAny<CancellationToken>()))
-                .Callback<Uri, string, string?, IProgress<DownloadProgress>?, CancellationToken>((_, dest, _, _, _) =>
-                {
-                    File.WriteAllBytes(dest, validZipBytes);
-                })
+                .Callback<Uri, string, string?, IProgress<DownloadProgress>?, CancellationToken>((_, dest, _, _, _) => File.WriteAllBytes(dest, validZipBytes))
                 .ReturnsAsync(DownloadResult.CreateSuccess("content.zip", validZipBytes.Length, TimeSpan.FromMilliseconds(100)));
 
             // Act
@@ -303,10 +294,7 @@ public sealed class CommunityOutpostDelivererTests
                     It.IsAny<string>(),
                     It.IsAny<IProgress<DownloadProgress>>(),
                     It.IsAny<CancellationToken>()))
-                .Callback<Uri, string, string?, IProgress<DownloadProgress>?, CancellationToken>((_, dest, _, _, _) =>
-                {
-                    File.WriteAllBytes(dest, validZipBytes);
-                })
+                .Callback<Uri, string, string?, IProgress<DownloadProgress>?, CancellationToken>((_, dest, _, _, _) => File.WriteAllBytes(dest, validZipBytes))
                 .ReturnsAsync(DownloadResult.CreateSuccess("hleg.dat", validZipBytes.Length, TimeSpan.FromMilliseconds(50)));
 
             downloadService
@@ -316,10 +304,7 @@ public sealed class CommunityOutpostDelivererTests
                     It.IsAny<string>(),
                     It.IsAny<IProgress<DownloadProgress>>(),
                     It.IsAny<CancellationToken>()))
-                .Callback<Uri, string, string?, IProgress<DownloadProgress>?, CancellationToken>((_, dest, _, _, _) =>
-                {
-                    File.WriteAllBytes(dest, validZipBytes);
-                })
+                .Callback<Uri, string, string?, IProgress<DownloadProgress>?, CancellationToken>((_, dest, _, _, _) => File.WriteAllBytes(dest, validZipBytes))
                 .ReturnsAsync(DownloadResult.CreateSuccess("hlen.dat", validZipBytes.Length, TimeSpan.FromMilliseconds(50)));
 
             downloadService
@@ -329,10 +314,7 @@ public sealed class CommunityOutpostDelivererTests
                     It.IsAny<string>(),
                     It.IsAny<IProgress<DownloadProgress>>(),
                     It.IsAny<CancellationToken>()))
-                .Callback<Uri, string, string?, IProgress<DownloadProgress>?, CancellationToken>((_, dest, _, _, _) =>
-                {
-                    File.WriteAllBytes(dest, validZipBytes);
-                })
+                .Callback<Uri, string, string?, IProgress<DownloadProgress>?, CancellationToken>((_, dest, _, _, _) => File.WriteAllBytes(dest, validZipBytes))
                 .ReturnsAsync(DownloadResult.CreateSuccess("gent.dat", validZipBytes.Length, TimeSpan.FromMilliseconds(50)));
 
             // Act

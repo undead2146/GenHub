@@ -73,7 +73,7 @@ public class GenericCatalogManifestFactory(
             originalManifest.TargetGame,
             cancellationToken);
 
-        if (controlBarProcessor != null && controlBarProcessor.IsControlBarContent(extractedDirectory, originalManifest))
+        if (controlBarProcessor?.IsControlBarContent(extractedDirectory, originalManifest) == true)
         {
             logger.LogInformation("Detected Control Bar content in catalog payload, repacking into BIG archives");
             await controlBarProcessor.ProcessAndRepackControlBarAsync(

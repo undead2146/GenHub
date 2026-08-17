@@ -188,12 +188,9 @@ public sealed class ImageCacheService
             return false;
         }
 
-        if (IPAddress.TryParse(host, out var ip))
+        if (IPAddress.TryParse(host, out var ip) && !IsSafeIpAddress(ip))
         {
-            if (!IsSafeIpAddress(ip))
-            {
-                return false;
-            }
+            return false;
         }
 
         uri = parsedUri;
@@ -417,7 +414,7 @@ public sealed class ImageCacheService
                 using var ms = new MemoryStream();
                 var buffer = new byte[81920];
                 long totalRead = 0;
-                int read;
+                int read = 0;
 
                 while ((read = await responseStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
                 {

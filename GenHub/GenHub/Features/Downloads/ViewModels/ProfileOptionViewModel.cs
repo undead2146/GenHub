@@ -31,7 +31,7 @@ public sealed partial class ProfileOptionViewModel : ProfilePickerItemViewModel
             profile.IconPath ?? string.Empty,
             profile.CoverPath ?? string.Empty);
         _contentItems = (profile.EnabledContentIds ?? [])
-            .Select(contentId => contentNames != null && contentNames.TryGetValue(contentId, out var contentName)
+            .Select(contentId => contentNames?.TryGetValue(contentId, out var contentName) == true
                 ? contentName
                 : "Content unavailable")
             .Take(PreviewItemLimit)

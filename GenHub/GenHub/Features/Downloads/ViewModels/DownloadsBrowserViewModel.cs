@@ -279,7 +279,7 @@ public partial class DownloadsBrowserViewModel(
             return;
         }
 
-        var currentRequestId = Interlocked.Increment(ref _activeRequestId);
+        Interlocked.Increment(ref _activeRequestId);
         _activePublisherId = value.PublisherId;
 
         // Cancel any active custom search query
@@ -543,7 +543,7 @@ public partial class DownloadsBrowserViewModel(
             return false;
         }
 
-        CancellationTokenSource opCts;
+        CancellationTokenSource opCts = null!;
         PublisherInFlightOperation? inFlightOp = null;
 
         if (!isCustomQuery && !append)
@@ -746,35 +746,33 @@ public partial class DownloadsBrowserViewModel(
 
                 return true;
             }
-            else
+
+            CleanupInFlight(publisherId, inFlightOp);
+
+            RunOnUi(() =>
             {
-                CleanupInFlight(publisherId, inFlightOp);
-
-                RunOnUi(() =>
+                if (_activeRequestId == requestId && SelectedPublisher?.PublisherId == publisherId)
                 {
-                    if (_activeRequestId == requestId && SelectedPublisher?.PublisherId == publisherId)
+                    CanLoadMore = false;
+                    IsLoading = false;
+
+                    if (result.Data?.ChallengeDetected == true)
                     {
-                        CanLoadMore = false;
-                        IsLoading = false;
-
-                        if (result.Data?.ChallengeDetected == true)
-                        {
-                            notificationService.ShowWarning(
-                                "ModDB is waiting for verification",
-                                "A browser window opened for ModDB's bot check. Click \"I am not a robot\" in that window, then open ModDB again. You only need to do this once.");
-                        }
-                        else if (ContentItems.Count == 0)
-                        {
-                            notificationService.ShowInfo(
-                                "No content loaded",
-                                $"{publisherId} returned no content. Check your connection and try again.");
-                        }
+                        notificationService.ShowWarning(
+                            "ModDB is waiting for verification",
+                            "A browser window opened for ModDB's bot check. Click \"I am not a robot\" in that window, then open ModDB again. You only need to do this once.");
                     }
-                });
+                    else if (ContentItems.Count == 0)
+                    {
+                        notificationService.ShowInfo(
+                            "No content loaded",
+                            $"{publisherId} returned no content. Check your connection and try again.");
+                    }
+                }
+            });
 
-                logger.LogWarning("Discovery failed or returned no data for {Publisher}. Success: {Success}", publisherId, result.Success);
-                return false;
-            }
+            logger.LogWarning("Discovery failed or returned no data for {Publisher}. Success: {Success}", publisherId, result.Success);
+            return false;
         }
         catch (OperationCanceledException)
         {

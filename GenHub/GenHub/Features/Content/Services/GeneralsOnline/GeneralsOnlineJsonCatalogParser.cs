@@ -188,7 +188,7 @@ public class GeneralsOnlineJsonCatalogParser(ILogger<GeneralsOnlineJsonCatalogPa
             }
 
             if (!int.TryParse(datePart[..2], out var month) ||
-                !int.TryParse(datePart.Substring(2, 2), out var day) ||
+                !int.TryParse(datePart[2..4], out var day) ||
                 !int.TryParse(datePart[4..], out var yearSuffix))
             {
                 return null;

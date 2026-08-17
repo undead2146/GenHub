@@ -93,14 +93,25 @@ public partial class ContentGridItemViewModel(
     public string Id => SearchResult.Id ?? string.Empty;
 
     /// <summary>
-    /// Gets the content name. When a variant is selected, reflects that variant's label
-    /// so the card title tracks the dropdown (e.g. "weekly — Generals").
+    /// Gets the display name of the content.
     /// </summary>
-    public string Name => !string.IsNullOrWhiteSpace(SelectedVariant?.Name)
-        ? SelectedVariant.Name
-        : !string.IsNullOrWhiteSpace(SearchResult.Name)
-            ? SearchResult.Name
-            : SearchResult.VariantFamilyName ?? "Unknown";
+    public string Name
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(SelectedVariant?.Name))
+            {
+                return SelectedVariant.Name;
+            }
+
+            if (!string.IsNullOrWhiteSpace(SearchResult.Name))
+            {
+                return SearchResult.Name;
+            }
+
+            return SearchResult.VariantFamilyName ?? "Unknown";
+        }
+    }
 
     /// <summary>
     /// Gets the content description.
@@ -580,6 +591,8 @@ public partial class ContentGridItemViewModel(
                     case ContentState.UpdateAvailable:
                         IsDownloaded = true;
                         IsDownloading = false;
+                        break;
+                    default:
                         break;
                 }
 

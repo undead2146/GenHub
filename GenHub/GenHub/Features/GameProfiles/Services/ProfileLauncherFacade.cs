@@ -134,7 +134,7 @@ public class ProfileLauncherFacade(
 
                 // Try to resolve directory first (for local content)
                 var toolDirectory = await manifestPool.GetContentDirectoryAsync(toolManifest.Id, cancellationToken);
-                string toolWorkspacePath;
+                string toolWorkspacePath = string.Empty;
                 string? actualWorkspaceId = null; // Track if we created a workspace
 
                 if (toolDirectory.Success && !string.IsNullOrEmpty(toolDirectory.Data))
@@ -528,7 +528,7 @@ public class ProfileLauncherFacade(
                 {
                     var gameDrive = Path.GetPathRoot(resolvedInstallation.InstallationPath);
                     var errorMessage = $"HardLink strategy failed because your workspace is on a different drive than the game on {gameDrive} drive. " +
-                        $"You can manually change to FullCopy strategy (uses more disk space) or move your workspace to the same drive as your game.";
+                        "You can manually change to FullCopy strategy (uses more disk space) or move your workspace to the same drive as your game.";
 
                     notificationService.ShowError(
                         "Launch Failed - Cross-Drive Issue",
@@ -869,7 +869,6 @@ public class ProfileLauncherFacade(
 
             // Build list of manifests from enabled content IDs only
             var manifests = new List<ContentManifest>();
-            var resolvedContentIds = new HashSet<string>(profile.EnabledContentIds ?? Enumerable.Empty<string>());
 
             // Resolve dependencies recursively
             var resolutionResult = await dependencyResolver.ResolveDependenciesWithManifestsAsync(profile.EnabledContentIds ?? Enumerable.Empty<string>(), cancellationToken);
@@ -931,7 +930,7 @@ public class ProfileLauncherFacade(
                 }
                 else
                 {
-                    bool isCasBacked = manifest.Files != null && manifest.Files.Count > 0 &&
+                    bool isCasBacked = manifest.Files is { Count: > 0 } &&
                         manifest.Files.All(f => f.SourceType == ContentSourceType.ContentAddressable);
 
                     if (isCasBacked)
@@ -1088,11 +1087,9 @@ public class ProfileLauncherFacade(
                     logger.LogInformation("Successfully deleted profile {ProfileId}", profileId);
                     return ProfileOperationResult<bool>.CreateSuccess(true);
                 }
-                else
-                {
-                    logger.LogError("Failed to delete profile {ProfileId}: {Errors}", profileId, string.Join(", ", deleteResult.Errors));
-                    return ProfileOperationResult<bool>.CreateFailure(string.Join(", ", deleteResult.Errors));
-                }
+
+                logger.LogError("Failed to delete profile {ProfileId}: {Errors}", profileId, string.Join(", ", deleteResult.Errors));
+                return ProfileOperationResult<bool>.CreateFailure(string.Join(", ", deleteResult.Errors));
             }
         }
         catch (IOException ioEx) when (ioEx.Message.Contains("being used by another process"))
@@ -1124,20 +1121,16 @@ public class ProfileLauncherFacade(
 
         // Simple string comparison for min/max versions (semantic versioning would be better in production)
         // For now, we use string comparison which works for versions like "1.04", "1.08", etc.
-        if (!string.IsNullOrEmpty(dependency.MinVersion))
+        if (!string.IsNullOrEmpty(dependency.MinVersion) &&
+            string.Compare(version, dependency.MinVersion, StringComparison.OrdinalIgnoreCase) < 0)
         {
-            if (string.Compare(version, dependency.MinVersion, StringComparison.OrdinalIgnoreCase) < 0)
-            {
-                return false;
-            }
+            return false;
         }
 
-        if (!string.IsNullOrEmpty(dependency.MaxVersion))
+        if (!string.IsNullOrEmpty(dependency.MaxVersion) &&
+            string.Compare(version, dependency.MaxVersion, StringComparison.OrdinalIgnoreCase) > 0)
         {
-            if (string.Compare(version, dependency.MaxVersion, StringComparison.OrdinalIgnoreCase) > 0)
-            {
-                return false;
-            }
+            return false;
         }
 
         return true;
@@ -1191,8 +1184,7 @@ public class ProfileLauncherFacade(
         }
 
         // Final fallback: Check enabled content for GeneralsOnline manifests
-        if (profile.EnabledContentIds != null &&
-            profile.EnabledContentIds.Any(id => id.Contains("generalsonline", StringComparison.OrdinalIgnoreCase)))
+        if (profile.EnabledContentIds?.Any(id => id.Contains("generalsonline", StringComparison.OrdinalIgnoreCase)) == true)
         {
             return true;
         }
@@ -1227,8 +1219,7 @@ public class ProfileLauncherFacade(
         }
 
         // Final fallback: Check enabled content for SuperHackers manifests
-        if (profile.EnabledContentIds != null &&
-            profile.EnabledContentIds.Any(id => id.Contains("thesuperhackers", StringComparison.OrdinalIgnoreCase)))
+        if (profile.EnabledContentIds?.Any(id => id.Contains("thesuperhackers", StringComparison.OrdinalIgnoreCase)) == true)
         {
             return true;
         }
@@ -1259,8 +1250,7 @@ public class ProfileLauncherFacade(
         }
 
         // Fallback: manifests
-        if (profile.EnabledContentIds != null &&
-            profile.EnabledContentIds.Any(id => id.Contains("communityoutpost", StringComparison.OrdinalIgnoreCase)))
+        if (profile.EnabledContentIds?.Any(id => id.Contains("communityoutpost", StringComparison.OrdinalIgnoreCase)) == true)
         {
             return true;
         }
@@ -1437,25 +1427,23 @@ public class ProfileLauncherFacade(
                         }
 
                         // Validate version compatibility if specified
-                        if (!string.IsNullOrEmpty(dependency.MinVersion) || !string.IsNullOrEmpty(dependency.MaxVersion) || dependency.CompatibleVersions.Count > 0)
+                        if ((!string.IsNullOrEmpty(dependency.MinVersion) || !string.IsNullOrEmpty(dependency.MaxVersion) || dependency.CompatibleVersions.Count > 0) &&
+                            !IsVersionCompatible(requiredManifest.Version, dependency))
                         {
-                            if (!IsVersionCompatible(requiredManifest.Version, dependency))
+                            var versionInfo = BuildVersionRequirementString(dependency);
+                            var msg = $"Content '{manifest.Name}' requires '{dependency.Name}' {versionInfo}, but version {requiredManifest.Version} is selected";
+                            if (!dependency.IsOptional)
                             {
-                                var versionInfo = BuildVersionRequirementString(dependency);
-                                var msg = $"Content '{manifest.Name}' requires '{dependency.Name}' {versionInfo}, but version {requiredManifest.Version} is selected";
-                                if (!dependency.IsOptional)
-                                {
-                                    errors.Add(msg);
-                                }
-
-                                logger.LogWarning(
-                                    "Version compatibility failed: {ManifestName} requires {DependencyName} {VersionInfo}, but {ActualVersion} found (Optional: {IsOptional})",
-                                    manifest.Name,
-                                    dependency.Name,
-                                    versionInfo,
-                                    requiredManifest.Version,
-                                    dependency.IsOptional);
+                                errors.Add(msg);
                             }
+
+                            logger.LogWarning(
+                                "Version compatibility failed: {ManifestName} requires {DependencyName} {VersionInfo}, but {ActualVersion} found (Optional: {IsOptional})",
+                                manifest.Name,
+                                dependency.Name,
+                                versionInfo,
+                                requiredManifest.Version,
+                                dependency.IsOptional);
                         }
                     }
                     else
@@ -1487,25 +1475,23 @@ public class ProfileLauncherFacade(
                     }
 
                     // Validate CompatibleGameTypes for all dependency types
-                    if (dependency.CompatibleGameTypes != null && dependency.CompatibleGameTypes.Count > 0)
+                    if (dependency.CompatibleGameTypes is { Count: > 0 } &&
+                        !dependency.CompatibleGameTypes.Contains(profileGameType))
                     {
-                        if (!dependency.CompatibleGameTypes.Contains(profileGameType))
+                        var compatibleGamesStr = string.Join(", ", dependency.CompatibleGameTypes);
+                        var msg = $"Content '{manifest.Name}' dependency '{dependency.Name}' is only compatible with {compatibleGamesStr}, but profile is for {profileGameType}";
+                        if (!dependency.IsOptional)
                         {
-                            var compatibleGamesStr = string.Join(", ", dependency.CompatibleGameTypes);
-                            var msg = $"Content '{manifest.Name}' dependency '{dependency.Name}' is only compatible with {compatibleGamesStr}, but profile is for {profileGameType}";
-                            if (!dependency.IsOptional)
-                            {
-                                errors.Add(msg);
-                            }
-
-                            logger.LogWarning(
-                                "GameType compatibility failed: {ManifestName} dependency {DependencyName} requires {CompatibleGameTypes}, but profile is {ProfileGameType} (Optional: {IsOptional})",
-                                manifest.Name,
-                                dependency.Name,
-                                compatibleGamesStr,
-                                profileGameType,
-                                dependency.IsOptional);
+                            errors.Add(msg);
                         }
+
+                        logger.LogWarning(
+                            "GameType compatibility failed: {ManifestName} dependency {DependencyName} requires {CompatibleGameTypes}, but profile is {ProfileGameType} (Optional: {IsOptional})",
+                            manifest.Name,
+                            dependency.Name,
+                            compatibleGamesStr,
+                            profileGameType,
+                            dependency.IsOptional);
                     }
 
                     // Validate RequiredPublisherTypes (using StrictPublisher and PublisherType)
@@ -1567,13 +1553,13 @@ public class ProfileLauncherFacade(
                     {
                         foreach (var conflictId in dependency.ConflictsWith)
                         {
-                            if (manifestsById.ContainsKey(conflictId.ToString()))
+                            if (manifestsById.TryGetValue(conflictId.ToString(), out var conflictingManifest))
                             {
-                                errors.Add($"Content '{manifest.Name}' conflicts with '{manifestsById[conflictId.ToString()].Name}' - these cannot be enabled together");
+                                errors.Add($"Content '{manifest.Name}' conflicts with '{conflictingManifest.Name}' - these cannot be enabled together");
                                 logger.LogWarning(
                                     "Conflict detected: {ManifestName} conflicts with {ConflictingManifest}",
                                     manifest.Name,
-                                    manifestsById[conflictId.ToString()].Name);
+                                    conflictingManifest.Name);
                             }
                         }
                     }
@@ -1639,7 +1625,8 @@ public class ProfileLauncherFacade(
                         profile.GameClient?.WorkingDirectory);
                     return OperationResult<Core.Models.GameInstallations.GameInstallation>.CreateSuccess(matchingInstallation);
                 }
-                else if (exactPathMatches.Count > 1)
+
+                if (exactPathMatches.Count > 1)
                 {
                     // This should never happen - multiple installations with same path
                     logger.LogWarning(
@@ -1667,14 +1654,15 @@ public class ProfileLauncherFacade(
                         matchingInstallation.Id);
                     return OperationResult<Core.Models.GameInstallations.GameInstallation>.CreateSuccess(matchingInstallation);
                 }
-                else if (gameTypeMatches.Count > 1)
+
+                if (gameTypeMatches.Count > 1)
                 {
                     // Multiple matching installations found - this is dangerous!
                     // Different installations may have different patches/mods.
                     // Require explicit user confirmation for rebinding.
                     var message =
                         $"Found {gameTypeMatches.Count} installations for {profile.GameClient?.GameType}. " +
-                        $"Please edit the profile to manually select the correct installation to avoid conflicts.";
+                        "Please edit the profile to manually select the correct installation to avoid conflicts.";
 
                     logger.LogError(
                         "Profile {ProfileId} installation {OldId} not found. " +
@@ -1690,7 +1678,7 @@ public class ProfileLauncherFacade(
             logger.LogError("Could not resolve or rebind installation for profile {ProfileId}", profile.Id);
             return OperationResult<Core.Models.GameInstallations.GameInstallation>.CreateFailure(
                 $"No valid installation found for {profile.GameClient?.GameType}. " +
-                $"Please verify your game installation and update the profile settings.");
+                "Please verify your game installation and update the profile settings.");
         }
         catch (Exception ex)
         {

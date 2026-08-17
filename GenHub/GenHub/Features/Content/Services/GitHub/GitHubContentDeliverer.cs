@@ -136,7 +136,7 @@ public class GitHubContentDeliverer(
 
             // Check if this is content with archive files (ZIP, 7z, tar.gz, etc.)
             var archiveFiles = downloadedFiles
-                .Where(f => IsArchiveFile(f))
+                .Where(IsArchiveFile)
                 .ToList();
 
             if (archiveFiles.Count > 0)

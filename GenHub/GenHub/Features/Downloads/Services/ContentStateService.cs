@@ -117,40 +117,22 @@ public sealed partial class ContentStateService(
 
         // 2. Resolve the raw content name, falling back to Id as last resort.
         var providerName = string.IsNullOrWhiteSpace(item.ProviderName) ? "unknown" : item.ProviderName;
-        var contentName = string.IsNullOrWhiteSpace(item.Name)
-            ? (string.IsNullOrWhiteSpace(item.Id) ? "unknown" : item.Id)
-            : item.Name;
+        var contentName = item.Name;
+        if (string.IsNullOrWhiteSpace(contentName))
+        {
+            contentName = string.IsNullOrWhiteSpace(item.Id) ? "unknown" : item.Id;
+        }
 
         // 3. Generate prospective manifest ID.
-        string prospectiveId;
-        if (hasRealDate)
-        {
-            prospectiveId = ManifestIdGenerator.GeneratePublisherContentId(
-                providerName,
-                item.ContentType,
-                contentName,
-                releaseDate);
-        }
-        else
-        {
-            prospectiveId = ManifestIdGenerator.GeneratePublisherContentId(
-                providerName,
-                item.ContentType,
-                contentName,
-                userVersion: 0);
-        }
+        var prospectiveId = hasRealDate
+            ? ManifestIdGenerator.GeneratePublisherContentId(providerName, item.ContentType, contentName, releaseDate)
+            : ManifestIdGenerator.GeneratePublisherContentId(providerName, item.ContentType, contentName, userVersion: 0);
 
         logger.LogInformation(
             "Generated prospective manifest ID: {ManifestId} for content: {ContentName} (hasRealDate: {HasDate})",
             prospectiveId,
             item.Name,
             hasRealDate);
-
-        // A completed acquisition stores this exact provider/card identity in the manifest.
-        // Unlike the session map, this survives restarts and also remains correct when a
-        // publisher factory changes the manifest name or creates a game-specific variant.
-        var isFileRow = (!string.IsNullOrEmpty(item.Id) && item.Id.StartsWith("file:", StringComparison.OrdinalIgnoreCase)) ||
-                        !string.IsNullOrWhiteSpace(item.SelectedDownloadUrl);
 
         var persistedManifest = await FindPersistedManifestAsync(item, cancellationToken);
         if (persistedManifest != null)
@@ -300,16 +282,15 @@ public sealed partial class ContentStateService(
         var releaseDate = hasRealDate ? item.LastUpdated!.Value : DateTime.MinValue;
 
         var providerName = string.IsNullOrWhiteSpace(item.ProviderName) ? "unknown" : item.ProviderName;
-        var contentName = string.IsNullOrWhiteSpace(item.Name)
-            ? (string.IsNullOrWhiteSpace(item.Id) ? "unknown" : item.Id)
-            : item.Name;
+        var contentName = item.Name;
+        if (string.IsNullOrWhiteSpace(contentName))
+        {
+            contentName = string.IsNullOrWhiteSpace(item.Id) ? "unknown" : item.Id;
+        }
 
         var prospectiveId = hasRealDate
             ? ManifestIdGenerator.GeneratePublisherContentId(providerName, item.ContentType, contentName, releaseDate)
             : ManifestIdGenerator.GeneratePublisherContentId(providerName, item.ContentType, contentName, userVersion: 0);
-
-        var isFileRow = (!string.IsNullOrEmpty(item.Id) && item.Id.StartsWith("file:", StringComparison.OrdinalIgnoreCase)) ||
-                        !string.IsNullOrWhiteSpace(item.SelectedDownloadUrl);
 
         var persistedManifest = await FindPersistedManifestAsync(item, cancellationToken);
         if (persistedManifest != null)
@@ -572,8 +553,7 @@ public sealed partial class ContentStateService(
             return false;
         }
 
-        var isSuperHackers = (item.ResolverMetadata != null &&
-                              item.ResolverMetadata.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) &&
+        var isSuperHackers = (item.ResolverMetadata?.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) == true &&
                               owner.Equals(PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase)) ||
                              string.Equals(item.ProviderName, PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase) ||
                              string.Equals(item.AuthorName, PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase);
@@ -595,7 +575,7 @@ public sealed partial class ContentStateService(
         }
 
         string? tag = null;
-        if (item.ResolverMetadata != null && item.ResolverMetadata.TryGetValue(GitHubConstants.TagMetadataKey, out var tagVal))
+        if (item.ResolverMetadata?.TryGetValue(GitHubConstants.TagMetadataKey, out var tagVal) == true)
         {
             tag = tagVal;
         }
@@ -675,8 +655,7 @@ public sealed partial class ContentStateService(
             }
         }
 
-        if (item.ResolverMetadata != null &&
-            item.ResolverMetadata.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) &&
+        if (item.ResolverMetadata?.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) == true &&
             !string.IsNullOrWhiteSpace(owner))
         {
             var normalizedOwner = NormalizeSegment(owner);
@@ -719,8 +698,7 @@ public sealed partial class ContentStateService(
             }
         }
 
-        if (item.ResolverMetadata != null &&
-            item.ResolverMetadata.TryGetValue(CatalogConstants.CatalogContentIdMetadataKey, out var catalogContentId) &&
+        if (item.ResolverMetadata?.TryGetValue(CatalogConstants.CatalogContentIdMetadataKey, out var catalogContentId) == true &&
             !string.IsNullOrWhiteSpace(catalogContentId))
         {
             var normalizedCatalogId = NormalizeSegment(catalogContentId);
@@ -730,8 +708,7 @@ public sealed partial class ContentStateService(
             }
         }
 
-        if (item.ResolverMetadata != null &&
-            item.ResolverMetadata.TryGetValue(CommunityOutpostCatalogConstants.ContentCodeKey, out var contentCode) &&
+        if (item.ResolverMetadata?.TryGetValue(CommunityOutpostCatalogConstants.ContentCodeKey, out var contentCode) == true &&
             !string.IsNullOrWhiteSpace(contentCode))
         {
             var normalizedCode = NormalizeSegment(contentCode);
@@ -741,8 +718,7 @@ public sealed partial class ContentStateService(
             }
         }
 
-        if (item.ResolverMetadata != null &&
-            item.ResolverMetadata.TryGetValue(GitHubConstants.RepoMetadataKey, out var repoName) &&
+        if (item.ResolverMetadata?.TryGetValue(GitHubConstants.RepoMetadataKey, out var repoName) == true &&
             !string.IsNullOrWhiteSpace(repoName))
         {
             var normalizedRepo = NormalizeSegment(repoName);
@@ -752,8 +728,7 @@ public sealed partial class ContentStateService(
             }
         }
 
-        if (item.ResolverMetadata != null &&
-            item.ResolverMetadata.TryGetValue(ModDBConstants.ContentIdMetadataKey, out var moddbId) &&
+        if (item.ResolverMetadata?.TryGetValue(ModDBConstants.ContentIdMetadataKey, out var moddbId) == true &&
             !string.IsNullOrWhiteSpace(moddbId))
         {
             var normalizedModDbId = NormalizeSegment(moddbId);
@@ -818,12 +793,10 @@ public sealed partial class ContentStateService(
                 var itemVariant = ExtractVariantToken(item.Name) ?? ExtractVariantToken(item.Id);
                 var manifestVariant = ExtractVariantToken(manifest.Name) ?? ExtractVariantToken(segments[4]);
 
-                if (!string.IsNullOrEmpty(itemVariant) || !string.IsNullOrEmpty(manifestVariant))
+                if ((!string.IsNullOrEmpty(itemVariant) || !string.IsNullOrEmpty(manifestVariant)) &&
+                    !string.Equals(itemVariant, manifestVariant, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (!string.Equals(itemVariant, manifestVariant, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return false;
-                    }
+                    return false;
                 }
 
                 return candidatePublishers.Any(p => string.Equals(segments[2], p, StringComparison.OrdinalIgnoreCase) || IsCompatiblePublisherAlias(segments[2], p))
@@ -1038,10 +1011,9 @@ public sealed partial class ContentStateService(
         {
             var downloadUrl = item.SelectedDownloadUrl;
             var urlMatch = manifests.FirstOrDefault(manifest =>
-                manifest.Files != null &&
-                manifest.Files.Any(file =>
+                manifest.Files?.Any(file =>
                     !string.IsNullOrWhiteSpace(file.DownloadUrl) &&
-                    string.Equals(file.DownloadUrl, downloadUrl, StringComparison.OrdinalIgnoreCase)));
+                    string.Equals(file.DownloadUrl, downloadUrl, StringComparison.OrdinalIgnoreCase)) == true);
             if (urlMatch != null)
             {
                 return urlMatch;
@@ -1142,12 +1114,10 @@ public sealed partial class ContentStateService(
             var prospectiveVariant = ExtractVariantToken(normProspectiveName);
             var manifestVariant = ExtractVariantToken(manifest.Name) ?? ExtractVariantToken(normManifestName);
 
-            if (!string.IsNullOrEmpty(prospectiveVariant) || !string.IsNullOrEmpty(manifestVariant))
+            if ((!string.IsNullOrEmpty(prospectiveVariant) || !string.IsNullOrEmpty(manifestVariant)) &&
+                !string.Equals(prospectiveVariant, manifestVariant, StringComparison.OrdinalIgnoreCase))
             {
-                if (!string.Equals(prospectiveVariant, manifestVariant, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
+                continue;
             }
 
             var manifestBase = StripVariantSuffix(normManifestName);
@@ -1166,11 +1136,19 @@ public sealed partial class ContentStateService(
 
                 // Keep the one with the highest version (newest). Compare numerically when both
                 // segments are integers so "100" outranks "9"; fall back to ordinal otherwise.
-                int comparison = bestMatch == null
-                    ? 1
-                    : int.TryParse(existingVersion, out var existingInt) && int.TryParse(bestMatchVersion, out var bestInt)
-                        ? existingInt.CompareTo(bestInt)
-                        : string.CompareOrdinal(existingVersion, bestMatchVersion);
+                int comparison;
+                if (bestMatch == null)
+                {
+                    comparison = 1;
+                }
+                else if (int.TryParse(existingVersion, out var existingInt) && int.TryParse(bestMatchVersion, out var bestInt))
+                {
+                    comparison = existingInt.CompareTo(bestInt);
+                }
+                else
+                {
+                    comparison = string.CompareOrdinal(existingVersion, bestMatchVersion);
+                }
 
                 if (comparison > 0)
                 {

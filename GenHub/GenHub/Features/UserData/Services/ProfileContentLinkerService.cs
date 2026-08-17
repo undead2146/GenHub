@@ -301,7 +301,7 @@ public class ProfileContentLinkerService(
             }
 
             // Activate if this is the active profile
-            bool shouldActivate;
+            bool shouldActivate = false;
             lock (_activeProfileLock)
             {
                 shouldActivate = _activeProfileId == profileId;

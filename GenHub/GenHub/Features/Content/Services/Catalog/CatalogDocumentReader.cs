@@ -81,7 +81,7 @@ public static class CatalogDocumentReader
         using var memoryStream = new MemoryStream();
         var buffer = new byte[8192];
         long totalBytesRead = 0;
-        int bytesRead;
+        int bytesRead = 0;
 
         while ((bytesRead = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
         {

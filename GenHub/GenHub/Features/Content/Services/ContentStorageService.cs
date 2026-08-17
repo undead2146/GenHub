@@ -68,15 +68,9 @@ public class ContentStorageService : IContentStorageService
                     {
                         // If SourcePath is absolute, we strictly enforce it must be within baseDirectory
                         // If it is relative, we combine and check traversal
-                        string fullSource;
-                        if (Path.IsPathRooted(file.SourcePath))
-                        {
-                            fullSource = Path.GetFullPath(file.SourcePath);
-                        }
-                        else
-                        {
-                            fullSource = Path.GetFullPath(Path.Combine(baseDirectory, file.SourcePath));
-                        }
+                        var fullSource = Path.IsPathRooted(file.SourcePath)
+                            ? Path.GetFullPath(file.SourcePath)
+                            : Path.GetFullPath(Path.Combine(baseDirectory, file.SourcePath));
 
                         if (!fullSource.StartsWith(normalizedBase, StringComparison.OrdinalIgnoreCase))
                         {
@@ -712,8 +706,8 @@ public class ContentStorageService : IContentStorageService
                 });
 
                 // Store file based on its SourceType
-                string hash;
-                long fileSize;
+                string hash = string.Empty;
+                long fileSize = 0;
 
                 if (manifestFile.SourceType == ContentSourceType.ContentAddressable)
                 {

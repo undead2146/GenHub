@@ -1035,7 +1035,7 @@ public class PlaywrightService(
     /// </summary>
     private async Task<IPage> CreatePersistentPageWithRecoveryAsync(string profileDir, CancellationToken cancellationToken)
     {
-        IPage page;
+        IPage page = null!;
         try
         {
             await _persistentLock.WaitAsync(cancellationToken);
@@ -1107,7 +1107,7 @@ public class PlaywrightService(
             return;
         }
 
-        List<IPage> pages;
+        List<IPage> pages = [];
         try
         {
             pages = [.. _persistentContext.Pages];
@@ -1126,7 +1126,7 @@ public class PlaywrightService(
                 continue;
             }
 
-            string url;
+            string url = string.Empty;
             try
             {
                 url = existing.Url ?? string.Empty;

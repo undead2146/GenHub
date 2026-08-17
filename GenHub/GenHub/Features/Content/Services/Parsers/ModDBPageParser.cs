@@ -290,15 +290,10 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         var thumbnailUrl = imgEl?.GetAttribute("src") ?? imgEl?.GetAttribute("data-src");
         if (!string.IsNullOrEmpty(thumbnailUrl))
         {
-            if (thumbnailUrl.Contains("blank.gif", StringComparison.OrdinalIgnoreCase) ||
-                thumbnailUrl.Contains("clear.gif", StringComparison.OrdinalIgnoreCase))
-            {
-                thumbnailUrl = null;
-            }
-            else
-            {
-                thumbnailUrl = ToAbsoluteUrl(thumbnailUrl);
-            }
+            thumbnailUrl = (thumbnailUrl.Contains("blank.gif", StringComparison.OrdinalIgnoreCase) ||
+                            thumbnailUrl.Contains("clear.gif", StringComparison.OrdinalIgnoreCase))
+                ? null
+                : ToAbsoluteUrl(thumbnailUrl);
         }
 
         var summaryEl = row.QuerySelector("p.summary, .summary, p, div.summary");
@@ -411,6 +406,8 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
                 case "md5 hash":
                 case "md5":
                     md5Hash = content;
+                    break;
+                default:
                     break;
             }
         }
@@ -1295,8 +1292,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             var isNested = row.Ancestors<IElement>().Any(a =>
                 a.ClassList.Contains("children") ||
                 a.ClassList.Contains("rowcomment") ||
-                (a.Id != null &&
-                 a.Id.StartsWith("comment", StringComparison.OrdinalIgnoreCase) &&
+                (a.Id?.StartsWith("comment", StringComparison.OrdinalIgnoreCase) == true &&
                  !a.Id.StartsWith("comments", StringComparison.OrdinalIgnoreCase)));
 
             if (!isNested)
@@ -1371,14 +1367,9 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             var dateStr = dateEl.GetAttribute("datetime") ?? dateEl.TextContent?.Trim();
             if (!string.IsNullOrEmpty(dateStr))
             {
-                if (DateTime.TryParse(dateStr, out var parsedDate))
-                {
-                    date = parsedDate;
-                }
-                else
-                {
-                    date = ParseModDBDate(dateStr);
-                }
+                date = DateTime.TryParse(dateStr, out var parsedDate)
+                    ? parsedDate
+                    : ParseModDBDate(dateStr);
             }
         }
 
@@ -1415,8 +1406,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
                     .TakeWhile(a => a != childrenContainer)
                     .FirstOrDefault(a =>
                         a.ClassList.Contains("rowcomment") ||
-                        (a.Id != null &&
-                         a.Id.StartsWith("comment", StringComparison.OrdinalIgnoreCase) &&
+                        (a.Id?.StartsWith("comment", StringComparison.OrdinalIgnoreCase) == true &&
                          !a.Id.StartsWith("comments", StringComparison.OrdinalIgnoreCase)));
 
                 if (intermediateParent == null)
@@ -1562,12 +1552,10 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             return null;
         }
 
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+            !Uri.TryCreate(new Uri(ModDBConstants.BaseUrl), url, out uri))
         {
-            if (!Uri.TryCreate(new Uri(ModDBConstants.BaseUrl), url, out uri))
-            {
-                return url.Trim().TrimEnd('/').ToLowerInvariant();
-            }
+            return url.Trim().TrimEnd('/').ToLowerInvariant();
         }
 
         var path = uri.AbsolutePath.TrimEnd('/');
@@ -1737,7 +1725,15 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
     {
         var preferRightName = LooksLikeArchiveFileName(left.Name) && !LooksLikeArchiveFileName(right.Name);
         var preferLeftName = !LooksLikeArchiveFileName(left.Name) && LooksLikeArchiveFileName(right.Name);
-        var finalName = preferRightName ? right.Name : (preferLeftName ? left.Name : (left.Name ?? right.Name));
+        var finalName = left.Name ?? right.Name;
+        if (preferRightName)
+        {
+            finalName = right.Name;
+        }
+        else if (preferLeftName)
+        {
+            finalName = left.Name;
+        }
 
         var finalFilename = left.Filename ?? right.Filename;
         if (string.IsNullOrEmpty(finalFilename))
@@ -1783,7 +1779,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
 
         return left with
         {
-            Name = finalName,
+            Name = finalName ?? left.Name ?? string.Empty,
             Filename = finalFilename,
             DownloadUrl = bestDownloadUrl,
             DetailsUrl = bestDetailsUrl,
@@ -1873,9 +1869,12 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             }
             else
             {
-                var betterTitle = IsUsableVideoTitle(existing.Title)
-                    ? existing.Title
-                    : (IsUsableVideoTitle(video.Title) ? video.Title : existing.Title);
+                var betterTitle = existing.Title;
+                if (!IsUsableVideoTitle(betterTitle) && IsUsableVideoTitle(video.Title))
+                {
+                    betterTitle = video.Title;
+                }
+
                 var betterThumb = !string.IsNullOrWhiteSpace(existing.ThumbnailUrl)
                     ? existing.ThumbnailUrl
                     : video.ThumbnailUrl;
@@ -3068,17 +3067,12 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             if (!string.IsNullOrWhiteSpace(anchorHref))
             {
                 var absAnchor = ToAbsoluteUrl(anchorHref);
-                if (absAnchor.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
-                    absAnchor.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
-                    absAnchor.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
-                    absAnchor.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
-                {
-                    fullUrl = absAnchor;
-                }
-                else
-                {
-                    fullUrl = GetFullSizeModDBImageUrl(fullUrl);
-                }
+                var isDirectImage = absAnchor.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                                    absAnchor.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
+                                    absAnchor.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+                                    absAnchor.EndsWith(".webp", StringComparison.OrdinalIgnoreCase);
+
+                fullUrl = isDirectImage ? absAnchor : GetFullSizeModDBImageUrl(fullUrl);
             }
             else
             {
@@ -3103,7 +3097,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         {
             sectionType = FileSectionType.Addons;
         }
-        else if (category != null && category.Contains("addon", StringComparison.OrdinalIgnoreCase))
+        else if (category?.Contains("addon", StringComparison.OrdinalIgnoreCase) == true)
         {
             sectionType = FileSectionType.Addons;
         }

@@ -41,14 +41,7 @@ public partial class StaticPublisherFilterViewModel : FilterPanelViewModelBase
     {
         ArgumentNullException.ThrowIfNull(baseQuery);
 
-        if (SelectedContentType.HasValue)
-        {
-            baseQuery.ContentType = SelectedContentType;
-        }
-        else
-        {
-            baseQuery.ContentType = null;
-        }
+        baseQuery.ContentType = SelectedContentType;
 
         return baseQuery;
     }

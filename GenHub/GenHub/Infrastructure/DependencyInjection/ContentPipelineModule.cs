@@ -358,14 +358,11 @@ public static class ContentPipelineModule
             httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
             httpClient.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8");
             httpClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9");
-        }).ConfigurePrimaryHttpMessageHandler(() =>
+        }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
         {
-            return new HttpClientHandler
-            {
-                AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate | System.Net.DecompressionMethods.Brotli,
-                CookieContainer = new System.Net.CookieContainer(),
-                UseCookies = true,
-            };
+            AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate | System.Net.DecompressionMethods.Brotli,
+            CookieContainer = new System.Net.CookieContainer(),
+            UseCookies = true,
         });
 
         // Register Playwright service for web page parsing (singleton for shared browser instance)

@@ -73,7 +73,7 @@ internal sealed class ManagedChromiumRuntime(
 
         logger.LogInformation("Managed Chromium install consented. Installing under {RuntimeDirectory}", runtimeDirectory);
 
-        int exitCode;
+        int exitCode = 0;
         try
         {
             exitCode = await Task.Run(

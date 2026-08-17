@@ -146,6 +146,11 @@ public partial class ContentDetailViewModel(
     public ObservableCollection<string> Screenshots { get; } = new(searchResult.ScreenshotUrls);
 
     /// <summary>
+    /// Gets the collection of tags associated with the content.
+    /// </summary>
+    public ObservableCollection<string> Tags { get; } = new(searchResult.Tags);
+
+    /// <summary>
     /// Gets a value indicating whether there are multiple screenshots to display.
     /// </summary>
     public bool HasMultipleScreenshots => Screenshots.Count > 1;
@@ -238,11 +243,23 @@ public partial class ContentDetailViewModel(
     /// <summary>
     /// Gets the category or type description of the active download target.
     /// </summary>
-    public string SelectedTargetCategory => SelectedDownloadableItem != null
-        ? (!string.IsNullOrWhiteSpace(SelectedDownloadableItem.Category)
-            ? SelectedDownloadableItem.Category
-            : (SelectedDownloadableItem is ReleaseItemViewModel ? "Release" : "Addon"))
-        : ContentType.GetDisplayName();
+    public string SelectedTargetCategory
+    {
+        get
+        {
+            if (SelectedDownloadableItem == null)
+            {
+                return ContentType.GetDisplayName();
+            }
+
+            if (!string.IsNullOrWhiteSpace(SelectedDownloadableItem.Category))
+            {
+                return SelectedDownloadableItem.Category;
+            }
+
+            return SelectedDownloadableItem is ReleaseItemViewModel ? "Release" : "Addon";
+        }
+    }
 
     [ObservableProperty]
     private string? _fullScreenMediaUrl;
@@ -461,7 +478,7 @@ public partial class ContentDetailViewModel(
         foreach (var c in comments)
         {
             list.Add(c);
-            if (c.Replies != null && c.Replies.Count > 0)
+            if (c.Replies is { Count: > 0 })
             {
                 list.AddRange(FlattenComments(c.Replies));
             }
@@ -919,6 +936,8 @@ public partial class ContentDetailViewModel(
                         IsDownloaded = false;
                         IsUpdateAvailable = false;
                         break;
+                    default:
+                        break;
                 }
 
                 logger.LogDebug("Content state updated for {ContentId}: {State}", e.ContentId, e.NewState);
@@ -1159,7 +1178,7 @@ public partial class ContentDetailViewModel(
 
             logger.LogInformation("Parsing web page: {Url}", searchResult.SourceUrl);
 
-            ParsedWebPage parsedPage;
+            ParsedWebPage parsedPage = null!;
             var isModDb = string.Equals(parser.ParserId, ModDBConstants.ResolverId, StringComparison.OrdinalIgnoreCase);
             if (isModDb)
             {
@@ -1324,12 +1343,10 @@ public partial class ContentDetailViewModel(
             }
         }
         else if (searchResult.SourceUrl?.Contains("/mods/", StringComparison.OrdinalIgnoreCase) == true &&
-                 !searchResult.SourceUrl.Contains("/addons/", StringComparison.OrdinalIgnoreCase))
+                 !searchResult.SourceUrl.Contains("/addons/", StringComparison.OrdinalIgnoreCase) &&
+                 (SelectedContentType == ContentType.Addon || SelectedContentType == ContentType.UnknownContentType))
         {
-            if (SelectedContentType == ContentType.Addon || SelectedContentType == ContentType.UnknownContentType)
-            {
-                SelectedContentType = ContentType.Mod;
-            }
+            SelectedContentType = ContentType.Mod;
         }
 
         // Update parsed content collections
@@ -1469,7 +1486,7 @@ public partial class ContentDetailViewModel(
                 }
             }
 
-            if (catalogItem.Releases != null && catalogItem.Releases.Count > 0)
+            if (catalogItem.Releases is { Count: > 0 })
             {
                 Releases.Clear();
                 var sortedCatalogReleases = catalogItem.Releases
@@ -1879,7 +1896,7 @@ public partial class ContentDetailViewModel(
     {
         get
         {
-            if (SelectedDownloadableItem != null && SelectedDownloadableItem.FileSize > 0)
+            if (SelectedDownloadableItem is { FileSize: > 0 })
             {
                 return SelectedDownloadableItem.FileSize;
             }
@@ -2091,36 +2108,64 @@ public partial class ContentDetailViewModel(
         !string.IsNullOrWhiteSpace(RequiredDependenciesSummary) ? "Requires" : "Includes";
 
     /// <summary>
-    /// Gets the tags.
-    /// </summary>
-    public IList<string> Tags => searchResult.Tags;
-
-    /// <summary>
     /// Gets a value indicating whether the Download button should be shown.
     /// </summary>
-    public bool ShowDownloadButton => HasBundleComponents
-        ? !AreBundleComponentsReadyForProfile && !IsDownloading
-        : (SelectedDownloadableItem != null
-            ? !SelectedDownloadableItem.IsDownloaded && !SelectedDownloadableItem.IsDownloading && !SelectedDownloadableItem.IsUpdateAvailable
-            : !IsDownloaded && !IsUpdateAvailable);
+    public bool ShowDownloadButton
+    {
+        get
+        {
+            if (HasBundleComponents)
+            {
+                return !AreBundleComponentsReadyForProfile && !IsDownloading;
+            }
+
+            if (SelectedDownloadableItem != null)
+            {
+                return !SelectedDownloadableItem.IsDownloaded && !SelectedDownloadableItem.IsDownloading && !SelectedDownloadableItem.IsUpdateAvailable;
+            }
+
+            return !IsDownloaded && !IsUpdateAvailable;
+        }
+    }
 
     /// <summary>
     /// Gets a value indicating whether the Update button should be shown.
     /// </summary>
-    public bool ShowUpdateButton => HasBundleComponents
-        ? false
-        : (SelectedDownloadableItem != null
-            ? SelectedDownloadableItem.IsUpdateAvailable && !SelectedDownloadableItem.IsDownloading
-            : IsUpdateAvailable && !IsDownloading);
+    public bool ShowUpdateButton
+    {
+        get
+        {
+            if (HasBundleComponents)
+            {
+                return false;
+            }
+
+            if (SelectedDownloadableItem != null)
+            {
+                return SelectedDownloadableItem.IsUpdateAvailable && !SelectedDownloadableItem.IsDownloading;
+            }
+
+            return IsUpdateAvailable && !IsDownloading;
+        }
+    }
 
     /// <summary>
     /// Gets a value indicating whether the Add to Profile button should be shown.
     /// </summary>
-    public bool ShowAddToProfileButton => HasBundleComponents
-        ? AreBundleComponentsReadyForProfile
-        : (SelectedDownloadableItem != null
-            ? SelectedDownloadableItem.IsDownloaded
-            : IsDownloaded);
+    public bool ShowAddToProfileButton
+    {
+        get
+        {
+            if (HasBundleComponents)
+            {
+                return AreBundleComponentsReadyForProfile;
+            }
+
+            return SelectedDownloadableItem != null
+                ? SelectedDownloadableItem.IsDownloaded
+                : IsDownloaded;
+        }
+    }
 
     /// <summary>
     /// Gets a value indicating whether the content type can be manually changed.
@@ -2479,6 +2524,16 @@ public partial class ContentDetailViewModel(
             fileContentType = file.FileSectionType == FileSectionType.Downloads ? ContentType.Mod : searchResult.ContentType;
         }
 
+        var rowVersion = CommunityOutpostCatalogConstants.DefaultMetadataVersion;
+        if (!string.IsNullOrWhiteSpace(file.Version))
+        {
+            rowVersion = file.Version;
+        }
+        else if (!string.IsNullOrWhiteSpace(searchResult.Version))
+        {
+            rowVersion = searchResult.Version;
+        }
+
         var rowSearchResult = new ContentSearchResult
         {
             // A row download must not reuse the parent catalog ID. The coordinator publishes
@@ -2486,11 +2541,7 @@ public partial class ContentDetailViewModel(
             // downloaded and make its Add to Profile action target whichever row finished last.
             Id = CreateFileContentId(file),
             Name = file.Name ?? file.DownloadUrl!,
-            Version = !string.IsNullOrWhiteSpace(file.Version)
-                ? file.Version
-                : (!string.IsNullOrWhiteSpace(searchResult.Version)
-                    ? searchResult.Version
-                    : CommunityOutpostCatalogConstants.DefaultMetadataVersion),
+            Version = rowVersion,
             ProviderName = searchResult.ProviderName,
             ContentType = fileContentType,
             TargetGame = searchResult.TargetGame,
@@ -3116,9 +3167,8 @@ public partial class ContentDetailViewModel(
         {
             var manifestId = variant.ManifestId;
             ContentSearchResult? sibling = null;
-            if (variantSearchResults != null &&
-                !string.IsNullOrEmpty(manifestId) &&
-                variantSearchResults.TryGetValue(manifestId, out var sr))
+            if (!string.IsNullOrEmpty(manifestId) &&
+                variantSearchResults?.TryGetValue(manifestId, out var sr) == true)
             {
                 sibling = sr;
             }
@@ -3160,7 +3210,9 @@ public partial class ContentDetailViewModel(
                 Uploader = itemAuthor,
                 Filename = itemFilename,
                 FullDescription = itemDescription,
-                TargetGame = sibling?.TargetGame != GameType.Unknown ? sibling?.TargetGame.ToString() : (searchResult.TargetGame != GameType.Unknown ? searchResult.TargetGame.ToString() : null),
+                TargetGame = sibling?.TargetGame is not null and not GameType.Unknown
+                    ? sibling.TargetGame.ToString()
+                    : (searchResult.TargetGame != GameType.Unknown ? searchResult.TargetGame.ToString() : null),
                 IsDetailsLoaded = true,
                 File = file,
                 IsDownloaded = variant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable,
@@ -3180,7 +3232,7 @@ public partial class ContentDetailViewModel(
             releaseItem.SelectCommand = new RelayCommand(
                 () =>
                 {
-                    if (variantSearchResults != null && variantSearchResults.TryGetValue(manifestId, out var swapSr))
+                    if (variantSearchResults?.TryGetValue(manifestId, out var swapSr) == true)
                     {
                         VariantSwap.Apply(searchResult, swapSr);
                         SelectedVariant = variant;
@@ -3192,7 +3244,7 @@ public partial class ContentDetailViewModel(
 
             releaseItem.DownloadCommand = new AsyncRelayCommand(async () =>
             {
-                if (variantSearchResults != null && variantSearchResults.TryGetValue(manifestId, out var swapSr))
+                if (variantSearchResults?.TryGetValue(manifestId, out var swapSr) == true)
                 {
                     VariantSwap.Apply(searchResult, swapSr);
                     SelectedVariant = variant;
@@ -3203,7 +3255,7 @@ public partial class ContentDetailViewModel(
 
             releaseItem.AddToProfileCommand = new AsyncRelayCommand(async () =>
             {
-                if (variantSearchResults != null && variantSearchResults.TryGetValue(manifestId, out var swapSr))
+                if (variantSearchResults?.TryGetValue(manifestId, out var swapSr) == true)
                 {
                     VariantSwap.Apply(searchResult, swapSr);
                     SelectedVariant = variant;
@@ -3521,7 +3573,7 @@ public partial class ContentDetailViewModel(
         !string.IsNullOrEmpty(file.Filename) ||
         !string.IsNullOrEmpty(file.Md5Hash) ||
         file.DownloadCount.HasValue ||
-        (file.PreviewImages != null && file.PreviewImages.Count > 0) ||
+        (file.PreviewImages is { Count: > 0 }) ||
         !string.IsNullOrEmpty(file.Description);
 
     private async Task PreloadRecentItemDetailsCoreAsync(CancellationToken cancellationToken = default)
@@ -3740,9 +3792,23 @@ public partial class ContentDetailViewModel(
     /// <summary>
     /// Gets the publisher display name.
     /// </summary>
-    public string PublisherDisplayName => !string.IsNullOrWhiteSpace(PublisherProfile?.Name)
-        ? PublisherProfile.Name
-        : (!string.IsNullOrWhiteSpace(searchResult.ProviderName) ? searchResult.ProviderName : (searchResult.AuthorName ?? "Publisher"));
+    public string PublisherDisplayName
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(PublisherProfile?.Name))
+            {
+                return PublisherProfile.Name;
+            }
+
+            if (!string.IsNullOrWhiteSpace(searchResult.ProviderName))
+            {
+                return searchResult.ProviderName;
+            }
+
+            return searchResult.AuthorName ?? "Publisher";
+        }
+    }
 
     /// <summary>
     /// Gets the publisher avatar or logo URL.

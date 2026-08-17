@@ -59,7 +59,7 @@ public class GitHubManifestFactory(
             originalManifest.TargetGame,
             cancellationToken);
 
-        if (controlBarProcessor != null && controlBarProcessor.IsControlBarContent(extractedDirectory, originalManifest))
+        if (controlBarProcessor?.IsControlBarContent(extractedDirectory, originalManifest) == true)
         {
             logger.LogInformation("Detected Control Bar content in GitHub payload, repacking into BIG archives");
             await controlBarProcessor.ProcessAndRepackControlBarAsync(

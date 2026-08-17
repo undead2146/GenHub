@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
@@ -123,7 +124,12 @@ public partial class AddLocalContentWindow : Window
         Close();
     }
 
-    private async void OnAdminDrop(string[] files)
+    private void OnAdminDrop(string[] files)
+    {
+        _ = HandleAdminDropAsync(files);
+    }
+
+    private async Task HandleAdminDropAsync(string[] files)
     {
         if (DataContext is not AddLocalContentViewModel vm) return;
 
@@ -140,14 +146,7 @@ public partial class AddLocalContentWindow : Window
 
     private void OnDragOver(object? sender, DragEventArgs e)
     {
-        if (e.Data.Contains(DataFormats.Files))
-        {
-            e.DragEffects = DragDropEffects.Copy;
-        }
-        else
-        {
-            e.DragEffects = DragDropEffects.None;
-        }
+        e.DragEffects = e.Data.Contains(DataFormats.Files) ? DragDropEffects.Copy : DragDropEffects.None;
     }
 
     private async void OnDrop(object? sender, DragEventArgs e)

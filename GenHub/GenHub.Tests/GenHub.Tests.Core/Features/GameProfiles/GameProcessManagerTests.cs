@@ -298,19 +298,9 @@ public class GameProcessManagerTests
     public async Task TerminateProcessAsync_WithRunningProcess_ShouldReturnSuccessAsync()
     {
         // Arrange - Use cross-platform approach
-        string tempExe = string.Empty;
-        string scriptContent = string.Empty;
-
-        if (OperatingSystem.IsWindows())
-        {
-            tempExe = Path.GetTempFileName() + ".bat";
-            scriptContent = "@echo off\nping -n 6 127.0.0.1 >nul\n";
-        }
-        else
-        {
-            tempExe = Path.GetTempFileName() + ".sh";
-            scriptContent = "#!/bin/bash\nping -c 5 127.0.0.1 > /dev/null\n";
-        }
+        var isWindows = OperatingSystem.IsWindows();
+        var tempExe = isWindows ? Path.GetTempFileName() + ".bat" : Path.GetTempFileName() + ".sh";
+        var scriptContent = isWindows ? "@echo off\nping -n 6 127.0.0.1 >nul\n" : "#!/bin/bash\nping -c 5 127.0.0.1 > /dev/null\n";
 
         await File.WriteAllTextAsync(tempExe, scriptContent);
 

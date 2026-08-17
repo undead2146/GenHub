@@ -447,7 +447,7 @@ public class UserDataTrackerService(
             foreach (var file in manifestFiles)
             {
                 var manifest = await LoadUserDataManifestFromFileAsync(file, cancellationToken);
-                if (manifest is { TargetGame: var manifestGame } && manifestGame == targetGame)
+                if (manifest?.TargetGame == targetGame)
                 {
                     manifests.Add(manifest);
                 }
@@ -507,8 +507,7 @@ public class UserDataTrackerService(
                     continue;
                 }
 
-                if (!file.IsHardLink &&
-                    !await fileOperations.VerifyFileHashAsync(file.AbsolutePath, file.SourceHash, cancellationToken))
+                if (!file.IsHardLink && !await fileOperations.VerifyFileHashAsync(file.AbsolutePath, file.SourceHash, cancellationToken))
                 {
                     logger.LogWarning("[UserData] File hash mismatch: {Path}", file.AbsolutePath);
                     allValid = false;

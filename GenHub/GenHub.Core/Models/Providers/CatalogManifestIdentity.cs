@@ -142,14 +142,9 @@ public static class CatalogManifestIdentity
             return 0;
         }
 
-        if (cleanVersion.StartsWith("weekly-", StringComparison.OrdinalIgnoreCase))
-        {
-            cleanVersion = cleanVersion["weekly-".Length..].Trim();
-        }
-        else
-        {
-            cleanVersion = cleanVersion.TrimStart('v', 'V').Trim();
-        }
+        cleanVersion = cleanVersion.StartsWith("weekly-", StringComparison.OrdinalIgnoreCase)
+            ? cleanVersion["weekly-".Length..].Trim()
+            : cleanVersion.TrimStart('v', 'V').Trim();
 
         try
         {

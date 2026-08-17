@@ -92,8 +92,10 @@ public class GameProfileItemViewModelTests
         mockProfile.SetupGet(p => p.Version).Returns("1.0");
         mockProfile.SetupGet(p => p.ExecutablePath).Returns("C:/fake/path.exe");
 
-        var vm = new GameProfileItemViewModel("test-profile-id", mockProfile.Object, "icon.png", "cover.jpg");
-        vm.CopyProfileAction = _ => Task.CompletedTask;
+        var vm = new GameProfileItemViewModel("test-profile-id", mockProfile.Object, "icon.png", "cover.jpg")
+        {
+            CopyProfileAction = _ => Task.CompletedTask,
+        };
 
         // Act & Assert
         Assert.True(vm.CopyProfileCommand.CanExecute(null));

@@ -289,10 +289,7 @@ public partial class App : Application
         }
 
         singleInstanceManager.CommandReceived += (_, command) =>
-        {
-            // Dispatch to UI thread since the event comes from a background pipe listener
             Dispatcher.UIThread.Post(() => HandleSingleInstanceCommand(command, mainWindow));
-        };
 
         var logger = _serviceProvider.GetService<ILogger<App>>();
         logger?.LogDebug("Subscribed to single instance IPC commands");

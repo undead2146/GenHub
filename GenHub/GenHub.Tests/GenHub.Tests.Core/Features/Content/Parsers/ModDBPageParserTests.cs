@@ -590,7 +590,7 @@ public sealed class ModDBPageParserTests
         Assert.Contains(images, image => image.Title.Contains("ICBM", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(images, image => image.Title.Contains("Spectre", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(images, image => image.Title.Contains("Share", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(images, image => image.ThumbnailUrl != null && image.ThumbnailUrl.StartsWith("data:", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(images, image => image.ThumbnailUrl?.StartsWith("data:", StringComparison.OrdinalIgnoreCase) == true);
         Assert.All(images, image => Assert.DoesNotContain("crop_", image.ThumbnailUrl ?? string.Empty));
         Assert.All(images, image => Assert.DoesNotContain("/cache/", image.ThumbnailUrl ?? string.Empty));
     }
@@ -1330,7 +1330,7 @@ public sealed class ModDBPageParserTests
     [InlineData("188.3kb", 192819L)]
     [InlineData("9,72 MB", 10192158L)]
     [InlineData("1.07mb (1,125,450 bytes)", 1125450L)]
-    [InlineData("289.6 MB", 303667609L)]
+    [InlineData("289.6 MB", 303_667_609L)]
     public async Task ParseFileDetailAsync_WithVariousSizeFormats_CorrectlyParsesSizeBytes(string sizeString, long expectedBytes)
     {
         // Arrange

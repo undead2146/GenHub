@@ -87,7 +87,7 @@ public class ImageCacheServiceTests
     [Theory]
     [InlineData("https://example.com/image.png")]
     [InlineData("https://cdn.playgenerals.online/images/cover.jpg")]
-    [InlineData("http://8.8.8.8/image.jpg")]
+    [InlineData("https://8.8.8.8/image.jpg")]
     public void IsSafeRemoteUrl_SafeUrl_ReturnsTrue(string url)
     {
         var result = ImageCacheService.IsSafeRemoteUrl(url, out var uri);

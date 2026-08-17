@@ -23,13 +23,13 @@ namespace GenHub.Tests.Core.Features.Content;
 /// </summary>
 public class ContentOrchestratorTests
 {
-    private readonly Mock<IDynamicContentCache> _cacheMock = default!;
-    private readonly Mock<IContentValidator> _contentValidatorMock = default!;
-    private readonly Mock<IContentManifestPool> _manifestPoolMock = default!;
-    private readonly Mock<IGameInstallationService> _installationServiceMock = default!;
-    private readonly Mock<IInstallationCasPoolService> _installationCasPoolServiceMock = default!;
-    private readonly Mock<ILogger<ContentOrchestrator>> _loggerMock = default!;
-    private readonly Mock<PublisherManifestFactoryResolver> _factoryResolverMock = default!;
+    private readonly Mock<IDynamicContentCache> _cacheMock;
+    private readonly Mock<IContentValidator> _contentValidatorMock;
+    private readonly Mock<IContentManifestPool> _manifestPoolMock;
+    private readonly Mock<IGameInstallationService> _installationServiceMock;
+    private readonly Mock<IInstallationCasPoolService> _installationCasPoolServiceMock;
+    private readonly Mock<ILogger<ContentOrchestrator>> _loggerMock;
+    private readonly Mock<PublisherManifestFactoryResolver> _factoryResolverMock;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ContentOrchestratorTests"/> class.

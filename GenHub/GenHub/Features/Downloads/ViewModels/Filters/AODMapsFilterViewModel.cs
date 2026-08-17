@@ -13,13 +13,6 @@ namespace GenHub.Features.Downloads.ViewModels.Filters;
 /// </summary>
 public partial class AODMapsFilterViewModel : FilterPanelViewModelBase
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AODMapsFilterViewModel"/> class.
-    /// </summary>
-    public AODMapsFilterViewModel()
-    {
-    }
-
     /// <inheritdoc />
     public override string PublisherId => AODMapsConstants.PublisherType;
 

@@ -460,7 +460,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
                 {
                     // Normalize version to handle Unknown, Auto-Updated, and Automatically added cases
                     var version = gameProfile.GameClient.Version;
-                    if (version.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase) ||
+                    GameVersion = (version.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase) ||
                         version.Equals(GameClientConstants.UnknownVersion, StringComparison.OrdinalIgnoreCase) ||
                         version.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase) ||
                         version.Contains("Automatically", StringComparison.OrdinalIgnoreCase) ||
@@ -469,13 +469,8 @@ public partial class GameProfileItemViewModel : ViewModelBase
                         version == "0.0.0" ||
                         version == "0.0.0.0" ||
                         version.Equals("v0", StringComparison.OrdinalIgnoreCase))
-                    {
-                        GameVersion = string.Empty;
-                    }
-                    else
-                    {
-                        GameVersion = version;
-                    }
+                        ? string.Empty
+                        : version;
                 }
             }
 
@@ -534,16 +529,11 @@ public partial class GameProfileItemViewModel : ViewModelBase
             _useSteamLaunch = gameProfile2.UseSteamLaunch ?? true;
 
             // Determine if this is a Steam installation by checking the publisher in the manifest ID
-            _isSteamInstallation = gameProfile2.GameInstallationId?.Contains("steam", StringComparison.OrdinalIgnoreCase) ?? false;
+            _isSteamInstallation = gameProfile2.GameInstallationId?.Contains("steam", StringComparison.OrdinalIgnoreCase) == true;
 
-            if (string.IsNullOrEmpty(gameProfile2.ActiveWorkspaceId))
-            {
-                _workspaceStatus = "Not Prepared";
-            }
-            else
-            {
-                // Determine strategy-based status
-                _workspaceStatus = gameProfile2.WorkspaceStrategy switch
+            _workspaceStatus = string.IsNullOrEmpty(gameProfile2.ActiveWorkspaceId)
+                ? "Not Prepared"
+                : gameProfile2.WorkspaceStrategy switch
                 {
                     WorkspaceStrategy.SymlinkOnly => "Symlinked",
                     WorkspaceStrategy.FullCopy => "Copied",
@@ -551,7 +541,6 @@ public partial class GameProfileItemViewModel : ViewModelBase
                     WorkspaceStrategy.HardLink => "Hard Linked",
                     _ => "Prepared",
                 };
-            }
         }
     }
 
@@ -584,13 +573,9 @@ public partial class GameProfileItemViewModel : ViewModelBase
     {
         ActiveWorkspaceId = activeWorkspaceId;
 
-        if (string.IsNullOrEmpty(activeWorkspaceId))
-        {
-            WorkspaceStatus = "Not Prepared";
-        }
-        else
-        {
-            WorkspaceStatus = strategy switch
+        WorkspaceStatus = string.IsNullOrEmpty(activeWorkspaceId)
+            ? "Not Prepared"
+            : strategy switch
             {
                 WorkspaceStrategy.SymlinkOnly => "Symlinked",
                 WorkspaceStrategy.FullCopy => "Copied",
@@ -598,7 +583,6 @@ public partial class GameProfileItemViewModel : ViewModelBase
                 WorkspaceStrategy.HardLink => "Hard Linked",
                 _ => "Prepared",
             };
-        }
 
         // Explicitly notify UI of all dependent property changes
         OnPropertyChanged(nameof(IsWorkspacePrepared));
@@ -644,7 +628,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
                     !string.Equals(Publisher, "Local", StringComparison.OrdinalIgnoreCase))
                 {
                     var version = gameProfile.GameClient.Version;
-                    if (version.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase) ||
+                    GameVersion = (version.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase) ||
                         version.Equals(GameClientConstants.UnknownVersion, StringComparison.OrdinalIgnoreCase) ||
                         version.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase) ||
                         version.Contains("Automatically", StringComparison.OrdinalIgnoreCase) ||
@@ -653,13 +637,8 @@ public partial class GameProfileItemViewModel : ViewModelBase
                         version == "0.0.0" ||
                         version == "0.0.0.0" ||
                         version.Equals("v0", StringComparison.OrdinalIgnoreCase))
-                    {
-                        GameVersion = string.Empty;
-                    }
-                    else
-                    {
-                        GameVersion = version;
-                    }
+                        ? string.Empty
+                        : version;
                 }
             }
 

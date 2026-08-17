@@ -438,7 +438,11 @@ public class GameLauncherTests : IDisposable
 
         // Assert
         Assert.True(result.Success);
-        var reports = progressReports.ToList();
+        List<LaunchProgress> reports = [];
+        lock (progressLock)
+        {
+            reports = [.. progressReports]; // Create a copy for safe enumeration
+        }
 
         Assert.NotEmpty(reports);
 
@@ -476,7 +480,8 @@ public class GameLauncherTests : IDisposable
             .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
 
         // Act & Assert
-        await Assert.ThrowsAsync<TaskCanceledException>(() => _gameLauncher.LaunchProfileAsync(profileId, cancellationToken: cts.Token));
+        await Assert.ThrowsAsync<TaskCanceledException>(() =>
+            _gameLauncher.LaunchProfileAsync(profileId, cancellationToken: cts.Token));
     }
 
     /// <summary>

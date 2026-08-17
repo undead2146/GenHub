@@ -56,6 +56,6 @@ public class ViewLocator : IDataTemplate
     /// <inheritdoc/>
     public bool Match(object? data)
     {
-        return data is ViewModelBase || (data?.GetType().Name.EndsWith("ViewModel", StringComparison.Ordinal) ?? false);
+        return data is ViewModelBase || data?.GetType().Name.EndsWith("ViewModel", StringComparison.Ordinal) == true;
     }
 }

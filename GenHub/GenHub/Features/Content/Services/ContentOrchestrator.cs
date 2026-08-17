@@ -147,16 +147,8 @@ public class ContentOrchestrator(
                 }
                 catch (Exception ex)
                 {
-<<<<<<< HEAD
-                    _logger.LogError(ex, "Search failed for provider: {ProviderName}", provider.SourceName);
-                    errors.Add($"{provider.SourceName}: {ex.Message}");
-=======
                     logger.LogError(ex, "Search failed for provider: {ProviderName}", provider.SourceName);
-                    lock (errors)
-                    {
-                        errors.Add($"{provider.SourceName}: {ex.Message}");
-                    }
->>>>>>> a86c0263 (feat(downloads): complete download acquisition and catalog browsing features)
+                    errors.Add($"{provider.SourceName}: {ex.Message}");
                 }
 
                 return providerResults;
@@ -277,24 +269,15 @@ public class ContentOrchestrator(
 
         lock (_providerLock)
         {
-<<<<<<< HEAD
             if (_providers.All(p => !string.Equals(p.SourceName, provider.SourceName, StringComparison.OrdinalIgnoreCase)))
             {
                 _providers.Add(provider);
-                _logger.LogInformation("Registered content provider: {ProviderName}", provider.SourceName);
+                logger.LogInformation("Registered content provider: {ProviderName}", provider.SourceName);
             }
             else
             {
-                _logger.LogWarning("Attempted to register duplicate provider: {ProviderName}", provider.SourceName);
+                logger.LogWarning("Attempted to register duplicate provider: {ProviderName}", provider.SourceName);
             }
-=======
-            _providers.Add(provider);
-            logger.LogInformation("Registered content provider: {ProviderName}", provider.SourceName);
-        }
-        else
-        {
-            logger.LogWarning("Attempted to register duplicate provider: {ProviderName}", provider.SourceName);
->>>>>>> a86c0263 (feat(downloads): complete download acquisition and catalog browsing features)
         }
     }
 
@@ -488,14 +471,7 @@ public class ContentOrchestrator(
 
             ReportProgress(1, "Resolving content", 30, "Validating manifest structure...");
 
-<<<<<<< HEAD
-            // Step 2: Get complete manifest
-            var manifest = searchResult.GetData<ContentManifest>();
-            if (manifest == null)
-            {
-                if (searchResult.RequiresResolution && !string.IsNullOrEmpty(searchResult.ResolverId))
-=======
-            ContentManifest manifest;
+            ContentManifest manifest = null!;
             var embeddedManifest = searchResult.GetData<ContentManifest>();
             if (embeddedManifest != null)
             {
@@ -510,25 +486,11 @@ public class ContentOrchestrator(
 
                 var resolveResult = await ResolveManifestAsync(searchResult, cancellationToken);
                 if (!resolveResult.Success || resolveResult.Data == null)
->>>>>>> a86c0263 (feat(downloads): complete download acquisition and catalog browsing features)
                 {
-                    // Content requires resolution through a resolver (e.g., GitHub releases)
-                    _logger.LogInformation(
-                        "Content requires resolution. Using resolver: {ResolverId}",
-                        searchResult.ResolverId);
-
-<<<<<<< HEAD
-                    var resolveResult = await ResolveManifestAsync(searchResult, cancellationToken);
-                    if (!resolveResult.Success || resolveResult.Data == null)
-                    {
-                        return OperationResult<ContentManifest>.CreateFailure(
-                            $"Failed to resolve manifest: {resolveResult.FirstError}");
-                    }
-
-                    manifest = resolveResult.Data;
+                    return OperationResult<ContentManifest>.CreateFailure(
+                        $"Failed to resolve manifest: {resolveResult.FirstError}");
                 }
-                else
-=======
+
                 manifest = resolveResult.Data;
                 ReportProgress(1, "Resolving content", 80, "Manifest resolved");
             }
@@ -537,17 +499,12 @@ public class ContentOrchestrator(
                 ReportProgress(1, "Resolving content", 40, "Fetching manifest from provider...");
                 var manifestResult = await provider.GetValidatedContentAsync(searchResult.Id, cancellationToken);
                 if (!manifestResult.Success || manifestResult.Data == null)
->>>>>>> a86c0263 (feat(downloads): complete download acquisition and catalog browsing features)
                 {
-                    var manifestResult = await provider.GetValidatedContentAsync(searchResult.Id, cancellationToken);
-                    if (!manifestResult.Success || manifestResult.Data == null)
-                    {
-                        return OperationResult<ContentManifest>.CreateFailure(
-                            $"Failed to get manifest: {manifestResult.FirstError}");
-                    }
-
-                    manifest = manifestResult.Data;
+                    return OperationResult<ContentManifest>.CreateFailure(
+                        $"Failed to get manifest: {manifestResult.FirstError}");
                 }
+
+                manifest = manifestResult.Data;
             }
             else
             {
@@ -596,11 +553,13 @@ public class ContentOrchestrator(
                     // Providers own delivery only. The orchestrator owns stages 3-5, so a
                     // provider which extracts an archive internally cannot publish a later
                     // stage before delivery completes and cause 1 -> 3 -> 2 regressions.
-                    var operation = !string.IsNullOrWhiteSpace(p.CurrentOperation)
-                        ? p.CurrentOperation
-                        : p.TotalBytes > 0
+                    var operation = p.CurrentOperation;
+                    if (string.IsNullOrWhiteSpace(operation))
+                    {
+                        operation = p.TotalBytes > 0
                             ? $"Downloading: {ByteFormatHelper.FormatBytes(p.BytesProcessed)} / {ByteFormatHelper.FormatBytes(p.TotalBytes)}"
                             : "Downloading content";
+                    }
 
                     ReportProgress(2, "Downloading", stagePercent, operation, isBottleneck: p.IsBottleneck, bottleneckReason: p.BottleneckReason, bytesProcessed: p.BytesProcessed, totalBytes: p.TotalBytes, filesProcessed: p.FilesProcessed, totalFiles: p.TotalFiles, currentFile: p.CurrentFile, estimatedTimeRemaining: p.EstimatedTimeRemaining);
                 });

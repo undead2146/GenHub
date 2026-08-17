@@ -333,13 +333,6 @@ public class DownloadsBrowserViewModelTests
         discC.Setup(d => d.DiscoverAsync(It.IsAny<ContentSearchQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<ContentDiscoveryResult>.CreateSuccess(new ContentDiscoveryResult { Items = itemsC, TotalItems = 2 }));
 
-        var discovererMap = new Dictionary<string, GenericCatalogDiscoverer>
-        {
-            ["sub-a"] = discA.Object,
-            ["sub-b"] = discB.Object,
-            ["sub-c"] = discC.Object,
-        };
-
         var serviceProviderMock = new Mock<IServiceProvider>();
         serviceProviderMock
             .Setup(sp => sp.GetService(typeof(GenericCatalogDiscoverer)))

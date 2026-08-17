@@ -323,15 +323,9 @@ public partial class SubscriptionConfirmationViewModel(
                 AvatarUrl = _parsedCatalog.Publisher.AvatarUrl,
             };
 
-            OperationResult<bool> result;
-            if (IsAlreadySubscribed || existingSub != null)
-            {
-                result = await subscriptionStore.UpdateSubscriptionAsync(subscription);
-            }
-            else
-            {
-                result = await subscriptionStore.AddSubscriptionAsync(subscription);
-            }
+            var result = (IsAlreadySubscribed || existingSub != null)
+                ? await subscriptionStore.UpdateSubscriptionAsync(subscription)
+                : await subscriptionStore.AddSubscriptionAsync(subscription);
 
             if (result.Success)
             {
@@ -377,16 +371,11 @@ public partial class SubscriptionConfirmationViewModel(
 
         CategoryFilters = filters.AsReadOnly();
 
-        if (string.Equals(activeKey, DefaultCategoryKey, StringComparison.OrdinalIgnoreCase))
-        {
-            FilteredContentItems = ContentItems;
-        }
-        else
-        {
-            FilteredContentItems = ContentItems
+        FilteredContentItems = string.Equals(activeKey, DefaultCategoryKey, StringComparison.OrdinalIgnoreCase)
+            ? ContentItems
+            : ContentItems
                 .Where(item => item.ContentType.ToString().Equals(activeKey, StringComparison.OrdinalIgnoreCase))
                 .ToList()
                 .AsReadOnly();
-        }
     }
 }

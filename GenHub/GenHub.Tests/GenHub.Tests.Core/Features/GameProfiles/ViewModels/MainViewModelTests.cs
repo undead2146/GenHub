@@ -222,6 +222,8 @@ public class MainViewModelTests
             case NavigationTab.Info:
                 Assert.IsType<InfoViewModel>(currentViewModel);
                 break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(tab), tab, null);
         }
     }
 
@@ -249,7 +251,6 @@ public class MainViewModelTests
         var mockWorkspaceManager = new Mock<IWorkspaceManager>();
         var mockManifestPool = new Mock<IContentManifestPool>();
         var mockUpdateManager = new Mock<IVelopackUpdateManager>();
-        var mockNotificationService = new Mock<INotificationService>();
         var mockNotificationServiceForSettings = new Mock<INotificationService>();
         var mockConfigurationProvider = new Mock<IConfigurationProviderService>();
         var mockInstallationService = new Mock<IGameInstallationService>();

@@ -75,7 +75,6 @@ public class CommunityOutpostResolver(
 
             // Extract metadata from resolver metadata (set by the discoverer/parser)
             var contentCode = GetMetadataValue(discoveredItem, "contentCode", "unknown");
-            var catalogVersion = GetMetadataValue(discoveredItem, "catalogVersion", "unknown");
             var category = GetMetadataValue(discoveredItem, "category", "Other");
             var fileSize = GetMetadataValueLong(discoveredItem, "fileSize", 0);
 
@@ -109,7 +108,7 @@ public class CommunityOutpostResolver(
             }
 
             // Extract version number for manifest ID: prefer version segment in discoveredItem.Id if 5 segments
-            string manifestVersion;
+            string manifestVersion = string.Empty;
             var idParts = discoveredItem.Id?.Split('.') ?? [];
             if (idParts.Length >= 5 && int.TryParse(idParts[1], out _))
             {
@@ -233,14 +232,9 @@ public class CommunityOutpostResolver(
             // Override the display name to be more user-friendly.
             // Prefer registry display name for variant-bearing content so factory naming
             // does not inherit a previously composed "Family - resolution" catalog title.
-            if (contentMetadata.SupportsVariants && !string.IsNullOrEmpty(contentMetadata.DisplayName))
-            {
-                builtManifest.Name = contentMetadata.DisplayName;
-            }
-            else
-            {
-                builtManifest.Name = discoveredItem.Name ?? contentMetadata.DisplayName;
-            }
+            builtManifest.Name = contentMetadata.SupportsVariants && !string.IsNullOrEmpty(contentMetadata.DisplayName)
+                ? contentMetadata.DisplayName
+                : discoveredItem.Name ?? contentMetadata.DisplayName;
 
             // For community-patch, prioritize discoveredItem.Version (dynamic date from legi.cc/patch)
             // over static metadata version which may be null/empty
@@ -248,13 +242,17 @@ public class CommunityOutpostResolver(
             {
                 builtManifest.Version = discoveredItem.Version;
             }
+            else if (!string.IsNullOrWhiteSpace(contentMetadata.Version))
+            {
+                builtManifest.Version = contentMetadata.Version;
+            }
+            else if (!string.IsNullOrWhiteSpace(discoveredItem.Version))
+            {
+                builtManifest.Version = discoveredItem.Version;
+            }
             else
             {
-                builtManifest.Version = !string.IsNullOrWhiteSpace(contentMetadata.Version)
-                    ? contentMetadata.Version
-                    : (!string.IsNullOrWhiteSpace(discoveredItem.Version)
-                        ? discoveredItem.Version
-                        : CommunityOutpostCatalogConstants.DefaultMetadataVersion);
+                builtManifest.Version = CommunityOutpostCatalogConstants.DefaultMetadataVersion;
             }
 
             logger.LogInformation(
@@ -404,7 +402,7 @@ public class CommunityOutpostResolver(
                 return contentName[(dashIndex + 1)..];
             }
 
-            if (metadata.Variants != null && metadata.Variants.Count > 0)
+            if (metadata.Variants is { Count: > 0 })
             {
                 foreach (var v in metadata.Variants)
                 {
@@ -418,7 +416,7 @@ public class CommunityOutpostResolver(
         }
 
         // 3. Check Name against known variants
-        if (!string.IsNullOrEmpty(item.Name) && metadata.Variants != null && metadata.Variants.Count > 0)
+        if (!string.IsNullOrEmpty(item.Name) && metadata.Variants is { Count: > 0 })
         {
             foreach (var v in metadata.Variants)
             {
@@ -456,7 +454,7 @@ public class CommunityOutpostResolver(
     /// </summary>
     private static string GetMetadataValue(ContentSearchResult item, string key, string defaultValue)
     {
-        if (item.ResolverMetadata != null && item.ResolverMetadata.TryGetValue(key, out var value))
+        if (item.ResolverMetadata?.TryGetValue(key, out var value) == true)
         {
             return value;
         }

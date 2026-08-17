@@ -416,12 +416,10 @@ public class DependencyResolver(
 
         var compatible = matchingManifests.Where(m =>
         {
-            if (dependency.CompatibleVersions != null && dependency.CompatibleVersions.Count > 0)
+            if (dependency.CompatibleVersions is { Count: > 0 } &&
+                !dependency.CompatibleVersions.Contains(m.Version, StringComparer.OrdinalIgnoreCase))
             {
-                if (!dependency.CompatibleVersions.Contains(m.Version, StringComparer.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
+                return false;
             }
 
             if (!string.IsNullOrEmpty(dependency.MinVersion) || !string.IsNullOrEmpty(dependency.MaxVersion))

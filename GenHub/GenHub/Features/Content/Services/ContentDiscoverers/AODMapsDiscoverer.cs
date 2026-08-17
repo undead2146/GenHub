@@ -471,7 +471,7 @@ public partial class AODMapsDiscoverer(
                 var url = BuildDiscoveryUrl(query, sitePage);
                 logger.LogInformation("Discovering AODMaps content from: {Url} (site page {SitePage})", url, sitePage);
 
-                string html;
+                string html = string.Empty;
                 try
                 {
                     html = await client.GetStringAsync(url, cancellationToken);
@@ -731,7 +731,7 @@ public partial class AODMapsDiscoverer(
         var directNextLink = document.QuerySelectorAll("a").FirstOrDefault(a =>
         {
             var href = a.GetAttribute("href");
-            return href != null && href.Contains(nextPagePattern);
+            return href?.Contains(nextPagePattern) == true;
         });
 
         if (directNextLink != null)

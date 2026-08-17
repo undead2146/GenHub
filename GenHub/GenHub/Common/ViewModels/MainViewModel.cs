@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
@@ -111,7 +112,7 @@ public partial class MainViewModel(
     /// <summary>
     /// Gets the available navigation tabs.
     /// </summary>
-    public NavigationTab[] AvailableTabs { get; } =
+    public IReadOnlyList<NavigationTab> AvailableTabs { get; } =
     [
         NavigationTab.GameProfiles,
         NavigationTab.Downloads,
@@ -250,7 +251,6 @@ public partial class MainViewModel(
                 {
                     logger?.LogInformation("GitHub release update available: {Version}", updateInfo.TargetFullRelease.Version);
                     await Dispatcher.UIThread.InvokeAsync(() =>
-                    {
                         notificationService.Show(new NotificationMessage(
                             NotificationType.Info,
                             AppUpdateConstants.UpdateNotificationTitle,
@@ -260,11 +260,10 @@ public partial class MainViewModel(
                             [
                                 new NotificationAction(
                                     AppUpdateConstants.ViewUpdatesAction,
-                                    () => { SettingsViewModel.OpenUpdateWindowCommand.Execute(null); },
+                                    () => SettingsViewModel.OpenUpdateWindowCommand.Execute(null),
                                     NotificationActionStyle.Primary,
                                     dismissOnExecute: true),
-                            ]));
-                    });
+                            ])));
                     return;
                 }
             }
@@ -282,7 +281,6 @@ public partial class MainViewModel(
                     var newVersionBase = artifactUpdate.Version.Split('+')[0];
 
                     await Dispatcher.UIThread.InvokeAsync(() =>
-                    {
                         notificationService.Show(new NotificationMessage(
                             NotificationType.Info,
                             AppUpdateConstants.BranchUpdateNotificationTitle,
@@ -292,11 +290,10 @@ public partial class MainViewModel(
                             [
                                 new NotificationAction(
                                     AppUpdateConstants.ViewUpdatesAction,
-                                    () => { SettingsViewModel.OpenUpdateWindowCommand.Execute(null); },
+                                    () => SettingsViewModel.OpenUpdateWindowCommand.Execute(null),
                                     NotificationActionStyle.Primary,
                                     dismissOnExecute: true),
-                            ]));
-                    });
+                            ])));
                 }
             }
         }

@@ -79,16 +79,14 @@ public class SuperHackersProvider(
                 SuperHackersConstants.GeneralsGameCodeRepo,
                 cancellationToken);
 
-            if (latestRelease != null)
+            if (latestRelease != null &&
+                (string.IsNullOrWhiteSpace(query.AuthorName) ||
+                 query.AuthorName.Equals(SuperHackersConstants.GeneralsGameCodeOwner, StringComparison.OrdinalIgnoreCase)) &&
+                (string.IsNullOrWhiteSpace(query.SearchTerm) ||
+                 latestRelease.Name?.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase) == true ||
+                 SuperHackersConstants.GeneralsGameCodeRepo.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase)))
             {
-                // Verify it matches the search query if provided
-                if ((string.IsNullOrWhiteSpace(query.AuthorName) ||
-                     query.AuthorName.Equals(SuperHackersConstants.GeneralsGameCodeOwner, StringComparison.OrdinalIgnoreCase)) &&
-                    (string.IsNullOrWhiteSpace(query.SearchTerm) ||
-                     latestRelease.Name?.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase) == true ||
-                     SuperHackersConstants.GeneralsGameCodeRepo.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase)))
-                {
-                    // Generate manifest ID
+                // Generate manifest ID
                     var manifestId = ManifestIdGenerator.GenerateGitHubContentId(
                         SuperHackersConstants.GeneralsGameCodeOwner,
                         SuperHackersConstants.GeneralsGameCodeRepo,
@@ -121,7 +119,6 @@ public class SuperHackersProvider(
                     result.SetData(latestRelease);
                     results.Add(result);
                 }
-            }
 
             return OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(results);
         }

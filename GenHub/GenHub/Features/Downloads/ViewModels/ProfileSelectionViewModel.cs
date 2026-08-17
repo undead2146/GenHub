@@ -310,9 +310,15 @@ public sealed partial class ProfileSelectionViewModel(
 
             var selectedManifestId = selectedManifest?.Id.Value ?? ContentManifestId;
             var selectedContentName = selectedManifest?.Name ?? ContentName;
-            IReadOnlyList<string> idsToAdd = ContentManifestIds.Count > 0
-                ? ContentManifestIds
-                : string.IsNullOrEmpty(selectedManifestId) ? [] : [selectedManifestId];
+            IReadOnlyList<string> idsToAdd;
+            if (ContentManifestIds.Count > 0)
+            {
+                idsToAdd = ContentManifestIds;
+            }
+            else
+            {
+                idsToAdd = string.IsNullOrEmpty(selectedManifestId) ? [] : [selectedManifestId];
+            }
 
             var result = idsToAdd.Count > 1
                 ? await profileContentService.AddContentToProfileAsync(
@@ -414,10 +420,17 @@ public sealed partial class ProfileSelectionViewModel(
                 ManifestId.Create(selectedManifestId),
                 CancellationToken.None);
             var selectedManifest = selectedManifestResult.Success ? selectedManifestResult.Data : null;
-            var baseName = selectedManifest?.ContentType == ContentType.GameClient &&
-                           !string.IsNullOrWhiteSpace(selectedManifest.Name)
-                ? selectedManifest.Name
-                : string.IsNullOrEmpty(selectedContentName) ? "New Profile" : $"{selectedContentName} Profile";
+            string baseName;
+            if (selectedManifest?.ContentType == ContentType.GameClient &&
+                !string.IsNullOrWhiteSpace(selectedManifest.Name))
+            {
+                baseName = selectedManifest.Name;
+            }
+            else
+            {
+                baseName = string.IsNullOrEmpty(selectedContentName) ? "New Profile" : $"{selectedContentName} Profile";
+            }
+
             var profileName = baseName;
             var counter = 1;
 
@@ -427,9 +440,15 @@ public sealed partial class ProfileSelectionViewModel(
                 profileName = $"{baseName} ({counter++})";
             }
 
-            IReadOnlyList<string> idsToEnable = ContentManifestIds.Count > 0
-                ? ContentManifestIds
-                : string.IsNullOrEmpty(selectedManifestId) ? [] : [selectedManifestId!];
+            IReadOnlyList<string> idsToEnable;
+            if (ContentManifestIds.Count > 0)
+            {
+                idsToEnable = ContentManifestIds;
+            }
+            else
+            {
+                idsToEnable = string.IsNullOrEmpty(selectedManifestId) ? [] : [selectedManifestId!];
+            }
 
             var result = idsToEnable.Count > 1
                 ? await profileContentService.CreateProfileWithContentAsync(

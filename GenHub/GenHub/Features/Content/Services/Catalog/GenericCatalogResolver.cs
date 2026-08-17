@@ -92,11 +92,13 @@ public class GenericCatalogResolver(
                 ? $"{contentItem.Id}-{primaryArtifact.Variant.Trim()}"
                 : contentItem.Id;
 
-            var resolvedName = !string.IsNullOrWhiteSpace(searchResult.Name)
-                ? searchResult.Name
-                : (!string.IsNullOrWhiteSpace(primaryArtifact?.Variant)
+            var resolvedName = searchResult.Name;
+            if (string.IsNullOrWhiteSpace(resolvedName))
+            {
+                resolvedName = !string.IsNullOrWhiteSpace(primaryArtifact?.Variant)
                     ? $"{contentItem.Name} ({primaryArtifact.Variant})"
-                    : contentItem.Name);
+                    : contentItem.Name;
+            }
 
             var resolvedTargetGame = contentItem.TargetGame;
             if (primaryArtifact?.VariantAxis?.Equals("game-type", StringComparison.OrdinalIgnoreCase) == true)
@@ -220,11 +222,15 @@ public class GenericCatalogResolver(
                     dependency.ContentId,
                     dependency.VersionConstraint);
 
-                var installBehavior = contentItem.ContentType == ContentType.ContentBundle && !dependency.IsOptional
-                    ? DependencyInstallBehavior.AutoInstall
-                    : dependency.IsOptional
-                        ? DependencyInstallBehavior.Optional
-                        : DependencyInstallBehavior.RequireExisting;
+                var installBehavior = DependencyInstallBehavior.RequireExisting;
+                if (dependency.IsOptional)
+                {
+                    installBehavior = DependencyInstallBehavior.Optional;
+                }
+                else if (contentItem.ContentType == ContentType.ContentBundle)
+                {
+                    installBehavior = DependencyInstallBehavior.AutoInstall;
+                }
 
                 builder.AddDependency(
                     id: ManifestId.Create(dependencyId),

@@ -353,10 +353,8 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
             }
 
             // 3. Check SelectedGameInstallation (if it's a GameClient replacement)
-            if (SelectedGameInstallation != null &&
-                SelectedGameInstallation.ManifestId.Value == oldId &&
-                _manifestPool != null &&
-                _profileContentLoader != null)
+            if (SelectedGameInstallation != null && SelectedGameInstallation.ManifestId.Value == oldId &&
+                _manifestPool != null && _profileContentLoader != null)
             {
                 var manifestResult = await _manifestPool.GetManifestAsync(newId);
                 if (manifestResult.Success && manifestResult.Data != null)
@@ -727,13 +725,13 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
                     {
                         if (!dep.IsOptional)
                         {
-                            var reqType = dep.DependencyType switch
+                            var msg = dep.DependencyType switch
                             {
-                                ContentType.GameInstallation => "a Game Installation",
-                                ContentType.GameClient => "a Game Client",
-                                _ => $"{dep.DependencyType} content",
+                                ContentType.GameInstallation => $"• '{manifest.Name}' requires a Game Installation",
+                                ContentType.GameClient => $"• '{manifest.Name}' requires a Game Client",
+                                _ => $"• '{manifest.Name}' requires {dep.DependencyType} content",
                             };
-                            errors.Add($"• '{manifest.Name}' requires {reqType}");
+                            errors.Add(msg);
                         }
 
                         continue;

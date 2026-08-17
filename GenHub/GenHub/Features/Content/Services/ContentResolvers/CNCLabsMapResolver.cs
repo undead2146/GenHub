@@ -215,12 +215,9 @@ public class CNCLabsMapResolver(
         var downloadUrl = downloadLink?.GetAttribute(CNCLabsConstants.HrefAttribute) ?? string.Empty;
 
         // Ensure absolute URL
-        if (!string.IsNullOrEmpty(downloadUrl))
+        if (!string.IsNullOrEmpty(downloadUrl) && !downloadUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
         {
-            if (!downloadUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-            {
-                downloadUrl = $"{CNCLabsConstants.PublisherWebsite.TrimEnd('/')}/{downloadUrl.TrimStart('/')}";
-            }
+            downloadUrl = $"{CNCLabsConstants.PublisherWebsite.TrimEnd('/')}/{downloadUrl.TrimStart('/')}";
         }
 
         logger.LogDebug("Parsed download URL: {DownloadUrl}", downloadUrl);
@@ -229,9 +226,6 @@ public class CNCLabsMapResolver(
         // then fall back to the legacy <strong>-based extraction for older cached pages.
         var fileSizeText = ExtractDefinitionValue(document, "File Size") ?? ExtractMetadataValue(document, "File Size:");
         var fileSize = FileSizeFormatter.ParseToBytes(fileSizeText);
-
-        var maxPlayersText = ExtractDefinitionValue(document, "Max Players") ?? ExtractMetadataValue(document, "Max Players:");
-        var maxPlayers = int.TryParse(maxPlayersText?.Trim(), out var p) ? p : 0;
 
         var submittedText = ExtractDefinitionValue(document, "Submitted") ?? ExtractMetadataValue(document, "Submitted:");
         var submissionDate = DateTime.TryParse(submittedText, out var sd) ? sd : DateTime.MinValue;

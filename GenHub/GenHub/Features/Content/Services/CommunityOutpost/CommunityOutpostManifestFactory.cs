@@ -326,7 +326,7 @@ public class CommunityOutpostManifestFactory(
                 return contentName[(dashIndex + 1)..];
             }
 
-            if (metadata.Variants != null && metadata.Variants.Count > 0)
+            if (metadata.Variants is { Count: > 0 })
             {
                 if (contentName.StartsWith(contentCode, StringComparison.OrdinalIgnoreCase))
                 {
@@ -601,7 +601,7 @@ public class CommunityOutpostManifestFactory(
                     }
 
                     var normalized = name.ToLowerInvariant();
-                    if (variant.IncludePatterns != null && variant.IncludePatterns.Any(p => GetCachedRegex(p.ToLowerInvariant()).IsMatch(normalized)))
+                    if (variant.IncludePatterns?.Any(p => GetCachedRegex(p.ToLowerInvariant()).IsMatch(normalized)) == true)
                     {
                         hasVariantBigFiles = true;
                         break;
@@ -622,15 +622,13 @@ public class CommunityOutpostManifestFactory(
                 var isControlBarVariantFile = isControlBarVariant;
                 var isRepackedOutput = controlBarRepackedOutputs.Contains(fileName);
 
-                if (isControlBarVariantFile && controlBarRepackedOutputs.Count > 0)
+                if (isControlBarVariantFile && controlBarRepackedOutputs.Count > 0 &&
+                    !isRepackedOutput && !isDependencyBig && !isAlwaysInclude)
                 {
-                    if (!isRepackedOutput && !isDependencyBig && !isAlwaysInclude)
-                    {
-                        logger.LogDebug(
-                            "Skipping file {File} because control bar variant is repacked into Art/Data BIG files",
-                            relativePath);
-                        continue;
-                    }
+                    logger.LogDebug(
+                        "Skipping file {File} because control bar variant is repacked into Art/Data BIG files",
+                        relativePath);
+                    continue;
                 }
 
                 if (isControlBarVariantFile && hasVariantBigFiles && !fileName.EndsWith(".big", StringComparison.OrdinalIgnoreCase))
@@ -647,7 +645,7 @@ public class CommunityOutpostManifestFactory(
                 {
                     // Check if file matches include patterns
                     bool matchesInclude = false;
-                    if (variant.IncludePatterns != null && variant.IncludePatterns.Count > 0)
+                    if (variant.IncludePatterns is { Count: > 0 })
                     {
                         foreach (var pattern in variant.IncludePatterns)
                         {
@@ -674,7 +672,7 @@ public class CommunityOutpostManifestFactory(
                     }
 
                     // Check if file matches exclude patterns
-                    if (variant.ExcludePatterns != null && variant.ExcludePatterns.Count > 0)
+                    if (variant.ExcludePatterns is { Count: > 0 })
                     {
                         bool matchesExclude = false;
                         foreach (var pattern in variant.ExcludePatterns)
@@ -769,19 +767,25 @@ public class CommunityOutpostManifestFactory(
                     fileEntries.Count);
             }
 
+            var resolvedVersion = CommunityOutpostCatalogConstants.DefaultMetadataVersion;
+            if (!string.IsNullOrWhiteSpace(originalManifest.Version))
+            {
+                resolvedVersion = originalManifest.Version;
+            }
+            else if (!string.IsNullOrWhiteSpace(contentMetadata.Version))
+            {
+                resolvedVersion = contentMetadata.Version;
+            }
+
             // Create the manifest preserving original data but with updated files
             var manifest = new ContentManifest
             {
                 Id = manifestId,
                 Name = manifestName,
-                Version = !string.IsNullOrWhiteSpace(originalManifest.Version)
-                    ? originalManifest.Version
-                    : (!string.IsNullOrWhiteSpace(contentMetadata.Version)
-                        ? contentMetadata.Version
-                        : CommunityOutpostCatalogConstants.DefaultMetadataVersion),
+                Version = resolvedVersion,
                 SchemaVersion = originalManifest.SchemaVersion,
                 ContentType = originalManifest.ContentType,
-                TargetGame = (variant != null && variant.TargetGame.HasValue) ? variant.TargetGame.Value : originalManifest.TargetGame,
+                TargetGame = variant?.TargetGame ?? originalManifest.TargetGame,
                 Files = fileEntries,
 
                 // Only remove an auto-install dependency when its generated payload was
@@ -834,7 +838,7 @@ public class CommunityOutpostManifestFactory(
                 manifest.Dependencies?.Count ?? 0);
 
             // Log each dependency for debugging
-            if (manifest.Dependencies != null && manifest.Dependencies.Count > 0)
+            if (manifest.Dependencies is { Count: > 0 })
             {
                 foreach (var dep in manifest.Dependencies)
                 {

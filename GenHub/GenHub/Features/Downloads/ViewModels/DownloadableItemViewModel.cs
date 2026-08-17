@@ -132,11 +132,23 @@ public abstract partial class DownloadableItemViewModel : ObservableObject, IDow
     /// <summary>
     /// Gets the formatted size string for UI display.
     /// </summary>
-    public string FormattedSize => !string.IsNullOrEmpty(SizeDisplay)
-        ? SizeDisplay
-        : (ContentType == ContentType.ContentBundle
-            ? "Bundle"
-            : (FileSize > 0 ? FormatBytes(FileSize) : string.Empty));
+    public string FormattedSize
+    {
+        get
+        {
+            if (!string.IsNullOrEmpty(SizeDisplay))
+            {
+                return SizeDisplay;
+            }
+
+            if (ContentType == ContentType.ContentBundle)
+            {
+                return "Bundle";
+            }
+
+            return FileSize > 0 ? FormatBytes(FileSize) : string.Empty;
+        }
+    }
 
     /// <summary>
     /// Gets a value indicating whether formatted size information is available.
@@ -280,11 +292,23 @@ public abstract partial class DownloadableItemViewModel : ObservableObject, IDow
     /// <summary>
     /// Gets the human-readable status text for this release.
     /// </summary>
-    public string StatusDisplay => IsUpdateAvailable
-        ? "Update Available"
-        : (IsDownloaded
-            ? "Downloaded"
-            : (IsDownloading ? $"Downloading ({DownloadProgress}%)" : "Available for Download"));
+    public string StatusDisplay
+    {
+        get
+        {
+            if (IsUpdateAvailable)
+            {
+                return "Update Available";
+            }
+
+            if (IsDownloaded)
+            {
+                return "Downloaded";
+            }
+
+            return IsDownloading ? $"Downloading ({DownloadProgress}%)" : "Available for Download";
+        }
+    }
 
     /// <summary>
     /// Gets or sets a value indicating whether the row is currently expanded to show details.

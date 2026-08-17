@@ -104,7 +104,6 @@ public class ContentValidator(IFileOperationsService fileOperations, ICasService
         ArgumentNullException.ThrowIfNull(manifest);
 
         var issues = new List<ValidationIssue>();
-        var totalFiles = manifest.Files.Count;
 
         // Performance: Use parallel processing for large file sets
         var semaphore = new SemaphoreSlim(Environment.ProcessorCount);

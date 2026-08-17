@@ -699,11 +699,18 @@ public sealed class ProfileContentService(
         GameType requiredGameType,
         string installationId)
     {
-        return requiredGameClient != null
-            ? CreatePublisherGameClient(requiredGameClient, installationClient, installationId)
-            : (currentGameClient?.GameType == requiredGameType && string.Equals(currentGameClient.InstallationId, installationId, StringComparison.OrdinalIgnoreCase))
-                ? currentGameClient
-                : installationClient;
+        if (requiredGameClient != null)
+        {
+            return CreatePublisherGameClient(requiredGameClient, installationClient, installationId);
+        }
+
+        if (currentGameClient?.GameType == requiredGameType &&
+            string.Equals(currentGameClient.InstallationId, installationId, StringComparison.OrdinalIgnoreCase))
+        {
+            return currentGameClient;
+        }
+
+        return installationClient;
     }
 
     private static bool TryParseCommunityOutpostContentCode(string manifestId, out string contentCode)
@@ -954,7 +961,7 @@ public sealed class ProfileContentService(
             }
 
             var singleGameClient = requiredGameClients.SingleOrDefault();
-            if (singleGameClient != null && singleGameClient.TargetGame != GameType.Unknown)
+            if (singleGameClient is { TargetGame: not GameType.Unknown })
             {
                 if (compatibleGameTypesIntersection == null)
                 {
@@ -966,7 +973,7 @@ public sealed class ProfileContentService(
                 }
             }
 
-            if (compatibleGameTypesIntersection != null && compatibleGameTypesIntersection.Count == 0)
+            if (compatibleGameTypesIntersection is { Count: 0 })
             {
                 var declaredGameTypes = installationDependencies
                     .SelectMany(d => d.CompatibleGameTypes)
@@ -976,7 +983,7 @@ public sealed class ProfileContentService(
                     $"Selected content requires incompatible game installations: {string.Join(", ", declaredGameTypes)}.");
             }
 
-            var requiredGameType = compatibleGameTypesIntersection != null && compatibleGameTypesIntersection.Count == 1
+            var requiredGameType = compatibleGameTypesIntersection is { Count: 1 }
                 ? compatibleGameTypesIntersection.First()
                 : singleGameClient?.TargetGame;
 

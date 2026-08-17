@@ -253,7 +253,8 @@ public partial class ModDBDiscoverer(
                 _ => null,
             };
         }
-        else if (section == "addons")
+
+        if (section == "addons")
         {
             return contentType switch
             {
@@ -375,9 +376,9 @@ public partial class ModDBDiscoverer(
         return section switch
         {
             "mods" => ContentType.Mod,
-            "downloads" => url.Contains("/maps/", StringComparison.OrdinalIgnoreCase)
-                ? ContentType.Map
-                : (isModUrl && !isAddonUrl ? ContentType.Mod : ContentType.Addon),
+            "downloads" when url.Contains("/maps/", StringComparison.OrdinalIgnoreCase) => ContentType.Map,
+            "downloads" when isModUrl && !isAddonUrl => ContentType.Mod,
+            "downloads" => ContentType.Addon,
             "addons" => url.Contains("/maps/", StringComparison.OrdinalIgnoreCase) ? ContentType.Map : ContentType.Addon,
             _ => isModUrl && !isAddonUrl ? ContentType.Mod : ContentType.Addon,
         };

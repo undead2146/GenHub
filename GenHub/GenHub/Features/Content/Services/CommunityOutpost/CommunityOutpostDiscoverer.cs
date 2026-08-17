@@ -278,8 +278,8 @@ public partial class CommunityOutpostDiscoverer(
         if (!string.IsNullOrWhiteSpace(query.SearchTerm))
         {
             var term = query.SearchTerm.ToLowerInvariant();
-            var nameMatches = result.Name?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false;
-            var descMatches = result.Description?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false;
+            var nameMatches = result.Name?.Contains(term, StringComparison.OrdinalIgnoreCase) == true;
+            var descMatches = result.Description?.Contains(term, StringComparison.OrdinalIgnoreCase) == true;
             var tagMatches = result.Tags.Any(t => t.Contains(term, StringComparison.OrdinalIgnoreCase));
 
             if (!nameMatches && !descMatches && !tagMatches)
@@ -497,7 +497,7 @@ public partial class CommunityOutpostDiscoverer(
                 DownloadSize = item.FileSize,
                 RequiresResolution = true,
                 ResolverId = CommunityOutpostConstants.PublisherId,
-                LastUpdated = DateTime.Now, // dl.dat doesn't include timestamps
+                LastUpdated = DateTime.UtcNow, // dl.dat doesn't include timestamps
 
                 // Use publisher logo as default content icon
                 IconUrl = CommunityOutpostConstants.LogoSource,

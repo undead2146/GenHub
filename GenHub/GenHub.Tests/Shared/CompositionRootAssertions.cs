@@ -237,11 +237,13 @@ public static class CompositionRootAssertions
 
         try
         {
-            using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+            using (services.BuildServiceProvider(new ServiceProviderOptions
             {
                 ValidateOnBuild = true,
                 ValidateScopes = true,
-            });
+            }))
+            {
+            }
         }
         catch (AggregateException aggregate)
         {

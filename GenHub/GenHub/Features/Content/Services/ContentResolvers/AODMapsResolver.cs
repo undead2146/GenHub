@@ -121,24 +121,32 @@ public class AODMapsResolver(
         var subDate = file.UploadDate ?? DateTime.MinValue;
 
         // Use Author as request
-        var author = !string.IsNullOrWhiteSpace(file.Uploader) && !file.Uploader.Equals(AODMapsConstants.DefaultAuthorName, StringComparison.OrdinalIgnoreCase)
-            ? file.Uploader
-            : (!string.IsNullOrWhiteSpace(item.AuthorName) && !item.AuthorName.Equals(AODMapsConstants.DefaultAuthorName, StringComparison.OrdinalIgnoreCase)
-                ? item.AuthorName
-                : (context.Developer ?? AODMapsConstants.DefaultAuthorName));
+        var author = context.Developer ?? AODMapsConstants.DefaultAuthorName;
+        if (!string.IsNullOrWhiteSpace(file.Uploader) && !file.Uploader.Equals(AODMapsConstants.DefaultAuthorName, StringComparison.OrdinalIgnoreCase))
+        {
+            author = file.Uploader;
+        }
+        else if (!string.IsNullOrWhiteSpace(item.AuthorName) && !item.AuthorName.Equals(AODMapsConstants.DefaultAuthorName, StringComparison.OrdinalIgnoreCase))
+        {
+            author = item.AuthorName;
+        }
 
-        var description = !string.IsNullOrWhiteSpace(file.SizeDisplay)
-            ? file.SizeDisplay
-            : (!string.IsNullOrWhiteSpace(item.Description)
-                ? item.Description
-                : context.Title);
+        var description = context.Title;
+        if (!string.IsNullOrWhiteSpace(file.SizeDisplay))
+        {
+            description = file.SizeDisplay;
+        }
+        else if (!string.IsNullOrWhiteSpace(item.Description))
+        {
+            description = item.Description;
+        }
 
         return new ParsedContentDetails(
             Name: file.Name,
             Description: description,
             Author: author,
             PreviewImage: file.ThumbnailUrl ?? string.Empty,
-            Screenshots: file.ThumbnailUrl != null ? [file.ThumbnailUrl] : [],
+            Screenshots: file.ThumbnailUrl is not null ? [file.ThumbnailUrl] : [],
             FileSize: file.SizeBytes ?? 0,
             DownloadCount: file.DownloadCount ?? 0,
             SubmissionDate: subDate,
