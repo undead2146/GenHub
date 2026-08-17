@@ -1,0 +1,10 @@
+{
+  "full_end_to_end_build": {
+    "success": false,
+    "duration_sec": 97.5952215,
+    "duration_ms": 97595.2215,
+    "processed_files": 14182,
+    "skipped_files": 0,
+    "failed_files": 22
+  }
+}
