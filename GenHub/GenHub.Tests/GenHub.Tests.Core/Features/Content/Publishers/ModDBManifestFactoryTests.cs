@@ -42,7 +42,7 @@ public sealed class ModDBManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task CreateManifestsFromExtractedContentAsync_ExtensionlessZip_ExtractsPayloadInsteadOfManifestingArchive()
+    public async Task CreateManifestsFromExtractedContentAsync_ExtensionlessZip_ExtractsPayloadInsteadOfManifestingArchiveAsync()
     {
         // Arrange
         Directory.CreateDirectory(_stagingDirectory);
@@ -78,7 +78,7 @@ public sealed class ModDBManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task CreateManifestsFromExtractedContentAsync_ExtensionlessMapArchive_UsesUserMapsDirectory()
+    public async Task CreateManifestsFromExtractedContentAsync_ExtensionlessMapArchive_UsesUserMapsDirectoryAsync()
     {
         // Arrange
         Directory.CreateDirectory(_stagingDirectory);
@@ -112,7 +112,7 @@ public sealed class ModDBManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ResolveAndExtractAsync_AddonSingleplayerMap_UsesMapManifestAndUserMapsDirectory()
+    public async Task ResolveAndExtractAsync_AddonSingleplayerMap_UsesMapManifestAndUserMapsDirectoryAsync()
     {
         // Arrange
         Directory.CreateDirectory(_stagingDirectory);
@@ -175,7 +175,7 @@ public sealed class ModDBManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ModDBResolver_ResolvesAddonWithShallowUrl_FetchesDetailAndCreatesManifestWithStartUrl()
+    public async Task ModDBResolver_ResolvesAddonWithShallowUrl_FetchesDetailAndCreatesManifestWithStartUrlAsync()
     {
         // Arrange
         var playwright = new Mock<IPlaywrightService>();
@@ -262,7 +262,7 @@ public sealed class ModDBManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ModDBResolver_ResolvesAddonWithDirectStartUrl_SkipsParseFileDetailAndCreatesManifestWithDirectUrl()
+    public async Task ModDBResolver_ResolvesAddonWithDirectStartUrl_SkipsParseFileDetailAndCreatesManifestWithDirectUrlAsync()
     {
         // Arrange
         var playwright = new Mock<IPlaywrightService>(MockBehavior.Strict);
@@ -319,7 +319,7 @@ public sealed class ModDBManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task CreateManifestsFromExtractedContentAsync_ExtensionlessNonArchive_RejectsArtifact()
+    public async Task CreateManifestsFromExtractedContentAsync_ExtensionlessNonArchive_RejectsArtifactAsync()
     {
         // Arrange
         Directory.CreateDirectory(_stagingDirectory);
@@ -351,7 +351,7 @@ public sealed class ModDBManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task CreateManifestsFromExtractedContentAsync_NestedModArchive_FlattensPayloadToRoot()
+    public async Task CreateManifestsFromExtractedContentAsync_NestedModArchive_FlattensPayloadToRootAsync()
     {
         // Arrange
         Directory.CreateDirectory(_stagingDirectory);

@@ -38,7 +38,7 @@ public sealed class SuperHackersManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task CreateManifestsFromExtractedContentAsync_ZipArchiveWithSuperHackersExe_ExtractsAndCreatesManifest()
+    public async Task CreateManifestsFromExtractedContentAsync_ZipArchiveWithSuperHackersExe_ExtractsAndCreatesManifestAsync()
     {
         // Arrange
         Directory.CreateDirectory(_stagingDirectory);
@@ -89,7 +89,7 @@ public sealed class SuperHackersManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task CreateManifestsFromExtractedContentAsync_ZipArchiveWithFallbackExe_ExtractsAndCreatesManifest()
+    public async Task CreateManifestsFromExtractedContentAsync_ZipArchiveWithFallbackExe_ExtractsAndCreatesManifestAsync()
     {
         // Arrange
         Directory.CreateDirectory(_stagingDirectory);

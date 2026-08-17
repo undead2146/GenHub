@@ -87,7 +87,7 @@ public class CommunityOutpostDiscovererTests
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task DiscoverAsync_GeneratesCorrectIdForCommunityPatch()
+    public async Task DiscoverAsync_GeneratesCorrectIdForCommunityPatchAsync()
     {
         // Arrange
         var mockHttp = new Mock<IHttpClientFactory>();

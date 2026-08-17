@@ -75,7 +75,7 @@ public sealed class FileSystemDelivererTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task DeliverContentAsync_StringVersion_Succeeds()
+    public async Task DeliverContentAsync_StringVersion_SucceedsAsync()
     {
         var tempFile = Path.GetTempFileName();
         try

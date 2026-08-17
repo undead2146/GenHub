@@ -79,13 +79,13 @@ public class StringToImageConverter : IValueConverter
     }
 
     /// <summary>
-    /// Not implemented. Converts a Bitmap back to a string file path.
+    /// Not supported. Converts a Bitmap back to a string file path.
     /// </summary>
     /// <inheritdoc/>
-    /// <returns>This method does not return a value; it always throws <see cref="NotImplementedException"/>.</returns>
-    /// <exception cref="NotImplementedException">Always thrown as this converter only supports one-way conversion.</exception>
+    /// <returns>This method does not return a value; it always throws <see cref="NotSupportedException"/>.</returns>
+    /// <exception cref="NotSupportedException">Always thrown as this converter only supports one-way conversion.</exception>
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 }

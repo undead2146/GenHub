@@ -77,7 +77,7 @@ public sealed class ModDBOrderingTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ModDBResolver_SelectsNewestReleaseBinary()
+    public async Task ModDBResolver_SelectsNewestReleaseBinaryAsync()
     {
         // Arrange
         const string modUrl = "https://www.moddb.com/mods/test-mod";

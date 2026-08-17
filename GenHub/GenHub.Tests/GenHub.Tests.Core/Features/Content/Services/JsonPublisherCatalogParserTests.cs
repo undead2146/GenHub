@@ -135,7 +135,7 @@ public sealed class JsonPublisherCatalogParserTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ParseCatalogAsync_SampleTestCatalog_Succeeds()
+    public async Task ParseCatalogAsync_SampleTestCatalog_SucceedsAsync()
     {
         var path = FindSampleCatalogPath();
         Assert.True(File.Exists(path), $"Sample catalog not found at {path}");

@@ -26,15 +26,15 @@ public class IndentToMarginConverter : IValueConverter
     }
 
     /// <summary>
-    /// Not implemented.
+    /// Not supported for one-way conversion.
     /// </summary>
     /// <param name="value">The target value.</param>
     /// <param name="targetType">Target binding type.</param>
     /// <param name="parameter">Converter parameter.</param>
     /// <param name="culture">Culture info.</param>
-    /// <returns>Always throws NotImplementedException.</returns>
+    /// <returns>Always throws NotSupportedException.</returns>
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 }

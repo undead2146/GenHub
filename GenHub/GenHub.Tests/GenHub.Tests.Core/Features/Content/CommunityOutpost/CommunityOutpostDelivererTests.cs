@@ -28,7 +28,7 @@ public sealed class CommunityOutpostDelivererTests
     /// </summary>
     /// <returns>A task that completes when the operation finishes.</returns>
     [Fact]
-    public async Task ValidateContentAsync_ValidDatArchive_ReturnsSuccess()
+    public async Task ValidateContentAsync_ValidDatArchive_ReturnsSuccessAsync()
     {
         // Arrange
         var downloadService = new Mock<IDownloadService>();
@@ -68,7 +68,7 @@ public sealed class CommunityOutpostDelivererTests
     /// </summary>
     /// <returns>A task that completes when the operation finishes.</returns>
     [Fact]
-    public async Task DeliverContentAsync_PatchUrlFailure_FallsBackToGp2FilesEndpoint()
+    public async Task DeliverContentAsync_PatchUrlFailure_FallsBackToGp2FilesEndpointAsync()
     {
         // Arrange
         var tempDirectory = Path.Combine(Path.GetTempPath(), "GenHubTests", Guid.NewGuid().ToString("N"));
@@ -158,7 +158,7 @@ public sealed class CommunityOutpostDelivererTests
     /// </summary>
     /// <returns>A task that completes when the operation finishes.</returns>
     [Fact]
-    public async Task DeliverContentAsync_HtmlResponseOnPrimaryUrl_RejectsHtmlAndFallsBackToArchive()
+    public async Task DeliverContentAsync_HtmlResponseOnPrimaryUrl_RejectsHtmlAndFallsBackToArchiveAsync()
     {
         // Arrange
         var tempDirectory = Path.Combine(Path.GetTempPath(), "GenHubTests", Guid.NewGuid().ToString("N"));
@@ -251,7 +251,7 @@ public sealed class CommunityOutpostDelivererTests
     /// </summary>
     /// <returns>A task that completes when the operation finishes.</returns>
     [Fact]
-    public async Task DeliverContentAsync_GenericCatalogHotkeysWithoutExplicitDependencies_ProcessesAndMergesIndicatorsDependency()
+    public async Task DeliverContentAsync_GenericCatalogHotkeysWithoutExplicitDependencies_ProcessesAndMergesIndicatorsDependencyAsync()
     {
         // Arrange
         var tempDirectory = Path.Combine(Path.GetTempPath(), "GenHubTests", Guid.NewGuid().ToString("N"));

@@ -63,7 +63,7 @@ public sealed class ProfileLauncherFacadeDependencyValidationTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ValidateLaunchAsync_CommunityOutpostBundleProfile_PassesValidation()
+    public async Task ValidateLaunchAsync_CommunityOutpostBundleProfile_PassesValidationAsync()
     {
         // Arrange
         const string profileId = "profile-community-outpost-stack";
@@ -206,7 +206,7 @@ public sealed class ProfileLauncherFacadeDependencyValidationTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ValidateLaunchAsync_MissingRequiredCommunityOutpostDependency_FailsValidation()
+    public async Task ValidateLaunchAsync_MissingRequiredCommunityOutpostDependency_FailsValidationAsync()
     {
         // Arrange
         const string profileId = "profile-missing-dependencies";

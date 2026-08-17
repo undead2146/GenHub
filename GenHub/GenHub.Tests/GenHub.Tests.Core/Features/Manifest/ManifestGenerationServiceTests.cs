@@ -76,7 +76,7 @@ public class ManifestGenerationServiceTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task CreateGameClientManifestAsync_IncludesExecutableWithHash()
+    public async Task CreateGameClientManifestAsync_IncludesExecutableWithHashAsync()
     {
         // Arrange
         await File.WriteAllTextAsync(Path.Combine(_tempDirectory, "generals.exe"), "dummy exe content");
@@ -101,7 +101,7 @@ public class ManifestGenerationServiceTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task CreateGameClientManifestAsync_IncludesExecutableWithCorrectSize()
+    public async Task CreateGameClientManifestAsync_IncludesExecutableWithCorrectSizeAsync()
     {
         // Arrange
         var (clientPath, executablePath) = await PrepareDummyExeAsync();
@@ -125,7 +125,7 @@ public class ManifestGenerationServiceTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task CreateGameClientManifestAsync_ThrowsWhenExecutableMissing()
+    public async Task CreateGameClientManifestAsync_ThrowsWhenExecutableMissingAsync()
     {
         // Arrange
         var clientPath = Path.Combine(_tempDirectory, "TestClient");
@@ -143,7 +143,7 @@ public class ManifestGenerationServiceTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task CreateGameClientManifestAsync_IncludesRequiredDllsWhenPresent()
+    public async Task CreateGameClientManifestAsync_IncludesRequiredDllsWhenPresentAsync()
     {
         // Arrange
         var (clientPath, executablePath) = await PrepareDummyExeAsync();
@@ -167,7 +167,7 @@ public class ManifestGenerationServiceTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task CreateGameClientManifestAsync_IncludesConfigFilesWhenPresent()
+    public async Task CreateGameClientManifestAsync_IncludesConfigFilesWhenPresentAsync()
     {
         // Arrange
         var (clientPath, executablePath) = await PrepareDummyExeAsync();
@@ -191,7 +191,7 @@ public class ManifestGenerationServiceTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task CreateGameClientManifestAsync_ManifestContainsMultipleFiles()
+    public async Task CreateGameClientManifestAsync_ManifestContainsMultipleFilesAsync()
     {
         // Arrange
         var (clientPath, executablePath) = await PrepareDummyExeAsync();
@@ -215,7 +215,7 @@ public class ManifestGenerationServiceTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task CreateGameClientManifestAsync_IncludesAllDllsAndGeneralsDatForEaApp()
+    public async Task CreateGameClientManifestAsync_IncludesAllDllsAndGeneralsDatForEaAppAsync()
     {
         // Arrange
         var clientPath = Path.Combine(_tempDirectory, "EaAppClient");
@@ -256,7 +256,7 @@ public class ManifestGenerationServiceTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task CreateGameInstallationManifestAsync_UsesCsvWhenAvailable()
+    public async Task CreateGameInstallationManifestAsync_UsesCsvWhenAvailableAsync()
     {
         // Arrange
         var installationPath = Path.Combine(_tempDirectory, "GeneralsInstall");

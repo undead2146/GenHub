@@ -37,7 +37,7 @@ public sealed class GitHubManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task CreateManifestsFromExtractedContentAsync_ZipArchiveDelivered_ExtractsAndCreatesManifest()
+    public async Task CreateManifestsFromExtractedContentAsync_ZipArchiveDelivered_ExtractsAndCreatesManifestAsync()
     {
         // Arrange
         Directory.CreateDirectory(_stagingDirectory);
@@ -91,7 +91,7 @@ public sealed class GitHubManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task CreateManifestsFromExtractedContentAsync_ControlBarNestedStructure_RepacksIntoBigArchives()
+    public async Task CreateManifestsFromExtractedContentAsync_ControlBarNestedStructure_RepacksIntoBigArchivesAsync()
     {
         // Arrange
         Directory.CreateDirectory(_stagingDirectory);

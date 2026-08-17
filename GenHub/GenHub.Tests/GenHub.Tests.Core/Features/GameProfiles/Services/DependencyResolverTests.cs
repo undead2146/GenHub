@@ -21,7 +21,7 @@ public sealed class DependencyResolverTests
     /// </summary>
     /// <returns>A task that completes when the real dependency resolver finishes.</returns>
     [Fact]
-    public async Task ResolveDependenciesWithManifestsAsync_LegacyCommunityOutpostDependency_UsesCanonicalAcquiredManifest()
+    public async Task ResolveDependenciesWithManifestsAsync_LegacyCommunityOutpostDependency_UsesCanonicalAcquiredManifestAsync()
     {
         // Arrange
         const string hotkeysId = "1.10.communityoutpost.addon.hlegenglish";
@@ -83,7 +83,7 @@ public sealed class DependencyResolverTests
     /// </summary>
     /// <returns>A task that completes when the real dependency resolver finishes.</returns>
     [Fact]
-    public async Task ResolveDependenciesWithManifestsAsync_AnyPublisherConstraint_RemainsTypeOnly()
+    public async Task ResolveDependenciesWithManifestsAsync_AnyPublisherConstraint_RemainsTypeOnlyAsync()
     {
         // Arrange
         const string contentId = "1.0.test.addon.example";
@@ -132,7 +132,7 @@ public sealed class DependencyResolverTests
     /// </summary>
     /// <returns>A task that completes when the real dependency resolver finishes.</returns>
     [Fact]
-    public async Task ResolveDependenciesWithManifestsAsync_LegacyGenHubInstallationConstraint_RemainsTypeOnly()
+    public async Task ResolveDependenciesWithManifestsAsync_LegacyGenHubInstallationConstraint_RemainsTypeOnlyAsync()
     {
         // Arrange
         const string contentId = "1.605261.generalsonline.gameclient.60hz";
@@ -182,7 +182,7 @@ public sealed class DependencyResolverTests
     /// </summary>
     /// <returns>A task that completes when the real dependency resolver finishes.</returns>
     [Fact]
-    public async Task ResolveDependenciesWithManifestsAsync_OrdinaryPublisherVersionMismatch_RemainsMissing()
+    public async Task ResolveDependenciesWithManifestsAsync_OrdinaryPublisherVersionMismatch_RemainsMissingAsync()
     {
         // Arrange
         const string contentId = "1.0.test.addon.example";
@@ -239,7 +239,7 @@ public sealed class DependencyResolverTests
     /// </summary>
     /// <returns>A task that completes when the real dependency resolver finishes.</returns>
     [Fact]
-    public async Task ResolveDependenciesWithManifestsAsync_CatalogPublisherVersionMismatch_AliasesAcquiredManifest()
+    public async Task ResolveDependenciesWithManifestsAsync_CatalogPublisherVersionMismatch_AliasesAcquiredManifestAsync()
     {
         const string bundleId = "1.20260731.genhubtestpublishers.contentbundle.bundlestack";
         const string declaredClientId = "1.1.genhubtestpublishers.gameclient.superhackerszerohourgamecode";
@@ -295,7 +295,7 @@ public sealed class DependencyResolverTests
     /// </summary>
     /// <returns>A task that completes when the real dependency resolver finishes.</returns>
     [Fact]
-    public async Task ResolveDependenciesWithManifestsAsync_CatalogVariantSuffix_AliasesAcquiredManifest()
+    public async Task ResolveDependenciesWithManifestsAsync_CatalogVariantSuffix_AliasesAcquiredManifestAsync()
     {
         const string bundleId = "1.20260731.genhubtestpublishers.contentbundle.bundlestack";
         const string declaredId = "1.13.genhubtestpublishers.addon.lemoncontrolbar";

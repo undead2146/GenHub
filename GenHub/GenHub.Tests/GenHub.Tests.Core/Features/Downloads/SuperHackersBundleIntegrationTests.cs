@@ -105,7 +105,7 @@ public sealed class SuperHackersBundleIntegrationTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ContentStateService_SuperHackersCatalogItem_MatchesZeroHourManifest()
+    public async Task ContentStateService_SuperHackersCatalogItem_MatchesZeroHourManifestAsync()
     {
         // arrange
         var manifestPoolMock = new Mock<IContentManifestPool>();
@@ -167,7 +167,7 @@ public sealed class SuperHackersBundleIntegrationTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ProfileContentService_SuperHackersLatestStackResolution_ResolvesZeroHourProfile()
+    public async Task ProfileContentService_SuperHackersLatestStackResolution_ResolvesZeroHourProfileAsync()
     {
         // arrange
         var zhClientManifest = new ContentManifest
@@ -409,7 +409,7 @@ public sealed class SuperHackersBundleIntegrationTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ProfileContentService_SuperHackersGeneralsResolution_ResolvesGeneralsProfile()
+    public async Task ProfileContentService_SuperHackersGeneralsResolution_ResolvesGeneralsProfileAsync()
     {
         // arrange
         var genClientManifest = new ContentManifest

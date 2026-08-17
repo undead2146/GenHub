@@ -593,6 +593,7 @@ public partial class ContentGridItemViewModel(
                         IsDownloading = false;
                         break;
                     default:
+                        // State unchanged
                         break;
                 }
 

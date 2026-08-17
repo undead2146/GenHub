@@ -30,7 +30,7 @@ public sealed class SubscriptionConfirmationViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task InitializeAsync_WhenNotSubscribed_SetsIsAlreadySubscribedFalse()
+    public async Task InitializeAsync_WhenNotSubscribed_SetsIsAlreadySubscribedFalseAsync()
     {
         // Arrange
         var catalog = CreateSampleCatalog("new-pub", "New Publisher");
@@ -68,7 +68,7 @@ public sealed class SubscriptionConfirmationViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task InitializeAsync_WhenAlreadySubscribed_SetsIsAlreadySubscribedTrue()
+    public async Task InitializeAsync_WhenAlreadySubscribed_SetsIsAlreadySubscribedTrueAsync()
     {
         // Arrange
         var catalog = CreateSampleCatalog("existing-pub", "Existing Publisher");
@@ -200,7 +200,7 @@ public sealed class SubscriptionConfirmationViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task SelectCategory_FiltersContentItemsCorrectly()
+    public async Task SelectCategory_FiltersContentItemsCorrectlyAsync()
     {
         // Arrange
         var catalog = CreateSampleCatalog("pub-1", "Test Publisher");

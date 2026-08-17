@@ -23,7 +23,7 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ExtractArchivesSafelyAsync_ValidZip_ExtractsAllEntriesAndDeletesZip()
+    public async Task ExtractArchivesSafelyAsync_ValidZip_ExtractsAllEntriesAndDeletesZipAsync()
     {
         // Arrange
         Directory.CreateDirectory(_stagingDirectory);
@@ -58,7 +58,7 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task NormalizeDirectoryStructureAsync_MultiLevelSingleWrapper_FlattensToRoot()
+    public async Task NormalizeDirectoryStructureAsync_MultiLevelSingleWrapper_FlattensToRootAsync()
     {
         // Arrange
         var nestedDir = Path.Combine(_stagingDirectory, "C&C Generals Undone v1.0", "C&C Generals Undone v1.0");
@@ -92,7 +92,7 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task NormalizeDirectoryStructureAsync_LooseReadmeWithModWrapper_FlattensModWrapperAlongsideReadme()
+    public async Task NormalizeDirectoryStructureAsync_LooseReadmeWithModWrapper_FlattensModWrapperAlongsideReadmeAsync()
     {
         // Arrange
         Directory.CreateDirectory(_stagingDirectory);
@@ -124,7 +124,7 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task NormalizeDirectoryStructureAsync_GameSpecificSubdirectory_PromotesMatchingTargetGameFolder()
+    public async Task NormalizeDirectoryStructureAsync_GameSpecificSubdirectory_PromotesMatchingTargetGameFolderAsync()
     {
         // Arrange
         var zhDir = Path.Combine(_stagingDirectory, "Zero Hour", "Data", "INI");
@@ -146,7 +146,7 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task NormalizeDirectoryStructureAsync_MapContent_PreservesSingleMapDirectory()
+    public async Task NormalizeDirectoryStructureAsync_MapContent_PreservesSingleMapDirectoryAsync()
     {
         // Arrange
         var mapDir = Path.Combine(_stagingDirectory, "Lemuria");
@@ -171,7 +171,7 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task NormalizeDirectoryStructureAsync_MapContentWithDoubleWrapper_FlattensOuterWrapperOnly()
+    public async Task NormalizeDirectoryStructureAsync_MapContentWithDoubleWrapper_FlattensOuterWrapperOnlyAsync()
     {
         // Arrange
         var outerWrapper = Path.Combine(_stagingDirectory, "MapDownloadWrapper");
@@ -197,7 +197,7 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task NormalizeDirectoryStructureAsync_PurgesSystemJunk()
+    public async Task NormalizeDirectoryStructureAsync_PurgesSystemJunkAsync()
     {
         // Arrange
         Directory.CreateDirectory(Path.Combine(_stagingDirectory, "__MACOSX"));
@@ -227,7 +227,7 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ExtractArchivesSafelyAsync_HtmlErrorPayload_ThrowsInvalidDataException()
+    public async Task ExtractArchivesSafelyAsync_HtmlErrorPayload_ThrowsInvalidDataExceptionAsync()
     {
         // Arrange
         Directory.CreateDirectory(_stagingDirectory);

@@ -101,7 +101,7 @@ public class WorkspaceIntegrationTests : IDisposable
     [InlineData(WorkspaceStrategy.FullCopy)]
     [InlineData(WorkspaceStrategy.SymlinkOnly)]
     [InlineData(WorkspaceStrategy.HybridCopySymlink)]
-    public async Task EndToEndWorkspaceCreation_AllStrategies(WorkspaceStrategy strategy)
+    public async Task EndToEndWorkspaceCreation_AllStrategiesAsync(WorkspaceStrategy strategy)
     {
         var manager = _serviceProvider.GetRequiredService<IWorkspaceManager>();
         var config = CreateTestConfiguration(strategy);
@@ -145,7 +145,7 @@ public class WorkspaceIntegrationTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task PrepareWorkspaceAsync_CreatesDirectory()
+    public async Task PrepareWorkspaceAsync_CreatesDirectoryAsync()
     {
         var mockDownloadService = new Mock<IDownloadService>();
         var mockCasService = new Mock<ICasService>();

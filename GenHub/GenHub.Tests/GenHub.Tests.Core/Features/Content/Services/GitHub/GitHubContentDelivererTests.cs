@@ -140,7 +140,7 @@ public class GitHubContentDelivererTests
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task ValidateContentAsync_ShouldReturnTrue_ForValidGitHubContent()
+    public async Task ValidateContentAsync_ShouldReturnTrue_ForValidGitHubContentAsync()
     {
         var deliverer = CreateSut();
         var manifest = new ContentManifest
@@ -162,7 +162,7 @@ public class GitHubContentDelivererTests
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task ValidateContentAsync_ShouldReturnFalse_WhenRequiredFilesHaveNonGitHubUrls()
+    public async Task ValidateContentAsync_ShouldReturnFalse_WhenRequiredFilesHaveNonGitHubUrlsAsync()
     {
         var deliverer = CreateSut();
         var manifest = new ContentManifest

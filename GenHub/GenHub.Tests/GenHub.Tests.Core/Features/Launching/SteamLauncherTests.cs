@@ -47,7 +47,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task PrepareForProfileAsync_ValidPaths_DeploysProxyAndPreservesExistingDependencies()
+    public async Task PrepareForProfileAsync_ValidPaths_DeploysProxyAndPreservesExistingDependenciesAsync()
     {
         // Arrange
         var backupPath = _originalExecutablePath + SteamConstants.BackupExtension;
@@ -76,7 +76,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task PrepareForProfileAsync_MissingWorkspaceExecutable_DoesNotMutateInstallation()
+    public async Task PrepareForProfileAsync_MissingWorkspaceExecutable_DoesNotMutateInstallationAsync()
     {
         // Arrange
         var missingExecutable = Path.Combine(_workspacePath, "missing.exe");
@@ -99,7 +99,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task PrepareForProfileAsync_MissingTargetWithBackup_DeploysProxyFromRecoveryState()
+    public async Task PrepareForProfileAsync_MissingTargetWithBackup_DeploysProxyFromRecoveryStateAsync()
     {
         // Arrange
         var backupPath = _originalExecutablePath + SteamConstants.BackupExtension;
@@ -120,7 +120,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task PrepareForProfileAsync_LateWriteFailure_RestoresOriginalAndPreExistingFiles()
+    public async Task PrepareForProfileAsync_LateWriteFailure_RestoresOriginalAndPreExistingFilesAsync()
     {
         // Arrange
         var backupPath = _originalExecutablePath + SteamConstants.BackupExtension;
@@ -160,7 +160,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task PrepareForProfileAsync_UnrelatedPreExistingBackup_FailsWithoutMutation()
+    public async Task PrepareForProfileAsync_UnrelatedPreExistingBackup_FailsWithoutMutationAsync()
     {
         // Arrange
         var backupPath = _originalExecutablePath + SteamConstants.BackupExtension;
@@ -184,7 +184,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task CleanupGameDirectoryAsync_UnrelatedBackup_PreservesExecutableAndArtifacts()
+    public async Task CleanupGameDirectoryAsync_UnrelatedBackup_PreservesExecutableAndArtifactsAsync()
     {
         // Arrange
         var backupPath = _originalExecutablePath + SteamConstants.BackupExtension;
@@ -209,7 +209,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task CleanupGameDirectoryAsync_DeployedProxy_RestoresVerifiedBackup()
+    public async Task CleanupGameDirectoryAsync_DeployedProxy_RestoresVerifiedBackupAsync()
     {
         // Arrange
         var backupPath = _originalExecutablePath + SteamConstants.BackupExtension;
@@ -235,7 +235,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task CleanupGameDirectoryAsync_DeployedProxyWithoutBackup_FailsClosed()
+    public async Task CleanupGameDirectoryAsync_DeployedProxyWithoutBackup_FailsClosedAsync()
     {
         // Arrange
         var configPath = Path.Combine(_gameInstallPath, "proxy_config.json");
@@ -258,7 +258,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task PrepareForProfileAsync_ConcurrentProfilesSharingInstallation_SerializesMutations()
+    public async Task PrepareForProfileAsync_ConcurrentProfilesSharingInstallation_SerializesMutationsAsync()
     {
         // Arrange
         var firstWriteStarted = new TaskCompletionSource<bool>(
@@ -313,7 +313,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task PrepareForProfileAsync_CanceledAfterMutation_RollsBackCurrentAttempt()
+    public async Task PrepareForProfileAsync_CanceledAfterMutation_RollsBackCurrentAttemptAsync()
     {
         // Arrange
         using var cancellationSource = new CancellationTokenSource();
@@ -349,7 +349,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task PrepareForProfileAsync_ExecutableChangesDuringFailure_ReportsRollbackConflict()
+    public async Task PrepareForProfileAsync_ExecutableChangesDuringFailure_ReportsRollbackConflictAsync()
     {
         // Arrange
         async Task ConflictingWriter(string path, string contents, CancellationToken cancellationToken)

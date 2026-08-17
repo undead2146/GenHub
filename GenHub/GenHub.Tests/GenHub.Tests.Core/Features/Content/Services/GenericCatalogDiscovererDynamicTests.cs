@@ -49,7 +49,7 @@ public sealed class GenericCatalogDiscovererDynamicTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task DiscoverAsync_DynamicSuperHackersItem_HydratesReleaseFromGitHub()
+    public async Task DiscoverAsync_DynamicSuperHackersItem_HydratesReleaseFromGitHubAsync()
     {
         var catalog = CreateTestCatalog();
         var catalogParserMock = new Mock<IPublisherCatalogParser>();
@@ -100,7 +100,7 @@ public sealed class GenericCatalogDiscovererDynamicTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task DiscoverAsync_ContentBundleWithSuperHackersDependency_SynchronizesDependencyVersion()
+    public async Task DiscoverAsync_ContentBundleWithSuperHackersDependency_SynchronizesDependencyVersionAsync()
     {
         var catalog = CreateTestCatalog();
         var catalogParserMock = new Mock<IPublisherCatalogParser>();
@@ -151,7 +151,7 @@ public sealed class GenericCatalogDiscovererDynamicTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task DiscoverAsync_GitHubFailsOrOffline_PreservesBaselineVariants()
+    public async Task DiscoverAsync_GitHubFailsOrOffline_PreservesBaselineVariantsAsync()
     {
         var catalog = CreateTestCatalog();
         var catalogParserMock = new Mock<IPublisherCatalogParser>();

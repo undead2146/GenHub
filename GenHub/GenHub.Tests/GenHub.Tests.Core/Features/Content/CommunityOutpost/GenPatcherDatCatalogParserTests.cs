@@ -17,7 +17,7 @@ public class GenPatcherDatCatalogParserTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     [Fact]
-    public async Task ParseAsync_PopulatesVariantsForControlBarPro()
+    public async Task ParseAsync_PopulatesVariantsForControlBarProAsync()
     {
         // arrange
         var parser = new GenPatcherDatCatalogParser(NullLogger<GenPatcherDatCatalogParser>.Instance);

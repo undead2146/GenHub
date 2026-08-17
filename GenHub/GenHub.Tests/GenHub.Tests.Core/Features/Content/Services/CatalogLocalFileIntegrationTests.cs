@@ -28,7 +28,7 @@ public sealed class CatalogLocalFileIntegrationTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ReadAsync_LocalFileUriAndAbsolutePath_ReadsTheSameCatalog()
+    public async Task ReadAsync_LocalFileUriAndAbsolutePath_ReadsTheSameCatalogAsync()
     {
         var catalogPath = await CreateTemporaryCatalogAsync();
         try
@@ -53,7 +53,7 @@ public sealed class CatalogLocalFileIntegrationTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task InitializeAsync_FileCatalogUri_EnablesSubscriptionConfirmation()
+    public async Task InitializeAsync_FileCatalogUri_EnablesSubscriptionConfirmationAsync()
     {
         var catalogPath = await CreateTemporaryCatalogAsync();
         try
@@ -88,7 +88,7 @@ public sealed class CatalogLocalFileIntegrationTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task GetTabsAsync_LocalCatalogAfterSelection_ReturnsPublisherTabs()
+    public async Task GetTabsAsync_LocalCatalogAfterSelection_ReturnsPublisherTabsAsync()
     {
         var catalogPath = await CreateTemporaryCatalogAsync();
         try

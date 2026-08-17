@@ -25,7 +25,7 @@ public sealed class ContentValidatorTests : IDisposable
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ValidateContentIntegrityAsync_StagedContentAddressableFile_ValidatesBeforeCasStorage()
+    public async Task ValidateContentIntegrityAsync_StagedContentAddressableFile_ValidatesBeforeCasStorageAsync()
     {
         // Arrange
         Directory.CreateDirectory(_stagingDirectory);

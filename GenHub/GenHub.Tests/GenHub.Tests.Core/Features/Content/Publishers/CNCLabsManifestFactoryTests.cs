@@ -30,7 +30,7 @@ public sealed class CNCLabsManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task CreateManifestsFromExtractedContentAsync_MapArchive_RoutesPayloadToUserMapsDirectory()
+    public async Task CreateManifestsFromExtractedContentAsync_MapArchive_RoutesPayloadToUserMapsDirectoryAsync()
     {
         // Arrange
         Directory.CreateDirectory(_stagingDirectory);

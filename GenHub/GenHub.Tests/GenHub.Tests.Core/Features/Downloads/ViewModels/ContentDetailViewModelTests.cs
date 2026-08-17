@@ -31,7 +31,7 @@ public sealed class ContentDetailViewModelTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ReleaseRowDownloadAndAddToProfile_UsesChildManifestWithoutUpdatingParent()
+    public async Task ReleaseRowDownloadAndAddToProfile_UsesChildManifestWithoutUpdatingParentAsync()
     {
         // Arrange
         const string parentCatalogId = "moddb-parent-catalog-id";
@@ -224,7 +224,7 @@ public sealed class ContentDetailViewModelTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task SelectedContentType_WhenDownloaded_PersistsTypeAndClearsGameInstallDeps()
+    public async Task SelectedContentType_WhenDownloaded_PersistsTypeAndClearsGameInstallDepsAsync()
     {
         // Arrange
         const string manifestId = "1.20260530.moddb.addon.genbigeditbigeditor";
@@ -357,7 +357,7 @@ public sealed class ContentDetailViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task MainActionCard_RoutesToSelectedDownloadableItem()
+    public async Task MainActionCard_RoutesToSelectedDownloadableItemAsync()
     {
         // Arrange
         const string releaseManifestId = "1.20260102.moddb.mod.v104";
@@ -502,7 +502,7 @@ public sealed class ContentDetailViewModelTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task TriggerPreloadRecentItemDetailsAsync_PopulatesRecentReleasesAndAddons()
+    public async Task TriggerPreloadRecentItemDetailsAsync_PopulatesRecentReleasesAndAddonsAsync()
     {
         // Arrange
         var parent = new ContentSearchResult
@@ -572,7 +572,7 @@ public sealed class ContentDetailViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task TriggerPreloadRecentItemDetailsAsync_WhenReleasesAndAddonsAlreadyDetailed_DoesNotCallParser()
+    public async Task TriggerPreloadRecentItemDetailsAsync_WhenReleasesAndAddonsAlreadyDetailed_DoesNotCallParserAsync()
     {
         // Arrange
         const string releaseUrl = "https://www.moddb.com/mods/some-mod/downloads/release-1";
@@ -637,7 +637,7 @@ public sealed class ContentDetailViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task RowDownloadCommand_UsesUpdatedDetailedFileAfterDetailsLoaded()
+    public async Task RowDownloadCommand_UsesUpdatedDetailedFileAfterDetailsLoadedAsync()
     {
         // Arrange
         const string addonPageUrl = "https://www.moddb.com/mods/some-mod/addons/lost-warlord";
@@ -825,7 +825,7 @@ public sealed class ContentDetailViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task ContentBundle_ReleasesTab_AutoSelectsRelease_AndExecutesBundleDownload()
+    public async Task ContentBundle_ReleasesTab_AutoSelectsRelease_AndExecutesBundleDownloadAsync()
     {
         // Arrange
         const string bundleId = "bundle-test";
@@ -1126,7 +1126,7 @@ public sealed class ContentDetailViewModelTests
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task PopulateReleases_ModDbMultipleReleases_OnlyDownloadedRowIsMarkedDownloaded()
+    public async Task PopulateReleases_ModDbMultipleReleases_OnlyDownloadedRowIsMarkedDownloadedAsync()
     {
         // Arrange
         const string urlV92a = "https://www.moddb.com/downloads/start/307616";

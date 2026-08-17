@@ -61,7 +61,7 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task ProcessAndRepackControlBarAsync_WithNestedVariantStructure_RepacksToBigArchives()
+    public async Task ProcessAndRepackControlBarAsync_WithNestedVariantStructure_RepacksToBigArchivesAsync()
     {
         // Arrange
         var variantRoot = Path.Combine(_testDir, "ZH", "1080p", "BIG");
@@ -108,7 +108,7 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task ProcessAndRepackControlBarAsync_WithPrebuiltBigFiles_RetainsMatchingFiles()
+    public async Task ProcessAndRepackControlBarAsync_WithPrebuiltBigFiles_RetainsMatchingFilesAsync()
     {
         // Arrange
         Directory.CreateDirectory(_testDir);
@@ -139,7 +139,7 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task ProcessAndRepackControlBarAsync_WithLemonEditionPrebuiltBigFiles_RetainsLemonEditionFiles()
+    public async Task ProcessAndRepackControlBarAsync_WithLemonEditionPrebuiltBigFiles_RetainsLemonEditionFilesAsync()
     {
         // Arrange
         Directory.CreateDirectory(_testDir);

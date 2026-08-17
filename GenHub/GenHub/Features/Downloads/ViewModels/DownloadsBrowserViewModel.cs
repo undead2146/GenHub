@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -649,7 +650,7 @@ public partial class DownloadsBrowserViewModel(
 
                     if (inFlightOp != null)
                     {
-                        lock (inFlightOp)
+                        lock (inFlightOp.SyncRoot)
                         {
                             inFlightOp.ResolvedItems.Add(vm);
                         }
@@ -1621,6 +1622,9 @@ public partial class DownloadsBrowserViewModel(
 
         /// <summary>Gets the cancellation token source for this operation.</summary>
         public CancellationTokenSource Cts { get; } = cts;
+
+        /// <summary>Gets the sync root for thread-safe list operations.</summary>
+        public object SyncRoot { get; } = new();
 
         /// <summary>Gets the list of items resolved so far.</summary>
         public List<ContentGridItemViewModel> ResolvedItems { get; } = [];

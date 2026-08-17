@@ -74,7 +74,7 @@ public class ContentReconciliationConcurrencyTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task ReconcileBulkManifestReplacementAsync_ShouldSerializeConcurrentCalls()
+    public async Task ReconcileBulkManifestReplacementAsync_ShouldSerializeConcurrentCallsAsync()
     {
         // Arrange
         var callCounter = 0;

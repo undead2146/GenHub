@@ -937,6 +937,7 @@ public partial class ContentDetailViewModel(
                         IsUpdateAvailable = false;
                         break;
                     default:
+                        // State unchanged
                         break;
                 }
 
@@ -3210,9 +3211,7 @@ public partial class ContentDetailViewModel(
                 Uploader = itemAuthor,
                 Filename = itemFilename,
                 FullDescription = itemDescription,
-                TargetGame = sibling?.TargetGame is not null and not GameType.Unknown
-                    ? sibling.TargetGame.ToString()
-                    : (searchResult.TargetGame != GameType.Unknown ? searchResult.TargetGame.ToString() : null),
+                TargetGame = ResolveTargetGameString(sibling, searchResult),
                 IsDetailsLoaded = true,
                 File = file,
                 IsDownloaded = variant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable,
@@ -3923,5 +3922,15 @@ public partial class ContentDetailViewModel(
         {
             logger.LogError(ex, "Failed to load custom tabs for content: {Name}", Name);
         }
+    }
+
+    private string? ResolveTargetGameString(ContentSearchResult? sibling, ContentSearchResult fallbackResult)
+    {
+        if (sibling?.TargetGame is not null and not GameType.Unknown)
+        {
+            return sibling.TargetGame.ToString();
+        }
+
+        return fallbackResult.TargetGame != GameType.Unknown ? fallbackResult.TargetGame.ToString() : null;
     }
 }

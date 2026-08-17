@@ -408,6 +408,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
                     md5Hash = content;
                     break;
                 default:
+                    // Ignore other metadata labels
                     break;
             }
         }
@@ -873,7 +874,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
 
             var parentAnchor = img.Closest("a");
             var anchorHref = parentAnchor?.GetAttribute("href");
-            var fullSizeUrl = GetFullSizeModDBImageUrl(thumbnailUrl);
+            var fullSizeUrl = GetFullSizeModDBImageSource(thumbnailUrl);
 
             if (!string.IsNullOrWhiteSpace(anchorHref))
             {
@@ -967,16 +968,16 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
     }
 
     /// <summary>
-    /// Converts a ModDB cached/cropped thumbnail URL to a high-resolution full-size image URL.
+    /// Converts a ModDB cached/cropped thumbnail image source to a high-resolution full-size image source.
     /// </summary>
-    private static string GetFullSizeModDBImageUrl(string url)
+    private static string GetFullSizeModDBImageSource(string imageSource)
     {
-        if (string.IsNullOrWhiteSpace(url))
+        if (string.IsNullOrWhiteSpace(imageSource))
         {
-            return url;
+            return imageSource;
         }
 
-        var result = url;
+        var result = imageSource;
         if (result.Contains("/cache/images/", StringComparison.OrdinalIgnoreCase))
         {
             result = result.Replace("/cache/images/", "/images/", StringComparison.OrdinalIgnoreCase);
@@ -1123,7 +1124,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         }
 
         var absUrl = ToAbsoluteUrl(src);
-        var fullSizeUrl = GetFullSizeModDBImageUrl(absUrl);
+        var fullSizeUrl = GetFullSizeModDBImageSource(absUrl);
         var alt = img.GetAttribute("alt");
         var title = !string.IsNullOrWhiteSpace(alt) ? FormatImageTitle(alt) : "Image";
 
@@ -3072,11 +3073,11 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
                                     absAnchor.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
                                     absAnchor.EndsWith(".webp", StringComparison.OrdinalIgnoreCase);
 
-                fullUrl = isDirectImage ? absAnchor : GetFullSizeModDBImageUrl(fullUrl);
+                fullUrl = isDirectImage ? absAnchor : GetFullSizeModDBImageSource(fullUrl);
             }
             else
             {
-                fullUrl = GetFullSizeModDBImageUrl(fullUrl);
+                fullUrl = GetFullSizeModDBImageSource(fullUrl);
             }
 
             if (!previewImages.Contains(fullUrl))

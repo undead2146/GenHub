@@ -24,7 +24,7 @@ public sealed class ManagedChromiumRuntimeTests : IDisposable
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task EnsureInstalledAsync_ExistingManagedExecutable_DoesNotRunInstaller()
+    public async Task EnsureInstalledAsync_ExistingManagedExecutable_DoesNotRunInstallerAsync()
     {
         // Arrange
         var executablePath = Path.Combine(_runtimeDirectory, "chromium.exe");
@@ -63,7 +63,7 @@ public sealed class ManagedChromiumRuntimeTests : IDisposable
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task EnsureInstalledAsync_MissingManagedExecutable_InstallsChromiumOnce()
+    public async Task EnsureInstalledAsync_MissingManagedExecutable_InstallsChromiumOnceAsync()
     {
         // Arrange
         var executablePath = Path.Combine(_runtimeDirectory, "chromium.exe");
@@ -102,7 +102,7 @@ public sealed class ManagedChromiumRuntimeTests : IDisposable
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task EnsureInstalledAsync_ConsentDeclined_ThrowsWithoutInstalling()
+    public async Task EnsureInstalledAsync_ConsentDeclined_ThrowsWithoutInstallingAsync()
     {
         // Arrange
         var executablePath = Path.Combine(_runtimeDirectory, "chromium.exe");

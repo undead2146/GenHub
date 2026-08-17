@@ -62,7 +62,7 @@ public class CommunityOutpostManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task CreateManifestsFromExtractedContentAsync_WithHleiPackage_ShouldSplitIntoMultipleManifests()
+    public async Task CreateManifestsFromExtractedContentAsync_WithHleiPackage_ShouldSplitIntoMultipleManifestsAsync()
     {
         // Arrange
         var zhEnDir = Path.Combine(_tempDir, "ZH", "BIG EN");
@@ -117,7 +117,7 @@ public class CommunityOutpostManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task CreateManifestsFromExtractedContentAsync_WithNoVariants_ShouldReturnSingleManifest()
+    public async Task CreateManifestsFromExtractedContentAsync_WithNoVariants_ShouldReturnSingleManifestAsync()
     {
         // Arrange
         File.WriteAllText(Path.Combine(_tempDir, "mod.big"), "mock content");
@@ -148,7 +148,7 @@ public class CommunityOutpostManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task CreateManifestsFromExtractedContentAsync_LegionnairesHotkeys_PreservesGenToolDependency()
+    public async Task CreateManifestsFromExtractedContentAsync_LegionnairesHotkeys_PreservesGenToolDependencyAsync()
     {
         // Arrange
         File.WriteAllText(Path.Combine(_tempDir, "!HotkeysLegionnaireZH.big"), "mock content");
@@ -206,7 +206,7 @@ public class CommunityOutpostManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task CreateManifestsFromExtractedContentAsync_ZipArchivePresent_ExtractsFilesAndDeletesZip()
+    public async Task CreateManifestsFromExtractedContentAsync_ZipArchivePresent_ExtractsFilesAndDeletesZipAsync()
     {
         // Arrange
         var zipPath = Path.Combine(_tempDir, "community-patch.zip");
@@ -248,7 +248,7 @@ public class CommunityOutpostManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task CreateManifestsFromExtractedContentAsync_WithSelectedVariantId_BuildsOnlyRequestedVariant()
+    public async Task CreateManifestsFromExtractedContentAsync_WithSelectedVariantId_BuildsOnlyRequestedVariantAsync()
     {
         // Arrange
         File.WriteAllText(Path.Combine(_tempDir, "340_ControlBarPro1080ZH.big"), "mock big content");
@@ -283,7 +283,7 @@ public class CommunityOutpostManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task CreateManifestsFromExtractedContentAsync_WithRequestedVariantTag_BuildsOnlyRequestedVariant()
+    public async Task CreateManifestsFromExtractedContentAsync_WithRequestedVariantTag_BuildsOnlyRequestedVariantAsync()
     {
         // Arrange
         File.WriteAllText(Path.Combine(_tempDir, "340_ControlBarPro1440ZH.big"), "mock big content");
@@ -316,7 +316,7 @@ public class CommunityOutpostManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task CreateManifestsFromExtractedContentAsync_WithHyphenatedVariantInId_BuildsOnlyRequestedVariant()
+    public async Task CreateManifestsFromExtractedContentAsync_WithHyphenatedVariantInId_BuildsOnlyRequestedVariantAsync()
     {
         // Arrange
         File.WriteAllText(Path.Combine(_tempDir, "340_ControlBarPro1080ZH.big"), "mock big content");
@@ -349,7 +349,7 @@ public class CommunityOutpostManifestFactoryTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task CreateManifestsFromExtractedContentAsync_WithEmptyVersion_SetsValidDefaultVersion()
+    public async Task CreateManifestsFromExtractedContentAsync_WithEmptyVersion_SetsValidDefaultVersionAsync()
     {
         // Arrange
         File.WriteAllText(Path.Combine(_tempDir, "340_ControlBarPro1080ZH.big"), "mock big content");

@@ -56,7 +56,7 @@ public class ImageCacheServiceTests
     [InlineData("127.0.0.1")]
     [InlineData("192.168.0.1")]
     [InlineData("")]
-    public async Task IsSafeHostAsync_UnsafeHost_ReturnsFalse(string host)
+    public async Task IsSafeHostAsync_UnsafeHost_ReturnsFalseAsync(string host)
     {
         var result = await ImageCacheService.IsSafeHostAsync(host);
         Assert.False(result);
@@ -71,9 +71,9 @@ public class ImageCacheServiceTests
     [InlineData("ftp://example.com/image.png")]
     [InlineData("\\\\server\\share\\image.png")]
     [InlineData("javascript:alert(1)")]
-    [InlineData("http://localhost/test.png")]
-    [InlineData("http://127.0.0.1/test.png")]
-    [InlineData("http://192.168.1.1/test.png")]
+    [InlineData("https://localhost/test.png")]
+    [InlineData("https://127.0.0.1/test.png")]
+    [InlineData("https://192.168.1.1/test.png")]
     public void IsSafeRemoteUrl_UnsafeUrl_ReturnsFalse(string url)
     {
         var result = ImageCacheService.IsSafeRemoteUrl(url, out _);

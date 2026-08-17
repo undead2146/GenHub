@@ -119,7 +119,7 @@ public sealed class ProfileContentServiceTests
     /// </summary>
     /// <returns>A task that completes when profile reconciliation finishes.</returns>
     [Fact]
-    public async Task AddContentToProfileAsync_ExistingVersionedGenTool_ReconcilesLegionnaireDependencyClosure()
+    public async Task AddContentToProfileAsync_ExistingVersionedGenTool_ReconcilesLegionnaireDependencyClosureAsync()
     {
         // Arrange
         const string hotkeysId = "1.10.communityoutpost.addon.hlegenglish";
@@ -243,7 +243,7 @@ public sealed class ProfileContentServiceTests
     /// </summary>
     /// <returns>A task that completes when the operation finishes.</returns>
     [Fact]
-    public async Task AddContentToProfileAsync_MissingBaseDependency_AcquiresFromGenPatcherFilesEndpoint()
+    public async Task AddContentToProfileAsync_MissingBaseDependency_AcquiresFromGenPatcherFilesEndpointAsync()
     {
         // Arrange
         const string hotkeysId = "1.0.communityoutpost.addon.hleg";

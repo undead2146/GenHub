@@ -26,7 +26,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_CurrentAddonDetailMarkup_ExtractsArchiveNameAndAddonStartUrl()
+    public async Task ParseAsync_CurrentAddonDetailMarkup_ExtractsArchiveNameAndAddonStartUrlAsync()
     {
         // Arrange
         var playwright = CreatePlaywrightMock();
@@ -69,7 +69,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_GameFileDetail_ExtractsOnPageCommentsWithoutParentSweep()
+    public async Task ParseAsync_GameFileDetail_ExtractsOnPageCommentsWithoutParentSweepAsync()
     {
         // Arrange
         const string pageUrl = "https://www.moddb.com/games/cc-generals-zero-hour/downloads/genbigeditbig-editor";
@@ -125,7 +125,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_AddonsListRow_ExtractsSingleplayerMapCategory()
+    public async Task ParseAsync_AddonsListRow_ExtractsSingleplayerMapCategoryAsync()
     {
         // Arrange
         const string pageUrl = "https://www.moddb.com/games/cc-generals-zero-hour/addons";
@@ -164,7 +164,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_ModDetail_UsesPersistentProfileForDownloadsAndAddons()
+    public async Task ParseAsync_ModDetail_UsesPersistentProfileForDownloadsAndAddonsAsync()
     {
         // Arrange
         const string pageUrl = "https://www.moddb.com/mods/example-mod";
@@ -227,7 +227,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ParseFileDetailAsync_FetchesOnlyFileDetailPageAndSkipsSectionSweep()
+    public async Task ParseFileDetailAsync_FetchesOnlyFileDetailPageAndSkipsSectionSweepAsync()
     {
         // Arrange: the FileDetail page already carries a real (non-guest) icon, so the parent-mod
         // icon fallback fetch is skipped too — exactly one fetch total.
@@ -276,7 +276,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ParseFileDetailAsync_WithGuestIcon_FetchesOnlyFileDetailPage()
+    public async Task ParseFileDetailAsync_WithGuestIcon_FetchesOnlyFileDetailPageAsync()
     {
         // Arrange
         const string pageUrl = "https://www.moddb.com/mods/genspeed/downloads/genspeed-v25";
@@ -317,7 +317,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_NestedComments_ParsesThreadHierarchyAndCleansActionText()
+    public async Task ParseAsync_NestedComments_ParsesThreadHierarchyAndCleansActionTextAsync()
     {
         // Arrange
         const string pageUrl = "https://www.moddb.com/mods/example-mod/comments";
@@ -374,7 +374,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_NestedCommentsInsideCommentBody_DoesNotPolluteParentContent()
+    public async Task ParseAsync_NestedCommentsInsideCommentBody_DoesNotPolluteParentContentAsync()
     {
         // Arrange
         const string pageUrl = "https://www.moddb.com/mods/example-mod/comments";
@@ -430,7 +430,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_BareRatingWidget_IsNotTreatedAsReview()
+    public async Task ParseAsync_BareRatingWidget_IsNotTreatedAsReviewAsync()
     {
         // Arrange
         const string pageUrl = "https://www.moddb.com/mods/example-mod/reviews";
@@ -468,7 +468,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_CommentComposer_IsNotTreatedAsComments()
+    public async Task ParseAsync_CommentComposer_IsNotTreatedAsCommentsAsync()
     {
         const string pageUrl = "https://www.moddb.com/mods/cc-generals-undone/downloads/cc-generals-undone";
         var playwright = CreatePlaywrightMock();
@@ -510,7 +510,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_FileDetailChromeImages_AreNotGalleryMedia()
+    public async Task ParseAsync_FileDetailChromeImages_AreNotGalleryMediaAsync()
     {
         const string pageUrl = "https://www.moddb.com/mods/cc-generals-undone/downloads/cc-generals-undone";
         var playwright = CreatePlaywrightMock();
@@ -555,7 +555,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_ImagesPage_ExtractsUniqueGalleryShots()
+    public async Task ParseAsync_ImagesPage_ExtractsUniqueGalleryShotsAsync()
     {
         const string pageUrl = "https://www.moddb.com/mods/cc-generals-undone/images";
         var playwright = CreatePlaywrightMock();
@@ -600,7 +600,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_ImageTitles_FormatsCamelCaseAndFilenames()
+    public async Task ParseAsync_ImageTitles_FormatsCamelCaseAndFilenamesAsync()
     {
         const string pageUrl = "https://www.moddb.com/mods/test-mod/images";
         var playwright = CreatePlaywrightMock();
@@ -640,7 +640,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_FileDetailAndParentDownloads_DedupesSameBinary()
+    public async Task ParseAsync_FileDetailAndParentDownloads_DedupesSameBinaryAsync()
     {
         const string pageUrl = "https://www.moddb.com/mods/cc-generals-undone/downloads/cc-generals-undone";
         const string parentUrl = "https://www.moddb.com/mods/cc-generals-undone";
@@ -719,7 +719,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ParseFileDetailAsync_WithAlternativeLabels_ParsesMd5ChecksumTotalDownloadsAndUploader()
+    public async Task ParseFileDetailAsync_WithAlternativeLabels_ParsesMd5ChecksumTotalDownloadsAndUploaderAsync()
     {
         const string pageUrl = "https://www.moddb.com/mods/cc-generals-undone/downloads/generals-undone-v101-patch";
         var playwright = CreatePlaywrightMock();
@@ -761,7 +761,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_ModernModDBDownloadsListing_ExtractsSubheadingSizeAndLinks()
+    public async Task ParseAsync_ModernModDBDownloadsListing_ExtractsSubheadingSizeAndLinksAsync()
     {
         const string pageUrl = "https://www.moddb.com/mods/cc-generals-undone/downloads/cc-generals-undone";
         const string parentUrl = "https://www.moddb.com/mods/cc-generals-undone";
@@ -856,7 +856,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_WithYouTubeIframe_ExtractsTitlePlatformThumbnailAndEmbedUrl()
+    public async Task ParseAsync_WithYouTubeIframe_ExtractsTitlePlatformThumbnailAndEmbedUrlAsync()
     {
         // Arrange
         const string pageUrl = "https://www.moddb.com/mods/korean-war-2";
@@ -906,7 +906,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_WithVideosSectionListing_ExtractsGalleryVideos()
+    public async Task ParseAsync_WithVideosSectionListing_ExtractsGalleryVideosAsync()
     {
         // Arrange
         const string pageUrl = "https://www.moddb.com/mods/korean-war-2/downloads/korean-war-2-v020";
@@ -998,7 +998,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_WithMediaBrowseContainingImagesAndVideos_SeparatesImagesAndVideos()
+    public async Task ParseAsync_WithMediaBrowseContainingImagesAndVideos_SeparatesImagesAndVideosAsync()
     {
         // Arrange
         const string pageUrl = "https://www.moddb.com/mods/test-mod";
@@ -1053,7 +1053,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_WithDownloadWidgetAndRecommendations_IgnoresNonVideoWidgetsAndRecommendations()
+    public async Task ParseAsync_WithDownloadWidgetAndRecommendations_IgnoresNonVideoWidgetsAndRecommendationsAsync()
     {
         // Arrange
         const string pageUrl = "https://www.moddb.com/mods/zhe/downloads/patch-1";
@@ -1156,7 +1156,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ParseFileDetailAsync_WithHeaderBox_ExtractsSpecificFileHeadingNotParentModName()
+    public async Task ParseFileDetailAsync_WithHeaderBox_ExtractsSpecificFileHeadingNotParentModNameAsync()
     {
         const string pageUrl = "https://www.moddb.com/mods/cc-generals-undone/downloads/generalsundone-v101-patch";
         var playwright = CreatePlaywrightMock();
@@ -1225,7 +1225,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_WithMultipleDistinctReleases_KeepsBothReleasesSeparate()
+    public async Task ParseAsync_WithMultipleDistinctReleases_KeepsBothReleasesSeparateAsync()
     {
         const string pageUrl = "https://www.moddb.com/mods/cc-generals-undone/downloads/cc-generals-undone";
         const string parentUrl = "https://www.moddb.com/mods/cc-generals-undone";
@@ -1326,12 +1326,12 @@ public sealed class ModDBPageParserTests
     /// <param name="expectedBytes">The expected parsed size in bytes.</param>
     /// <returns>A task representing the asynchronous test.</returns>
     [Theory]
-    [InlineData("188.3kb (192,819 bytes)", 192819L)]
-    [InlineData("188.3kb", 192819L)]
-    [InlineData("9,72 MB", 10192158L)]
-    [InlineData("1.07mb (1,125,450 bytes)", 1125450L)]
+    [InlineData("188.3kb (192,819 bytes)", 192_819L)]
+    [InlineData("188.3kb", 192_819L)]
+    [InlineData("9,72 MB", 10_192_158L)]
+    [InlineData("1.07mb (1,125,450 bytes)", 1_125_450L)]
     [InlineData("289.6 MB", 303_667_609L)]
-    public async Task ParseFileDetailAsync_WithVariousSizeFormats_CorrectlyParsesSizeBytes(string sizeString, long expectedBytes)
+    public async Task ParseFileDetailAsync_WithVariousSizeFormats_CorrectlyParsesSizeBytesAsync(string sizeString, long expectedBytes)
     {
         // Arrange
         var playwright = CreatePlaywrightMock();
@@ -1381,7 +1381,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ParseFileDetailsManyAsync_MultipleUrls_CallsFetchAndParsePersistentManyAsyncAndParsesAll()
+    public async Task ParseFileDetailsManyAsync_MultipleUrls_CallsFetchAndParsePersistentManyAsyncAndParsesAllAsync()
     {
         // Arrange
         const string url1 = "https://www.moddb.com/games/cc-generals-zero-hour/addons/addon1";
@@ -1440,7 +1440,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_ProtocolRelativeMediaUrls_NormalizesToHttpsScheme()
+    public async Task ParseAsync_ProtocolRelativeMediaUrls_NormalizesToHttpsSchemeAsync()
     {
         // Arrange
         const string pageUrl = "https://www.moddb.com/mods/test-mod/images";
@@ -1480,7 +1480,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_VideosPage_ExcludesPaginationAndRssLinks()
+    public async Task ParseAsync_VideosPage_ExcludesPaginationAndRssLinksAsync()
     {
         // Arrange
         const string pageUrl = "https://www.moddb.com/mods/test-mod/videos";
@@ -1532,7 +1532,7 @@ public sealed class ModDBPageParserTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_ModWithReleasesAndAddons_EnrichesBothTopReleasesAndAddonsInSingleSession()
+    public async Task ParseAsync_ModWithReleasesAndAddons_EnrichesBothTopReleasesAndAddonsInSingleSessionAsync()
     {
         // Arrange
         const string pageUrl = "https://www.moddb.com/mods/rich-mod";

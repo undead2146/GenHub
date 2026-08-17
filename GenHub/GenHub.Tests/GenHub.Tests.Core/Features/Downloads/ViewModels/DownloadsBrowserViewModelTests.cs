@@ -36,7 +36,7 @@ public class DownloadsBrowserViewModelTests
     [InlineData(PublisherTypeConstants.GeneralsOnline)]
     [InlineData(CommunityOutpostConstants.PublisherType)]
     [InlineData(PublisherTypeConstants.TheSuperHackers)]
-    public async Task SelectPublisher_CuratedPublisher_HidesSearchAndFilters(string publisherId)
+    public async Task SelectPublisher_CuratedPublisher_HidesSearchAndFiltersAsync(string publisherId)
     {
         // Arrange
         using var viewModel = CreateViewModel();
@@ -56,7 +56,7 @@ public class DownloadsBrowserViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task SelectPublisher_AodMaps_ExposesAndOpensFiltersByDefault()
+    public async Task SelectPublisher_AodMaps_ExposesAndOpensFiltersByDefaultAsync()
     {
         // Arrange
         using var viewModel = CreateViewModel();
@@ -78,7 +78,7 @@ public class DownloadsBrowserViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task SelectPublisher_SwitchingPublisherMidDiscovery_PreventsItemBleedFromPreviousPublisher()
+    public async Task SelectPublisher_SwitchingPublisherMidDiscovery_PreventsItemBleedFromPreviousPublisherAsync()
     {
         // Arrange
         var sub1 = new PublisherSubscription
@@ -150,7 +150,7 @@ public class DownloadsBrowserViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task SelectedPublisher_NullAssignmentWhenPopulated_RetainsCurrentPublisher()
+    public async Task SelectedPublisher_NullAssignmentWhenPopulated_RetainsCurrentPublisherAsync()
     {
         // Arrange
         using var viewModel = CreateViewModel();
@@ -172,7 +172,7 @@ public class DownloadsBrowserViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task OnTabActivatedAsync_WithExistingSelectedPublisher_PreservesSelection()
+    public async Task OnTabActivatedAsync_WithExistingSelectedPublisher_PreservesSelectionAsync()
     {
         // Arrange
         using var viewModel = CreateViewModel();
@@ -194,7 +194,7 @@ public class DownloadsBrowserViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task StreamingLoading_AppendsItemsDynamicallyAsResolved()
+    public async Task StreamingLoading_AppendsItemsDynamicallyAsResolvedAsync()
     {
         // Arrange
         var item1 = new ContentSearchResult { Id = "mod1", Name = "Mod 1", ProviderName = "Generic" };
@@ -276,7 +276,7 @@ public class DownloadsBrowserViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task RapidPublisherSwitching_A_to_B_to_C_LeavesOnly_C_InViewWithZeroBleed()
+    public async Task RapidPublisherSwitching_A_to_B_to_C_LeavesOnly_C_InViewWithZeroBleedAsync()
     {
         // Arrange
         var tcsA = new TaskCompletionSource<OperationResult<ContentDiscoveryResult>>();
@@ -407,7 +407,7 @@ public class DownloadsBrowserViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task BackgroundCacheCompletion_InterruptedFetchOfPublisherA_CommitsFullDatasetToCache()
+    public async Task BackgroundCacheCompletion_InterruptedFetchOfPublisherA_CommitsFullDatasetToCacheAsync()
     {
         // Arrange
         var tcsA = new TaskCompletionSource<OperationResult<ContentDiscoveryResult>>();
@@ -513,7 +513,7 @@ public class DownloadsBrowserViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task CacheRetrieval_StrictlyReturnsOnlySelectedPublisherItems()
+    public async Task CacheRetrieval_StrictlyReturnsOnlySelectedPublisherItemsAsync()
     {
         // Arrange
         var itemsA = new List<ContentSearchResult>

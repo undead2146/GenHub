@@ -23,7 +23,7 @@ public sealed class AODMapsDiscovererTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task DiscoverAsync_AoaGalleryMap_UsesCategoryRelativeThumbnailAndPlayerBadgeMetadata()
+    public async Task DiscoverAsync_AoaGalleryMap_UsesCategoryRelativeThumbnailAndPlayerBadgeMetadataAsync()
     {
         var result = await DiscoverAsync(
             CreateGalleryHtml(includeImage: true, downloadId: "4P_1_1"),
@@ -48,7 +48,7 @@ public sealed class AODMapsDiscovererTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task DiscoverAsync_GalleryMapWithAuthorAndNotes_ExtractsAuthorAndRichDescription()
+    public async Task DiscoverAsync_GalleryMapWithAuthorAndNotes_ExtractsAuthorAndRichDescriptionAsync()
     {
         var html = """
             <html><body>
@@ -81,7 +81,7 @@ public sealed class AODMapsDiscovererTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task DiscoverAsync_MapWithoutThumbnail_UsesAodMapsPublisherLogo()
+    public async Task DiscoverAsync_MapWithoutThumbnail_UsesAodMapsPublisherLogoAsync()
     {
         var result = await DiscoverAsync(
             CreateGalleryHtml(includeImage: false, downloadId: "4P_1_1"),
@@ -100,7 +100,7 @@ public sealed class AODMapsDiscovererTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task DiscoverAsync_CategoryAndPlayerCount_FiltersToMatchingMapsFromCategoryPage()
+    public async Task DiscoverAsync_CategoryAndPlayerCount_FiltersToMatchingMapsFromCategoryPageAsync()
     {
         var html = """
             <html><body>
@@ -144,7 +144,7 @@ public sealed class AODMapsDiscovererTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task DiscoverAsync_MapMakerItem_ExtractsMultiParagraphDescriptionAndAuthor()
+    public async Task DiscoverAsync_MapMakerItem_ExtractsMultiParagraphDescriptionAndAuthorAsync()
     {
         var html = """
             <html><body>
@@ -182,7 +182,7 @@ public sealed class AODMapsDiscovererTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task DiscoverAsync_ContraCategory_UsesContraAodUrl()
+    public async Task DiscoverAsync_ContraCategory_UsesContraAodUrlAsync()
     {
         CapturingHandler? handler = null;
         var result = await DiscoverAsync(

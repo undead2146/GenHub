@@ -25,7 +25,7 @@ public sealed class CatalogTabProviderTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task GetTabsAsync_CatalogContainsCards_MapsIntroAndCards()
+    public async Task GetTabsAsync_CatalogContainsCards_MapsIntroAndCardsAsync()
     {
         // Arrange
         const string publisherId = "example-publisher";
@@ -102,7 +102,7 @@ public sealed class CatalogTabProviderTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task GetTabsAsync_NullAppliesTo_ReturnsTabForAllItems()
+    public async Task GetTabsAsync_NullAppliesTo_ReturnsTabForAllItemsAsync()
     {
         // Arrange
         const string publisherId = "example-publisher";

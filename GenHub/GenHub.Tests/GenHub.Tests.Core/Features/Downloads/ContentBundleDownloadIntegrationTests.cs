@@ -28,7 +28,7 @@ public sealed class ContentBundleDownloadIntegrationTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task DownloadBundleComponents_AllMembersAcquired_MarksComponentsDownloadedAndReadiesBundle()
+    public async Task DownloadBundleComponents_AllMembersAcquired_MarksComponentsDownloadedAndReadiesBundleAsync()
     {
         // Arrange
         var contentStateServiceMock = new Mock<IContentStateService>();

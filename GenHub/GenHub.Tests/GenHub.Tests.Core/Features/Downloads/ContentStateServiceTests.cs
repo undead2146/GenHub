@@ -22,7 +22,7 @@ public class ContentStateServiceTests
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task GetStateAsync_AfterNotifyStateChanged_MapsCatalogIdToManifest()
+    public async Task GetStateAsync_AfterNotifyStateChanged_MapsCatalogIdToManifestAsync()
     {
         const string catalogId = "GeneralsOnline_060526_QFE1";
         const string manifestId = "1.605261.generalsonline.gameclient.60hz";
@@ -58,7 +58,7 @@ public class ContentStateServiceTests
     /// </summary>
     /// <returns>A task representing the test.</returns>
     [Fact]
-    public async Task GetStateAsync_AfterRestart_MatchesPersistedOriginalContentIdentity()
+    public async Task GetStateAsync_AfterRestart_MatchesPersistedOriginalContentIdentityAsync()
     {
         var item = new ContentSearchResult
         {
@@ -89,7 +89,7 @@ public class ContentStateServiceTests
     /// </summary>
     /// <returns>A task representing the test.</returns>
     [Fact]
-    public async Task GetStateAsync_LegacySuperHackersManifest_RecognizesOnlyItsInstalledVariant()
+    public async Task GetStateAsync_LegacySuperHackersManifest_RecognizesOnlyItsInstalledVariantAsync()
     {
         var storedZeroHour = new ContentManifest
         {
@@ -120,7 +120,7 @@ public class ContentStateServiceTests
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task GetStateAsync_CommunityPatchCard_MatchesByCardIdNotName()
+    public async Task GetStateAsync_CommunityPatchCard_MatchesByCardIdNotNameAsync()
     {
         var item = new ContentSearchResult
         {
@@ -158,7 +158,7 @@ public class ContentStateServiceTests
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task GetStateAsync_VariantAddonCard_MatchesViaSuffixStrippedId()
+    public async Task GetStateAsync_VariantAddonCard_MatchesViaSuffixStrippedIdAsync()
     {
         var item = new ContentSearchResult
         {
@@ -195,7 +195,7 @@ public class ContentStateServiceTests
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task GetStateAsync_GeneralsOnlineParentCard_MatchesVariantFamily()
+    public async Task GetStateAsync_GeneralsOnlineParentCard_MatchesVariantFamilyAsync()
     {
         var item = new ContentSearchResult
         {
@@ -232,7 +232,7 @@ public class ContentStateServiceTests
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task GetStateAsync_DistinctSamePublisherReleases_DoNotCrossMatch()
+    public async Task GetStateAsync_DistinctSamePublisherReleases_DoNotCrossMatchAsync()
     {
         var cbpxCard = new ContentSearchResult
         {
@@ -277,7 +277,7 @@ public class ContentStateServiceTests
     /// </summary>
     /// <returns>A task representing the test.</returns>
     [Fact]
-    public async Task GetStateAsync_ModDbRow_MatchesStoredManifestByDownloadUrl()
+    public async Task GetStateAsync_ModDbRow_MatchesStoredManifestByDownloadUrlAsync()
     {
         const string downloadUrl = "https://www.moddb.com/downloads/start/313719";
         var row = new ContentSearchResult
@@ -318,7 +318,7 @@ public class ContentStateServiceTests
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task GetStateAsync_WhenVariantManifestDownloaded_OnlyMatchesMatchingVariantCard()
+    public async Task GetStateAsync_WhenVariantManifestDownloaded_OnlyMatchesMatchingVariantCardAsync()
     {
         // Stored manifest for 1080p variant
         var manifest1080p = new ContentManifest
@@ -406,7 +406,7 @@ public class ContentStateServiceTests
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task GetStateAsync_WhenNonVariantManifestInPool_DoesNotMatchVariantCards()
+    public async Task GetStateAsync_WhenNonVariantManifestInPool_DoesNotMatchVariantCardsAsync()
     {
         var genericManifest = new ContentManifest
         {
@@ -449,7 +449,7 @@ public class ContentStateServiceTests
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task GetStateAsync_DistinctModDBReleases_DoNotCrossMatch()
+    public async Task GetStateAsync_DistinctModDBReleases_DoNotCrossMatchAsync()
     {
         var generalsUndoneCard = new ContentSearchResult
         {
@@ -506,7 +506,7 @@ public class ContentStateServiceTests
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task GetStateAsync_ModDBUpdateAvailable_WhenNewerReleaseDate()
+    public async Task GetStateAsync_ModDBUpdateAvailable_WhenNewerReleaseDateAsync()
     {
         var storedManifest = new ContentManifest
         {
@@ -551,7 +551,7 @@ public class ContentStateServiceTests
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task GetStateAsync_ModDbMainRelease_DoesNotMatchDownloadedPatchManifest_WhenSharingModSourceUrl()
+    public async Task GetStateAsync_ModDbMainRelease_DoesNotMatchDownloadedPatchManifest_WhenSharingModSourceUrlAsync()
     {
         const string modPageUrl = "https://www.moddb.com/mods/cc-generals-undone/downloads/cc-generals-undone";
         const string patchDownloadUrl = "https://www.moddb.com/downloads/start/314093";
@@ -638,7 +638,7 @@ public class ContentStateServiceTests
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task GetStateAsync_ModDbMultipleReleases_OnlyDownloadedReleaseIsMarkedDownloaded()
+    public async Task GetStateAsync_ModDbMultipleReleases_OnlyDownloadedReleaseIsMarkedDownloadedAsync()
     {
         const string modPageUrl = "https://www.moddb.com/mods/janus-syndicate/downloads/admiral-z-v92a";
         const string urlV92a = "https://www.moddb.com/downloads/start/307616";
@@ -731,7 +731,7 @@ public class ContentStateServiceTests
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task GetStateAsync_OlderProspectiveRelease_WhenNewerManifestInstalled_ReturnsNotDownloaded()
+    public async Task GetStateAsync_OlderProspectiveRelease_WhenNewerManifestInstalled_ReturnsNotDownloadedAsync()
     {
         var storedManifest = new ContentManifest
         {
@@ -806,7 +806,7 @@ public class ContentStateServiceTests
     /// </summary>
     /// <returns>A task representing the test.</returns>
     [Fact]
-    public async Task GetStateAsync_DateProspectiveId_AgainstSemanticLocalManifest_DoesNotReportUpdateAvailable()
+    public async Task GetStateAsync_DateProspectiveId_AgainstSemanticLocalManifest_DoesNotReportUpdateAvailableAsync()
     {
         var item = new ContentSearchResult
         {

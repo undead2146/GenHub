@@ -48,7 +48,7 @@ public sealed class CommunityOutpostResolverTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task ResolveAsync_WithVariantSearchResult_PopulatesSelectedVariantIdAndTags()
+    public async Task ResolveAsync_WithVariantSearchResult_PopulatesSelectedVariantIdAndTagsAsync()
     {
         // Arrange
         var searchResult = new ContentSearchResult
@@ -96,7 +96,7 @@ public sealed class CommunityOutpostResolverTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task ResolveAsync_WithVersionZeroId_PreservesVersionZero()
+    public async Task ResolveAsync_WithVersionZeroId_PreservesVersionZeroAsync()
     {
         // Arrange
         var searchResult = new ContentSearchResult
@@ -141,7 +141,7 @@ public sealed class CommunityOutpostResolverTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task ResolveAsync_WithNullVersion_SetsValidDefaultVersion()
+    public async Task ResolveAsync_WithNullVersion_SetsValidDefaultVersionAsync()
     {
         // Arrange
         var searchResult = new ContentSearchResult

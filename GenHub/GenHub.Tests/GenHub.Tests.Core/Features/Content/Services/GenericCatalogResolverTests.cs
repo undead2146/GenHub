@@ -24,7 +24,7 @@ public sealed class GenericCatalogResolverTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ResolveAsync_DependencyOnlyBundle_SucceedsWithoutRemoteFiles()
+    public async Task ResolveAsync_DependencyOnlyBundle_SucceedsWithoutRemoteFilesAsync()
     {
         var contentItem = new CatalogContentItem
         {
@@ -163,7 +163,7 @@ public sealed class GenericCatalogResolverTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task ResolveAsync_GameClientWithBaseGameDependency_EmitsCanonicalGameInstallationDependency()
+    public async Task ResolveAsync_GameClientWithBaseGameDependency_EmitsCanonicalGameInstallationDependencyAsync()
     {
         var contentItem = new CatalogContentItem
         {
@@ -304,7 +304,7 @@ public sealed class GenericCatalogResolverTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ResolveAsync_ContentBundle_EmitsFoundationAndSiblingGameClientIds()
+    public async Task ResolveAsync_ContentBundle_EmitsFoundationAndSiblingGameClientIdsAsync()
     {
         var contentItem = new CatalogContentItem
         {
@@ -437,7 +437,7 @@ public sealed class GenericCatalogResolverTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ResolveAsync_UsesFreshBuilderPerInvocation_DoesNotAccumulateState()
+    public async Task ResolveAsync_UsesFreshBuilderPerInvocation_DoesNotAccumulateStateAsync()
     {
         var contentItem = new CatalogContentItem
         {
@@ -504,7 +504,7 @@ public sealed class GenericCatalogResolverTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ResolveAsync_VariantArtifact_PreservesVariantIdAndName()
+    public async Task ResolveAsync_VariantArtifact_PreservesVariantIdAndNameAsync()
     {
         var contentItem = new CatalogContentItem
         {

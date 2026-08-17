@@ -676,7 +676,7 @@ public class PlaywrightService(
 
                 await _persistentContext.CloseAsync();
             }
-            catch (Exception)
+            catch (PlaywrightException)
             {
             }
             finally

@@ -65,7 +65,7 @@ public class GameClientManifestIntegrationTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task GenerateGameClientManifest_WithSteamGeneralsInstallation_CreatesManifestWithExecutable()
+    public async Task GenerateGameClientManifest_WithSteamGeneralsInstallation_CreatesManifestWithExecutableAsync()
     {
         var generalsPath = Path.Combine(_tempDirectory, "Steam", "Generals");
         Directory.CreateDirectory(generalsPath);
@@ -98,7 +98,7 @@ public class GameClientManifestIntegrationTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task GenerateGameClientManifest_ExecutableHashIsComputed()
+    public async Task GenerateGameClientManifest_ExecutableHashIsComputedAsync()
     {
         var clientPath = Path.Combine(_tempDirectory, "TestClient");
         Directory.CreateDirectory(clientPath);
@@ -124,7 +124,7 @@ public class GameClientManifestIntegrationTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task GenerateGameClientManifest_IncludesAllExpectedFiles()
+    public async Task GenerateGameClientManifest_IncludesAllExpectedFilesAsync()
     {
         var clientPath = Path.Combine(_tempDirectory, "FullClient");
         Directory.CreateDirectory(clientPath);

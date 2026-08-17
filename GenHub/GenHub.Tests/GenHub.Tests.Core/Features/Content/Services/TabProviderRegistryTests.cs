@@ -20,7 +20,7 @@ public sealed class TabProviderRegistryTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ResolveRegistry_RegistersAllTabProvidersAndReturnsTheirTabs()
+    public async Task ResolveRegistry_RegistersAllTabProvidersAndReturnsTheirTabsAsync()
     {
         var services = new ServiceCollection();
         services.AddLogging();

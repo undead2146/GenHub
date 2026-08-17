@@ -52,7 +52,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task SearchAsync_AggregatesResultsFromMultipleProviders_Successfully()
+    public async Task SearchAsync_AggregatesResultsFromMultipleProviders_SuccessfullyAsync()
     {
         // Arrange
         var provider1Mock = new Mock<IContentProvider>();
@@ -98,7 +98,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task AcquireContentAsync_ValidatesAndStoresContent_Successfully()
+    public async Task AcquireContentAsync_ValidatesAndStoresContent_SuccessfullyAsync()
     {
         // Arrange
         var searchResult = new ContentSearchResult
@@ -160,7 +160,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task AcquireContentAsync_ProviderReportsOutOfOrderPhases_ReportsMonotonicStages()
+    public async Task AcquireContentAsync_ProviderReportsOutOfOrderPhases_ReportsMonotonicStagesAsync()
     {
         // Arrange
         var searchResult = new ContentSearchResult { Id = "1.0.genhub.mod.progress", Name = "Progress Test", ProviderName = "TestProvider" };
@@ -215,7 +215,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task AcquireContentAsync_WhenGameClientPoolCannotBeEnsured_ReturnsFailure()
+    public async Task AcquireContentAsync_WhenGameClientPoolCannotBeEnsured_ReturnsFailureAsync()
     {
         var searchResult = new ContentSearchResult
         {
@@ -297,7 +297,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task SearchAsync_WhenProviderCancels_PropagatesCancellation()
+    public async Task SearchAsync_WhenProviderCancels_PropagatesCancellationAsync()
     {
         var providerMock = new Mock<IContentProvider>();
         providerMock.Setup(provider => provider.IsEnabled).Returns(true);
@@ -327,7 +327,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task SearchAsync_WhenCancelledBeforeCacheHit_PropagatesCancellation()
+    public async Task SearchAsync_WhenCancelledBeforeCacheHit_PropagatesCancellationAsync()
     {
         _cacheMock
             .Setup(cache => cache.GetAsync<List<ContentSearchResult>>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -360,7 +360,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task SearchAsync_WhenProviderTimesOut_KeepsResultsFromOtherProviders()
+    public async Task SearchAsync_WhenProviderTimesOut_KeepsResultsFromOtherProvidersAsync()
     {
         var timingOutProviderMock = new Mock<IContentProvider>();
         timingOutProviderMock.Setup(provider => provider.IsEnabled).Returns(true);
@@ -401,7 +401,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task AcquireContentAsync_WhenProviderCancels_PropagatesCancellation()
+    public async Task AcquireContentAsync_WhenProviderCancels_PropagatesCancellationAsync()
     {
         var searchResult = new ContentSearchResult
         {
@@ -440,7 +440,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task AcquireContentAsync_WhenProviderTimesOut_ReturnsFailure()
+    public async Task AcquireContentAsync_WhenProviderTimesOut_ReturnsFailureAsync()
     {
         var searchResult = new ContentSearchResult
         {
@@ -478,7 +478,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task AcquireContentAsync_WhenInstallationDetectionCancels_PropagatesCancellation()
+    public async Task AcquireContentAsync_WhenInstallationDetectionCancels_PropagatesCancellationAsync()
     {
         var searchResult = new ContentSearchResult
         {

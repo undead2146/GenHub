@@ -57,7 +57,7 @@ public class GameProfileItemViewModelTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task CopyProfileCommand_CallsCopyAction()
+    public async Task CopyProfileCommand_CallsCopyActionAsync()
     {
         // Arrange
         var mockProfile = new Mock<IGameProfile>();
@@ -125,7 +125,7 @@ public class GameProfileItemViewModelTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task CopyProfileCommand_Execute_WhenActionIsNull_DoesNotThrow()
+    public async Task CopyProfileCommand_Execute_WhenActionIsNull_DoesNotThrowAsync()
     {
         // Arrange
         var mockProfile = new Mock<IGameProfile>();
