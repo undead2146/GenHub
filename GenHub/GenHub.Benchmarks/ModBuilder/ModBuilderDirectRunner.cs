@@ -25,8 +25,13 @@ public sealed class ModBuilderDirectRunner
 {
     private readonly IMd5HashProvider md5HashProvider = new Md5HashProvider();
     private readonly IImageConversionService imageConversionService = new ImageConversionService(NullLogger<ImageConversionService>.Instance);
+    private readonly IExternalToolService externalToolService = new ExternalToolService(NullLogger<ExternalToolService>.Instance);
+    private readonly IImageConversionService crunchImageConversionService = new CrunchImageConversionService(new ExternalToolService(NullLogger<ExternalToolService>.Instance), NullLogger<CrunchImageConversionService>.Instance);
+    private readonly IStringTableConversionService stringTableConversionService = new StringTableConversionService(NullLogger<StringTableConversionService>.Instance);
+    private readonly ITextProcessingService textProcessingService = new TextProcessingService(NullLogger<TextProcessingService>.Instance);
     private readonly IBuildCacheService buildCacheService = new BuildCacheService(new Md5HashProvider(), NullLogger<BuildCacheService>.Instance);
     private readonly IArchiveService archiveService = new ArchiveService(NullLogger<ArchiveService>.Instance);
+    private readonly IConfigurationLoaderService configurationLoaderService = new ConfigurationLoaderService(NullLogger<ConfigurationLoaderService>.Instance);
 
     /// <summary>
     /// Runs benchmarks based on command-line arguments.
@@ -34,6 +39,8 @@ public sealed class ModBuilderDirectRunner
     public async Task<int> RunAsync(string[] args)
     {
         var bench = "all";
+        var imageEngine = "imagesharp";
+        var projectDir = @"Z:\GeneralsGamePatch\Patch104pZH";
         var dataDir = Path.Combine(Path.GetTempPath(), "modbuilder_test_dataset");
         var outDir = Path.Combine(Path.GetTempPath(), "modbuilder_cs_bench_out");
         var threads = Environment.ProcessorCount;
@@ -47,9 +54,17 @@ public sealed class ModBuilderDirectRunner
             {
                 bench = arg.Contains('=') ? arg[(arg.IndexOf('=') + 1)..] : (i + 1 < args.Length ? args[++i] : bench);
             }
+            else if (arg.StartsWith("--image-engine=") || arg == "--image-engine" || arg.StartsWith("--engine=") || arg == "--engine")
+            {
+                imageEngine = arg.Contains('=') ? arg[(arg.IndexOf('=') + 1)..] : (i + 1 < args.Length ? args[++i] : imageEngine);
+            }
             else if (arg.StartsWith("--data-dir=") || arg == "--data-dir")
             {
                 dataDir = arg.Contains('=') ? arg[(arg.IndexOf('=') + 1)..] : (i + 1 < args.Length ? args[++i] : dataDir);
+            }
+            else if (arg.StartsWith("--project-dir=") || arg == "--project-dir")
+            {
+                projectDir = arg.Contains('=') ? arg[(arg.IndexOf('=') + 1)..] : (i + 1 < args.Length ? args[++i] : projectDir);
             }
             else if (arg.StartsWith("--out-dir=") || arg == "--out-dir")
             {
@@ -79,7 +94,7 @@ public sealed class ModBuilderDirectRunner
 
         var totalBytes = files.Sum(f => new FileInfo(f).Length);
 
-        Console.WriteLine($"=== C# GenHub ModBuilder Benchmark Suite (Threads={threads}) ===");
+        Console.WriteLine($"=== C# GenHub ModBuilder Benchmark Suite (Threads={threads}, ImageEngine={imageEngine}) ===");
         Console.WriteLine($"Dataset: {dataDir} ({files.Length} files, {totalBytes / (1024.0 * 1024.0):F2} MB)");
         Console.WriteLine($"Iterations: {iterations}\n");
 
@@ -224,8 +239,8 @@ public sealed class ModBuilderDirectRunner
             };
         }
 
-        // 4. Image RGBA Channel-Split Resizing
-        if (bench is "all" or "image")
+        // 4. Image conversion benchmarks (ImageSharp vs Crunch)
+        if (bench is "all" or "image" or "crunch")
         {
             var testImgPath = Path.Combine(outDir, "bench_test_img.png");
             if (!File.Exists(testImgPath))
@@ -234,35 +249,73 @@ public sealed class ModBuilderDirectRunner
                 img.SaveAsPng(testImgPath);
             }
 
-            var outImgPath = Path.Combine(outDir, "bench_test_img_out.png");
-            var times = new List<double>();
             var parameters = new Dictionary<string, object>
             {
                 { "resize", new[] { 1024, 1024 } },
                 { "resampling", "bilinear" },
             };
 
-            for (var iter = 0; iter < iterations; iter++)
+            // imagesharp rgba channel-split resize
+            if (bench is "all" or "image" && !string.Equals(imageEngine, "crunch", StringComparison.OrdinalIgnoreCase))
             {
-                if (File.Exists(outImgPath))
+                var outImgPath = Path.Combine(outDir, "bench_test_img_out.png");
+                var times = new List<double>();
+
+                for (var iter = 0; iter < iterations; iter++)
                 {
-                    File.Delete(outImgPath);
+                    if (File.Exists(outImgPath))
+                    {
+                        File.Delete(outImgPath);
+                    }
+
+                    var sw = Stopwatch.StartNew();
+                    await imageConversionService.ConvertImageAsync(testImgPath, outImgPath, parameters, CancellationToken.None);
+                    sw.Stop();
+                    times.Add(sw.Elapsed.TotalMilliseconds);
                 }
 
-                var sw = Stopwatch.StartNew();
-                await imageConversionService.ConvertImageAsync(testImgPath, outImgPath, parameters, CancellationToken.None);
-                sw.Stop();
-                times.Add(sw.Elapsed.TotalMilliseconds);
+                var avgMs = times.Average();
+                Console.WriteLine($"[C# Micro] ImageSharp RGBA Channel-Split Resize: Mean = {avgMs:F2} ms/image");
+
+                results["image_imagesharp_resize"] = new
+                {
+                    mean_ms = avgMs,
+                    times_ms = times,
+                };
             }
 
-            var avgMs = times.Average();
-            Console.WriteLine($"[C# Micro] Image RGBA Channel-Split Resize (ImageSharp Fast Span): Mean = {avgMs:F2} ms/image");
-
-            results["image"] = new
+            // crunch dds conversion benchmark
+            if (bench is "all" or "image" or "crunch")
             {
-                mean_ms = avgMs,
-                times_ms = times,
-            };
+                var outDdsPath = Path.Combine(outDir, "bench_test_img_crunch.dds");
+                var crunchTimes = new List<double>();
+                var crunchSuccess = false;
+
+                for (var iter = 0; iter < iterations; iter++)
+                {
+                    if (File.Exists(outDdsPath))
+                    {
+                        File.Delete(outDdsPath);
+                    }
+
+                    var sw = Stopwatch.StartNew();
+                    crunchSuccess = await crunchImageConversionService.ConvertImageAsync(testImgPath, outDdsPath, parameters, CancellationToken.None);
+                    sw.Stop();
+                    crunchTimes.Add(sw.Elapsed.TotalMilliseconds);
+                }
+
+                if (crunchSuccess && crunchTimes.Count > 0)
+                {
+                    var avgCrunchMs = crunchTimes.Average();
+                    Console.WriteLine($"[C# Micro] Crunch_x64 DDS Conversion (Resize + DXT): Mean = {avgCrunchMs:F2} ms/image");
+
+                    results["image_crunch_dds"] = new
+                    {
+                        mean_ms = avgCrunchMs,
+                        times_ms = crunchTimes,
+                    };
+                }
+            }
         }
 
         // 5. Build Cache Change Detection Workflow (Cold vs Warm)
@@ -336,8 +389,8 @@ public sealed class ModBuilderDirectRunner
                 warmTimes.Add(swWarm.Elapsed.TotalMilliseconds);
             }
 
-            var avgCold = coldTimes.Average();
-            var avgWarm = warmTimes.Average();
+            var avgCold = coldTimes.Count > 0 ? coldTimes.Average() : 0.0;
+            var avgWarm = warmTimes.Count > 0 ? warmTimes.Average() : 0.0;
             Console.WriteLine($"[C# Macro] Cache Workflow Cold Build: Mean = {avgCold:F2} ms");
             Console.WriteLine($"[C# Macro] Cache Workflow Warm Build: Mean = {avgWarm:F2} ms (Speedup: {avgCold / Math.Max(0.001, avgWarm):F1}x)");
 
@@ -348,6 +401,91 @@ public sealed class ModBuilderDirectRunner
                 cold_times_ms = coldTimes,
                 warm_times_ms = warmTimes,
             };
+        }
+
+        // 6. Full End-to-End Project Build
+        if (bench is "all" or "full-build" or "e2e" && Directory.Exists(projectDir))
+        {
+            Console.WriteLine($"\n--- [C# End-to-End Full Project Build: {projectDir}] ---");
+            var configFiles = new List<string>();
+            var modJsonPath = Path.Combine(projectDir, "ModJsonFiles.json");
+            if (File.Exists(modJsonPath))
+            {
+                var modJsonText = await File.ReadAllTextAsync(modJsonPath);
+                using var doc = JsonDocument.Parse(modJsonText);
+                if (doc.RootElement.TryGetProperty("build", out var buildElem) &&
+                    buildElem.TryGetProperty("files", out var filesElem))
+                {
+                    foreach (var item in filesElem.EnumerateArray())
+                    {
+                        var fileName = item.GetString();
+                        if (!string.IsNullOrEmpty(fileName))
+                        {
+                            var fullPath = Path.Combine(projectDir, fileName);
+                            if (File.Exists(fullPath))
+                            {
+                                configFiles.Add(fullPath);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (configFiles.Count == 0)
+            {
+                configFiles.AddRange(Directory.GetFiles(projectDir, "ModBundle*.json"));
+            }
+
+            var validConfigs = configFiles.Where(File.Exists).ToList();
+            if (validConfigs.Count > 0)
+            {
+                var activeImageService = string.Equals(imageEngine, "crunch", StringComparison.OrdinalIgnoreCase)
+                    ? crunchImageConversionService
+                    : imageConversionService;
+
+                var fileConversionService = new FileConversionService(
+                    activeImageService,
+                    stringTableConversionService,
+                    textProcessingService,
+                    externalToolService,
+                    NullLogger<FileConversionService>.Instance);
+
+                var buildEngineService = new BuildEngineService(
+                    buildCacheService,
+                    fileConversionService,
+                    md5HashProvider,
+                    configurationLoaderService,
+                    archiveService,
+                    NullLogger<BuildEngineService>.Instance);
+
+                var loadedConfig = await configurationLoaderService.LoadAndMergeConfigurationsAsync(validConfigs, CancellationToken.None);
+                var project = new ModBuilderProject
+                {
+                    Name = Path.GetFileName(projectDir),
+                    ProjectDir = projectDir
+                };
+
+                var swFull = Stopwatch.StartNew();
+                var buildResult = await buildEngineService.ExecuteBuildAsync(
+                    project,
+                    loadedConfig,
+                    new List<string>(),
+                    BuildStep.Build,
+                    null,
+                    CancellationToken.None);
+                swFull.Stop();
+
+                Console.WriteLine($"[C# End-to-End Build] Success: {buildResult.Success} | Time: {swFull.Elapsed.TotalSeconds:F2} s ({swFull.Elapsed.TotalMilliseconds:F2} ms) | Processed: {buildResult.FilesProcessed} files");
+                results["full_end_to_end_build"] = new
+                {
+                    success = buildResult.Success,
+                    duration_sec = swFull.Elapsed.TotalSeconds,
+                    duration_ms = swFull.Elapsed.TotalMilliseconds,
+                    processed_files = buildResult.FilesProcessed,
+                    skipped_files = buildResult.FilesSkipped,
+                    failed_files = buildResult.FilesFailed
+                };
+            }
         }
 
         if (!string.IsNullOrEmpty(jsonOut))
