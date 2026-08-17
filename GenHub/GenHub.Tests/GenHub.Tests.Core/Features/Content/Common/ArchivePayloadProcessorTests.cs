@@ -243,6 +243,130 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies that a self-extracting .exe archive for a Mod is extracted safely and the source .exe is removed.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ExtractArchivesSafelyAsync_SelfExtractingExeMod_ExtractsAndDeletesExeAsync()
+    {
+        // Arrange
+        Directory.CreateDirectory(_stagingDirectory);
+        var sfxExePath = Path.Combine(_stagingDirectory, "ShockWaveV1201.exe");
+        using (var archive = ZipFile.Open(sfxExePath, ZipArchiveMode.Create))
+        {
+            var entry = archive.CreateEntry("!ShockWave.big");
+            using var writer = new StreamWriter(entry.Open());
+            await writer.WriteAsync("BIG data payload");
+        }
+
+        var processor = CreateProcessor();
+
+        // Act
+        await processor.ExtractArchivesSafelyAsync(_stagingDirectory, ContentType.Mod);
+
+        // Assert
+        Assert.False(File.Exists(sfxExePath));
+        Assert.True(File.Exists(Path.Combine(_stagingDirectory, "!ShockWave.big")));
+    }
+
+    /// <summary>
+    /// Verifies that executable files for tools or executables are never extracted or deleted even if they are zip containers.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ExtractArchivesSafelyAsync_ExecutableTool_DoesNotExtractOrDeleteExeAsync()
+    {
+        // Arrange
+        Directory.CreateDirectory(_stagingDirectory);
+        var toolExePath = Path.Combine(_stagingDirectory, "WorldBuilder.exe");
+        using (var archive = ZipFile.Open(toolExePath, ZipArchiveMode.Create))
+        {
+            var entry = archive.CreateEntry("internal.dll");
+            using var writer = new StreamWriter(entry.Open());
+            await writer.WriteAsync("dll");
+        }
+
+        var processor = CreateProcessor();
+
+        // Act
+        await processor.ExtractArchivesSafelyAsync(_stagingDirectory, ContentType.ModdingTool);
+
+        // Assert: Tool executable is preserved intact and NOT extracted
+        Assert.True(File.Exists(toolExePath));
+        Assert.False(File.Exists(Path.Combine(_stagingDirectory, "internal.dll")));
+    }
+
+    /// <summary>
+    /// Verifies that non-archive game.dat files are skipped and preserved.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ExtractArchivesSafelyAsync_GameDatBinary_PreservedWithoutThrowingAsync()
+    {
+        // Arrange
+        Directory.CreateDirectory(_stagingDirectory);
+        var gameDatPath = Path.Combine(_stagingDirectory, "game.dat");
+        await File.WriteAllTextAsync(gameDatPath, "MZ_Binary_Executable_Payload_Not_Archive");
+
+        var processor = CreateProcessor();
+
+        // Act
+        await processor.ExtractArchivesSafelyAsync(_stagingDirectory, ContentType.Patch);
+
+        // Assert
+        Assert.True(File.Exists(gameDatPath));
+    }
+
+    /// <summary>
+    /// Verifies that valid .dat archives (e.g. 10zh.dat) are extracted.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ExtractArchivesSafelyAsync_ValidDatArchive_ExtractsAndDeletesDatAsync()
+    {
+        // Arrange
+        Directory.CreateDirectory(_stagingDirectory);
+        var datArchivePath = Path.Combine(_stagingDirectory, "10zh.dat");
+        using (var archive = ZipFile.Open(datArchivePath, ZipArchiveMode.Create))
+        {
+            var entry = archive.CreateEntry("ZH/game.dat");
+            using var writer = new StreamWriter(entry.Open());
+            await writer.WriteAsync("ZH game binary");
+        }
+
+        var processor = CreateProcessor();
+
+        // Act
+        await processor.ExtractArchivesSafelyAsync(_stagingDirectory, ContentType.Patch);
+
+        // Assert
+        Assert.False(File.Exists(datArchivePath));
+        Assert.True(File.Exists(Path.Combine(_stagingDirectory, "ZH", "game.dat")));
+    }
+
+    /// <summary>
+    /// Verifies that inactive .gib mod files are renamed to .big during normalization.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task NormalizeDirectoryStructureAsync_GibFiles_NormalizesToBigAsync()
+    {
+        // Arrange
+        Directory.CreateDirectory(_stagingDirectory);
+        var gibPath = Path.Combine(_stagingDirectory, "!ShwAudio.gib");
+        await File.WriteAllTextAsync(gibPath, "Audio BIG payload");
+
+        var processor = CreateProcessor();
+
+        // Act
+        await processor.NormalizeDirectoryStructureAsync(_stagingDirectory, ContentType.Mod, GameType.ZeroHour);
+
+        // Assert
+        Assert.False(File.Exists(gibPath));
+        Assert.True(File.Exists(Path.Combine(_stagingDirectory, "!ShwAudio.big")));
+    }
+
+    /// <summary>
     /// Cleans up test staging directory.
     /// </summary>
     public void Dispose()

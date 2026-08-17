@@ -9,6 +9,7 @@ using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
+using GenHub.Features.Content.Services.Publishers;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Content.Services.ContentProviders;
@@ -21,6 +22,7 @@ public class ModDBContentProvider(
     IEnumerable<IContentDiscoverer> discoverers,
     IEnumerable<IContentResolver> resolvers,
     IEnumerable<IContentDeliverer> deliverers,
+    ModDBManifestFactory manifestFactory,
     ILogger<ModDBContentProvider> logger,
     IContentValidator contentValidator)
     : BaseContentProvider(contentValidator, logger)
@@ -33,6 +35,8 @@ public class ModDBContentProvider(
 
     private readonly IContentDeliverer _httpDeliverer = deliverers.FirstOrDefault(d => d.SourceName?.Equals(ContentSourceNames.HttpDeliverer, StringComparison.OrdinalIgnoreCase) == true)
         ?? throw new ArgumentException("HTTP deliverer not found", nameof(deliverers));
+
+    private readonly ModDBManifestFactory _manifestFactory = manifestFactory ?? throw new ArgumentNullException(nameof(manifestFactory));
 
     /// <inheritdoc />
     public override string SourceName => "ModDB";
@@ -86,9 +90,6 @@ public class ModDBContentProvider(
         {
             Logger.LogDebug("Preparing ModDB content for manifest {ManifestId}", manifest.Id);
 
-            // The manifest factory downloads the file into CAS during resolution, so there is
-            // usually nothing left to deliver: every file is ContentAddressable with a hash.
-            // ContentValidator and ContentStorageService both resolve such files via CAS.
             var allFilesInCas = manifest.Files.Count > 0 && manifest.Files.All(f =>
                 f.SourceType == ContentSourceType.ContentAddressable &&
                 !string.IsNullOrEmpty(f.Hash));
@@ -107,14 +108,18 @@ public class ModDBContentProvider(
                 return OperationResult<ContentManifest>.CreateFailure($"Cannot deliver content for manifest {manifest.Id}");
             }
 
-            // Use the deliverer to handle content acquisition
             var deliveryResult = await Deliverer.DeliverContentAsync(manifest, workingDirectory, progress, cancellationToken);
             if (!deliveryResult.Success)
             {
                 return OperationResult<ContentManifest>.CreateFailure($"ModDB content delivery failed: {deliveryResult.FirstError}");
             }
 
-            return OperationResult<ContentManifest>.CreateSuccess(deliveryResult.Data ?? manifest);
+            var deliveredManifest = deliveryResult.Data ?? manifest;
+            var manifests = await _manifestFactory.CreateManifestsFromExtractedContentAsync(deliveredManifest, workingDirectory, cancellationToken);
+            var resultManifest = manifests.FirstOrDefault() ?? deliveredManifest;
+
+            Logger.LogInformation("Successfully prepared ModDB content {ManifestId} with {FileCount} file(s)", resultManifest.Id, resultManifest.Files?.Count ?? 0);
+            return OperationResult<ContentManifest>.CreateSuccess(resultManifest);
         }
         catch (Exception ex)
         {

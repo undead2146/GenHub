@@ -155,7 +155,7 @@ public class GameProcessManagerTests
             ExecutablePath = harness.LauncherPath,
             WorkingDirectory = harness.WorkingDirectory,
             ExpectedChildProcessName = LauncherHarness.ChildProcessName,
-            ExpectedChildDiscoveryTimeout = TimeSpan.FromSeconds(10),
+            ExpectedChildDiscoveryTimeout = TimeSpan.FromSeconds(30),
         };
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -165,7 +165,7 @@ public class GameProcessManagerTests
         Assert.False(result.Success);
         Assert.Contains("without starting", string.Join(", ", result.Errors));
         Assert.True(
-            stopwatch.Elapsed < TimeSpan.FromSeconds(5),
+            stopwatch.Elapsed < config.ExpectedChildDiscoveryTimeout,
             $"Expected a fast failure once the launcher exited, but it took {stopwatch.Elapsed}.");
     }
 

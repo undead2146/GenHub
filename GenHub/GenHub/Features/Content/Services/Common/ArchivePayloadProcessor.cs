@@ -24,7 +24,10 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
     private const int MaxNestedExtractionDepth = 5;
 
     /// <inheritdoc />
-    public async Task ExtractArchivesSafelyAsync(string extractedDirectory, CancellationToken cancellationToken = default)
+    public async Task ExtractArchivesSafelyAsync(
+        string extractedDirectory,
+        ContentType? contentType = null,
+        CancellationToken cancellationToken = default)
     {
         if (!Directory.Exists(extractedDirectory))
         {
@@ -37,7 +40,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
             cancellationToken.ThrowIfCancellationRequested();
             depth++;
 
-            var archiveFiles = FindArchiveFiles(extractedDirectory);
+            var archiveFiles = FindArchiveFiles(extractedDirectory, contentType);
             if (archiveFiles.Count == 0)
             {
                 break;
@@ -99,7 +102,10 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         // 4. Heuristic root content detection (single mod directory alongside loose documentation files)
         ReconcileContentRootWithDocumentation(extractedDirectory, contentType, cancellationToken);
 
-        // 5. Cleanup empty directories
+        // 5. Normalize inactive .gib mod archive files to .big
+        NormalizeGibExtensions(extractedDirectory, contentType);
+
+        // 6. Cleanup empty directories
         CleanupEmptyDirectories(extractedDirectory);
 
         await Task.CompletedTask;
@@ -112,23 +118,92 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         GameType targetGame,
         CancellationToken cancellationToken = default)
     {
-        await ExtractArchivesSafelyAsync(extractedDirectory, cancellationToken);
+        await ExtractArchivesSafelyAsync(extractedDirectory, contentType, cancellationToken);
         await NormalizeDirectoryStructureAsync(extractedDirectory, contentType, targetGame, cancellationToken);
     }
 
-    private static IReadOnlyList<string> FindArchiveFiles(string rootDirectory)
+    private static bool ShouldAttemptExecutableExtraction(ContentType? contentType)
+    {
+        if (!contentType.HasValue)
+        {
+            return false;
+        }
+
+        return contentType.Value switch
+        {
+            ContentType.ModdingTool => false,
+            ContentType.Executable => false,
+            ContentType.GameClient => false,
+            ContentType.GameInstallation => false,
+            _ => true,
+        };
+    }
+
+    private static bool IsArchiveFile(string filePath, ContentType? contentType = null)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+        {
+            return false;
+        }
+
+        try
+        {
+            var info = new FileInfo(filePath);
+            if (info.Length == 0)
+            {
+                return false;
+            }
+
+            var extension = Path.GetExtension(filePath);
+
+            if (extension.Equals(".zip", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".7z", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".rar", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".tar", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".gz", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".tgz", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".bz2", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".xz", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (extension.Equals(".dat", StringComparison.OrdinalIgnoreCase))
+            {
+                return ArchiveFactory.IsArchive(filePath, out _) || ZipValidation.IsValidZipFile(filePath);
+            }
+
+            if (extension.Equals(".exe", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!ShouldAttemptExecutableExtraction(contentType))
+                {
+                    return false;
+                }
+
+                return ArchiveFactory.IsArchive(filePath, out _) || ZipValidation.IsValidZipFile(filePath);
+            }
+
+            if (string.IsNullOrEmpty(extension))
+            {
+                return ArchiveFactory.IsArchive(filePath, out _) || ZipValidation.IsValidZipFile(filePath);
+            }
+
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static IReadOnlyList<string> FindArchiveFiles(string rootDirectory, ContentType? contentType = null)
     {
         var allFiles = Directory.GetFiles(rootDirectory, "*", SearchOption.AllDirectories);
         var archives = new List<string>();
 
         foreach (var file in allFiles)
         {
-            var extension = Path.GetExtension(file);
-            if (GameContentConstants.ArchiveExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
-            {
-                archives.Add(file);
-            }
-            else if (string.IsNullOrEmpty(extension) && ZipValidation.IsValidZipFile(file))
+            if (IsArchiveFile(file, contentType))
             {
                 archives.Add(file);
             }
@@ -518,6 +593,36 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
                 singleDir);
 
             PromoteDirectoryContents(singleDir, extractedDirectory);
+        }
+    }
+
+    private void NormalizeGibExtensions(string extractedDirectory, ContentType contentType)
+    {
+        if (contentType is ContentType.ModdingTool or ContentType.Executable or ContentType.GameClient or ContentType.GameInstallation)
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var gibFile in Directory.GetFiles(extractedDirectory, "*.gib", SearchOption.AllDirectories))
+            {
+                var bigFile = Path.ChangeExtension(gibFile, ".big");
+                if (File.Exists(bigFile))
+                {
+                    File.Delete(gibFile);
+                    logger.LogInformation("Removed redundant inactive file '{GibFile}' as '{BigFile}' already exists", gibFile, bigFile);
+                }
+                else
+                {
+                    File.Move(gibFile, bigFile);
+                    logger.LogInformation("Normalized inactive mod archive '{GibFile}' to '{BigFile}'", gibFile, bigFile);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to normalize .gib file extensions in: {Directory}", extractedDirectory);
         }
     }
 }

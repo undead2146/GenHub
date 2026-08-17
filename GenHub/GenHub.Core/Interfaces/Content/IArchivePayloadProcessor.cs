@@ -13,9 +13,13 @@ public interface IArchivePayloadProcessor
     /// Extracts all archives located within the directory safely, recursively removing archive files after extraction.
     /// </summary>
     /// <param name="extractedDirectory">The directory containing extracted or downloaded content.</param>
+    /// <param name="contentType">Optional content type to constrain executable archive extraction.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A task representing the asynchronous extraction operation.</returns>
-    Task ExtractArchivesSafelyAsync(string extractedDirectory, CancellationToken cancellationToken = default);
+    Task ExtractArchivesSafelyAsync(
+        string extractedDirectory,
+        ContentType? contentType = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Normalizes the directory structure of an extracted payload, removing extraneous wrapper directories

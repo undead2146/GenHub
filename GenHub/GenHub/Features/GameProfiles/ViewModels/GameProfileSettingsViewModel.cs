@@ -73,7 +73,6 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         ContentType.Mission,
     ];
 
-    private static bool HasShownFirstLoadNotification { get; set; }
     private static string NormalizeResourcePath(string? path, string defaultUri)
     {
         if (string.IsNullOrWhiteSpace(path)) return defaultUri;
@@ -646,16 +645,10 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
             })),
             EnabledContent.Select(x => x.ManifestId.Value));
 
-        Core.Models.Content.ContentDisplayItem? match = null;
-        if (declaredId != ManifestConstants.DefaultContentDependencyId)
-        {
-            match = availableOfTargetType.FirstOrDefault(x => x.ManifestId == declaredId)
-                ?? availableOfTargetType.FirstOrDefault(x => HasCompatibleCatalogMatch(declaredId, x.ManifestId));
-        }
-        else
-        {
-            match = availableOfTargetType.FirstOrDefault(x => x.ContentType == dependency.DependencyType);
-        }
+        var match = declaredId != ManifestConstants.DefaultContentDependencyId
+            ? (availableOfTargetType.FirstOrDefault(x => x.ManifestId == declaredId)
+               ?? availableOfTargetType.FirstOrDefault(x => HasCompatibleCatalogMatch(declaredId, x.ManifestId)))
+            : availableOfTargetType.FirstOrDefault(x => x.ContentType == dependency.DependencyType);
 
         if (match != null)
         {
@@ -696,6 +689,16 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
                     ValidateSingleDependencyWarning(manifest, dependency, manifestsById, manifestsByType, enabledContentByType, warnings);
                 }
             }
+
+            if (warnings.Count > 0)
+            {
+                _localNotificationService.ShowWarning("Dependency Warning", $"After enabling '{justEnabledContentName}':\n• {string.Join("\n• ", warnings)}", 15000);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error during dependency validation");
+        }
     }
 
     private async Task<List<string>> ValidateAllDependenciesAsync(List<string> enabledContentIds)

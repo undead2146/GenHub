@@ -15,6 +15,8 @@ using GenHub.Core.Interfaces.Tools;
 using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
+using GenHub.Core.Models.ModDB;
+using GenHub.Core.Utilities;
 using Microsoft.Extensions.Logging;
 using SharpCompress.Archives;
 using SharpCompress.Common;
@@ -107,20 +109,25 @@ public partial class ModDBManifestFactory(
                 "The download was not stored because its installable format could not be identified.");
         }
 
+        var allFiles = Directory.GetFiles(extractedDirectory, "*", SearchOption.AllDirectories)
+            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase);
+
         var files = new List<ManifestFile>();
-        foreach (var filePath in Directory.GetFiles(extractedDirectory, "*", SearchOption.AllDirectories).OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
+        foreach (var filePath in allFiles)
         {
             var fileInfo = new FileInfo(filePath);
+            var relativePath = Path.GetRelativePath(extractedDirectory, filePath);
             files.Add(new ManifestFile
             {
-                RelativePath = Path.GetRelativePath(extractedDirectory, filePath),
+                RelativePath = relativePath,
                 SourceType = ContentSourceType.ContentAddressable,
                 InstallTarget = originalManifest.ContentType is ContentType.Map or ContentType.MapPack
                     ? ContentInstallTarget.UserMapsDirectory
                     : ContentInstallTarget.Workspace,
                 Size = fileInfo.Length,
                 Hash = await hashProvider.ComputeFileHashAsync(filePath, cancellationToken),
-                IsExecutable = filePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase),
+                IsExecutable = ExecutableFileClassifier.RequiresExecutePermission(relativePath, filePath),
+                IsRequired = true,
             });
         }
 
@@ -148,6 +155,8 @@ public partial class ModDBManifestFactory(
                 ContentReferences = originalManifest.ContentReferences,
                 KnownAddons = originalManifest.KnownAddons,
                 Files = files,
+                Variants = originalManifest.Variants,
+                EntryPoint = originalManifest.EntryPoint,
                 RequiredDirectories = originalManifest.RequiredDirectories,
                 InstallationInstructions = originalManifest.InstallationInstructions,
             },
