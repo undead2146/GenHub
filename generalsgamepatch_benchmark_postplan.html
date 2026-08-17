@@ -241,28 +241,28 @@
     <div class="metric-grid">
       <div class="metric-card">
         <div class="metric-title">C# Full Cold Build (ImageSharp)</div>
-        <div class="metric-val csharp">35.8s</div>
+        <div class="metric-val csharp">36.5s</div>
         <div class="metric-sub">
-          <span>Py: 8m 41s | C# Crunch: 1m 43s</span>
-          <span class="tag">14.6x vs Python</span>
+          <span>Py: 8m 41s | C# Crunch: 97.9s</span>
+          <span class="tag">14.3x vs Python</span>
         </div>
       </div>
 
       <div class="metric-card">
         <div class="metric-title">Single Pack (FullEnglish) ImageSharp</div>
-        <div class="metric-val csharp">34.9s</div>
+        <div class="metric-val csharp">17.7s</div>
         <div class="metric-sub">
-          <span>Go: 52.1s | Py: 3m 12s</span>
-          <span class="tag">5.53x vs Python</span>
+          <span>Py: 3m 12s | Go: 52.1s</span>
+          <span class="tag">10.9x vs Python</span>
         </div>
       </div>
 
       <div class="metric-card">
         <div class="metric-title">Single Pack (FullEnglish) Crunch</div>
-        <div class="metric-val crunch">1m 28s</div>
+        <div class="metric-val crunch">88.7s</div>
         <div class="metric-sub">
           <span>Py: 3m 12s | 100% Bit Parity</span>
-          <span class="tag crunch-tag">2.19x vs Python</span>
+          <span class="tag crunch-tag">2.17x vs Python</span>
         </div>
       </div>
 
@@ -298,16 +298,16 @@
               <td>8m 41.74s (521.74s)</td>
               <td><span class="tag disabled-tag">X (Skipped)</span></td>
               <td><strong>~3m 11s (191.00s)</strong> <span class="tag go-tag">2.73x vs Py</span></td>
-              <td><strong>1m 42.95s (102.95s)</strong> <span class="tag crunch-tag">5.07x vs Py</span></td>
-              <td><strong>35.84s</strong> <span class="tag">14.56x vs Py</span></td>
+              <td><strong>1m 37.89s (97.89s)</strong> <span class="tag crunch-tag">5.33x vs Py</span></td>
+              <td><strong>36.54s</strong> <span class="tag">14.28x vs Py</span></td>
             </tr>
             <tr>
               <td class="label-col">Single Pack Cold Build (`FullEnglish`)</td>
               <td>3m 12.91s (192.91s)</td>
               <td>2m 55.04s (175.04s)</td>
               <td><strong>52.11s</strong> <span class="tag go-tag">3.70x vs Py</span></td>
-              <td><strong>1m 28.20s (88.20s)</strong> <span class="tag crunch-tag">2.19x vs Py</span></td>
-              <td><strong>34.92s</strong> <span class="tag">5.53x vs Py</span></td>
+              <td><strong>1m 28.74s (88.74s)</strong> <span class="tag crunch-tag">2.17x vs Py</span></td>
+              <td><strong>17.73s</strong> <span class="tag">10.88x vs Py</span></td>
             </tr>
             <tr>
               <td class="label-col">Warm Incremental Build (0% Changed Files)</td>
@@ -351,14 +351,14 @@
               <td>External <code>crunch_x64.exe</code> (Sequential CLI)</td>
               <td>External <code>crunch_x64.exe</code> (Goroutine Semaphore)</td>
               <td>In-Process <strong>ImageSharp</strong> (Direct Spans)</td>
-              <td>ImageSharp processes textures in memory in <strong>34.92s - 35.84s</strong> without process spawning overhead.</td>
+              <td>ImageSharp processes textures in memory in <strong>17.73s - 36.54s</strong> without process spawning overhead.</td>
             </tr>
             <tr>
               <td class="label-col">Bitwise Crunch Engine</td>
               <td>External <code>crunch_x64.exe</code> (Sequential CLI)</td>
               <td>External <code>crunch_x64.exe</code> (Goroutine Semaphore)</td>
               <td>Parallel <strong>CrunchImageService</strong> (16 Threads)</td>
-              <td>Spawns native <code>crunch_x64.exe</code> on 16 threads in <strong>88.20s - 102.95s</strong> with 100% bitwise parity.</td>
+              <td>Spawns native <code>crunch_x64.exe</code> on 16 threads in <strong>88.74s - 97.89s</strong> with 100% bitwise parity.</td>
             </tr>
             <tr>
               <td class="label-col">String Table (.csf)</td>

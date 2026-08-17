@@ -64,6 +64,7 @@ public sealed class ExternalToolService(ILogger<ExternalToolService> logger) : I
             logger.LogInformation("Executing tool: {ToolPath} {Arguments}", resolvedPath, arguments);
             progress?.Report($"Executing: {resolvedPath} {arguments}\n");
 
+            var shouldRedirect = progress != null;
             using var process = new Process
             {
                 StartInfo = new ProcessStartInfo
@@ -72,31 +73,37 @@ public sealed class ExternalToolService(ILogger<ExternalToolService> logger) : I
                     Arguments = arguments,
                     WorkingDirectory = workingDirectory ?? string.Empty,
                     UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
+                    RedirectStandardOutput = shouldRedirect,
+                    RedirectStandardError = shouldRedirect,
                     CreateNoWindow = true,
                 },
             };
 
-            process.OutputDataReceived += (sender, e) =>
+            if (shouldRedirect)
             {
-                if (!string.IsNullOrEmpty(e.Data))
+                process.OutputDataReceived += (sender, e) =>
                 {
-                    progress?.Report(e.Data + "\n");
-                }
-            };
+                    if (!string.IsNullOrEmpty(e.Data))
+                    {
+                        progress?.Report(e.Data + "\n");
+                    }
+                };
 
-            process.ErrorDataReceived += (sender, e) =>
-            {
-                if (!string.IsNullOrEmpty(e.Data))
+                process.ErrorDataReceived += (sender, e) =>
                 {
-                    progress?.Report($"ERROR: {e.Data}\n");
-                }
-            };
+                    if (!string.IsNullOrEmpty(e.Data))
+                    {
+                        progress?.Report($"ERROR: {e.Data}\n");
+                    }
+                };
+            }
 
             process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
+            if (shouldRedirect)
+            {
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+            }
 
             try
             {

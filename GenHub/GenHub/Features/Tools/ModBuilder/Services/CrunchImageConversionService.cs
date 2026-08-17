@@ -129,7 +129,7 @@ public class CrunchImageConversionService(
         CancellationToken cancellationToken)
     {
         var hasResize = HasResizeParameters(parameters);
-        var requiresIntermediateTga = hasResize || sourceExt is ".psd" or ".tif" or ".tiff";
+        var requiresIntermediateTga = hasResize;
 
         string crunchInputFile = sourcePath;
         string? temporaryTgaFile = null;
@@ -254,9 +254,7 @@ public class CrunchImageConversionService(
         }
         else
         {
-            // auto detect dxt format based on alpha presence
-            var hasAlpha = await HasAlphaChannelAsync(inputFile, cancellationToken).ConfigureAwait(false);
-            args.Add(hasAlpha ? "-DXT5" : "-DXT1");
+            args.Add("-DXT5");
         }
 
         return string.Join(" ", args);
