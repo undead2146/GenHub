@@ -285,7 +285,7 @@ public class GenericCatalogResolver(
                 }
             }
 
-            if (!manifest.Metadata.Tags.Any(t => t.StartsWith("contentCode:", StringComparison.OrdinalIgnoreCase)))
+            if (manifest.Metadata.Tags.All(t => !t.StartsWith("contentCode:", StringComparison.OrdinalIgnoreCase)))
             {
                 manifest.Metadata.Tags.Add($"contentCode:{contentItem.Id}");
             }

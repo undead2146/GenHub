@@ -92,7 +92,7 @@ public class GenericCatalogDiscoverer(
             var searchLower = query.SearchTerm.ToLowerInvariant();
             if (!content.Name.Contains(searchLower, StringComparison.OrdinalIgnoreCase) &&
                 !content.Description.Contains(searchLower, StringComparison.OrdinalIgnoreCase) &&
-                !content.Tags.Any(t => t.Contains(searchLower, StringComparison.OrdinalIgnoreCase)))
+                content.Tags.All(t => !t.Contains(searchLower, StringComparison.OrdinalIgnoreCase)))
             {
                 return false;
             }
@@ -474,7 +474,7 @@ public class GenericCatalogDiscoverer(
 
             if (!string.IsNullOrWhiteSpace(_subscription!.DefinitionUrl))
             {
-                throw new NotImplementedException("Definition-resolved catalogs (Publisher Studio) are not yet supported. Only direct CatalogUrl subscriptions are supported.");
+                throw new NotSupportedException("Definition-resolved catalogs (Publisher Studio) are not yet supported. Only direct CatalogUrl subscriptions are supported.");
             }
 
             logger.LogDebug("Fetching catalog from: {CatalogUrl}", _subscription.CatalogUrl);

@@ -73,7 +73,7 @@ public interface IWebPageParser
                 var page = await ParseFileDetailAsync(url, cancellationToken);
                 results[url] = page;
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException or FormatException or NotSupportedException)
             {
                 // soft failure per url in batch
             }

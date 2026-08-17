@@ -99,8 +99,8 @@ public class CatalogTabProvider(
                 var contentId = !string.IsNullOrWhiteSpace(catalogContentId) ? catalogContentId : searchResult.Id ?? string.Empty;
 
                 if (catalogTab.AppliesTo is { Count: > 0 } &&
-                    !catalogTab.AppliesTo.Any(a => a.Equals(contentId, StringComparison.OrdinalIgnoreCase) ||
-                                                   a.Equals(searchResult.Id ?? string.Empty, StringComparison.OrdinalIgnoreCase)))
+                    catalogTab.AppliesTo.All(a => !a.Equals(contentId, StringComparison.OrdinalIgnoreCase) &&
+                                                   !a.Equals(searchResult.Id ?? string.Empty, StringComparison.OrdinalIgnoreCase)))
                 {
                     continue;
                 }

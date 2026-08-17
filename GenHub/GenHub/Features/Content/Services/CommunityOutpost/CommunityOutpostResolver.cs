@@ -85,7 +85,7 @@ public class CommunityOutpostResolver(
             var downloadUrl = discoveredItem.SourceUrl ?? throw new InvalidOperationException(
                 "SourceUrl cannot be null for Community Outpost content");
 
-            var filename = GetFilenameFromUrl(downloadUrl, contentCode);
+            var filename = GetFilenameFromUrl(new Uri(downloadUrl), contentCode);
 
             // Get all mirror URLs for fallback support
             var mirrorUrls = GetMirrorUrls(discoveredItem);
@@ -474,22 +474,14 @@ public class CommunityOutpostResolver(
     /// <summary>
     /// Gets the filename from the download URL or generates one from the content code.
     /// </summary>
-    private static string GetFilenameFromUrl(string url, string contentCode)
+    private static string GetFilenameFromUrl(Uri downloadUri, string contentCode)
     {
-        try
-        {
-            var uri = new Uri(url);
-            var path = uri.AbsolutePath;
-            var lastSegment = path.Split('/')[^1];
+        var path = downloadUri.AbsolutePath;
+        var lastSegment = path.Split('/')[^1];
 
-            if (!string.IsNullOrEmpty(lastSegment) && lastSegment.Contains('.'))
-            {
-                return lastSegment;
-            }
-        }
-        catch
+        if (!string.IsNullOrEmpty(lastSegment) && lastSegment.Contains('.'))
         {
-            // Fall through to default filename
+            return lastSegment;
         }
 
         return $"{contentCode}{CommunityOutpostConstants.DatFileExtension}";
