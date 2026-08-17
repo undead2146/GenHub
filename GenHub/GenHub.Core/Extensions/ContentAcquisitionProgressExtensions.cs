@@ -17,48 +17,54 @@ public static class ContentAcquisitionProgressExtensions
     {
         ArgumentNullException.ThrowIfNull(progress);
 
-        // Use the new staged progress format if available
         if (progress.TotalStages > 0 && progress.CurrentStage > 0)
         {
-            string stagePart = $"{progress.CurrentStage}/{progress.TotalStages}";
-            string description = !string.IsNullOrEmpty(progress.CurrentOperation) &&
-                                 !string.Equals(progress.CurrentOperation, progress.StageDescription, StringComparison.Ordinal)
-                ? $"{progress.StageDescription}: {progress.CurrentOperation}"
-                : progress.StageDescription;
-
-            // Add percentage for stages that have measurable progress
-            string percentPart = progress.StageProgress is > 0 and < 100
-                ? $" ({progress.StageProgress:F0}%)"
-                : string.Empty;
-
-            // Add bottleneck indicator if applicable
-            string bottleneckPart = progress.IsBottleneck && !string.IsNullOrEmpty(progress.BottleneckReason)
-                ? $" - {progress.BottleneckReason}"
-                : string.Empty;
-
-            // Add file count if processing multiple files
-            string filesPart = progress.TotalFiles > 1
-                ? $" [{progress.FilesProcessed}/{progress.TotalFiles}]"
-                : string.Empty;
-
-            return $"{stagePart} - {description}{percentPart}{filesPart}{bottleneckPart}";
+            return FormatStagedProgress(progress);
         }
 
-        // Fallback to phase-based format
-        string phaseName = progress.Phase switch
-        {
-            ContentAcquisitionPhase.None => "Processing",
-            ContentAcquisitionPhase.Downloading => "Downloading",
-            ContentAcquisitionPhase.Extracting => "Extracting",
-            ContentAcquisitionPhase.Copying => "Copying",
-            ContentAcquisitionPhase.ValidatingManifest => "Validating manifest",
-            ContentAcquisitionPhase.ValidatingFiles => "Validating files",
-            ContentAcquisitionPhase.Delivering => "Installing",
-            ContentAcquisitionPhase.StoringInCas => "Storing",
-            ContentAcquisitionPhase.Completed => "Complete",
-            _ => "Processing",
-        };
+        var phaseName = GetPhaseName(progress.Phase);
+        return FormatPhaseProgress(progress, phaseName);
+    }
 
+    private static string FormatStagedProgress(ContentAcquisitionProgress progress)
+    {
+        string stagePart = $"{progress.CurrentStage}/{progress.TotalStages}";
+        string description = !string.IsNullOrEmpty(progress.CurrentOperation) &&
+                             !string.Equals(progress.CurrentOperation, progress.StageDescription, StringComparison.Ordinal)
+            ? $"{progress.StageDescription}: {progress.CurrentOperation}"
+            : progress.StageDescription;
+
+        string percentPart = progress.StageProgress is > 0 and < 100
+            ? $" ({progress.StageProgress:F0}%)"
+            : string.Empty;
+
+        string bottleneckPart = progress.IsBottleneck && !string.IsNullOrEmpty(progress.BottleneckReason)
+            ? $" - {progress.BottleneckReason}"
+            : string.Empty;
+
+        string filesPart = progress.TotalFiles > 1
+            ? $" [{progress.FilesProcessed}/{progress.TotalFiles}]"
+            : string.Empty;
+
+        return $"{stagePart} - {description}{percentPart}{filesPart}{bottleneckPart}";
+    }
+
+    private static string GetPhaseName(ContentAcquisitionPhase phase) => phase switch
+    {
+        ContentAcquisitionPhase.None => "Processing",
+        ContentAcquisitionPhase.Downloading => "Downloading",
+        ContentAcquisitionPhase.Extracting => "Extracting",
+        ContentAcquisitionPhase.Copying => "Copying",
+        ContentAcquisitionPhase.ValidatingManifest => "Validating manifest",
+        ContentAcquisitionPhase.ValidatingFiles => "Validating files",
+        ContentAcquisitionPhase.Delivering => "Installing",
+        ContentAcquisitionPhase.StoringInCas => "Storing",
+        ContentAcquisitionPhase.Completed => "Complete",
+        _ => "Processing",
+    };
+
+    private static string FormatPhaseProgress(ContentAcquisitionProgress progress, string phaseName)
+    {
         if (!string.IsNullOrEmpty(progress.CurrentOperation))
         {
             return $"{phaseName}: {progress.CurrentOperation}";
@@ -77,9 +83,7 @@ public static class ContentAcquisitionProgressExtensions
 
         if (progress.TotalFiles > 0)
         {
-            int phasePercent = progress.TotalFiles > 0
-                ? (int)((double)progress.FilesProcessed / progress.TotalFiles * 100)
-                : 0;
+            int phasePercent = (int)((double)progress.FilesProcessed / progress.TotalFiles * 100);
             return $"{phaseName}: {progress.FilesProcessed}/{progress.TotalFiles} files ({phasePercent}%)";
         }
 

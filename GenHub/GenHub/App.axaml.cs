@@ -110,9 +110,10 @@ public partial class App : Application
         {
             if (string.IsNullOrWhiteSpace(url) ||
                 !Uri.TryCreate(url, UriKind.Absolute, out var parsedUri) ||
-                (parsedUri.Scheme != Uri.UriSchemeHttp && parsedUri.Scheme != Uri.UriSchemeHttps))
+                (parsedUri.Scheme != Uri.UriSchemeHttps &&
+                 !(parsedUri.Scheme == Uri.UriSchemeHttp && parsedUri.IsLoopback)))
             {
-                logger?.LogWarning("Rejected invalid or non-HTTP(S) subscription URL: '{Url}'", url);
+                logger?.LogWarning("Rejected invalid or non-HTTPS subscription URL: '{Url}'", url);
                 return;
             }
 
