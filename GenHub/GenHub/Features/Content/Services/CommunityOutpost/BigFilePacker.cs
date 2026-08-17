@@ -126,8 +126,7 @@ public static class BigFilePacker
                 writer.Flush();
                 foreach (var entry in entries)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    using var fileStream = File.OpenRead(entry.FullPath);
+                    await using var fileStream = new FileStream(entry.FullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 65536, useAsync: true);
                     if (fileStream.Length != entry.Size)
                     {
                         throw new IOException($"File size changed during packing for {entry.RelativePath}. Expected {entry.Size} bytes, found {fileStream.Length} bytes.");

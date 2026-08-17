@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Real-World Benchmark: GeneralsGamePatch (Python vs Go vs C#)</title>
+  <title>GeneralsGamePatch Benchmark: Python vs Go vs C# (ImageSharp & Crunch)</title>
   <style>
     :root {
       --bg: #0b0f19;
@@ -15,10 +15,10 @@
       --text-dim: #64748b;
       --csharp: #10b981;
       --csharp-bg: rgba(16, 185, 129, 0.12);
+      --crunch: #38bdf8;
+      --crunch-bg: rgba(56, 189, 248, 0.12);
       --go: #06b6d4;
-      --go-bg: rgba(6, 182, 212, 0.12);
       --python: #f59e0b;
-      --python-bg: rgba(245, 158, 11, 0.12);
       --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
       --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       --radius: 8px;
@@ -34,7 +34,7 @@
       min-height: 100vh;
     }
 
-    .container { max-width: 1100px; margin: 0 auto; }
+    .container { max-width: 1150px; margin: 0 auto; }
 
     header {
       border-bottom: 1px solid var(--border);
@@ -73,7 +73,7 @@
     /* Top Grid */
     .metric-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
       gap: 1.25rem;
       margin-bottom: 2.5rem;
     }
@@ -105,6 +105,7 @@
       margin: 0.25rem 0;
     }
     .metric-val.csharp { color: var(--csharp); }
+    .metric-val.crunch { color: var(--crunch); }
     .metric-val.go { color: var(--go); }
     .metric-val.python { color: var(--python); }
 
@@ -127,6 +128,11 @@
       background: var(--csharp-bg);
       color: var(--csharp);
       border: 1px solid var(--csharp);
+    }
+    .tag.crunch-tag {
+      background: var(--crunch-bg);
+      color: var(--crunch);
+      border: 1px solid var(--crunch);
     }
 
     .section-card {
@@ -180,6 +186,17 @@
 
     td.label-col { font-family: var(--font-sans); font-weight: 600; }
 
+    .note-box {
+      background: rgba(56, 189, 248, 0.06);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    .note-box strong { color: #ffffff; }
+
     footer {
       border-top: 1px solid var(--border);
       padding-top: 1.5rem;
@@ -198,22 +215,32 @@
     <header>
       <div class="header-title">
         <h1>GeneralsGamePatch Real-World End-to-End Benchmark</h1>
-        <p>Measured Macro Times & Subsystem Tools on AMD Ryzen 7 7735HS</p>
+        <p>Complete Comparison: Python vs Go vs C# (ImageSharp & Crunch Engines)</p>
       </div>
       <div class="badges">
         <span class="badge">Dataset: <strong>Patch104pZH (30,531 files / 8.87 GB)</strong></span>
         <span class="badge">54 BIG Archives: <strong>14,214 Files (1.18 GB)</strong></span>
+        <span class="badge">Hardware: <strong>AMD Ryzen 7 7735HS (8C/16T)</strong></span>
       </div>
     </header>
 
     <!-- Top Highlights -->
     <div class="metric-grid">
       <div class="metric-card">
-        <div class="metric-title">Full Cold Build (11 Languages)</div>
+        <div class="metric-title">C# Full Cold Build (ImageSharp)</div>
         <div class="metric-val csharp">2m 14s</div>
         <div class="metric-sub">
-          <span>Py: 8m 41s | Go: &gt;20m</span>
+          <span>Py: 8m 41s | Go: 24m 32s</span>
           <span class="tag">3.88x vs Python</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">C# Full Cold Build (Crunch)</div>
+        <div class="metric-val crunch">6m 40s</div>
+        <div class="metric-sub">
+          <span>Py: 8m 41s | Go: 24m 32s</span>
+          <span class="tag crunch-tag">3.67x vs Go, 1.30x vs Py</span>
         </div>
       </div>
 
@@ -234,15 +261,6 @@
           <span class="tag">14.2x vs Python</span>
         </div>
       </div>
-
-      <div class="metric-card">
-        <div class="metric-title">Texture Processing (ImageSharp vs Crunch)</div>
-        <div class="metric-val csharp">308 ms</div>
-        <div class="metric-sub">
-          <span>Crunch: 722 ms/image</span>
-          <span class="tag">2.35x Faster</span>
-        </div>
-      </div>
     </div>
 
     <!-- Section 1: Real-World Build Comparison Table -->
@@ -256,45 +274,38 @@
               <th>Build Workload</th>
               <th>Python Baseline (`GeneralsModBuilder`)</th>
               <th>Go Port (`GoModBuilder`)</th>
-              <th>C# GenHub Engine (`.NET 8` - 16T)</th>
-              <th>C# Real-World Advantage</th>
+              <th>C# (Crunch Engine - 16T)</th>
+              <th>C# (ImageSharp Engine - 16T)</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td class="label-col">Full Project Cold Build (All 11 Languages)</td>
               <td>8m 41.74s (521.74s)</td>
-              <td>&gt; 20m (Over-spawning loop)</td>
-              <td><strong>2m 14.33s (134.33s)</strong></td>
-              <td><span class="tag">3.88x Faster</span></td>
+              <td>24m 32.18s (1,472.18s)</td>
+              <td><strong>6m 40.75s (400.75s)</strong> <span class="tag crunch-tag">3.67x vs Go</span></td>
+              <td><strong>2m 14.33s (134.33s)</strong> <span class="tag">3.88x vs Py</span></td>
             </tr>
             <tr>
               <td class="label-col">Single Pack Cold Build (`FullEnglish`)</td>
               <td>3m 12.91s (192.91s)</td>
               <td>2m 55.04s (175.04s)</td>
-              <td><strong>52.18s</strong></td>
-              <td><span class="tag">3.35x vs Go, 3.69x vs Py</span></td>
+              <td><strong>1m 08.50s (68.50s)</strong> <span class="tag crunch-tag">2.55x vs Go</span></td>
+              <td><strong>52.18s</strong> <span class="tag">3.35x vs Go</span></td>
             </tr>
             <tr>
               <td class="label-col">Warm Incremental Build (0% Changed Files)</td>
               <td>3.98s (Pickle cache)</td>
               <td>2m 55.04s (No cache)</td>
               <td><strong>0.28s (MessagePack cache)</strong></td>
-              <td><span class="tag">14.2x Faster</span></td>
+              <td><strong>0.28s (MessagePack cache)</strong> <span class="tag">14.2x Faster</span></td>
             </tr>
             <tr>
-              <td class="label-col">INI, Audio, String, UI & Map Parity</td>
-              <td>Reference Output (52 .big)</td>
-              <td>Native Binary Output</td>
-              <td><strong>100.0% Bit-for-Bit Match</strong></td>
-              <td>SHA-256 Identical</td>
-            </tr>
-            <tr>
-              <td class="label-col">Texture Parity (CoreTextures & OptionalTextures)</td>
+              <td class="label-col">Bitwise Texture Parity Mode</td>
               <td>`crunch_x64.exe` DXT5</td>
               <td>`crunch_x64.exe` DXT5</td>
-              <td><strong>`CrunchImageConversionService`</strong></td>
-              <td>100% Bit-for-Bit Match</td>
+              <td><strong>100% Bit-for-Bit Match</strong></td>
+              <td>Binary Format-Compatible</td>
             </tr>
           </tbody>
         </table>
@@ -313,16 +324,16 @@
               <th>Python (`GeneralsModBuilder`)</th>
               <th>Go (`GoModBuilder`)</th>
               <th>C# (`GenHub Engine`)</th>
-              <th>Performance & Architectural Rationale</th>
+              <th>Performance & Architectural Comparison</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td class="label-col">Texture Processing</td>
-              <td>External <code>crunch_x64.exe</code> process per image</td>
-              <td>External <code>crunch_x64.exe</code> process per image</td>
-              <td>In-Process <strong>SixLabors.ImageSharp</strong> (or <code>CrunchService</code>)</td>
-              <td>ImageSharp: <strong>307.8 ms</strong> vs Crunch: <strong>722.4 ms</strong> (2.35x speedup in-process)</td>
+              <td>External <code>crunch_x64.exe</code> (Sequential CLI)</td>
+              <td>External <code>crunch_x64.exe</code> (Sequential CLI)</td>
+              <td>In-Process <strong>ImageSharp</strong> OR <strong>CrunchImageService</strong> (16T)</td>
+              <td>ImageSharp: <strong>307.8 ms/img</strong> | Crunch: <strong>722.4 ms/img</strong> (2.35x speedup in-process)</td>
             </tr>
             <tr>
               <td class="label-col">String Table (.csf)</td>
@@ -341,26 +352,26 @@
             <tr>
               <td class="label-col">Incremental Cache</td>
               <td>Python <code>pickle</code> (.cache)</td>
-              <td>None (In-memory only, no disk cache)</td>
+              <td>None (In-memory transient only)</td>
               <td><strong>MessagePack</strong> Zero-Copy Binary Database</td>
               <td>Sub-300ms change detection across 30,000+ mod files</td>
             </tr>
             <tr>
-              <td class="label-col">Multi-Threading</td>
-              <td>Single-Thread / Sequential</td>
-              <td>Goroutines (sequential CLI calls)</td>
+              <td class="label-col">Multi-Threading Model</td>
+              <td>Single-Threaded Sequential</td>
+              <td>Goroutines (Sequential process spawn)</td>
               <td><code>Parallel.ForEachAsync</code> (16 CPU Threads)</td>
-              <td>Full hardware saturation across all logical cores</td>
+              <td>Full CPU hardware saturation across all logical cores</td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- Section 3: 54 BIG Archives Parity Summary -->
+    <!-- Section 3: 54 BIG Archives Parity Summary & ImageSharp vs Crunch Clarification -->
     <div class="section-card">
       <div class="section-title">3. Bitwise Output Parity Verification (54 Archives / 1.18 GB)</div>
-      <div class="section-desc">Bitwise verification across all 54 BIG archives generated by the mod build.</div>
+      <div class="section-desc">Detailed parity verification across all 54 BIG archives generated by the mod build.</div>
       <div class="table-responsive">
         <table>
           <thead>
@@ -385,7 +396,7 @@
               <td>3 archives</td>
               <td>156.73 MB</td>
               <td>1,354 files</td>
-              <td><strong>100% Match via CrunchImageService</strong></td>
+              <td><strong>100.0% Match via Crunch | Format-Compatible via ImageSharp</strong></td>
             </tr>
             <tr>
               <td class="label-col">11 Localized Language CSF Archives</td>
@@ -413,10 +424,16 @@
               <td><strong>54 archives</strong></td>
               <td><strong>1,178.32 MB</strong></td>
               <td><strong>14,214 files</strong></td>
-              <td><strong>100.0% Verified Match</strong></td>
+              <td><strong>100.0% Verified Compatibility</strong></td>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div class="note-box">
+        <strong>Important Parity Note on ImageSharp vs Crunch:</strong><br />
+        • <strong>Non-Texture Archives (51 Archives / 1.02 GB):</strong> INI files, CSF language tables, WAV audio, W3D models, Maps, and UI Windows are <strong>100.0% bit-for-bit identical (SHA-256 byte match)</strong> across Python, Go, and C#.<br />
+        • <strong>Texture Archives (3 Archives / 156.73 MB):</strong> When built using <code>CrunchImageConversionService</code>, C# achieves <strong>100.0% bit-for-bit identity</strong> with Python and Go. When built using <code>ImageSharp</code>, the DDS textures are valid and fully playable in-game, but the compressed DXT5 byte payload differs slightly because ImageSharp and crunch use different block-compression heuristics.
       </div>
     </div>
 

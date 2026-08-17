@@ -46,35 +46,8 @@ public sealed class ArchiveService(
                 Directory.CreateDirectory(targetDir);
             }
 
-            var tempBigPath = targetBigPath + "." + Guid.NewGuid().ToString("N")[..8] + ".tmp";
-
-            try
-            {
-                // use existing BigFilePacker
-                await BigFilePacker.PackAsync(sourceDirectory, tempBigPath, cancellationToken).ConfigureAwait(false);
-
-                if (!File.Exists(tempBigPath))
-                {
-                    logger.LogError("BIG archive creation completed but temporary file was not created: {Path}", tempBigPath);
-                    return OperationResult<bool>.CreateFailure("BIG archive creation failed: temporary file was not created");
-                }
-
-                File.Move(tempBigPath, targetBigPath, overwrite: true);
-            }
-            finally
-            {
-                if (File.Exists(tempBigPath))
-                {
-                    try
-                    {
-                        File.Delete(tempBigPath);
-                    }
-                    catch
-                    {
-                        // Ignore cleanup errors
-                    }
-                }
-            }
+            // use existing BigFilePacker
+            await BigFilePacker.PackAsync(sourceDirectory, targetBigPath, cancellationToken).ConfigureAwait(false);
 
             logger.LogInformation("Successfully created BIG archive: {Target}", targetBigPath);
             progress?.Report(1.0);

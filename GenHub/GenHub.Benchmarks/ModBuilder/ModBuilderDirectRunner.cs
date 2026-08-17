@@ -459,6 +459,10 @@ public sealed class ModBuilderDirectRunner
                     NullLogger<BuildEngineService>.Instance);
 
                 var loadedConfig = await configurationLoaderService.LoadAndMergeConfigurationsAsync(validConfigs, CancellationToken.None);
+                if (string.IsNullOrEmpty(loadedConfig.Folders.AbsBuildDir) || !Path.IsPathRooted(loadedConfig.Folders.AbsBuildDir))
+                {
+                    loadedConfig.Folders.AbsBuildDir = Path.Combine(projectDir, ".Build");
+                }
                 var project = new ModBuilderProject
                 {
                     Name = Path.GetFileName(projectDir),
