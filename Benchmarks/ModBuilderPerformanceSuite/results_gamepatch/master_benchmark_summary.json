@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "timestamp": "2026-08-17T12:35:40Z",
+    "timestamp": "2026-08-17T12:43:45Z",
     "target_project": "TheSuperHackers/GeneralsGamePatch (Patch104pZH)",
     "hardware": "AMD Ryzen 7 7735HS (8 Cores, 16 Logical Threads, 16GB RAM)",
     "project_total_size": "30,531 files (8.87 GB)",
@@ -15,10 +15,10 @@
       "go_sequential": "X (Skipped - exceeds acceptable duration due to un-cached re-crunch loop)",
       "go_parallel_sec": 191.00,
       "go_parallel_formatted": "3m 11.00s",
-      "csharp_crunch_sec": 102.11,
-      "csharp_crunch_formatted": "1m 42.11s",
-      "csharp_imagesharp_sec": 37.14,
-      "csharp_imagesharp_formatted": "37.14s"
+      "csharp_crunch_sec": 102.95,
+      "csharp_crunch_formatted": "1m 42.95s",
+      "csharp_imagesharp_sec": 35.84,
+      "csharp_imagesharp_formatted": "35.84s"
     },
     "single_pack_cold_build_fullenglish": {
       "python_sec": 192.91,
@@ -26,10 +26,10 @@
       "go_sequential_sec": 175.04,
       "go_parallel_sec": 52.11,
       "go_parallel_formatted": "52.11s",
-      "csharp_crunch_sec": 103.45,
-      "csharp_crunch_formatted": "1m 43.45s",
-      "csharp_imagesharp_sec": 36.67,
-      "csharp_imagesharp_formatted": "36.67s"
+      "csharp_crunch_sec": 88.20,
+      "csharp_crunch_formatted": "1m 28.20s",
+      "csharp_imagesharp_sec": 34.92,
+      "csharp_imagesharp_formatted": "34.92s"
     },
     "warm_incremental_build": {
       "python_sec": 3.98,

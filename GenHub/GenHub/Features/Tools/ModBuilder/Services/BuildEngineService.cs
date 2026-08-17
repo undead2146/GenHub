@@ -73,13 +73,8 @@ public sealed class BuildEngineService(
             _filesFailed = 0;
 
             // get or create cached build structure
-            var buildStructure = await GetOrCreateBuildStructureAsync(project, configuration, buildSteps, cancellationToken)
+            var buildStructure = await GetOrCreateBuildStructureAsync(project, configuration, buildSteps, selectedBundlePacks, cancellationToken)
                 .ConfigureAwait(false);
-
-            if (selectedBundlePacks != null && buildStructure.Setup != null)
-            {
-                buildStructure.Setup.SelectedPacks = selectedBundlePacks;
-            }
 
             // wrap IProgress<string> to IProgress<BuildProgress>
             IProgress<BuildProgress>? buildProgress = null;
@@ -1048,12 +1043,16 @@ public sealed class BuildEngineService(
         ModBuilderProject project,
         BuildConfiguration configuration,
         BuildStep buildSteps,
+        IReadOnlyList<string>? selectedBundlePacks,
         CancellationToken cancellationToken)
     {
         var configHash = await ComputeConfigHashAsync(project, configuration, cancellationToken)
             .ConfigureAwait(false);
 
-        if (_cachedBuildStructure != null && _cachedConfigHash == configHash)
+        var packKey = selectedBundlePacks is { Count: > 0 } ? string.Join(",", selectedBundlePacks) : "all";
+        var compositeHash = $"{configHash}:{packKey}";
+
+        if (_cachedBuildStructure != null && _cachedConfigHash == compositeHash)
         {
             logger.LogDebug("Using cached build structure");
             _cachedBuildStructure.Setup.Step = buildSteps;
@@ -1061,11 +1060,11 @@ public sealed class BuildEngineService(
         }
 
         logger.LogInformation("Building new build structure (config changed)");
-        var structure = await CreateBuildStructureAsync(project, configuration, buildSteps, cancellationToken)
+        var structure = await CreateBuildStructureAsync(project, configuration, buildSteps, selectedBundlePacks, cancellationToken)
             .ConfigureAwait(false);
 
         _cachedBuildStructure = structure;
-        _cachedConfigHash = configHash;
+        _cachedConfigHash = compositeHash;
 
         return structure;
     }
@@ -1133,15 +1132,28 @@ public sealed class BuildEngineService(
         ModBuilderProject project,
         BuildConfiguration configuration,
         BuildStep buildSteps,
+        IReadOnlyList<string>? selectedBundlePacks,
         CancellationToken cancellationToken)
     {
         logger.LogDebug("Resolving wildcards in configuration");
         configuration = await configurationLoaderService.ResolveWildcardsAsync(configuration, cancellationToken)
             .ConfigureAwait(false);
 
+        var allowedItemNames = selectedBundlePacks is { Count: > 0 }
+            ? configuration.Packs
+                .Where(p => selectedBundlePacks.Contains(p.Name, StringComparer.OrdinalIgnoreCase))
+                .SelectMany(p => p.ItemNames)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : null;
+
+        var itemsToBuild = (allowedItemNames != null
+            ? configuration.Items.Where(i => allowedItemNames.Contains(i.Name))
+            : configuration.Items).ToList();
+
         var setup = new BuildSetup
         {
             Step = buildSteps,
+            SelectedPacks = selectedBundlePacks?.ToList(),
             Folders = new Folders
             {
                 AbsBuildDir = configuration.Folders.AbsBuildDir,
@@ -1150,7 +1162,7 @@ public sealed class BuildEngineService(
             },
             Bundles = new Bundles
             {
-                Items = configuration.Items,
+                Items = itemsToBuild,
                 Packs = configuration.Packs,
             },
             Runner = new Runner(),
@@ -1160,7 +1172,7 @@ public sealed class BuildEngineService(
         var stageFiles = new Dictionary<BuildIndex, List<string>>();
 
         var rawBundleItemFiles = new List<string>();
-        foreach (var item in configuration.Items)
+        foreach (var item in itemsToBuild)
         {
             foreach (var file in item.Files)
             {
@@ -1179,7 +1191,7 @@ public sealed class BuildEngineService(
         logger.LogInformation("Stage RawBundleItem: {Count} files", rawBundleItemFiles.Count);
 
         var bigBundleItemFiles = new List<string>();
-        foreach (var item in configuration.Items)
+        foreach (var item in itemsToBuild)
         {
             if (item.IsBig)
             {
