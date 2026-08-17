@@ -30,7 +30,7 @@ namespace GenHub.Features.GameProfiles.ViewModels;
 /// <summary>
 /// ViewModel for managing game profile settings, including content selection and configuration.
 /// </summary>
-public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Core.Models.Content.ContentAcquiredMessage>
+public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Core.Models.Content.ContentAcquiredMessage>, IRecipient<ManifestReplacedMessage>
 {
     /// <summary>
     /// Information about a content filter type.
@@ -159,11 +159,30 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
 
         GameSettingsViewModel = new GameSettingsViewModel(gameSettingsService!, gameSettingsLogger!);
 
-        WeakReferenceMessenger.Default.Register(this);
+        WeakReferenceMessenger.Default.RegisterAll(this);
     }
 
     /// <inheritdoc/>
     public void Receive(Core.Models.Content.ContentAcquiredMessage message) => _ = LoadAvailableContentAsync();
+
+    /// <inheritdoc/>
+    public void Receive(ManifestReplacedMessage message)
+    {
+        if (string.IsNullOrEmpty(message?.OldId) || string.IsNullOrEmpty(message?.NewId))
+        {
+            return;
+        }
+
+        var matching = EnabledContent.FirstOrDefault(c =>
+            string.Equals(c.Id, message.OldId, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(c.ManifestId.Value, message.OldId, StringComparison.OrdinalIgnoreCase));
+
+        if (matching != null)
+        {
+            matching.Id = message.NewId;
+            matching.ManifestId = ManifestId.Create(message.NewId);
+        }
+    }
 
     /// <summary>
     /// Refreshes the visible filters based on available content.
@@ -275,10 +294,15 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
 
     private async Task LoadEnabledContentForProfileAsync(GameProfile profile)
     {
+        if (_profileContentLoader == null)
+        {
+            return;
+        }
+
         try
         {
             EnabledContent.Clear();
-            var coreItems = await _profileContentLoader!.LoadEnabledContentForProfileAsync(profile);
+            var coreItems = await _profileContentLoader.LoadEnabledContentForProfileAsync(profile);
             foreach (var coreItem in coreItems)
             {
                 var viewModelItem = ConvertToViewModelContentDisplayItem(coreItem);
@@ -700,8 +724,24 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
     {
         if (string.IsNullOrWhiteSpace(path)) return defaultUri;
         if (path.StartsWith("avares://", StringComparison.OrdinalIgnoreCase)) return path;
-        if (Uri.TryCreate(path, UriKind.Absolute, out _)) return path;
-        return $"avares://GenHub/{path.TrimStart('/')}";
+
+        // Legacy filename and directory migration
+        var trimmed = path.TrimStart('/');
+        if (trimmed.StartsWith("Assets/Images/", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = "Assets/CoverImages/" + trimmed["Assets/Images/".Length..];
+        }
+        else if (trimmed.EndsWith("-poster.png", StringComparison.OrdinalIgnoreCase) && !trimmed.Contains('/'))
+        {
+            trimmed = "Assets/CoverImages/" + trimmed;
+        }
+
+        if (Uri.TryCreate(path, UriKind.Absolute, out var uri) && (uri.Scheme == "file" || uri.Scheme == "http" || uri.Scheme == "https"))
+        {
+            return path;
+        }
+
+        return $"avares://GenHub/{trimmed.TrimStart('/')}";
     }
 
     private void PopulateGameSettings(CreateProfileRequest request, UpdateProfileRequest? gameSettings)
@@ -728,6 +768,8 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
             SourceId = coreItem.SourceId,
             GameClientId = coreItem.GameClientId,
             IsEnabled = coreItem.IsEnabled,
+            IsEditable = coreItem.IsEditable,
+            SourcePath = coreItem.SourcePath,
         };
     }
 }
