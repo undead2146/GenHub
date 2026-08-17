@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "timestamp": "2026-08-17T11:58:00Z",
+    "timestamp": "2026-08-17T12:29:40Z",
     "target_project": "TheSuperHackers/GeneralsGamePatch (Patch104pZH)",
     "hardware": "AMD Ryzen 7 7735HS (8 Cores, 16 Logical Threads, 16GB RAM)",
     "project_total_size": "30,531 files (8.87 GB)",
@@ -12,47 +12,38 @@
     "full_project_cold_build": {
       "python_sec": 521.74,
       "python_formatted": "8m 41.74s",
-      "go_sec": 1472.18,
-      "go_formatted": "24m 32.18s",
-      "csharp_crunch_sec": 400.75,
-      "csharp_crunch_formatted": "6m 40.75s",
-      "csharp_imagesharp_sec": 134.33,
-      "csharp_imagesharp_formatted": "2m 14.33s",
-      "csharp_imagesharp_speedup_vs_python": 3.88,
-      "csharp_imagesharp_speedup_vs_go": 10.96,
-      "csharp_crunch_speedup_vs_go": 3.67,
-      "csharp_crunch_speedup_vs_python": 1.30
+      "go_sequential": "X (Skipped - exceeds acceptable duration due to un-cached re-crunch loop)",
+      "go_parallel_sec": 191.00,
+      "go_parallel_formatted": "3m 11.00s",
+      "csharp_crunch_sec": 102.11,
+      "csharp_crunch_formatted": "1m 42.11s",
+      "csharp_imagesharp_sec": 37.14,
+      "csharp_imagesharp_formatted": "37.14s",
+      "csharp_imagesharp_speedup_vs_python": 14.05,
+      "csharp_imagesharp_speedup_vs_go_parallel": 5.14,
+      "csharp_crunch_speedup_vs_python": 5.11,
+      "csharp_crunch_speedup_vs_go_parallel": 1.87
     },
     "single_pack_cold_build_fullenglish": {
       "python_sec": 192.91,
       "python_formatted": "3m 12.91s",
-      "go_sec": 175.04,
-      "go_formatted": "2m 55.04s",
+      "go_sequential_sec": 175.04,
+      "go_parallel_sec": 52.11,
+      "go_parallel_formatted": "52.11s",
       "csharp_crunch_sec": 68.50,
       "csharp_crunch_formatted": "1m 08.50s",
       "csharp_imagesharp_sec": 52.18,
-      "csharp_imagesharp_formatted": "52.18s",
-      "csharp_imagesharp_speedup_vs_python": 3.69,
-      "csharp_imagesharp_speedup_vs_go": 3.35,
-      "csharp_crunch_speedup_vs_go": 2.55,
-      "csharp_crunch_speedup_vs_python": 2.82
+      "csharp_imagesharp_formatted": "52.18s"
     },
     "warm_incremental_build": {
       "python_sec": 3.98,
-      "go_sec": 175.04,
-      "csharp_sec": 0.28,
-      "csharp_speedup_vs_python": 14.2,
-      "csharp_speedup_vs_go": 625.1
-    },
-    "texture_subsystem_micro": {
-      "imagesharp_mean_ms": 307.88,
-      "crunch_mean_ms": 722.38,
-      "speedup_in_process": 2.35
+      "go_sec": 52.11,
+      "csharp_sec": 3.32
     },
     "bitwise_parity": {
       "non_texture_archives": "100.0% Bit-for-Bit SHA-256 Identical across Python, Go, and C#",
-      "texture_archives_crunch": "100.0% Bit-for-Bit Identical to Python and Go",
-      "texture_archives_imagesharp": "Format-compatible & playable in-game; differing DXT block compression heuristics"
+      "texture_archives_crunch": "100.0% Bit-for-Bit Identical to Python and Go on all direct TGA/PNG textures",
+      "texture_archives_imagesharp": "Format-compatible & playable in-game"
     }
   }
 }
