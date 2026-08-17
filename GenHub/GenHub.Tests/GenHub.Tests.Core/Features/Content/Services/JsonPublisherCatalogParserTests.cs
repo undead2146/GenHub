@@ -157,6 +157,78 @@ public sealed class JsonPublisherCatalogParserTests
         Assert.True(stack.IsStandalone);
     }
 
+    /// <summary>
+    /// Duplicate content IDs (case-insensitive) must be rejected with validation errors.
+    /// </summary>
+    [Fact]
+    public void ValidateCatalog_DuplicateContentId_Fails()
+    {
+        var catalog = new PublisherCatalog
+        {
+            SchemaVersion = 1,
+            Publisher = new PublisherProfile { Id = "test-pub", Name = "Test" },
+            Content =
+            [
+                new CatalogContentItem
+                {
+                    Id = "item-1",
+                    Name = "Item 1",
+                    ContentType = ContentType.Mod,
+                    Releases = [new ContentRelease { Version = "1.0.0", Artifacts = [new ReleaseArtifact { DownloadUrl = "https://example.com/file.zip" }] }],
+                },
+                new CatalogContentItem
+                {
+                    Id = "ITEM-1",
+                    Name = "Item 1 Duplicate",
+                    ContentType = ContentType.Mod,
+                    Releases = [new ContentRelease { Version = "1.0.0", Artifacts = [new ReleaseArtifact { DownloadUrl = "https://example.com/file.zip" }] }],
+                },
+            ],
+        };
+
+        var parser = new JsonPublisherCatalogParser(NullLogger<JsonPublisherCatalogParser>.Instance);
+        var result = parser.ValidateCatalog(catalog);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Errors, e => e.Contains("Duplicate content ID"));
+    }
+
+    /// <summary>
+    /// Null dependencies or artifacts must fail validation safely without throwing NullReferenceException.
+    /// </summary>
+    [Fact]
+    public void ValidateCatalog_NullDependencyOrArtifact_HandledGracefully()
+    {
+        var catalog = new PublisherCatalog
+        {
+            SchemaVersion = 1,
+            Publisher = new PublisherProfile { Id = "test-pub", Name = "Test" },
+            Content =
+            [
+                new CatalogContentItem
+                {
+                    Id = "item-1",
+                    Name = "Item 1",
+                    ContentType = ContentType.Mod,
+                    Releases =
+                    [
+                        new ContentRelease
+                        {
+                            Version = "1.0.0",
+                            Artifacts = [null!],
+                            Dependencies = [null!],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var parser = new JsonPublisherCatalogParser(NullLogger<JsonPublisherCatalogParser>.Instance);
+        var result = parser.ValidateCatalog(catalog);
+
+        Assert.False(result.Success);
+    }
+
     private static string FindSampleCatalogPath()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

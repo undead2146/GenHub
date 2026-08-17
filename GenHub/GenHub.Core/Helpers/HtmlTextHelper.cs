@@ -27,8 +27,12 @@ public static partial class HtmlTextHelper
             return string.Empty;
         }
 
+        // 0. Remove script and style elements along with their contents
+        var text = ScriptTagRegex().Replace(html, string.Empty);
+        text = StyleTagRegex().Replace(text, string.Empty);
+
         // 1. Convert <br> tags to newline
-        var text = BrTagRegex().Replace(html, "\n");
+        text = BrTagRegex().Replace(text, "\n");
 
         // 2. Convert paragraph closing tags to double newline for paragraph separation
         text = ParagraphCloseTagRegex().Replace(text, "\n\n");
@@ -111,6 +115,12 @@ public static partial class HtmlTextHelper
 
         return string.Concat(text.AsSpan(0, maxLength - 3), "...");
     }
+
+    [GeneratedRegex(@"<script\b[^>]*>[\s\S]*?</script>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ScriptTagRegex();
+
+    [GeneratedRegex(@"<style\b[^>]*>[\s\S]*?</style>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex StyleTagRegex();
 
     [GeneratedRegex(@"<br\s*/?>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex BrTagRegex();

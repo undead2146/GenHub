@@ -58,7 +58,7 @@ public class GenericCatalogDiscoverer(
         PendingReleaseFetches.Clear();
     }
 
-    private static bool MatchesQuery(CatalogContentItem content, ContentSearchQuery query)
+    private static bool MatchesQuery(CatalogContentItem content, ContentSearchQuery query, ContentRelease? release = null)
     {
         // Filter component-only catalog items from main grid display
         if (!content.IsStandalone)
@@ -66,10 +66,18 @@ public class GenericCatalogDiscoverer(
             return false;
         }
 
-        // Filter by game type
-        if (query.TargetGame.HasValue && content.TargetGame != query.TargetGame.Value)
+        // Filter by game type (allowing game-type variant artifacts to match)
+        if (query.TargetGame.HasValue)
         {
-            return false;
+            var targetGame = query.TargetGame.Value;
+            var hasGameVariant = release?.Artifacts?.Any(a =>
+                string.Equals(a.VariantAxis, "game-type", StringComparison.OrdinalIgnoreCase) &&
+                (string.Equals(a.Variant, "generals", StringComparison.OrdinalIgnoreCase) ? GameType.Generals : GameType.ZeroHour) == targetGame) == true;
+
+            if (content.TargetGame != targetGame && !hasGameVariant)
+            {
+                return false;
+            }
         }
 
         // Filter by content type
@@ -524,7 +532,7 @@ public class GenericCatalogDiscoverer(
             foreach (var release in selectedReleases)
             {
                 // Apply search filters
-                if (!MatchesQuery(contentItem, query))
+                if (!MatchesQuery(contentItem, query, release))
                 {
                     continue;
                 }
@@ -541,13 +549,23 @@ public class GenericCatalogDiscoverer(
                     var groupResults = CreateVariantGroupSearchResults(
                         catalog, contentItem, release, variantAxes, catalogItemsById);
 
-                    results.AddRange(groupResults);
+                    if (query.TargetGame.HasValue)
+                    {
+                        results.AddRange(groupResults.Where(r => r.TargetGame == query.TargetGame.Value));
+                    }
+                    else
+                    {
+                        results.AddRange(groupResults);
+                    }
                 }
                 else
                 {
                     var searchResult = CreateSearchResult(
                         catalog, contentItem, release, contentNamesById, catalogItemsById);
-                    results.Add(searchResult);
+                    if (!query.TargetGame.HasValue || searchResult.TargetGame == query.TargetGame.Value)
+                    {
+                        results.Add(searchResult);
+                    }
                 }
             }
         }
@@ -701,10 +719,32 @@ public class GenericCatalogDiscoverer(
                         IsDefaultVariant = artifact.IsDefaultVariant,
                     },
                 ],
-                Dependencies = resolvedRelease.Dependencies,
+                Dependencies = resolvedRelease.Dependencies?.Select(dep =>
+                {
+                    if (CatalogManifestIdentity.IsBaseGameDependency(dep))
+                    {
+                        return new CatalogDependency
+                        {
+                            PublisherId = dep.PublisherId ?? "ea",
+                            ContentId = siblingTargetGame == GameType.Generals ? "generals" : "zerohour",
+                            VersionConstraint = siblingTargetGame == GameType.Generals ? "1.08" : "1.04",
+                            ContentType = ContentType.GameInstallation.ToString(),
+                            IsOptional = dep.IsOptional,
+                        };
+                    }
+
+                    return dep;
+                }).ToList() ?? [],
             };
 
             AttachResolverMetadata(sibling, catalog, contentItem, singleArtifactRelease);
+
+            if (contentItem.ContentType == ContentType.ContentBundle)
+            {
+                var components = CatalogBundleComponentBuilder.Build(catalog, contentItem, release);
+                sibling.ResolverMetadata[CatalogConstants.BundleComponentsJsonMetadataKey] =
+                    JsonSerializer.Serialize(components);
+            }
 
             var info = new ContentVariantInfo
             {

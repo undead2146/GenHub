@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Providers;
 
 namespace GenHub.Features.Content.Services.Catalog;
@@ -71,7 +72,7 @@ public static class CatalogBundleComponentBuilder
                 ? CatalogManifestIdentity.ResolveDeclaredPublisherType(sibling)
                 : CatalogConstants.GenericCatalogResolverId;
 
-            var siblingRelease = SelectRelease(sibling);
+            var siblingRelease = SelectRelease(sibling, dependency.VersionConstraint);
             if (sibling == null || siblingRelease == null)
             {
                 // Skip missing siblings or items with no releases so they don't look downloadable
@@ -128,7 +129,7 @@ public static class CatalogBundleComponentBuilder
                         defaultAssigned = true;
                     }
 
-                    var singleArtifactRelease = CloneSingleArtifactRelease(resolvedSiblingRelease, artifact);
+                    var variantRelease = CloneVariantRelease(resolvedSiblingRelease, artifact, resolvedSiblingRelease.Artifacts);
                     descriptor.Variants.Add(new CatalogBundleComponentVariantDescriptor
                     {
                         Label = label,
@@ -141,7 +142,7 @@ public static class CatalogBundleComponentBuilder
                             label,
                             resolvedSiblingRelease.Version,
                             axis),
-                        ReleaseJson = JsonSerializer.Serialize(singleArtifactRelease),
+                        ReleaseJson = JsonSerializer.Serialize(variantRelease),
                         DownloadSize = artifact.Size,
                     });
                 }
@@ -228,11 +229,25 @@ public static class CatalogBundleComponentBuilder
         };
     }
 
-    private static ContentRelease? SelectRelease(CatalogContentItem? item)
+    private static ContentRelease? SelectRelease(CatalogContentItem? item, string? versionConstraint = null)
     {
         if (item?.Releases == null || item.Releases.Count == 0)
         {
             return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(versionConstraint))
+        {
+            var constraint = new VersionConstraint { ConstraintExpression = versionConstraint };
+            var matching = item.Releases
+                .OrderByDescending(r => r.IsLatest)
+                .ThenByDescending(r => r.ReleaseDate)
+                .FirstOrDefault(r => constraint.IsSatisfiedBy(r.Version));
+
+            if (matching != null)
+            {
+                return matching;
+            }
         }
 
         return item.Releases.FirstOrDefault(r => r.IsLatest) ?? item.Releases[0];
@@ -268,8 +283,26 @@ public static class CatalogBundleComponentBuilder
         return hinted.Where(a => multiAxes.Contains(a.VariantAxis!)).ToList();
     }
 
-    private static ContentRelease CloneSingleArtifactRelease(ContentRelease release, ReleaseArtifact artifact)
+    private static ContentRelease CloneVariantRelease(ContentRelease release, ReleaseArtifact selectedArtifact, List<ReleaseArtifact> allArtifacts)
     {
+        var selectedAxis = selectedArtifact.VariantAxis ?? string.Empty;
+        var artifactsToInclude = new List<ReleaseArtifact> { selectedArtifact };
+
+        // For other axes, pick their default or first artifact
+        var otherAxisGroups = allArtifacts
+            .Where(a => !string.Equals(a.VariantAxis, selectedAxis, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(a.VariantAxis))
+            .GroupBy(a => a.VariantAxis!, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in otherAxisGroups)
+        {
+            var defaultForAxis = group.FirstOrDefault(a => a.IsDefaultVariant) ?? group.First();
+            artifactsToInclude.Add(defaultForAxis);
+        }
+
+        // Include any non-variant artifacts
+        var nonVariantArtifacts = allArtifacts.Where(a => string.IsNullOrWhiteSpace(a.VariantAxis));
+        artifactsToInclude.AddRange(nonVariantArtifacts);
+
         return new ContentRelease
         {
             Version = release.Version,
@@ -277,21 +310,18 @@ public static class CatalogBundleComponentBuilder
             IsPrerelease = release.IsPrerelease,
             IsLatest = release.IsLatest,
             Changelog = release.Changelog,
-            Artifacts =
-            [
-                new ReleaseArtifact
-                {
-                    Filename = artifact.Filename,
-                    DownloadUrl = artifact.DownloadUrl,
-                    Size = artifact.Size,
-                    Sha256 = artifact.Sha256,
-                    ContentType = artifact.ContentType,
-                    IsPrimary = true,
-                    VariantAxis = artifact.VariantAxis,
-                    Variant = artifact.Variant,
-                    IsDefaultVariant = artifact.IsDefaultVariant,
-                },
-            ],
+            Artifacts = artifactsToInclude.Select(a => new ReleaseArtifact
+            {
+                Filename = a.Filename,
+                DownloadUrl = a.DownloadUrl,
+                Size = a.Size,
+                Sha256 = a.Sha256,
+                ContentType = a.ContentType,
+                IsPrimary = a == selectedArtifact || a.IsPrimary,
+                VariantAxis = a.VariantAxis,
+                Variant = a.Variant,
+                IsDefaultVariant = a.IsDefaultVariant,
+            }).ToList(),
             Dependencies = release.Dependencies,
         };
     }

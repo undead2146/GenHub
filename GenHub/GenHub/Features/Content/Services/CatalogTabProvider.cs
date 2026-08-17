@@ -98,7 +98,7 @@ public class CatalogTabProvider(
                 searchResult.ResolverMetadata.TryGetValue(CatalogConstants.CatalogContentIdMetadataKey, out var catalogContentId);
                 var contentId = !string.IsNullOrWhiteSpace(catalogContentId) ? catalogContentId : searchResult.Id ?? string.Empty;
 
-                if (catalogTab.AppliesTo.Count != 0 &&
+                if (catalogTab.AppliesTo is { Count: > 0 } &&
                     !catalogTab.AppliesTo.Any(a => a.Equals(contentId, StringComparison.OrdinalIgnoreCase) ||
                                                    a.Equals(searchResult.Id ?? string.Empty, StringComparison.OrdinalIgnoreCase)))
                 {

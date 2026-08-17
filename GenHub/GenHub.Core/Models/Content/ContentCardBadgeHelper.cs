@@ -87,11 +87,20 @@ public static partial class ContentCardBadgeHelper
         {
             foreach (var tag in result.Tags)
             {
+                if (string.IsNullOrWhiteSpace(tag))
+                {
+                    continue;
+                }
+
                 var match = CategoryTagRegex().Match(tag);
                 if (match.Success)
                 {
-                    ApplyCategory(result, match.Groups["category"].Value);
-                    break;
+                    var cat = match.Groups["category"].Value.Trim();
+                    if (!string.IsNullOrWhiteSpace(cat))
+                    {
+                        ApplyCategory(result, cat);
+                        break;
+                    }
                 }
             }
         }
@@ -120,6 +129,11 @@ public static partial class ContentCardBadgeHelper
 
         foreach (var tag in result.Tags)
         {
+            if (string.IsNullOrWhiteSpace(tag))
+            {
+                continue;
+            }
+
             var match = PlayerCountTagRegex().Match(tag);
             if (match.Success && int.TryParse(match.Groups["players"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var taggedCount) && taggedCount > 0)
             {
@@ -147,10 +161,19 @@ public static partial class ContentCardBadgeHelper
 
         foreach (var tag in result.Tags)
         {
+            if (string.IsNullOrWhiteSpace(tag))
+            {
+                continue;
+            }
+
             var match = CategoryTagRegex().Match(tag);
             if (match.Success)
             {
-                return match.Groups["category"].Value.Trim();
+                var val = match.Groups["category"].Value.Trim();
+                if (!string.IsNullOrWhiteSpace(val))
+                {
+                    return val;
+                }
             }
         }
 

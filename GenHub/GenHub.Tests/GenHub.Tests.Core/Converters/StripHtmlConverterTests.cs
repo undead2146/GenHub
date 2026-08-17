@@ -52,6 +52,18 @@ public sealed class StripHtmlConverterTests
     /// Verifies Convert handles non-string input by returning value untouched.
     /// </summary>
     [Fact]
+    public void Convert_WithScriptAndStyleTags_StripsContents()
+    {
+        var input = "<style>.hide { display: none; }</style><p>Hello World</p><script>alert('bad');</script>";
+        var result = _converter.Convert(input, typeof(string), null, CultureInfo.InvariantCulture);
+
+        Assert.Equal("Hello World", result);
+    }
+
+    /// <summary>
+    /// Verifies Convert handles non-string input by returning value untouched.
+    /// </summary>
+    [Fact]
     public void Convert_NonStringValue_ReturnsOriginalValue()
     {
         var result = _converter.Convert(42, typeof(int), null, CultureInfo.InvariantCulture);

@@ -80,14 +80,20 @@ public class PublisherCatalogRefreshService(
                 return OperationResult<bool>.CreateFailure($"Failed to parse catalog: {parseResult.FirstError}");
             }
 
+            // Re-fetch latest subscription state before updating to preserve user settings
+            var latestSubResult = await subscriptionStore.GetSubscriptionAsync(publisherId, cancellationToken);
+            var currentSubscription = (latestSubResult.Success && latestSubResult.Data != null)
+                ? latestSubResult.Data
+                : subscription;
+
             // Update subscription metadata
             var hash = ComputeHash(catalogJson);
-            subscription.CachedCatalogHash = hash;
-            subscription.LastFetched = DateTime.UtcNow;
-            subscription.AvatarUrl = parseResult.Data?.Publisher.AvatarUrl ?? subscription.AvatarUrl;
-            subscription.PublisherName = parseResult.Data?.Publisher.Name ?? subscription.PublisherName;
+            currentSubscription.CachedCatalogHash = hash;
+            currentSubscription.LastFetched = DateTime.UtcNow;
+            currentSubscription.AvatarUrl = parseResult.Data?.Publisher.AvatarUrl ?? currentSubscription.AvatarUrl;
+            currentSubscription.PublisherName = parseResult.Data?.Publisher.Name ?? currentSubscription.PublisherName;
 
-            var updateResult = await subscriptionStore.UpdateSubscriptionAsync(subscription, cancellationToken);
+            var updateResult = await subscriptionStore.UpdateSubscriptionAsync(currentSubscription, cancellationToken);
             if (!updateResult.Success)
             {
                 return OperationResult<bool>.CreateFailure(updateResult);

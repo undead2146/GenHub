@@ -149,7 +149,7 @@ public class GenericCatalogResolver(
                         "application/zip" => ".zip",
                         "application/x-rar-compressed" => ".rar",
                         "application/x-7z-compressed" => ".7z",
-                        _ => Path.GetExtension(primaryArtifact.DownloadUrl) is { Length: > 1 } urlExt
+                        _ => Path.GetExtension(primaryArtifact.DownloadUrl.Split('?', '#')[0]) is { Length: > 1 } urlExt
                             ? urlExt
                             : ".zip",
                     };

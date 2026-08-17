@@ -71,32 +71,32 @@ public static class CatalogDocumentReader
         }
 
         using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        using var reader = new StreamReader(stream, Encoding.UTF8);
 
         if (maximumSizeBytes is not > 0)
         {
-            return await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+            using var directReader = new StreamReader(stream, Encoding.UTF8);
+            return await directReader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        var buffer = new char[8192];
-        var builder = new System.Text.StringBuilder();
+        using var memoryStream = new MemoryStream();
+        var buffer = new byte[8192];
         long totalBytesRead = 0;
-        int charsRead;
+        int bytesRead;
 
-        while ((charsRead = await reader.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false)) > 0)
+        while ((bytesRead = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var byteCount = System.Text.Encoding.UTF8.GetByteCount(buffer, 0, charsRead);
-            totalBytesRead += byteCount;
+            totalBytesRead += bytesRead;
             if (totalBytesRead > maximumSizeBytes.Value)
             {
                 throw new InvalidDataException($"Catalog exceeds maximum size of {maximumSizeBytes.Value} bytes.");
             }
 
-            builder.Append(buffer, 0, charsRead);
+            memoryStream.Write(buffer, 0, bytesRead);
         }
 
-        return builder.ToString();
+        memoryStream.Position = 0;
+        using var reader = new StreamReader(memoryStream, Encoding.UTF8);
+        return await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static string? ResolveLocalPath(string catalogLocation)

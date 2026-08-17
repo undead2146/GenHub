@@ -64,13 +64,15 @@ public static class ContentAcquisitionProgressExtensions
             return $"{phaseName}: {progress.CurrentOperation}";
         }
 
-        string percentText = progress.ProgressPercentage > 0 ? $"{progress.ProgressPercentage:F0}%" : string.Empty;
+        string percentText = progress.ProgressPercentage >= 0 ? $"{progress.ProgressPercentage:F0}%" : string.Empty;
 
         if (progress.TotalBytes > 0 && progress.Phase == ContentAcquisitionPhase.Downloading)
         {
             string downloaded = ByteFormatHelper.FormatBytes(progress.BytesProcessed);
             string total = ByteFormatHelper.FormatBytes(progress.TotalBytes);
-            return $"{phaseName}: {downloaded} / {total} ({percentText})";
+            return !string.IsNullOrEmpty(percentText)
+                ? $"{phaseName}: {downloaded} / {total} ({percentText})"
+                : $"{phaseName}: {downloaded} / {total}";
         }
 
         if (progress.TotalFiles > 0)

@@ -114,14 +114,28 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
         }
         else
         {
-            var itemsById = catalog.Content
-                .Where(c => !string.IsNullOrWhiteSpace(c.Id))
+            var contentGroups = catalog.Content
+                .Where(c => c != null && !string.IsNullOrWhiteSpace(c.Id))
                 .GroupBy(c => c.Id, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var group in contentGroups.Where(g => g.Count() > 1))
+            {
+                errors.Add($"Duplicate content ID '{group.Key}'");
+            }
+
+            var itemsById = contentGroups
                 .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
             for (int i = 0; i < catalog.Content.Count; i++)
             {
                 var content = catalog.Content[i];
+                if (content == null)
+                {
+                    errors.Add($"Content item {i} is null");
+                    continue;
+                }
+
                 if (string.IsNullOrWhiteSpace(content.Id))
                 {
                     errors.Add($"Content item {i} is missing ID");
@@ -150,6 +164,12 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
                     // Validate each release
                     foreach (var release in content.Releases)
                     {
+                        if (release == null)
+                        {
+                            errors.Add($"Content '{content.Id}' has null release entry");
+                            continue;
+                        }
+
                         if (string.IsNullOrWhiteSpace(release.Version))
                         {
                             errors.Add($"Content '{content.Id}' has release with missing version");
@@ -162,6 +182,12 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
                         {
                             foreach (var dep in release.Dependencies!)
                             {
+                                if (dep == null)
+                                {
+                                    errors.Add($"Content '{content.Id}' v{release.Version} has null dependency");
+                                    continue;
+                                }
+
                                 if (CatalogManifestIdentity.IsBaseGameDependency(dep))
                                 {
                                     continue;
@@ -195,6 +221,12 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
                         {
                             foreach (var artifact in release.Artifacts!)
                             {
+                                if (artifact == null)
+                                {
+                                    errors.Add($"Artifact in '{content.Id}' v{release.Version} is null");
+                                    continue;
+                                }
+
                                 if (string.IsNullOrWhiteSpace(artifact.DownloadUrl))
                                 {
                                     errors.Add($"Artifact in '{content.Id}' v{release.Version} missing download URL");

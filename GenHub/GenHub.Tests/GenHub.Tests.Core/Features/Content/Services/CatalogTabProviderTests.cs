@@ -97,6 +97,66 @@ public sealed class CatalogTabProviderTests
         Assert.Equal("#3E78B2", card.AccentColor);
     }
 
+    /// <summary>
+    /// Ensures tabs with null AppliesTo apply to all content items without throwing.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task GetTabsAsync_NullAppliesTo_ReturnsTabForAllItems()
+    {
+        // Arrange
+        const string publisherId = "example-publisher";
+        const string publisherName = "Example Publisher";
+        var subscriptionStore = new Mock<IPublisherSubscriptionStore>();
+        subscriptionStore
+            .Setup(store => store.GetSubscriptionAsync(publisherId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<PublisherSubscription?>.CreateSuccess(new PublisherSubscription
+            {
+                PublisherId = publisherId,
+                PublisherName = publisherName,
+                CatalogUrl = "https://catalog.example.test/catalog.json",
+            }));
+
+        var catalogParser = new Mock<IPublisherCatalogParser>();
+        catalogParser
+            .Setup(parser => parser.ParseCatalogAsync("{}", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<PublisherCatalog>.CreateSuccess(new PublisherCatalog
+            {
+                CustomTabs =
+                [
+                    new CatalogTabDefinition
+                    {
+                        TabId = "all-items-tab",
+                        Header = "All Items",
+                        AppliesTo = null!,
+                    },
+                ],
+            }));
+
+        var httpClientFactory = new Mock<IHttpClientFactory>();
+        httpClientFactory
+            .Setup(factory => factory.CreateClient(It.IsAny<string>()))
+            .Returns(new HttpClient(new StaticResponseHandler("{}")));
+
+        var provider = new CatalogTabProvider(
+            subscriptionStore.Object,
+            catalogParser.Object,
+            httpClientFactory.Object,
+            new Mock<ILogger<CatalogTabProvider>>().Object);
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.0.example-publisher.mod.example",
+            ProviderName = publisherName,
+        };
+        searchResult.ResolverMetadata["publisherProfileJson"] = "{\"id\":\"example-publisher\",\"name\":\"Example Publisher\"}";
+
+        var tabs = await provider.GetTabsAsync(searchResult);
+
+        var tab = Assert.Single(tabs);
+        Assert.Equal("all-items-tab", tab.TabId);
+    }
+
     private sealed class StaticResponseHandler(string content) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
