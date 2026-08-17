@@ -30,14 +30,14 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
         var zipPath = Path.Combine(_stagingDirectory, "test.zip");
         using (var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create))
         {
-            using (var writer = new StreamWriter(archive.CreateEntry("Data/INI/GameData.ini").Open()))
+            using (var writer1 = new StreamWriter(archive.CreateEntry("Data/INI/GameData.ini").Open()))
             {
-                await writer.WriteAsync("GameData=1");
+                await writer1.WriteAsync("GameData=1");
             }
 
-            using (var writer = new StreamWriter(archive.CreateEntry("Art/Textures/test.tga").Open()))
+            using (var writer2 = new StreamWriter(archive.CreateEntry("Art/Textures/test.tga").Open()))
             {
-                await writer.WriteAsync("Texture");
+                await writer2.WriteAsync("Texture");
             }
         }
 

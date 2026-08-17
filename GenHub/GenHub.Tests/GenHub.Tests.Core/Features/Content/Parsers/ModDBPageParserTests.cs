@@ -1326,11 +1326,11 @@ public sealed class ModDBPageParserTests
     /// <param name="expectedBytes">The expected parsed size in bytes.</param>
     /// <returns>A task representing the asynchronous test.</returns>
     [Theory]
-    [InlineData("188.3kb (192,819 bytes)", 192_819L)]
-    [InlineData("188.3kb", 192_819L)]
-    [InlineData("9,72 MB", 10_192_158L)]
-    [InlineData("1.07mb (1,125,450 bytes)", 1_125_450L)]
-    [InlineData("289.6 MB", 303_667_609L)]
+    [InlineData("188.3kb (192,819 bytes)", 192819L)]
+    [InlineData("188.3kb", 192819L)]
+    [InlineData("9,72 MB", 10192158L)]
+    [InlineData("1.07mb (1,125,450 bytes)", 1125450L)]
+    [InlineData("289.6 MB", 303667609L)]
     public async Task ParseFileDetailAsync_WithVariousSizeFormats_CorrectlyParsesSizeBytesAsync(string sizeString, long expectedBytes)
     {
         // Arrange

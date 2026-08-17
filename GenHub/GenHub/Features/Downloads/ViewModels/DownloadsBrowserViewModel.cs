@@ -544,29 +544,7 @@ public partial class DownloadsBrowserViewModel(
             return false;
         }
 
-        CancellationTokenSource opCts = null!;
-        PublisherInFlightOperation? inFlightOp = null;
-
-        if (!isCustomQuery && !append)
-        {
-            opCts = CancellationTokenSource.CreateLinkedTokenSource(_vmCts.Token);
-            inFlightOp = new PublisherInFlightOperation(publisherId, query, opCts);
-            lock (_cacheLock)
-            {
-                _inFlightOperations[publisherId] = inFlightOp;
-            }
-        }
-        else if (isCustomQuery)
-        {
-            _searchCts?.Cancel();
-            _searchCts?.Dispose();
-            _searchCts = CancellationTokenSource.CreateLinkedTokenSource(_vmCts.Token);
-            opCts = _searchCts;
-        }
-        else
-        {
-            opCts = CancellationTokenSource.CreateLinkedTokenSource(_vmCts.Token);
-        }
+        var (opCts, inFlightOp) = SetupFetchOperation(publisherId, query, isCustomQuery, append);
 
         try
         {
@@ -580,91 +558,13 @@ public partial class DownloadsBrowserViewModel(
 
             if (result.Success && result.Data != null)
             {
-                // Static catalogs do not all enforce ContentSearchQuery.ContentType themselves.
-                // Apply it at the browser boundary so every publisher's filter has identical,
-                // deterministic behavior.
                 var items = result.Data.Items
                     .Where(item => !query.ContentType.HasValue || item.ContentType == query.ContentType.Value)
                     .ToList();
 
-                // Track existing IDs to prevent duplicates
-                var existingIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                if (append)
-                {
-                    foreach (var existing in ContentItems)
-                    {
-                        var id = existing.SearchResult.Id;
-                        if (!string.IsNullOrEmpty(id))
-                        {
-                            existingIds.Add(id);
-                        }
-
-                        if (!string.IsNullOrEmpty(existing.SearchResult.VariantGroupId))
-                        {
-                            existingIds.Add(existing.SearchResult.VariantGroupId);
-                        }
-                    }
-                }
-
-                // Group items by VariantGroupId. Items with null/empty VariantGroupId form
-                // singleton groups (one card each). Siblings sharing a non-empty group ID
-                // collapse into a single card with a variant picker.
-                var groups = items
-                    .GroupBy(item => string.IsNullOrEmpty(item.VariantGroupId) ? $"__singleton_{item.Id ?? Guid.NewGuid().ToString()}" : item.VariantGroupId!)
-                    .ToList();
-
-                var newVms = new List<ContentGridItemViewModel>();
-                var addedCount = 0;
-
-                foreach (var group in groups)
-                {
-                    if (opCts.Token.IsCancellationRequested)
-                    {
-                        break;
-                    }
-
-                    var groupItems = group.ToList();
-                    var primaryItem = groupItems[0];
-                    var isSingleton = groupItems.Count == 1 && string.IsNullOrEmpty(primaryItem.VariantGroupId);
-                    var checkId = isSingleton ? (primaryItem.Id ?? string.Empty) : (primaryItem.VariantGroupId ?? string.Empty);
-
-                    if (!string.IsNullOrEmpty(checkId) && existingIds.Contains(checkId))
-                    {
-                        continue;
-                    }
-
-                    var vm = await CreateItemViewModelAsync(groupItems, primaryItem, opCts.Token);
-                    if (vm == null || opCts.Token.IsCancellationRequested)
-                    {
-                        vm?.Dispose();
-                        break;
-                    }
-
-                    if (!string.IsNullOrEmpty(checkId))
-                    {
-                        existingIds.Add(checkId);
-                    }
-
-                    newVms.Add(vm);
-                    addedCount++;
-
-                    if (inFlightOp != null)
-                    {
-                        lock (inFlightOp.SyncRoot)
-                        {
-                            inFlightOp.ResolvedItems.Add(vm);
-                        }
-                    }
-
-                    // Incremental UI streaming: append item dynamically as it is resolved
-                    RunOnUi(() =>
-                    {
-                        if (_activeRequestId == requestId && SelectedPublisher?.PublisherId == publisherId)
-                        {
-                            ContentItems.Add(vm);
-                        }
-                    });
-                }
+                var existingIds = append ? CollectExistingContentIds() : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var groups = GroupContentItemsByVariant(items);
+                var newVms = await ProcessDiscoveredGroupsAsync(groups, existingIds, inFlightOp, publisherId, requestId, opCts.Token);
 
                 if (opCts.Token.IsCancellationRequested)
                 {
@@ -672,39 +572,7 @@ public partial class DownloadsBrowserViewModel(
                     return false;
                 }
 
-                // Atomic cache commit: only commit fully resolved dataset
-                if (inFlightOp != null)
-                {
-                    inFlightOp.HasMoreItems = result.Data.HasMoreItems;
-                    inFlightOp.IsCompleted = true;
-
-                    lock (_cacheLock)
-                    {
-                        _browseCache[publisherId] = new PublisherBrowseState
-                        {
-                            Items = [.. inFlightOp.ResolvedItems],
-                            CurrentPage = query.Page ?? 1,
-                            CanLoadMore = result.Data.HasMoreItems,
-                        };
-                        _inFlightOperations.Remove(publisherId);
-                    }
-                }
-                else if (!isCustomQuery && append)
-                {
-                    lock (_cacheLock)
-                    {
-                        if (_browseCache.TryGetValue(publisherId, out var existingCache))
-                        {
-                            var mergedItems = existingCache.Items.Concat(newVms).ToList();
-                            _browseCache[publisherId] = new PublisherBrowseState
-                            {
-                                Items = mergedItems,
-                                CurrentPage = query.Page ?? 1,
-                                CanLoadMore = result.Data.HasMoreItems,
-                            };
-                        }
-                    }
-                }
+                CommitBrowseResultsToCache(publisherId, query, result.Data.HasMoreItems, isCustomQuery, append, inFlightOp, newVms);
 
                 RunOnUi(() =>
                 {
@@ -739,7 +607,7 @@ public partial class DownloadsBrowserViewModel(
 
                 logger.LogInformation(
                     "Added {AddedCount} new items out of {TotalCount} fetched for {Publisher} (page {Page}). HasMoreItems: {HasMore}",
-                    addedCount,
+                    newVms.Count,
                     items.Count,
                     publisherId,
                     query.Page,
@@ -803,6 +671,187 @@ public partial class DownloadsBrowserViewModel(
         }
     }
 
+    private (CancellationTokenSource Cts, PublisherInFlightOperation? InFlightOp) SetupFetchOperation(
+        string publisherId,
+        ContentSearchQuery query,
+        bool isCustomQuery,
+        bool append)
+    {
+        CancellationTokenSource opCts;
+        PublisherInFlightOperation? inFlightOp = null;
+
+        if (!isCustomQuery && !append)
+        {
+            lock (_cacheLock)
+            {
+                if (_inFlightOperations.TryGetValue(publisherId, out var existingOp))
+                {
+                    existingOp.Cts.Cancel();
+                    _inFlightOperations.Remove(publisherId);
+                }
+
+                opCts = CancellationTokenSource.CreateLinkedTokenSource(_vmCts.Token);
+                inFlightOp = new PublisherInFlightOperation(publisherId, query, opCts);
+                _inFlightOperations[publisherId] = inFlightOp;
+            }
+        }
+        else
+        {
+            _searchCts?.Cancel();
+            _searchCts = CancellationTokenSource.CreateLinkedTokenSource(_vmCts.Token);
+            opCts = _searchCts;
+        }
+
+        return (opCts, inFlightOp);
+    }
+
+    private HashSet<string> CollectExistingContentIds()
+    {
+        var existingIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in ContentItems)
+        {
+            if (!string.IsNullOrEmpty(item.Id))
+            {
+                existingIds.Add(item.Id);
+            }
+
+            if (item.Variants != null)
+            {
+                foreach (var v in item.Variants)
+                {
+                    if (!string.IsNullOrEmpty(v.ManifestId))
+                    {
+                        existingIds.Add(v.ManifestId);
+                    }
+                }
+            }
+        }
+
+        return existingIds;
+    }
+
+    private static List<List<ContentSearchResult>> GroupContentItemsByVariant(List<ContentSearchResult> items)
+    {
+        var grouped = new List<List<ContentSearchResult>>();
+        var seenVariantGroups = new Dictionary<string, List<ContentSearchResult>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var item in items)
+        {
+            if (!string.IsNullOrEmpty(item.VariantGroupId))
+            {
+                if (seenVariantGroups.TryGetValue(item.VariantGroupId, out var group))
+                {
+                    group.Add(item);
+                }
+                else
+                {
+                    var newGroup = new List<ContentSearchResult> { item };
+                    seenVariantGroups[item.VariantGroupId] = newGroup;
+                    grouped.Add(newGroup);
+                }
+            }
+            else
+            {
+                grouped.Add([item]);
+            }
+        }
+
+        return grouped;
+    }
+
+    private async Task<List<ContentGridItemViewModel>> ProcessDiscoveredGroupsAsync(
+        List<List<ContentSearchResult>> groups,
+        HashSet<string> existingIds,
+        PublisherInFlightOperation? inFlightOp,
+        string publisherId,
+        int requestId,
+        CancellationToken ct)
+    {
+        var newVms = new List<ContentGridItemViewModel>();
+
+        foreach (var group in groups)
+        {
+            if (ct.IsCancellationRequested)
+            {
+                break;
+            }
+
+            var primaryItem = group[0];
+            if (existingIds.Contains(primaryItem.Id))
+            {
+                continue;
+            }
+
+            var vm = await CreateItemViewModelAsync(group, primaryItem, ct);
+            if (vm == null)
+            {
+                continue;
+            }
+
+            newVms.Add(vm);
+
+            if (inFlightOp != null)
+            {
+                lock (inFlightOp.SyncRoot)
+                {
+                    inFlightOp.ResolvedItems.Add(vm);
+                }
+            }
+
+            RunOnUi(() =>
+            {
+                if (_activeRequestId == requestId && SelectedPublisher?.PublisherId == publisherId)
+                {
+                    ContentItems.Add(vm);
+                }
+            });
+        }
+
+        return newVms;
+    }
+
+    private void CommitBrowseResultsToCache(
+        string publisherId,
+        ContentSearchQuery query,
+        bool hasMoreItems,
+        bool isCustomQuery,
+        bool append,
+        PublisherInFlightOperation? inFlightOp,
+        List<ContentGridItemViewModel> newVms)
+    {
+        if (isCustomQuery)
+        {
+            return;
+        }
+
+        lock (_cacheLock)
+        {
+            if (_browseCache.TryGetValue(publisherId, out var existingState))
+            {
+                if (append)
+                {
+                    existingState.Items.AddRange(newVms);
+                }
+            }
+            else
+            {
+                _browseCache[publisherId] = new PublisherBrowseState
+                {
+                    Items = [.. newVms],
+                    CurrentPage = query.Page ?? 1,
+                    CanLoadMore = hasMoreItems,
+                };
+            }
+
+            if (inFlightOp != null)
+            {
+                inFlightOp.IsCompleted = true;
+                inFlightOp.HasMoreItems = hasMoreItems;
+                _inFlightOperations.Remove(publisherId);
+            }
+        }
+    }
+
     private void CleanupInFlight(string publisherId, PublisherInFlightOperation? inFlightOp)
     {
         if (inFlightOp != null)
@@ -826,38 +875,41 @@ public partial class DownloadsBrowserViewModel(
     {
         if (groupItems.Count == 1 && string.IsNullOrEmpty(primaryItem.VariantGroupId))
         {
-            // Singleton: unchanged behavior — one card per item.
-            var vm = new ContentGridItemViewModel(
-                primaryItem,
-                contentStateService,
-                loggerFactory.CreateLogger<ContentGridItemViewModel>())
-            {
-                ViewCommand = ViewContentCommand,
-                DownloadCommand = DownloadContentCommand,
-                AddToProfileCommand = AddContentToProfileCommand,
-                UpdateCommand = DownloadContentCommand,
-            };
-
-            vm.Initialize();
-
-            var singletonState = await contentStateService.GetStateAsync(primaryItem, ct);
-            vm.CurrentState = singletonState;
-            return vm;
+            return await CreateSingletonItemViewModelAsync(primaryItem, ct);
         }
 
-        // Variant group: collapse siblings into a single card.
-        // Pick the default variant as the primary representative.
-        var defaultVariant = groupItems.FirstOrDefault(i =>
-            i.Variants?.Any(v => v.IsDefault && (v.ManifestId == i.Id || i.Id?.EndsWith($".{v.ManifestId}", StringComparison.OrdinalIgnoreCase) == true)) == true)
-            ?? groupItems.FirstOrDefault(i =>
-                i.ContentType == ContentType.GameClient &&
-                (i.ProviderName?.Contains("SuperHacker", StringComparison.OrdinalIgnoreCase) == true || i.ResolverId?.Contains("github", StringComparison.OrdinalIgnoreCase) == true) &&
-                i.TargetGame == GameType.ZeroHour)
-            ?? groupItems.FirstOrDefault(i => i.Variants?.Any(v => v.IsDefault) == true)
-            ?? primaryItem;
+        var defaultVariant = ResolveDefaultVariant(groupItems, primaryItem);
+        var variantVm = CreateBaseGridItemViewModel(defaultVariant);
 
-        var variantVm = new ContentGridItemViewModel(
-            defaultVariant,
+        if (groupItems.Count == 1 && primaryItem.Variants is { Count: > 0 } singleVariants)
+        {
+            PopulateSynthesizedVariants(variantVm, primaryItem, singleVariants);
+        }
+        else
+        {
+            PopulateSiblingVariants(variantVm, groupItems, defaultVariant);
+        }
+
+        SelectDefaultVariant(variantVm, groupItems, primaryItem, defaultVariant);
+
+        await variantVm.RefreshVariantStatesAsync();
+        variantVm.CurrentState = await contentStateService.GetStateAsync(defaultVariant, ct);
+
+        return variantVm;
+    }
+
+    private async Task<ContentGridItemViewModel> CreateSingletonItemViewModelAsync(ContentSearchResult primaryItem, CancellationToken ct)
+    {
+        var vm = CreateBaseGridItemViewModel(primaryItem);
+        var singletonState = await contentStateService.GetStateAsync(primaryItem, ct);
+        vm.CurrentState = singletonState;
+        return vm;
+    }
+
+    private ContentGridItemViewModel CreateBaseGridItemViewModel(ContentSearchResult item)
+    {
+        var vm = new ContentGridItemViewModel(
+            item,
             contentStateService,
             loggerFactory.CreateLogger<ContentGridItemViewModel>())
         {
@@ -867,130 +919,143 @@ public partial class DownloadsBrowserViewModel(
             UpdateCommand = DownloadContentCommand,
         };
 
-        variantVm.Initialize();
+        vm.Initialize();
+        return vm;
+    }
 
-        // Populate variant collection from sibling ContentSearchResults or internal Variants list.
-        if (groupItems.Count == 1 && primaryItem.Variants is { Count: > 0 } singleVariants)
+    private static ContentSearchResult ResolveDefaultVariant(IReadOnlyList<ContentSearchResult> groupItems, ContentSearchResult primaryItem)
+    {
+        return groupItems.FirstOrDefault(i =>
+            i.Variants?.Any(v => v.IsDefault && (v.ManifestId == i.Id || i.Id?.EndsWith($".{v.ManifestId}", StringComparison.OrdinalIgnoreCase) == true)) == true)
+            ?? groupItems.FirstOrDefault(i =>
+                i.ContentType == ContentType.GameClient &&
+                (i.ProviderName?.Contains("SuperHacker", StringComparison.OrdinalIgnoreCase) == true || i.ResolverId?.Contains("github", StringComparison.OrdinalIgnoreCase) == true) &&
+                i.TargetGame == GameType.ZeroHour)
+            ?? groupItems.FirstOrDefault(i => i.Variants?.Any(v => v.IsDefault) == true)
+            ?? primaryItem;
+    }
+
+    private static void PopulateSynthesizedVariants(
+        ContentGridItemViewModel variantVm,
+        ContentSearchResult primaryItem,
+        IList<ContentVariantInfo> singleVariants)
+    {
+        var lastSegment = primaryItem.Id?.Split('.').LastOrDefault() ?? "content";
+        foreach (var v in singleVariants)
         {
-            var lastSegment = primaryItem.Id?.Split('.').LastOrDefault() ?? "content";
-            foreach (var v in singleVariants)
+            var manifestId = !string.IsNullOrEmpty(v.ManifestId)
+                ? v.ManifestId
+                : $"1.0.{primaryItem.ProviderName.ToLowerInvariant()}.{primaryItem.ContentType.ToString().ToLowerInvariant()}.{lastSegment}-{v.Id}";
+
+            var variantSr = new ContentSearchResult
             {
-                var manifestId = !string.IsNullOrEmpty(v.ManifestId)
-                    ? v.ManifestId
-                    : $"1.0.{primaryItem.ProviderName.ToLowerInvariant()}.{primaryItem.ContentType.ToString().ToLowerInvariant()}.{lastSegment}-{v.Id}";
+                Id = manifestId,
+                Name = string.IsNullOrEmpty(primaryItem.VariantFamilyName) ? $"{primaryItem.Name} - {v.Name}" : $"{primaryItem.VariantFamilyName} - {v.Name}",
+                Description = primaryItem.Description,
+                Version = primaryItem.Version,
+                ContentType = primaryItem.ContentType,
+                TargetGame = primaryItem.TargetGame,
+                ProviderName = primaryItem.ProviderName,
+                AuthorName = primaryItem.AuthorName,
+                IconUrl = primaryItem.IconUrl,
+                SourceUrl = primaryItem.SourceUrl,
+                DownloadSize = primaryItem.DownloadSize,
+                RequiresResolution = primaryItem.RequiresResolution,
+                ResolverId = primaryItem.ResolverId,
+                VariantGroupId = primaryItem.VariantGroupId,
+                VariantFamilyName = primaryItem.VariantFamilyName,
+                Variants = primaryItem.Variants,
+            };
 
-                var variantSr = new ContentSearchResult
-                {
-                    Id = manifestId,
-                    Name = string.IsNullOrEmpty(primaryItem.VariantFamilyName) ? $"{primaryItem.Name} - {v.Name}" : $"{primaryItem.VariantFamilyName} - {v.Name}",
-                    Description = primaryItem.Description,
-                    Version = primaryItem.Version,
-                    ContentType = primaryItem.ContentType,
-                    TargetGame = primaryItem.TargetGame,
-                    ProviderName = primaryItem.ProviderName,
-                    AuthorName = primaryItem.AuthorName,
-                    IconUrl = primaryItem.IconUrl,
-                    SourceUrl = primaryItem.SourceUrl,
-                    DownloadSize = primaryItem.DownloadSize,
-                    RequiresResolution = primaryItem.RequiresResolution,
-                    ResolverId = primaryItem.ResolverId,
-                    VariantGroupId = primaryItem.VariantGroupId,
-                    VariantFamilyName = primaryItem.VariantFamilyName,
-                    Variants = primaryItem.Variants,
-                };
-
-                foreach (var kvp in primaryItem.ResolverMetadata)
-                {
-                    variantSr.ResolverMetadata[kvp.Key] = kvp.Value;
-                }
-
-                var installable = new InstallableVariant
-                {
-                    Name = VariantSwap.ResolveDisplayName(variantSr, v),
-                    ManifestId = VariantSwap.ResolveCatalogKey(variantSr, v),
-                    IconUrl = primaryItem.IconUrl ?? string.Empty,
-                    VariantType = v.VariantType ?? string.Empty,
-                };
-
-                variantVm.AddVariant(installable, variantSr);
+            foreach (var kvp in primaryItem.ResolverMetadata)
+            {
+                variantSr.ResolverMetadata[kvp.Key] = kvp.Value;
             }
-        }
-        else
-        {
-            foreach (var sibling in groupItems)
+
+            var installable = new InstallableVariant
             {
-                var variantInfo = sibling.Variants?.FirstOrDefault(v =>
+                Name = VariantSwap.ResolveDisplayName(variantSr, v),
+                ManifestId = VariantSwap.ResolveCatalogKey(variantSr, v),
+                IconUrl = primaryItem.IconUrl ?? string.Empty,
+                VariantType = v.VariantType ?? string.Empty,
+            };
+
+            variantVm.AddVariant(installable, variantSr);
+        }
+    }
+
+    private static void PopulateSiblingVariants(
+        ContentGridItemViewModel variantVm,
+        IReadOnlyList<ContentSearchResult> groupItems,
+        ContentSearchResult defaultVariant)
+    {
+        foreach (var sibling in groupItems)
+        {
+            var variantInfo = sibling.Variants?.FirstOrDefault(v =>
+                string.Equals(v.Id, sibling.Id, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrEmpty(v.Id) && sibling.Id?.EndsWith($".{v.Id}", StringComparison.OrdinalIgnoreCase) == true));
+
+            var info = variantInfo ?? new ContentVariantInfo
+            {
+                Id = sibling.Id ?? string.Empty,
+                Name = sibling.Name ?? sibling.Id ?? "Unknown",
+                ManifestId = sibling.Id ?? string.Empty,
+                IsDefault = sibling == defaultVariant,
+            };
+
+            var catalogKey = VariantSwap.ResolveCatalogKey(sibling, info);
+            var installable = new InstallableVariant
+            {
+                Name = VariantSwap.ResolveDisplayName(sibling, info),
+                ManifestId = catalogKey,
+                IconUrl = sibling.IconUrl ?? string.Empty,
+                VariantType = info.VariantType ?? string.Empty,
+            };
+
+            variantVm.AddVariant(installable, sibling);
+        }
+    }
+
+    private static void SelectDefaultVariant(
+        ContentGridItemViewModel variantVm,
+        IReadOnlyList<ContentSearchResult> groupItems,
+        ContentSearchResult primaryItem,
+        ContentSearchResult defaultVariant)
+    {
+        if (variantVm.Variants.Count == 0)
+        {
+            return;
+        }
+
+        InstallableVariant? defaultSelection = null;
+        if (groupItems.Count == 1 && primaryItem.Variants is { Count: > 0 } singleVars)
+        {
+            var defVarInfo = singleVars.FirstOrDefault(v => v.IsDefault) ?? singleVars[0];
+            defaultSelection = variantVm.Variants.FirstOrDefault(v =>
+                (!string.IsNullOrEmpty(defVarInfo.ManifestId) &&
+                 string.Equals(v.ManifestId, defVarInfo.ManifestId, StringComparison.OrdinalIgnoreCase)) ||
+                string.Equals(v.Name, defVarInfo.Name, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrEmpty(defVarInfo.Name) &&
+                 v.Name.EndsWith(defVarInfo.Name, StringComparison.OrdinalIgnoreCase)));
+        }
+        else if (groupItems.Count > 1)
+        {
+            var defaultSibling = groupItems.FirstOrDefault(sibling =>
+                sibling.Variants?.Any(v => v.IsDefault && (
                     string.Equals(v.Id, sibling.Id, StringComparison.OrdinalIgnoreCase) ||
-                    (!string.IsNullOrEmpty(v.Id) && sibling.Id?.EndsWith($".{v.Id}", StringComparison.OrdinalIgnoreCase) == true));
+                    (!string.IsNullOrEmpty(v.Id) && sibling.Id?.EndsWith($".{v.Id}", StringComparison.OrdinalIgnoreCase) == true))) == true);
 
-                // If no explicit ContentVariantInfo exists, synthesize one from the sibling card.
-                var info = variantInfo ?? new ContentVariantInfo
-                {
-                    Id = sibling.Id ?? string.Empty,
-                    Name = sibling.Name ?? sibling.Id ?? "Unknown",
-                    ManifestId = sibling.Id ?? string.Empty,
-                    IsDefault = sibling == defaultVariant,
-                };
-
-                var catalogKey = VariantSwap.ResolveCatalogKey(sibling, info);
-                var installable = new InstallableVariant
-                {
-                    Name = VariantSwap.ResolveDisplayName(sibling, info),
-                    ManifestId = catalogKey,
-                    IconUrl = sibling.IconUrl ?? string.Empty,
-                    VariantType = info.VariantType ?? string.Empty,
-                };
-
-                variantVm.AddVariant(installable, sibling);
-            }
-        }
-
-        // Set the selected variant to the default.
-        if (variantVm.Variants.Count > 0)
-        {
-            InstallableVariant? defaultSelection = null;
-            if (groupItems.Count == 1 && primaryItem.Variants is { Count: > 0 } singleVars)
+            if (defaultSibling != null)
             {
-                // Single-item group: default is declared inline on the Variants list.
-                var defVarInfo = singleVars.FirstOrDefault(v => v.IsDefault) ?? singleVars[0];
                 defaultSelection = variantVm.Variants.FirstOrDefault(v =>
-                    (!string.IsNullOrEmpty(defVarInfo.ManifestId) &&
-                     string.Equals(v.ManifestId, defVarInfo.ManifestId, StringComparison.OrdinalIgnoreCase)) ||
-                    string.Equals(v.Name, defVarInfo.Name, StringComparison.OrdinalIgnoreCase) ||
-                    (!string.IsNullOrEmpty(defVarInfo.Name) &&
-                     v.Name.EndsWith(defVarInfo.Name, StringComparison.OrdinalIgnoreCase)));
+                    string.Equals(v.ManifestId, defaultSibling.Id, StringComparison.OrdinalIgnoreCase));
             }
-            else if (groupItems.Count > 1)
-            {
-                // Multi-sibling group: the IsDefault flag is stamped by the discoverer
-                // on the shared Variants list that all siblings carry. Look for the
-                // sibling whose own ContentVariantInfo has IsDefault = true.
-                var defaultSibling = groupItems.FirstOrDefault(sibling =>
-                    sibling.Variants?.Any(v => v.IsDefault && (
-                        string.Equals(v.Id, sibling.Id, StringComparison.OrdinalIgnoreCase) ||
-                        (!string.IsNullOrEmpty(v.Id) && sibling.Id?.EndsWith($".{v.Id}", StringComparison.OrdinalIgnoreCase) == true))) == true);
-
-                if (defaultSibling != null)
-                {
-                    defaultSelection = variantVm.Variants.FirstOrDefault(v =>
-                        string.Equals(v.ManifestId, defaultSibling.Id, StringComparison.OrdinalIgnoreCase));
-                }
-            }
-
-            variantVm.SelectedVariant = defaultSelection
-                ?? variantVm.Variants.FirstOrDefault(v => string.Equals(v.ManifestId, defaultVariant.Id, StringComparison.OrdinalIgnoreCase))
-                ?? variantVm.Variants.FirstOrDefault(v => v.Name.Contains("Zero Hour", StringComparison.OrdinalIgnoreCase))
-                ?? variantVm.Variants[^1];
         }
 
-        // Refresh per-variant install states.
-        await variantVm.RefreshVariantStatesAsync();
-
-        // The card's own state reflects the selected/default variant.
-        var variantState = await contentStateService.GetStateAsync(defaultVariant, ct);
-        variantVm.CurrentState = variantState;
-
-        return variantVm;
+        variantVm.SelectedVariant = defaultSelection
+            ?? variantVm.Variants.FirstOrDefault(v => string.Equals(v.ManifestId, defaultVariant.Id, StringComparison.OrdinalIgnoreCase))
+            ?? variantVm.Variants.FirstOrDefault(v => v.Name.Contains("Zero Hour", StringComparison.OrdinalIgnoreCase))
+            ?? variantVm.Variants[^1];
     }
 
     private void RunOnUi(Action action)

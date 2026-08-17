@@ -738,7 +738,7 @@ public class GameLauncher(
             logger.LogInformation(
                 "[GameLauncher] Resolved {Count} manifests (from {EnabledCount} enabled IDs, including dependencies)",
                 manifests.Count,
-                enabledIds.Count());
+                profile.EnabledContentIds?.Count ?? 0);
             foreach (var manifest in manifests)
             {
                 logger.LogDebug(

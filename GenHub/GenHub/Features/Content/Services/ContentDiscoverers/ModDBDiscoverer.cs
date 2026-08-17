@@ -270,50 +270,20 @@ public partial class ModDBDiscoverer(
 
     private static ContentSearchResult? ParseContentItem(AngleSharp.Dom.IElement item, GameType gameType, string section)
     {
-        var titleLink = item.QuerySelector("h4 a, h3 a, a.title") ?? item.QuerySelector("td.content.name a");
-        if (titleLink == null) return null;
+        var titleAndUrl = ExtractTitleAndDetailUrl(item);
+        if (titleAndUrl == null) return null;
 
-        var title = titleLink.TextContent?.Trim();
-        var href = titleLink.GetAttribute("href");
-        if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(href)) return null;
-
-        if (!href.Contains("/mods/") && !href.Contains("/downloads/") && !href.Contains("/addons/")) return null;
-
-        var detailUrl = href.StartsWith("http") ? href : ModDBConstants.BaseUrl + href;
-
-        // Try multiple selectors for author
-        var authorLink = item.QuerySelector("a[href*='/members/']") ??
-                        item.QuerySelector("span.by a") ??
-                        item.QuerySelector("span.author a");
-        var author = authorLink?.TextContent?.Trim();
-        if (string.IsNullOrWhiteSpace(author)) author = "Unknown";
-
-        var img = item.QuerySelector("img.image, img.screenshot, div.image img, td.content.image img") ?? item.QuerySelector("img");
-        var iconUrl = img?.GetAttribute("src") ?? string.Empty;
-        if (!string.IsNullOrEmpty(iconUrl))
-        {
-            if (iconUrl.Contains("blank.gif")) iconUrl = string.Empty;
-            else if (!iconUrl.StartsWith("http")) iconUrl = ModDBConstants.BaseUrl + iconUrl;
-        }
+        var (title, detailUrl) = titleAndUrl.Value;
+        var author = ExtractAuthor(item);
+        var iconUrl = ExtractIconUrl(item);
 
         var descEl = item.QuerySelector("p, div.summary, span.summary, td.content.name span.summary");
         var description = HtmlTextHelper.NormalizeHtml(descEl?.TextContent?.Trim());
 
-        // Use the precise category element only. Broad selectors (e.g. span.subheading) capture the
-        // row's full subheading line, which echoes the title plus the comment count ("Full Version
-        // ... 40 comments"), and that text then surfaced as a garbage badge on the card.
         var categoryEl = item.QuerySelector(".category, .type, span.category");
         var category = categoryEl?.TextContent?.Trim();
 
-        // Extract date from timeago or time element
-        var dateEl = item.QuerySelector("time[datetime]") ?? item.QuerySelector("abbr.timeago");
-        var dateStr = dateEl?.GetAttribute("datetime") ?? dateEl?.GetAttribute("title");
-        DateTime? lastUpdated = null;
-        if (!string.IsNullOrEmpty(dateStr) && DateTime.TryParse(dateStr, out var parsedDate))
-        {
-            lastUpdated = parsedDate;
-        }
-
+        var lastUpdated = ExtractLastUpdatedDate(item);
         var contentType = DetermineContentType(section, category, detailUrl);
         var moddbId = ExtractModDBIdFromUrl(detailUrl);
         var prospectiveId = lastUpdated.HasValue && lastUpdated.Value > DateTime.MinValue
@@ -340,23 +310,73 @@ public partial class ModDBDiscoverer(
         result.ResolverMetadata[ModDBConstants.SectionMetadataKey] = section;
         ContentCardBadgeHelper.ApplyCategory(result, category);
 
-        // Detect if this is a mod (which may have addons) vs a standalone addon
+        ApplyParentModMetadata(result, detailUrl);
+
+        return result;
+    }
+
+    private static (string Title, string DetailUrl)? ExtractTitleAndDetailUrl(AngleSharp.Dom.IElement item)
+    {
+        var titleLink = item.QuerySelector("h4 a, h3 a, a.title") ?? item.QuerySelector("td.content.name a");
+        if (titleLink == null) return null;
+
+        var title = titleLink.TextContent?.Trim();
+        var href = titleLink.GetAttribute("href");
+        if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(href)) return null;
+
+        if (!href.Contains("/mods/") && !href.Contains("/downloads/") && !href.Contains("/addons/")) return null;
+
+        var detailUrl = href.StartsWith("http") ? href : ModDBConstants.BaseUrl + href;
+        return (title, detailUrl);
+    }
+
+    private static string ExtractAuthor(AngleSharp.Dom.IElement item)
+    {
+        var authorLink = item.QuerySelector("a[href*='/members/']") ??
+                        item.QuerySelector("span.by a") ??
+                        item.QuerySelector("span.author a");
+        var author = authorLink?.TextContent?.Trim();
+        return string.IsNullOrWhiteSpace(author) ? "Unknown" : author;
+    }
+
+    private static string ExtractIconUrl(AngleSharp.Dom.IElement item)
+    {
+        var img = item.QuerySelector("img.image, img.screenshot, div.image img, td.content.image img") ?? item.QuerySelector("img");
+        var iconUrl = img?.GetAttribute("src") ?? string.Empty;
+        if (!string.IsNullOrEmpty(iconUrl))
+        {
+            if (iconUrl.Contains("blank.gif")) iconUrl = string.Empty;
+            else if (!iconUrl.StartsWith("http")) iconUrl = ModDBConstants.BaseUrl + iconUrl;
+        }
+
+        return iconUrl;
+    }
+
+    private static DateTime? ExtractLastUpdatedDate(AngleSharp.Dom.IElement item)
+    {
+        var dateEl = item.QuerySelector("time[datetime]") ?? item.QuerySelector("abbr.timeago");
+        var dateStr = dateEl?.GetAttribute("datetime") ?? dateEl?.GetAttribute("title");
+        if (!string.IsNullOrEmpty(dateStr) && DateTime.TryParse(dateStr, out var parsedDate))
+        {
+            return parsedDate;
+        }
+
+        return null;
+    }
+
+    private static void ApplyParentModMetadata(ContentSearchResult result, string detailUrl)
+    {
         var isMod = detailUrl.Contains("/mods/") && !detailUrl.Contains("/addons/");
         result.ResolverMetadata[ModDBConstants.IsModMetadataKey] = isMod.ToString();
 
-        // If this is from a mod's addon section, store the parent mod URL
         if (detailUrl.Contains("/mods/") && detailUrl.Contains("/addons/"))
         {
-            // Extract parent mod URL: https://www.moddb.com/mods/the-end-of-days/addons/some-addon
-            // becomes: https://www.moddb.com/mods/the-end-of-days
             var modMatch = ParentModUrlRegex().Match(detailUrl);
             if (modMatch.Success)
             {
                 result.ResolverMetadata[ModDBConstants.ParentModUrlMetadataKey] = modMatch.Groups[1].Value;
             }
         }
-
-        return result;
     }
 
     private static ContentType DetermineContentType(string section, string? category, string url)

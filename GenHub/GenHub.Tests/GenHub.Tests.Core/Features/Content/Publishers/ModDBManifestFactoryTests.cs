@@ -358,24 +358,24 @@ public sealed class ModDBManifestFactoryTests : IDisposable
         var zipPath = Path.Combine(_stagingDirectory, "GeneralsUndone.zip");
         using (var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create))
         {
-            using (var writer = new StreamWriter(archive.CreateEntry("C&C Generals Undone v1.0/C&C Generals Undone v1.0/Readme.txt").Open()))
+            using (var writer1 = new StreamWriter(archive.CreateEntry("C&C Generals Undone v1.0/C&C Generals Undone v1.0/Readme.txt").Open()))
             {
-                await writer.WriteAsync("Readme");
+                await writer1.WriteAsync("Readme");
             }
 
-            using (var writer = new StreamWriter(archive.CreateEntry("C&C Generals Undone v1.0/C&C Generals Undone v1.0/Art/Textures/tex.tga").Open()))
+            using (var writer2 = new StreamWriter(archive.CreateEntry("C&C Generals Undone v1.0/C&C Generals Undone v1.0/Art/Textures/tex.tga").Open()))
             {
-                await writer.WriteAsync("Texture");
+                await writer2.WriteAsync("Texture");
             }
 
-            using (var writer = new StreamWriter(archive.CreateEntry("C&C Generals Undone v1.0/C&C Generals Undone v1.0/Data/INI/GameData.ini").Open()))
+            using (var writer3 = new StreamWriter(archive.CreateEntry("C&C Generals Undone v1.0/C&C Generals Undone v1.0/Data/INI/GameData.ini").Open()))
             {
-                await writer.WriteAsync("GameData");
+                await writer3.WriteAsync("GameData");
             }
 
-            using (var writer = new StreamWriter(archive.CreateEntry("C&C Generals Undone v1.0/C&C Generals Undone v1.0/Window/MainMenu.wnd").Open()))
+            using (var writer4 = new StreamWriter(archive.CreateEntry("C&C Generals Undone v1.0/C&C Generals Undone v1.0/Window/MainMenu.wnd").Open()))
             {
-                await writer.WriteAsync("Window");
+                await writer4.WriteAsync("Window");
             }
         }
 

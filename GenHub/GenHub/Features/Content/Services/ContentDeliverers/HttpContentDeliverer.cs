@@ -71,142 +71,35 @@ public class HttpContentDeliverer(
     {
         try
         {
-            // Fresh builder per operation: the builder's internal manifest state is never reset,
-            // so a shared instance would accumulate files/dependencies across deliveries.
             var builder = manifestBuilderFactory();
-
-            // Extract publisher from the manifest ID (3rd segment)
-            var idSegments = packageManifest.Id.Value.Split('.');
-            var publisherId = idSegments.Length >= 3 ? idSegments[2] : "unknown";
-
-            var deliveredManifest = builder
-                .WithBasicInfo(publisherId, packageManifest.Name, packageManifest.Version)
-                .WithContentType(packageManifest.ContentType, packageManifest.TargetGame)
-                .WithPublisher(
-                    packageManifest.Publisher?.Name ?? string.Empty,
-                    packageManifest.Publisher?.Website ?? string.Empty,
-                    packageManifest.Publisher?.SupportUrl ?? string.Empty,
-                    packageManifest.Publisher?.ContactEmail ?? string.Empty,
-                    packageManifest.Publisher?.PublisherType ?? publisherId)
-                .WithMetadata(
-                    packageManifest.Metadata?.Description ?? string.Empty,
-                    packageManifest.Metadata?.Tags,
-                    packageManifest.Metadata?.IconUrl ?? string.Empty,
-                    packageManifest.Metadata?.ScreenshotUrls,
-                    packageManifest.Metadata?.ChangelogUrl ?? string.Empty);
-
-            // Add dependencies
-            foreach (var dep in packageManifest.Dependencies)
-            {
-                deliveredManifest.AddDependency(
-                    dep.Id,
-                    dep.Name,
-                    dep.DependencyType,
-                    dep.InstallBehavior,
-                    dep.MinVersion ?? string.Empty,
-                    dep.MaxVersion ?? string.Empty,
-                    dep.CompatibleVersions,
-                    dep.IsExclusive,
-                    dep.ConflictsWith);
-            }
+            var deliveredManifest = InitializeDeliveredManifest(builder, packageManifest);
 
             var filesToDownload = packageManifest.Files.Where(f => !string.IsNullOrEmpty(f.DownloadUrl)).ToList();
             var totalFiles = filesToDownload.Count;
             var processedFiles = 0;
 
-            // Download and add files
             foreach (var file in filesToDownload)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var pathResult = ContentPathPolicy.ResolveContainedFile(targetDirectory, file.RelativePath);
-                if (!pathResult.Success)
-                {
-                    return OperationResult<ContentManifest>.CreateFailure(pathResult);
-                }
-
-                var localPath = pathResult.Data!;
-
-                // Ensure directory exists
-                var directory = Path.GetDirectoryName(localPath);
-                if (!string.IsNullOrEmpty(directory))
-                {
-                    Directory.CreateDirectory(directory);
-                }
-
-                // Report progress
-                progress?.Report(new ContentAcquisitionProgress
-                {
-                    Phase = ContentAcquisitionPhase.Downloading,
-                    ProgressPercentage = (double)processedFiles / totalFiles * 100,
-                    CurrentOperation = $"Downloading {file.RelativePath}",
-                    CurrentFile = file.RelativePath,
-                    FilesProcessed = processedFiles,
-                    TotalFiles = totalFiles,
-                });
-
-                if (!Uri.TryCreate(file.DownloadUrl, UriKind.Absolute, out var downloadUri) ||
-                    (downloadUri.Scheme != Uri.UriSchemeHttp && downloadUri.Scheme != Uri.UriSchemeHttps))
-                {
-                    return OperationResult<ContentManifest>.CreateFailure(
-                        $"Invalid remote download URL for {file.RelativePath}: '{file.DownloadUrl}'. Remote content must use HTTP/HTTPS.");
-                }
-
-                var downloadProgress = new Progress<DownloadProgress>(download =>
-                {
-                    progress?.Report(new ContentAcquisitionProgress
-                    {
-                        Phase = ContentAcquisitionPhase.Downloading,
-                        ProgressPercentage = totalFiles == 0
-                            ? 0
-                            : (((double)processedFiles + (download.Percentage / 100)) / totalFiles) * 100,
-                        CurrentOperation = $"Downloading {download.FormattedProgress} at {download.FormattedSpeed}",
-                        CurrentFile = file.RelativePath,
-                        BytesProcessed = download.BytesReceived,
-                        TotalBytes = download.TotalBytes,
-                        FilesProcessed = processedFiles,
-                        TotalFiles = totalFiles,
-                        EstimatedTimeRemaining = download.EstimatedTimeRemaining ?? TimeSpan.Zero,
-                    });
-                });
-
-                DownloadResult downloadResult;
-                if (IsModDbUrl(downloadUri))
-                {
-                    downloadResult = await DownloadProtectedModDbFileAsync(downloadUri, localPath, packageManifest, cancellationToken);
-                    if (downloadResult.Success && !string.IsNullOrEmpty(file.Hash))
-                    {
-                        var computedHash = await fileHashProvider.ComputeFileHashAsync(localPath, cancellationToken);
-                        if (!string.Equals(computedHash, file.Hash, StringComparison.OrdinalIgnoreCase))
-                        {
-                            downloadResult = DownloadResult.CreateFailure($"Hash verification failed for {file.RelativePath}");
-                        }
-                    }
-                }
-                else
-                {
-                    downloadResult = await downloadService.DownloadFileAsync(downloadUri, localPath, file.Hash, downloadProgress, cancellationToken);
-                }
+                var downloadResult = await DownloadFileItemAsync(
+                    file,
+                    targetDirectory,
+                    packageManifest,
+                    deliveredManifest,
+                    progress,
+                    processedFiles,
+                    totalFiles,
+                    cancellationToken);
 
                 if (!downloadResult.Success)
                 {
-                    return OperationResult<ContentManifest>.CreateFailure(
-                        $"Failed to download {file.RelativePath}: {downloadResult.FirstError}");
+                    return downloadResult;
                 }
-
-                // The file has already been downloaded into staging. Use its local path so the
-                // manifest contains a real hash and Stage 3 can extract archive contents.
-                await deliveredManifest.AddLocalFileAsync(
-                    file.RelativePath,
-                    localPath,
-                    ContentSourceType.ContentAddressable,
-                    isExecutable: file.IsExecutable,
-                    permissions: file.Permissions);
 
                 processedFiles++;
             }
 
-            // Add any other files (without DownloadUrl) as-is
             foreach (var file in packageManifest.Files.Where(f => string.IsNullOrEmpty(f.DownloadUrl)))
             {
                 await deliveredManifest.AddLocalFileAsync(
@@ -217,10 +110,8 @@ public class HttpContentDeliverer(
                     permissions: file.Permissions);
             }
 
-            // Add required directories
             deliveredManifest.AddRequiredDirectories([.. packageManifest.RequiredDirectories]);
 
-            // Add installation instructions if present
             if (packageManifest.InstallationInstructions != null)
             {
                 deliveredManifest.WithInstallationInstructions(packageManifest.InstallationInstructions.WorkspaceStrategy);
@@ -269,7 +160,148 @@ public class HttpContentDeliverer(
         }
     }
 
-    private static bool IsModDbUrl(Uri uri)
+    private IContentManifestBuilder InitializeDeliveredManifest(
+        IContentManifestBuilder builder,
+        ContentManifest packageManifest)
+    {
+        var idSegments = packageManifest.Id.Value.Split('.');
+        var publisherId = idSegments.Length >= 3 ? idSegments[2] : "unknown";
+
+        var deliveredManifest = builder
+            .WithBasicInfo(publisherId, packageManifest.Name, packageManifest.Version)
+            .WithContentType(packageManifest.ContentType, packageManifest.TargetGame)
+            .WithPublisher(
+                packageManifest.Publisher?.Name ?? string.Empty,
+                packageManifest.Publisher?.Website ?? string.Empty,
+                packageManifest.Publisher?.SupportUrl ?? string.Empty,
+                packageManifest.Publisher?.ContactEmail ?? string.Empty,
+                packageManifest.Publisher?.PublisherType ?? publisherId)
+            .WithMetadata(
+                packageManifest.Metadata?.Description ?? string.Empty,
+                packageManifest.Metadata?.Tags,
+                packageManifest.Metadata?.IconUrl ?? string.Empty,
+                packageManifest.Metadata?.ScreenshotUrls,
+                packageManifest.Metadata?.ChangelogUrl ?? string.Empty);
+
+        foreach (var dep in packageManifest.Dependencies)
+        {
+            deliveredManifest.AddDependency(
+                dep.Id,
+                dep.Name,
+                dep.DependencyType,
+                dep.InstallBehavior,
+                dep.MinVersion ?? string.Empty,
+                dep.MaxVersion ?? string.Empty,
+                dep.CompatibleVersions,
+                dep.IsExclusive,
+                dep.ConflictsWith);
+        }
+
+        return deliveredManifest;
+    }
+
+    private async Task<OperationResult<ContentManifest>> DownloadFileItemAsync(
+        ManifestFile file,
+        string targetDirectory,
+        ContentManifest packageManifest,
+        IContentManifestBuilder deliveredManifest,
+        IProgress<ContentAcquisitionProgress>? progress,
+        int processedFiles,
+        int totalFiles,
+        CancellationToken cancellationToken)
+    {
+        var pathResult = ContentPathPolicy.ResolveContainedFile(targetDirectory, file.RelativePath);
+        if (!pathResult.Success)
+        {
+            return OperationResult<ContentManifest>.CreateFailure(pathResult);
+        }
+
+        var localPath = pathResult.Data!;
+        var directory = Path.GetDirectoryName(localPath);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        progress?.Report(new ContentAcquisitionProgress
+        {
+            Phase = ContentAcquisitionPhase.Downloading,
+            ProgressPercentage = (double)processedFiles / totalFiles * 100,
+            CurrentOperation = $"Downloading {file.RelativePath}",
+            CurrentFile = file.RelativePath,
+            FilesProcessed = processedFiles,
+            TotalFiles = totalFiles,
+        });
+
+        if (!Uri.TryCreate(file.DownloadUrl, UriKind.Absolute, out var downloadUri) ||
+            (downloadUri.Scheme != Uri.UriSchemeHttp && downloadUri.Scheme != Uri.UriSchemeHttps))
+        {
+            return OperationResult<ContentManifest>.CreateFailure(
+                $"Invalid remote download URL for {file.RelativePath}: '{file.DownloadUrl}'. Remote content must use HTTP/HTTPS.");
+        }
+
+        var downloadProgress = new Progress<DownloadProgress>(download =>
+        {
+            progress?.Report(new ContentAcquisitionProgress
+            {
+                Phase = ContentAcquisitionPhase.Downloading,
+                ProgressPercentage = totalFiles == 0
+                    ? 0
+                    : (((double)processedFiles + (download.Percentage / 100)) / totalFiles) * 100,
+                CurrentOperation = $"Downloading {download.FormattedProgress} at {download.FormattedSpeed}",
+                CurrentFile = file.RelativePath,
+                BytesProcessed = download.BytesReceived,
+                TotalBytes = download.TotalBytes,
+                FilesProcessed = processedFiles,
+                TotalFiles = totalFiles,
+                EstimatedTimeRemaining = download.EstimatedTimeRemaining ?? TimeSpan.Zero,
+            });
+        });
+
+        var downloadResult = await ExecuteFileDownloadAsync(downloadUri, localPath, file, packageManifest, downloadProgress, cancellationToken);
+        if (!downloadResult.Success)
+        {
+            return OperationResult<ContentManifest>.CreateFailure(
+                $"Failed to download {file.RelativePath}: {downloadResult.FirstError}");
+        }
+
+        await deliveredManifest.AddLocalFileAsync(
+            file.RelativePath,
+            localPath,
+            ContentSourceType.ContentAddressable,
+            isExecutable: file.IsExecutable,
+            permissions: file.Permissions);
+
+        return OperationResult<ContentManifest>.CreateSuccess(packageManifest);
+    }
+
+    private async Task<DownloadResult> ExecuteFileDownloadAsync(
+        Uri downloadUri,
+        string localPath,
+        ManifestFile file,
+        ContentManifest packageManifest,
+        IProgress<DownloadProgress> downloadProgress,
+        CancellationToken cancellationToken)
+    {
+        if (IsModDbUrl(downloadUri))
+        {
+            var downloadResult = await DownloadProtectedModDbFileAsync(downloadUri, localPath, packageManifest, cancellationToken);
+            if (downloadResult.Success && !string.IsNullOrEmpty(file.Hash))
+            {
+                var computedHash = await fileHashProvider.ComputeFileHashAsync(localPath, cancellationToken);
+                if (!string.Equals(computedHash, file.Hash, StringComparison.OrdinalIgnoreCase))
+                {
+                    return DownloadResult.CreateFailure($"Hash verification failed for {file.RelativePath}");
+                }
+            }
+
+            return downloadResult;
+        }
+
+        return await downloadService.DownloadFileAsync(downloadUri, localPath, file.Hash, downloadProgress, cancellationToken);
+    }
+
+    private bool IsModDbUrl(Uri uri)
     {
         return uri.Host.Equals("moddb.com", StringComparison.OrdinalIgnoreCase) ||
                uri.Host.EndsWith(".moddb.com", StringComparison.OrdinalIgnoreCase);

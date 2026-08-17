@@ -54,7 +54,6 @@ public class ProcessLocalFileAsyncTests : IDisposable
         };
 
         var config = CreateTestConfiguration();
-        var targetPath = Path.Combine(_tempWorkspaceDir, file.RelativePath);
 
         // Act
         await strategy.PrepareAsync(config, null, CancellationToken.None);
@@ -78,13 +77,6 @@ public class ProcessLocalFileAsyncTests : IDisposable
         // Arrange
         var logger = new Mock<ILogger<SymlinkOnlyStrategy>>();
         var strategy = new SymlinkOnlyStrategy(_mockFileOperations.Object, logger.Object);
-
-        var file = new ManifestFile
-        {
-            RelativePath = "test.exe",
-            Size = 12,
-            SourceType = ContentSourceType.LocalFile,
-        };
 
         var config = CreateTestConfiguration();
 
@@ -112,13 +104,6 @@ public class ProcessLocalFileAsyncTests : IDisposable
         var logger = new Mock<ILogger<HybridCopySymlinkStrategy>>();
         var strategy = new HybridCopySymlinkStrategy(_mockFileOperations.Object, logger.Object);
 
-        var file = new ManifestFile
-        {
-            RelativePath = "generals.exe", // Essential file
-            Size = 500, // Small size - essential
-            SourceType = ContentSourceType.LocalFile,
-        };
-
         var config = CreateTestConfiguration();
 
         // Act
@@ -143,13 +128,6 @@ public class ProcessLocalFileAsyncTests : IDisposable
         // Arrange
         var logger = new Mock<ILogger<HybridCopySymlinkStrategy>>();
         var strategy = new HybridCopySymlinkStrategy(_mockFileOperations.Object, logger.Object);
-
-        var file = new ManifestFile
-        {
-            RelativePath = "video.bik", // Non-essential file
-            Size = 50000000, // Large size - non-essential
-            SourceType = ContentSourceType.LocalFile,
-        };
 
         var config = CreateTestConfiguration();
 
@@ -176,13 +154,6 @@ public class ProcessLocalFileAsyncTests : IDisposable
         // Arrange
         var logger = new Mock<ILogger<HardLinkStrategy>>();
         var strategy = new HardLinkStrategy(_mockFileOperations.Object, logger.Object);
-
-        var file = new ManifestFile
-        {
-            RelativePath = "test.dat",
-            Size = 1000,
-            SourceType = ContentSourceType.LocalFile,
-        };
 
         var config = CreateTestConfiguration();
 
@@ -346,6 +317,9 @@ public class ProcessLocalFileAsyncTests : IDisposable
                             gameInstallationPath, // Should use SourcePath directly
                             It.IsAny<CancellationToken>()),
                         Times.Once);
+                    break;
+
+                default:
                     break;
             }
 

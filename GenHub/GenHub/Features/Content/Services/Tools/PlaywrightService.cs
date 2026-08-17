@@ -466,7 +466,6 @@ public class PlaywrightService(
         }
 
         Task.Run(() => DisposeAsync().AsTask()).GetAwaiter().GetResult();
-        GC.SuppressFinalize(this);
     }
 
     /// <inheritdoc />

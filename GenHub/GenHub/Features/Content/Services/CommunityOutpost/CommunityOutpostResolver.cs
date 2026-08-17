@@ -107,20 +107,7 @@ public class CommunityOutpostResolver(
                 contentName = $"{contentCode}-{requestedVariantSuffix}".ToLowerInvariant();
             }
 
-            // Extract version number for manifest ID: prefer version segment in discoveredItem.Id if 5 segments
-            string manifestVersion = string.Empty;
-            var idParts = discoveredItem.Id?.Split('.') ?? [];
-            if (idParts.Length >= 5 && int.TryParse(idParts[1], out _))
-            {
-                manifestVersion = idParts[1];
-            }
-            else
-            {
-                var versionSource = !string.IsNullOrEmpty(contentMetadata.Version)
-                    ? contentMetadata.Version
-                    : discoveredItem.Version;
-                manifestVersion = ExtractManifestVersion(versionSource);
-            }
+            var manifestVersion = DetermineManifestVersion(discoveredItem, contentMetadata);
 
             logger.LogDebug(
                 "Generating manifest ID: Publisher={Publisher}, ContentType={ContentType}, ContentName={ContentName}, Version={Version}",
@@ -129,131 +116,33 @@ public class CommunityOutpostResolver(
                 contentName,
                 manifestVersion);
 
-            // Create a new manifest builder for each resolve operation to ensure clean state
             var manifestBuilder = manifestBuilderFactory();
+            var manifest = BuildBaseManifest(
+                manifestBuilder,
+                discoveredItem,
+                contentMetadata,
+                contentName,
+                manifestVersion,
+                websiteUrl,
+                patchPageUrl);
 
-            // Build manifest with correct parameters
-            var manifest = manifestBuilder
-                .WithBasicInfo(
-                    CommunityOutpostConstants.PublisherType,
-                    contentName,
-                    manifestVersion)
-                .WithContentType(contentMetadata.ContentType, contentMetadata.TargetGame)
-                .WithPublisher(
-                    name: CommunityOutpostConstants.PublisherName,
-                    website: websiteUrl,
-                    supportUrl: patchPageUrl,
-                    contactEmail: string.Empty,
-                    publisherType: CommunityOutpostConstants.PublisherType)
-                .WithMetadata(
-                    contentMetadata.Description,
-                    tags: BuildTags(discoveredItem, contentMetadata),
-                    changelogUrl: patchPageUrl)
-                .WithInstallationInstructions(WorkspaceConstants.DefaultWorkspaceStrategy);
-
-            // Add dependencies based on content type and category
-            var dependencies = contentMetadata.GetDependencies();
-            foreach (var dependency in dependencies)
-            {
-                manifest.AddDependency(
-                    id: dependency.Id,
-                    name: dependency.Name,
-                    dependencyType: dependency.DependencyType,
-                    installBehavior: dependency.InstallBehavior,
-                    minVersion: dependency.MinVersion ?? string.Empty,
-                    maxVersion: dependency.MaxVersion ?? string.Empty,
-                    compatibleVersions: dependency.CompatibleVersions,
-                    isExclusive: GenPatcherDependencyBuilder.IsCategoryExclusive(contentMetadata.Category),
-                    conflictsWith: dependency.ConflictsWith);
-
-                logger.LogDebug(
-                    "Added dependency {DepName} ({DepType}) to manifest for {ContentCode}",
-                    dependency.Name,
-                    dependency.DependencyType,
-                    contentCode);
-            }
-
-            // Add the file as a remote download
             manifest.AddRemoteFileAsync(
                 filename,
                 downloadUrl,
                 ContentSourceType.RemoteDownload,
                 isExecutable: false).Wait(cancellationToken);
 
-            // Store additional metadata in the manifest for the deliverer
             var builtManifest = manifest.Build();
 
-            // Store the install target from content metadata
-            builtManifest.InstallationInstructions ??= new InstallationInstructions();
-
-            // Add custom properties to track mirrors and archive type
-            builtManifest.Metadata ??= new ContentMetadata();
-
-            if (!string.IsNullOrEmpty(requestedVariantSuffix))
-            {
-                builtManifest.Metadata.SelectedVariantId = requestedVariantSuffix;
-                builtManifest.Metadata.Tags ??= [];
-                builtManifest.Metadata.Tags.Add($"requestedVariant:{requestedVariantSuffix}");
-                builtManifest.Metadata.Tags.Add($"selectedVariant:{requestedVariantSuffix}");
-                builtManifest.Metadata.Tags.Add($"variant:{requestedVariantSuffix}");
-            }
-
-            // Store mirror URLs in metadata for fallback support during delivery
-            if (mirrorUrls.Count > 1)
-            {
-                builtManifest.Metadata.Tags ??= [];
-                builtManifest.Metadata.Tags.Add($"mirrors:{mirrorUrls.Count}");
-            }
-
-            // Store the content code for the factory to use
-            builtManifest.Metadata.Tags ??= [];
-            builtManifest.Metadata.Tags.Add($"contentCode:{contentCode}");
-            builtManifest.Metadata.Tags.Add($"installTarget:{contentMetadata.InstallTarget}");
-
-            // Mark file as 7z archive if it's a .dat file
-            if (filename.EndsWith(CommunityOutpostConstants.DatFileExtension, StringComparison.OrdinalIgnoreCase))
-            {
-                foreach (var file in builtManifest.Files)
-                {
-                    if (file.RelativePath == filename)
-                    {
-                        file.SourcePath = "archive:7z";
-                        file.InstallTarget = contentMetadata.InstallTarget;
-                    }
-                }
-            }
-
-            // Update file size if available
-            if (fileSize > 0 && builtManifest.Files.Count > 0)
-            {
-                builtManifest.Files[0].Size = fileSize;
-            }
-
-            // Override the display name to be more user-friendly.
-            // Prefer registry display name for variant-bearing content so factory naming
-            // does not inherit a previously composed "Family - resolution" catalog title.
-            builtManifest.Name = contentMetadata.SupportsVariants && !string.IsNullOrEmpty(contentMetadata.DisplayName)
-                ? contentMetadata.DisplayName
-                : discoveredItem.Name ?? contentMetadata.DisplayName;
-
-            // For community-patch, prioritize discoveredItem.Version (dynamic date from legi.cc/patch)
-            // over static metadata version which may be null/empty
-            if (contentCode == "community-patch" && !string.IsNullOrWhiteSpace(discoveredItem.Version))
-            {
-                builtManifest.Version = discoveredItem.Version;
-            }
-            else if (!string.IsNullOrWhiteSpace(contentMetadata.Version))
-            {
-                builtManifest.Version = contentMetadata.Version;
-            }
-            else if (!string.IsNullOrWhiteSpace(discoveredItem.Version))
-            {
-                builtManifest.Version = discoveredItem.Version;
-            }
-            else
-            {
-                builtManifest.Version = CommunityOutpostCatalogConstants.DefaultMetadataVersion;
-            }
+            ApplyPostResolutionMetadata(
+                builtManifest,
+                discoveredItem,
+                contentMetadata,
+                contentCode,
+                filename,
+                requestedVariantSuffix,
+                mirrorUrls,
+                fileSize);
 
             logger.LogInformation(
                 "Successfully resolved Community Outpost manifest: {ManifestId} for {ContentCode} ({Category})",
@@ -265,15 +154,148 @@ public class CommunityOutpostResolver(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to resolve Community Outpost content");
-            return Task.FromResult(OperationResult<ContentManifest>.CreateFailure($"Resolution failed: {ex.Message}"));
+            logger.LogError(ex, "Failed to resolve Community Outpost content: {Name}", discoveredItem.Name);
+            return Task.FromResult(OperationResult<ContentManifest>.CreateFailure(
+                $"Failed to resolve content: {ex.Message}"));
+        }
+    }
+
+    private string DetermineManifestVersion(
+        ContentSearchResult discoveredItem,
+        GenPatcherContentMetadata contentMetadata)
+    {
+        var idParts = discoveredItem.Id?.Split('.') ?? [];
+        if (idParts.Length >= 5 && int.TryParse(idParts[1], out _))
+        {
+            return idParts[1];
+        }
+
+        var versionSource = !string.IsNullOrEmpty(contentMetadata.Version)
+            ? contentMetadata.Version
+            : discoveredItem.Version;
+        return ExtractManifestVersion(versionSource);
+    }
+
+    private IContentManifestBuilder BuildBaseManifest(
+        IContentManifestBuilder manifestBuilder,
+        ContentSearchResult discoveredItem,
+        GenPatcherContentMetadata contentMetadata,
+        string contentName,
+        string manifestVersion,
+        string websiteUrl,
+        string patchPageUrl)
+    {
+        var manifest = manifestBuilder
+            .WithBasicInfo(
+                CommunityOutpostConstants.PublisherType,
+                contentName,
+                manifestVersion)
+            .WithContentType(contentMetadata.ContentType, contentMetadata.TargetGame)
+            .WithPublisher(
+                name: CommunityOutpostConstants.PublisherName,
+                website: websiteUrl,
+                supportUrl: patchPageUrl,
+                contactEmail: string.Empty,
+                publisherType: CommunityOutpostConstants.PublisherType)
+            .WithMetadata(
+                contentMetadata.Description,
+                tags: BuildTags(discoveredItem, contentMetadata),
+                changelogUrl: patchPageUrl)
+            .WithInstallationInstructions(WorkspaceConstants.DefaultWorkspaceStrategy);
+
+        var dependencies = contentMetadata.GetDependencies();
+        foreach (var dependency in dependencies)
+        {
+            manifest.AddDependency(
+                id: dependency.Id,
+                name: dependency.Name,
+                dependencyType: dependency.DependencyType,
+                installBehavior: dependency.InstallBehavior,
+                minVersion: dependency.MinVersion ?? string.Empty,
+                maxVersion: dependency.MaxVersion ?? string.Empty,
+                compatibleVersions: dependency.CompatibleVersions,
+                isExclusive: GenPatcherDependencyBuilder.IsCategoryExclusive(contentMetadata.Category),
+                conflictsWith: dependency.ConflictsWith);
+        }
+
+        return manifest;
+    }
+
+    private void ApplyPostResolutionMetadata(
+        ContentManifest builtManifest,
+        ContentSearchResult discoveredItem,
+        GenPatcherContentMetadata contentMetadata,
+        string contentCode,
+        string filename,
+        string? requestedVariantSuffix,
+        List<string> mirrorUrls,
+        long fileSize)
+    {
+        builtManifest.InstallationInstructions ??= new InstallationInstructions();
+        builtManifest.Metadata ??= new ContentMetadata();
+
+        if (!string.IsNullOrEmpty(requestedVariantSuffix))
+        {
+            builtManifest.Metadata.SelectedVariantId = requestedVariantSuffix;
+            builtManifest.Metadata.Tags ??= [];
+            builtManifest.Metadata.Tags.Add($"requestedVariant:{requestedVariantSuffix}");
+            builtManifest.Metadata.Tags.Add($"selectedVariant:{requestedVariantSuffix}");
+            builtManifest.Metadata.Tags.Add($"variant:{requestedVariantSuffix}");
+        }
+
+        if (mirrorUrls.Count > 1)
+        {
+            builtManifest.Metadata.Tags ??= [];
+            builtManifest.Metadata.Tags.Add($"mirrors:{mirrorUrls.Count}");
+        }
+
+        builtManifest.Metadata.Tags ??= [];
+        builtManifest.Metadata.Tags.Add($"contentCode:{contentCode}");
+        builtManifest.Metadata.Tags.Add($"installTarget:{contentMetadata.InstallTarget}");
+
+        if (filename.EndsWith(CommunityOutpostConstants.DatFileExtension, StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var file in builtManifest.Files)
+            {
+                if (file.RelativePath == filename)
+                {
+                    file.SourcePath = "archive:7z";
+                    file.InstallTarget = contentMetadata.InstallTarget;
+                }
+            }
+        }
+
+        if (fileSize > 0 && builtManifest.Files.Count > 0)
+        {
+            builtManifest.Files[0].Size = fileSize;
+        }
+
+        builtManifest.Name = contentMetadata.SupportsVariants && !string.IsNullOrEmpty(contentMetadata.DisplayName)
+            ? contentMetadata.DisplayName
+            : discoveredItem.Name ?? contentMetadata.DisplayName;
+
+        if (contentCode == "community-patch" && !string.IsNullOrWhiteSpace(discoveredItem.Version))
+        {
+            builtManifest.Version = discoveredItem.Version;
+        }
+        else if (!string.IsNullOrWhiteSpace(contentMetadata.Version))
+        {
+            builtManifest.Version = contentMetadata.Version;
+        }
+        else if (!string.IsNullOrWhiteSpace(discoveredItem.Version))
+        {
+            builtManifest.Version = discoveredItem.Version;
+        }
+        else
+        {
+            builtManifest.Version = CommunityOutpostCatalogConstants.DefaultMetadataVersion;
         }
     }
 
     /// <summary>
     /// Generates a deterministic content name for manifest ID generation.
     /// </summary>
-    private static string GenerateContentName(string contentCode, GenPatcherContentMetadata metadata)
+    private string GenerateContentName(string contentCode, GenPatcherContentMetadata metadata)
     {
         // For official patches like "104p" -> "patch104polish"
         if (metadata.Category == GenPatcherContentCategory.OfficialPatch && !string.IsNullOrEmpty(metadata.LanguageCode))
@@ -297,7 +319,7 @@ public class CommunityOutpostResolver(
     /// <summary>
     /// Gets a display name for a language code.
     /// </summary>
-    private static string GetLanguageDisplayName(string languageCode)
+    private string GetLanguageDisplayName(string languageCode)
     {
         return languageCode.ToLowerInvariant() switch
         {
@@ -318,7 +340,7 @@ public class CommunityOutpostResolver(
     /// <summary>
     /// Extracts a numeric version suitable for manifest ID.
     /// </summary>
-    private static string ExtractManifestVersion(string version)
+    private string ExtractManifestVersion(string version)
     {
         if (string.IsNullOrEmpty(version))
         {
@@ -370,7 +392,7 @@ public class CommunityOutpostResolver(
     /// <summary>
     /// Extracts a variant suffix from a search result ID, metadata, or name (e.g. cbpr-1080p -> 1080p).
     /// </summary>
-    private static string? TryExtractVariantSuffix(ContentSearchResult item, GenPatcherContentMetadata metadata)
+    private string? TryExtractVariantSuffix(ContentSearchResult item, GenPatcherContentMetadata metadata)
     {
         // 1. Check ResolverMetadata
         if (item.ResolverMetadata != null)
@@ -435,7 +457,7 @@ public class CommunityOutpostResolver(
     /// <summary>
     /// Builds the tags list for the manifest.
     /// </summary>
-    private static List<string> BuildTags(ContentSearchResult item, GenPatcherContentMetadata metadata)
+    private List<string> BuildTags(ContentSearchResult item, GenPatcherContentMetadata metadata)
     {
         var tags = new List<string>(item.Tags);
 
@@ -452,7 +474,7 @@ public class CommunityOutpostResolver(
     /// <summary>
     /// Gets a metadata value from the search result.
     /// </summary>
-    private static string GetMetadataValue(ContentSearchResult item, string key, string defaultValue)
+    private string GetMetadataValue(ContentSearchResult item, string key, string defaultValue)
     {
         if (item.ResolverMetadata?.TryGetValue(key, out var value) == true)
         {
@@ -465,7 +487,7 @@ public class CommunityOutpostResolver(
     /// <summary>
     /// Gets a long metadata value from the search result.
     /// </summary>
-    private static long GetMetadataValueLong(ContentSearchResult item, string key, long defaultValue)
+    private long GetMetadataValueLong(ContentSearchResult item, string key, long defaultValue)
     {
         var stringValue = GetMetadataValue(item, key, string.Empty);
         return long.TryParse(stringValue, out var result) ? result : defaultValue;
@@ -474,10 +496,9 @@ public class CommunityOutpostResolver(
     /// <summary>
     /// Gets the filename from the download URI or generates one from the content code.
     /// </summary>
-    private static string GetFilenameFromUri(Uri downloadUri, string contentCode)
+    private string GetFilenameFromUri(Uri downloadUri, string contentCode)
     {
-        var path = downloadUri.AbsolutePath;
-        var lastSegment = path.Split('/')[^1];
+        var lastSegment = downloadUri.Segments.Length > 0 ? downloadUri.Segments[^1].Trim('/') : string.Empty;
 
         if (!string.IsNullOrEmpty(lastSegment) && lastSegment.Contains('.'))
         {

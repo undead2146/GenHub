@@ -212,14 +212,14 @@ public class CommunityOutpostManifestFactoryTests : IDisposable
         var zipPath = Path.Combine(_tempDir, "community-patch.zip");
         using (var zip = System.IO.Compression.ZipFile.Open(zipPath, System.IO.Compression.ZipArchiveMode.Create))
         {
-            using (var writer = new StreamWriter(zip.CreateEntry("generals.exe").Open()))
+            using (var writer1 = new StreamWriter(zip.CreateEntry("generals.exe").Open()))
             {
-                writer.Write("mock exe content");
+                writer1.Write("mock exe content");
             }
 
-            using (var writer = new StreamWriter(zip.CreateEntry("Patch.big").Open()))
+            using (var writer2 = new StreamWriter(zip.CreateEntry("Patch.big").Open()))
             {
-                writer.Write("mock big content");
+                writer2.Write("mock big content");
             }
         }
 

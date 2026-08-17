@@ -597,6 +597,76 @@ public partial class ContentDetailViewModel(
 
     private async Task InitializeVariantsAsync()
     {
+        EnsureSynthesizedVariantSearchResults();
+
+        if (variantSearchResults == null || variantSearchResults.Count == 0)
+        {
+            return;
+        }
+
+        var normalized = new Dictionary<string, ContentSearchResult>(StringComparer.OrdinalIgnoreCase);
+        var variantsList = new List<InstallableVariant>();
+        InstallableVariant? defaultSelection = null;
+
+        foreach (var kvp in variantSearchResults)
+        {
+            var sibling = kvp.Value;
+            var info = MatchVariantInfo(sibling, kvp.Key);
+            var catalogKey = VariantSwap.ResolveCatalogKey(sibling, info);
+            if (string.IsNullOrEmpty(catalogKey))
+            {
+                catalogKey = kvp.Key;
+            }
+
+            var snapshot = PrepareVariantSnapshot(sibling, info, catalogKey);
+            normalized[catalogKey] = snapshot;
+
+            var installable = new InstallableVariant
+            {
+                Name = snapshot.Name,
+                ManifestId = catalogKey,
+                IconUrl = sibling.IconUrl ?? string.Empty,
+                VariantType = info.VariantType ?? string.Empty,
+            };
+
+            try
+            {
+                installable.CurrentState = await contentStateService.GetStateAsync(snapshot);
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Failed to resolve state for detail variant {ManifestId}", installable.ManifestId);
+            }
+
+            variantsList.Add(installable);
+
+            if (string.Equals(catalogKey, searchResult.Id, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(sibling.Id, searchResult.Id, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(kvp.Key, searchResult.Id, StringComparison.OrdinalIgnoreCase) ||
+                (searchResult.TargetGame != GameType.Unknown && sibling.TargetGame == searchResult.TargetGame))
+            {
+                defaultSelection ??= installable;
+            }
+        }
+
+        variantSearchResults = normalized;
+
+        await RunOnUiThreadAsync(() =>
+        {
+            Variants = new ObservableCollection<InstallableVariant>(variantsList);
+            OnPropertyChanged(nameof(HasVariants));
+            RebuildVariantAxes();
+            SelectedVariant = defaultSelection ?? Variants.FirstOrDefault();
+
+            if (Releases.Count == 0)
+            {
+                PopulateReleasesFromVariants();
+            }
+        });
+    }
+
+    private void EnsureSynthesizedVariantSearchResults()
+    {
         if ((variantSearchResults == null || variantSearchResults.Count == 0) && searchResult.Variants is { Count: > 0 } searchVariants)
         {
             var dict = new Dictionary<string, ContentSearchResult>(StringComparer.OrdinalIgnoreCase);
@@ -637,136 +707,64 @@ public partial class ContentDetailViewModel(
 
             variantSearchResults = dict;
         }
+    }
 
-        if (variantSearchResults == null || variantSearchResults.Count == 0)
+    private static ContentVariantInfo MatchVariantInfo(ContentSearchResult sibling, string key)
+    {
+        var variantInfo = sibling.Variants?.FirstOrDefault(v =>
+            string.Equals(v.Id, sibling.Id, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(v.Id, key, StringComparison.OrdinalIgnoreCase) ||
+            (!string.IsNullOrEmpty(v.Id) && sibling.Id?.EndsWith($".{v.Id}", StringComparison.OrdinalIgnoreCase) == true) ||
+            (!string.IsNullOrEmpty(v.Id) && key.EndsWith($".{v.Id}", StringComparison.OrdinalIgnoreCase)));
+
+        if (variantInfo == null && sibling.Variants != null)
         {
-            return;
-        }
-
-        // Rebuild with stable catalog keys and cloned snapshots so later Id rewrites
-        // (post-download) cannot erase Generals/Zero Hour labels or break swap lookups.
-        var normalized = new Dictionary<string, ContentSearchResult>(StringComparer.OrdinalIgnoreCase);
-        var variantsList = new List<InstallableVariant>();
-        InstallableVariant? defaultSelection = null;
-
-        foreach (var kvp in variantSearchResults)
-        {
-            var sibling = kvp.Value;
-            var variantInfo = sibling.Variants?.FirstOrDefault(v =>
-                string.Equals(v.Id, sibling.Id, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(v.Id, kvp.Key, StringComparison.OrdinalIgnoreCase) ||
-                (!string.IsNullOrEmpty(v.Id) && sibling.Id?.EndsWith($".{v.Id}", StringComparison.OrdinalIgnoreCase) == true) ||
-                (!string.IsNullOrEmpty(v.Id) && kvp.Key.EndsWith($".{v.Id}", StringComparison.OrdinalIgnoreCase)));
-
-            // Prefer matching by TargetGame suffix when Id was rewritten to a manifest ID.
-            if (variantInfo == null && sibling.Variants != null)
+            var gameSuffix = sibling.TargetGame switch
             {
-                var gameSuffix = sibling.TargetGame switch
-                {
-                    GameType.Generals => "generals",
-                    GameType.ZeroHour => "zerohour",
-                    _ => null,
-                };
-                if (gameSuffix != null)
-                {
-                    variantInfo = sibling.Variants.FirstOrDefault(v =>
-                        v.Id.EndsWith($".{gameSuffix}", StringComparison.OrdinalIgnoreCase) ||
-                        v.Name.Contains(gameSuffix, StringComparison.OrdinalIgnoreCase) ||
-                        (sibling.TargetGame == GameType.ZeroHour && v.Name.Contains("Zero Hour", StringComparison.OrdinalIgnoreCase)) ||
-                        (sibling.TargetGame == GameType.Generals && v.Name.Contains("Generals", StringComparison.OrdinalIgnoreCase) && !v.Name.Contains("Zero Hour", StringComparison.OrdinalIgnoreCase)));
-                }
-            }
-
-            var info = variantInfo ?? new ContentVariantInfo
-            {
-                Id = !string.IsNullOrEmpty(kvp.Key) ? kvp.Key : (sibling.Id ?? string.Empty),
-                Name = sibling.Name ?? sibling.Id ?? "Unknown",
-                ManifestId = !string.IsNullOrEmpty(kvp.Key) ? kvp.Key : (sibling.Id ?? string.Empty),
+                GameType.Generals => "generals",
+                GameType.ZeroHour => "zerohour",
+                _ => null,
             };
-
-            var catalogKey = VariantSwap.ResolveCatalogKey(sibling, info);
-            if (string.IsNullOrEmpty(catalogKey))
+            if (gameSuffix != null)
             {
-                catalogKey = kvp.Key;
-            }
-
-            var snapshot = VariantSwap.Clone(sibling);
-
-            // Keep the snapshot keyed by the catalog identity even if sibling.Id was rewritten.
-            if (!string.IsNullOrEmpty(catalogKey) &&
-                ManifestIdValidator.IsValid(snapshot.Id ?? string.Empty, out _) &&
-                !string.Equals(snapshot.Id, catalogKey, StringComparison.OrdinalIgnoreCase))
-            {
-                // Sibling Id already points at an on-disk manifest — preserve it on the snapshot
-                // but ensure the dictionary key remains the stable catalog key from the card.
-            }
-            else if (!string.IsNullOrEmpty(catalogKey))
-            {
-                snapshot.Id = catalogKey;
-            }
-
-            // Restore a clear variant label when Name was stripped to the family name.
-            var displayName = VariantSwap.ResolveDisplayName(sibling, info);
-            if (string.Equals(snapshot.Name, snapshot.VariantFamilyName, StringComparison.Ordinal) ||
-                string.IsNullOrWhiteSpace(snapshot.Name))
-            {
-                snapshot.Name = displayName;
-            }
-
-            normalized[catalogKey] = snapshot;
-
-            var installable = new InstallableVariant
-            {
-                Name = displayName,
-                ManifestId = catalogKey,
-                IconUrl = sibling.IconUrl ?? string.Empty,
-                VariantType = info.VariantType ?? string.Empty,
-            };
-
-            try
-            {
-                installable.CurrentState = await contentStateService.GetStateAsync(snapshot);
-            }
-            catch (Exception ex)
-            {
-                logger.LogDebug(ex, "Failed to resolve state for detail variant {ManifestId}", installable.ManifestId);
-            }
-
-            variantsList.Add(installable);
-
-            if (string.Equals(catalogKey, searchResult.Id, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(sibling.Id, searchResult.Id, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(kvp.Key, searchResult.Id, StringComparison.OrdinalIgnoreCase) ||
-                (searchResult.TargetGame != GameType.Unknown && sibling.TargetGame == searchResult.TargetGame))
-            {
-                defaultSelection ??= installable;
+                variantInfo = sibling.Variants.FirstOrDefault(v =>
+                    v.Id.EndsWith($".{gameSuffix}", StringComparison.OrdinalIgnoreCase) ||
+                    v.Name.Contains(gameSuffix, StringComparison.OrdinalIgnoreCase) ||
+                    (sibling.TargetGame == GameType.ZeroHour && v.Name.Contains("Zero Hour", StringComparison.OrdinalIgnoreCase)) ||
+                    (sibling.TargetGame == GameType.Generals && v.Name.Contains("Generals", StringComparison.OrdinalIgnoreCase) && !v.Name.Contains("Zero Hour", StringComparison.OrdinalIgnoreCase)));
             }
         }
 
-        variantSearchResults = normalized;
-
-        await RunOnUiThreadAsync(() =>
+        return variantInfo ?? new ContentVariantInfo
         {
-            Variants = new ObservableCollection<InstallableVariant>(variantsList);
-            OnPropertyChanged(nameof(HasVariants));
-            RebuildVariantAxes();
-            SelectedVariant = defaultSelection ?? Variants.FirstOrDefault();
+            Id = !string.IsNullOrEmpty(key) ? key : (sibling.Id ?? string.Empty),
+            Name = sibling.Name ?? sibling.Id ?? "Unknown",
+            ManifestId = !string.IsNullOrEmpty(key) ? key : (sibling.Id ?? string.Empty),
+        };
+    }
 
-            if (Releases.Count == 0)
-            {
-                PopulateReleasesFromVariants();
-            }
-            else if (SelectedVariant != null)
-            {
-                var match = Releases.FirstOrDefault(r =>
-                    string.Equals(r.DownloadedManifestId, SelectedVariant.ManifestId, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(r.Name, SelectedVariant.Name, StringComparison.OrdinalIgnoreCase));
-                if (match != null && !ReferenceEquals(SelectedDownloadableItem, match))
-                {
-                    SelectDownloadableItem(match);
-                }
-            }
-        });
+    private static ContentSearchResult PrepareVariantSnapshot(ContentSearchResult sibling, ContentVariantInfo info, string catalogKey)
+    {
+        var snapshot = VariantSwap.Clone(sibling);
+
+        if (!string.IsNullOrEmpty(catalogKey) &&
+            ManifestIdValidator.IsValid(snapshot.Id ?? string.Empty, out _) &&
+            !string.Equals(snapshot.Id, catalogKey, StringComparison.OrdinalIgnoreCase))
+        {
+        }
+        else if (!string.IsNullOrEmpty(catalogKey))
+        {
+            snapshot.Id = catalogKey;
+        }
+
+        var displayName = VariantSwap.ResolveDisplayName(sibling, info);
+        if (string.Equals(snapshot.Name, snapshot.VariantFamilyName, StringComparison.Ordinal) ||
+            string.IsNullOrWhiteSpace(snapshot.Name))
+        {
+            snapshot.Name = displayName;
+        }
+
+        return snapshot;
     }
 
     private void OnAxisSelectionCommitted(InstallableVariant? value)
@@ -1496,67 +1494,11 @@ public partial class ContentDetailViewModel(
 
                 foreach (var rel in sortedCatalogReleases)
                 {
-                    var primaryArtifact = rel.Artifacts.FirstOrDefault(a => a.IsPrimary) ?? rel.Artifacts.FirstOrDefault();
-                    var downloadUrl = primaryArtifact?.DownloadUrl ?? string.Empty;
-                    var fileSize = primaryArtifact?.Size ?? 0;
-                    var filename = primaryArtifact?.Filename ?? GetFileNameFromUrl(downloadUrl) ?? $"{catalogItem.Name} v{rel.Version}";
-                    var description = !string.IsNullOrWhiteSpace(rel.Changelog) ? rel.Changelog : catalogItem.Description;
-                    var category = searchResult.ContentType.GetDisplayName();
-                    var uploader = searchResult.AuthorName;
-
-                    var file = new DownloadableFile(
-                        Name: filename,
-                        DownloadUrl: downloadUrl,
-                        SizeBytes: fileSize > 0 ? fileSize : null,
-                        UploadDate: rel.ReleaseDate,
-                        Version: rel.Version,
-                        Category: category,
-                        Uploader: uploader,
-                        Filename: filename,
-                        Description: description,
-                        FileSectionType: FileSectionType.Downloads);
-
-                    var releaseName = $"Version {rel.Version}";
-
-                    var releaseItem = new ReleaseItemViewModel
-                    {
-                        Id = Guid.NewGuid().ToString(),
-                        Name = releaseName,
-                        Version = rel.Version,
-                        ReleaseDate = rel.ReleaseDate,
-                        FileSize = fileSize,
-                        DownloadUrl = downloadUrl,
-                        DetailsUrl = downloadUrl,
-                        File = file,
-                        ContentType = searchResult.ContentType,
-                        Category = category,
-                        Uploader = uploader,
-                        Filename = filename,
-                        FullDescription = description,
-                        Md5Hash = primaryArtifact?.Sha256,
-                        IsDetailsLoaded = true,
-                    };
-
-                    releaseItem.SelectCommand = new RelayCommand(
-                        () => SelectDownloadableItem(releaseItem, isUserInitiated: true),
-                        () => !IsDownloading);
-                    if (HasBundleComponents || searchResult.ContentType == ContentType.ContentBundle)
-                    {
-                        releaseItem.DownloadCommand = new AsyncRelayCommand(() => DownloadBundleComponentsAsync(CancellationToken.None));
-                        releaseItem.AddToProfileCommand = new AsyncRelayCommand(() => AddToProfileAsync());
-                        releaseItem.IsDownloaded = AreBundleComponentsReadyForProfile;
-                    }
-                    else
-                    {
-                        releaseItem.DownloadCommand = new AsyncRelayCommand(() => DownloadReleaseAsync(releaseItem, releaseItem.File ?? file));
-                        releaseItem.AddToProfileCommand = new AsyncRelayCommand(
-                            () => AddFileToProfileAsync(releaseItem.File ?? file, releaseItem.DownloadedManifestId));
-                    }
-
+                    var releaseItem = CreateCatalogReleaseItem(rel, catalogItem);
                     Releases.Add(releaseItem);
-                    if (!HasBundleComponents && searchResult.ContentType != ContentType.ContentBundle)
+                    if (!HasBundleComponents && searchResult.ContentType != ContentType.ContentBundle && releaseItem.File != null)
                     {
-                        _ = ResolveRowStateAsync(releaseItem, file);
+                        _ = ResolveRowStateAsync(releaseItem, releaseItem.File);
                     }
                 }
 
@@ -1612,6 +1554,69 @@ public partial class ContentDetailViewModel(
         {
             logger.LogError(ex, "error populating content details from catalog metadata json");
         }
+    }
+
+    private ReleaseItemViewModel CreateCatalogReleaseItem(ContentRelease rel, CatalogContentItem catalogItem)
+    {
+        var primaryArtifact = rel.Artifacts.FirstOrDefault(a => a.IsPrimary) ?? rel.Artifacts.FirstOrDefault();
+        var downloadUrl = primaryArtifact?.DownloadUrl ?? string.Empty;
+        var fileSize = primaryArtifact?.Size ?? 0;
+        var filename = primaryArtifact?.Filename ?? GetFileNameFromUrl(downloadUrl) ?? $"{catalogItem.Name} v{rel.Version}";
+        var description = !string.IsNullOrWhiteSpace(rel.Changelog) ? rel.Changelog : catalogItem.Description;
+        var category = searchResult.ContentType.GetDisplayName();
+        var uploader = searchResult.AuthorName;
+
+        var file = new DownloadableFile(
+            Name: filename,
+            DownloadUrl: downloadUrl,
+            SizeBytes: fileSize > 0 ? fileSize : null,
+            UploadDate: rel.ReleaseDate,
+            Version: rel.Version,
+            Category: category,
+            Uploader: uploader,
+            Filename: filename,
+            Description: description,
+            FileSectionType: FileSectionType.Downloads);
+
+        var releaseName = $"Version {rel.Version}";
+
+        var releaseItem = new ReleaseItemViewModel
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = releaseName,
+            Version = rel.Version,
+            ReleaseDate = rel.ReleaseDate,
+            FileSize = fileSize,
+            DownloadUrl = downloadUrl,
+            DetailsUrl = downloadUrl,
+            File = file,
+            ContentType = searchResult.ContentType,
+            Category = category,
+            Uploader = uploader,
+            Filename = filename,
+            FullDescription = description,
+            Md5Hash = primaryArtifact?.Sha256,
+            IsDetailsLoaded = true,
+        };
+
+        releaseItem.SelectCommand = new RelayCommand(
+            () => SelectDownloadableItem(releaseItem, isUserInitiated: true),
+            () => !IsDownloading);
+
+        if (HasBundleComponents || searchResult.ContentType == ContentType.ContentBundle)
+        {
+            releaseItem.DownloadCommand = new AsyncRelayCommand(() => DownloadBundleComponentsAsync(CancellationToken.None));
+            releaseItem.AddToProfileCommand = new AsyncRelayCommand(() => AddToProfileAsync());
+            releaseItem.IsDownloaded = AreBundleComponentsReadyForProfile;
+        }
+        else
+        {
+            releaseItem.DownloadCommand = new AsyncRelayCommand(() => DownloadReleaseAsync(releaseItem, releaseItem.File ?? file));
+            releaseItem.AddToProfileCommand = new AsyncRelayCommand(
+                () => AddFileToProfileAsync(releaseItem.File ?? file, releaseItem.DownloadedManifestId));
+        }
+
+        return releaseItem;
     }
 
     /// <summary>

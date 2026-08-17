@@ -98,14 +98,14 @@ public sealed class GitHubManifestFactoryTests : IDisposable
         var archivePath = Path.Combine(_stagingDirectory, "cbpr.zip");
         using (var archive = ZipFile.Open(archivePath, ZipArchiveMode.Create))
         {
-            await using (var writer = new StreamWriter(archive.CreateEntry("ZH/1080p/BIG/Window/ControlBarPro.wnd").Open()))
+            await using (var writer1 = new StreamWriter(archive.CreateEntry("ZH/1080p/BIG/Window/ControlBarPro.wnd").Open()))
             {
-                await writer.WriteAsync("wnd data");
+                await writer1.WriteAsync("wnd data");
             }
 
-            await using (var writer = new StreamWriter(archive.CreateEntry("ZH/1080p/BIG/Art/test.tga").Open()))
+            await using (var writer2 = new StreamWriter(archive.CreateEntry("ZH/1080p/BIG/Art/test.tga").Open()))
             {
-                await writer.WriteAsync("art data");
+                await writer2.WriteAsync("art data");
             }
         }
 

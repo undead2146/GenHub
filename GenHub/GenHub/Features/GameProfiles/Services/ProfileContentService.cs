@@ -126,37 +126,8 @@ public sealed class ProfileContentService(
                 return AddToProfileResult.CreateFailure(candidateConflictError, sw.Elapsed);
             }
 
-            // Build new enabled content list
-            List<string> enabledContentIds = [.. profile.EnabledContentIds ?? []];
-            string? swappedContentId = null;
-            string? swappedContentName = null;
-            ContentType swappedContentType = ContentType.UnknownContentType;
-
-            // Check for conflicts against all exclusive items in requested set.
-            foreach (var reqId in requestedIds)
-            {
-                var conflictInfo = await CheckContentConflictsAsync(profileId, reqId, cancellationToken);
-                if (conflictInfo.HasConflict && conflictInfo.CanAutoResolve && !string.IsNullOrEmpty(conflictInfo.ConflictingContentId))
-                {
-                    enabledContentIds.Remove(conflictInfo.ConflictingContentId);
-                    swappedContentId = conflictInfo.ConflictingContentId;
-                    swappedContentName = conflictInfo.ConflictingContentName;
-                    swappedContentType = conflictInfo.ConflictingContentType;
-
-                    logger.LogInformation(
-                        "Swapping content: removing {OldContent} to add {NewContent}",
-                        swappedContentId,
-                        reqId);
-                }
-            }
-
-            foreach (var requestedId in requestedIds)
-            {
-                if (!enabledContentIds.Contains(requestedId, StringComparer.OrdinalIgnoreCase))
-                {
-                    enabledContentIds.Add(requestedId);
-                }
-            }
+            var enabledContentIds = new List<string>(profile.EnabledContentIds ?? []);
+            var swapResult = await ResolveContentSwapsAsync(profileId, requestedIds, enabledContentIds, cancellationToken);
 
             var previousIds = new HashSet<string>(enabledContentIds, StringComparer.OrdinalIgnoreCase);
             var resolution = await ResolveProfileContentAsync(enabledContentIds, requestedIds, cancellationToken);
@@ -168,20 +139,7 @@ public sealed class ProfileContentService(
             }
 
             enabledContentIds = resolution.Data.EnabledContentIds;
-
-            // Notify user if dependencies were added by the resolver.
-            var newlyAdded = enabledContentIds
-                .Where(id => !previousIds.Contains(id))
-                .ToList();
-
-            if (newlyAdded.Count > 0)
-            {
-                var dependencyNames = await GetDependencyNamesAsync(newlyAdded, cancellationToken);
-                logger.LogInformation("Resolved {Count} dependencies for {ManifestId}", newlyAdded.Count, primaryManifestId);
-                notificationService.ShowInfo(
-                    "Dependencies Added",
-                    $"Added required dependencies for '{contentName}': {string.Join(", ", dependencyNames)}");
-            }
+            NotifyNewlyAddedDependencies(enabledContentIds, previousIds, contentName, primaryManifestId, cancellationToken);
 
             if (resolution.Data.RequiredGameType != null)
             {
@@ -203,7 +161,6 @@ public sealed class ProfileContentService(
                 reconciledInstallationId = foundation.Data.InstallationId;
             }
 
-            // Update the profile
             var updateRequest = new UpdateProfileRequest
             {
                 EnabledContentIds = enabledContentIds,
@@ -219,25 +176,24 @@ public sealed class ProfileContentService(
                 return AddToProfileResult.CreateFailure(error, sw.Elapsed);
             }
 
-            // Show notification for swap
-            if (!string.IsNullOrEmpty(swappedContentId))
+            if (!string.IsNullOrEmpty(swapResult.SwappedContentId))
             {
                 notificationService.ShowInfo(
                     "Content Replaced",
-                    $"Replaced '{swappedContentName ?? swappedContentId}' with '{contentName}'");
+                    $"Replaced '{swapResult.SwappedContentName ?? swapResult.SwappedContentId}' with '{contentName}'");
 
                 logger.LogInformation(
                     "Content swap complete: {OldContent} → {NewContent} in profile {ProfileId}",
-                    swappedContentId,
+                    swapResult.SwappedContentId,
                     primaryManifestId,
                     profileId);
 
                 return AddToProfileResult.CreateSuccessWithSwap(
                     primaryManifestId,
                     contentName,
-                    swappedContentId,
-                    swappedContentName,
-                    swappedContentType,
+                    swapResult.SwappedContentId,
+                    swapResult.SwappedContentName,
+                    swapResult.SwappedContentType,
                     sw.Elapsed);
             }
 
@@ -267,6 +223,68 @@ public sealed class ProfileContentService(
         {
             logger.LogError(ex, "Failed to add content {ManifestId} to profile {ProfileId}", primaryManifestId, profileId);
             return AddToProfileResult.CreateFailure("Failed to add content. Please try again.", sw.Elapsed);
+        }
+    }
+
+    private async Task<(string? SwappedContentId, string? SwappedContentName, ContentType SwappedContentType)> ResolveContentSwapsAsync(
+        string profileId,
+        List<string> requestedIds,
+        List<string> enabledContentIds,
+        CancellationToken cancellationToken)
+    {
+        string? swappedContentId = null;
+        string? swappedContentName = null;
+        ContentType swappedContentType = ContentType.UnknownContentType;
+
+        foreach (var reqId in requestedIds)
+        {
+            var conflictInfo = await CheckContentConflictsAsync(profileId, reqId, cancellationToken);
+            if (conflictInfo.HasConflict && conflictInfo.CanAutoResolve && !string.IsNullOrEmpty(conflictInfo.ConflictingContentId))
+            {
+                enabledContentIds.Remove(conflictInfo.ConflictingContentId);
+                swappedContentId = conflictInfo.ConflictingContentId;
+                swappedContentName = conflictInfo.ConflictingContentName;
+                swappedContentType = conflictInfo.ConflictingContentType;
+
+                logger.LogInformation(
+                    "Swapping content: removing {OldContent} to add {NewContent}",
+                    swappedContentId,
+                    reqId);
+            }
+        }
+
+        foreach (var requestedId in requestedIds)
+        {
+            if (!enabledContentIds.Contains(requestedId, StringComparer.OrdinalIgnoreCase))
+            {
+                enabledContentIds.Add(requestedId);
+            }
+        }
+
+        return (swappedContentId, swappedContentName, swappedContentType);
+    }
+
+    private void NotifyNewlyAddedDependencies(
+        List<string> enabledContentIds,
+        HashSet<string> previousIds,
+        string contentName,
+        string primaryManifestId,
+        CancellationToken cancellationToken)
+    {
+        var newlyAdded = enabledContentIds
+            .Where(id => !previousIds.Contains(id))
+            .ToList();
+
+        if (newlyAdded.Count > 0)
+        {
+            Task.Run(async () =>
+            {
+                var dependencyNames = await GetDependencyNamesAsync(newlyAdded, cancellationToken);
+                logger.LogInformation("Resolved {Count} dependencies for {ManifestId}", newlyAdded.Count, primaryManifestId);
+                notificationService.ShowInfo(
+                    "Dependencies Added",
+                    $"Added required dependencies for '{contentName}': {string.Join(", ", dependencyNames)}");
+            });
         }
     }
 
@@ -486,79 +504,10 @@ public sealed class ProfileContentService(
                 ? CreatePublisherGameClient(requiredGameClient, gameClient, installation.Id)
                 : null;
 
-            // Standalone content (Executable / ModdingTool) does not require a GameInstallation or
-            // GameClient foundation. Skip injecting those manifests so CreateProfileAsync detects a
-            // tool profile and sets ToolContentId for direct launch.
-            CreateProfileRequest createRequest;
-            if (manifest.ContentType.IsStandalone())
-            {
-                logger.LogInformation("Creating standalone profile for {ManifestId} - skipping foundation injection", manifestId);
+            var createRequest = manifest.ContentType.IsStandalone()
+                ? BuildStandaloneCreateProfileRequest(profileName, manifest, manifestId, enabledContentIds)
+                : BuildStandardCreateProfileRequest(profileName, manifest, installation, gameClient, requiredGameType, requiredGameClient, profileGameClient, enabledContentIds);
 
-                // Keep only the tool (and any non-foundation deps already resolved). Drop any
-                // game-installation/client IDs that slipped in via RequireExisting resolution.
-                enabledContentIds = [.. enabledContentIds
-                    .Where(id =>
-                        !id.Contains(".gameinstallation.", StringComparison.OrdinalIgnoreCase) &&
-                        !id.Contains(".gameclient.", StringComparison.OrdinalIgnoreCase))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)];
-                if (!enabledContentIds.Contains(manifestId, StringComparer.OrdinalIgnoreCase))
-                {
-                    enabledContentIds.Add(manifestId);
-                }
-
-                createRequest = new CreateProfileRequest
-                {
-                    Name = profileName,
-                    EnabledContentIds = enabledContentIds,
-                    Description = $"Profile created with {manifest.Name}",
-                    ThemeColor = manifest.Metadata?.ThemeColor ?? GetThemeColorForPublisher(manifest.Publisher?.PublisherType, manifest.TargetGame),
-                    IconPath = PublisherInfoConstants.GetPublisherLogo(manifest.Publisher?.PublisherType ?? manifest.Publisher?.Name, $"{manifest.Id} {manifest.Name}")
-                               ?? (manifest.Metadata?.IconUrl != null && !manifest.Metadata.IconUrl.Contains("cover", StringComparison.OrdinalIgnoreCase) && !manifest.Metadata.IconUrl.Contains("poster", StringComparison.OrdinalIgnoreCase) ? manifest.Metadata.IconUrl : GetIconPathForGame(manifest.TargetGame)),
-                    CoverPath = manifest.Metadata?.CoverUrl ?? GetCoverPathForPublisher(manifest.Publisher?.PublisherType),
-                };
-            }
-            else
-            {
-                // Generate and add the GameInstallation manifest ID to enabled content
-                var gameInstallationManifestId = Core.Models.Manifest.ManifestIdGenerator.GenerateGameInstallationId(
-                    installation,
-                    requiredGameType,
-                    gameClient.Version); // Use the actual game version from the selected client
-
-                if (!enabledContentIds.Contains(gameInstallationManifestId, StringComparer.OrdinalIgnoreCase))
-                {
-                    enabledContentIds.Insert(0, gameInstallationManifestId); // Add at beginning for proper dependency order
-                    logger.LogInformation("Added GameInstallation manifest {ManifestId} to enabled content", gameInstallationManifestId);
-                }
-
-                // The dependency graph is authoritative. Use the installed client only when no
-                // publisher GameClient was selected or required transitively.
-                if (requiredGameClient == null &&
-                    !string.IsNullOrEmpty(gameClient.Id) &&
-                    !enabledContentIds.Contains(gameClient.Id, StringComparer.OrdinalIgnoreCase))
-                {
-                    enabledContentIds.Insert(1, gameClient.Id); // Add after GameInstallation
-                    logger.LogInformation("Added GameClient manifest {ManifestId} to enabled content", gameClient.Id);
-                }
-
-                // Publisher GameClients carry their own branding. Preserve it just as the
-                // established GameClientProfileService flow does, then fall back for legacy data.
-                createRequest = new CreateProfileRequest
-                {
-                    Name = profileName,
-                    GameInstallationId = installation.Id,
-                    GameClientId = profileGameClient?.Id ?? gameClient.Id,
-                    GameClient = profileGameClient,
-                    EnabledContentIds = enabledContentIds,
-                    Description = $"Profile created with {manifest.Name}",
-                    ThemeColor = manifest.Metadata?.ThemeColor ?? GetThemeColorForPublisher(manifest.Publisher?.PublisherType, manifest.TargetGame),
-                    IconPath = PublisherInfoConstants.GetPublisherLogo(manifest.Publisher?.PublisherType ?? manifest.Publisher?.Name, $"{manifest.Id} {manifest.Name}")
-                               ?? (manifest.Metadata?.IconUrl != null && !manifest.Metadata.IconUrl.Contains("cover", StringComparison.OrdinalIgnoreCase) && !manifest.Metadata.IconUrl.Contains("poster", StringComparison.OrdinalIgnoreCase) ? manifest.Metadata.IconUrl : GetIconPathForGame(manifest.TargetGame)),
-                    CoverPath = manifest.Metadata?.CoverUrl ?? GetCoverPathForPublisher(manifest.Publisher?.PublisherType),
-                };
-            }
-
-            // Create the profile
             var createResult = await profileManager.CreateProfileAsync(createRequest, cancellationToken);
             if (createResult.Failed)
             {
@@ -598,6 +547,82 @@ public sealed class ProfileContentService(
             logger.LogError(ex, "Failed to create profile '{ProfileName}' with content {ManifestId}", profileName, manifestId);
             return ProfileOperationResult<GameProfile>.CreateFailure("Failed to create profile. Please try again.");
         }
+    }
+
+    private CreateProfileRequest BuildStandaloneCreateProfileRequest(
+        string profileName,
+        ContentManifest manifest,
+        string manifestId,
+        List<string> enabledContentIds)
+    {
+        logger.LogInformation("Creating standalone profile for {ManifestId} - skipping foundation injection", manifestId);
+
+        var filteredIds = enabledContentIds
+            .Where(id =>
+                !id.Contains(".gameinstallation.", StringComparison.OrdinalIgnoreCase) &&
+                !id.Contains(".gameclient.", StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (!filteredIds.Contains(manifestId, StringComparer.OrdinalIgnoreCase))
+        {
+            filteredIds.Add(manifestId);
+        }
+
+        return new CreateProfileRequest
+        {
+            Name = profileName,
+            EnabledContentIds = filteredIds,
+            Description = $"Profile created with {manifest.Name}",
+            ThemeColor = manifest.Metadata?.ThemeColor ?? GetThemeColorForPublisher(manifest.Publisher?.PublisherType, manifest.TargetGame),
+            IconPath = PublisherInfoConstants.GetPublisherLogo(manifest.Publisher?.PublisherType ?? manifest.Publisher?.Name, $"{manifest.Id} {manifest.Name}")
+                       ?? (manifest.Metadata?.IconUrl != null && !manifest.Metadata.IconUrl.Contains("cover", StringComparison.OrdinalIgnoreCase) && !manifest.Metadata.IconUrl.Contains("poster", StringComparison.OrdinalIgnoreCase) ? manifest.Metadata.IconUrl : GetIconPathForGame(manifest.TargetGame)),
+            CoverPath = manifest.Metadata?.CoverUrl ?? GetCoverPathForPublisher(manifest.Publisher?.PublisherType),
+        };
+    }
+
+    private CreateProfileRequest BuildStandardCreateProfileRequest(
+        string profileName,
+        ContentManifest manifest,
+        Core.Models.GameInstallations.GameInstallation installation,
+        GameClient gameClient,
+        GameType requiredGameType,
+        ContentManifest? requiredGameClient,
+        GameClient? profileGameClient,
+        List<string> enabledContentIds)
+    {
+        var gameInstallationManifestId = Core.Models.Manifest.ManifestIdGenerator.GenerateGameInstallationId(
+            installation,
+            requiredGameType,
+            gameClient.Version);
+
+        if (!enabledContentIds.Contains(gameInstallationManifestId, StringComparer.OrdinalIgnoreCase))
+        {
+            enabledContentIds.Insert(0, gameInstallationManifestId);
+            logger.LogInformation("Added GameInstallation manifest {ManifestId} to enabled content", gameInstallationManifestId);
+        }
+
+        if (requiredGameClient == null &&
+            !string.IsNullOrEmpty(gameClient.Id) &&
+            !enabledContentIds.Contains(gameClient.Id, StringComparer.OrdinalIgnoreCase))
+        {
+            enabledContentIds.Insert(1, gameClient.Id);
+            logger.LogInformation("Added GameClient manifest {ManifestId} to enabled content", gameClient.Id);
+        }
+
+        return new CreateProfileRequest
+        {
+            Name = profileName,
+            GameInstallationId = installation.Id,
+            GameClientId = profileGameClient?.Id ?? gameClient.Id,
+            GameClient = profileGameClient,
+            EnabledContentIds = enabledContentIds,
+            Description = $"Profile created with {manifest.Name}",
+            ThemeColor = manifest.Metadata?.ThemeColor ?? GetThemeColorForPublisher(manifest.Publisher?.PublisherType, manifest.TargetGame),
+            IconPath = PublisherInfoConstants.GetPublisherLogo(manifest.Publisher?.PublisherType ?? manifest.Publisher?.Name, $"{manifest.Id} {manifest.Name}")
+                       ?? (manifest.Metadata?.IconUrl != null && !manifest.Metadata.IconUrl.Contains("cover", StringComparison.OrdinalIgnoreCase) && !manifest.Metadata.IconUrl.Contains("poster", StringComparison.OrdinalIgnoreCase) ? manifest.Metadata.IconUrl : GetIconPathForGame(manifest.TargetGame)),
+            CoverPath = manifest.Metadata?.CoverUrl ?? GetCoverPathForPublisher(manifest.Publisher?.PublisherType),
+        };
     }
 
     /// <summary>

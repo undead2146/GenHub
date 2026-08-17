@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -49,30 +50,9 @@ public class ModDBResolver(
         {
             logger.LogInformation("Resolving ModDB content from {Url}", discoveredItem.SourceUrl);
 
-            // A detail view already has the rich page data required to select its file. Reuse it
-            // instead of treating the selected binary URL as a new detail page and reloading all
-            // images, videos, reviews, and releases during an acquisition.
-            var parsedPage = discoveredItem.ParsedPageData ?? discoveredItem.GetData<ParsedWebPage>();
-            if (parsedPage == null)
-            {
-                // A FileDetail URL reached acquisition without a detail-view parse (e.g. a grid-card
-                // download). Use the file-only fast path so the parent mod's seven section pages are
-                // not fetched just to resolve a single binary.
-                var isFileDetail = discoveredItem.SourceUrl.Contains("/mods/", StringComparison.OrdinalIgnoreCase)
-                    && (discoveredItem.SourceUrl.Contains("/downloads/", StringComparison.OrdinalIgnoreCase)
-                        || discoveredItem.SourceUrl.Contains("/addons/", StringComparison.OrdinalIgnoreCase));
+            var parsedPage = await EnsureParsedPageAsync(discoveredItem, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
 
-                parsedPage = isFileDetail
-                    ? await webPageParser.ParseFileDetailAsync(discoveredItem.SourceUrl, cancellationToken)
-                    : await webPageParser.ParseAsync(discoveredItem.SourceUrl, cancellationToken);
-                cancellationToken.ThrowIfCancellationRequested();
-
-                // Store the parsed page in the discovered item for UI display and later reuse.
-                discoveredItem.ParsedPageData = parsedPage;
-                discoveredItem.SetData(parsedPage);
-            }
-
-            // Extract all files from the parsed page ordered newest first (by release date descending, then version descending)
             var allFiles = parsedPage.Sections.OfType<DownloadableFile>()
                 .OrderByDescending(file => file.ReleaseDate ?? file.UploadDate ?? DateTime.MinValue)
                 .ThenByDescending(file => file.Version, StringComparer.OrdinalIgnoreCase)
@@ -84,84 +64,18 @@ public class ModDBResolver(
                     "ModDB is blocking automated access from this machine, so the download link could not be retrieved. Use 'View on Website' to download it in your browser.");
             }
 
-            // Create separate manifests for each file based on FileSectionType and release date
-            DownloadableFile? primaryFile = null;
-
-            if (!string.IsNullOrWhiteSpace(discoveredItem.SelectedDownloadUrl))
-            {
-                primaryFile = allFiles.FirstOrDefault(file => string.Equals(
-                    file.DownloadUrl,
-                    discoveredItem.SelectedDownloadUrl,
-                    StringComparison.OrdinalIgnoreCase));
-
-                primaryFile ??= allFiles.FirstOrDefault(file => !string.IsNullOrEmpty(file.DetailsUrl) && string.Equals(
-                    file.DetailsUrl,
-                    discoveredItem.SelectedDownloadUrl,
-                    StringComparison.OrdinalIgnoreCase));
-
-                if (primaryFile == null && !string.IsNullOrWhiteSpace(discoveredItem.Name))
-                {
-                    primaryFile = allFiles.FirstOrDefault(file => string.Equals(
-                        file.Name,
-                        discoveredItem.Name,
-                        StringComparison.OrdinalIgnoreCase));
-                }
-            }
-
-            primaryFile ??= allFiles.FirstOrDefault(file => file.FileSectionType == FileSectionType.Downloads) ?? allFiles.FirstOrDefault();
-
+            var primaryFile = SelectPrimaryFile(allFiles, discoveredItem);
             if (primaryFile == null)
             {
                 return OperationResult<ContentManifest>.CreateFailure("The selected ModDB download is no longer available on the content page.");
             }
 
-            // If the discovered item already provided a direct download URL (e.g. preloaded /start/ URL), apply it
-            if (!string.IsNullOrWhiteSpace(discoveredItem.SelectedDownloadUrl) &&
-                ModDBPageParser.IsDirectDownloadUrl(discoveredItem.SelectedDownloadUrl))
-            {
-                primaryFile = primaryFile with { DownloadUrl = discoveredItem.SelectedDownloadUrl };
-            }
+            primaryFile = await ResolveDetailedPrimaryFileAsync(primaryFile, discoveredItem, cancellationToken);
 
-            // If the primary file only has a shallow listing URL rather than a direct download URL,
-            // resolve its detail page to retrieve the actual /start/ URL, exact file size, and MD5 hash.
-            if (!ModDBPageParser.IsDirectDownloadUrl(primaryFile.DownloadUrl))
-            {
-                var detailUrl = primaryFile.DetailsUrl ?? primaryFile.DownloadUrl;
-                if (!string.IsNullOrWhiteSpace(detailUrl))
-                {
-                    logger.LogInformation("Resolving ModDB file detail for {Name} from {Url}", primaryFile.Name, detailUrl);
-                    var detailPage = await webPageParser.ParseFileDetailAsync(detailUrl, cancellationToken);
-                    var detailedFile = detailPage?.Sections?.OfType<DownloadableFile>()?.FirstOrDefault();
-                    if (detailedFile != null)
-                    {
-                        primaryFile = detailedFile;
-                    }
-                }
-            }
-
-            // Convert the file to MapDetails for the manifest factory
             var mapDetails = ConvertFileToMapDetails(primaryFile, parsedPage, discoveredItem);
-
-            // Use the factory to create the manifest
             var manifest = await manifestFactory.CreateManifestAsync(mapDetails, discoveredItem.SourceUrl, cancellationToken);
 
-            // Store file section type and release date in metadata for UI filtering
-            if (manifest.Metadata != null && primaryFile.ReleaseDate.HasValue)
-            {
-                // Add release date as a tag for filtering
-                var releaseDateTag = $"release-date:{primaryFile.ReleaseDate.Value:yyyy-MM-dd}";
-                if (!manifest.Metadata.Tags.Contains(releaseDateTag))
-                {
-                    manifest.Metadata.Tags.Add(releaseDateTag);
-                }
-
-                // Add file section type as a tag for filtering
-                var sectionTypeTag = $"section:{primaryFile.FileSectionType.ToString().ToLowerInvariant()}";
-                if (!manifest.Metadata.Tags.Contains(sectionTypeTag))
-                {
-                    manifest.Metadata.Tags.Add(sectionTypeTag);
-                }
-            }
+            ApplyManifestTags(manifest, primaryFile);
 
             logger.LogInformation(
                 "Successfully resolved ModDB content: {ManifestId} - {Name} (Section: {Section}, ReleaseDate: {ReleaseDate})",
@@ -184,11 +98,113 @@ public class ModDBResolver(
         }
     }
 
+    private async Task<ParsedWebPage> EnsureParsedPageAsync(
+        ContentSearchResult discoveredItem,
+        CancellationToken cancellationToken)
+    {
+        var parsedPage = discoveredItem.ParsedPageData ?? discoveredItem.GetData<ParsedWebPage>();
+        if (parsedPage != null)
+        {
+            return parsedPage;
+        }
+
+        var isFileDetail = discoveredItem.SourceUrl!.Contains("/mods/", StringComparison.OrdinalIgnoreCase)
+            && (discoveredItem.SourceUrl.Contains("/downloads/", StringComparison.OrdinalIgnoreCase)
+                || discoveredItem.SourceUrl.Contains("/addons/", StringComparison.OrdinalIgnoreCase));
+
+        parsedPage = isFileDetail
+            ? await webPageParser.ParseFileDetailAsync(discoveredItem.SourceUrl, cancellationToken)
+            : await webPageParser.ParseAsync(discoveredItem.SourceUrl, cancellationToken);
+
+        discoveredItem.ParsedPageData = parsedPage;
+        discoveredItem.SetData(parsedPage);
+        return parsedPage;
+    }
+
+    private DownloadableFile? SelectPrimaryFile(
+        List<DownloadableFile> allFiles,
+        ContentSearchResult discoveredItem)
+    {
+        DownloadableFile? primaryFile = null;
+
+        if (!string.IsNullOrWhiteSpace(discoveredItem.SelectedDownloadUrl))
+        {
+            primaryFile = allFiles.FirstOrDefault(file => string.Equals(
+                file.DownloadUrl,
+                discoveredItem.SelectedDownloadUrl,
+                StringComparison.OrdinalIgnoreCase));
+
+            primaryFile ??= allFiles.FirstOrDefault(file => !string.IsNullOrEmpty(file.DetailsUrl) && string.Equals(
+                file.DetailsUrl,
+                discoveredItem.SelectedDownloadUrl,
+                StringComparison.OrdinalIgnoreCase));
+
+            if (primaryFile == null && !string.IsNullOrWhiteSpace(discoveredItem.Name))
+            {
+                primaryFile = allFiles.FirstOrDefault(file => string.Equals(
+                    file.Name,
+                    discoveredItem.Name,
+                    StringComparison.OrdinalIgnoreCase));
+            }
+        }
+
+        return primaryFile ?? allFiles.FirstOrDefault(file => file.FileSectionType == FileSectionType.Downloads) ?? allFiles.FirstOrDefault();
+    }
+
+    private async Task<DownloadableFile> ResolveDetailedPrimaryFileAsync(
+        DownloadableFile primaryFile,
+        ContentSearchResult discoveredItem,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(discoveredItem.SelectedDownloadUrl) &&
+            ModDBPageParser.IsDirectDownloadUrl(discoveredItem.SelectedDownloadUrl))
+        {
+            primaryFile = primaryFile with { DownloadUrl = discoveredItem.SelectedDownloadUrl };
+        }
+
+        if (!ModDBPageParser.IsDirectDownloadUrl(primaryFile.DownloadUrl))
+        {
+            var detailUrl = primaryFile.DetailsUrl ?? primaryFile.DownloadUrl;
+            if (!string.IsNullOrWhiteSpace(detailUrl))
+            {
+                logger.LogInformation("Resolving ModDB file detail for {Name} from {Url}", primaryFile.Name, detailUrl);
+                var detailPage = await webPageParser.ParseFileDetailAsync(detailUrl, cancellationToken);
+                var detailedFile = detailPage?.Sections?.OfType<DownloadableFile>()?.FirstOrDefault();
+                if (detailedFile != null)
+                {
+                    primaryFile = detailedFile;
+                }
+            }
+        }
+
+        return primaryFile;
+    }
+
+    private void ApplyManifestTags(ContentManifest manifest, DownloadableFile primaryFile)
+    {
+        if (manifest.Metadata == null || !primaryFile.ReleaseDate.HasValue)
+        {
+            return;
+        }
+
+        var releaseDateTag = $"release-date:{primaryFile.ReleaseDate.Value:yyyy-MM-dd}";
+        if (!manifest.Metadata.Tags.Contains(releaseDateTag))
+        {
+            manifest.Metadata.Tags.Add(releaseDateTag);
+        }
+
+        var sectionTypeTag = $"section:{primaryFile.FileSectionType.ToString().ToLowerInvariant()}";
+        if (!manifest.Metadata.Tags.Contains(sectionTypeTag))
+        {
+            manifest.Metadata.Tags.Add(sectionTypeTag);
+        }
+    }
+
     /// <summary>
     /// Converts a single file from the parsed page to MapDetails for the manifest factory.
     /// Uses the file's release date and FileSectionType to create unique manifest IDs.
     /// </summary>
-    private static MapDetails ConvertFileToMapDetails(
+    private MapDetails ConvertFileToMapDetails(
         DownloadableFile file,
         ParsedWebPage parsedPage,
         ContentSearchResult discoveredItem)

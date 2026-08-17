@@ -74,7 +74,6 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     ];
 
     private static bool HasShownFirstLoadNotification { get; set; }
-
     private static string NormalizeResourcePath(string? path, string defaultUri)
     {
         if (string.IsNullOrWhiteSpace(path)) return defaultUri;
@@ -206,6 +205,8 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         return DependencyResolver.HasCompatibleCatalogIdentity(declaredParts, availableParts);
     }
 
+    private static bool _hasShownFirstLoadNotification;
+
     private readonly IGameProfileManager? _gameProfileManager;
     private readonly IGameSettingsService? _gameSettingsService;
     private readonly IConfigurationProviderService? _configurationProvider;
@@ -219,7 +220,6 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     private readonly IDialogService? _dialogService;
     private readonly ILogger<GameProfileSettingsViewModel>? _logger;
     private readonly ILogger<GameSettingsViewModel>? _gameSettingsLogger;
-
     private readonly NotificationService _localNotificationService = new(NullLogger<NotificationService>.Instance);
 
     private WorkspaceStrategy? OriginalWorkspaceStrategy { get; set; }
@@ -625,8 +625,11 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
 
     private async Task ResolveContentDependencyAsync(ContentDependency dependency)
     {
-        bool alreadyEnabled = dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId
-            ? EnabledContent.Any(x => x.ManifestId.Value == dependency.Id.ToString())
+        var declaredId = dependency.Id.ToString();
+        bool alreadyEnabled = declaredId != ManifestConstants.DefaultContentDependencyId
+            ? EnabledContent.Any(x => x.ManifestId.Value == declaredId ||
+                (x.ContentType == dependency.DependencyType &&
+                 HasCompatibleCatalogMatch(declaredId, x.ManifestId.Value)))
             : EnabledContent.Any(x => x.ContentType == dependency.DependencyType);
 
         if (alreadyEnabled || dependency.IsOptional || _profileContentLoader == null) return;
@@ -644,9 +647,14 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
             EnabledContent.Select(x => x.ManifestId.Value));
 
         Core.Models.Content.ContentDisplayItem? match = null;
-        if (dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId)
+        if (declaredId != ManifestConstants.DefaultContentDependencyId)
         {
-            match = availableOfTargetType.FirstOrDefault(x => x.ManifestId == dependency.Id.ToString());
+            match = availableOfTargetType.FirstOrDefault(x => x.ManifestId == declaredId)
+                ?? availableOfTargetType.FirstOrDefault(x => HasCompatibleCatalogMatch(declaredId, x.ManifestId));
+        }
+        else
+        {
+            match = availableOfTargetType.FirstOrDefault(x => x.ContentType == dependency.DependencyType);
         }
 
         if (match != null)
@@ -688,16 +696,6 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
                     ValidateSingleDependencyWarning(manifest, dependency, manifestsById, manifestsByType, enabledContentByType, warnings);
                 }
             }
-
-            if (warnings.Count > 0)
-            {
-                _localNotificationService.ShowWarning("Dependency Warning", $"After enabling '{justEnabledContentName}':\n• {string.Join("\n• ", warnings)}", 15000);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "Error during dependency validation");
-        }
     }
 
     private async Task<List<string>> ValidateAllDependenciesAsync(List<string> enabledContentIds)

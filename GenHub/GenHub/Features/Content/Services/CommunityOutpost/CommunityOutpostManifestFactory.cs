@@ -528,197 +528,61 @@ public class CommunityOutpostManifestFactory(
             logger.LogDebug("Found {FileCount} files in extracted directory", allFiles.Length);
 
             var fileEntries = new List<ManifestFile>();
-
-            var dependencyBigFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var dependency in contentMetadata.GetDependencies()
-                         .Where(d => d.InstallBehavior == DependencyInstallBehavior.AutoInstall))
-            {
-                var depId = dependency.Id.Value;
-                var lastDot = depId.LastIndexOf('.');
-                if (lastDot > -1 && lastDot < depId.Length - 1)
-                {
-                    var depCode = depId[(lastDot + 1)..];
-                    var depMetadata = GenPatcherContentRegistry.GetMetadata(depCode);
-                    if (!string.IsNullOrEmpty(depMetadata.OutputFilename))
-                    {
-                        dependencyBigFiles.Add(depMetadata.OutputFilename);
-                    }
-                }
-            }
+            var dependencyBigFiles = CollectDependencyBigFiles(contentMetadata);
 
             var alwaysIncludeFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (contentMetadata.Category == GenPatcherContentCategory.ControlBar)
             {
-                // Small metadata BIG included alongside variant-specific files in GenPatcher builds
                 alwaysIncludeFiles.Add("340_ControlBarProZH.big");
             }
 
-            var controlBarRepackedOutputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var isControlBarVariant = contentMetadata.Category == GenPatcherContentCategory.ControlBar &&
                                       contentMetadata.SupportsVariants &&
                                       variant != null;
 
-            if (isControlBarVariant)
-            {
-                var processor = controlBarProcessor;
-
-                if (processor != null)
-                {
-                    var repacked = await processor.ProcessAndRepackControlBarAsync(
-                        extractedDirectory,
-                        originalManifest,
-                        variant!.Id,
-                        cancellationToken);
-                    foreach (var f in repacked)
-                    {
-                        controlBarRepackedOutputs.Add(f);
-                    }
-                }
-            }
+            var controlBarRepackedOutputs = await ProcessControlBarRepackingAsync(
+                extractedDirectory,
+                originalManifest,
+                variant,
+                isControlBarVariant,
+                cancellationToken);
 
             if (controlBarRepackedOutputs.Count > 0)
             {
                 allFiles = Directory.GetFiles(extractedDirectory, "*.*", SearchOption.AllDirectories);
             }
 
-            var hasVariantBigFiles = false;
-            if (variant != null)
-            {
-                foreach (var path in allFiles)
-                {
-                    var name = Path.GetFileName(path);
-                    if (!name.EndsWith(".big", StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-
-                    if (controlBarRepackedOutputs.Contains(name) ||
-                        alwaysIncludeFiles.Contains(name) ||
-                        dependencyBigFiles.Contains(name))
-                    {
-                        hasVariantBigFiles = true;
-                        break;
-                    }
-
-                    var normalized = name.ToLowerInvariant();
-                    if (variant.IncludePatterns?.Any(p => GetCachedRegex(p.ToLowerInvariant()).IsMatch(normalized)) == true)
-                    {
-                        hasVariantBigFiles = true;
-                        break;
-                    }
-                }
-            }
+            var hasVariantBigFiles = CheckHasVariantBigFiles(
+                allFiles,
+                variant,
+                controlBarRepackedOutputs,
+                alwaysIncludeFiles,
+                dependencyBigFiles);
 
             foreach (var fullPath in allFiles)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var relativePath = Path.GetRelativePath(extractedDirectory, fullPath);
-
                 var fileName = Path.GetFileName(relativePath);
                 var normalizedPath = relativePath.Replace('\\', '/').ToLowerInvariant();
-                var isDependencyBig = dependencyBigFiles.Contains(fileName);
-                var isAlwaysInclude = alwaysIncludeFiles.Contains(fileName);
-                var isControlBarVariantFile = isControlBarVariant;
-                var isRepackedOutput = controlBarRepackedOutputs.Contains(fileName);
 
-                if (isControlBarVariantFile && controlBarRepackedOutputs.Count > 0 &&
-                    !isRepackedOutput && !isDependencyBig && !isAlwaysInclude)
+                if (!ShouldIncludeFile(
+                    fileName,
+                    normalizedPath,
+                    relativePath,
+                    variant,
+                    dependencyBigFiles,
+                    alwaysIncludeFiles,
+                    controlBarRepackedOutputs,
+                    isControlBarVariant,
+                    hasVariantBigFiles))
                 {
-                    logger.LogDebug(
-                        "Skipping file {File} because control bar variant is repacked into Art/Data BIG files",
-                        relativePath);
                     continue;
                 }
 
-                if (isControlBarVariantFile && hasVariantBigFiles && !fileName.EndsWith(".big", StringComparison.OrdinalIgnoreCase))
-                {
-                    logger.LogDebug(
-                        "Skipping non-BIG file {File} for control bar variant {Variant}",
-                        relativePath,
-                        variant!.Name);
-                    continue;
-                }
-
-                // Filter files based on variant patterns if variant is specified
-                if (variant != null)
-                {
-                    // Check if file matches include patterns
-                    bool matchesInclude = false;
-                    if (variant.IncludePatterns is { Count: > 0 })
-                    {
-                        foreach (var pattern in variant.IncludePatterns)
-                        {
-                            var regex = GetCachedRegex(pattern);
-
-                            if (regex.IsMatch(fileName) || regex.IsMatch(normalizedPath))
-                            {
-                                matchesInclude = true;
-                                break;
-                            }
-                        }
-
-                        // If include patterns exist but file doesn't match any, skip it
-                        // UNLESS it's a dependency/base file or an always-include file
-                        // File matching logic:
-                        // 1. Matches inclusion pattern
-                        // 2. OR: Starts with '!' (Special GenPatcher prefix for mandatory files like hotkeys)
-                        // 3. AND: Is not a dependency BIG or always-include BIG (handled separately)
-                        if (!matchesInclude && !isDependencyBig && !isAlwaysInclude)
-                        {
-                            logger.LogDebug("Skipping file {File} - does not match variant {Variant} include patterns", relativePath, variant.Name);
-                            continue;
-                        }
-                    }
-
-                    // Check if file matches exclude patterns
-                    if (variant.ExcludePatterns is { Count: > 0 })
-                    {
-                        bool matchesExclude = false;
-                        foreach (var pattern in variant.ExcludePatterns)
-                        {
-                            var regex = GetCachedRegex(pattern);
-
-                            if (regex.IsMatch(fileName) || regex.IsMatch(normalizedPath))
-                            {
-                                matchesExclude = true;
-                                break;
-                            }
-                        }
-
-                        if (matchesExclude && !isDependencyBig && !isAlwaysInclude)
-                        {
-                            logger.LogDebug("Skipping file {File} - matches variant {Variant} exclude pattern", relativePath, variant.Name);
-                            continue;
-                        }
-                    }
-                }
-
-                var hash = await hashProvider.ComputeFileHashAsync(fullPath, cancellationToken);
-                var fileSize = new FileInfo(fullPath).Length;
-                var isExecutable = relativePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
-
-                // Determine install target for this file
-                var fileInstallTarget = DetermineFileInstallTarget(
-                    relativePath,
-                    contentMetadata.InstallTarget);
-
-                fileEntries.Add(new ManifestFile
-                {
-                    RelativePath = relativePath,
-                    Hash = hash,
-                    Size = fileSize,
-                    IsExecutable = isExecutable,
-                    SourceType = ContentSourceType.ExtractedPackage,
-                    SourcePath = fullPath,
-                    InstallTarget = fileInstallTarget,
-                });
-
-                logger.LogDebug(
-                    "Added file: {Path} (Size: {Size} bytes, InstallTarget: {Target})",
-                    relativePath,
-                    fileSize,
-                    fileInstallTarget);
+                var entry = await CreateManifestFileEntryAsync(fullPath, relativePath, contentMetadata, cancellationToken);
+                fileEntries.Add(entry);
             }
 
             // Create variant-specific manifest ID and name if variant is provided
@@ -861,5 +725,180 @@ public class CommunityOutpostManifestFactory(
             logger.LogError(ex, "Failed to build manifest for {Name}", originalManifest.Name);
             return null;
         }
+    }
+
+    private HashSet<string> CollectDependencyBigFiles(GenPatcherContentMetadata contentMetadata)
+    {
+        var dependencyBigFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var dependency in contentMetadata.GetDependencies()
+                     .Where(d => d.InstallBehavior == DependencyInstallBehavior.AutoInstall))
+        {
+            var depId = dependency.Id.Value;
+            var lastDot = depId.LastIndexOf('.');
+            if (lastDot > -1 && lastDot < depId.Length - 1)
+            {
+                var depCode = depId[(lastDot + 1)..];
+                var depMetadata = GenPatcherContentRegistry.GetMetadata(depCode);
+                if (!string.IsNullOrEmpty(depMetadata.OutputFilename))
+                {
+                    dependencyBigFiles.Add(depMetadata.OutputFilename);
+                }
+            }
+        }
+
+        return dependencyBigFiles;
+    }
+
+    private async Task<HashSet<string>> ProcessControlBarRepackingAsync(
+        string extractedDirectory,
+        ContentManifest originalManifest,
+        ContentVariant? variant,
+        bool isControlBarVariant,
+        CancellationToken cancellationToken)
+    {
+        var controlBarRepackedOutputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!isControlBarVariant || variant == null)
+        {
+            return controlBarRepackedOutputs;
+        }
+
+        var processor = controlBarProcessor;
+        if (processor != null)
+        {
+            var repacked = await processor.ProcessAndRepackControlBarAsync(
+                extractedDirectory,
+                originalManifest,
+                variant.Id,
+                cancellationToken);
+            foreach (var f in repacked)
+            {
+                controlBarRepackedOutputs.Add(f);
+            }
+        }
+
+        return controlBarRepackedOutputs;
+    }
+
+    private bool CheckHasVariantBigFiles(
+        string[] allFiles,
+        ContentVariant? variant,
+        HashSet<string> controlBarRepackedOutputs,
+        HashSet<string> alwaysIncludeFiles,
+        HashSet<string> dependencyBigFiles)
+    {
+        if (variant == null)
+        {
+            return false;
+        }
+
+        foreach (var path in allFiles)
+        {
+            var name = Path.GetFileName(path);
+            if (!name.EndsWith(".big", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (controlBarRepackedOutputs.Contains(name) ||
+                alwaysIncludeFiles.Contains(name) ||
+                dependencyBigFiles.Contains(name))
+            {
+                return true;
+            }
+
+            var normalized = name.ToLowerInvariant();
+            if (variant.IncludePatterns?.Any(p => GetCachedRegex(p.ToLowerInvariant()).IsMatch(normalized)) == true)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool ShouldIncludeFile(
+        string fileName,
+        string normalizedPath,
+        string relativePath,
+        ContentVariant? variant,
+        HashSet<string> dependencyBigFiles,
+        HashSet<string> alwaysIncludeFiles,
+        HashSet<string> controlBarRepackedOutputs,
+        bool isControlBarVariant,
+        bool hasVariantBigFiles)
+    {
+        var isDependencyBig = dependencyBigFiles.Contains(fileName);
+        var isAlwaysInclude = alwaysIncludeFiles.Contains(fileName);
+        var isRepackedOutput = controlBarRepackedOutputs.Contains(fileName);
+
+        if (isControlBarVariant && controlBarRepackedOutputs.Count > 0 &&
+            !isRepackedOutput && !isDependencyBig && !isAlwaysInclude)
+        {
+            return false;
+        }
+
+        if (isControlBarVariant && hasVariantBigFiles && !fileName.EndsWith(".big", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (variant != null)
+        {
+            if (variant.IncludePatterns is { Count: > 0 })
+            {
+                var matchesInclude = variant.IncludePatterns.Any(pattern =>
+                {
+                    var regex = GetCachedRegex(pattern);
+                    return regex.IsMatch(fileName) || regex.IsMatch(normalizedPath);
+                });
+
+                if (!matchesInclude && !isDependencyBig && !isAlwaysInclude)
+                {
+                    return false;
+                }
+            }
+
+            if (variant.ExcludePatterns is { Count: > 0 })
+            {
+                var matchesExclude = variant.ExcludePatterns.Any(pattern =>
+                {
+                    var regex = GetCachedRegex(pattern);
+                    return regex.IsMatch(fileName) || regex.IsMatch(normalizedPath);
+                });
+
+                if (matchesExclude && !isDependencyBig && !isAlwaysInclude)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private async Task<ManifestFile> CreateManifestFileEntryAsync(
+        string fullPath,
+        string relativePath,
+        GenPatcherContentMetadata contentMetadata,
+        CancellationToken cancellationToken)
+    {
+        var hash = await hashProvider.ComputeFileHashAsync(fullPath, cancellationToken);
+        var fileSize = new FileInfo(fullPath).Length;
+        var isExecutable = relativePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+
+        var fileInstallTarget = DetermineFileInstallTarget(
+            relativePath,
+            contentMetadata.InstallTarget);
+
+        return new ManifestFile
+        {
+            RelativePath = relativePath,
+            Hash = hash,
+            Size = fileSize,
+            IsExecutable = isExecutable,
+            SourceType = ContentSourceType.ExtractedPackage,
+            SourcePath = fullPath,
+            InstallTarget = fileInstallTarget,
+        };
     }
 }

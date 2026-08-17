@@ -85,48 +85,12 @@ public sealed partial class ContentStateService(
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        // 0. Fast paths that avoid prospective-ID guessing:
-        //    (a) the item's ID may already BE a manifest ID (updated after a download);
-        //    (b) a download this session may have mapped the catalog ID to a manifest ID.
-        //    IsManifestAcquiredAsync must only ever receive validated manifest IDs because the
-        //    string-to-ManifestId conversion throws on invalid input.
-        if (!string.IsNullOrEmpty(item.Id))
+        if (await CheckDirectSessionManifestFastPathAsync(item, cancellationToken))
         {
-            if (ManifestIdValidator.IsValid(item.Id!, out _))
-            {
-                var direct = await manifestPool.IsManifestAcquiredAsync(item.Id!, cancellationToken);
-                if (direct.Success && direct.Data)
-                {
-                    return ContentState.Downloaded;
-                }
-            }
-
-            if (_sessionDownloads.TryGetValue(item.Id!, out var sessionManifestId))
-            {
-                var mapped = await manifestPool.IsManifestAcquiredAsync(sessionManifestId, cancellationToken);
-                if (mapped.Success && mapped.Data)
-                {
-                    return ContentState.Downloaded;
-                }
-            }
+            return ContentState.Downloaded;
         }
 
-        // 1. Determine whether a real release date is available.
-        bool hasRealDate = item.LastUpdated.HasValue && item.LastUpdated.Value > DateTime.MinValue;
-        var releaseDate = hasRealDate ? item.LastUpdated!.Value : DateTime.MinValue;
-
-        // 2. Resolve the raw content name, falling back to Id as last resort.
-        var providerName = string.IsNullOrWhiteSpace(item.ProviderName) ? "unknown" : item.ProviderName;
-        var contentName = item.Name;
-        if (string.IsNullOrWhiteSpace(contentName))
-        {
-            contentName = string.IsNullOrWhiteSpace(item.Id) ? "unknown" : item.Id;
-        }
-
-        // 3. Generate prospective manifest ID.
-        var prospectiveId = hasRealDate
-            ? ManifestIdGenerator.GeneratePublisherContentId(providerName, item.ContentType, contentName, releaseDate)
-            : ManifestIdGenerator.GeneratePublisherContentId(providerName, item.ContentType, contentName, userVersion: 0);
+        var (prospectiveId, releaseDate, hasRealDate) = DetermineProspectiveManifestId(item);
 
         logger.LogInformation(
             "Generated prospective manifest ID: {ManifestId} for content: {ContentName} (hasRealDate: {HasDate})",
@@ -137,39 +101,9 @@ public sealed partial class ContentStateService(
         var persistedManifest = await FindPersistedManifestAsync(item, cancellationToken);
         if (persistedManifest != null)
         {
-            if (hasRealDate &&
-                releaseDate > DateTime.MinValue &&
-                IsNewerVersion(prospectiveId, persistedManifest.Id.Value, item.Version, persistedManifest.Version))
-            {
-                logger.LogInformation(
-                    "Content {ContentName} has an update available (local persisted: {LocalId})",
-                    item.Name,
-                    persistedManifest.Id.Value);
-                return ContentState.UpdateAvailable;
-            }
-
-            if (hasRealDate &&
-                releaseDate > DateTime.MinValue &&
-                IsNewerVersion(persistedManifest.Id.Value, prospectiveId, persistedManifest.Version, item.Version))
-            {
-                var exactResult = await manifestPool.IsManifestAcquiredAsync(prospectiveId, cancellationToken);
-                if (exactResult.Success && exactResult.Data)
-                {
-                    return ContentState.Downloaded;
-                }
-
-                logger.LogInformation(
-                    "Content {ContentName} is not downloaded (local is newer: {LocalId}, prospective: {ProspectiveId})",
-                    item.Name,
-                    persistedManifest.Id.Value,
-                    prospectiveId);
-                return ContentState.NotDownloaded;
-            }
-
-            return ContentState.Downloaded;
+            return await EvaluatePersistedManifestStateAsync(persistedManifest, prospectiveId, releaseDate, hasRealDate, item, cancellationToken);
         }
 
-        // 4. Check if exact match exists (fast path).
         var isAcquiredResult = await manifestPool.IsManifestAcquiredAsync(prospectiveId, cancellationToken);
         if (isAcquiredResult.Success && isAcquiredResult.Data)
         {
@@ -177,9 +111,6 @@ public sealed partial class ContentStateService(
             return ContentState.Downloaded;
         }
 
-        // 5. Find ANY matching manifest by publisher+type+name, ignoring version.
-        //    For dateless content, pass DateTime.MinValue so FindMatchingManifestAsync
-        //    skips the update-available comparison entirely.
         var (matchingManifest, isNewerAvailable, isOlderAvailable) = await FindMatchingManifestAsync(
             prospectiveId,
             releaseDate,
@@ -189,41 +120,138 @@ public sealed partial class ContentStateService(
 
         if (matchingManifest != null)
         {
-            if (isNewerAvailable)
+            return await EvaluateMatchingManifestStateAsync(matchingManifest, prospectiveId, isNewerAvailable, isOlderAvailable, item, cancellationToken);
+        }
+
+        logger.LogInformation("Content {ContentName} is not downloaded", item.Name);
+        return ContentState.NotDownloaded;
+    }
+
+    private async Task<bool> CheckDirectSessionManifestFastPathAsync(ContentSearchResult item, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(item.Id))
+        {
+            return false;
+        }
+
+        if (ManifestIdValidator.IsValid(item.Id!, out _))
+        {
+            var direct = await manifestPool.IsManifestAcquiredAsync(item.Id!, cancellationToken);
+            if (direct.Success && direct.Data)
             {
-                logger.LogInformation(
-                    "Content {ContentName} has an update available (local: {LocalId})",
-                    item.Name,
-                    matchingManifest.Id.Value);
-                return ContentState.UpdateAvailable;
+                return true;
             }
+        }
 
-            if (isOlderAvailable)
+        if (_sessionDownloads.TryGetValue(item.Id!, out var sessionManifestId))
+        {
+            var mapped = await manifestPool.IsManifestAcquiredAsync(sessionManifestId, cancellationToken);
+            if (mapped.Success && mapped.Data)
             {
-                var exactResult = await manifestPool.IsManifestAcquiredAsync(prospectiveId, cancellationToken);
-                if (exactResult.Success && exactResult.Data)
-                {
-                    return ContentState.Downloaded;
-                }
+                return true;
+            }
+        }
 
-                logger.LogInformation(
-                    "Content {ContentName} is not downloaded (local is newer: {LocalId}, prospective: {ProspectiveId})",
-                    item.Name,
-                    matchingManifest.Id.Value,
-                    prospectiveId);
-                return ContentState.NotDownloaded;
+        return false;
+    }
+
+    private (string ProspectiveId, DateTime ReleaseDate, bool HasRealDate) DetermineProspectiveManifestId(ContentSearchResult item)
+    {
+        bool hasRealDate = item.LastUpdated.HasValue && item.LastUpdated.Value > DateTime.MinValue;
+        var releaseDate = hasRealDate ? item.LastUpdated!.Value : DateTime.MinValue;
+
+        var providerName = string.IsNullOrWhiteSpace(item.ProviderName) ? "unknown" : item.ProviderName;
+        var contentName = item.Name;
+        if (string.IsNullOrWhiteSpace(contentName))
+        {
+            contentName = string.IsNullOrWhiteSpace(item.Id) ? "unknown" : item.Id;
+        }
+
+        var prospectiveId = hasRealDate
+            ? ManifestIdGenerator.GeneratePublisherContentId(providerName, item.ContentType, contentName, releaseDate)
+            : ManifestIdGenerator.GeneratePublisherContentId(providerName, item.ContentType, contentName, userVersion: 0);
+
+        return (prospectiveId, releaseDate, hasRealDate);
+    }
+
+    private async Task<ContentState> EvaluatePersistedManifestStateAsync(
+        ContentManifest persistedManifest,
+        string prospectiveId,
+        DateTime releaseDate,
+        bool hasRealDate,
+        ContentSearchResult item,
+        CancellationToken cancellationToken)
+    {
+        if (hasRealDate &&
+            releaseDate > DateTime.MinValue &&
+            IsNewerVersion(prospectiveId, persistedManifest.Id.Value, item.Version, persistedManifest.Version))
+        {
+            logger.LogInformation(
+                "Content {ContentName} has an update available (local persisted: {LocalId})",
+                item.Name,
+                persistedManifest.Id.Value);
+            return ContentState.UpdateAvailable;
+        }
+
+        if (hasRealDate &&
+            releaseDate > DateTime.MinValue &&
+            IsNewerVersion(persistedManifest.Id.Value, prospectiveId, persistedManifest.Version, item.Version))
+        {
+            var exactResult = await manifestPool.IsManifestAcquiredAsync(prospectiveId, cancellationToken);
+            if (exactResult.Success && exactResult.Data)
+            {
+                return ContentState.Downloaded;
             }
 
             logger.LogInformation(
-                "Content {ContentName} is downloaded (matched by publisher/type/name: {LocalId})",
+                "Content {ContentName} is not downloaded (local is newer: {LocalId}, prospective: {ProspectiveId})",
                 item.Name,
-                matchingManifest.Id.Value);
-            return ContentState.Downloaded;
+                persistedManifest.Id.Value,
+                prospectiveId);
+            return ContentState.NotDownloaded;
         }
 
-        // 6. No matching manifest found.
-        logger.LogInformation("Content {ContentName} is not downloaded", item.Name);
-        return ContentState.NotDownloaded;
+        return ContentState.Downloaded;
+    }
+
+    private async Task<ContentState> EvaluateMatchingManifestStateAsync(
+        ContentManifest matchingManifest,
+        string prospectiveId,
+        bool isNewerAvailable,
+        bool isOlderAvailable,
+        ContentSearchResult item,
+        CancellationToken cancellationToken)
+    {
+        if (isNewerAvailable)
+        {
+            logger.LogInformation(
+                "Content {ContentName} has an update available (local: {LocalId})",
+                item.Name,
+                matchingManifest.Id.Value);
+            return ContentState.UpdateAvailable;
+        }
+
+        if (isOlderAvailable)
+        {
+            var exactResult = await manifestPool.IsManifestAcquiredAsync(prospectiveId, cancellationToken);
+            if (exactResult.Success && exactResult.Data)
+            {
+                return ContentState.Downloaded;
+            }
+
+            logger.LogInformation(
+                "Content {ContentName} is not downloaded (local is newer: {LocalId}, prospective: {ProspectiveId})",
+                item.Name,
+                matchingManifest.Id.Value,
+                prospectiveId);
+            return ContentState.NotDownloaded;
+        }
+
+        logger.LogInformation(
+            "Content {ContentName} is downloaded (matched by publisher/type/name: {LocalId})",
+            item.Name,
+            matchingManifest.Id.Value);
+        return ContentState.Downloaded;
     }
 
     /// <inheritdoc/>
@@ -255,42 +283,13 @@ public sealed partial class ContentStateService(
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        // Fast paths (mirror GetStateAsync): a manifest ID held directly or a session-mapped one.
-        if (!string.IsNullOrEmpty(item.Id))
+        var directId = await GetDirectLocalManifestIdAsync(item, cancellationToken);
+        if (directId != null)
         {
-            if (ManifestIdValidator.IsValid(item.Id!, out _))
-            {
-                var direct = await manifestPool.IsManifestAcquiredAsync(item.Id!, cancellationToken);
-                if (direct.Success && direct.Data)
-                {
-                    return item.Id;
-                }
-            }
-
-            if (_sessionDownloads.TryGetValue(item.Id!, out var sessionManifestId))
-            {
-                var mapped = await manifestPool.IsManifestAcquiredAsync(sessionManifestId, cancellationToken);
-                if (mapped.Success && mapped.Data)
-                {
-                    return sessionManifestId;
-                }
-            }
+            return directId;
         }
 
-        // Mirror the same date and name logic used in GetStateAsync to keep IDs consistent.
-        bool hasRealDate = item.LastUpdated.HasValue && item.LastUpdated.Value > DateTime.MinValue;
-        var releaseDate = hasRealDate ? item.LastUpdated!.Value : DateTime.MinValue;
-
-        var providerName = string.IsNullOrWhiteSpace(item.ProviderName) ? "unknown" : item.ProviderName;
-        var contentName = item.Name;
-        if (string.IsNullOrWhiteSpace(contentName))
-        {
-            contentName = string.IsNullOrWhiteSpace(item.Id) ? "unknown" : item.Id;
-        }
-
-        var prospectiveId = hasRealDate
-            ? ManifestIdGenerator.GeneratePublisherContentId(providerName, item.ContentType, contentName, releaseDate)
-            : ManifestIdGenerator.GeneratePublisherContentId(providerName, item.ContentType, contentName, userVersion: 0);
+        var (prospectiveId, releaseDate, hasRealDate) = DetermineProspectiveManifestId(item);
 
         var persistedManifest = await FindPersistedManifestAsync(item, cancellationToken);
         if (persistedManifest != null)
@@ -334,6 +333,34 @@ public sealed partial class ContentStateService(
             }
 
             return matchingManifest.Id.Value;
+        }
+
+        return null;
+    }
+
+    private async Task<string?> GetDirectLocalManifestIdAsync(ContentSearchResult item, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(item.Id))
+        {
+            return null;
+        }
+
+        if (ManifestIdValidator.IsValid(item.Id!, out _))
+        {
+            var direct = await manifestPool.IsManifestAcquiredAsync(item.Id!, cancellationToken);
+            if (direct.Success && direct.Data)
+            {
+                return item.Id;
+            }
+        }
+
+        if (_sessionDownloads.TryGetValue(item.Id!, out var sessionManifestId))
+        {
+            var mapped = await manifestPool.IsManifestAcquiredAsync(sessionManifestId, cancellationToken);
+            if (mapped.Success && mapped.Data)
+            {
+                return sessionManifestId;
+            }
         }
 
         return null;
@@ -627,6 +654,44 @@ public sealed partial class ContentStateService(
         List<ContentManifest> manifests,
         ContentSearchResult item)
     {
+        var candidatePublishers = CollectCandidatePublishers(item);
+        if (candidatePublishers.Count == 0)
+        {
+            return null;
+        }
+
+        var expectedContentType = item.ContentType.ToString().ToLowerInvariant();
+        var candidateNames = CollectCandidateNames(item);
+
+        foreach (var expectedPublisher in candidatePublishers)
+        {
+            foreach (var candidate in candidateNames)
+            {
+                if (string.IsNullOrEmpty(candidate))
+                {
+                    continue;
+                }
+
+                var match = manifests.FirstOrDefault(manifest =>
+                    ContentNameMatches(manifest, expectedPublisher, expectedContentType, item.TargetGame, candidate));
+                if (match != null)
+                {
+                    return match;
+                }
+            }
+        }
+
+        if (item.ContentType == ContentType.GameClient &&
+            candidatePublishers.Any(p => string.Equals(p, PublisherTypeConstants.GeneralsOnline, StringComparison.OrdinalIgnoreCase)))
+        {
+            return FindGeneralsOnlineFallback(manifests, candidatePublishers, expectedContentType, item);
+        }
+
+        return null;
+    }
+
+    private static List<string> CollectCandidatePublishers(ContentSearchResult item)
+    {
         var candidatePublishers = new List<string>();
         if (!string.IsNullOrWhiteSpace(item.ProviderName))
         {
@@ -665,15 +730,11 @@ public sealed partial class ContentStateService(
             }
         }
 
-        if (candidatePublishers.Count == 0)
-        {
-            return null;
-        }
+        return candidatePublishers;
+    }
 
-        var expectedContentType = item.ContentType.ToString().ToLowerInvariant();
-
-        // Build the ordered set of candidate content-name keys for this card. Id segment,
-        // resolver metadata keys, and card Name are candidate keys.
+    private static List<string> CollectCandidateNames(ContentSearchResult item)
+    {
         var candidateNames = new List<string>();
         if (!string.IsNullOrWhiteSpace(item.Id))
         {
@@ -698,45 +759,10 @@ public sealed partial class ContentStateService(
             }
         }
 
-        if (item.ResolverMetadata?.TryGetValue(CatalogConstants.CatalogContentIdMetadataKey, out var catalogContentId) == true &&
-            !string.IsNullOrWhiteSpace(catalogContentId))
-        {
-            var normalizedCatalogId = NormalizeSegment(catalogContentId);
-            if (!candidateNames.Contains(normalizedCatalogId, StringComparer.OrdinalIgnoreCase))
-            {
-                candidateNames.Add(normalizedCatalogId);
-            }
-        }
-
-        if (item.ResolverMetadata?.TryGetValue(CommunityOutpostCatalogConstants.ContentCodeKey, out var contentCode) == true &&
-            !string.IsNullOrWhiteSpace(contentCode))
-        {
-            var normalizedCode = NormalizeSegment(contentCode);
-            if (!candidateNames.Contains(normalizedCode, StringComparer.OrdinalIgnoreCase))
-            {
-                candidateNames.Add(normalizedCode);
-            }
-        }
-
-        if (item.ResolverMetadata?.TryGetValue(GitHubConstants.RepoMetadataKey, out var repoName) == true &&
-            !string.IsNullOrWhiteSpace(repoName))
-        {
-            var normalizedRepo = NormalizeSegment(repoName);
-            if (!candidateNames.Contains(normalizedRepo, StringComparer.OrdinalIgnoreCase))
-            {
-                candidateNames.Add(normalizedRepo);
-            }
-        }
-
-        if (item.ResolverMetadata?.TryGetValue(ModDBConstants.ContentIdMetadataKey, out var moddbId) == true &&
-            !string.IsNullOrWhiteSpace(moddbId))
-        {
-            var normalizedModDbId = NormalizeSegment(moddbId);
-            if (!candidateNames.Contains(normalizedModDbId, StringComparer.OrdinalIgnoreCase))
-            {
-                candidateNames.Add(normalizedModDbId);
-            }
-        }
+        AddMetadataCandidate(item, CatalogConstants.CatalogContentIdMetadataKey, candidateNames);
+        AddMetadataCandidate(item, CommunityOutpostCatalogConstants.ContentCodeKey, candidateNames);
+        AddMetadataCandidate(item, GitHubConstants.RepoMetadataKey, candidateNames);
+        AddMetadataCandidate(item, ModDBConstants.ContentIdMetadataKey, candidateNames);
 
         if (!string.IsNullOrWhiteSpace(item.Name))
         {
@@ -756,56 +782,49 @@ public sealed partial class ContentStateService(
             }
         }
 
-        // Exact (variant-aware) match: compare each candidate against the manifest content-name
-        // segment, stripping a "-suffix" variant off whichever side has one.
-        foreach (var expectedPublisher in candidatePublishers)
-        {
-            foreach (var candidate in candidateNames)
-            {
-                if (string.IsNullOrEmpty(candidate))
-                {
-                    continue;
-                }
+        return candidateNames;
+    }
 
-                var match = manifests.FirstOrDefault(manifest =>
-                    ContentNameMatches(manifest, expectedPublisher, expectedContentType, item.TargetGame, candidate));
-                if (match != null)
-                {
-                    return match;
-                }
+    private static void AddMetadataCandidate(ContentSearchResult item, string metadataKey, List<string> candidateNames)
+    {
+        if (item.ResolverMetadata?.TryGetValue(metadataKey, out var value) == true &&
+            !string.IsNullOrWhiteSpace(value))
+        {
+            var normalized = NormalizeSegment(value);
+            if (!candidateNames.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+            {
+                candidateNames.Add(normalized);
             }
         }
+    }
 
-        // GeneralsOnline game client parent card fallback: GeneralsOnline exposes a single GameClient
-        // card ("Generals Online"), whose installed manifests are variant siblings (60hz/144hz).
-        // For GeneralsOnline game client only, match any installed generalsonline.gameclient manifest.
-        if (item.ContentType == ContentType.GameClient &&
-            candidatePublishers.Any(p => string.Equals(p, PublisherTypeConstants.GeneralsOnline, StringComparison.OrdinalIgnoreCase)))
+    private static ContentManifest? FindGeneralsOnlineFallback(
+        List<ContentManifest> manifests,
+        List<string> candidatePublishers,
+        string expectedContentType,
+        ContentSearchResult item)
+    {
+        return manifests.FirstOrDefault(manifest =>
         {
-            return manifests.FirstOrDefault(manifest =>
+            var segments = manifest.Id.Value.Split('.');
+            if (segments.Length != 5)
             {
-                var segments = manifest.Id.Value.Split('.');
-                if (segments.Length != 5)
-                {
-                    return false;
-                }
+                return false;
+            }
 
-                var itemVariant = ExtractVariantToken(item.Name) ?? ExtractVariantToken(item.Id);
-                var manifestVariant = ExtractVariantToken(manifest.Name) ?? ExtractVariantToken(segments[4]);
+            var itemVariant = ExtractVariantToken(item.Name) ?? ExtractVariantToken(item.Id);
+            var manifestVariant = ExtractVariantToken(manifest.Name) ?? ExtractVariantToken(segments[4]);
 
-                if ((!string.IsNullOrEmpty(itemVariant) || !string.IsNullOrEmpty(manifestVariant)) &&
-                    !string.Equals(itemVariant, manifestVariant, StringComparison.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
+            if ((!string.IsNullOrEmpty(itemVariant) || !string.IsNullOrEmpty(manifestVariant)) &&
+                !string.Equals(itemVariant, manifestVariant, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
 
-                return candidatePublishers.Any(p => string.Equals(segments[2], p, StringComparison.OrdinalIgnoreCase) || IsCompatiblePublisherAlias(segments[2], p))
-                    && string.Equals(segments[3], expectedContentType, StringComparison.OrdinalIgnoreCase)
-                    && manifest.TargetGame == item.TargetGame;
-            });
-        }
-
-        return null;
+            return candidatePublishers.Any(p => string.Equals(segments[2], p, StringComparison.OrdinalIgnoreCase) || IsCompatiblePublisherAlias(segments[2], p))
+                && string.Equals(segments[3], expectedContentType, StringComparison.OrdinalIgnoreCase)
+                && manifest.TargetGame == item.TargetGame;
+        });
     }
 
     /// <summary>
@@ -1097,60 +1116,10 @@ public sealed partial class ContentStateService(
                 continue;
             }
 
-            if (targetGame is GameType.Generals or GameType.ZeroHour &&
-                manifest.TargetGame is GameType.Generals or GameType.ZeroHour &&
-                manifest.TargetGame != targetGame)
-            {
-                continue;
-            }
-
-            // Check if publisher, contentType, and contentName match (case-insensitive)
-            bool publisherMatches = manifestSegments[2].Equals(publisher, StringComparison.OrdinalIgnoreCase) ||
-                IsCompatiblePublisherAlias(manifestSegments[2], publisher);
-
-            var normManifestName = NormalizeSegment(manifestSegments[4]);
-            var normProspectiveName = NormalizeSegment(contentName);
-
-            var prospectiveVariant = ExtractVariantToken(normProspectiveName);
-            var manifestVariant = ExtractVariantToken(manifest.Name) ?? ExtractVariantToken(normManifestName);
-
-            if ((!string.IsNullOrEmpty(prospectiveVariant) || !string.IsNullOrEmpty(manifestVariant)) &&
-                !string.Equals(prospectiveVariant, manifestVariant, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var manifestBase = StripVariantSuffix(normManifestName);
-            var prospectiveBase = StripVariantSuffix(normProspectiveName);
-            var rawManifestName = manifestSegments[4];
-
-            bool nameMatches = manifestBase.Equals(prospectiveBase, StringComparison.OrdinalIgnoreCase) ||
-                normManifestName.Equals(normProspectiveName, StringComparison.OrdinalIgnoreCase) ||
-                rawManifestName.StartsWith(contentName + "-", StringComparison.OrdinalIgnoreCase);
-
-            if (publisherMatches &&
-                manifestSegments[3].Equals(contentType, StringComparison.OrdinalIgnoreCase) &&
-                nameMatches)
+            if (IsProspectiveManifestCandidate(manifest, manifestSegments, publisher, contentType, contentName, targetGame))
             {
                 var existingVersion = manifestSegments[1];
-
-                // Keep the one with the highest version (newest). Compare numerically when both
-                // segments are integers so "100" outranks "9"; fall back to ordinal otherwise.
-                int comparison;
-                if (bestMatch == null)
-                {
-                    comparison = 1;
-                }
-                else if (int.TryParse(existingVersion, out var existingInt) && int.TryParse(bestMatchVersion, out var bestInt))
-                {
-                    comparison = existingInt.CompareTo(bestInt);
-                }
-                else
-                {
-                    comparison = string.CompareOrdinal(existingVersion, bestMatchVersion);
-                }
-
-                if (comparison > 0)
+                if (bestMatch == null || CompareManifestVersions(existingVersion, bestMatchVersion) > 0)
                 {
                     bestMatch = manifest;
                     bestMatchVersion = existingVersion;
@@ -1163,8 +1132,6 @@ public sealed partial class ContentStateService(
             return (null, false, false);
         }
 
-        // Determine if a newer or older version is available.
-        // Only compare when a real date or version was available from the source.
         var prospectiveVersion = prospectiveSegments[1];
         bool isNewerAvailable = false;
         bool isOlderAvailable = false;
@@ -1184,5 +1151,64 @@ public sealed partial class ContentStateService(
             isOlderAvailable);
 
         return (bestMatch, isNewerAvailable, isOlderAvailable);
+    }
+
+    private static bool IsProspectiveManifestCandidate(
+        ContentManifest manifest,
+        string[] manifestSegments,
+        string publisher,
+        string contentType,
+        string contentName,
+        GameType targetGame)
+    {
+        if (targetGame is GameType.Generals or GameType.ZeroHour &&
+            manifest.TargetGame is GameType.Generals or GameType.ZeroHour &&
+            manifest.TargetGame != targetGame)
+        {
+            return false;
+        }
+
+        bool publisherMatches = manifestSegments[2].Equals(publisher, StringComparison.OrdinalIgnoreCase) ||
+            IsCompatiblePublisherAlias(manifestSegments[2], publisher);
+
+        if (!publisherMatches || !manifestSegments[3].Equals(contentType, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var normManifestName = NormalizeSegment(manifestSegments[4]);
+        var normProspectiveName = NormalizeSegment(contentName);
+
+        var prospectiveVariant = ExtractVariantToken(normProspectiveName);
+        var manifestVariant = ExtractVariantToken(manifest.Name) ?? ExtractVariantToken(normManifestName);
+
+        if ((!string.IsNullOrEmpty(prospectiveVariant) || !string.IsNullOrEmpty(manifestVariant)) &&
+            !string.Equals(prospectiveVariant, manifestVariant, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var manifestBase = StripVariantSuffix(normManifestName);
+        var prospectiveBase = StripVariantSuffix(normProspectiveName);
+        var rawManifestName = manifestSegments[4];
+
+        return manifestBase.Equals(prospectiveBase, StringComparison.OrdinalIgnoreCase) ||
+            normManifestName.Equals(normProspectiveName, StringComparison.OrdinalIgnoreCase) ||
+            rawManifestName.StartsWith(contentName + "-", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int CompareManifestVersions(string existingVersion, string? bestMatchVersion)
+    {
+        if (bestMatchVersion == null)
+        {
+            return 1;
+        }
+
+        if (int.TryParse(existingVersion, out var existingInt) && int.TryParse(bestMatchVersion, out var bestInt))
+        {
+            return existingInt.CompareTo(bestInt);
+        }
+
+        return string.CompareOrdinal(existingVersion, bestMatchVersion);
     }
 }

@@ -136,6 +136,7 @@ public class DownloadsBrowserViewModelTests
 
         // Act
         viewModel.SelectedPublisher = cncPublisher;
+        Assert.Equal(cncPublisher, viewModel.SelectedPublisher);
         viewModel.SelectedPublisher = githubPublisher;
 
         // Assert
@@ -158,6 +159,7 @@ public class DownloadsBrowserViewModelTests
 
         var modDbPublisher = viewModel.Publishers.Single(p => p.PublisherId == ModDBConstants.PublisherType);
         viewModel.SelectedPublisher = modDbPublisher;
+        Assert.Equal(modDbPublisher, viewModel.SelectedPublisher);
 
         // Act - simulate visual tree detachment setting SelectedItem to null
         viewModel.SelectedPublisher = null;
@@ -387,7 +389,9 @@ public class DownloadsBrowserViewModelTests
 
         // Act: Rapidly switch A -> B -> C
         viewModel.SelectedPublisher = publisherA;
+        Assert.Equal(publisherA, viewModel.SelectedPublisher);
         viewModel.SelectedPublisher = publisherB;
+        Assert.Equal(publisherB, viewModel.SelectedPublisher);
         viewModel.SelectedPublisher = publisherC;
 
         // Now resolve delayed tasks for A and B in background
@@ -487,6 +491,7 @@ public class DownloadsBrowserViewModelTests
 
         // Act 1: Select Publisher A, then switch to B while A is in-flight
         viewModel.SelectedPublisher = publisherA;
+        Assert.Equal(publisherA, viewModel.SelectedPublisher);
         viewModel.SelectedPublisher = publisherB;
 
         // Act 2: Complete Publisher A's background fetch

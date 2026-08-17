@@ -68,7 +68,7 @@ public class ImageCacheServiceTests
     /// <param name="url">The URL to test.</param>
     [Theory]
     [InlineData("file:///C:/secret.txt")]
-    [InlineData("ftp://example.com/image.png")]
+    [InlineData("custom://example.com/image.png")]
     [InlineData("\\\\server\\share\\image.png")]
     [InlineData("javascript:alert(1)")]
     [InlineData("https://localhost/test.png")]

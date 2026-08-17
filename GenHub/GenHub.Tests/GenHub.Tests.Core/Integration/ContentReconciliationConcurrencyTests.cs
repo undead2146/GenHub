@@ -79,25 +79,23 @@ public class ContentReconciliationConcurrencyTests
         // Arrange
         var callCounter = 0;
         var maxConcurrent = 0;
-        var lockObj = new object();
 
         _profileManagerMock.Setup(x => x.GetAllProfilesAsync(It.IsAny<CancellationToken>()))
             .Returns(async () =>
             {
-                int current;
-                lock (lockObj)
+                var current = Interlocked.Increment(ref callCounter);
+                int initialMax;
+                int computedMax;
+                do
                 {
-                    callCounter++;
-                    current = callCounter;
-                    if (current > maxConcurrent) maxConcurrent = current;
+                    initialMax = maxConcurrent;
+                    computedMax = Math.Max(initialMax, current);
                 }
+                while (Interlocked.CompareExchange(ref maxConcurrent, computedMax, initialMax) != initialMax);
 
                 await Task.Delay(100);
 
-                lock (lockObj)
-                {
-                    callCounter--;
-                }
+                Interlocked.Decrement(ref callCounter);
 
                 return ProfileOperationResult<IReadOnlyList<GameProfile>>.CreateSuccess([]);
             });

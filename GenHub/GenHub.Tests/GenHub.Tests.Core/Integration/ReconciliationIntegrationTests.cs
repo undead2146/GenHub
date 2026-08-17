@@ -304,7 +304,7 @@ public class ReconciliationIntegrationTests : IDisposable
         _profileManagerMock.Verify(
             x => x.UpdateProfileAsync(
                 profile.Id,
-                It.Is<UpdateProfileRequest>(r => r != null && r.EnabledContentIds != null && r.EnabledContentIds.Contains(newMapPack.Id.Value)),
+                It.Is<UpdateProfileRequest>(r => r.EnabledContentIds != null && r.EnabledContentIds.Contains(newMapPack.Id.Value)),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

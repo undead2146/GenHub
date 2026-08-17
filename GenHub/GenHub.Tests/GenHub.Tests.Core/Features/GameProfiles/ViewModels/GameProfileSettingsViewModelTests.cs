@@ -189,17 +189,6 @@ public class GameProfileSettingsViewModelTests
             Version = "2.0",
         };
 
-        var newItem = new GenHub.Features.GameProfiles.ViewModels.ContentDisplayItem
-        {
-            ManifestId = GenHub.Core.Models.Manifest.ManifestId.Create(newId),
-            DisplayName = "My Mod v2",
-            IsEnabled = true,
-            ContentType = GenHub.Core.Models.Enums.ContentType.Mod,
-            GameType = GenHub.Core.Models.Enums.GameType.Generals,
-            InstallationType = GenHub.Core.Models.Enums.GameInstallationType.Steam,
-            Version = "2.0",
-        };
-
         mockManifestPool
             .Setup(x => x.GetManifestAsync(It.Is<GenHub.Core.Models.Manifest.ManifestId>(id => id.Value == newId), It.IsAny<System.Threading.CancellationToken>()))
             .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(newManifest));
