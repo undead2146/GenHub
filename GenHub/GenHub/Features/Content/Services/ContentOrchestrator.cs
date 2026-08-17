@@ -136,57 +136,59 @@ public class ContentOrchestrator : IContentOrchestrator
             return OperationResult<IEnumerable<ContentSearchResult>>.CreateFailure("No enabled providers available");
         }
 
-        var searchTasksAsync = searchTasks
-            .Select(async provider =>
+        var resultsLock = new object();
+        var errorsLock = new object();
+
+        var searchTasksAsync = searchTasks.Select(async provider =>
+        {
+            try
             {
-                try
-                {
-                    _logger.LogDebug("Executing search via provider: {ProviderName}", provider.SourceName);
-                    var result = await provider.SearchAsync(query, cancellationToken);
+                _logger.LogDebug("Executing search via provider: {ProviderName}", provider.SourceName);
+                var result = await provider.SearchAsync(query, cancellationToken);
 
-                    if (result.Success && result.Data != null)
+                if (result.Success && result.Data != null)
+                {
+                    lock (resultsLock)
                     {
-                        lock (allResults)
+                        foreach (var item in result.Data)
                         {
-                            foreach (var item in result.Data)
+                            // Ensure provider name is set correctly
+                            if (string.IsNullOrEmpty(item.ProviderName))
                             {
-                                // Ensure provider name is set correctly
-                                if (string.IsNullOrEmpty(item.ProviderName))
-                                {
-                                    item.ProviderName = provider.SourceName;
-                                }
+                                item.ProviderName = provider.SourceName;
                             }
-
-                            allResults.AddRange(result.Data);
                         }
 
-                        _logger.LogDebug("Provider {ProviderName} returned {ResultCount} results", provider.SourceName, result.Data.Count());
+                        allResults.AddRange(result.Data);
                     }
-                    else
-                    {
-                        lock (errors)
-                        {
-                            errors.Add($"{provider.SourceName}: {result.FirstError}");
-                        }
 
-                        _logger.LogWarning("Provider {ProviderName} failed: {Error}", provider.SourceName, result.FirstError);
-                    }
+                    _logger.LogDebug("Provider {ProviderName} returned {ResultCount} results", provider.SourceName, result.Data.Count());
                 }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                else
                 {
-                    // Filtered on the caller's token: a provider timing out on its own token raises
-                    // TaskCanceledException too, and must not abort the other providers' results.
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Search failed for provider: {ProviderName}", provider.SourceName);
-                    lock (errors)
+                    lock (errorsLock)
                     {
-                        errors.Add($"{provider.SourceName}: {ex.Message}");
+                        errors.Add($"{provider.SourceName}: {result.FirstError}");
                     }
+
+                    _logger.LogWarning("Provider {ProviderName} failed: {Error}", provider.SourceName, result.FirstError);
                 }
-            });
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // Filtered on the caller's token: a provider timing out on its own token raises
+                // TaskCanceledException too, and must not abort the other providers' results.
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Search failed for provider: {ProviderName}", provider.SourceName);
+                lock (errorsLock)
+                {
+                    errors.Add($"{provider.SourceName}: {ex.Message}");
+                }
+            }
+        });
 
         await Task.WhenAll(searchTasksAsync);
 
@@ -300,7 +302,7 @@ public class ContentOrchestrator : IContentOrchestrator
     {
         ArgumentNullException.ThrowIfNull(provider);
 
-        if (!_providers.ToList().Any(p => p.SourceName == provider.SourceName))
+        if (!_providers.Any(p => p.SourceName == provider.SourceName))
         {
             _providers.Add(provider);
             _logger.LogInformation("Registered content provider: {ProviderName}", provider.SourceName);
@@ -425,7 +427,7 @@ public class ContentOrchestrator : IContentOrchestrator
             }
 
             // Step 2: Get complete manifest
-            ContentManifest manifest;
+            ContentManifest? manifest;
             var embeddedManifest = searchResult.GetData<ContentManifest>();
             if (embeddedManifest != null)
             {
@@ -626,10 +628,8 @@ public class ContentOrchestrator : IContentOrchestrator
         {
             return OperationResult<IEnumerable<ContentManifest>>.CreateSuccess(manifestsResult.Data ?? []);
         }
-        else
-        {
-            return OperationResult<IEnumerable<ContentManifest>>.CreateFailure(manifestsResult.Errors);
-        }
+
+        return OperationResult<IEnumerable<ContentManifest>>.CreateFailure(manifestsResult.Errors);
     }
 
     /// <summary>

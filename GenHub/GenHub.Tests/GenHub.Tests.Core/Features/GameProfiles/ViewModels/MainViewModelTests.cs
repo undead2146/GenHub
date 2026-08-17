@@ -125,7 +125,7 @@ public class MainViewModelTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     [Fact]
-    public async Task InitializeAsync_MultipleCallsAreSafe()
+    public async Task InitializeAsync_MultipleCallsAreSafeAsync()
     {
         // Arrange
         var (settingsVm, userSettingsMock) = CreateSettingsVm();
@@ -218,6 +218,8 @@ public class MainViewModelTests
             case NavigationTab.Info:
                 Assert.IsType<InfoViewModel>(currentViewModel);
                 break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(tab), tab, null);
         }
     }
 
@@ -245,7 +247,6 @@ public class MainViewModelTests
         var mockWorkspaceManager = new Mock<IWorkspaceManager>();
         var mockManifestPool = new Mock<IContentManifestPool>();
         var mockUpdateManager = new Mock<IVelopackUpdateManager>();
-        var mockNotificationService = new Mock<INotificationService>();
         var mockNotificationServiceForSettings = new Mock<INotificationService>();
         var mockConfigurationProvider = new Mock<IConfigurationProviderService>();
         var mockInstallationService = new Mock<IGameInstallationService>();

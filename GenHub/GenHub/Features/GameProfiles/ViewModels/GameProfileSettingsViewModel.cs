@@ -40,12 +40,12 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
     /// <summary>
     /// Gets the available game types for local content.
     /// </summary>
-    public static GameType[] AvailableLocalGameTypes { get; } = [Core.Models.Enums.GameType.Generals, Core.Models.Enums.GameType.ZeroHour];
+    public static IReadOnlyList<GameType> AvailableLocalGameTypes { get; } = [Core.Models.Enums.GameType.Generals, Core.Models.Enums.GameType.ZeroHour];
 
     /// <summary>
     /// Gets the allowed content types for local content.
     /// </summary>
-    public static ContentType[] AllowedLocalContentTypes { get; } =
+    public static IReadOnlyList<ContentType> AllowedLocalContentTypes { get; } =
     [
         ContentType.Mod, ContentType.Map, ContentType.MapPack, ContentType.Mission, ContentType.Addon, ContentType.Patch,
         ContentType.ModdingTool, ContentType.Executable, ContentType.GameClient
@@ -54,7 +54,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
     /// <summary>
     /// Gets the available content types for filtering.
     /// </summary>
-    public static ContentType[] AvailableContentTypes { get; } =
+    public static IReadOnlyList<ContentType> AvailableContentTypes { get; } =
     [
         ContentType.GameClient, ContentType.Mod, ContentType.Map, ContentType.MapPack, ContentType.Mission, ContentType.Addon,
         ContentType.Patch, ContentType.ModdingTool, ContentType.Executable
@@ -63,15 +63,13 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
     /// <summary>
     /// Gets the available workspace strategies.
     /// </summary>
-    public static WorkspaceStrategy[] AvailableWorkspaceStrategies { get; } =
+    public static IReadOnlyList<WorkspaceStrategy> AvailableWorkspaceStrategies { get; } =
     [
         WorkspaceStrategy.HardLink,
         WorkspaceStrategy.FullCopy,
         WorkspaceStrategy.SymlinkOnly,
         WorkspaceStrategy.HybridCopySymlink
     ];
-
-    private static bool _hasShownFirstLoadNotification;
 
     private readonly IGameProfileManager? _gameProfileManager;
     private readonly IGameSettingsService? _gameSettingsService;
@@ -89,6 +87,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
 
     private readonly NotificationService _localNotificationService = new(NullLogger<NotificationService>.Instance);
 
+    private static bool _hasShownFirstLoadNotification;
     private WorkspaceStrategy? _originalWorkspaceStrategy;
     private string? _currentProfileId;
 
@@ -245,7 +244,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
 
     partial void OnSelectedGameInstallationChanged(ContentDisplayItem? value)
     {
-        if (value != null && value.GameType != GameTypeFilter)
+        if (value is not null && value.GameType != GameTypeFilter)
         {
             GameTypeFilter = value.GameType;
             _logger?.LogInformation("Auto-synced GameTypeFilter to {GameType} based on SelectedGameInstallation", value.GameType);
@@ -434,22 +433,18 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
                 if (dependency.DependencyType == ContentType.GameInstallation)
                 {
                     bool isSatisfied = false;
-                    if (dependency.CompatibleGameTypes != null && dependency.CompatibleGameTypes.Count > 0)
+                    if (dependency.CompatibleGameTypes is { Count: > 0 } &&
+                        SelectedGameInstallation is { IsEnabled: true } &&
+                        dependency.CompatibleGameTypes.Contains(SelectedGameInstallation.GameType))
                     {
-                        if (SelectedGameInstallation != null && SelectedGameInstallation.IsEnabled &&
-                            dependency.CompatibleGameTypes.Contains(SelectedGameInstallation.GameType))
-                        {
-                            isSatisfied = true;
-                        }
+                        isSatisfied = true;
                     }
 
-                    if (!isSatisfied && dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId)
+                    if (!isSatisfied && dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId &&
+                        SelectedGameInstallation is { IsEnabled: true } &&
+                        SelectedGameInstallation.ManifestId.Value == dependency.Id.ToString())
                     {
-                        if (SelectedGameInstallation != null && SelectedGameInstallation.IsEnabled &&
-                            SelectedGameInstallation.ManifestId.Value == dependency.Id.ToString())
-                        {
-                            isSatisfied = true;
-                        }
+                        isSatisfied = true;
                     }
 
                     if (!isSatisfied)
@@ -482,15 +477,9 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
                 }
                 else
                 {
-                    bool alreadyEnabled = false;
-                    if (dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId)
-                    {
-                        alreadyEnabled = EnabledContent.Any(x => x.ManifestId.Value == dependency.Id.ToString());
-                    }
-                    else
-                    {
-                        alreadyEnabled = EnabledContent.Any(x => x.ContentType == dependency.DependencyType);
-                    }
+                    bool alreadyEnabled = dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId
+                        ? EnabledContent.Any(x => x.ManifestId.Value == dependency.Id.ToString())
+                        : EnabledContent.Any(x => x.ContentType == dependency.DependencyType);
 
                     if (!alreadyEnabled && !dependency.IsOptional && _profileContentLoader != null)
                     {
@@ -639,7 +628,17 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
                 {
                     if (!manifestsByType.TryGetValue(dep.DependencyType, out var matches) || matches.Count == 0)
                     {
-                        if (!dep.IsOptional) errors.Add(dep.DependencyType == ContentType.GameInstallation ? $"• '{manifest.Name}' requires a Game Installation" : dep.DependencyType == ContentType.GameClient ? $"• '{manifest.Name}' requires a Game Client" : $"• '{manifest.Name}' requires {dep.DependencyType} content");
+                        if (!dep.IsOptional)
+                        {
+                            var reqDesc = dep.DependencyType switch
+                            {
+                                ContentType.GameInstallation => "a Game Installation",
+                                ContentType.GameClient => "a Game Client",
+                                _ => $"{dep.DependencyType} content"
+                            };
+                            errors.Add($"• '{manifest.Name}' requires {reqDesc}");
+                        }
+
                         continue;
                     }
 
