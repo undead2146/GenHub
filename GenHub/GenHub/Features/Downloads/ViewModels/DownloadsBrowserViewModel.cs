@@ -677,7 +677,7 @@ public partial class DownloadsBrowserViewModel(
         bool isCustomQuery,
         bool append)
     {
-        CancellationTokenSource opCts;
+        CancellationTokenSource opCts = _vmCts;
         PublisherInFlightOperation? inFlightOp = null;
 
         if (!isCustomQuery && !append)

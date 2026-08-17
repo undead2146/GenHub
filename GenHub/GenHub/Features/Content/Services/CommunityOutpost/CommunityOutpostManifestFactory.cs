@@ -516,182 +516,14 @@ public class CommunityOutpostManifestFactory(
     {
         try
         {
-            // Get all files from extracted directory
-            var allFiles = Directory.GetFiles(extractedDirectory, "*.*", SearchOption.AllDirectories);
-
-            if (allFiles.Length == 0)
+            var fileEntries = await CollectManifestFilesAsync(originalManifest, extractedDirectory, contentMetadata, variant, cancellationToken);
+            if (fileEntries == null)
             {
-                logger.LogWarning("No files found in extracted directory: {Directory}", extractedDirectory);
                 return null;
             }
 
-            logger.LogDebug("Found {FileCount} files in extracted directory", allFiles.Length);
-
-            var fileEntries = new List<ManifestFile>();
-            var dependencyBigFiles = CollectDependencyBigFiles(contentMetadata);
-
-            var alwaysIncludeFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (contentMetadata.Category == GenPatcherContentCategory.ControlBar)
-            {
-                alwaysIncludeFiles.Add("340_ControlBarProZH.big");
-            }
-
-            var isControlBarVariant = contentMetadata.Category == GenPatcherContentCategory.ControlBar &&
-                                      contentMetadata.SupportsVariants &&
-                                      variant != null;
-
-            var controlBarRepackedOutputs = await ProcessControlBarRepackingAsync(
-                extractedDirectory,
-                originalManifest,
-                variant,
-                isControlBarVariant,
-                cancellationToken);
-
-            if (controlBarRepackedOutputs.Count > 0)
-            {
-                allFiles = Directory.GetFiles(extractedDirectory, "*.*", SearchOption.AllDirectories);
-            }
-
-            var hasVariantBigFiles = CheckHasVariantBigFiles(
-                allFiles,
-                variant,
-                controlBarRepackedOutputs,
-                alwaysIncludeFiles,
-                dependencyBigFiles);
-
-            foreach (var fullPath in allFiles)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                var relativePath = Path.GetRelativePath(extractedDirectory, fullPath);
-                var fileName = Path.GetFileName(relativePath);
-                var normalizedPath = relativePath.Replace('\\', '/').ToLowerInvariant();
-
-                if (!ShouldIncludeFile(
-                    fileName,
-                    normalizedPath,
-                    relativePath,
-                    variant,
-                    dependencyBigFiles,
-                    alwaysIncludeFiles,
-                    controlBarRepackedOutputs,
-                    isControlBarVariant,
-                    hasVariantBigFiles))
-                {
-                    continue;
-                }
-
-                var entry = await CreateManifestFileEntryAsync(fullPath, relativePath, contentMetadata, cancellationToken);
-                fileEntries.Add(entry);
-            }
-
-            // Create variant-specific manifest ID and name if variant is provided
-            var manifestId = originalManifest.Id;
-            var manifestName = originalManifest.Name;
-
-            string? variantGroupId = null;
-            string? variantFamilyName = null;
-            if (variant != null)
-            {
-                // Get the base content code from contentMetadata.ContentCode or the original manifest ID
-                var idParts = originalManifest.Id.Value.Split('.');
-                if (idParts.Length >= 5)
-                {
-                    var baseCode = !string.IsNullOrEmpty(contentMetadata.ContentCode) && !string.Equals(contentMetadata.ContentCode, "unknown", StringComparison.OrdinalIgnoreCase)
-                        ? contentMetadata.ContentCode
-                        : idParts[4];
-                    var existingDash = baseCode.IndexOf('-');
-                    if (existingDash > 0)
-                    {
-                        baseCode = baseCode[..existingDash];
-                    }
-
-                    // Stable group key shared by every sibling variant, scoped to publisher +
-                    // content type + content code so distinct releases never collide.
-                    variantGroupId = $"{idParts[2].ToLowerInvariant()}.{idParts[3].ToLowerInvariant()}.{baseCode.ToLowerInvariant()}";
-
-                    // Create new content name with variant suffix (e.g., "cbpr-1080p")
-                    // This maintains the 5-segment format: schemaVersion.userVersion.publisher.contentType.contentName-variant
-                    var variantContentName = $"{baseCode}-{variant.Id}";
-
-                    // Rebuild manifest ID with variant-suffixed content name (still 5 segments)
-                    manifestId = ManifestId.Create($"{idParts[0]}.{idParts[1]}.{idParts[2]}.{idParts[3]}.{variantContentName}");
-                }
-
-                // Use registry display name as the stable family so we never double-append
-                // a resolution that was already present on the resolved catalog name
-                // (e.g. "Control Bar Pro (ExiLe) - 720p" + "1080p" → "... - 720p - 1080p").
-                variantFamilyName = contentMetadata.DisplayName;
-                manifestName = $"{contentMetadata.DisplayName} - {variant.Name}";
-
-                logger.LogInformation(
-                    "Creating variant manifest: {ManifestId} ({ManifestName}) with {FileCount} files",
-                    manifestId,
-                    manifestName,
-                    fileEntries.Count);
-            }
-
-            var resolvedVersion = CommunityOutpostCatalogConstants.DefaultMetadataVersion;
-            if (!string.IsNullOrWhiteSpace(originalManifest.Version))
-            {
-                resolvedVersion = originalManifest.Version;
-            }
-            else if (!string.IsNullOrWhiteSpace(contentMetadata.Version))
-            {
-                resolvedVersion = contentMetadata.Version;
-            }
-
-            // Create the manifest preserving original data but with updated files
-            var manifest = new ContentManifest
-            {
-                Id = manifestId,
-                Name = manifestName,
-                Version = resolvedVersion,
-                SchemaVersion = originalManifest.SchemaVersion,
-                ContentType = originalManifest.ContentType,
-                TargetGame = variant?.TargetGame ?? originalManifest.TargetGame,
-                Files = fileEntries,
-
-                // Only remove an auto-install dependency when its generated payload was
-                // actually merged into this manifest. Some dependencies (for example
-                // GenTool's DLL) are not BIG files and must remain resolvable at profile
-                // activation time.
-                Dependencies = [.. contentMetadata.GetDependencies().Where(dependency =>
-                    dependency.InstallBehavior != DependencyInstallBehavior.AutoInstall ||
-                    !IsDependencyPayloadBundled(dependency, fileEntries))],
-                InstallationInstructions = originalManifest.InstallationInstructions ?? new InstallationInstructions(),
-                Publisher = originalManifest.Publisher,
-
-                // Carry source provenance onto every output manifest so the in-session
-                // correlation path (ContentStateService origin match + session-downloads map)
-                // keeps working even when a publisher factory renames or splits content.
-                OriginalProviderName = originalManifest.OriginalProviderName,
-                OriginalContentId = originalManifest.OriginalContentId,
-
-                Metadata = new ContentMetadata
-                {
-                    Description = originalManifest.Metadata?.Description ?? string.Empty,
-                    ReleaseDate = originalManifest.Metadata?.ReleaseDate ?? DateTime.UtcNow,
-                    IconUrl = CommunityOutpostConstants.LogoSource,
-                    CoverUrl = CommunityOutpostConstants.CoverSource,
-                    ThemeColor = CommunityOutpostConstants.ThemeColor,
-                    ScreenshotUrls = originalManifest.Metadata?.ScreenshotUrls ?? [],
-                    Tags = originalManifest.Metadata?.Tags?.Any(t => t.StartsWith("contentCode:", StringComparison.OrdinalIgnoreCase)) == true
-                        ? originalManifest.Metadata.Tags
-                        : [.. originalManifest.Metadata?.Tags ?? [], $"contentCode:{contentMetadata.ContentCode}"],
-                    ChangelogUrl = originalManifest.Metadata?.ChangelogUrl,
-
-                    // Every sibling variant carries the full variant list so the UI can render
-                    // the whole family from any one manifest, and declares that selection is
-                    // required (a user must pick a resolution). SelectedVariantId marks which
-                    // sibling this manifest physically represents.
-                    Variants = contentMetadata.Variants ?? [],
-                    RequiresVariantSelection = variant != null,
-                    SelectedVariantId = variant?.Id,
-                    VariantGroupId = variantGroupId,
-                    VariantFamilyName = variantFamilyName,
-                },
-            };
+            var (manifestId, manifestName, variantGroupId, variantFamilyName) = ResolveVariantManifestDetails(originalManifest, contentMetadata, variant, fileEntries.Count);
+            var manifest = CreateConstructedManifest(originalManifest, contentMetadata, variant, manifestId, manifestName, variantGroupId, variantFamilyName, fileEntries);
 
             logger.LogInformation(
                 "Built manifest {ManifestId} for {ContentType} '{Name}' with {FileCount} files and {DependencyCount} dependencies",
@@ -713,18 +545,193 @@ public class CommunityOutpostManifestFactory(
                         dep.DependencyType);
                 }
             }
-            else
-            {
-                logger.LogWarning("Manifest {ManifestId} has NO dependencies! Category: {Category}", manifest.Id, contentMetadata.Category);
-            }
 
             return manifest;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to build manifest for {Name}", originalManifest.Name);
+            logger.LogError(
+                ex,
+                "Failed to build manifest with files from directory: {Directory}",
+                extractedDirectory);
             return null;
         }
+    }
+
+    private async Task<List<ManifestFile>?> CollectManifestFilesAsync(
+        ContentManifest originalManifest,
+        string extractedDirectory,
+        GenPatcherContentMetadata contentMetadata,
+        ContentVariant? variant,
+        CancellationToken cancellationToken)
+    {
+        var allFiles = Directory.GetFiles(extractedDirectory, "*.*", SearchOption.AllDirectories);
+        if (allFiles.Length == 0)
+        {
+            logger.LogWarning("No files found in extracted directory: {Directory}", extractedDirectory);
+            return null;
+        }
+
+        logger.LogDebug("Found {FileCount} files in extracted directory", allFiles.Length);
+
+        var dependencyBigFiles = CollectDependencyBigFiles(contentMetadata);
+        var alwaysIncludeFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (contentMetadata.Category == GenPatcherContentCategory.ControlBar)
+        {
+            alwaysIncludeFiles.Add("340_ControlBarProZH.big");
+        }
+
+        var isControlBarVariant = contentMetadata.Category == GenPatcherContentCategory.ControlBar &&
+                                  contentMetadata.SupportsVariants &&
+                                  variant != null;
+
+        var controlBarRepackedOutputs = await ProcessControlBarRepackingAsync(
+            extractedDirectory,
+            originalManifest,
+            variant,
+            isControlBarVariant,
+            cancellationToken);
+
+        if (controlBarRepackedOutputs.Count > 0)
+        {
+            allFiles = Directory.GetFiles(extractedDirectory, "*.*", SearchOption.AllDirectories);
+        }
+
+        var hasVariantBigFiles = CheckHasVariantBigFiles(
+            allFiles,
+            variant,
+            controlBarRepackedOutputs,
+            alwaysIncludeFiles,
+            dependencyBigFiles);
+
+        var fileEntries = new List<ManifestFile>();
+        foreach (var fullPath in allFiles)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var relativePath = Path.GetRelativePath(extractedDirectory, fullPath);
+            var fileName = Path.GetFileName(relativePath);
+            var normalizedPath = relativePath.Replace('\\', '/').ToLowerInvariant();
+
+            if (!ShouldIncludeFile(
+                fileName,
+                normalizedPath,
+                relativePath,
+                variant,
+                dependencyBigFiles,
+                alwaysIncludeFiles,
+                controlBarRepackedOutputs,
+                isControlBarVariant,
+                hasVariantBigFiles))
+            {
+                continue;
+            }
+
+            var entry = await CreateManifestFileEntryAsync(fullPath, relativePath, contentMetadata, cancellationToken);
+            fileEntries.Add(entry);
+        }
+
+        return fileEntries;
+    }
+
+    private (ManifestId ManifestId, string ManifestName, string? VariantGroupId, string? VariantFamilyName) ResolveVariantManifestDetails(
+        ContentManifest originalManifest,
+        GenPatcherContentMetadata contentMetadata,
+        ContentVariant? variant,
+        int fileCount)
+    {
+        var manifestId = originalManifest.Id;
+        var manifestName = originalManifest.Name;
+        string? variantGroupId = null;
+        string? variantFamilyName = null;
+
+        if (variant != null)
+        {
+            var idParts = originalManifest.Id.Value.Split('.');
+            if (idParts.Length >= 5)
+            {
+                var baseCode = !string.IsNullOrEmpty(contentMetadata.ContentCode) && !string.Equals(contentMetadata.ContentCode, "unknown", StringComparison.OrdinalIgnoreCase)
+                    ? contentMetadata.ContentCode
+                    : idParts[4];
+                var existingDash = baseCode.IndexOf('-');
+                if (existingDash > 0)
+                {
+                    baseCode = baseCode[..existingDash];
+                }
+
+                variantGroupId = $"{idParts[2].ToLowerInvariant()}.{idParts[3].ToLowerInvariant()}.{baseCode.ToLowerInvariant()}";
+                var variantContentName = $"{baseCode}-{variant.Id}";
+                manifestId = ManifestId.Create($"{idParts[0]}.{idParts[1]}.{idParts[2]}.{idParts[3]}.{variantContentName}");
+            }
+
+            variantFamilyName = contentMetadata.DisplayName;
+            manifestName = $"{contentMetadata.DisplayName} - {variant.Name}";
+
+            logger.LogInformation(
+                "Creating variant manifest: {ManifestId} ({ManifestName}) with {FileCount} files",
+                manifestId,
+                manifestName,
+                fileCount);
+        }
+
+        return (manifestId, manifestName, variantGroupId, variantFamilyName);
+    }
+
+    private static ContentManifest CreateConstructedManifest(
+        ContentManifest originalManifest,
+        GenPatcherContentMetadata contentMetadata,
+        ContentVariant? variant,
+        ManifestId manifestId,
+        string manifestName,
+        string? variantGroupId,
+        string? variantFamilyName,
+        List<ManifestFile> fileEntries)
+    {
+        var resolvedVersion = CommunityOutpostCatalogConstants.DefaultMetadataVersion;
+        if (!string.IsNullOrWhiteSpace(originalManifest.Version))
+        {
+            resolvedVersion = originalManifest.Version;
+        }
+        else if (!string.IsNullOrWhiteSpace(contentMetadata.Version))
+        {
+            resolvedVersion = contentMetadata.Version;
+        }
+
+        return new ContentManifest
+        {
+            Id = manifestId,
+            Name = manifestName,
+            Version = resolvedVersion,
+            SchemaVersion = originalManifest.SchemaVersion,
+            ContentType = originalManifest.ContentType,
+            TargetGame = variant?.TargetGame ?? originalManifest.TargetGame,
+            Files = fileEntries,
+            Dependencies = [.. contentMetadata.GetDependencies().Where(dependency =>
+                dependency.InstallBehavior != DependencyInstallBehavior.AutoInstall ||
+                !IsDependencyPayloadBundled(dependency, fileEntries))],
+            InstallationInstructions = originalManifest.InstallationInstructions ?? new InstallationInstructions(),
+            Publisher = originalManifest.Publisher,
+            OriginalProviderName = originalManifest.OriginalProviderName,
+            OriginalContentId = originalManifest.OriginalContentId,
+            Metadata = new ContentMetadata
+            {
+                Description = originalManifest.Metadata?.Description ?? string.Empty,
+                ReleaseDate = originalManifest.Metadata?.ReleaseDate ?? DateTime.UtcNow,
+                IconUrl = CommunityOutpostConstants.LogoSource,
+                CoverUrl = CommunityOutpostConstants.CoverSource,
+                ThemeColor = CommunityOutpostConstants.ThemeColor,
+                ScreenshotUrls = originalManifest.Metadata?.ScreenshotUrls ?? [],
+                Tags = originalManifest.Metadata?.Tags?.Any(t => t.StartsWith("contentCode:", StringComparison.OrdinalIgnoreCase)) == true
+                    ? originalManifest.Metadata.Tags
+                    : [.. originalManifest.Metadata?.Tags ?? [], $"contentCode:{contentMetadata.ContentCode}"],
+                ChangelogUrl = originalManifest.Metadata?.ChangelogUrl,
+                Variants = contentMetadata.Variants ?? [],
+                RequiresVariantSelection = variant != null,
+                SelectedVariantId = variant?.Id,
+                VariantGroupId = variantGroupId,
+                VariantFamilyName = variantFamilyName,
+            },
+        };
     }
 
     private HashSet<string> CollectDependencyBigFiles(GenPatcherContentMetadata contentMetadata)

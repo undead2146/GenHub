@@ -2988,7 +2988,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             uploader,
             downloadUrl);
 
-        var sectionType = (detailsUrl != null && detailsUrl.Contains("/addons/", StringComparison.OrdinalIgnoreCase)) ||
+        var sectionType = detailsUrl?.Contains("/addons/", StringComparison.OrdinalIgnoreCase) == true ||
                           category?.Contains("addon", StringComparison.OrdinalIgnoreCase) == true
             ? FileSectionType.Addons
             : FileSectionType.Downloads;

@@ -540,7 +540,7 @@ public class ContentOrchestrator(
         reportProgress(1, "Resolving content", 0, "Finding content provider...", false, null, 0, 0, 0, 0, null, default);
         reportProgress(1, "Resolving content", 30, "Validating manifest structure...", false, null, 0, 0, 0, 0, null, default);
 
-        ContentManifest manifest;
+        ContentManifest? manifest = null;
         var embeddedManifest = searchResult.GetData<ContentManifest>();
         if (embeddedManifest != null)
         {

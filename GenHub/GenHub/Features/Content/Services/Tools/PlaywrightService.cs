@@ -506,7 +506,6 @@ public class PlaywrightService(
         }
 
         _disposed = true;
-        GC.SuppressFinalize(this);
     }
 
     /// <inheritdoc />

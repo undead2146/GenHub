@@ -205,7 +205,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         return DependencyResolver.HasCompatibleCatalogIdentity(declaredParts, availableParts);
     }
 
-    private static bool _hasShownFirstLoadNotification;
+    private static bool HasShownFirstLoadNotification { get; set; }
 
     private readonly IGameProfileManager? _gameProfileManager;
     private readonly IGameSettingsService? _gameSettingsService;

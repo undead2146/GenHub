@@ -90,35 +90,13 @@ public sealed class ProfileContentService(
                 primaryManifestId,
                 profileId);
 
-            // Get the profile
-            var profileResult = await profileManager.GetProfileAsync(profileId, cancellationToken);
-            if (profileResult.Failed || profileResult.Data == null)
+            var contextResult = await LoadProfileAndPrimaryManifestAsync(profileId, primaryManifestId, requestedIds.Count, cancellationToken);
+            if (contextResult.Failed)
             {
-                var error = profileResult.FirstError ?? "Profile not found";
-                logger.LogWarning("Failed to get profile {ProfileId}: {Error}", profileId, error);
-                return AddToProfileResult.CreateFailure(error, sw.Elapsed);
+                return AddToProfileResult.CreateFailure(contextResult.FirstError ?? "Failed to load profile or manifest", sw.Elapsed);
             }
 
-            var profile = profileResult.Data;
-
-            // Get the primary manifest for naming / conflict checks
-            var manifestResult = await manifestPool.GetManifestAsync(
-                Core.Models.Manifest.ManifestId.Create(primaryManifestId),
-                cancellationToken);
-
-            if (manifestResult.Failed || manifestResult.Data == null)
-            {
-                var error = manifestResult.FirstError ?? "Failed to retrieve manifest";
-                logger.LogWarning("Failed to get manifest {ManifestId}: {Error}", primaryManifestId, error);
-                return AddToProfileResult.CreateFailure(error, sw.Elapsed);
-            }
-
-            var manifest = manifestResult.Data;
-            var contentName = requestedIds.Count > 1
-                ? $"{manifest.Name ?? primaryManifestId} + {requestedIds.Count - 1} more"
-                : manifest.Name ?? primaryManifestId;
-            GameClient? reconciledGameClient = null;
-            string? reconciledInstallationId = null;
+            var (profile, manifest, contentName) = contextResult.Data;
 
             var candidateConflictError = await ValidateCandidateSetPairwiseConflictsAsync(requestedIds, cancellationToken);
             if (candidateConflictError != null)
@@ -126,83 +104,7 @@ public sealed class ProfileContentService(
                 return AddToProfileResult.CreateFailure(candidateConflictError, sw.Elapsed);
             }
 
-            var enabledContentIds = new List<string>(profile.EnabledContentIds ?? []);
-            var swapResult = await ResolveContentSwapsAsync(profileId, requestedIds, enabledContentIds, cancellationToken);
-
-            var previousIds = new HashSet<string>(enabledContentIds, StringComparer.OrdinalIgnoreCase);
-            var resolution = await ResolveProfileContentAsync(enabledContentIds, requestedIds, cancellationToken);
-            if (resolution.Failed || resolution.Data == null)
-            {
-                return AddToProfileResult.CreateFailure(
-                    resolution.FirstError ?? "Unable to resolve the required content dependencies.",
-                    sw.Elapsed);
-            }
-
-            enabledContentIds = resolution.Data.EnabledContentIds;
-            NotifyNewlyAddedDependencies(enabledContentIds, previousIds, contentName, primaryManifestId, cancellationToken);
-
-            if (resolution.Data.RequiredGameType != null)
-            {
-                var foundation = await ReconcileGameFoundationAsync(
-                    enabledContentIds,
-                    profile.GameClient,
-                    resolution.Data.RequiredGameClient,
-                    resolution.Data.RequiredGameType.Value,
-                    cancellationToken);
-                if (foundation.Failed || foundation.Data == null)
-                {
-                    return AddToProfileResult.CreateFailure(
-                        foundation.FirstError ?? "Unable to reconcile the profile's game foundation.",
-                        sw.Elapsed);
-                }
-
-                enabledContentIds = foundation.Data.EnabledContentIds;
-                reconciledGameClient = foundation.Data.GameClient;
-                reconciledInstallationId = foundation.Data.InstallationId;
-            }
-
-            var updateRequest = new UpdateProfileRequest
-            {
-                EnabledContentIds = enabledContentIds,
-                GameClient = reconciledGameClient,
-                GameInstallationId = reconciledInstallationId,
-            };
-
-            var updateResult = await profileManager.UpdateProfileAsync(profileId, updateRequest, cancellationToken);
-            if (updateResult.Failed)
-            {
-                var error = updateResult.FirstError ?? "Failed to update profile";
-                logger.LogError("Failed to update profile {ProfileId}: {Error}", profileId, error);
-                return AddToProfileResult.CreateFailure(error, sw.Elapsed);
-            }
-
-            if (!string.IsNullOrEmpty(swapResult.SwappedContentId))
-            {
-                notificationService.ShowInfo(
-                    "Content Replaced",
-                    $"Replaced '{swapResult.SwappedContentName ?? swapResult.SwappedContentId}' with '{contentName}'");
-
-                logger.LogInformation(
-                    "Content swap complete: {OldContent} → {NewContent} in profile {ProfileId}",
-                    swapResult.SwappedContentId,
-                    primaryManifestId,
-                    profileId);
-
-                return AddToProfileResult.CreateSuccessWithSwap(
-                    primaryManifestId,
-                    contentName,
-                    swapResult.SwappedContentId,
-                    swapResult.SwappedContentName,
-                    swapResult.SwappedContentType,
-                    sw.Elapsed);
-            }
-
-            logger.LogInformation(
-                "Successfully added content {ManifestId} to profile {ProfileId}",
-                primaryManifestId,
-                profileId);
-
-            return AddToProfileResult.CreateSuccess(primaryManifestId, contentName, sw.Elapsed);
+            return await PerformContentAddAndReconciliationAsync(profileId, profile, requestedIds, primaryManifestId, contentName, sw, cancellationToken);
         }
         catch (ManifestNotFoundException ex)
         {
@@ -224,6 +126,130 @@ public sealed class ProfileContentService(
             logger.LogError(ex, "Failed to add content {ManifestId} to profile {ProfileId}", primaryManifestId, profileId);
             return AddToProfileResult.CreateFailure("Failed to add content. Please try again.", sw.Elapsed);
         }
+    }
+
+    private async Task<OperationResult<(GameProfile Profile, ContentManifest Manifest, string ContentName)>> LoadProfileAndPrimaryManifestAsync(
+        string profileId,
+        string primaryManifestId,
+        int requestedCount,
+        CancellationToken cancellationToken)
+    {
+        var profileResult = await profileManager.GetProfileAsync(profileId, cancellationToken);
+        if (profileResult.Failed || profileResult.Data == null)
+        {
+            var error = profileResult.FirstError ?? "Profile not found";
+            logger.LogWarning("Failed to get profile {ProfileId}: {Error}", profileId, error);
+            return OperationResult<(GameProfile, ContentManifest, string)>.CreateFailure(error);
+        }
+
+        var manifestResult = await manifestPool.GetManifestAsync(
+            Core.Models.Manifest.ManifestId.Create(primaryManifestId),
+            cancellationToken);
+
+        if (manifestResult.Failed || manifestResult.Data == null)
+        {
+            var error = manifestResult.FirstError ?? "Failed to retrieve manifest";
+            logger.LogWarning("Failed to get manifest {ManifestId}: {Error}", primaryManifestId, error);
+            return OperationResult<(GameProfile, ContentManifest, string)>.CreateFailure(error);
+        }
+
+        var manifest = manifestResult.Data;
+        var contentName = requestedCount > 1
+            ? $"{manifest.Name ?? primaryManifestId} + {requestedCount - 1} more"
+            : manifest.Name ?? primaryManifestId;
+
+        return OperationResult<(GameProfile, ContentManifest, string)>.CreateSuccess((profileResult.Data, manifest, contentName));
+    }
+
+    private async Task<AddToProfileResult> PerformContentAddAndReconciliationAsync(
+        string profileId,
+        GameProfile profile,
+        List<string> requestedIds,
+        string primaryManifestId,
+        string contentName,
+        Stopwatch sw,
+        CancellationToken cancellationToken)
+    {
+        GameClient? reconciledGameClient = null;
+        string? reconciledInstallationId = null;
+
+        var enabledContentIds = new List<string>(profile.EnabledContentIds ?? []);
+        var swapResult = await ResolveContentSwapsAsync(profileId, requestedIds, enabledContentIds, cancellationToken);
+
+        var previousIds = new HashSet<string>(enabledContentIds, StringComparer.OrdinalIgnoreCase);
+        var resolution = await ResolveProfileContentAsync(enabledContentIds, requestedIds, cancellationToken);
+        if (resolution.Failed || resolution.Data == null)
+        {
+            return AddToProfileResult.CreateFailure(
+                resolution.FirstError ?? "Unable to resolve the required content dependencies.",
+                sw.Elapsed);
+        }
+
+        enabledContentIds = resolution.Data.EnabledContentIds;
+        NotifyNewlyAddedDependencies(enabledContentIds, previousIds, contentName, primaryManifestId, cancellationToken);
+
+        if (resolution.Data.RequiredGameType != null)
+        {
+            var foundation = await ReconcileGameFoundationAsync(
+                enabledContentIds,
+                profile.GameClient,
+                resolution.Data.RequiredGameClient,
+                resolution.Data.RequiredGameType.Value,
+                cancellationToken);
+            if (foundation.Failed || foundation.Data == null)
+            {
+                return AddToProfileResult.CreateFailure(
+                    foundation.FirstError ?? "Unable to reconcile the profile's game foundation.",
+                    sw.Elapsed);
+            }
+
+            enabledContentIds = foundation.Data.EnabledContentIds;
+            reconciledGameClient = foundation.Data.GameClient;
+            reconciledInstallationId = foundation.Data.InstallationId;
+        }
+
+        var updateRequest = new UpdateProfileRequest
+        {
+            EnabledContentIds = enabledContentIds,
+            GameClient = reconciledGameClient,
+            GameInstallationId = reconciledInstallationId,
+        };
+
+        var updateResult = await profileManager.UpdateProfileAsync(profileId, updateRequest, cancellationToken);
+        if (updateResult.Failed)
+        {
+            var error = updateResult.FirstError ?? "Failed to update profile";
+            logger.LogError("Failed to update profile {ProfileId}: {Error}", profileId, error);
+            return AddToProfileResult.CreateFailure(error, sw.Elapsed);
+        }
+
+        if (!string.IsNullOrEmpty(swapResult.SwappedContentId))
+        {
+            notificationService.ShowInfo(
+                "Content Replaced",
+                $"Replaced '{swapResult.SwappedContentName ?? swapResult.SwappedContentId}' with '{contentName}'");
+
+            logger.LogInformation(
+                "Content swap complete: {OldContent} → {NewContent} in profile {ProfileId}",
+                swapResult.SwappedContentId,
+                primaryManifestId,
+                profileId);
+
+            return AddToProfileResult.CreateSuccessWithSwap(
+                primaryManifestId,
+                contentName,
+                swapResult.SwappedContentId,
+                swapResult.SwappedContentName,
+                swapResult.SwappedContentType,
+                sw.Elapsed);
+        }
+
+        logger.LogInformation(
+            "Successfully added content {ManifestId} to profile {ProfileId}",
+            primaryManifestId,
+            profileId);
+
+        return AddToProfileResult.CreateSuccess(primaryManifestId, contentName, sw.Elapsed);
     }
 
     private async Task<(string? SwappedContentId, string? SwappedContentName, ContentType SwappedContentType)> ResolveContentSwapsAsync(
