@@ -502,7 +502,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
             if (!viewModelItem.IsEnabled)
             {
                 _localNotificationService.ShowSuccess("Auto-Resolved", $"Automatically enabled required content: '{viewModelItem.DisplayName}'");
-                await EnableContent(viewModelItem);
+                await EnableContentAsync(viewModelItem);
             }
         }
     }

@@ -153,7 +153,7 @@ public partial class GameProfileSettingsViewModel
 
         ScrollToSectionRequested?.Invoke(sectionName);
 
-        System.Diagnostics.Debug.WriteLine($"[ViewModel] ScrollToSectionRequested invoked");
+        System.Diagnostics.Debug.WriteLine("[ViewModel] ScrollToSectionRequested invoked");
     }
 
     [RelayCommand]
@@ -163,13 +163,13 @@ public partial class GameProfileSettingsViewModel
     }
 
     [RelayCommand]
-    private async Task EnableContent(ContentDisplayItem? contentItem)
+    private async Task EnableContentAsync(ContentDisplayItem? contentItem)
     {
         await EnableContentInternal(contentItem, bypassLoadingGuard: false);
     }
 
     [RelayCommand]
-    private async Task DisableContent(ContentDisplayItem? contentItem)
+    private async Task DisableContentAsync(ContentDisplayItem? contentItem)
     {
         if (contentItem == null)
         {
@@ -222,7 +222,7 @@ public partial class GameProfileSettingsViewModel
     }
 
     [RelayCommand]
-    private async Task DeleteContent(ContentDisplayItem? contentItem)
+    private async Task DeleteContentAsync(ContentDisplayItem? contentItem)
     {
         if (contentItem == null)
         {
@@ -568,8 +568,7 @@ public partial class GameProfileSettingsViewModel
             "#C2185B", "#512DA8",
         };
 
-        var random = new Random();
-        ColorValue = colors[random.Next(colors.Count)];
+        ColorValue = colors[System.Security.Cryptography.RandomNumberGenerator.GetInt32(colors.Count)];
         if (GameSettingsViewModel != null)
         {
             GameSettingsViewModel.ColorValue = ColorValue;
@@ -685,7 +684,7 @@ public partial class GameProfileSettingsViewModel
             {
                 var contentItem = vm.CreatedContentItem;
 
-                if (!AvailableContent.Any(a => a.ManifestId.Value == contentItem.ManifestId.Value))
+                if (AvailableContent.All(a => a.ManifestId.Value != contentItem.ManifestId.Value))
                 {
                     AvailableContent.Add(contentItem);
                 }
@@ -711,7 +710,7 @@ public partial class GameProfileSettingsViewModel
     }
 
     [RelayCommand]
-    private async Task EditContent(ContentDisplayItem? contentItem)
+    private async Task EditContentAsync(ContentDisplayItem? contentItem)
     {
         if (contentItem == null) return;
 
@@ -801,7 +800,7 @@ public partial class GameProfileSettingsViewModel
     }
 
     [RelayCommand]
-    private async Task ConfirmAddLocalContent()
+    private async Task ConfirmAddLocalContentAsync()
     {
         if (string.IsNullOrWhiteSpace(LocalContentName))
         {
