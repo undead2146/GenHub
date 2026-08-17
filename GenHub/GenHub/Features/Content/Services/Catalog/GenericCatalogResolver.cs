@@ -92,31 +92,8 @@ public class GenericCatalogResolver(
                 ? $"{contentItem.Id}-{primaryArtifact.Variant.Trim()}"
                 : contentItem.Id;
 
-            var resolvedName = searchResult.Name;
-            if (string.IsNullOrWhiteSpace(resolvedName))
-            {
-                resolvedName = !string.IsNullOrWhiteSpace(primaryArtifact?.Variant)
-                    ? $"{contentItem.Name} ({primaryArtifact.Variant})"
-                    : contentItem.Name;
-            }
-
-            var resolvedTargetGame = contentItem.TargetGame;
-            if (primaryArtifact?.VariantAxis?.Equals("game-type", StringComparison.OrdinalIgnoreCase) == true)
-            {
-                if (primaryArtifact.Variant?.Equals("Generals", StringComparison.OrdinalIgnoreCase) == true)
-                {
-                    resolvedTargetGame = GameType.Generals;
-                }
-                else if (primaryArtifact.Variant?.Equals("Zero Hour", StringComparison.OrdinalIgnoreCase) == true ||
-                         primaryArtifact.Variant?.Equals("ZeroHour", StringComparison.OrdinalIgnoreCase) == true)
-                {
-                    resolvedTargetGame = GameType.ZeroHour;
-                }
-            }
-            else if (searchResult.TargetGame != GameType.Unknown)
-            {
-                resolvedTargetGame = searchResult.TargetGame;
-            }
+            var resolvedName = ResolveManifestName(searchResult, contentItem, primaryArtifact);
+            var resolvedTargetGame = ResolveTargetGame(contentItem, primaryArtifact, searchResult);
 
             var builder = manifestBuilderFactory()
                 .WithBasicInfo(declaredPublisherId, effectiveContentId, release.Version)
@@ -137,37 +114,7 @@ public class GenericCatalogResolver(
 
             if (primaryArtifact != null)
             {
-                // Sanitize filename - some publishers use dynamic fetch URLs (e.g., fetch.aspx)
-                // In these cases, derive a proper filename from the content name
-                var filename = primaryArtifact.Filename;
-                if (string.IsNullOrEmpty(filename) ||
-                    filename.Contains("fetch.aspx", StringComparison.OrdinalIgnoreCase) ||
-                    filename.Contains('?') ||
-                    filename.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                {
-                    // Use content name with appropriate extension based on MIME type
-                    var extension = primaryArtifact.ContentType?.ToLowerInvariant() switch
-                    {
-                        "application/zip" => ".zip",
-                        "application/x-rar-compressed" => ".rar",
-                        "application/x-7z-compressed" => ".7z",
-                        _ => Path.GetExtension(primaryArtifact.DownloadUrl.Split('?', '#')[0]) is { Length: > 1 } urlExt
-                            ? urlExt
-                            : ".zip",
-                    };
-                    filename = SanitizeFileName($"{Path.GetFileName(contentItem.Name)}{extension}");
-                    logger.LogDebug(
-                        "Sanitized filename from '{OriginalFilename}' to '{NewFilename}'",
-                        primaryArtifact.Filename,
-                        filename);
-                }
-                else
-                {
-                    filename = SanitizeFileName(Path.GetFileName(filename));
-                }
-
-                // Add remote file with download URL
-                // The file will be downloaded during the delivery phase by the deliverer
+                var filename = SanitizeArtifactFilename(primaryArtifact, contentItem);
                 logger.LogDebug(
                     "Adding remote file {Filename} with download URL {Url}",
                     filename,
@@ -187,108 +134,17 @@ public class GenericCatalogResolver(
                     contentItem.Name);
             }
 
-            // Add dependencies
-            foreach (var dependency in release.Dependencies)
-            {
-                var dependencyType = CatalogManifestIdentity.ResolveDependencyContentType(dependency, contentItem);
-
-                // A GameInstallation dependency is a semantic type-only constraint ("needs the
-                // base game"), not a reference to a real manifest. Emit the canonical foundation
-                // dependency so DependencyResolver skips the pool lookup and GameClientProfileService
-                // injects the user's concrete installation — matching every dedicated publisher.
-                if (dependencyType == ContentType.GameInstallation ||
-                    CatalogManifestIdentity.IsBaseGameDependency(dependency))
-                {
-                    var isGenerals = dependency.ContentId.Equals("generals", StringComparison.OrdinalIgnoreCase) ||
-                                     resolvedTargetGame == GameType.Generals;
-                    var foundation = isGenerals &&
-                                     !dependency.ContentId.Equals("zerohour", StringComparison.OrdinalIgnoreCase)
-                        ? BaseDependencyBuilder.CreateGenerals108Dependency()
-                        : BaseDependencyBuilder.CreateZeroHour104Dependency();
-
-                    builder.AddDependency(
-                        id: foundation.Id,
-                        name: foundation.Name,
-                        dependencyType: ContentType.GameInstallation,
-                        installBehavior: DependencyInstallBehavior.RequireExisting,
-                        minVersion: dependency.VersionConstraint ?? foundation.MinVersion ?? string.Empty,
-                        compatibleGameTypes: foundation.CompatibleGameTypes);
-                    continue;
-                }
-
-                var dependencyId = CatalogManifestIdentity.CreateContentId(
-                    dependency.PublisherId,
-                    dependencyType,
-                    dependency.ContentId,
-                    dependency.VersionConstraint);
-
-                var installBehavior = DependencyInstallBehavior.RequireExisting;
-                if (dependency.IsOptional)
-                {
-                    installBehavior = DependencyInstallBehavior.Optional;
-                }
-                else if (contentItem.ContentType == ContentType.ContentBundle)
-                {
-                    installBehavior = DependencyInstallBehavior.AutoInstall;
-                }
-
-                builder.AddDependency(
-                    id: ManifestId.Create(dependencyId),
-                    name: dependency.ContentId,
-                    dependencyType: dependencyType,
-                    installBehavior: installBehavior,
-                    minVersion: dependency.VersionConstraint ?? string.Empty);
-            }
+            AddDependencies(builder, release, contentItem, resolvedTargetGame);
 
             var manifest = builder.Build();
 
-            // Store primary artifact hash if present
-            if (primaryArtifact != null && !string.IsNullOrWhiteSpace(primaryArtifact.Sha256))
-            {
-                var primaryFile = manifest.Files.FirstOrDefault();
-                if (primaryFile != null)
-                {
-                    primaryFile.Hash = primaryArtifact.Sha256;
-                }
-            }
-
-            // The discoverer already minted a unique 5-segment ID (including variant suffixes).
-            // Keep that identity so pool lookups, ContentStateService, and bundle deps agree.
-            if (!string.IsNullOrWhiteSpace(searchResult.Id) &&
-                ManifestIdValidator.IsValid(searchResult.Id, out _))
-            {
-                manifest.Id = ManifestId.Create(searchResult.Id);
-            }
-
-            manifest.Name = resolvedName;
-            manifest.OriginalProviderName = declaredPublisherId;
-            manifest.OriginalContentId = searchResult.Id ?? contentItem.Id;
-
-            foreach (var dep in manifest.Dependencies)
-            {
-                if (dep.DependencyType == ContentType.GameInstallation && dep.CompatibleGameTypes.Count == 0)
-                {
-                    dep.CompatibleGameTypes.Add(contentItem.TargetGame);
-                }
-            }
-
-            // Add metadata to identify this manifest as coming from generic catalog
-            manifest.Metadata.Description = contentItem.Description;
-            manifest.Metadata.Tags = [.. contentItem.Tags];
-
-            if (!string.IsNullOrWhiteSpace(primaryArtifact?.Variant))
-            {
-                var variantTag = $"variant:{primaryArtifact.Variant.ToLowerInvariant()}";
-                if (!manifest.Metadata.Tags.Contains(variantTag, StringComparer.OrdinalIgnoreCase))
-                {
-                    manifest.Metadata.Tags.Add(variantTag);
-                }
-            }
-
-            if (manifest.Metadata.Tags.All(t => !t.StartsWith("contentCode:", StringComparison.OrdinalIgnoreCase)))
-            {
-                manifest.Metadata.Tags.Add($"contentCode:{contentItem.Id}");
-            }
+            ApplyManifestPostProcessing(
+                manifest,
+                contentItem,
+                primaryArtifact,
+                declaredPublisherId,
+                resolvedName,
+                searchResult.Id);
 
             logger.LogInformation(
                 "Successfully resolved manifest for '{ContentName}' with {FileCount} files",
@@ -305,6 +161,178 @@ public class GenericCatalogResolver(
         {
             logger.LogError(ex, "Failed to resolve content from catalog");
             return OperationResult<ContentManifest>.CreateFailure($"Resolution failed: {ex.Message}");
+        }
+    }
+
+    private static string ResolveManifestName(
+        ContentSearchResult searchResult,
+        CatalogContentItem contentItem,
+        ReleaseArtifact? primaryArtifact)
+    {
+        if (!string.IsNullOrWhiteSpace(searchResult.Name))
+        {
+            return searchResult.Name;
+        }
+
+        return !string.IsNullOrWhiteSpace(primaryArtifact?.Variant)
+            ? $"{contentItem.Name} ({primaryArtifact.Variant})"
+            : contentItem.Name;
+    }
+
+    private static GameType ResolveTargetGame(
+        CatalogContentItem contentItem,
+        ReleaseArtifact? primaryArtifact,
+        ContentSearchResult searchResult)
+    {
+        if (primaryArtifact?.VariantAxis?.Equals("game-type", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            if (primaryArtifact.Variant?.Equals("Generals", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                return GameType.Generals;
+            }
+
+            if (primaryArtifact.Variant?.Equals("Zero Hour", StringComparison.OrdinalIgnoreCase) == true ||
+                primaryArtifact.Variant?.Equals("ZeroHour", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                return GameType.ZeroHour;
+            }
+        }
+        else if (searchResult.TargetGame != GameType.Unknown)
+        {
+            return searchResult.TargetGame;
+        }
+
+        return contentItem.TargetGame;
+    }
+
+    private static string SanitizeArtifactFilename(ReleaseArtifact primaryArtifact, CatalogContentItem contentItem)
+    {
+        var filename = primaryArtifact.Filename;
+        if (string.IsNullOrEmpty(filename) ||
+            filename.Contains("fetch.aspx", StringComparison.OrdinalIgnoreCase) ||
+            filename.Contains('?') ||
+            filename.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            var extension = primaryArtifact.ContentType?.ToLowerInvariant() switch
+            {
+                "application/zip" => ".zip",
+                "application/x-rar-compressed" => ".rar",
+                "application/x-7z-compressed" => ".7z",
+                _ => Path.GetExtension(primaryArtifact.DownloadUrl.Split('?', '#')[0]) is { Length: > 1 } urlExt
+                    ? urlExt
+                    : ".zip",
+            };
+            return SanitizeFileName($"{Path.GetFileName(contentItem.Name)}{extension}");
+        }
+
+        return SanitizeFileName(Path.GetFileName(filename));
+    }
+
+    private static void AddDependencies(
+        IContentManifestBuilder builder,
+        ContentRelease release,
+        CatalogContentItem contentItem,
+        GameType resolvedTargetGame)
+    {
+        foreach (var dependency in release.Dependencies)
+        {
+            var dependencyType = CatalogManifestIdentity.ResolveDependencyContentType(dependency, contentItem);
+
+            if (dependencyType == ContentType.GameInstallation ||
+                CatalogManifestIdentity.IsBaseGameDependency(dependency))
+            {
+                var isGenerals = dependency.ContentId.Equals("generals", StringComparison.OrdinalIgnoreCase) ||
+                                 resolvedTargetGame == GameType.Generals;
+                var foundation = isGenerals &&
+                                 !dependency.ContentId.Equals("zerohour", StringComparison.OrdinalIgnoreCase)
+                    ? BaseDependencyBuilder.CreateGenerals108Dependency()
+                    : BaseDependencyBuilder.CreateZeroHour104Dependency();
+
+                builder.AddDependency(
+                    id: foundation.Id,
+                    name: foundation.Name,
+                    dependencyType: ContentType.GameInstallation,
+                    installBehavior: DependencyInstallBehavior.RequireExisting,
+                    minVersion: dependency.VersionConstraint ?? foundation.MinVersion ?? string.Empty,
+                    compatibleGameTypes: foundation.CompatibleGameTypes);
+                continue;
+            }
+
+            var dependencyId = CatalogManifestIdentity.CreateContentId(
+                dependency.PublisherId,
+                dependencyType,
+                dependency.ContentId,
+                dependency.VersionConstraint);
+
+            var installBehavior = DependencyInstallBehavior.RequireExisting;
+            if (dependency.IsOptional)
+            {
+                installBehavior = DependencyInstallBehavior.Optional;
+            }
+            else if (contentItem.ContentType == ContentType.ContentBundle)
+            {
+                installBehavior = DependencyInstallBehavior.AutoInstall;
+            }
+
+            builder.AddDependency(
+                id: ManifestId.Create(dependencyId),
+                name: dependency.ContentId,
+                dependencyType: dependencyType,
+                installBehavior: installBehavior,
+                minVersion: dependency.VersionConstraint ?? string.Empty);
+        }
+    }
+
+    private static void ApplyManifestPostProcessing(
+        ContentManifest manifest,
+        CatalogContentItem contentItem,
+        ReleaseArtifact? primaryArtifact,
+        string declaredPublisherId,
+        string resolvedName,
+        string? searchResultId)
+    {
+        if (primaryArtifact != null && !string.IsNullOrWhiteSpace(primaryArtifact.Sha256))
+        {
+            var primaryFile = manifest.Files.FirstOrDefault();
+            if (primaryFile != null)
+            {
+                primaryFile.Hash = primaryArtifact.Sha256;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(searchResultId) &&
+            ManifestIdValidator.IsValid(searchResultId, out _))
+        {
+            manifest.Id = ManifestId.Create(searchResultId);
+        }
+
+        manifest.Name = resolvedName;
+        manifest.OriginalProviderName = declaredPublisherId;
+        manifest.OriginalContentId = searchResultId ?? contentItem.Id;
+
+        foreach (var dep in manifest.Dependencies)
+        {
+            if (dep.DependencyType == ContentType.GameInstallation && dep.CompatibleGameTypes.Count == 0)
+            {
+                dep.CompatibleGameTypes.Add(contentItem.TargetGame);
+            }
+        }
+
+        manifest.Metadata.Description = contentItem.Description;
+        manifest.Metadata.Tags = [.. contentItem.Tags];
+
+        if (!string.IsNullOrWhiteSpace(primaryArtifact?.Variant))
+        {
+            var variantTag = $"variant:{primaryArtifact.Variant.ToLowerInvariant()}";
+            if (!manifest.Metadata.Tags.Contains(variantTag, StringComparer.OrdinalIgnoreCase))
+            {
+                manifest.Metadata.Tags.Add(variantTag);
+            }
+        }
+
+        if (manifest.Metadata.Tags.All(t => !t.StartsWith("contentCode:", StringComparison.OrdinalIgnoreCase)))
+        {
+            manifest.Metadata.Tags.Add($"contentCode:{contentItem.Id}");
         }
     }
 

@@ -148,69 +148,11 @@ public static class CatalogManifestIdentity
 
         try
         {
-            // 1. Try date parse with delimiters: "2026.07.31", "2026-08-02", "02-08-2026", "2026/08/02"
-            if (cleanVersion.Contains('.') || cleanVersion.Contains('-') || cleanVersion.Contains('/'))
+            if (TryParseDelimitedVersion(cleanVersion, out var delimitedResult))
             {
-                var delims = new[] { '.', '-', '/' };
-                var parts = cleanVersion.Split(delims, StringSplitOptions.RemoveEmptyEntries);
-
-                // YYYY-MM-DD or YYYY.MM.DD or semver X.Y.Z (3 parts)
-                if (parts.Length == 3 &&
-                    int.TryParse(parts[0], out var p0) &&
-                    int.TryParse(parts[1], out var p1) &&
-                    int.TryParse(parts[2], out var p2))
-                {
-                    // Check if parts[0] is year (e.g. 2026.07.31 or 2026-08-02)
-                    if (p0 >= 1990 && p0 <= 2100 && p1 >= 1 && p1 <= 12 && p2 >= 1 && p2 <= 31)
-                    {
-                        return (p0 * 10000) + (p1 * 100) + p2;
-                    }
-
-                    // Check if parts[2] is year (e.g. 02-08-2026 -> day 2, month 8, year 2026)
-                    if (p2 >= 1990 && p2 <= 2100 && p1 >= 1 && p1 <= 12 && p0 >= 1 && p0 <= 31)
-                    {
-                        return (p2 * 10000) + (p1 * 100) + p0;
-                    }
-
-                    // Standard 3-part semantic version (e.g. 1.0.0 -> 10000, 1.2.3 -> 10203)
-                    if (p0 >= 0 && p1 >= 0 && p1 < 100 && p2 >= 0 && p2 < 100)
-                    {
-                        var val = ((long)p0 * 10000) + ((long)p1 * 100) + p2;
-                        if (val <= int.MaxValue)
-                        {
-                            return (int)val;
-                        }
-                    }
-                }
-
-                // Standard 4-part semantic version (e.g. 1.0.0.1 -> 1000001)
-                if (parts.Length == 4 &&
-                    int.TryParse(parts[0], out var m0) && m0 >= 0 &&
-                    int.TryParse(parts[1], out var m1) && m1 >= 0 && m1 < 100 &&
-                    int.TryParse(parts[2], out var m2) && m2 >= 0 && m2 < 100 &&
-                    int.TryParse(parts[3], out var m3) && m3 >= 0 && m3 < 100)
-                {
-                    var val = ((long)m0 * 1_000_000) + ((long)m1 * 10_000) + ((long)m2 * 100) + m3;
-                    if (val <= int.MaxValue)
-                    {
-                        return (int)val;
-                    }
-                }
-
-                // Standard 2-part semantic version (e.g. 1.04 -> 104, 1.3 -> 103, 8.9 -> 809)
-                if (parts.Length == 2 &&
-                    int.TryParse(parts[0], out var major) && major >= 0 &&
-                    int.TryParse(parts[1], out var minor) && minor >= 0 && minor < 100)
-                {
-                    var normalized = $"{major}{minor.ToString().PadLeft(2, '0')}";
-                    if (int.TryParse(normalized, out var dotted) && dotted >= 0)
-                    {
-                        return dotted;
-                    }
-                }
+                return delimitedResult;
             }
 
-            // 2. Try Generals Online / underscore composite format (e.g. 081326_QFE2)
             if (cleanVersion.Contains('_'))
             {
                 var goVersion = GameVersionHelper.GetGeneralsOnlineManifestIdComponent(cleanVersion);
@@ -220,13 +162,16 @@ public static class CatalogManifestIdentity
                 }
             }
 
-            // 3. Try integer directly (e.g. 20260802, 104, 0, 5)
             if (int.TryParse(cleanVersion, out var intVersion) && intVersion >= 0)
             {
                 return intVersion;
             }
         }
-        catch
+        catch (FormatException)
+        {
+            // Fall through to hash-based approach
+        }
+        catch (OverflowException)
         {
             // Fall through to hash-based approach
         }
@@ -305,5 +250,102 @@ public static class CatalogManifestIdentity
         }
 
         return ContentType.Mod;
+    }
+
+    private static bool TryParseDelimitedVersion(string cleanVersion, out int result)
+    {
+        result = 0;
+        if (!cleanVersion.Contains('.') && !cleanVersion.Contains('-') && !cleanVersion.Contains('/'))
+        {
+            return false;
+        }
+
+        var delims = new[] { '.', '-', '/' };
+        var parts = cleanVersion.Split(delims, StringSplitOptions.RemoveEmptyEntries);
+
+        return TryParseThreePartVersion(parts, out result) ||
+               TryParseFourPartVersion(parts, out result) ||
+               TryParseTwoPartVersion(parts, out result);
+    }
+
+    private static bool TryParseThreePartVersion(string[] parts, out int result)
+    {
+        result = 0;
+        if (parts.Length != 3 ||
+            !int.TryParse(parts[0], out var p0) ||
+            !int.TryParse(parts[1], out var p1) ||
+            !int.TryParse(parts[2], out var p2))
+        {
+            return false;
+        }
+
+        // Check if parts[0] is year (e.g. 2026.07.31 or 2026-08-02)
+        if (p0 >= 1990 && p0 <= 2100 && p1 >= 1 && p1 <= 12 && p2 >= 1 && p2 <= 31)
+        {
+            result = (p0 * 10000) + (p1 * 100) + p2;
+            return true;
+        }
+
+        // Check if parts[2] is year (e.g. 02-08-2026 -> day 2, month 8, year 2026)
+        if (p2 >= 1990 && p2 <= 2100 && p1 >= 1 && p1 <= 12 && p0 >= 1 && p0 <= 31)
+        {
+            result = (p2 * 10000) + (p1 * 100) + p0;
+            return true;
+        }
+
+        // Standard 3-part semantic version (e.g. 1.0.0 -> 10000, 1.2.3 -> 10203)
+        if (p0 >= 0 && p1 >= 0 && p1 < 100 && p2 >= 0 && p2 < 100)
+        {
+            var val = ((long)p0 * 10000) + ((long)p1 * 100) + p2;
+            if (val <= int.MaxValue)
+            {
+                result = (int)val;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryParseFourPartVersion(string[] parts, out int result)
+    {
+        result = 0;
+        if (parts.Length != 4 ||
+            !int.TryParse(parts[0], out var m0) || m0 < 0 ||
+            !int.TryParse(parts[1], out var m1) || m1 < 0 || m1 >= 100 ||
+            !int.TryParse(parts[2], out var m2) || m2 < 0 || m2 >= 100 ||
+            !int.TryParse(parts[3], out var m3) || m3 < 0 || m3 >= 100)
+        {
+            return false;
+        }
+
+        var val = ((long)m0 * 1_000_000) + ((long)m1 * 10_000) + ((long)m2 * 100) + m3;
+        if (val <= int.MaxValue)
+        {
+            result = (int)val;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryParseTwoPartVersion(string[] parts, out int result)
+    {
+        result = 0;
+        if (parts.Length != 2 ||
+            !int.TryParse(parts[0], out var major) || major < 0 ||
+            !int.TryParse(parts[1], out var minor) || minor < 0 || minor >= 100)
+        {
+            return false;
+        }
+
+        var normalized = $"{major}{minor.ToString().PadLeft(2, '0')}";
+        if (int.TryParse(normalized, out var dotted) && dotted >= 0)
+        {
+            result = dotted;
+            return true;
+        }
+
+        return false;
     }
 }
