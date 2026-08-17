@@ -696,7 +696,67 @@ public class GenericCatalogDiscoverer(
 
             PopulatePresentation(sibling, contentItem, release, contentNamesById: null);
 
-            // Release clone with only this artifact so the resolver picks it unambiguously.
+            var siblingArtifacts = new List<ReleaseArtifact>
+            {
+                new ReleaseArtifact
+                {
+                    Filename = artifact.Filename,
+                    DownloadUrl = artifact.DownloadUrl,
+                    Size = artifact.Size,
+                    Sha256 = artifact.Sha256,
+                    ContentType = artifact.ContentType,
+                    IsPrimary = true,
+                    VariantAxis = artifact.VariantAxis,
+                    Variant = artifact.Variant,
+                    IsDefaultVariant = artifact.IsDefaultVariant,
+                },
+            };
+
+            // For other axes, include their default or first artifact so multi-axis releases retain a full selection
+            if (resolvedRelease.Artifacts != null)
+            {
+                var otherAxisGroups = resolvedRelease.Artifacts
+                    .Where(a => !string.Equals(a.VariantAxis, artifact.VariantAxis, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(a.VariantAxis))
+                    .GroupBy(a => a.VariantAxis!, StringComparer.OrdinalIgnoreCase);
+
+                foreach (var group in otherAxisGroups)
+                {
+                    var defaultOther = group.FirstOrDefault(a => a.IsDefaultVariant) ?? group.First();
+                    siblingArtifacts.Add(new ReleaseArtifact
+                    {
+                        Filename = defaultOther.Filename,
+                        DownloadUrl = defaultOther.DownloadUrl,
+                        Size = defaultOther.Size,
+                        Sha256 = defaultOther.Sha256,
+                        ContentType = defaultOther.ContentType,
+                        IsPrimary = false,
+                        VariantAxis = defaultOther.VariantAxis,
+                        Variant = defaultOther.Variant,
+                        IsDefaultVariant = defaultOther.IsDefaultVariant,
+                    });
+                }
+
+                // Also include non-variant artifacts
+                foreach (var nonVariant in resolvedRelease.Artifacts.Where(a => string.IsNullOrWhiteSpace(a.VariantAxis)))
+                {
+                    siblingArtifacts.Add(new ReleaseArtifact
+                    {
+                        Filename = nonVariant.Filename,
+                        DownloadUrl = nonVariant.DownloadUrl,
+                        Size = nonVariant.Size,
+                        Sha256 = nonVariant.Sha256,
+                        ContentType = nonVariant.ContentType,
+                        IsPrimary = false,
+                        VariantAxis = nonVariant.VariantAxis,
+                        Variant = nonVariant.Variant,
+                        IsDefaultVariant = nonVariant.IsDefaultVariant,
+                    });
+                }
+            }
+
+            sibling.DownloadSize = siblingArtifacts.Sum(a => a.Size);
+
+            // Release clone with composed artifacts so the resolver can download all selected components.
             var singleArtifactRelease = new ContentRelease
             {
                 Version = resolvedRelease.Version,
@@ -704,21 +764,7 @@ public class GenericCatalogDiscoverer(
                 IsPrerelease = resolvedRelease.IsPrerelease,
                 IsLatest = resolvedRelease.IsLatest,
                 Changelog = resolvedRelease.Changelog,
-                Artifacts =
-                [
-                    new ReleaseArtifact
-                    {
-                        Filename = artifact.Filename,
-                        DownloadUrl = artifact.DownloadUrl,
-                        Size = artifact.Size,
-                        Sha256 = artifact.Sha256,
-                        ContentType = artifact.ContentType,
-                        IsPrimary = true,
-                        VariantAxis = artifact.VariantAxis,
-                        Variant = artifact.Variant,
-                        IsDefaultVariant = artifact.IsDefaultVariant,
-                    },
-                ],
+                Artifacts = siblingArtifacts,
                 Dependencies = resolvedRelease.Dependencies?.Select(dep =>
                 {
                     if (CatalogManifestIdentity.IsBaseGameDependency(dep))

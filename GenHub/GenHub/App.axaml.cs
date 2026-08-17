@@ -108,6 +108,14 @@ public partial class App : Application
         var logger = _serviceProvider.GetService<ILogger<App>>();
         try
         {
+            if (string.IsNullOrWhiteSpace(url) ||
+                !Uri.TryCreate(url, UriKind.Absolute, out var parsedUri) ||
+                (parsedUri.Scheme != Uri.UriSchemeHttp && parsedUri.Scheme != Uri.UriSchemeHttps))
+            {
+                logger?.LogWarning("Rejected invalid or non-HTTP(S) subscription URL: '{Url}'", url);
+                return;
+            }
+
             logger?.LogInformation("Processing subscription for URL: {Url}", url);
 
             // UI work (dialog + Downloads refresh) must run on the Avalonia UI thread.

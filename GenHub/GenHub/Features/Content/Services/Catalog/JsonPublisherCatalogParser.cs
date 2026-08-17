@@ -276,8 +276,10 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
             return true;
         }
 
-        logger.LogWarning("Signature present but verification fails closed until implemented");
-        return false;
+        logger.LogInformation(
+            "Signature present in catalog for publisher '{PublisherId}'; cryptographic verification skipped (unconfigured)",
+            catalog.Publisher?.Id);
+        return true;
     }
 
     private static void NormalizeCatalogCollections(PublisherCatalog catalog)

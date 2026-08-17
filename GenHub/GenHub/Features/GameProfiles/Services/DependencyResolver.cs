@@ -380,13 +380,14 @@ public class DependencyResolver(
         return acquiredName.StartsWith(declaredName + "-", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool HasCompatibleCatalogIdentity(string[] declaredParts, string acquiredManifestId)
-    {
-        var acquiredParts = acquiredManifestId.Split('.');
-        return HasCompatibleCatalogIdentity(declaredParts, acquiredParts);
-    }
-
-    private static string? FindVersionIndependentCatalogMatch(
+    /// <summary>
+    /// Finds a compatible acquired manifest match for a declared catalog dependency by identity and version constraint.
+    /// </summary>
+    /// <param name="declaredDependencyId">The declared dependency identifier.</param>
+    /// <param name="dependency">The dependency requirements and version constraints.</param>
+    /// <param name="allManifests">All installed content manifests.</param>
+    /// <returns>The matching manifest identifier, or <see langword="null"/> when no candidate satisfies version requirements.</returns>
+    internal static string? FindVersionIndependentCatalogMatch(
         string declaredDependencyId,
         ContentDependency dependency,
         IReadOnlyList<ContentManifest> allManifests)
@@ -433,8 +434,7 @@ public class DependencyResolver(
 
         if (compatible.Count == 0)
         {
-            // If none satisfy the strict constraint, fallback to first matching manifest
-            return matchingManifests.First().Id.Value;
+            return null;
         }
 
         // Sort descending by parsed version to pick latest compatible version
@@ -444,6 +444,12 @@ public class DependencyResolver(
             .First();
 
         return best.Id.Value;
+    }
+
+    private static bool HasCompatibleCatalogIdentity(string[] declaredParts, string acquiredManifestId)
+    {
+        var acquiredParts = acquiredManifestId.Split('.');
+        return HasCompatibleCatalogIdentity(declaredParts, acquiredParts);
     }
 
     /// <summary>

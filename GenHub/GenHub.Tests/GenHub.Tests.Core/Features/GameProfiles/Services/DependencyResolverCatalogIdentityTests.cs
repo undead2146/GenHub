@@ -91,4 +91,62 @@ public sealed class DependencyResolverCatalogIdentityTests
 
         Assert.True(DependencyResolver.HasCompatibleCatalogIdentity(declared, acquired));
     }
+
+    /// <summary>
+    /// Tests that FindVersionIndependentCatalogMatch returns null when installed manifests do not satisfy version constraint.
+    /// </summary>
+    [Fact]
+    public void FindVersionIndependentCatalogMatch_IncompatibleVersion_ReturnsNull()
+    {
+        var manifests = new[]
+        {
+            new GenHub.Core.Models.Manifest.ContentManifest
+            {
+                Id = new GenHub.Core.Models.Manifest.ManifestId("1.0.generic-catalog.mod.example"),
+                Version = "1.0.0",
+            },
+        };
+
+        var dependency = new GenHub.Core.Models.Manifest.ContentDependency
+        {
+            Id = new GenHub.Core.Models.Manifest.ManifestId("1.0.generic-catalog.mod.example"),
+            MinVersion = "2.0.0",
+        };
+
+        var result = DependencyResolver.FindVersionIndependentCatalogMatch(
+            "1.0.generic-catalog.mod.example",
+            dependency,
+            manifests);
+
+        Assert.Null(result);
+    }
+
+    /// <summary>
+    /// Tests that FindVersionIndependentCatalogMatch returns matching manifest when version constraint is satisfied.
+    /// </summary>
+    [Fact]
+    public void FindVersionIndependentCatalogMatch_CompatibleVersion_ReturnsMatch()
+    {
+        var manifests = new[]
+        {
+            new GenHub.Core.Models.Manifest.ContentManifest
+            {
+                Id = new GenHub.Core.Models.Manifest.ManifestId("1.0.generic-catalog.mod.example"),
+                Version = "2.1.0",
+            },
+        };
+
+        var dependency = new GenHub.Core.Models.Manifest.ContentDependency
+        {
+            Id = new GenHub.Core.Models.Manifest.ManifestId("1.0.generic-catalog.mod.example"),
+            MinVersion = "2.0.0",
+        };
+
+        var result = DependencyResolver.FindVersionIndependentCatalogMatch(
+            "1.0.generic-catalog.mod.example",
+            dependency,
+            manifests);
+
+        Assert.Equal("1.0.generic-catalog.mod.example", result);
+    }
 }
