@@ -45,6 +45,7 @@ public sealed class ModBuilderDirectRunner
         var outDir = Path.Combine(Path.GetTempPath(), "modbuilder_cs_bench_out");
         var threads = Environment.ProcessorCount;
         var iterations = 10;
+        string? packName = null;
         string? jsonOut = null;
 
         for (var i = 0; i < args.Length; i++)
@@ -57,6 +58,10 @@ public sealed class ModBuilderDirectRunner
             else if (arg.StartsWith("--image-engine=") || arg == "--image-engine" || arg.StartsWith("--engine=") || arg == "--engine")
             {
                 imageEngine = arg.Contains('=') ? arg[(arg.IndexOf('=') + 1)..] : (i + 1 < args.Length ? args[++i] : imageEngine);
+            }
+            else if (arg.StartsWith("--pack=") || arg == "--pack")
+            {
+                packName = arg.Contains('=') ? arg[(arg.IndexOf('=') + 1)..] : (i + 1 < args.Length ? args[++i] : packName);
             }
             else if (arg.StartsWith("--data-dir=") || arg == "--data-dir")
             {
@@ -470,10 +475,11 @@ public sealed class ModBuilderDirectRunner
                 };
 
                 var swFull = Stopwatch.StartNew();
+                var selectedPacks = !string.IsNullOrEmpty(packName) ? new List<string> { packName } : new List<string>();
                 var buildResult = await buildEngineService.ExecuteBuildAsync(
                     project,
                     loadedConfig,
-                    new List<string>(),
+                    selectedPacks,
                     BuildStep.Build,
                     null,
                     CancellationToken.None);
