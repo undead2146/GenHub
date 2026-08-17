@@ -58,6 +58,7 @@ public class ContentOrchestrator(
     private readonly ConcurrentBag<IContentDeliverer> _deliverers = [.. deliverers ?? []];
     private readonly ConcurrentDictionary<string, IContentResolver> _resolvers = InitializeResolvers(resolvers, logger);
     private readonly object _providerLock = new();
+    private readonly object _progressLock = new();
 
     /// <summary>
     /// Searches for content across all enabled providers, leveraging their internal pipelines.
@@ -394,8 +395,6 @@ public class ContentOrchestrator(
         var highestReportedStageProgress = 0d;
         var reportingCompleted = false;
 
-        var progressLock = new object();
-
         void ReportProgress(
             int stage,
             string description,
@@ -410,7 +409,7 @@ public class ContentOrchestrator(
             string? currentFile = null,
             TimeSpan estimatedTimeRemaining = default)
         {
-            lock (progressLock)
+            lock (_progressLock)
             {
                 // Provider callbacks can be queued after the acquisition pipeline advances. Never
                 // let a delayed callback move the user backwards through the canonical stages.
