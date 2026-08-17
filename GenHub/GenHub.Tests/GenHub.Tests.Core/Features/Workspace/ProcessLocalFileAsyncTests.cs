@@ -46,13 +46,6 @@ public class ProcessLocalFileAsyncTests : IDisposable
         var sourceFile = Path.Combine(_tempSourceDir, "test.exe");
         await File.WriteAllTextAsync(sourceFile, "test content");
 
-        var file = new ManifestFile
-        {
-            RelativePath = "test.exe",
-            Size = 12,
-            SourceType = ContentSourceType.LocalFile,
-        };
-
         var config = CreateTestConfiguration();
 
         // Act
@@ -320,6 +313,7 @@ public class ProcessLocalFileAsyncTests : IDisposable
                     break;
 
                 default:
+                    // Other strategies not evaluated in this assertion block
                     break;
             }
 

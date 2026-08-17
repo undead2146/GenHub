@@ -304,7 +304,7 @@ public class ReconciliationIntegrationTests : IDisposable
         _profileManagerMock.Verify(
             x => x.UpdateProfileAsync(
                 profile.Id,
-                It.Is<UpdateProfileRequest>(r => r.EnabledContentIds != null && r.EnabledContentIds.Contains(newMapPack.Id.Value)),
+                It.Is<UpdateProfileRequest>(r => r.EnabledContentIds != null && r.EnabledContentIds.Any(id => id == newMapPack.Id.Value)),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -386,7 +386,7 @@ public class ReconciliationIntegrationTests : IDisposable
         // Verify that the profile was updated with the generals GameClient ID (not zerohour)
         _profileManagerMock.Verify(
             x => x.CreateProfileAsync(
-                It.Is<CreateProfileRequest>(req => req.GameClient != null && req.GameClient.Id == newGeneralsParams.Id.Value),
+                It.Is<CreateProfileRequest>(req => req.GameClient != null && req.GameClient.Id.Equals(newGeneralsParams.Id.Value)),
                 It.IsAny<CancellationToken>()),
             Times.Once,
             "Should preserve the generals GameClient ID variant");

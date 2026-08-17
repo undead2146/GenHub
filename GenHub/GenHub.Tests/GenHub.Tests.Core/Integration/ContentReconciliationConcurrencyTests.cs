@@ -84,8 +84,8 @@ public class ContentReconciliationConcurrencyTests
             .Returns(async () =>
             {
                 var current = Interlocked.Increment(ref callCounter);
-                int initialMax;
-                int computedMax;
+                int initialMax = 0;
+                int computedMax = 0;
                 do
                 {
                     initialMax = maxConcurrent;
