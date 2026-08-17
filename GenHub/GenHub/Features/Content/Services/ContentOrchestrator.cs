@@ -116,8 +116,8 @@ public class ContentOrchestrator : IContentOrchestrator
             return OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(cachedResults);
         }
 
-        List<ContentSearchResult> allResults = [];
-        List<string> errors = [];
+        ConcurrentBag<ContentSearchResult> allResults = [];
+        ConcurrentBag<string> errors = [];
 
         // Orchestrate search across all enabled providers concurrently
         // Each provider handles its own internal discovery→resolution→delivery pipeline
@@ -136,9 +136,6 @@ public class ContentOrchestrator : IContentOrchestrator
             return OperationResult<IEnumerable<ContentSearchResult>>.CreateFailure("No enabled providers available");
         }
 
-        var resultsLock = new object();
-        var errorsLock = new object();
-
         var searchTasksAsync = searchTasks.Select(async provider =>
         {
             try
@@ -148,29 +145,22 @@ public class ContentOrchestrator : IContentOrchestrator
 
                 if (result.Success && result.Data != null)
                 {
-                    lock (resultsLock)
+                    foreach (var item in result.Data)
                     {
-                        foreach (var item in result.Data)
+                        // Ensure provider name is set correctly
+                        if (string.IsNullOrEmpty(item.ProviderName))
                         {
-                            // Ensure provider name is set correctly
-                            if (string.IsNullOrEmpty(item.ProviderName))
-                            {
-                                item.ProviderName = provider.SourceName;
-                            }
+                            item.ProviderName = provider.SourceName;
                         }
 
-                        allResults.AddRange(result.Data);
+                        allResults.Add(item);
                     }
 
                     _logger.LogDebug("Provider {ProviderName} returned {ResultCount} results", provider.SourceName, result.Data.Count());
                 }
                 else
                 {
-                    lock (errorsLock)
-                    {
-                        errors.Add($"{provider.SourceName}: {result.FirstError}");
-                    }
-
+                    errors.Add($"{provider.SourceName}: {result.FirstError}");
                     _logger.LogWarning("Provider {ProviderName} failed: {Error}", provider.SourceName, result.FirstError);
                 }
             }
@@ -183,10 +173,7 @@ public class ContentOrchestrator : IContentOrchestrator
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Search failed for provider: {ProviderName}", provider.SourceName);
-                lock (errorsLock)
-                {
-                    errors.Add($"{provider.SourceName}: {ex.Message}");
-                }
+                errors.Add($"{provider.SourceName}: {ex.Message}");
             }
         });
 
@@ -302,7 +289,7 @@ public class ContentOrchestrator : IContentOrchestrator
     {
         ArgumentNullException.ThrowIfNull(provider);
 
-        if (!_providers.Any(p => p.SourceName == provider.SourceName))
+        if (_providers.All(p => p.SourceName != provider.SourceName))
         {
             _providers.Add(provider);
             _logger.LogInformation("Registered content provider: {ProviderName}", provider.SourceName);

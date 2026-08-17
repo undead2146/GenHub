@@ -87,9 +87,11 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
 
     private readonly NotificationService _localNotificationService = new(NullLogger<NotificationService>.Instance);
 
-    private static bool _hasShownFirstLoadNotification;
-    private WorkspaceStrategy? _originalWorkspaceStrategy;
-    private string? _currentProfileId;
+    internal static bool HasShownFirstLoadNotification { get; set; }
+
+    internal WorkspaceStrategy? OriginalWorkspaceStrategy { get; set; }
+
+    internal string? CurrentProfileId { get; set; }
 
     /// <summary>
     /// Event that is raised when the window should be closed.
@@ -383,46 +385,134 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
         await ResolveDependenciesAsync(contentItem);
     }
 
+    private async Task<ContentManifest?> GetManifestForContentItemAsync(ContentDisplayItem contentItem)
+    {
+        if (_manifestPool == null)
+        {
+            return null;
+        }
+
+        var manifestResult = await _manifestPool.GetManifestAsync(contentItem.ManifestId.Value);
+        if (manifestResult.Success && manifestResult.Data != null)
+        {
+            return manifestResult.Data;
+        }
+
+        if (contentItem.ContentType == ContentType.GameClient && !string.IsNullOrEmpty(contentItem.SourceId))
+        {
+            return new ContentManifest
+            {
+                Id = ManifestId.Create(contentItem.ManifestId.Value),
+                Name = contentItem.DisplayName,
+                ContentType = ContentType.GameClient,
+                TargetGame = contentItem.GameType,
+                Dependencies =
+                [
+                    new ContentDependency
+                    {
+                        Id = ManifestId.Create(contentItem.SourceId),
+                        DependencyType = ContentType.GameInstallation,
+                        CompatibleGameTypes = [contentItem.GameType],
+                        IsOptional = false,
+                        InstallBehavior = DependencyInstallBehavior.RequireExisting,
+                    }
+                ],
+            };
+        }
+
+        return null;
+    }
+
+    private async Task ResolveGameInstallationDependencyAsync(ContentDisplayItem contentItem, ContentDependency dependency)
+    {
+        bool isSatisfied = dependency.CompatibleGameTypes is { Count: > 0 } &&
+            SelectedGameInstallation is { IsEnabled: true } &&
+            dependency.CompatibleGameTypes.Contains(SelectedGameInstallation.GameType);
+
+        if (!isSatisfied && dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId &&
+            SelectedGameInstallation is { IsEnabled: true } &&
+            SelectedGameInstallation.ManifestId.Value == dependency.Id.ToString())
+        {
+            isSatisfied = true;
+        }
+
+        if (isSatisfied)
+        {
+            return;
+        }
+
+        ContentDisplayItem? compatibleInstallation = null;
+        if (!string.IsNullOrEmpty(contentItem.SourceId))
+        {
+            compatibleInstallation = AvailableGameInstallations.FirstOrDefault(x => x.ManifestId.Value == contentItem.SourceId);
+        }
+
+        if (compatibleInstallation == null && dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId)
+        {
+            compatibleInstallation = AvailableGameInstallations.FirstOrDefault(x => x.ManifestId.Value == dependency.Id.ToString());
+        }
+
+        if (compatibleInstallation == null && dependency.CompatibleGameTypes != null)
+        {
+            compatibleInstallation = AvailableGameInstallations
+                .FirstOrDefault(x => dependency.CompatibleGameTypes.Contains(x.GameType) &&
+                                     x.InstallationType == contentItem.InstallationType)
+                ?? AvailableGameInstallations.FirstOrDefault(x => dependency.CompatibleGameTypes.Contains(x.GameType));
+        }
+
+        if (compatibleInstallation != null)
+        {
+            _localNotificationService.ShowSuccess("Auto-Resolved", $"Switched Game Installation to '{compatibleInstallation.DisplayName}' as required by '{contentItem.DisplayName}'.");
+            await EnableContentInternal(compatibleInstallation);
+        }
+    }
+
+    private async Task ResolveContentDependencyAsync(ContentDependency dependency)
+    {
+        bool alreadyEnabled = dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId
+            ? EnabledContent.Any(x => x.ManifestId.Value == dependency.Id.ToString())
+            : EnabledContent.Any(x => x.ContentType == dependency.DependencyType);
+
+        if (alreadyEnabled || dependency.IsOptional || _profileContentLoader == null)
+        {
+            return;
+        }
+
+        var availableOfTargetType = await _profileContentLoader.LoadAvailableContentAsync(
+            dependency.DependencyType,
+            new ObservableCollection<Core.Models.Content.ContentDisplayItem>(AvailableGameInstallations.Select(x => new Core.Models.Content.ContentDisplayItem
+            {
+                Id = x.ManifestId.Value,
+                ManifestId = x.ManifestId.Value,
+                DisplayName = x.DisplayName,
+                ContentType = x.ContentType,
+                GameType = x.GameType,
+            })),
+            EnabledContent.Select(x => x.ManifestId.Value));
+
+        Core.Models.Content.ContentDisplayItem? match = null;
+        if (dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId)
+        {
+            match = availableOfTargetType.FirstOrDefault(x => x.ManifestId == dependency.Id.ToString());
+        }
+
+        if (match != null)
+        {
+            var viewModelItem = ConvertToViewModelContentDisplayItem(match);
+            if (!viewModelItem.IsEnabled)
+            {
+                _localNotificationService.ShowSuccess("Auto-Resolved", $"Automatically enabled required content: '{viewModelItem.DisplayName}'");
+                await EnableContent(viewModelItem);
+            }
+        }
+    }
+
     private async Task ResolveDependenciesAsync(ContentDisplayItem contentItem)
     {
         try
         {
-            if (_manifestPool == null) return;
-
-            ContentManifest? manifest = null;
-            var manifestResult = await _manifestPool.GetManifestAsync(contentItem.ManifestId.Value);
-
-            if (manifestResult.Success && manifestResult.Data != null)
-            {
-                manifest = manifestResult.Data;
-            }
-            else if (contentItem.ContentType == ContentType.GameClient && !string.IsNullOrEmpty(contentItem.SourceId))
-            {
-                manifest = new ContentManifest
-                {
-                    Id = ManifestId.Create(contentItem.ManifestId.Value),
-                    Name = contentItem.DisplayName,
-                    ContentType = ContentType.GameClient,
-                    TargetGame = contentItem.GameType,
-                    Dependencies =
-                    [
-                        new ContentDependency
-                        {
-                            Id = ManifestId.Create(contentItem.SourceId),
-                            DependencyType = ContentType.GameInstallation,
-                            CompatibleGameTypes = [contentItem.GameType],
-                            IsOptional = false,
-                            InstallBehavior = DependencyInstallBehavior.RequireExisting,
-                        }
-                    ],
-                };
-            }
-            else
-            {
-                return;
-            }
-
-            if (manifest.Dependencies == null || manifest.Dependencies.Count == 0)
+            var manifest = await GetManifestForContentItemAsync(contentItem);
+            if (manifest?.Dependencies is not { Count: > 0 })
             {
                 _ = ValidateEnabledContentDependenciesAsync(contentItem.DisplayName);
                 return;
@@ -432,85 +522,11 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
             {
                 if (dependency.DependencyType == ContentType.GameInstallation)
                 {
-                    bool isSatisfied = false;
-                    if (dependency.CompatibleGameTypes is { Count: > 0 } &&
-                        SelectedGameInstallation is { IsEnabled: true } &&
-                        dependency.CompatibleGameTypes.Contains(SelectedGameInstallation.GameType))
-                    {
-                        isSatisfied = true;
-                    }
-
-                    if (!isSatisfied && dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId &&
-                        SelectedGameInstallation is { IsEnabled: true } &&
-                        SelectedGameInstallation.ManifestId.Value == dependency.Id.ToString())
-                    {
-                        isSatisfied = true;
-                    }
-
-                    if (!isSatisfied)
-                    {
-                        ContentDisplayItem? compatibleInstallation = null;
-                        if (!string.IsNullOrEmpty(contentItem.SourceId))
-                        {
-                            compatibleInstallation = AvailableGameInstallations.FirstOrDefault(x => x.ManifestId.Value == contentItem.SourceId);
-                        }
-
-                        if (compatibleInstallation == null && dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId)
-                        {
-                            compatibleInstallation = AvailableGameInstallations.FirstOrDefault(x => x.ManifestId.Value == dependency.Id.ToString());
-                        }
-
-                        if (compatibleInstallation == null && dependency.CompatibleGameTypes != null)
-                        {
-                            compatibleInstallation = AvailableGameInstallations
-                                .FirstOrDefault(x => dependency.CompatibleGameTypes.Contains(x.GameType) &&
-                                                     x.InstallationType == contentItem.InstallationType);
-                            compatibleInstallation ??= AvailableGameInstallations.FirstOrDefault(x => dependency.CompatibleGameTypes.Contains(x.GameType));
-                        }
-
-                        if (compatibleInstallation != null)
-                        {
-                            _localNotificationService.ShowSuccess("Auto-Resolved", $"Switched Game Installation to '{compatibleInstallation.DisplayName}' as required by '{contentItem.DisplayName}'.");
-                            await EnableContentInternal(compatibleInstallation);
-                        }
-                    }
+                    await ResolveGameInstallationDependencyAsync(contentItem, dependency);
                 }
                 else
                 {
-                    bool alreadyEnabled = dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId
-                        ? EnabledContent.Any(x => x.ManifestId.Value == dependency.Id.ToString())
-                        : EnabledContent.Any(x => x.ContentType == dependency.DependencyType);
-
-                    if (!alreadyEnabled && !dependency.IsOptional && _profileContentLoader != null)
-                    {
-                        var availableOfTargetType = await _profileContentLoader.LoadAvailableContentAsync(
-                            dependency.DependencyType,
-                            new ObservableCollection<Core.Models.Content.ContentDisplayItem>(AvailableGameInstallations.Select(x => new Core.Models.Content.ContentDisplayItem
-                            {
-                                Id = x.ManifestId.Value,
-                                ManifestId = x.ManifestId.Value,
-                                DisplayName = x.DisplayName,
-                                ContentType = x.ContentType,
-                                GameType = x.GameType,
-                            })),
-                            EnabledContent.Select(x => x.ManifestId.Value));
-
-                        Core.Models.Content.ContentDisplayItem? match = null;
-                        if (dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId)
-                        {
-                            match = availableOfTargetType.FirstOrDefault(x => x.ManifestId == dependency.Id.ToString());
-                        }
-
-                        if (match != null)
-                        {
-                            var viewModelItem = ConvertToViewModelContentDisplayItem(match);
-                            if (!viewModelItem.IsEnabled)
-                            {
-                                _localNotificationService.ShowSuccess("Auto-Resolved", $"Automatically enabled required content: '{viewModelItem.DisplayName}'");
-                                await EnableContent(viewModelItem);
-                            }
-                        }
-                    }
+                    await ResolveContentDependencyAsync(dependency);
                 }
             }
 
@@ -523,19 +539,91 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
         }
     }
 
+    private static void ValidateDependencyWarnings(
+        ContentManifest manifest,
+        ContentDependency dependency,
+        Dictionary<string, ContentManifest> manifestsById,
+        Dictionary<ContentType, List<ContentManifest>> manifestsByType,
+        Dictionary<ContentType, List<ContentDisplayItem>> enabledContentByType,
+        List<string> warnings)
+    {
+        if (dependency.DependencyType is ContentType.GameInstallation or ContentType.GameClient)
+        {
+            if (!enabledContentByType.TryGetValue(dependency.DependencyType, out var enabledOfType) || enabledOfType.Count == 0)
+            {
+                warnings.Add(dependency.DependencyType == ContentType.GameInstallation
+                    ? $"'{manifest.Name}' requires a Game Installation to be selected."
+                    : $"'{manifest.Name}' requires a Game Client to be selected.");
+            }
+
+            return;
+        }
+
+        if (!manifestsByType.TryGetValue(dependency.DependencyType, out var potentialMatches) || potentialMatches.Count == 0)
+        {
+            if (!dependency.IsOptional)
+            {
+                warnings.Add($"'{manifest.Name}' requires {dependency.DependencyType} content, but none is enabled.");
+            }
+
+            return;
+        }
+
+        if (dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId)
+        {
+            bool found = manifestsById.ContainsKey(dependency.Id.ToString());
+            if (!found && !dependency.StrictPublisher)
+            {
+                var depIdSegments = dependency.Id.ToString().Split('.');
+                if (depIdSegments.Length >= 5)
+                {
+                    var (depType, depName) = (depIdSegments[3], depIdSegments[4]);
+                    found = potentialMatches.Any(m =>
+                    {
+                        var segments = m.Id.ToString().Split('.');
+                        return segments.Length >= 5 && segments[3].Equals(depType, StringComparison.OrdinalIgnoreCase) && segments[4].Equals(depName, StringComparison.OrdinalIgnoreCase);
+                    });
+                }
+            }
+
+            if (!found && !dependency.IsOptional)
+            {
+                warnings.Add($"'{manifest.Name}' requires '{dependency.Name}' which is not enabled.");
+            }
+        }
+
+        foreach (var conflictId in dependency.ConflictsWith)
+        {
+            if (manifestsById.TryGetValue(conflictId.ToString(), out var conflicting))
+            {
+                warnings.Add($"'{manifest.Name}' conflicts with '{conflicting.Name}' - these cannot be used together.");
+            }
+        }
+    }
+
     private async Task ValidateEnabledContentDependenciesAsync(string justEnabledContentName)
     {
         try
         {
-            if (_manifestPool == null) return;
+            if (_manifestPool == null)
+            {
+                return;
+            }
+
             var enabledManifestIds = EnabledContent.Select(e => e.ManifestId.Value).ToList();
-            if (enabledManifestIds.Count == 0) return;
+            if (enabledManifestIds.Count == 0)
+            {
+                return;
+            }
 
             var manifests = new List<ContentManifest>();
             foreach (var manifestId in enabledManifestIds)
             {
                 var manifestResult = await _manifestPool.GetManifestAsync(manifestId);
-                if (manifestResult.Success && manifestResult.Data != null) manifests.Add(manifestResult.Data);
+                if (manifestResult.Success && manifestResult.Data != null)
+                {
+                    manifests.Add(manifestResult.Data);
+                }
             }
 
             var warnings = new List<string>();
@@ -545,52 +633,14 @@ public partial class GameProfileSettingsViewModel : ViewModelBase, IRecipient<Co
 
             foreach (var manifest in manifests)
             {
-                if (manifest.Dependencies == null) continue;
+                if (manifest.Dependencies == null)
+                {
+                    continue;
+                }
+
                 foreach (var dependency in manifest.Dependencies)
                 {
-                    if (dependency.DependencyType == ContentType.GameInstallation || dependency.DependencyType == ContentType.GameClient)
-                    {
-                        if (!enabledContentByType.TryGetValue(dependency.DependencyType, out var enabledOfType) || enabledOfType.Count == 0)
-                        {
-                            warnings.Add(dependency.DependencyType == ContentType.GameInstallation
-                                ? $"'{manifest.Name}' requires a Game Installation to be selected."
-                                : $"'{manifest.Name}' requires a Game Client to be selected.");
-                        }
-
-                        continue;
-                    }
-
-                    if (!manifestsByType.TryGetValue(dependency.DependencyType, out var potentialMatches) || potentialMatches.Count == 0)
-                    {
-                        if (!dependency.IsOptional) warnings.Add($"'{manifest.Name}' requires {dependency.DependencyType} content, but none is enabled.");
-                        continue;
-                    }
-
-                    if (dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId)
-                    {
-                        bool found = manifestsById.ContainsKey(dependency.Id.ToString());
-                        if (!found && !dependency.StrictPublisher)
-                        {
-                            var depIdSegments = dependency.Id.ToString().Split('.');
-                            if (depIdSegments.Length >= 5)
-                            {
-                                var (depType, depName) = (depIdSegments[3], depIdSegments[4]);
-                                found = potentialMatches.Any(m =>
-                                {
-                                    var segments = m.Id.ToString().Split('.');
-                                    return segments.Length >= 5 && segments[3].Equals(depType, StringComparison.OrdinalIgnoreCase) && segments[4].Equals(depName, StringComparison.OrdinalIgnoreCase);
-                                });
-                            }
-                        }
-
-                        if (!found && !dependency.IsOptional) warnings.Add($"'{manifest.Name}' requires '{dependency.Name}' which is not enabled.");
-                    }
-
-                    foreach (var conflictId in dependency.ConflictsWith)
-                    {
-                        if (manifestsById.TryGetValue(conflictId.ToString(), out var conflicting))
-                            warnings.Add($"'{manifest.Name}' conflicts with '{conflicting.Name}' - these cannot be used together.");
-                    }
+                    ValidateDependencyWarnings(manifest, dependency, manifestsById, manifestsByType, enabledContentByType, warnings);
                 }
             }
 
