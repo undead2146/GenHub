@@ -2551,7 +2551,7 @@ public partial class ContentDetailViewModel(
             ProviderName = searchResult.ProviderName,
             ContentType = fileContentType,
             TargetGame = searchResult.TargetGame,
-            LastUpdated = file.UploadDate ?? file.ReleaseDate ?? searchResult.LastUpdated,
+            LastUpdated = file.ReleaseDate ?? file.UploadDate ?? searchResult.LastUpdated,
 
             // Preserve the page URL for metadata and browser Referer handling. The selected
             // direct URL tells the resolver which already-discovered release to acquire.
@@ -2683,8 +2683,8 @@ public partial class ContentDetailViewModel(
             await RunOnUiThreadAsync(() =>
             {
                 row.DownloadedManifestId = manifestId;
-                row.IsDownloaded = state is ContentState.Downloaded or ContentState.UpdateAvailable;
-                row.IsUpdateAvailable = state is ContentState.UpdateAvailable;
+                row.IsDownloaded = state == ContentState.Downloaded;
+                row.IsUpdateAvailable = state == ContentState.UpdateAvailable;
                 if (ReferenceEquals(SelectedDownloadableItem, row))
                 {
                     RefreshSelectedTargetProperties();
@@ -3341,7 +3341,7 @@ public partial class ContentDetailViewModel(
                 Id = Guid.NewGuid().ToString(),
                 Name = file.Name ?? "Unknown Release",
                 Version = file.Version,
-                ReleaseDate = file.UploadDate,
+                ReleaseDate = file.ReleaseDate ?? file.UploadDate,
                 FileSize = file.SizeBytes ?? 0,
                 SizeDisplay = file.SizeDisplay,
                 DownloadUrl = file.DownloadUrl,
@@ -3432,7 +3432,7 @@ public partial class ContentDetailViewModel(
             {
                 Id = Guid.NewGuid().ToString(),
                 Name = file.Name ?? "Unknown Addon",
-                ReleaseDate = file.UploadDate,
+                ReleaseDate = file.ReleaseDate ?? file.UploadDate,
                 FileSize = file.SizeBytes ?? 0,
                 SizeDisplay = file.SizeDisplay,
                 DownloadUrl = file.DownloadUrl,

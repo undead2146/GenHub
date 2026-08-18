@@ -1207,6 +1207,80 @@ public sealed class ContentDetailViewModelTests
         Assert.Null(rel2.DownloadedManifestId);
     }
 
+    /// <summary>
+    /// Verifies that when multiple releases share the exact same display name (e.g. ModDB Patch vs Full Version),
+    /// only the release matching the downloaded manifest is marked downloaded.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task PopulateReleases_WhenReleasesShareName_OnlyExactDownloadedReleaseIsMarkedDownloaded()
+    {
+        // Arrange
+        const string fullModUrl = "https://www.moddb.com/downloads/start/115960";
+        const string patchUrl = "https://www.moddb.com/downloads/start/170000";
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.20200905.moddb.mod.shwchaos",
+            Name = "C&C: Shockwave Chaos",
+            ProviderName = "ModDB",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            SourceUrl = "https://www.moddb.com/mods/cc-shockwave-chaos",
+        };
+
+        var patchFile = new DownloadableFile(
+            Name: "SHW Chaos",
+            Category: "Patch",
+            DownloadUrl: patchUrl,
+            DetailsUrl: "https://www.moddb.com/mods/cc-shockwave-chaos/downloads/shw-chaos-patch",
+            ReleaseDate: new DateTime(2020, 9, 5),
+            FileSectionType: FileSectionType.Downloads);
+
+        var fullFile = new DownloadableFile(
+            Name: "SHW Chaos",
+            Category: "Full Version",
+            DownloadUrl: fullModUrl,
+            DetailsUrl: "https://www.moddb.com/mods/cc-shockwave-chaos/downloads/shw-chaos-mod",
+            ReleaseDate: new DateTime(2016, 12, 19),
+            FileSectionType: FileSectionType.Downloads);
+
+        var stateService = new Mock<IContentStateService>();
+        stateService
+            .Setup(s => s.GetStateAsync(It.Is<ContentSearchResult>(r => r.SelectedDownloadUrl == fullModUrl), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ContentState.Downloaded);
+        stateService
+            .Setup(s => s.GetStateAsync(It.Is<ContentSearchResult>(r => r.SelectedDownloadUrl == patchUrl), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ContentState.NotDownloaded);
+
+        stateService
+            .Setup(s => s.GetLocalManifestIdAsync(It.Is<ContentSearchResult>(r => r.SelectedDownloadUrl == fullModUrl), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("1.20161219.moddb.mod.shwchaos");
+        stateService
+            .Setup(s => s.GetLocalManifestIdAsync(It.Is<ContentSearchResult>(r => r.SelectedDownloadUrl == patchUrl), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string?)null);
+
+        var coordinator = new Mock<IContentDownloadCoordinator>();
+        var viewModel = CreateViewModel(searchResult, coordinator.Object, contentStateService: stateService.Object);
+
+        // Act
+        viewModel.PopulateReleases([patchFile, fullFile]);
+        await Task.Delay(150);
+
+        // Assert
+        Assert.Equal(2, viewModel.Releases.Count);
+
+        var patchRel = viewModel.Releases[0];
+        Assert.Equal("SHW Chaos", patchRel.Name);
+        Assert.False(patchRel.IsDownloaded);
+        Assert.Null(patchRel.DownloadedManifestId);
+
+        var fullRel = viewModel.Releases[1];
+        Assert.Equal("SHW Chaos", fullRel.Name);
+        Assert.True(fullRel.IsDownloaded);
+        Assert.Equal("1.20161219.moddb.mod.shwchaos", fullRel.DownloadedManifestId);
+    }
+
     private static CapturingContentDetailViewModel CreateViewModel(
         ContentSearchResult searchResult,
         IContentDownloadCoordinator downloadCoordinator,

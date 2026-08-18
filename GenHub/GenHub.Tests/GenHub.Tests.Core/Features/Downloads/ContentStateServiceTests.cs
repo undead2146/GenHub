@@ -968,6 +968,79 @@ public class ContentStateServiceTests
         Assert.Equal(storedManifest.Id.Value, localManifestId);
     }
 
+    /// <summary>
+    /// Verifies that when a full version of a mod is installed, a patch release row with the same
+    /// display name but a different release date and download URL is not marked downloaded.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task GetStateAsync_ModDBReleaseRows_WithSameNameAndDifferentDates_OnlyDownloadedWhenExactFileAcquiredAsync()
+    {
+        // Arrange
+        const string fullModUrl = "https://www.moddb.com/downloads/start/115960";
+        const string patchUrl = "https://www.moddb.com/downloads/start/170000";
+
+        var storedFullManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.20161219.moddb.mod.shwchaos"),
+            Name = "SHW Chaos",
+            Version = "20161219",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            OriginalProviderName = "ModDB",
+            OriginalContentId = $"file:{fullModUrl}",
+            Publisher = new PublisherInfo
+            {
+                PublisherType = "moddb",
+                SupportUrl = "https://www.moddb.com/mods/cc-shockwave-chaos/downloads/shw-chaos-mod",
+                Website = "https://www.moddb.com",
+            },
+        };
+
+        var pool = new Mock<IContentManifestPool>();
+        pool.Setup(p => p.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([storedFullManifest]));
+        pool.Setup(p => p.IsManifestAcquiredAsync(storedFullManifest.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+        pool.Setup(p => p.IsManifestAcquiredAsync(It.Is<ManifestId>(m => m.Value != storedFullManifest.Id.Value), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(false));
+
+        var service = new ContentStateService(pool.Object, NullLogger<ContentStateService>.Instance);
+
+        var patchRow = new ContentSearchResult
+        {
+            Id = $"file:{patchUrl}",
+            Name = "SHW Chaos",
+            ProviderName = "ModDB",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            SourceUrl = "https://www.moddb.com/mods/cc-shockwave-chaos/downloads/shw-chaos-patch",
+            SelectedDownloadUrl = patchUrl,
+            LastUpdated = new DateTime(2020, 9, 5),
+        };
+
+        var fullRow = new ContentSearchResult
+        {
+            Id = $"file:{fullModUrl}",
+            Name = "SHW Chaos",
+            ProviderName = "ModDB",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            SourceUrl = "https://www.moddb.com/mods/cc-shockwave-chaos/downloads/shw-chaos-mod",
+            SelectedDownloadUrl = fullModUrl,
+            LastUpdated = new DateTime(2016, 12, 19),
+        };
+
+        // Act & Assert
+        // The un-downloaded patch row must NOT be reported as Downloaded or have a local manifest ID.
+        Assert.Equal(ContentState.NotDownloaded, await service.GetStateAsync(patchRow));
+        Assert.Null(await service.GetLocalManifestIdAsync(patchRow));
+
+        // The downloaded full version row must be reported as Downloaded with its on-disk manifest ID.
+        Assert.Equal(ContentState.Downloaded, await service.GetStateAsync(fullRow));
+        Assert.Equal(storedFullManifest.Id.Value, await service.GetLocalManifestIdAsync(fullRow));
+    }
+
     private static ContentSearchResult CreateSuperHackersCard(GameType gameType)
     {
         var item = new ContentSearchResult

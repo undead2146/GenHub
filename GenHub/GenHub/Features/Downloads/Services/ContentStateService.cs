@@ -111,6 +111,14 @@ public sealed partial class ContentStateService(
             return ContentState.Downloaded;
         }
 
+        var isFileRow = (!string.IsNullOrEmpty(item.Id) && item.Id.StartsWith("file:", StringComparison.OrdinalIgnoreCase)) ||
+                        !string.IsNullOrWhiteSpace(item.SelectedDownloadUrl);
+        if (isFileRow)
+        {
+            logger.LogInformation("Content {ContentName} is not downloaded (file row with no exact manifest match)", item.Name);
+            return ContentState.NotDownloaded;
+        }
+
         var (matchingManifest, isNewerAvailable, isOlderAvailable) = await FindMatchingManifestAsync(
             prospectiveId,
             releaseDate,
@@ -188,6 +196,13 @@ public sealed partial class ContentStateService(
         if (isAcquiredResult.Success && isAcquiredResult.Data)
         {
             return prospectiveId;
+        }
+
+        var isFileRow = (!string.IsNullOrEmpty(item.Id) && item.Id.StartsWith("file:", StringComparison.OrdinalIgnoreCase)) ||
+                        !string.IsNullOrWhiteSpace(item.SelectedDownloadUrl);
+        if (isFileRow)
+        {
+            return null;
         }
 
         // Fallback: match by publisher+type+name ignoring version.
