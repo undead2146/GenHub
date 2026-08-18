@@ -912,7 +912,7 @@ public class GameProcessManager(
     {
         try
         {
-            process.WaitForExit();
+            process.WaitForExit(3000);
         }
         catch (Exception ex)
         {
