@@ -68,7 +68,7 @@ public class GameProfileSettingsViewModelHotswapTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task InitializeForProfileAsync_WhenProfileIsRunning_SetsIsHotswapModeTrueAndLocksNonHotswappableContent()
+    public async Task InitializeForProfileAsync_WhenProfileIsRunning_SetsIsHotswapModeTrueAndLocksNonHotswappableContentAsync()
     {
         // Arrange
         const string profileId = "profile-live-1";
@@ -158,7 +158,7 @@ public class GameProfileSettingsViewModelHotswapTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task InitializeForProfileAsync_WhenProfileIsNotRunning_SetsIsHotswapModeFalse()
+    public async Task InitializeForProfileAsync_WhenProfileIsNotRunning_SetsIsHotswapModeFalseAsync()
     {
         // Arrange
         const string profileId = "profile-idle-1";
@@ -336,7 +336,7 @@ public class GameProfileSettingsViewModelHotswapTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task SaveAsync_WhenLiveSyncFails_SetsStatusMessageWarning()
+    public async Task SaveAsync_WhenLiveSyncFails_SetsStatusMessageWarningAsync()
     {
         // Arrange
         const string profileId = "profile-live-3";
@@ -436,7 +436,7 @@ public class GameProfileSettingsViewModelHotswapTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task SaveAsync_WhenManifestResolutionFails_AbortsLiveSyncAndDoesNotInvokeLinker()
+    public async Task SaveAsync_WhenManifestResolutionFails_AbortsLiveSyncAndDoesNotInvokeLinkerAsync()
     {
         // Arrange
         const string profileId = "profile-live-4";
@@ -531,7 +531,7 @@ public class GameProfileSettingsViewModelHotswapTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task SaveAsync_WhenProfileUpdateFailsAfterLiveSync_RollsBackLiveSyncToOriginalManifests()
+    public async Task SaveAsync_WhenProfileUpdateFailsAfterLiveSync_RollsBackLiveSyncToOriginalManifestsAsync()
     {
         // Arrange
         const string profileId = "profile-live-5";
@@ -650,7 +650,7 @@ public class GameProfileSettingsViewModelHotswapTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task SaveAsync_WhenLiveSyncRollbackFails_ShowsErrorNotification()
+    public async Task SaveAsync_WhenLiveSyncRollbackFails_ShowsErrorNotificationAsync()
     {
         // Arrange
         const string profileId = "profile-live-6";
@@ -755,7 +755,7 @@ public class GameProfileSettingsViewModelHotswapTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task EnableContent_DuringHotswap_EnablesHotswappableMapPackWithoutAttemptingToModifyLockedInstallation()
+    public async Task EnableContent_DuringHotswap_EnablesHotswappableMapPackWithoutAttemptingToModifyLockedInstallationAsync()
     {
         // Arrange
         const string profileId = "profile-live-hotswap";

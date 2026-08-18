@@ -52,7 +52,7 @@ public class ContentReconciliationServiceHotswapTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ReconcileBulkManifestReplacementAsync_WhenProfileRunning_PreservesWorkspaceAndUpdatesProfile()
+    public async Task ReconcileBulkManifestReplacementAsync_WhenProfileRunning_PreservesWorkspaceAndUpdatesProfileAsync()
     {
         // Arrange
         const string runningProfileId = "running-profile-1";
@@ -108,7 +108,7 @@ public class ContentReconciliationServiceHotswapTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task OrchestrateBulkRemovalAsync_WhenProfileRunning_ProtectsManifestFromRemoval()
+    public async Task OrchestrateBulkRemovalAsync_WhenProfileRunning_ProtectsManifestFromRemovalAsync()
     {
         // Arrange
         const string runningProfileId = "running-profile-2";
@@ -148,7 +148,7 @@ public class ContentReconciliationServiceHotswapTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ReconcileManifestRemovalAsync_WhenProfileRunning_ReturnsFailureAndProtectsManifest()
+    public async Task ReconcileManifestRemovalAsync_WhenProfileRunning_ReturnsFailureAndProtectsManifestAsync()
     {
         // Arrange
         const string runningProfileId = "running-profile-3";
@@ -184,7 +184,7 @@ public class ContentReconciliationServiceHotswapTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task OrchestrateBulkRemovalAsync_WithMixedRunningAndIdleProfiles_UpdatesIdleProfileAndProtectsManifestFromRemoval()
+    public async Task OrchestrateBulkRemovalAsync_WithMixedRunningAndIdleProfiles_UpdatesIdleProfileAndProtectsManifestFromRemovalAsync()
     {
         // Arrange
         const string runningProfileId = "running-profile-mixed";

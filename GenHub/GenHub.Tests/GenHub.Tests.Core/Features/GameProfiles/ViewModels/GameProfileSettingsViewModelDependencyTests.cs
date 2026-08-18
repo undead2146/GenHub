@@ -546,7 +546,7 @@ public class GameProfileSettingsViewModelDependencyTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task EnableContent_DoesNotAutoSwitch_WhenMatchingGameInstallationAlreadySelected()
+    public async Task EnableContent_DoesNotAutoSwitch_WhenMatchingGameInstallationAlreadySelectedAsync()
     {
         // Arrange
         var mapPackManifestId = new ManifestId("1.813262.generalsonline.mappack.quickmatchmaps");

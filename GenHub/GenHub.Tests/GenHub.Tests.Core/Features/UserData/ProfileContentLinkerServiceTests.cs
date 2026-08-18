@@ -39,7 +39,7 @@ public class ProfileContentLinkerServiceTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task SwitchProfileUserDataAsync_WhenOldProfileIsNull_DeactivatesLingeringActiveUserDataFromOtherProfiles()
+    public async Task SwitchProfileUserDataAsync_WhenOldProfileIsNull_DeactivatesLingeringActiveUserDataFromOtherProfilesAsync()
     {
         // Arrange
         const string newProfileId = "profile-new";
@@ -99,11 +99,57 @@ public class ProfileContentLinkerServiceTests
     }
 
     /// <summary>
+    /// Verifies that SwitchProfileUserDataAsync returns failure when adopting a manifest from old profile fails during skipCleanup.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task SwitchProfileUserDataAsync_WhenAdoptionInstallFails_ReturnsFailureAsync()
+    {
+        // Arrange
+        const string oldProfileId = "profile-old";
+        const string newProfileId = "profile-new";
+        const GameType gameType = GameType.ZeroHour;
+
+        var oldManifest = new UserDataManifest
+        {
+            ManifestId = "1.0.0.map.desert",
+            ProfileId = oldProfileId,
+            TargetGame = gameType,
+            InstalledFiles = [new UserDataFileEntry { AbsolutePath = "C:\\path\\Desert.map", RelativePath = "Maps\\Desert.map", InstallTarget = ContentInstallTarget.UserMapsDirectory }],
+        };
+
+        _userDataTrackerMock.Setup(t => t.GetProfileUserDataAsync(oldProfileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IReadOnlyList<UserDataManifest>>.CreateSuccess([oldManifest]));
+
+        _userDataTrackerMock.Setup(t => t.InstallUserDataAsync(
+            oldManifest.ManifestId,
+            newProfileId,
+            gameType,
+            It.IsAny<IEnumerable<ManifestFile>>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<UserDataManifest>.CreateFailure("Adoption disk error"));
+
+        // Act
+        var result = await _linkerService.SwitchProfileUserDataAsync(
+            oldProfileId: oldProfileId,
+            newProfileId: newProfileId,
+            newManifests: [],
+            targetGame: gameType,
+            skipCleanup: true);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("Adoption disk error", result.FirstError, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Verifies that PrepareProfileUserDataAsync cleans up any lingering active user data from other profiles before activating the target profile.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task PrepareProfileUserDataAsync_DeactivatesLingeringActiveUserDataFromOtherProfiles()
+    public async Task PrepareProfileUserDataAsync_DeactivatesLingeringActiveUserDataFromOtherProfilesAsync()
     {
         // Arrange
         const string targetProfileId = "profile-target";
@@ -163,7 +209,7 @@ public class ProfileContentLinkerServiceTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task UpdateProfileUserDataAsync_WhenActivationFails_ReturnsFailure()
+    public async Task UpdateProfileUserDataAsync_WhenActivationFails_ReturnsFailureAsync()
     {
         // Arrange
         const string profileId = "profile-live";
@@ -219,7 +265,7 @@ public class ProfileContentLinkerServiceTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task UpdateProfileUserDataAsync_WhenSecondUninstallFails_RollsBackFirstUninstall()
+    public async Task UpdateProfileUserDataAsync_WhenSecondUninstallFails_RollsBackFirstUninstallAsync()
     {
         // Arrange
         const string profileId = "profile-uninstall-fail";
@@ -285,7 +331,7 @@ public class ProfileContentLinkerServiceTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task UpdateProfileUserDataAsync_WhenSecondInstallFails_RollsBackFirstInstall()
+    public async Task UpdateProfileUserDataAsync_WhenSecondInstallFails_RollsBackFirstInstallAsync()
     {
         // Arrange
         const string profileId = "profile-install-fail";
@@ -343,5 +389,60 @@ public class ProfileContentLinkerServiceTests
 
         // Verify manifest-1 was uninstalled as part of rollback
         _userDataTrackerMock.Verify(t => t.UninstallUserDataAsync(manifest1Id, profileId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Verifies that UpdateProfileUserDataAsync reports that live rollback was incomplete when rollback compensation itself fails.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task UpdateProfileUserDataAsync_WhenRollbackFails_ReturnsFailureWithIncompleteRollbackNoticeAsync()
+    {
+        // Arrange
+        const string profileId = "profile-rollback-fail";
+        const GameType gameType = GameType.ZeroHour;
+        const string manifest1Id = "1.0.0.map.desert1";
+        const string manifest2Id = "1.0.0.map.desert2";
+
+        var existing1 = new UserDataManifest
+        {
+            ManifestId = manifest1Id,
+            ProfileId = profileId,
+            TargetGame = gameType,
+            InstalledFiles = [new UserDataFileEntry { AbsolutePath = "C:\\path\\1.map", RelativePath = "1.map", InstallTarget = ContentInstallTarget.UserMapsDirectory }],
+        };
+        var existing2 = new UserDataManifest
+        {
+            ManifestId = manifest2Id,
+            ProfileId = profileId,
+            TargetGame = gameType,
+            InstalledFiles = [new UserDataFileEntry { AbsolutePath = "C:\\path\\2.map", RelativePath = "2.map", InstallTarget = ContentInstallTarget.UserMapsDirectory }],
+        };
+
+        _userDataTrackerMock.Setup(t => t.GetProfileUserDataAsync(profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IReadOnlyList<UserDataManifest>>.CreateSuccess([existing1, existing2]));
+
+        _userDataTrackerMock.Setup(t => t.UninstallUserDataAsync(manifest1Id, profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+        _userDataTrackerMock.Setup(t => t.UninstallUserDataAsync(manifest2Id, profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateFailure("File locked"));
+
+        // Compensating reinstall fails during rollback
+        _userDataTrackerMock.Setup(t => t.InstallUserDataAsync(
+            manifest1Id,
+            profileId,
+            gameType,
+            It.IsAny<IEnumerable<ManifestFile>>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<UserDataManifest>.CreateFailure("Disk unreadable during rollback"));
+
+        // Act - remove both manifests
+        var result = await _linkerService.UpdateProfileUserDataAsync(profileId, [], gameType);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("live rollback was incomplete", result.FirstError, StringComparison.OrdinalIgnoreCase);
     }
 }
