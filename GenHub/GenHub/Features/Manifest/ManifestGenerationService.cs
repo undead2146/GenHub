@@ -389,6 +389,7 @@ public class ManifestGenerationService(
                 publisher = publisherInfo;
             }
             else
+            {
                 var publisherName = clientName switch
                 {
                     _ when clientName.Contains("steam", StringComparison.InvariantCultureIgnoreCase) => PublisherInfoConstants.Steam.Name,

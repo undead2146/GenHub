@@ -9,6 +9,7 @@ using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Providers;
 using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Content;
@@ -150,8 +151,8 @@ public class SuperHackersProfileReconciler(
     }
 
     private static Dictionary<string, string> BuildManifestMapping(
-        List<ContentManifest> oldManifests,
-        List<ContentManifest> newManifests,
+        IEnumerable<ContentManifest> oldManifests,
+        IEnumerable<ContentManifest> newManifests,
         IVersionScheme versionScheme)
     {
         var mapping = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
