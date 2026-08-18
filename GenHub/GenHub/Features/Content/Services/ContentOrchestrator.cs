@@ -116,7 +116,6 @@ public class ContentOrchestrator : IContentOrchestrator
             return OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(cachedResults);
         }
 
-        ConcurrentBag<ContentSearchResult> allResults = [];
         ConcurrentBag<string> errors = [];
 
         // Orchestrate search across all enabled providers concurrently
@@ -136,48 +135,53 @@ public class ContentOrchestrator : IContentOrchestrator
             return OperationResult<IEnumerable<ContentSearchResult>>.CreateFailure("No enabled providers available");
         }
 
-        var searchTasksAsync = searchTasks.Select(async provider =>
-        {
-            try
+        var searchTasksAsync = searchTasks
+            .Select(async provider =>
             {
-                _logger.LogDebug("Executing search via provider: {ProviderName}", provider.SourceName);
-                var result = await provider.SearchAsync(query, cancellationToken);
-
-                if (result.Success && result.Data != null)
+                var providerResults = new List<ContentSearchResult>();
+                try
                 {
-                    foreach (var item in result.Data)
+                    _logger.LogDebug("Executing search via provider: {ProviderName}", provider.SourceName);
+                    var result = await provider.SearchAsync(query, cancellationToken);
+
+                    if (result.Success && result.Data != null)
                     {
-                        // Ensure provider name is set correctly
-                        if (string.IsNullOrEmpty(item.ProviderName))
+                        foreach (var item in result.Data)
                         {
-                            item.ProviderName = provider.SourceName;
+                            // Ensure provider name is set correctly
+                            if (string.IsNullOrEmpty(item.ProviderName))
+                            {
+                                item.ProviderName = provider.SourceName;
+                            }
+
+                            providerResults.Add(item);
                         }
 
-                        allResults.Add(item);
+                        _logger.LogDebug("Provider {ProviderName} returned {ResultCount} results", provider.SourceName, result.Data.Count());
                     }
-
-                    _logger.LogDebug("Provider {ProviderName} returned {ResultCount} results", provider.SourceName, result.Data.Count());
+                    else
+                    {
+                        errors.Add($"{provider.SourceName}: {result.FirstError}");
+                        _logger.LogWarning("Provider {ProviderName} failed: {Error}", provider.SourceName, result.FirstError);
+                    }
                 }
-                else
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
-                    errors.Add($"{provider.SourceName}: {result.FirstError}");
-                    _logger.LogWarning("Provider {ProviderName} failed: {Error}", provider.SourceName, result.FirstError);
+                    // Filtered on the caller's token: a provider timing out on its own token raises
+                    // TaskCanceledException too, and must not abort the other providers' results.
+                    throw;
                 }
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                // Filtered on the caller's token: a provider timing out on its own token raises
-                // TaskCanceledException too, and must not abort the other providers' results.
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Search failed for provider: {ProviderName}", provider.SourceName);
-                errors.Add($"{provider.SourceName}: {ex.Message}");
-            }
-        });
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Search failed for provider: {ProviderName}", provider.SourceName);
+                    errors.Add($"{provider.SourceName}: {ex.Message}");
+                }
 
-        await Task.WhenAll(searchTasksAsync);
+                return providerResults;
+            });
+
+        var resultsPerProvider = await Task.WhenAll(searchTasksAsync);
+        var allResults = resultsPerProvider.SelectMany(r => r).ToList();
 
         // A provider that handled cancellation internally reports it as a failed result rather
         // than an exception, which would otherwise surface here as an empty successful search.
@@ -289,14 +293,17 @@ public class ContentOrchestrator : IContentOrchestrator
     {
         ArgumentNullException.ThrowIfNull(provider);
 
-        if (_providers.All(p => p.SourceName != provider.SourceName))
+        lock (_providerLock)
         {
-            _providers.Add(provider);
-            _logger.LogInformation("Registered content provider: {ProviderName}", provider.SourceName);
-        }
-        else
-        {
-            _logger.LogWarning("Attempted to register duplicate provider: {ProviderName}", provider.SourceName);
+            if (_providers.All(p => !string.Equals(p.SourceName, provider.SourceName, StringComparison.OrdinalIgnoreCase)))
+            {
+                _providers.Add(provider);
+                _logger.LogInformation("Registered content provider: {ProviderName}", provider.SourceName);
+            }
+            else
+            {
+                _logger.LogWarning("Attempted to register duplicate provider: {ProviderName}", provider.SourceName);
+            }
         }
     }
 
@@ -414,38 +421,36 @@ public class ContentOrchestrator : IContentOrchestrator
             }
 
             // Step 2: Get complete manifest
-            ContentManifest? manifest;
-            var embeddedManifest = searchResult.GetData<ContentManifest>();
-            if (embeddedManifest != null)
+            var manifest = searchResult.GetData<ContentManifest>();
+            if (manifest == null)
             {
-                manifest = embeddedManifest;
-            }
-            else if (searchResult.RequiresResolution && !string.IsNullOrEmpty(searchResult.ResolverId))
-            {
-                // Content requires resolution through a resolver (e.g., GitHub releases)
-                _logger.LogInformation(
-                    "Content requires resolution. Using resolver: {ResolverId}",
-                    searchResult.ResolverId);
-
-                var resolveResult = await ResolveManifestAsync(searchResult, cancellationToken);
-                if (!resolveResult.Success || resolveResult.Data == null)
+                if (searchResult.RequiresResolution && !string.IsNullOrEmpty(searchResult.ResolverId))
                 {
-                    return OperationResult<ContentManifest>.CreateFailure(
-                        $"Failed to resolve manifest: {resolveResult.FirstError}");
-                }
+                    // Content requires resolution through a resolver (e.g., GitHub releases)
+                    _logger.LogInformation(
+                        "Content requires resolution. Using resolver: {ResolverId}",
+                        searchResult.ResolverId);
 
-                manifest = resolveResult.Data;
-            }
-            else
-            {
-                var manifestResult = await provider.GetValidatedContentAsync(searchResult.Id, cancellationToken);
-                if (!manifestResult.Success || manifestResult.Data == null)
+                    var resolveResult = await ResolveManifestAsync(searchResult, cancellationToken);
+                    if (!resolveResult.Success || resolveResult.Data == null)
+                    {
+                        return OperationResult<ContentManifest>.CreateFailure(
+                            $"Failed to resolve manifest: {resolveResult.FirstError}");
+                    }
+
+                    manifest = resolveResult.Data;
+                }
+                else
                 {
-                    return OperationResult<ContentManifest>.CreateFailure(
-                        $"Failed to get manifest: {manifestResult.FirstError}");
-                }
+                    var manifestResult = await provider.GetValidatedContentAsync(searchResult.Id, cancellationToken);
+                    if (!manifestResult.Success || manifestResult.Data == null)
+                    {
+                        return OperationResult<ContentManifest>.CreateFailure(
+                            $"Failed to get manifest: {manifestResult.FirstError}");
+                    }
 
-                manifest = manifestResult.Data;
+                    manifest = manifestResult.Data;
+                }
             }
 
             // Step 3: Validate manifest structure only

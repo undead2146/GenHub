@@ -57,6 +57,11 @@ public partial class GameProfileSettingsViewModel
         {
             IsLoadingContent = true;
             StatusMessage = "Loading content...";
+            var existingLocks = AvailableContent
+                .Concat(EnabledContent)
+                .GroupBy(x => x.ManifestId.Value, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => (g.First().IsLocked, g.First().CanToggle), StringComparer.OrdinalIgnoreCase);
+
             AvailableContent.Clear();
 
             var enabledContentIds = EnabledContent.Select(e => e.ManifestId.Value).ToList();
@@ -100,6 +105,12 @@ public partial class GameProfileSettingsViewModel
                     }
 
                     var viewModelItem = ConvertToViewModelContentDisplayItem(coreItem);
+                    if (existingLocks.TryGetValue(coreItem.ManifestId, out var lockState))
+                    {
+                        viewModelItem.IsLocked = lockState.IsLocked;
+                        viewModelItem.CanToggle = lockState.CanToggle;
+                    }
+
                     AvailableContent.Add(viewModelItem);
                 }
                 catch (ArgumentException argEx)
@@ -178,6 +189,20 @@ public partial class GameProfileSettingsViewModel
             return;
         }
 
+        if (contentItem.IsLocked)
+        {
+            StatusMessage = "This content item is locked and cannot be modified";
+            _logger?.LogWarning("DisableContent: Cannot disable locked item {DisplayName}", contentItem.DisplayName);
+            return;
+        }
+
+        if (!contentItem.CanToggle)
+        {
+            StatusMessage = "This content item cannot be toggled";
+            _logger?.LogWarning("DisableContent: Cannot disable non-toggleable item {DisplayName}", contentItem.DisplayName);
+            return;
+        }
+
         _logger?.LogInformation(
             "DisableContent called for: {DisplayName} (ManifestId: {ManifestId})",
             contentItem.DisplayName,
@@ -228,6 +253,13 @@ public partial class GameProfileSettingsViewModel
         {
             StatusMessage = "No content selected";
             _logger?.LogWarning("DeleteContent: contentItem parameter is null");
+            return;
+        }
+
+        if (contentItem.IsLocked)
+        {
+            StatusMessage = "This content item is locked and cannot be modified";
+            _logger?.LogWarning("DeleteContent: Cannot delete locked item {DisplayName}", contentItem.DisplayName);
             return;
         }
 
@@ -713,6 +745,13 @@ public partial class GameProfileSettingsViewModel
     private async Task EditContentAsync(ContentDisplayItem? contentItem)
     {
         if (contentItem == null) return;
+
+        if (contentItem.IsLocked)
+        {
+            StatusMessage = "This content item is locked and cannot be modified";
+            _logger?.LogWarning("EditContent: Cannot edit locked item {DisplayName}", contentItem.DisplayName);
+            return;
+        }
 
         try
         {
