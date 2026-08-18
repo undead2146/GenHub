@@ -13,7 +13,6 @@ The GenHub content system provides a flexible, extensible architecture for disco
 - [Publisher Configuration](./publisher-configuration.md) - Data-driven publisher configuration for flexible content pipeline customization
 - [Publisher Infrastructure](./publisher-infrastructure.md) - Extensible architecture for publisher-specific content handling
 - [Content Dependencies](./content-dependencies.md) - Dependency system for mods and content packages
-- [Creator Publishing](./creator-publishing.md) - Guide for content creators to publish via GenHub
 - [Universal Parser](./universal-parser.md) - Unified parsing system for web content
 - [Downloads Flow](../../FlowCharts/Downloads-Flow.md) - User journey from browsing to installation
 
