@@ -92,11 +92,12 @@ public class GameInstallationValidatorTests
             await _validator.ValidateAsync(installation, progress);
 
             // Assert
-            var reportsList = progress.Reports.ToList();
+            var reportsList = progress.GetReports();
             Assert.True(reportsList.Count > 0, "Expected progress reports to be generated");
 
             // Find the final progress report (highest processed count)
-            var finalProgress = reportsList.OrderBy(p => p.Processed).Last();
+            var finalProgress = reportsList.MaxBy(p => p.Processed);
+            Assert.NotNull(finalProgress);
 
             // Verify the final progress shows completion
             Assert.Equal(finalProgress.Total, finalProgress.Processed);
@@ -390,19 +391,16 @@ public class GameInstallationValidatorTests
     /// <summary>
     /// Custom progress implementation that captures reports synchronously.
     /// </summary>
-    private class SynchronousProgress<T> : IProgress<T>
+    private sealed class SynchronousProgress<T> : IProgress<T>
     {
         private readonly List<T> _reports = new();
         private readonly object _lock = new();
 
-        public IReadOnlyList<T> Reports
+        public IReadOnlyList<T> GetReports()
         {
-            get
+            lock (_lock)
             {
-                lock (_lock)
-                {
-                    return _reports.ToList();
-                }
+                return _reports.ToList();
             }
         }
 

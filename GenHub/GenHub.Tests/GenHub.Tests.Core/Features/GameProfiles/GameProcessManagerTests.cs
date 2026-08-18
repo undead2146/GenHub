@@ -395,8 +395,8 @@ public class GameProcessManagerTests
             var childPath = Path.Combine(workingDirectory, OperatingSystem.IsWindows() ? ChildProcessName + ".exe" : ChildProcessName);
             File.Copy(LongRunningSystemBinary(), childPath);
 
-            string launcherPath = string.Empty;
-            string script = string.Empty;
+            var launcherPath = string.Empty;
+            var script = string.Empty;
             if (OperatingSystem.IsWindows())
             {
                 launcherPath = Path.Combine(workingDirectory, "genhublauncher.bat");
