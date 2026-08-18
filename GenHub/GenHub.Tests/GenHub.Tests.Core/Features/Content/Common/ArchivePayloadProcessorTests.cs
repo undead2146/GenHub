@@ -444,13 +444,18 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
         // 3. Normalize directory structure
         await processor.NormalizeDirectoryStructureAsync(testDir, ContentType.Mod, GameType.ZeroHour);
 
-        // 4. Verify extracted and normalized game files exist
+        // 4. Verify extracted and normalized game files exist with full uncompressed size
+        var textureBigPath = Path.Combine(testDir, "!ShwTextures.big");
+        Assert.True(File.Exists(textureBigPath), "Expected !ShwTextures.big to exist after normalization.");
+        var textureInfo = new FileInfo(textureBigPath);
+        Assert.True(textureInfo.Length > 60_000_000, $"Expected full textures >60MB, got {textureInfo.Length} bytes.");
+
         Assert.True(
-            File.Exists(Path.Combine(testDir, "!!0ShwPtchIcon.big")) || File.Exists(Path.Combine(testDir, "!!0ShwPtchIcon.gib")),
-            "Expected !!0ShwPtchIcon.big or .gib to exist.");
+            File.Exists(Path.Combine(testDir, "!!0ShwPtchIcon.big")),
+            "Expected !!0ShwPtchIcon.big to exist.");
         Assert.True(
-            File.Exists(Path.Combine(testDir, "!ShwAudio.big")) || File.Exists(Path.Combine(testDir, "!ShwAudio.gib")),
-            "Expected !ShwAudio.big or .gib to exist.");
+            File.Exists(Path.Combine(testDir, "!ShwAudio.big")),
+            "Expected !ShwAudio.big to exist.");
         Assert.True(
             File.Exists(Path.Combine(testDir, "ShockWaveLauncher.exe")),
             "Expected ShockWaveLauncher.exe to exist.");
