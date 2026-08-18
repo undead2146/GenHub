@@ -24,6 +24,8 @@ namespace GenHub.Features.Content.Services.GeneralsOnline;
 /// </summary>
 public class GeneralsOnlineDeliverer(
    IDownloadService downloadService,
+   IContentManifestPool manifestPool,
+   GeneralsOnlineManifestFactory manifestFactory,
    ILogger<GeneralsOnlineDeliverer> logger)
    : IContentDeliverer
 {
