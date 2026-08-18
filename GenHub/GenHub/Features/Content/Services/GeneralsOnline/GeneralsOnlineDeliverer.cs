@@ -64,6 +64,7 @@ public class GeneralsOnlineDeliverer(
         try
         {
             logger.LogInformation("Starting Generals Online content delivery for {Version}", packageManifest.Version);
+            PruneStaleTempArtifacts(targetDirectory, logger);
 
             var downloadResult = await DownloadAndExtractPackageAsync(packageManifest, targetDirectory, progress, cancellationToken);
             if (!downloadResult.Success)
@@ -182,6 +183,47 @@ public class GeneralsOnlineDeliverer(
         }
     }
 
+    private static void PruneStaleTempArtifacts(string targetDirectory, ILogger logger)
+    {
+        try
+        {
+            if (!Directory.Exists(targetDirectory))
+            {
+                return;
+            }
+
+            foreach (var staleZip in Directory.EnumerateFiles(targetDirectory, "GeneralsOnline_*.zip"))
+            {
+                try
+                {
+                    File.Delete(staleZip);
+                    logger.LogDebug("Pruned stale ZIP artifact: {Path}", staleZip);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogTrace(ex, "Failed to prune stale ZIP {Path}", staleZip);
+                }
+            }
+
+            foreach (var staleDir in Directory.EnumerateDirectories(targetDirectory, "extracted_*"))
+            {
+                try
+                {
+                    Directory.Delete(staleDir, recursive: true);
+                    logger.LogDebug("Pruned stale extraction directory: {Path}", staleDir);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogTrace(ex, "Failed to prune stale extraction dir {Path}", staleDir);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogTrace(ex, "Error while pruning stale artifacts in {Directory}", targetDirectory);
+        }
+    }
+
     private static void CleanupTempArtifacts(string? zipPath, string? extractPath, ILogger logger)
     {
         if (!string.IsNullOrEmpty(extractPath) && Directory.Exists(extractPath))
@@ -221,7 +263,7 @@ public class GeneralsOnlineDeliverer(
             return OperationResult<(string, string)>.CreateFailure("No ZIP file found in manifest");
         }
 
-        var zipPath = Path.Combine(targetDirectory, "GeneralsOnline.zip");
+        var zipPath = Path.Combine(targetDirectory, $"GeneralsOnline_{Guid.NewGuid():N}.zip");
         progress?.Report(new ContentAcquisitionProgress
         {
             Phase = ContentAcquisitionPhase.Downloading,
@@ -244,7 +286,7 @@ public class GeneralsOnlineDeliverer(
             return OperationResult<(string, string)>.CreateFailure($"Failed to download ZIP: {downloadResult.FirstError}");
         }
 
-        var extractPath = Path.Combine(targetDirectory, "extracted");
+        var extractPath = Path.Combine(targetDirectory, $"extracted_{Guid.NewGuid():N}");
         Directory.CreateDirectory(extractPath);
 
         progress?.Report(new ContentAcquisitionProgress

@@ -38,6 +38,8 @@ public class GeneralsOnlineProfileReconciler(
     IContentVersionComparer versionComparer)
     : IGeneralsOnlineProfileReconciler, IPublisherReconciler
 {
+    private readonly SemaphoreSlim _reconcileLock = new(1, 1);
+
     /// <inheritdoc/>
     public string PublisherType => GeneralsOnlineConstants.PublisherType;
 
@@ -46,6 +48,7 @@ public class GeneralsOnlineProfileReconciler(
         string triggeringProfileId,
         CancellationToken cancellationToken = default)
     {
+        await _reconcileLock.WaitAsync(cancellationToken);
         try
         {
             logger.LogInformation(
@@ -140,6 +143,10 @@ public class GeneralsOnlineProfileReconciler(
 
             return OperationResult<bool>.CreateFailure(
                 $"GeneralsOnline update reconciliation failed: {ex.Message}");
+        }
+        finally
+        {
+            _reconcileLock.Release();
         }
     }
 
@@ -610,6 +617,8 @@ public class GeneralsOnlineProfileReconciler(
             return OperationResult<int>.CreateFailure("Failed to retrieve profiles for creating new profiles");
         }
 
+        var existingProfileNames = allProfiles.Data.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         foreach (var profile in allProfiles.Data)
         {
             // Check if profile is relevant (uses any Old GeneralsOnline manifest)
@@ -618,15 +627,44 @@ public class GeneralsOnlineProfileReconciler(
 
             if (!isRelevant) continue;
 
+            var targetProfileName = $"{profile.Name} (v{newVersion})";
+            if (existingProfileNames.Contains(targetProfileName))
+            {
+                logger.LogInformation("[GO Reconciler] Profile '{Name}' already exists, skipping clone", targetProfileName);
+                continue;
+            }
+
             try
             {
+                // Resolve updated game client reference if applicable
+                var updatedGameClient = profile.GameClient;
+                if (profile.GameClient != null && manifestMapping.TryGetValue(profile.GameClient.Id, out var newGameClientId))
+                {
+                    var newManifest = newManifests.FirstOrDefault(m => string.Equals(m.Id.Value, newGameClientId, StringComparison.OrdinalIgnoreCase));
+                    if (newManifest != null)
+                    {
+                        updatedGameClient = new Core.Models.GameClients.GameClient
+                        {
+                            Id = newManifest.Id.Value,
+                            Name = newManifest.Name,
+                            Version = newManifest.Version ?? string.Empty,
+                            GameType = newManifest.TargetGame,
+                            SourceType = newManifest.ContentType,
+                            PublisherType = newManifest.Publisher?.PublisherType ?? profile.GameClient.PublisherType,
+                            InstallationId = profile.GameClient.InstallationId,
+                            ExecutablePath = profile.GameClient.ExecutablePath,
+                            WorkingDirectory = profile.GameClient.WorkingDirectory,
+                        };
+                    }
+                }
+
                 // Clone the profile
                 var cloneRequest = new Core.Models.GameProfile.CreateProfileRequest
                 {
-                   Name = $"{profile.Name} (v{newVersion})",
+                   Name = targetProfileName,
                    GameInstallationId = profile.GameInstallationId,
                    WorkspaceStrategy = profile.WorkspaceStrategy,
-                   GameClient = profile.GameClient,
+                   GameClient = updatedGameClient,
                 };
 
                 // Calculate new content IDs
@@ -653,6 +691,7 @@ public class GeneralsOnlineProfileReconciler(
                 if (createResult.Success)
                 {
                     createdCount++;
+                    existingProfileNames.Add(targetProfileName);
                     logger.LogInformation("[GO Reconciler] Created new profile '{Name}' for update", cloneRequest.Name);
                 }
                 else

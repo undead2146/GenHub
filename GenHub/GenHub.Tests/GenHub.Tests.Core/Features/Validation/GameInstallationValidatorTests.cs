@@ -48,7 +48,7 @@ public class GameInstallationValidatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     [Fact]
-    public async Task ValidateAsync_WithProgressCallback_ReportsProgress()
+    public async Task ValidateAsync_WithProgressCallback_ReportsProgressAsync()
     {
         var tempDir = Directory.CreateTempSubdirectory();
         try
@@ -92,11 +92,11 @@ public class GameInstallationValidatorTests
             await _validator.ValidateAsync(installation, progress);
 
             // Assert
-            var reportsList = progress.Reports.ToList();
+            var reportsList = progress.GetReports();
             Assert.True(reportsList.Count > 0, "Expected progress reports to be generated");
 
             // Find the final progress report (highest processed count)
-            var finalProgress = reportsList.OrderBy(p => p.Processed).Last();
+            var finalProgress = reportsList.MaxBy(p => p.Processed)!;
 
             // Verify the final progress shows completion
             Assert.Equal(finalProgress.Total, finalProgress.Processed);
@@ -129,7 +129,7 @@ public class GameInstallationValidatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     [Fact]
-    public async Task ValidateAsync_ManifestNotFound_AddsIssue()
+    public async Task ValidateAsync_ManifestNotFound_AddsIssueAsync()
     {
         _manifestProviderMock
             .Setup(m => m.GetManifestAsync(It.IsAny<GameInstallation>(), It.IsAny<CancellationToken>()))
@@ -152,7 +152,7 @@ public class GameInstallationValidatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     [Fact]
-    public async Task ValidateAsync_MissingFile_AddsMissingFileIssue()
+    public async Task ValidateAsync_MissingFile_AddsMissingFileIssueAsync()
     {
         var manifest = new ContentManifest
         {
@@ -206,7 +206,7 @@ public class GameInstallationValidatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     [Fact]
-    public async Task ValidateAsync_Cancellation_ThrowsOperationCanceledException()
+    public async Task ValidateAsync_Cancellation_ThrowsOperationCanceledExceptionAsync()
     {
         var cts = new CancellationTokenSource();
         cts.Cancel();
@@ -225,7 +225,7 @@ public class GameInstallationValidatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     [Fact]
-    public async Task ValidateAsync_MissingRequiredDirectory_AddsMissingDirectoryIssue()
+    public async Task ValidateAsync_MissingRequiredDirectory_AddsMissingDirectoryIssueAsync()
     {
         var tempDir = Directory.CreateTempSubdirectory();
         try
@@ -267,7 +267,7 @@ public class GameInstallationValidatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     [Fact]
-    public async Task ValidateAsync_EmptyManifest_HandlesGracefully()
+    public async Task ValidateAsync_EmptyManifest_HandlesGracefullyAsync()
     {
         var tempDir = Directory.CreateTempSubdirectory();
         try
@@ -302,7 +302,7 @@ public class GameInstallationValidatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     [Fact]
-    public async Task ValidateAsync_UnexpectedFiles_DetectsAsWarnings()
+    public async Task ValidateAsync_UnexpectedFiles_DetectsAsWarningsAsync()
     {
         var tempDir = Directory.CreateTempSubdirectory();
         try
@@ -354,7 +354,7 @@ public class GameInstallationValidatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     [Fact]
-    public async Task ValidateAsync_ContentValidatorException_HandlesGracefully()
+    public async Task ValidateAsync_ContentValidatorException_HandlesGracefullyAsync()
     {
         var tempDir = Directory.CreateTempSubdirectory();
         try
@@ -395,14 +395,11 @@ public class GameInstallationValidatorTests
         private readonly List<T> _reports = new();
         private readonly object _lock = new();
 
-        public IReadOnlyList<T> Reports
+        public IReadOnlyList<T> GetReports()
         {
-            get
+            lock (_lock)
             {
-                lock (_lock)
-                {
-                    return _reports.ToList();
-                }
+                return _reports.ToList();
             }
         }
 

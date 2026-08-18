@@ -80,7 +80,7 @@ public class ContentReconciliationServiceTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task OrchestrateLocalUpdateAsync_WhenIdChanges_ShouldAddManifestToPool_AndUpdateProfiles()
+    public async Task OrchestrateLocalUpdateAsync_WhenIdChanges_ShouldAddManifestToPool_AndUpdateProfilesAsync()
     {
         // Arrange
         var oldId = "1.0.local.gameclient.old";
@@ -137,7 +137,7 @@ public class ContentReconciliationServiceTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task OrchestrateLocalUpdateAsync_WhenTrackingFails_ShouldReturnFailure()
+    public async Task OrchestrateLocalUpdateAsync_WhenTrackingFails_ShouldReturnFailureAsync()
     {
         // Arrange
         var oldId = "1.0.local.gameclient.old";
@@ -176,7 +176,7 @@ public class ContentReconciliationServiceTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task OrchestrateBulkUpdateAsync_WhenManifestIsNull_ShouldSkipSpecificManifests()
+    public async Task OrchestrateBulkUpdateAsync_WhenManifestIsNull_ShouldSkipSpecificManifestsAsync()
     {
         // Arrange
         var oldId = "1.0.test.mod.old";
@@ -219,7 +219,7 @@ public class ContentReconciliationServiceTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task OrchestrateBulkUpdateAsync_WhenManifestResolutionFails_ShouldSkipSpecificManifests()
+    public async Task OrchestrateBulkUpdateAsync_WhenManifestResolutionFails_ShouldSkipSpecificManifestsAsync()
     {
         // Arrange
         var oldId = "1.0.test.mod.old";
@@ -262,7 +262,7 @@ public class ContentReconciliationServiceTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
     [Fact]
-    public async Task ScheduleGarbageCollectionAsync_WhenDisabled_ReturnsFailure()
+    public async Task ScheduleGarbageCollectionAsync_WhenDisabled_ReturnsFailureAsync()
     {
         _casServiceMock
             .Setup(service => service.RunGarbageCollectionAsync(

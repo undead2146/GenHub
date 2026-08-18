@@ -22,30 +22,36 @@ public static partial class GameVersionHelper
             return 0;
         }
 
+        // Try extracting an 8-digit date pattern first (e.g., "2025-11-07", "weekly-2025-11-21", "1.20260116")
+        var dateMatch = Regex.Match(version, @"\b(\d{4})[-_.]?(\d{2})[-_.]?(\d{2})\b", RegexOptions.None, TimeSpan.FromSeconds(1));
+        if (dateMatch.Success && int.TryParse($"{dateMatch.Groups[1].Value}{dateMatch.Groups[2].Value}{dateMatch.Groups[3].Value}", NumberStyles.Integer, CultureInfo.InvariantCulture, out var dateVal))
+        {
+            return dateVal;
+        }
+
         // Extract all digits from the version string
         var digits = NonDigitRegex().Replace(version, string.Empty);
-
-        // If it looks like a long date (YYYYMMDD) preceded by a segment (e.g. "1.20260116"),
-        // we might want the latter part if it's the date.
-        // But for now, let's just avoid the 8-digit truncation if it causes mangling
-        // and only truncate IF it would actually overflow int.
-        if (digits.Length > 9 && digits.StartsWith('0'))
+        if (string.IsNullOrEmpty(digits))
         {
-            digits = digits.TrimStart('0');
+            return 0;
+        }
+
+        digits = digits.TrimStart('0');
+        if (digits.Length == 0)
+        {
+            return 0;
         }
 
         if (digits.Length > 10)
         {
-             // int.MaxValue is ~2.1 billion (10 digits)
+            // int.MaxValue is 10 digits; truncate to 10 digits for legacy manifest ID compatibility
             digits = digits[..10];
         }
 
-        if (long.TryParse(digits, out var longResult))
+        if (long.TryParse(digits, NumberStyles.Integer, CultureInfo.InvariantCulture, out var longResult))
         {
             if (longResult > int.MaxValue)
             {
-                // If it's still too large for int, cap at int.MaxValue to prevent incorrect comparisons
-                // Most callers expect int.
                 return int.MaxValue;
             }
 
@@ -162,22 +168,18 @@ public static partial class GameVersionHelper
             || qfeDigits.Length == 0
             || !qfeDigits.All(character => character is >= '0' and <= '9')
             || !int.TryParse(qfeDigits, NumberStyles.None, CultureInfo.InvariantCulture, out var qfe)
-            || !int.TryParse(datePart[0..2], NumberStyles.None, CultureInfo.InvariantCulture, out var month)
-            || !int.TryParse(datePart[2..4], NumberStyles.None, CultureInfo.InvariantCulture, out var day)
-            || !int.TryParse(datePart[4..6], NumberStyles.None, CultureInfo.InvariantCulture, out var twoDigitYear))
+            || !DateOnly.TryParseExact(datePart, "MMddyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
         {
             return ExtractVersionFromVersionString(version);
         }
 
         try
         {
-            _ = new DateTime(2000 + twoDigitYear, month, day);
+            var month = date.Month;
+            var day = date.Day;
+            var twoDigitYear = date.Year % 100;
             var mmddyy = (month * 10000) + (day * 100) + twoDigitYear;
             return checked((mmddyy * 10) + qfe);
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            return ExtractVersionFromVersionString(version);
         }
         catch (OverflowException)
         {
