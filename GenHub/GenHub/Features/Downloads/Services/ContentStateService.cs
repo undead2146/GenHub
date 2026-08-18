@@ -127,151 +127,6 @@ public sealed partial class ContentStateService(
         return ContentState.NotDownloaded;
     }
 
-    private async Task<bool> CheckDirectSessionManifestFastPathAsync(ContentSearchResult item, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrEmpty(item.Id))
-        {
-            return false;
-        }
-
-        if (ManifestIdValidator.IsValid(item.Id!, out _))
-        {
-            var direct = await manifestPool.IsManifestAcquiredAsync(item.Id!, cancellationToken);
-            if (direct?.Success == true && direct.Data)
-            {
-                return true;
-            }
-        }
-
-        if (_sessionDownloads.TryGetValue(item.Id!, out var sessionManifestId))
-        {
-            var mapped = await manifestPool.IsManifestAcquiredAsync(sessionManifestId, cancellationToken);
-            if (mapped?.Success == true && mapped.Data)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private (string ProspectiveId, DateTime ReleaseDate, bool HasRealDate) DetermineProspectiveManifestId(ContentSearchResult item)
-    {
-        bool hasRealDate = item.LastUpdated.HasValue && item.LastUpdated.Value > DateTime.MinValue;
-        var releaseDate = hasRealDate ? item.LastUpdated!.Value : DateTime.MinValue;
-
-        var providerName = string.IsNullOrWhiteSpace(item.ProviderName) ? "unknown" : item.ProviderName;
-        var contentName = item.Name;
-        if (string.IsNullOrWhiteSpace(contentName))
-        {
-            contentName = string.IsNullOrWhiteSpace(item.Id) ? "unknown" : item.Id;
-        }
-
-        var prospectiveId = hasRealDate
-            ? ManifestIdGenerator.GeneratePublisherContentId(providerName, item.ContentType, contentName, releaseDate)
-            : ManifestIdGenerator.GeneratePublisherContentId(providerName, item.ContentType, contentName, userVersion: 0);
-
-        return (prospectiveId, releaseDate, hasRealDate);
-    }
-
-    private async Task<ContentState> EvaluatePersistedManifestStateAsync(
-        ContentManifest persistedManifest,
-        string prospectiveId,
-        DateTime releaseDate,
-        bool hasRealDate,
-        ContentSearchResult item,
-        CancellationToken cancellationToken)
-    {
-        if (IsSameContentSource(persistedManifest, item))
-        {
-            logger.LogInformation(
-                "Content {ContentName} is downloaded (exact content source match with local manifest {LocalId})",
-                item.Name,
-                persistedManifest.Id.Value);
-            return ContentState.Downloaded;
-        }
-
-        if (hasRealDate &&
-            releaseDate > DateTime.MinValue &&
-            IsNewerVersion(prospectiveId, persistedManifest.Id.Value, item.Version, persistedManifest.Version))
-        {
-            logger.LogInformation(
-                "Content {ContentName} has an update available (local persisted: {LocalId})",
-                item.Name,
-                persistedManifest.Id.Value);
-            return ContentState.UpdateAvailable;
-        }
-
-        if (hasRealDate &&
-            releaseDate > DateTime.MinValue &&
-            IsNewerVersion(persistedManifest.Id.Value, prospectiveId, persistedManifest.Version, item.Version))
-        {
-            var exactResult = await manifestPool.IsManifestAcquiredAsync(prospectiveId, cancellationToken);
-            if (exactResult.Success && exactResult.Data)
-            {
-                return ContentState.Downloaded;
-            }
-
-            logger.LogInformation(
-                "Content {ContentName} is not downloaded (local is newer: {LocalId}, prospective: {ProspectiveId})",
-                item.Name,
-                persistedManifest.Id.Value,
-                prospectiveId);
-            return ContentState.NotDownloaded;
-        }
-
-        return ContentState.Downloaded;
-    }
-
-    private async Task<ContentState> EvaluateMatchingManifestStateAsync(
-        ContentManifest matchingManifest,
-        string prospectiveId,
-        bool isNewerAvailable,
-        bool isOlderAvailable,
-        ContentSearchResult item,
-        CancellationToken cancellationToken)
-    {
-        if (IsSameContentSource(matchingManifest, item))
-        {
-            logger.LogInformation(
-                "Content {ContentName} is downloaded (exact content source match with local manifest {LocalId})",
-                item.Name,
-                matchingManifest.Id.Value);
-            return ContentState.Downloaded;
-        }
-
-        if (isNewerAvailable)
-        {
-            logger.LogInformation(
-                "Content {ContentName} has an update available (local: {LocalId})",
-                item.Name,
-                matchingManifest.Id.Value);
-            return ContentState.UpdateAvailable;
-        }
-
-        if (isOlderAvailable)
-        {
-            var exactResult = await manifestPool.IsManifestAcquiredAsync(prospectiveId, cancellationToken);
-            if (exactResult.Success && exactResult.Data)
-            {
-                return ContentState.Downloaded;
-            }
-
-            logger.LogInformation(
-                "Content {ContentName} is not downloaded (local is newer: {LocalId}, prospective: {ProspectiveId})",
-                item.Name,
-                matchingManifest.Id.Value,
-                prospectiveId);
-            return ContentState.NotDownloaded;
-        }
-
-        logger.LogInformation(
-            "Content {ContentName} is downloaded (matched by publisher/type/name: {LocalId})",
-            item.Name,
-            matchingManifest.Id.Value);
-        return ContentState.Downloaded;
-    }
-
     /// <inheritdoc/>
     public async Task<ContentState> GetStateAsync(
         string publisher,
@@ -351,34 +206,6 @@ public sealed partial class ContentStateService(
             }
 
             return matchingManifest.Id.Value;
-        }
-
-        return null;
-    }
-
-    private async Task<string?> GetDirectLocalManifestIdAsync(ContentSearchResult item, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrEmpty(item.Id))
-        {
-            return null;
-        }
-
-        if (ManifestIdValidator.IsValid(item.Id!, out _))
-        {
-            var direct = await manifestPool.IsManifestAcquiredAsync(item.Id!, cancellationToken);
-            if (direct.Success && direct.Data)
-            {
-                return item.Id;
-            }
-        }
-
-        if (_sessionDownloads.TryGetValue(item.Id!, out var sessionManifestId))
-        {
-            var mapped = await manifestPool.IsManifestAcquiredAsync(sessionManifestId, cancellationToken);
-            if (mapped.Success && mapped.Data)
-            {
-                return sessionManifestId;
-            }
         }
 
         return null;
@@ -581,6 +408,179 @@ public sealed partial class ContentStateService(
         }
 
         return false;
+    }
+
+    private async Task<bool> CheckDirectSessionManifestFastPathAsync(ContentSearchResult item, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(item.Id))
+        {
+            return false;
+        }
+
+        if (ManifestIdValidator.IsValid(item.Id!, out _))
+        {
+            var direct = await manifestPool.IsManifestAcquiredAsync(item.Id!, cancellationToken);
+            if (direct?.Success == true && direct.Data)
+            {
+                return true;
+            }
+        }
+
+        if (_sessionDownloads.TryGetValue(item.Id!, out var sessionManifestId))
+        {
+            var mapped = await manifestPool.IsManifestAcquiredAsync(sessionManifestId, cancellationToken);
+            if (mapped?.Success == true && mapped.Data)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private (string ProspectiveId, DateTime ReleaseDate, bool HasRealDate) DetermineProspectiveManifestId(ContentSearchResult item)
+    {
+        bool hasRealDate = item.LastUpdated.HasValue && item.LastUpdated.Value > DateTime.MinValue;
+        var releaseDate = hasRealDate ? item.LastUpdated!.Value : DateTime.MinValue;
+
+        var providerName = string.IsNullOrWhiteSpace(item.ProviderName) ? "unknown" : item.ProviderName;
+        var contentName = item.Name;
+        if (string.IsNullOrWhiteSpace(contentName))
+        {
+            contentName = string.IsNullOrWhiteSpace(item.Id) ? "unknown" : item.Id;
+        }
+
+        var prospectiveId = hasRealDate
+            ? ManifestIdGenerator.GeneratePublisherContentId(providerName, item.ContentType, contentName, releaseDate)
+            : ManifestIdGenerator.GeneratePublisherContentId(providerName, item.ContentType, contentName, userVersion: 0);
+
+        return (prospectiveId, releaseDate, hasRealDate);
+    }
+
+    private async Task<ContentState> EvaluatePersistedManifestStateAsync(
+        ContentManifest persistedManifest,
+        string prospectiveId,
+        DateTime releaseDate,
+        bool hasRealDate,
+        ContentSearchResult item,
+        CancellationToken cancellationToken)
+    {
+        if (IsSameContentSource(persistedManifest, item))
+        {
+            logger.LogInformation(
+                "Content {ContentName} is downloaded (exact content source match with local manifest {LocalId})",
+                item.Name,
+                persistedManifest.Id.Value);
+            return ContentState.Downloaded;
+        }
+
+        if (hasRealDate &&
+            releaseDate > DateTime.MinValue &&
+            IsNewerVersion(prospectiveId, persistedManifest.Id.Value, item.Version, persistedManifest.Version))
+        {
+            logger.LogInformation(
+                "Content {ContentName} has an update available (local persisted: {LocalId})",
+                item.Name,
+                persistedManifest.Id.Value);
+            return ContentState.UpdateAvailable;
+        }
+
+        if (hasRealDate &&
+            releaseDate > DateTime.MinValue &&
+            IsNewerVersion(persistedManifest.Id.Value, prospectiveId, persistedManifest.Version, item.Version))
+        {
+            var exactResult = await manifestPool.IsManifestAcquiredAsync(prospectiveId, cancellationToken);
+            if (exactResult.Success && exactResult.Data)
+            {
+                return ContentState.Downloaded;
+            }
+
+            logger.LogInformation(
+                "Content {ContentName} is not downloaded (local is newer: {LocalId}, prospective: {ProspectiveId})",
+                item.Name,
+                persistedManifest.Id.Value,
+                prospectiveId);
+            return ContentState.NotDownloaded;
+        }
+
+        return ContentState.Downloaded;
+    }
+
+    private async Task<ContentState> EvaluateMatchingManifestStateAsync(
+        ContentManifest matchingManifest,
+        string prospectiveId,
+        bool isNewerAvailable,
+        bool isOlderAvailable,
+        ContentSearchResult item,
+        CancellationToken cancellationToken)
+    {
+        if (IsSameContentSource(matchingManifest, item))
+        {
+            logger.LogInformation(
+                "Content {ContentName} is downloaded (exact content source match with local manifest {LocalId})",
+                item.Name,
+                matchingManifest.Id.Value);
+            return ContentState.Downloaded;
+        }
+
+        if (isNewerAvailable)
+        {
+            logger.LogInformation(
+                "Content {ContentName} has an update available (local: {LocalId})",
+                item.Name,
+                matchingManifest.Id.Value);
+            return ContentState.UpdateAvailable;
+        }
+
+        if (isOlderAvailable)
+        {
+            var exactResult = await manifestPool.IsManifestAcquiredAsync(prospectiveId, cancellationToken);
+            if (exactResult.Success && exactResult.Data)
+            {
+                return ContentState.Downloaded;
+            }
+
+            logger.LogInformation(
+                "Content {ContentName} is not downloaded (local is newer: {LocalId}, prospective: {ProspectiveId})",
+                item.Name,
+                matchingManifest.Id.Value,
+                prospectiveId);
+            return ContentState.NotDownloaded;
+        }
+
+        logger.LogInformation(
+            "Content {ContentName} is downloaded (matched by publisher/type/name: {LocalId})",
+            item.Name,
+            matchingManifest.Id.Value);
+        return ContentState.Downloaded;
+    }
+
+    private async Task<string?> GetDirectLocalManifestIdAsync(ContentSearchResult item, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(item.Id))
+        {
+            return null;
+        }
+
+        if (ManifestIdValidator.IsValid(item.Id!, out _))
+        {
+            var direct = await manifestPool.IsManifestAcquiredAsync(item.Id!, cancellationToken);
+            if (direct.Success && direct.Data)
+            {
+                return item.Id;
+            }
+        }
+
+        if (_sessionDownloads.TryGetValue(item.Id!, out var sessionManifestId))
+        {
+            var mapped = await manifestPool.IsManifestAcquiredAsync(sessionManifestId, cancellationToken);
+            if (mapped.Success && mapped.Data)
+            {
+                return sessionManifestId;
+            }
+        }
+
+        return null;
     }
 
     // TODO: [Architecture] Extrapolate publisher-specific variant state matching heuristics (e.g. IsSuperHackersVariant

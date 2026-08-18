@@ -190,6 +190,7 @@ public class CasPoolManager : ICasPoolManager
                 appBaseDirectory + Path.DirectorySeparatorChar,
                 PathHelper.PathComparison);
     }
+
     private void InitializePool(CasPoolType poolType)
     {
         // Double-check locking to ensure thread safety

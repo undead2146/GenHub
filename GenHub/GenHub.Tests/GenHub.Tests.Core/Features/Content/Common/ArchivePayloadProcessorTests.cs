@@ -415,8 +415,48 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     }
 
     /// <summary>
-    /// Cleans up test staging directory.
+    /// Verifies that Smart Install Maker SFX executables (e.g. ShockWave) are safely extracted and normalized.
     /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ExtractArchivesSafelyAsync_WithSmartInstallMakerExecutable_ExtractsAndNormalizesSuccessfully()
+    {
+        var casPath = @"A:\Steam\steamapps\common\.genhub-cas\objects\f4\f45e14d6b4a1e6e6feaa2ad737528b385586ad81ab7535bf9a330972db834c4e";
+        if (!File.Exists(casPath))
+        {
+            return;
+        }
+
+        var testDir = Path.Combine(_stagingDirectory, "sim_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(testDir);
+
+        var installerPath = Path.Combine(testDir, "ShockWaveV1201.exe");
+        File.Copy(casPath, installerPath, overwrite: true);
+
+        var processor = CreateProcessor();
+
+        // 1. Extract archive safely
+        await processor.ExtractArchivesSafelyAsync(testDir, ContentType.Mod);
+
+        // 2. Original installer .exe should have been deleted after extraction
+        Assert.False(File.Exists(installerPath), "Installer executable should be removed after successful extraction.");
+
+        // 3. Normalize directory structure
+        await processor.NormalizeDirectoryStructureAsync(testDir, ContentType.Mod, GameType.ZeroHour);
+
+        // 4. Verify extracted and normalized game files exist
+        Assert.True(
+            File.Exists(Path.Combine(testDir, "!!0ShwPtchIcon.big")) || File.Exists(Path.Combine(testDir, "!!0ShwPtchIcon.gib")),
+            "Expected !!0ShwPtchIcon.big or .gib to exist.");
+        Assert.True(
+            File.Exists(Path.Combine(testDir, "!ShwAudio.big")) || File.Exists(Path.Combine(testDir, "!ShwAudio.gib")),
+            "Expected !ShwAudio.big or .gib to exist.");
+        Assert.True(
+            File.Exists(Path.Combine(testDir, "ShockWaveLauncher.exe")),
+            "Expected ShockWaveLauncher.exe to exist.");
+    }
+
+    /// <inheritdoc />
     public void Dispose()
     {
         if (Directory.Exists(_stagingDirectory))

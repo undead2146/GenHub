@@ -25,6 +25,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
     private const int MaxNestedExtractionDepth = 5;
     private static readonly byte[] SevenZipSignature = [0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C];
     private static readonly byte[] RarSignature = [0x52, 0x61, 0x72, 0x21, 0x1A, 0x07];
+    private static readonly byte[] SmartInstallMakerSignature = [0x77, 0x77, 0x67, 0x54, 0x29, 0x48, 0x35, 0x14];
 
     /// <inheritdoc />
     public async Task ExtractArchivesSafelyAsync(
@@ -239,6 +240,12 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
             {
                 return true;
             }
+
+            stream.Position = 0;
+            if (FindSignatureOffset(stream, SmartInstallMakerSignature) >= 0)
+            {
+                return true;
+            }
         }
         catch
         {
@@ -389,6 +396,11 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
             {
                 return;
             }
+
+            if (TryExtractSmartInstallMakerArchive(archivePath, extractPath, cancellationToken))
+            {
+                return;
+            }
         }
 
         try
@@ -466,6 +478,11 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         string extractPath,
         CancellationToken cancellationToken)
     {
+        if (!ZipValidation.IsValidZipFile(archivePath))
+        {
+            return false;
+        }
+
         try
         {
             using var zip = ZipFile.OpenRead(archivePath);
@@ -568,6 +585,230 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         {
             return false;
         }
+    }
+
+    private static bool TryExtractSmartInstallMakerArchive(
+        string archivePath,
+        string extractPath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var stream = File.OpenRead(archivePath);
+            var sigOffset = FindSignatureOffset(stream, SmartInstallMakerSignature);
+            if (sigOffset < 0)
+            {
+                return false;
+            }
+
+            stream.Position = sigOffset + SmartInstallMakerSignature.Length;
+            using var reader = new BinaryReader(stream);
+
+            // Read Blocks 0 to 6 to reach Block 7 (file table)
+            byte[]? fileTableData = null;
+            for (var blockIndex = 0; blockIndex <= 7; blockIndex++)
+            {
+                if (stream.Position >= stream.Length - 13)
+                {
+                    break;
+                }
+
+                if (blockIndex == 0)
+                {
+                    _ = reader.ReadInt16();
+                }
+                else
+                {
+                    _ = reader.ReadInt32();
+                }
+
+                var compSize = reader.ReadInt32();
+                var uncompSize = reader.ReadInt32();
+                var compType = reader.ReadByte();
+
+                var dataLength = compSize - 5;
+                if (dataLength <= 0 || dataLength > 500000000)
+                {
+                    break;
+                }
+
+                if (blockIndex == 7 && compType == 1)
+                {
+                    stream.Position += 2; // skip zlib 78-DA header
+                    using var def = new DeflateStream(stream, CompressionMode.Decompress, leaveOpen: true);
+                    using var ms = new MemoryStream();
+                    var buf = new byte[8192];
+                    int r;
+                    while ((r = def.Read(buf, 0, buf.Length)) > 0)
+                    {
+                        ms.Write(buf, 0, r);
+                    }
+
+                    fileTableData = ms.ToArray();
+                    break;
+                }
+
+                stream.Position += dataLength;
+            }
+
+            if (fileTableData == null || fileTableData.Length == 0)
+            {
+                return false;
+            }
+
+            var records = ParseSmartInstallMakerFileTable(fileTableData);
+            if (records.Count == 0)
+            {
+                return false;
+            }
+
+            var bzhOffsets = new List<long>();
+            var scanBuffer = new byte[1048576];
+            long scanPos = stream.Position;
+            int sRead;
+            while ((sRead = stream.Read(scanBuffer, 0, scanBuffer.Length)) > 0)
+            {
+                for (var i = 0; i < sRead - 4; i++)
+                {
+                    if (scanBuffer[i] == 'B' && scanBuffer[i + 1] == 'Z' && scanBuffer[i + 2] == 'h' && scanBuffer[i + 3] == '9')
+                    {
+                        bzhOffsets.Add(scanPos + i);
+                    }
+                }
+
+                scanPos += sRead;
+            }
+
+            if (bzhOffsets.Count == 0)
+            {
+                return false;
+            }
+
+            var extractRoot = Path.GetFullPath(extractPath);
+            var recIdx = 0;
+            var bzhIdx = 0;
+
+            while (recIdx < records.Count && bzhIdx < bzhOffsets.Count)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var offset = bzhOffsets[bzhIdx];
+                stream.Position = offset;
+
+                try
+                {
+                    using var bz2 = SharpCompress.Compressors.BZip2.BZip2Stream.Create(
+                        stream,
+                        SharpCompress.Compressors.CompressionMode.Decompress,
+                        decompressConcatenated: false,
+                        leaveOpen: true);
+
+                    while (recIdx < records.Count)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        var rec = records[recIdx];
+                        var pathResult = ContentPathPolicy.ResolveContainedFile(extractRoot, rec.Name);
+                        if (!pathResult.Success)
+                        {
+                            throw new InvalidDataException($"Smart Install Maker entry has an unsafe path: {rec.Name}");
+                        }
+
+                        var destinationPath = pathResult.Data!;
+                        var destinationDir = Path.GetDirectoryName(destinationPath);
+                        if (!string.IsNullOrEmpty(destinationDir))
+                        {
+                            Directory.CreateDirectory(destinationDir);
+                        }
+
+                        long written = 0;
+                        using (var outStream = File.Create(destinationPath))
+                        {
+                            var copyBuffer = new byte[65536];
+                            while (written < rec.FileSize)
+                            {
+                                var toRead = (int)Math.Min(copyBuffer.Length, rec.FileSize - written);
+                                var readBytes = bz2.Read(copyBuffer, 0, toRead);
+                                if (readBytes <= 0)
+                                {
+                                    break;
+                                }
+
+                                outStream.Write(copyBuffer, 0, readBytes);
+                                written += readBytes;
+                            }
+                        }
+
+                        if (written == rec.FileSize)
+                        {
+                            recIdx++;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                }
+                catch (Exception) when (recIdx < records.Count)
+                {
+                    // If stream had an issue, advance to next BZh block
+                }
+
+                bzhIdx++;
+            }
+
+            return recIdx > 0;
+        }
+        catch (InvalidDataException)
+        {
+            throw;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static List<(string Name, long FileSize)> ParseSmartInstallMakerFileTable(byte[] tableData)
+    {
+        var records = new List<(string Name, long FileSize)>();
+        for (var i = 0; i < tableData.Length - 4; i++)
+        {
+            if (tableData[i] == '.' && i > 32 && i < tableData.Length - 4)
+            {
+                var start = i;
+                while (start > 0 && tableData[start - 1] != 0 && tableData[start - 1] >= 32 && tableData[start - 1] <= 126)
+                {
+                    start--;
+                }
+
+                var end = i;
+                while (end < tableData.Length && tableData[end] != 0 && tableData[end] >= 32 && tableData[end] <= 126)
+                {
+                    end++;
+                }
+
+                var name = Encoding.Latin1.GetString(tableData, start, end - start);
+                if (name.Contains('.') &&
+                    !name.StartsWith(' ') &&
+                    name.Length > 3 &&
+                    !name.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase) &&
+                    !name.EndsWith("Intrnl.exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    var ext = Path.GetExtension(name);
+                    if (!string.IsNullOrEmpty(ext) && ext.Length <= 5 && start >= 32)
+                    {
+                        var fileSize = BitConverter.ToInt64(tableData, start - 32);
+                        if (fileSize > 0 && fileSize < CatalogConstants.MaxZipUncompressedSizeBytes)
+                        {
+                            records.Add((name, fileSize));
+                        }
+                    }
+
+                    i = end;
+                }
+            }
+        }
+
+        return records;
     }
 
     private static void PurgeSystemJunk(string directory)
