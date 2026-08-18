@@ -1,13 +1,18 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Common.ViewModels.Dialogs;
+using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Messages;
@@ -110,7 +115,7 @@ public partial class MainViewModel(
     /// <summary>
     /// Gets the available navigation tabs.
     /// </summary>
-    public NavigationTab[] AvailableTabs { get; } =
+    public IReadOnlyList<NavigationTab> AvailableTabs { get; } =
     [
         NavigationTab.GameProfiles,
         NavigationTab.Downloads,
@@ -245,22 +250,19 @@ public partial class MainViewModel(
                 if (updateInfo != null)
                 {
                     logger?.LogInformation("GitHub release update available: {Version}", updateInfo.TargetFullRelease.Version);
-                    await Dispatcher.UIThread.InvokeAsync(() =>
-                    {
-                        notificationService.Show(new NotificationMessage(
-                            NotificationType.Info,
-                            "Update Available",
-                            $"A new version ({updateInfo.TargetFullRelease.Version}) is available.",
-                            null, // Persistent
-                            actions:
-                            [
-                                new NotificationAction(
-                                    "View Updates",
-                                    () => { SettingsViewModel.OpenUpdateWindowCommand.Execute(null); },
-                                    NotificationActionStyle.Primary,
-                                    dismissOnExecute: true),
-                            ]));
-                    });
+                    await Dispatcher.UIThread.InvokeAsync(() => notificationService.Show(new NotificationMessage(
+                        NotificationType.Info,
+                        "Update Available",
+                        $"A new version ({updateInfo.TargetFullRelease.Version}) is available.",
+                        null, // Persistent
+                        actions:
+                        [
+                            new NotificationAction(
+                                "View Updates",
+                                () => SettingsViewModel.OpenUpdateWindowCommand.Execute(null),
+                                NotificationActionStyle.Primary,
+                                dismissOnExecute: true),
+                        ])));
                     return;
                 }
             }
@@ -277,22 +279,19 @@ public partial class MainViewModel(
                 {
                     var newVersionBase = artifactUpdate.Version.Split('+')[0];
 
-                    await Dispatcher.UIThread.InvokeAsync(() =>
-                    {
-                        notificationService.Show(new NotificationMessage(
-                            NotificationType.Info,
-                            "Branch Update Available",
-                            $"A new build ({newVersionBase}) is available on branch '{settings.SubscribedBranch}'.",
-                            null, // Persistent
-                            actions:
-                            [
-                                new NotificationAction(
-                                    "View Updates",
-                                    () => { SettingsViewModel.OpenUpdateWindowCommand.Execute(null); },
-                                    NotificationActionStyle.Primary,
-                                    dismissOnExecute: true),
-                            ]));
-                    });
+                    await Dispatcher.UIThread.InvokeAsync(() => notificationService.Show(new NotificationMessage(
+                        NotificationType.Info,
+                        "Branch Update Available",
+                        $"A new build ({newVersionBase}) is available on branch '{settings.SubscribedBranch}'.",
+                        null, // Persistent
+                        actions:
+                        [
+                            new NotificationAction(
+                                "View Updates",
+                                () => SettingsViewModel.OpenUpdateWindowCommand.Execute(null),
+                                NotificationActionStyle.Primary,
+                                dismissOnExecute: true),
+                        ])));
                 }
             }
         }
@@ -415,5 +414,34 @@ public partial class MainViewModel(
         }
 
         SaveSelectedTab(value);
+    }
+
+    /// <summary>
+    /// Copies the application version to the clipboard.
+    /// </summary>
+    [RelayCommand]
+    private async Task CopyVersionToClipboard()
+    {
+        try
+        {
+            var lifetime = Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
+            var mainWindow = lifetime?.MainWindow;
+            var topLevel = mainWindow is not null ? TopLevel.GetTopLevel(mainWindow) : null;
+
+            if (topLevel?.Clipboard is { } clipboard)
+            {
+                await clipboard.SetTextAsync(AppConstants.FullDisplayVersion);
+                notificationService.ShowSuccess("Copied", "Version copied to clipboard.", 3000);
+            }
+            else
+            {
+                notificationService.ShowError("Error", "Clipboard not available.", 3000);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Failed to copy version to clipboard");
+            notificationService.ShowError("Error", "Failed to copy version to clipboard.", 3000);
+        }
     }
 }
