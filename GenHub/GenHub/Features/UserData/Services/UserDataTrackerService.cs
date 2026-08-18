@@ -1348,7 +1348,15 @@ public class UserDataTrackerService(
 
             if (index.FileToInstallationMap.TryGetValue(normalizedPath, out var installationKey))
             {
-                return OperationResult<string?>.CreateSuccess(installationKey);
+                var manifest = await LoadUserDataManifestByKeyAsync(installationKey, cancellationToken);
+                if (manifest != null && manifest.IsActive && File.Exists(normalizedPath))
+                {
+                    return OperationResult<string?>.CreateSuccess(installationKey);
+                }
+
+                // Installation is inactive or file no longer exists on disk; clean up stale index mapping
+                index.FileToInstallationMap.Remove(normalizedPath);
+                await SaveIndexAsync(index, cancellationToken);
             }
 
             return OperationResult<string?>.CreateSuccess(null);

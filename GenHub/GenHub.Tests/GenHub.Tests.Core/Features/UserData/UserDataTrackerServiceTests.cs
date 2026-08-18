@@ -798,4 +798,56 @@ public sealed class UserDataTrackerServiceTests : IDisposable
             Assert.Contains("Failed to create safety backup", result.FirstError, StringComparison.OrdinalIgnoreCase);
         }
     }
+
+    /// <summary>
+    /// Verifies that when a profile is deactivated, another profile can install the same user data files without encountering a conflict.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task InstallUserDataAsync_WhenPriorOwnerProfileIsDeactivated_SucceedsWithoutConflictAsync()
+    {
+        // Arrange
+        var gameDataDir = Path.Combine(_zeroHourDataDir, "Maps", "Arabia v2");
+        Directory.CreateDirectory(gameDataDir);
+
+        var files = new List<ManifestFile>
+        {
+            new()
+            {
+                RelativePath = "Maps/Arabia v2/AdrianeMapSettings.ini",
+                Hash = "hash-map-settings",
+                Size = 500,
+                InstallTarget = ContentInstallTarget.UserDataDirectory,
+            },
+        };
+
+        // 1. Profile A installs the map pack
+        var installA = await _trackerService.InstallUserDataAsync(
+            "mappack-id",
+            "profile-a",
+            GameType.ZeroHour,
+            files,
+            "1.0",
+            "Map Pack",
+            CancellationToken.None);
+
+        Assert.True(installA.Success);
+
+        // 2. Profile A is deactivated
+        var deactivateA = await _trackerService.DeactivateProfileUserDataAsync("profile-a", CancellationToken.None);
+        Assert.True(deactivateA.Success);
+
+        // 3. Profile B installs the same map pack
+        var installB = await _trackerService.InstallUserDataAsync(
+            "mappack-id",
+            "profile-b",
+            GameType.ZeroHour,
+            files,
+            "1.0",
+            "Map Pack",
+            CancellationToken.None);
+
+        // Assert: Installation succeeds for profile B
+        Assert.True(installB.Success);
+    }
 }
