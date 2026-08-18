@@ -460,17 +460,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
                 {
                     // Normalize version to handle Unknown, Auto-Updated, and Automatically added cases
                     var version = gameProfile.GameClient.Version;
-                    GameVersion = (version.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase) ||
-                        version.Equals(GameClientConstants.UnknownVersion, StringComparison.OrdinalIgnoreCase) ||
-                        version.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase) ||
-                        version.Contains("Automatically", StringComparison.OrdinalIgnoreCase) ||
-                        version == "0" ||
-                        version == "0.0" ||
-                        version == "0.0.0" ||
-                        version == "0.0.0.0" ||
-                        version.Equals("v0", StringComparison.OrdinalIgnoreCase))
-                        ? string.Empty
-                        : version;
+                    GameVersion = IsZeroOrPlaceholderVersion(version) ? string.Empty : version;
                 }
             }
 
@@ -628,17 +618,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
                     !string.Equals(Publisher, "Local", StringComparison.OrdinalIgnoreCase))
                 {
                     var version = gameProfile.GameClient.Version;
-                    GameVersion = (version.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase) ||
-                        version.Equals(GameClientConstants.UnknownVersion, StringComparison.OrdinalIgnoreCase) ||
-                        version.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase) ||
-                        version.Contains("Automatically", StringComparison.OrdinalIgnoreCase) ||
-                        version == "0" ||
-                        version == "0.0" ||
-                        version == "0.0.0" ||
-                        version == "0.0.0.0" ||
-                        version.Equals("v0", StringComparison.OrdinalIgnoreCase))
-                        ? string.Empty
-                        : version;
+                    GameVersion = IsZeroOrPlaceholderVersion(version) ? string.Empty : version;
                 }
             }
 
@@ -863,6 +843,23 @@ public partial class GameProfileItemViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Checks if the version is zero or a placeholder.
+    /// </summary>
+    /// <param name="version">The version string to check.</param>
+    private bool IsZeroOrPlaceholderVersion(string version)
+    {
+        return version.Equals(GameClientConstants.AutoDetectedVersion, StringComparison.OrdinalIgnoreCase) ||
+               version.Equals(GameClientConstants.UnknownVersion, StringComparison.OrdinalIgnoreCase) ||
+               version.Equals("Auto-Updated", StringComparison.OrdinalIgnoreCase) ||
+               version.Contains("Automatically", StringComparison.OrdinalIgnoreCase) ||
+               version == "0" ||
+               version == "0.0" ||
+               version == "0.0.0" ||
+               version == "0.0.0.0" ||
+               version.Equals("v0", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Extracts version, publisher, and content type information from a manifest ID.
     /// Expected format: schemaVersion.userVersion.publisher.contentType.contentName.
     /// Example: 1.104.steam.gameclient.zerohour → version=104 (1.04), publisher=Steam, contentType=Game Client.
@@ -871,11 +868,15 @@ public partial class GameProfileItemViewModel : ViewModelBase
     private void ExtractManifestInfo(string manifestId)
     {
         if (string.IsNullOrEmpty(manifestId))
+        {
             return;
+        }
 
         var segments = manifestId.Split('.');
         if (segments.Length < 4)
+        {
             return;
+        }
 
         try
         {

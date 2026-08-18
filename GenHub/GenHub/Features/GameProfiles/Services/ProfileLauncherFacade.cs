@@ -1121,13 +1121,514 @@ public class ProfileLauncherFacade(
         }
     }
 
+    private async Task<ProfileOperationResult<GameLaunchInfo>> LaunchToolProfileAsync(
+        GameProfile profile,
+        string profileId,
+        CancellationToken cancellationToken)
+    {
+        logger.LogInformation("[Launch] Detected Tool profile, launching tool directly");
+
+        // Get the tool manifest
+        if (string.IsNullOrWhiteSpace(profile.ToolContentId))
+        {
+            return ProfileOperationResult<GameLaunchInfo>.CreateFailure(ProfileValidationConstants.ToolProfileMissingContentId);
+        }
+
+        if (!ManifestId.TryCreate(profile.ToolContentId, out var toolManifestId))
+        {
+            return ProfileOperationResult<GameLaunchInfo>.CreateFailure(
+                $"{ProfileValidationConstants.InvalidToolContentId}: {profile.ToolContentId}");
+        }
+
+        var toolManifestResult = await manifestPool.GetManifestAsync(
+            toolManifestId,
+            cancellationToken);
+
+        if (toolManifestResult.Failed || toolManifestResult.Data == null)
+        {
+            return ProfileOperationResult<GameLaunchInfo>.CreateFailure(
+                $"{ProfileValidationConstants.FailedToLoadToolManifest}: {toolManifestResult.FirstError}");
+        }
+
+        var toolManifest = toolManifestResult.Data;
+        logger.LogDebug("[Launch] Tool manifest loaded: {ManifestId}", toolManifest.Id);
+
+        var toolDirectory = await manifestPool.GetContentDirectoryAsync(toolManifest.Id, cancellationToken);
+        string toolWorkspacePath = string.Empty;
+        string? actualWorkspaceId = null;
+
+        if (toolDirectory.Success && !string.IsNullOrEmpty(toolDirectory.Data))
+        {
+            toolWorkspacePath = toolDirectory.Data;
+            logger.LogInformation("[Launch] Using existing tool directory: {Path}", toolWorkspacePath);
+        }
+        else
+        {
+            logger.LogInformation("[Launch] Tool content requires hydration, using WorkspaceManager");
+
+            var dummyGameClient = new GenHub.Core.Models.GameClients.GameClient
+            {
+                Name = toolManifest.Name,
+                GameType = toolManifest.TargetGame,
+            };
+
+            var appDataBase = configurationProvider.GetApplicationDataPath();
+            if (!Directory.Exists(appDataBase))
+            {
+                Directory.CreateDirectory(appDataBase);
+            }
+
+            var baseDetails = appDataBase;
+
+            var resolutionResult = await dependencyResolver.ResolveDependenciesWithManifestsAsync(profile.EnabledContentIds ?? [], cancellationToken);
+            var allManifests = resolutionResult.Success ? resolutionResult.ResolvedManifests : [toolManifest];
+
+            var requestedToolStrategy = profile.WorkspaceStrategy ?? configurationProvider.GetDefaultWorkspaceStrategy();
+            var effectiveToolStrategy = ResolveSupportedWorkspaceStrategy(requestedToolStrategy);
+
+            if (effectiveToolStrategy != requestedToolStrategy)
+            {
+                logger.LogInformation(
+                    "[Launch] Tool workspace - Switching from {OriginalStrategy} to HardLink: symlinks are unavailable in this environment",
+                    requestedToolStrategy);
+            }
+
+            actualWorkspaceId = $"{ProfileConstants.ToolProfileWorkspaceIdPrefix}-{profile.Id}";
+            var workspaceConfig = new WorkspaceConfiguration
+            {
+                Id = actualWorkspaceId,
+                Manifests = [.. allManifests],
+                GameClient = dummyGameClient,
+                Strategy = effectiveToolStrategy,
+                ForceRecreate = false,
+                ValidateAfterPreparation = true,
+                BaseInstallationPath = baseDetails,
+                WorkspaceRootPath = Path.Combine(appDataBase, DirectoryNames.ToolWorkspaces),
+                SkipCleanup = false,
+            };
+
+            var prepareResult = await workspaceManager.PrepareWorkspaceAsync(workspaceConfig, progress: null, skipCleanup: false, cancellationToken: cancellationToken);
+            if (prepareResult.Failed)
+            {
+                return ProfileOperationResult<GameLaunchInfo>.CreateFailure(
+                    $"{ProfileValidationConstants.FailedToPrepareToolWorkspace}: {prepareResult.FirstError}");
+            }
+
+            toolWorkspacePath = prepareResult.Data!.WorkspacePath;
+            logger.LogInformation("[Launch] Tool workspace prepared at: {Path}", toolWorkspacePath);
+        }
+
+        var toolDirectoryPath = toolWorkspacePath;
+        var toolExecutable = toolManifest.Files?.FirstOrDefault(f => f.IsExecutable)
+            ?? toolManifest.Files?.FirstOrDefault(f => f.RelativePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
+
+        if (toolExecutable == null)
+        {
+            logger.LogError("[Launch] Tool manifest {ManifestId} does not specify an executable file", toolManifest.Id);
+            return ProfileOperationResult<GameLaunchInfo>.CreateFailure(
+                ProfileValidationConstants.ToolManifestMissingExecutable);
+        }
+
+        var toolExecutablePath = Path.Combine(toolDirectoryPath, toolExecutable.RelativePath);
+        if (!File.Exists(toolExecutablePath))
+        {
+            logger.LogError("[Launch] Tool executable not found at path: {Path}", toolExecutablePath);
+            return ProfileOperationResult<GameLaunchInfo>.CreateFailure(
+                $"{ProfileValidationConstants.ToolExecutableNotFound}: {toolExecutablePath}");
+        }
+
+        logger.LogInformation("[Launch] Launching tool: {ToolPath}", toolExecutablePath);
+
+        try
+        {
+            var processStartInfo = new ProcessStartInfo
+            {
+                FileName = toolExecutablePath,
+                WorkingDirectory = toolDirectoryPath,
+                Arguments = profile.CommandLineArguments ?? string.Empty,
+                UseShellExecute = false,
+            };
+
+            if (profile.EnvironmentVariables != null)
+            {
+                foreach (var envVar in profile.EnvironmentVariables)
+                {
+                    processStartInfo.EnvironmentVariables[envVar.Key] = envVar.Value;
+                }
+            }
+
+            Process? process = null;
+            try
+            {
+                process = Process.Start(processStartInfo);
+            }
+            catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 740)
+            {
+                logger.LogWarning("Tool requires elevation (Error 740). Retrying with UseShellExecute=true and Verb='runas'. Environment variables will be ignored.");
+                processStartInfo.UseShellExecute = true;
+                processStartInfo.Verb = "runas";
+                process = Process.Start(processStartInfo);
+            }
+
+            if (process == null)
+            {
+                return ProfileOperationResult<GameLaunchInfo>.CreateFailure(ProfileValidationConstants.ToolProcessStartFailed);
+            }
+
+            var launchId = Guid.NewGuid().ToString("N");
+            var toolLaunchInfo = new GameLaunchInfo
+            {
+                LaunchId = launchId,
+                ProfileId = profile.Id,
+                WorkspaceId = actualWorkspaceId ?? ProfileConstants.ToolProfileWorkspaceId,
+                ProcessInfo = new GameProcessInfo
+                {
+                    ProcessId = process.Id,
+                    ExecutablePath = toolExecutablePath,
+                    IsRunning = true,
+                },
+            };
+
+            logger.LogInformation(
+                "=== TOOL LAUNCH SUCCESS: Profile {ProfileId}, ProcessId {ProcessId} ===",
+                profileId,
+                toolLaunchInfo.ProcessInfo.ProcessId);
+
+            await launchRegistry.RegisterLaunchAsync(toolLaunchInfo);
+            logger.LogDebug("[Launch] Registered tool launch {LaunchId} with LaunchRegistry", launchId);
+
+            gameProcessManager.TrackProcess(process);
+
+            notificationService.ShowSuccess(
+                ProfileValidationConstants.ToolLaunchSuccessTitle,
+                $"Successfully launched '{profile.Name}'",
+                NotificationDurations.Medium);
+
+            return ProfileOperationResult<GameLaunchInfo>.CreateSuccess(toolLaunchInfo);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[Launch] Tool launch failed");
+            notificationService.ShowError(
+                ProfileValidationConstants.ToolLaunchFailedTitle,
+                $"Failed to launch '{profile.Name}': {ex.Message}",
+                NotificationDurations.VeryLong);
+            return ProfileOperationResult<GameLaunchInfo>.CreateFailure($"Tool launch failed: {ex.Message}");
+        }
+    }
+
+    private async Task<ProfileOperationResult<GameLaunchInfo>> LaunchGameProfileAsync(
+        GameProfile profile,
+        string profileId,
+        bool skipUserDataCleanup,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Try to resolve or rebind the installation if it's stale
+            logger.LogDebug("[Launch] Step 2: Resolving game installation ID: {InstallationId}", profile.GameInstallationId);
+
+            if (string.IsNullOrWhiteSpace(profile.GameInstallationId))
+            {
+                 // Log warning but proceed - ResolveOrRebindInstallationAsync might affect recovery or strict binding might be skipped for some flows.
+                 logger.LogWarning("[Launch] Game Installation ID is missing for profile {ProfileId}. Attempting to resolve...", profile.Id);
+            }
+
+            var resolvedInstallationResult = await ResolveOrRebindInstallationAsync(profile, cancellationToken);
+            if (resolvedInstallationResult.Failed)
+            {
+                logger.LogError("[Launch] Installation resolution failed: {Error}", resolvedInstallationResult.FirstError);
+                return ProfileOperationResult<GameLaunchInfo>.CreateFailure(resolvedInstallationResult.FirstError ?? "Could not resolve game installation for profile");
+            }
+
+            var resolvedInstallation = resolvedInstallationResult.Data;
+            if (resolvedInstallation == null)
+            {
+                return ProfileOperationResult<GameLaunchInfo>.CreateFailure("Resolved installation data is null");
+            }
+
+            logger.LogDebug(
+                "[Launch] Installation resolved - ID: {InstallationId}, Path: {Path}",
+                resolvedInstallation.Id,
+                resolvedInstallation.InstallationPath);
+
+            // Update the profile with the resolved installation if it changed
+            if (resolvedInstallation.Id != profile.GameInstallationId)
+            {
+                var updateRequest = new UpdateProfileRequest
+                {
+                    GameInstallationId = resolvedInstallation.Id,
+                };
+                var updateResult = await profileManager.UpdateProfileAsync(profileId, updateRequest, cancellationToken);
+                if (updateResult.Success)
+                {
+                    profile.GameInstallationId = resolvedInstallation.Id;
+                    logger.LogInformation("Rebound profile {ProfileId} to installation {InstallationId}", profileId, resolvedInstallation.Id);
+                }
+            }
+
+            // Step 2.5: Check for game client updates before launching.
+            var reconcileResult = await ReconcilePublisherClientAsync(profile, profileId, cancellationToken);
+            if (reconcileResult.Failed)
+            {
+                return ProfileOperationResult<GameLaunchInfo>.CreateFailure(reconcileResult.FirstError ?? "Reconciliation failed");
+            }
+
+            profile = reconcileResult.Data ?? profile;
+
+            // Validate the profile before launching
+            logger.LogDebug("[Launch] Step 3: Validating profile for launch");
+            var validationResult = await ValidateLaunchAsync(profileId, cancellationToken);
+            if (validationResult.Failed)
+            {
+                logger.LogError("[Launch] Validation failed: {Errors}", string.Join(", ", validationResult.Errors));
+                return ProfileOperationResult<GameLaunchInfo>.CreateFailure(string.Join(", ", validationResult.Errors));
+            }
+
+            logger.LogDebug("[Launch] Validation passed");
+
+            // Options.ini application moved to GameLauncher.LaunchProfileAsync() (before process start)
+            logger.LogDebug("[Launch] Step 4: Options.ini will be applied by GameLauncher (delegated)");
+
+            var effectiveStrategy = await AdjustWorkspaceStrategyAsync(profile, profileId, cancellationToken);
+            profile.WorkspaceStrategy = effectiveStrategy;
+
+            // Use dynamic workspace path based on the game installation location
+            var casPoolPath = storageLocationService.GetCasPoolPath(resolvedInstallation);
+            var workspacePath = storageLocationService.GetWorkspacePath(resolvedInstallation);
+            logger.LogInformation(
+                "[Launch] Using dynamic storage paths - Installation: {InstallPath}, CAS: {CasPath}, Workspace: {WorkspacePath}",
+                resolvedInstallation.InstallationPath,
+                casPoolPath,
+                workspacePath);
+
+            notificationService.ShowInfo(
+                "Launching Profile",
+                $"Starting '{profile.Name}' with {effectiveStrategy} workspace strategy...",
+                NotificationDurations.Medium);
+
+            // Launch the game using the profile
+            logger.LogDebug("[Launch] Step 6: Delegating to GameLauncher for workspace prep and process start");
+
+            var launchResult = await gameLauncher.LaunchProfileAsync(profile, progress: null, skipUserDataCleanup: skipUserDataCleanup, cancellationToken: cancellationToken);
+
+            if (launchResult.Failed)
+            {
+                return HandleLaunchFailure(profile, launchResult, resolvedInstallation);
+            }
+
+            var launchInfo = launchResult.Data!;
+            logger.LogInformation(
+                "=== LAUNCH SUCCESS: Profile {ProfileId}, ProcessId {ProcessId} ===",
+                profileId,
+                launchInfo.ProcessInfo.ProcessId);
+
+            // Persist the ActiveWorkspaceId to the profile repository
+            // This is critical for ContentReconciliationService to find and invalidate this workspace
+            // if any of its content changes later.
+            if (!string.IsNullOrEmpty(launchInfo.WorkspaceId) && launchInfo.WorkspaceId != profile.ActiveWorkspaceId)
+            {
+                var updateRequest = new UpdateProfileRequest
+                {
+                    ActiveWorkspaceId = launchInfo.WorkspaceId,
+                };
+
+                try
+                {
+                    var updateResult = await profileManager.UpdateProfileAsync(profileId, updateRequest, cancellationToken);
+                    if (updateResult.Success)
+                    {
+                        logger.LogInformation(
+                            "Persisted active workspace ID '{WorkspaceId}' to profile '{ProfileId}'",
+                            launchInfo.WorkspaceId,
+                            profileId);
+                    }
+                    else
+                    {
+                        logger.LogWarning(
+                            "Failed to persist active workspace ID to profile '{ProfileId}': {Error}",
+                            profileId,
+                            updateResult.FirstError);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(
+                        ex,
+                        "Exception while persisting active workspace ID for profile '{ProfileId}'",
+                        profileId);
+                }
+            }
+
+            return ProfileOperationResult<GameLaunchInfo>.CreateSuccess(launchInfo);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to launch profile {ProfileId}", profileId);
+            return ProfileOperationResult<GameLaunchInfo>.CreateFailure($"Failed to launch profile: {ex.Message}");
+        }
+    }
+
+    private async Task<ProfileOperationResult<GameProfile>> ReconcilePublisherClientAsync(
+        GameProfile profile,
+        string profileId,
+        CancellationToken cancellationToken)
+    {
+        logger.LogDebug(
+            "[Launch] Step 2.5: Publisher check - Client={Client}, Publisher={PublisherType}",
+            profile.GameClient?.Name ?? "null",
+            profile.GameClient?.PublisherType ?? "null");
+
+        IPublisherReconciler? reconciler = null;
+        string? publisherType = profile.GameClient?.PublisherType;
+
+        if (!string.IsNullOrWhiteSpace(publisherType))
+        {
+            logger.LogDebug("[Launch] Looking up reconciler for publisher: {PublisherType}", publisherType);
+            reconciler = reconcilerRegistry.GetReconciler(publisherType);
+        }
+        else
+        {
+            if (IsGeneralsOnlineProfile(profile))
+            {
+                publisherType = PublisherTypeConstants.GeneralsOnline;
+                reconciler = reconcilerRegistry.GetReconciler(publisherType);
+                logger.LogDebug("[Launch] Detected legacy GeneralsOnline profile, using reconciler");
+            }
+            else if (IsSuperHackersProfile(profile))
+            {
+                publisherType = PublisherTypeConstants.TheSuperHackers;
+                reconciler = reconcilerRegistry.GetReconciler(publisherType);
+                logger.LogDebug("[Launch] Detected legacy SuperHackers profile, using reconciler");
+            }
+            else if (IsCommunityOutpostProfile(profile))
+            {
+                publisherType = CommunityOutpostConstants.PublisherType;
+                reconciler = reconcilerRegistry.GetReconciler(publisherType);
+                logger.LogDebug("[Launch] Detected legacy CommunityOutpost profile, using reconciler");
+            }
+        }
+
+        if (reconciler != null && publisherType != null)
+        {
+            logger.LogDebug("[Launch] Checking for {PublisherType} updates", publisherType);
+            var reconcileResult = await reconciler.CheckAndReconcileIfNeededAsync(profileId, cancellationToken);
+
+            if (!reconcileResult.Success)
+            {
+                logger.LogWarning(
+                    "[Launch] {PublisherType} reconciliation failed (non-blocking): {Error}",
+                    publisherType,
+                    reconcileResult.FirstError);
+            }
+            else if (reconcileResult.Data)
+            {
+                logger.LogInformation("[Launch] Profile updated by {PublisherType} reconciliation, reloading", publisherType);
+                var reloadedProfileResult = await profileManager.GetProfileAsync(profileId, cancellationToken);
+                if (reloadedProfileResult.Failed || reloadedProfileResult.Data == null)
+                {
+                    var error = reloadedProfileResult.Failed ? string.Join(", ", reloadedProfileResult.Errors) : "Profile data is null after reload";
+                    return ProfileOperationResult<GameProfile>.CreateFailure(error);
+                }
+
+                return ProfileOperationResult<GameProfile>.CreateSuccess(reloadedProfileResult.Data);
+            }
+        }
+
+        return ProfileOperationResult<GameProfile>.CreateSuccess(profile);
+    }
+
+    private async Task<WorkspaceStrategy> AdjustWorkspaceStrategyAsync(
+        GameProfile profile,
+        string profileId,
+        CancellationToken cancellationToken)
+    {
+        var effectiveStrategy = profile.WorkspaceStrategy ?? configurationProvider.GetDefaultWorkspaceStrategy();
+        logger.LogDebug("[Launch] Step 5: Checking workspace strategy and symlink capability - Strategy: {Strategy}", effectiveStrategy);
+
+        var canCreateSymlinks = symlinkCapability.CanCreateSymlinks;
+        logger.LogInformation(
+            "Profile {ProfileId} launch - Symlink capability: {CanCreateSymlinks}, Strategy={Strategy}",
+            profileId,
+            canCreateSymlinks,
+            effectiveStrategy);
+
+        if (!canCreateSymlinks && (effectiveStrategy == WorkspaceStrategy.HybridCopySymlink || effectiveStrategy == WorkspaceStrategy.SymlinkOnly))
+        {
+            var originalStrategy = effectiveStrategy;
+            effectiveStrategy = WorkspaceStrategy.HardLink;
+
+            logger.LogInformation(
+                "Profile {ProfileId} - Switching from {OriginalStrategy} to HardLink because symlinks are unavailable in this environment",
+                profileId,
+                originalStrategy);
+
+            notificationService.ShowInfo(
+                "Workspace Strategy Changed",
+                $"'{profile.Name}' cannot use {originalStrategy} here because symlinks are unavailable. Switching to HardLink.",
+                NotificationDurations.Long);
+
+            if (profile.WorkspaceStrategy.HasValue)
+            {
+                var updateRequest = new UpdateProfileRequest
+                {
+                    WorkspaceStrategy = effectiveStrategy,
+                };
+                var strategyUpdateResult = await profileManager.UpdateProfileAsync(profileId, updateRequest, cancellationToken);
+                if (strategyUpdateResult.Success)
+                {
+                    logger.LogInformation(
+                        "Updated profile {ProfileId} workspace strategy to {Strategy} because symlinks are unavailable",
+                        profileId,
+                        effectiveStrategy);
+                }
+            }
+        }
+
+        return effectiveStrategy;
+    }
+
+    private ProfileOperationResult<GameLaunchInfo> HandleLaunchFailure(
+        GameProfile profile,
+        LaunchOperationResult<GameLaunchInfo> launchResult,
+        Core.Models.GameInstallations.GameInstallation resolvedInstallation)
+    {
+        logger.LogError("[Launch] GameLauncher failed: {Errors}", string.Join(", ", launchResult.Errors));
+
+        if (profile.WorkspaceStrategy == WorkspaceStrategy.HardLink &&
+            launchResult.Errors.Any(e => e.Contains("different volumes") || e.Contains("cross-drive")))
+        {
+            var gameDrive = Path.GetPathRoot(resolvedInstallation.InstallationPath);
+            var errorMessage = $"HardLink strategy failed because your workspace is on a different drive than the game on {gameDrive} drive. " +
+                "You can manually change to FullCopy strategy (uses more disk space) or move your workspace to the same drive as your game.";
+
+            notificationService.ShowError(
+                "Launch Failed - Cross-Drive Issue",
+                errorMessage,
+                NotificationDurations.Critical);
+
+            return ProfileOperationResult<GameLaunchInfo>.CreateFailure(errorMessage);
+        }
+
+        notificationService.ShowError(
+            "Launch Failed",
+            $"Cannot launch '{profile.Name}': {launchResult.FirstError ?? "Unknown error"}",
+            NotificationDurations.VeryLong);
+
+        return ProfileOperationResult<GameLaunchInfo>.CreateFailure(string.Join(", ", launchResult.Errors));
+    }
+
     /// <summary>
     /// Checks if a version string is compatible with dependency requirements.
     /// </summary>
     /// <param name="version">The version to check.</param>
     /// <param name="dependency">The dependency with version requirements.</param>
     /// <returns>True if compatible, false otherwise.</returns>
-    private static bool IsVersionCompatible(string version, ContentDependency dependency)
+    private bool IsVersionCompatible(string version, ContentDependency dependency)
     {
         // If compatible versions list is specified, check exact match
         if (dependency.CompatibleVersions.Count > 0)
@@ -1157,7 +1658,7 @@ public class ProfileLauncherFacade(
     /// </summary>
     /// <param name="dependency">The dependency with version requirements.</param>
     /// <returns>A string describing the version requirements.</returns>
-    private static string BuildVersionRequirementString(ContentDependency dependency)
+    private string BuildVersionRequirementString(ContentDependency dependency)
     {
         if (dependency.CompatibleVersions.Count > 0)
         {
@@ -1183,7 +1684,7 @@ public class ProfileLauncherFacade(
     /// </summary>
     /// <param name="profile">The profile to check.</param>
     /// <returns>True if the profile uses GeneralsOnline, false otherwise.</returns>
-    private static bool IsGeneralsOnlineProfile(GameProfile profile)
+    private bool IsGeneralsOnlineProfile(GameProfile profile)
     {
         // Check PublisherType first
         if (profile.GameClient?.PublisherType?.Equals(
@@ -1213,7 +1714,7 @@ public class ProfileLauncherFacade(
     /// </summary>
     /// <param name="profile">The profile to check.</param>
     /// <returns>True if the profile uses SuperHackers, false otherwise.</returns>
-    private static bool IsSuperHackersProfile(GameProfile profile)
+    private bool IsSuperHackersProfile(GameProfile profile)
     {
         if (IsCommunityOutpostProfile(profile))
         {
@@ -1248,7 +1749,7 @@ public class ProfileLauncherFacade(
     /// </summary>
     /// <param name="profile">The profile to check.</param>
     /// <returns>True if the profile uses Community Outpost, false otherwise.</returns>
-    private static bool IsCommunityOutpostProfile(GameProfile profile)
+    private bool IsCommunityOutpostProfile(GameProfile profile)
     {
         // Check PublisherType
         if (profile.GameClient?.PublisherType?.Equals(
@@ -1286,7 +1787,6 @@ public class ProfileLauncherFacade(
 
         try
         {
-            // Create a lookup for quick manifest searches
             var manifestsByType = manifests.GroupBy(m => m.ContentType).ToDictionary(g => g.Key, g => g.ToList());
             var manifestsById = manifests.ToDictionary(m => m.Id.ToString(), m => m);
 
@@ -1306,6 +1806,15 @@ public class ProfileLauncherFacade(
                 {
                     ValidateSingleDependency(manifest, dependency, manifestsByType, manifestsById, profileGameType, errors);
                 }
+            }
+
+            if (errors.Count > 0)
+            {
+                logger.LogWarning("Dependency validation found {Count} errors", errors.Count);
+            }
+            else
+            {
+                logger.LogDebug("Dependency validation passed for all manifests");
             }
         }
         catch (Exception ex)

@@ -463,12 +463,12 @@ public class CommunityOutpostManifestFactory(
                 var targetFile = Path.Combine(destinationDir, Path.GetFileName(file));
                 File.Copy(file, targetFile, overwrite: true);
             }
-            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            catch (IOException)
             {
-                // Log and continue, or rely on caller to handle?
-                // Since this is a helper, we let exceptions bubble up or just do a best-effort?
-                // The comment said "doesn't handle IOException for individual files".
-                // We'll throw to be safe, but at least we have the recursion guard.
+                throw;
+            }
+            catch (UnauthorizedAccessException)
+            {
                 throw;
             }
         }

@@ -135,8 +135,6 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
 
         try
         {
-            // Extract owner and repo from URL
-            // Format: https://github.com/owner/repo
             var uri = new Uri(AppConstants.GitHubRepositoryUrl);
             var pathParts = uri.AbsolutePath.Trim('/').Split('/');
             if (pathParts.Length < 2)
@@ -150,52 +148,13 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
 
             _logger.LogInformation("🔍 Fetching releases from GitHub API: {Owner}/{Repo}", owner, repo);
 
-            // Call GitHub API to get latest release with retries
-            var apiUrl = $"https://api.github.com/repos/{owner}/{repo}/releases";
-
-            // Use PAT if available to increase rate limits
-            HttpClient client;
-            if (_gitHubTokenStorage != null && await _gitHubTokenStorage.LoadTokenAsync() is { } token)
+            var json = await FetchGitHubReleasesJsonAsync(owner, repo, cancellationToken);
+            if (json == null)
             {
-                _logger.LogDebug("Using GitHub PAT for update check to increase rate limits");
-                client = CreateConfiguredHttpClientWithToken(token);
-            }
-            else
-            {
-                _logger.LogDebug("No GitHub PAT available for update check, using anonymous request");
-                client = CreateConfiguredHttpClient();
+                return await CheckViaUpdateManagerAsync();
             }
 
-            string json;
-            using (client)
-            {
-                var response = await SendWithRetryAsync(client, apiUrl, cancellationToken);
-
-                if (response == null || !response.IsSuccessStatusCode)
-                {
-                    _logger.LogError("GitHub API request failed after retries");
-
-                    // Fallback to UpdateManager if available
-                    if (_updateManager != null)
-                    {
-                        _logger.LogInformation("Falling back to UpdateManager.CheckForUpdatesAsync()");
-                        var updateInfo = await _updateManager.CheckForUpdatesAsync();
-                        if (updateInfo != null)
-                        {
-                            _cachedUpdateInfo = updateInfo;
-                            _lastUpdateCheckTime = DateTime.UtcNow;
-                        }
-
-                        return updateInfo;
-                    }
-
-                    return null;
-                }
-
-                json = await response.Content.ReadAsStringAsync(cancellationToken);
-            }
-
-            JsonElement releases;
+            JsonElement releases = default;
             try
             {
                 releases = JsonSerializer.Deserialize<JsonElement>(json);
@@ -213,7 +172,6 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                 return null;
             }
 
-            // Parse current version
             if (!SemanticVersion.TryParse(AppConstants.AppVersion, out var currentVersion))
             {
                 _logger.LogError("Failed to parse current version: {Version}", AppConstants.AppVersion);
@@ -222,34 +180,7 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
 
             _logger.LogDebug("Current version parsed: {Version}, Prerelease: {IsPrerelease}", currentVersion, currentVersion.IsPrerelease);
 
-            // Find the latest release (including prereleases)
-            SemanticVersion? latestVersion = null;
-            JsonElement? latestRelease = null;
-
-            foreach (var release in releases.EnumerateArray())
-            {
-                var tagName = release.GetProperty("tag_name").GetString();
-                if (string.IsNullOrEmpty(tagName))
-                    continue;
-
-                // Remove 'v' prefix if present
-                var versionString = tagName.TrimStart('v', 'V');
-
-                if (!SemanticVersion.TryParse(versionString, out var releaseVersion))
-                {
-                    _logger.LogDebug("Skipping release with invalid version: {TagName}", tagName);
-                    continue;
-                }
-
-                _logger.LogDebug("Found release: {Version}, Prerelease: {IsPrerelease}", releaseVersion, releaseVersion.IsPrerelease);
-
-                if (latestVersion == null || releaseVersion > latestVersion)
-                {
-                    latestVersion = releaseVersion;
-                    latestRelease = release;
-                }
-            }
-
+            var (latestVersion, latestRelease) = ParseLatestRelease(releases);
             if (latestVersion == null || latestRelease == null)
             {
                 _logger.LogWarning("No valid releases found");
@@ -259,7 +190,6 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
             _logger.LogInformation("Latest available version: {Version}", latestVersion);
             _logger.LogInformation("Comparing: Current={Current} vs Latest={Latest}", currentVersion, latestVersion);
 
-            // Check if update is available
             if (latestVersion <= currentVersion)
             {
                 _logger.LogInformation("No update available. Current version {Current} is up to date", currentVersion);
@@ -269,51 +199,25 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
             }
 
             _logger.LogInformation("Update available: Current={Current}, Latest={Latest}", currentVersion, latestVersion);
-
-            // Store GitHub update detection result
             _hasUpdateFromGitHub = true;
             _latestVersionFromGitHub = latestVersion.ToString();
 
-            // If UpdateManager is available, use it to get proper UpdateInfo
-            // Otherwise, return null (can still show user there's an update, but can't install)
             if (_updateManager != null)
             {
-                try
+                var updateInfo = await CheckViaUpdateManagerAsync();
+                if (updateInfo != null)
                 {
-                    _logger.LogDebug("Calling UpdateManager.CheckForUpdatesAsync()");
-
-                    var updateInfo = await _updateManager.CheckForUpdatesAsync();
-
-                    _logger.LogDebug("UpdateManager.CheckForUpdatesAsync() completed. UpdateInfo is null: {IsNull}", updateInfo == null);
-                    if (updateInfo != null)
-                    {
-                        _logger.LogDebug("UpdateInfo version: {Version}", updateInfo.TargetFullRelease.Version);
-                    }
-
-                    if (updateInfo != null)
-                    {
-                        _logger.LogInformation("✅ UpdateManager also confirmed update is available and can be installed");
-                        _cachedUpdateInfo = updateInfo;
-                        _lastUpdateCheckTime = DateTime.UtcNow;
-                        return updateInfo;
-                    }
-                    else
-                    {
-                        _logger.LogWarning("⚠️ UpdateManager returned NULL - no update found via Velopack (but GitHub says there is one)");
-                    }
+                    _logger.LogInformation("✅ UpdateManager also confirmed update is available and can be installed");
+                    return updateInfo;
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "UpdateManager.CheckForUpdatesAsync failed");
-                    _logger.LogWarning("Update is available from GitHub, but cannot be downloaded/installed due to UpdateManager exception");
-                }
+
+                _logger.LogWarning("⚠️ UpdateManager returned NULL - no update found via Velopack (but GitHub says there is one)");
             }
             else
             {
                 _logger.LogWarning("⚠️ UpdateManager is NULL - was not initialized successfully");
             }
 
-            // Return null but flag is set (UI can show "update available" but disable install)
             _logger.LogWarning("⚠️ Update detected via GitHub API but UpdateManager unavailable (running from debug)");
             _logger.LogWarning("   Install the app using Setup.exe to enable automatic updates");
 
@@ -965,6 +869,7 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
     }
 
     /// <inheritdoc/>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("DeepSource", "CS-W1005", Justification = "Explicit application termination required after launching uninstaller.")]
     public void Uninstall()
     {
         try
@@ -979,7 +884,7 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
             {
                 _logger.LogInformation("Invoking uninstaller: {Path}", updateExe);
                 Process.Start(new ProcessStartInfo(updateExe, "--uninstall") { UseShellExecute = true });
-                Environment.Exit(0);
+                Environment.Exit(0); // skipcq: CS-W1005
             }
             else
             {
@@ -1074,6 +979,21 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                 var version = artifactName[prefix.Length..];
                 return string.IsNullOrWhiteSpace(version) ? null : version;
             }
+        }
+
+        return null;
+    }
+
+    private static string? GetCurrentPlatformFilter()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return "windows";
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            return "linux";
         }
 
         return null;
@@ -1273,6 +1193,141 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
         return response;
     }
 
+    private async Task<string?> FetchGitHubReleasesJsonAsync(string owner, string repo, CancellationToken cancellationToken)
+    {
+        var apiUrl = $"https://api.github.com/repos/{owner}/{repo}/releases";
+        HttpClient client;
+        if (_gitHubTokenStorage != null && await _gitHubTokenStorage.LoadTokenAsync() is { } token)
+        {
+            _logger.LogDebug("Using GitHub PAT for update check to increase rate limits");
+            client = CreateConfiguredHttpClientWithToken(token);
+        }
+        else
+        {
+            _logger.LogDebug("No GitHub PAT available for update check, using anonymous request");
+            client = CreateConfiguredHttpClient();
+        }
+
+        using (client)
+        {
+            var response = await SendWithRetryAsync(client, apiUrl, cancellationToken);
+            if (response == null || !response.IsSuccessStatusCode)
+            {
+                _logger.LogError("GitHub API request failed after retries");
+                return null;
+            }
+
+            return await response.Content.ReadAsStringAsync(cancellationToken);
+        }
+    }
+
+    private (SemanticVersion? Version, JsonElement? Release) ParseLatestRelease(JsonElement releases)
+    {
+        SemanticVersion? latestVersion = null;
+        JsonElement? latestRelease = null;
+
+        foreach (var release in releases.EnumerateArray())
+        {
+            var tagName = release.GetProperty("tag_name").GetString();
+            if (string.IsNullOrEmpty(tagName))
+            {
+                continue;
+            }
+
+            var versionString = tagName.TrimStart('v', 'V');
+            if (!SemanticVersion.TryParse(versionString, out var releaseVersion))
+            {
+                _logger.LogDebug("Skipping release with invalid version: {TagName}", tagName);
+                continue;
+            }
+
+            _logger.LogDebug("Found release: {Version}, Prerelease: {IsPrerelease}", releaseVersion, releaseVersion.IsPrerelease);
+
+            if (latestVersion == null || releaseVersion > latestVersion)
+            {
+                latestVersion = releaseVersion;
+                latestRelease = release;
+            }
+        }
+
+        return (latestVersion, latestRelease);
+    }
+
+    private async Task<UpdateInfo?> CheckViaUpdateManagerAsync()
+    {
+        if (_updateManager == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            _logger.LogDebug("Calling UpdateManager.CheckForUpdatesAsync()");
+            var updateInfo = await _updateManager.CheckForUpdatesAsync();
+            if (updateInfo != null)
+            {
+                _logger.LogDebug("UpdateInfo version: {Version}", updateInfo.TargetFullRelease.Version);
+                _cachedUpdateInfo = updateInfo;
+                _lastUpdateCheckTime = DateTime.UtcNow;
+            }
+
+            return updateInfo;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "UpdateManager.CheckForUpdatesAsync failed");
+            _logger.LogWarning("Update is available from GitHub, but cannot be downloaded/installed due to UpdateManager exception");
+            return null;
+        }
+    }
+
+    private ArtifactUpdateInfo? FindPlatformArtifactInRun(
+        JsonElement artifacts,
+        string platformFilter,
+        int? prNumber,
+        long runId,
+        string runUrl,
+        string shortHash,
+        DateTime createdAt)
+    {
+        foreach (var artifact in artifacts.EnumerateArray())
+        {
+            var artifactName = artifact.GetProperty("name").GetString() ?? string.Empty;
+            if (!artifactName.Contains("velopack", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!artifactName.Contains(platformFilter, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            _logger.LogInformation("Found {Platform} Velopack artifact: {Name}", platformFilter, artifactName);
+
+            var artifactId = artifact.GetProperty("id").GetInt64();
+            var fallbackVersion = prNumber.HasValue ? $"PR{prNumber.Value}" : "0.0.0";
+            var version = ExtractVersionFromArtifactName(artifactName) ?? fallbackVersion;
+
+            var artifactInfo = new ArtifactUpdateInfo(
+                Version: version,
+                GitHash: shortHash,
+                PullRequestNumber: prNumber,
+                WorkflowRunId: runId,
+                WorkflowRunUrl: runUrl,
+                ArtifactId: artifactId,
+                ArtifactName: artifactName,
+                CreatedAt: createdAt,
+                DownloadUrl: artifact.GetProperty("archive_download_url").GetString(),
+                Size: artifact.GetProperty("size_in_bytes").GetInt64());
+
+            _logger.LogInformation("Selected {Platform} artifact: {Name} (ID: {Id})", platformFilter, artifactName, artifactId);
+            return artifactInfo;
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Finds the latest artifact for a specific PR.
     /// </summary>
@@ -1288,7 +1343,6 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
 
             _logger.LogInformation("Searching for artifacts for PR #{PrNumber}", prNumber);
 
-            // First, get the PR details to find the head branch
             var prUrl = string.Format(ApiConstants.GitHubApiPrDetailFormat, owner, repo, prNumber);
             var prResponse = await SendWithRetryAsync(client, prUrl, cancellationToken);
 
@@ -1313,7 +1367,6 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
 
             _logger.LogInformation("PR #{PrNumber} head branch: {Branch}", prNumber, headBranch);
 
-            // Fetch workflow runs for this branch
             var runsUrl = string.Format(ApiConstants.GitHubApiWorkflowRunsFormat, owner, repo, headBranch);
             var runsResponse = await SendWithRetryAsync(client, runsUrl, cancellationToken);
 
@@ -1335,6 +1388,15 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
             var runCount = runs.GetArrayLength();
             _logger.LogInformation("Found {Count} workflow runs for PR #{PrNumber} on branch {Branch}", runCount, prNumber, headBranch);
 
+            var platformFilter = GetCurrentPlatformFilter();
+            if (platformFilter == null)
+            {
+                _logger.LogWarning("Unsupported platform for artifact updates");
+                return null;
+            }
+
+            _logger.LogInformation("Looking for {Platform} artifacts for PR #{PrNumber}", platformFilter, prNumber);
+
             foreach (var run in runs.EnumerateArray())
             {
                 var runId = run.GetProperty("id").GetInt64();
@@ -1342,7 +1404,6 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
 
                 _logger.LogDebug("Checking workflow run {RunId} for branch {Branch}", runId, runBranch);
 
-                // Verify this run is actually for our PR branch
                 if (!string.Equals(runBranch, headBranch, StringComparison.OrdinalIgnoreCase))
                 {
                     _logger.LogDebug("Skipping run {RunId} - branch mismatch: {RunBranch} != {HeadBranch}", runId, runBranch, headBranch);
@@ -1350,8 +1411,7 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                 }
 
                 var runUrl = run.GetProperty("html_url").GetString() ?? string.Empty;
-
-                DateTime createdAt;
+                var createdAt = DateTime.MinValue;
                 try
                 {
                     createdAt = run.GetProperty("created_at").GetDateTime();
@@ -1385,69 +1445,7 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                     continue;
                 }
 
-                var artifactCount = artifacts.GetArrayLength();
-                _logger.LogInformation("Found {Count} artifacts for run {RunId}", artifactCount, runId);
-
-                // Determine current platform
-                string platformFilter;
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    platformFilter = "windows";
-                }
-                else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                {
-                    platformFilter = "linux";
-                }
-                else
-                {
-                    _logger.LogWarning("Unsupported platform for artifact updates");
-                    return null;
-                }
-
-                _logger.LogInformation("Looking for {Platform} artifacts for PR #{PrNumber}", platformFilter, prNumber);
-
-                ArtifactUpdateInfo? platformArtifact = null;
-
-                foreach (var artifact in artifacts.EnumerateArray())
-                {
-                    var artifactName = artifact.GetProperty("name").GetString() ?? string.Empty;
-                    _logger.LogDebug("Checking artifact: {Name}", artifactName);
-
-                    if (!artifactName.Contains("velopack", StringComparison.OrdinalIgnoreCase))
-                    {
-                        _logger.LogDebug("Skipping artifact {Name} - doesn't contain 'velopack'", artifactName);
-                        continue;
-                    }
-
-                    // Check if artifact matches current platform
-                    if (!artifactName.Contains(platformFilter, StringComparison.OrdinalIgnoreCase))
-                    {
-                        _logger.LogDebug("Skipping artifact {Name} - doesn't match platform {Platform}", artifactName, platformFilter);
-                        continue;
-                    }
-
-                    _logger.LogInformation("Found {Platform} Velopack artifact: {Name}", platformFilter, artifactName);
-
-                    var artifactId = artifact.GetProperty("id").GetInt64();
-                    var version = ExtractVersionFromArtifactName(artifactName) ?? $"PR{prNumber}";
-
-                    var artifactInfo = new ArtifactUpdateInfo(
-                        Version: version,
-                        GitHash: shortHash,
-                        PullRequestNumber: prNumber,
-                        WorkflowRunId: runId,
-                        WorkflowRunUrl: runUrl,
-                        ArtifactId: artifactId,
-                        ArtifactName: artifactName,
-                        CreatedAt: createdAt,
-                        DownloadUrl: artifact.GetProperty("archive_download_url").GetString(),
-                        Size: artifact.GetProperty("size_in_bytes").GetInt64());
-
-                    _logger.LogInformation("Selected {Platform} artifact: {Name} (ID: {Id})", platformFilter, artifactName, artifactId);
-                    platformArtifact = artifactInfo;
-                    break;
-                }
-
+                var platformArtifact = FindPlatformArtifactInRun(artifacts, platformFilter, prNumber, runId, runUrl, shortHash, createdAt);
                 if (platformArtifact != null)
                 {
                     _logger.LogInformation("Found artifact for PR #{PrNumber}: {Version}", prNumber, platformArtifact.Version);
@@ -1485,20 +1483,17 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
             var owner = AppConstants.GitHubRepositoryOwner;
             var repo = AppConstants.GitHubRepositoryName;
 
-            string runsUrl;
+            var runsUrl = !string.IsNullOrEmpty(branch)
+                ? string.Format(ApiConstants.GitHubApiWorkflowRunsFormat, owner, repo, branch)
+                : $"https://api.github.com/repos/{owner}/{repo}/actions/runs?status=success&event=push&per_page=10";
 
-            // Always request multiple runs to ensure we can find one with artifacts if the latest failed/expired
             if (!string.IsNullOrEmpty(branch))
             {
                 _logger.LogInformation("Searching for latest workflow success on branch: {Branch}", branch);
-                runsUrl = string.Format(ApiConstants.GitHubApiWorkflowRunsFormat, owner, repo, branch);
             }
             else
             {
                 _logger.LogInformation("Searching for overall latest workflow success");
-
-                // Use the same format but without branch param, creating a custom URL since Constant has per_page=1
-                runsUrl = $"https://api.github.com/repos/{owner}/{repo}/actions/runs?status=success&event=push&per_page=10";
             }
 
             var runsResponse = await SendWithRetryAsync(client, runsUrl, cancellationToken);
@@ -1518,149 +1513,20 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                 return null;
             }
 
-            // Iterate through runs to find the first one with valid artifacts
+            var platformFilter = GetCurrentPlatformFilter();
+            if (platformFilter == null)
+            {
+                _logger.LogWarning("No update artifacts are published for {Platform}", RuntimeInformation.OSDescription);
+                return null;
+            }
+
             foreach (var run in runs.EnumerateArray())
             {
-                var runId = run.GetProperty("id").GetInt64();
-                var runUrl = run.GetProperty("html_url").GetString() ?? string.Empty;
-                var eventType = run.TryGetProperty("event", out var e) ? e.GetString() : "unknown";
-                var headSha = run.GetProperty("head_sha").GetString() ?? string.Empty;
-                var shortHash = headSha.Length >= AppConstants.GitShortHashLength ? headSha[..AppConstants.GitShortHashLength] : headSha;
-                var actualBranch = run.TryGetProperty("head_branch", out var b) ? b.GetString() : branch ?? "unknown";
-
-                // CRITICAL FIX: Only accept 'push' events for branch/latest updates.
-                // 'pull_request' events should ONLY be handled by specific PR subscriptions.
-                if (!string.Equals(eventType, "push", StringComparison.OrdinalIgnoreCase))
-                {
-                    _logger.LogDebug("Skipping run {RunId} ({EventType}) - only 'push' events are valid for branch subscriptions", runId, eventType);
-                    continue;
-                }
-
-                // Double-check branch name if specified
-                if (!string.IsNullOrEmpty(branch) && !string.Equals(actualBranch, branch, StringComparison.OrdinalIgnoreCase))
-                {
-                    _logger.LogDebug("Skipping run {RunId} ({ActualBranch}) - does not match requested branch {Branch}", runId, actualBranch, branch);
-                    continue;
-                }
-
-                DateTime createdAt;
-                try
-                {
-                    createdAt = run.GetProperty("created_at").GetDateTime();
-                }
-                catch (FormatException)
-                {
-                    createdAt = DateTime.MinValue;
-                }
-
-                _logger.LogDebug("Checking run {RunId} on branch {Branch} ({Hash}) for artifacts...", runId, actualBranch, shortHash);
-
-                var artifactsUrl = string.Format(ApiConstants.GitHubApiRunArtifactsFormat, owner, repo, runId);
-                var artifactsResponse = await SendWithRetryAsync(client, artifactsUrl, cancellationToken);
-
-                if (artifactsResponse == null || !artifactsResponse.IsSuccessStatusCode)
-                {
-                    _logger.LogWarning("Failed to fetch artifacts for run {RunId}: {Status}", runId, artifactsResponse?.StatusCode);
-                    continue;
-                }
-
-                var artifactsJson = await artifactsResponse.Content.ReadAsStringAsync(cancellationToken);
-                var artifactsData = JsonSerializer.Deserialize<JsonElement>(artifactsJson);
-
-                if (!artifactsData.TryGetProperty("artifacts", out var artifacts) || artifacts.GetArrayLength() == 0)
-                {
-                    _logger.LogDebug("No artifacts found in run {RunId}, checking next run", runId);
-                    continue;
-                }
-
-                // Filter artifacts by platform to prevent cross-platform installation
-                ArtifactUpdateInfo? windowsArtifact = null;
-                ArtifactUpdateInfo? linuxArtifact = null;
-                ArtifactUpdateInfo? fallbackArtifact = null;
-
-                foreach (var artifact in artifacts.EnumerateArray())
-                {
-                    var artifactName = artifact.GetProperty("name").GetString() ?? string.Empty;
-
-                    if (!artifactName.Contains("velopack", StringComparison.OrdinalIgnoreCase))
-                    {
-                        _logger.LogDebug("Skipping artifact {Name} - doesn't contain 'velopack'", artifactName);
-                        continue;
-                    }
-
-                    _logger.LogInformation("Found Velopack artifact: {Name} (ID: {Id}) in run {RunId}", artifactName, artifact.GetProperty("id").GetInt64(), runId);
-
-                    var artifactId = artifact.GetProperty("id").GetInt64();
-                    var version = ExtractVersionFromArtifactName(artifactName) ?? "unknown";
-
-                    var artifactInfo = new ArtifactUpdateInfo(
-                        Version: version,
-                        GitHash: shortHash,
-                        PullRequestNumber: null,
-                        WorkflowRunId: runId,
-                        WorkflowRunUrl: runUrl,
-                        ArtifactId: artifactId,
-                        ArtifactName: artifactName,
-                        CreatedAt: createdAt,
-                        DownloadUrl: artifact.GetProperty("archive_download_url").GetString(),
-                        Size: artifact.GetProperty("size_in_bytes").GetInt64());
-
-                    // Categorize by platform
-                    if (artifactName.Contains("windows", StringComparison.OrdinalIgnoreCase))
-                    {
-                        _logger.LogDebug("Found Windows artifact: {Name}", artifactName);
-                        windowsArtifact = artifactInfo;
-                    }
-                    else if (artifactName.Contains("linux", StringComparison.OrdinalIgnoreCase))
-                    {
-                        _logger.LogDebug("Found Linux artifact: {Name}", artifactName);
-                        linuxArtifact = artifactInfo;
-                    }
-                    else if (fallbackArtifact == null)
-                    {
-                        _logger.LogDebug("Found platform-agnostic artifact: {Name}", artifactName);
-                        fallbackArtifact = artifactInfo;
-                    }
-                }
-
-                // Select the appropriate artifact based on current platform
-                ArtifactUpdateInfo? selectedArtifact = null;
-
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    selectedArtifact = windowsArtifact ?? fallbackArtifact;
-                    if (selectedArtifact != null)
-                    {
-                        _logger.LogInformation("Selected Windows artifact: {Name} (ID: {Id})", selectedArtifact.ArtifactName, selectedArtifact.ArtifactId);
-                    }
-                }
-                else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                {
-                    selectedArtifact = linuxArtifact ?? fallbackArtifact;
-                    if (selectedArtifact != null)
-                    {
-                        _logger.LogInformation("Selected Linux artifact: {Name} (ID: {Id})", selectedArtifact.ArtifactName, selectedArtifact.ArtifactId);
-                    }
-                }
-                else
-                {
-                    // No artifacts are published for this platform. Installing the
-                    // platform-agnostic fallback here would apply a Windows or Linux
-                    // package on, say, macOS, leaving an install that cannot start and
-                    // cannot be rolled back. Refuse rather than guess.
-                    _logger.LogWarning(
-                        "No update artifacts are published for {Platform}; skipping run {RunId}",
-                        RuntimeInformation.OSDescription,
-                        runId);
-                    continue;
-                }
-
+                var selectedArtifact = await CheckRunForLatestArtifactAsync(client, run, branch, platformFilter, owner, repo, cancellationToken);
                 if (selectedArtifact != null)
                 {
                     return selectedArtifact;
                 }
-
-                _logger.LogDebug("No suitable Velopack artifacts found for current platform in run {RunId}, checking next run", runId);
             }
 
             _logger.LogWarning("No suitable artifacts found in the last 10 'push' runs for branch {Branch}", branch ?? "any");
@@ -1673,21 +1539,83 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
         }
     }
 
+    private async Task<ArtifactUpdateInfo?> CheckRunForLatestArtifactAsync(
+        HttpClient client,
+        JsonElement run,
+        string? branch,
+        string platformFilter,
+        string owner,
+        string repo,
+        CancellationToken cancellationToken)
+    {
+        var runId = run.GetProperty("id").GetInt64();
+        var runUrl = run.GetProperty("html_url").GetString() ?? string.Empty;
+        var eventType = run.TryGetProperty("event", out var e) ? e.GetString() : "unknown";
+        var headSha = run.GetProperty("head_sha").GetString() ?? string.Empty;
+        var shortHash = headSha.Length >= AppConstants.GitShortHashLength ? headSha[..AppConstants.GitShortHashLength] : headSha;
+        var actualBranch = run.TryGetProperty("head_branch", out var b) ? b.GetString() : branch ?? "unknown";
+
+        if (!string.Equals(eventType, "push", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogDebug("Skipping run {RunId} ({EventType}) - only 'push' events are valid for branch subscriptions", runId, eventType);
+            return null;
+        }
+
+        if (!string.IsNullOrEmpty(branch) && !string.Equals(actualBranch, branch, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogDebug("Skipping run {RunId} ({ActualBranch}) - does not match requested branch {Branch}", runId, actualBranch, branch);
+            return null;
+        }
+
+        var createdAt = DateTime.MinValue;
+        try
+        {
+            createdAt = run.GetProperty("created_at").GetDateTime();
+        }
+        catch (FormatException)
+        {
+            createdAt = DateTime.MinValue;
+        }
+
+        _logger.LogDebug("Checking run {RunId} on branch {Branch} ({Hash}) for artifacts...", runId, actualBranch, shortHash);
+
+        var artifactsUrl = string.Format(ApiConstants.GitHubApiRunArtifactsFormat, owner, repo, runId);
+        var artifactsResponse = await SendWithRetryAsync(client, artifactsUrl, cancellationToken);
+
+        if (artifactsResponse == null || !artifactsResponse.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to fetch artifacts for run {RunId}: {Status}", runId, artifactsResponse?.StatusCode);
+            return null;
+        }
+
+        var artifactsJson = await artifactsResponse.Content.ReadAsStringAsync(cancellationToken);
+        var artifactsData = JsonSerializer.Deserialize<JsonElement>(artifactsJson);
+
+        if (!artifactsData.TryGetProperty("artifacts", out var artifacts) || artifacts.GetArrayLength() == 0)
+        {
+            _logger.LogWarning("No artifacts found for run {RunId}", runId);
+            return null;
+        }
+
+        var selectedArtifact = FindPlatformArtifactInRun(artifacts, platformFilter, null, runId, runUrl, shortHash, createdAt);
+        if (selectedArtifact != null)
+        {
+            return selectedArtifact;
+        }
+
+        _logger.LogDebug("No suitable Velopack artifacts found for current platform in run {RunId}, checking next run", runId);
+        return null;
+    }
+
     private async Task<IReadOnlyList<ArtifactUpdateInfo>> FindArtifactsAsync(HttpClient client, string? branchName, int? prNumber, CancellationToken cancellationToken)
     {
         var results = new List<ArtifactUpdateInfo>();
         var owner = AppConstants.GitHubRepositoryOwner;
         var repo = AppConstants.GitHubRepositoryName;
 
-        string runsUrl;
-        if (!string.IsNullOrEmpty(branchName))
-        {
-            runsUrl = string.Format(ApiConstants.GitHubApiWorkflowRunsFormat, owner, repo, branchName);
-        }
-        else
-        {
-            runsUrl = string.Format(ApiConstants.GitHubApiWorkflowRunsAllFormat, owner, repo);
-        }
+        var runsUrl = !string.IsNullOrEmpty(branchName)
+            ? string.Format(ApiConstants.GitHubApiWorkflowRunsFormat, owner, repo, branchName)
+            : string.Format(ApiConstants.GitHubApiWorkflowRunsAllFormat, owner, repo);
 
         var runsResponse = await SendWithRetryAsync(client, runsUrl, cancellationToken);
         if (runsResponse == null || !runsResponse.IsSuccessStatusCode) return [];
@@ -1696,8 +1624,13 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
         using var runsDoc = JsonDocument.Parse(runsJson);
         var workflowRuns = runsDoc.RootElement.GetProperty("workflow_runs");
 
-        // Track added artifacts by version+hash to prevent duplicates from re-runs
         var addedVersions = new HashSet<string>();
+        var platformFilter = GetCurrentPlatformFilter();
+        if (platformFilter == null)
+        {
+            _logger.LogWarning("Unsupported platform for artifacts");
+            return [];
+        }
 
         foreach (var run in workflowRuns.EnumerateArray())
         {
@@ -1707,7 +1640,6 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
             var headSha = run.GetProperty("head_sha").GetString() ?? string.Empty;
             var shortHash = headSha.Length >= 7 ? headSha[..7] : headSha;
 
-            // Get artifacts for this run
             var artifactsUrl = run.GetProperty("artifacts_url").GetString();
             if (string.IsNullOrEmpty(artifactsUrl)) continue;
 
@@ -1721,25 +1653,7 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
             foreach (var artifact in artifacts.EnumerateArray())
             {
                 var name = artifact.GetProperty("name").GetString();
-
-                // Filter for Velopack artifacts
                 if (string.IsNullOrEmpty(name) || !name.Contains("velopack", StringComparison.OrdinalIgnoreCase)) continue;
-
-                // Filter by platform
-                string platformFilter;
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    platformFilter = "windows";
-                }
-                else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                {
-                    platformFilter = "linux";
-                }
-                else
-                {
-                    _logger.LogWarning("Unsupported platform for artifacts");
-                    continue;
-                }
 
                 if (!name.Contains(platformFilter, StringComparison.OrdinalIgnoreCase))
                 {
@@ -1747,10 +1661,7 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
                     continue;
                 }
 
-                // Try to extract version from name
                 var version = ExtractVersionFromArtifactName(name) ?? $"0.0.0-ci.{runNum}";
-
-                // Create unique key from version and hash to prevent duplicates
                 var uniqueKey = $"{version}|{shortHash}";
                 if (!addedVersions.Add(uniqueKey))
                 {

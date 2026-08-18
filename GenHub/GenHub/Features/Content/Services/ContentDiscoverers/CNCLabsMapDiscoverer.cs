@@ -245,18 +245,15 @@ public partial class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabs
         }
 
         var mapList = new List<MapListItem>();
-
         var html = await httpClient.GetStringAsync(url, cancellationToken).ConfigureAwait(false);
 
         var context = BrowsingContext.New(Configuration.Default);
         var document = await context.OpenAsync(req => req.Content(html), cancellationToken).ConfigureAwait(false);
-
         var results = document.QuerySelectorAll(CNCLabsConstants.ListItemSelector);
 
         foreach (var item in results)
         {
             cancellationToken.ThrowIfCancellationRequested();
-
             var nameAnchor = item.QuerySelector(CNCLabsConstants.DisplayNameAnchorSelector);
             var detailsHref = nameAnchor?.GetAttribute(CNCLabsConstants.HrefAttribute);
             var name = nameAnchor?.TextContent?.Trim();
@@ -336,11 +333,6 @@ public partial class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabs
                 hasMoreItems = true;
                 break;
             }
-        }
-
-        if (!hasMoreItems)
-        {
-            logger.LogInformation("[CNCLabs] No further pages detected (page {Page})", currentPage);
         }
 
         return (mapList, hasMoreItems);
@@ -608,6 +600,77 @@ public partial class CNCLabsMapDiscoverer(HttpClient httpClient, ILogger<CNCLabs
             // Logging failure to parse file size, though it's acceptable to return null
             // and fallback to the display string.
             logger.LogWarning("Failed to parse file size '{Size}': {Error}", size, ex.Message);
+        }
+
+        return null;
+    }
+
+    private (DateTime? LastUpdated, long? DlCount, string? FSize) ExtractSearchItemMetadata(IElement item)
+    {
+        DateTime? lastUpdated = null;
+        long? dlCount = null;
+        string? fSize = null;
+
+        var strongs = item.QuerySelectorAll("strong");
+        foreach (var s in strongs)
+        {
+            var label = s.TextContent?.Trim();
+            if (string.IsNullOrEmpty(label))
+            {
+                continue;
+            }
+
+            var value = CNCLabsHelper.GetNextNonEmptyTextSibling(s);
+            if (string.IsNullOrEmpty(value))
+            {
+                continue;
+            }
+
+            if (label.StartsWith("Updated:", StringComparison.OrdinalIgnoreCase) ||
+                label.StartsWith("Added:", StringComparison.OrdinalIgnoreCase) ||
+                label.StartsWith("Date:", StringComparison.OrdinalIgnoreCase) ||
+                label.StartsWith("reviewed:", StringComparison.OrdinalIgnoreCase))
+            {
+                if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+                {
+                    lastUpdated = parsed;
+                }
+            }
+            else if (label.StartsWith("Size:", StringComparison.OrdinalIgnoreCase))
+            {
+                fSize = value;
+            }
+            else if (label.StartsWith("Downloads:", StringComparison.OrdinalIgnoreCase) &&
+                     long.TryParse(value.Replace(",", string.Empty), out var count))
+            {
+                dlCount = count;
+            }
+        }
+
+        if (!lastUpdated.HasValue)
+        {
+            var match = DateRegex().Match(item.TextContent);
+            if (match.Success && DateTime.TryParse(match.Groups[1].Value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var fallbackDate))
+            {
+                lastUpdated = fallbackDate;
+            }
+        }
+
+        return (lastUpdated, dlCount, fSize);
+    }
+
+    private string? ExtractScreenshotUrl(IElement item)
+    {
+        var img = item.QuerySelector(".screenshot img") ?? item.QuerySelector("img");
+        if (img != null)
+        {
+            var src = img.GetAttribute("src");
+            if (!string.IsNullOrEmpty(src))
+            {
+                return src.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                    ? src
+                    : new Uri(new Uri("https://www.cnclabs.com"), src).ToString();
+            }
         }
 
         return null;

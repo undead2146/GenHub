@@ -475,21 +475,19 @@ public class ContentReconciliationService(
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
 
-                GameClient? newGameClient = null;
-                if (profile.GameClient != null)
+                GameClient? newGameClient = profile.GameClient;
+                if (profile.GameClient != null && replacements.TryGetValue(profile.GameClient.Id, out var m))
                 {
-                    newGameClient = replacements.TryGetValue(profile.GameClient.Id, out var m)
-                        ? new GameClient
-                        {
-                            Id = m.Id.Value,
-                            Name = m.Name ?? m.Id.Value,
-                            Version = m.Version ?? string.Empty,
-                            GameType = m.TargetGame,
-                            SourceType = m.ContentType,
-                            PublisherType = m.Publisher?.PublisherType,
-                            InstallationId = profile.GameClient.InstallationId, // Preserve installation link
-                        }
-                        : profile.GameClient;
+                    newGameClient = new GameClient
+                    {
+                        Id = m.Id.Value,
+                        Name = m.Name ?? m.Id.Value,
+                        Version = m.Version ?? string.Empty,
+                        GameType = m.TargetGame,
+                        SourceType = m.ContentType,
+                        PublisherType = m.Publisher?.PublisherType,
+                        InstallationId = profile.GameClient.InstallationId, // Preserve installation link
+                    };
                 }
 
                 if (!string.IsNullOrEmpty(profile.ActiveWorkspaceId))
