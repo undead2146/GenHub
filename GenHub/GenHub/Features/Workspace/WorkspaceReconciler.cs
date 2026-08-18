@@ -33,7 +33,9 @@ public class WorkspaceReconciler(ILogger<WorkspaceReconciler> logger, IFileOpera
         bool forceFullVerification = false)
     {
         var deltas = new List<WorkspaceDelta>();
-        var workspacePath = Path.Combine(configuration.WorkspaceRootPath, configuration.Id);
+        var workspacePath = !string.IsNullOrEmpty(workspaceInfo?.WorkspacePath)
+            ? workspaceInfo.WorkspacePath
+            : Path.Combine(configuration.WorkspaceRootPath ?? string.Empty, configuration.Id);
 
         // Build a dictionary tracking ALL occurrences of each file for conflict resolution
         // Key: relative file path, Value: list of (file, contentType, manifestId) tuples

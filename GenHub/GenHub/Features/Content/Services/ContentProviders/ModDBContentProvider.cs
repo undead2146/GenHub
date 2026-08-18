@@ -115,11 +115,8 @@ public class ModDBContentProvider(
             }
 
             var deliveredManifest = deliveryResult.Data ?? manifest;
-            var manifests = await _manifestFactory.CreateManifestsFromExtractedContentAsync(deliveredManifest, workingDirectory, cancellationToken);
-            var resultManifest = manifests.FirstOrDefault() ?? deliveredManifest;
-
-            Logger.LogInformation("Successfully prepared ModDB content {ManifestId} with {FileCount} file(s)", resultManifest.Id, resultManifest.Files?.Count ?? 0);
-            return OperationResult<ContentManifest>.CreateSuccess(resultManifest);
+            Logger.LogInformation("Successfully delivered ModDB content {ManifestId} to {WorkingDirectory}", deliveredManifest.Id, workingDirectory);
+            return OperationResult<ContentManifest>.CreateSuccess(deliveredManifest);
         }
         catch (Exception ex)
         {
