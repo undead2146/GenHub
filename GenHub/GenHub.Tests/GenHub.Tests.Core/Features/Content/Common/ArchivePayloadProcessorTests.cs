@@ -367,6 +367,54 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies that self-extracting executable archives (e.g. ShockWaveV1201.exe with PE header followed by ZIP central directory)
+    /// are detected and extracted safely for mod content types.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ExtractArchivesSafelyAsync_SelfExtractingExeArchive_ExtractsAndDeletesExeAsync()
+    {
+        // Arrange
+        Directory.CreateDirectory(_stagingDirectory);
+        var sfxExePath = Path.Combine(_stagingDirectory, "ShockWaveV1201.exe");
+
+        using (var memoryStream = new MemoryStream())
+        {
+            var peHeader = new byte[512];
+            peHeader[0] = 0x4D; // 'M'
+            peHeader[1] = 0x5A; // 'Z'
+            memoryStream.Write(peHeader, 0, peHeader.Length);
+
+            using (var zipArchive = new ZipArchive(memoryStream, ZipArchiveMode.Create, leaveOpen: true))
+            {
+                {
+                    var entry1 = zipArchive.CreateEntry("Data/INI/ShockWave.ini");
+                    using var writer1 = new StreamWriter(entry1.Open());
+                    await writer1.WriteAsync("ModName=ShockWave");
+                }
+
+                {
+                    var entry2 = zipArchive.CreateEntry("!ShwAudio.gib");
+                    using var writer2 = new StreamWriter(entry2.Open());
+                    await writer2.WriteAsync("Audio content");
+                }
+            }
+
+            await File.WriteAllBytesAsync(sfxExePath, memoryStream.ToArray());
+        }
+
+        var processor = CreateProcessor();
+
+        // Act
+        await processor.ExtractArchivesSafelyAsync(_stagingDirectory, ContentType.Mod);
+
+        // Assert
+        Assert.False(File.Exists(sfxExePath));
+        Assert.True(File.Exists(Path.Combine(_stagingDirectory, "Data", "INI", "ShockWave.ini")));
+        Assert.True(File.Exists(Path.Combine(_stagingDirectory, "!ShwAudio.gib")));
+    }
+
+    /// <summary>
     /// Cleans up test staging directory.
     /// </summary>
     public void Dispose()

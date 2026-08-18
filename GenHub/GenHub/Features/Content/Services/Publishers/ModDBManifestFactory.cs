@@ -222,7 +222,7 @@ public partial class ModDBManifestFactory(
         var provider = providerLoader.GetProvider(ModDBConstants.PublisherPrefix);
         var websiteUrl = provider?.Endpoints.WebsiteUrl ?? ModDBConstants.PublisherWebsite;
         var publisherName = string.Format(System.Globalization.CultureInfo.InvariantCulture, ModDBConstants.PublisherNameFormat, details.Author);
-        var supportUrl = provider?.Endpoints.SupportUrl ?? detailPageUrl;
+        var supportUrl = !string.IsNullOrWhiteSpace(detailPageUrl) ? detailPageUrl : (provider?.Endpoints.SupportUrl ?? websiteUrl);
 
         // Format release date as YYYYMMDD for the manifest version
         var releaseDateVersion = releaseDate.ToString("yyyyMMdd");
@@ -277,6 +277,8 @@ public partial class ModDBManifestFactory(
         // Override the manifest ID with our pre-generated ID that uses the release date
         // This ensures the ID matches the format: 1.YYYYMMDD.moddb.{contentType}.{contentName}
         builtManifest.Id = ManifestId.Create(manifestId);
+        builtManifest.OriginalProviderName = ModDBConstants.DiscovererSourceName;
+        builtManifest.OriginalContentId = !string.IsNullOrWhiteSpace(detailPageUrl) ? detailPageUrl : manifestId;
 
         return builtManifest;
     }

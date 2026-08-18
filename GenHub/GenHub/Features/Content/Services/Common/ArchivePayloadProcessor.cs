@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -22,6 +23,8 @@ namespace GenHub.Features.Content.Services.Common;
 public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : IArchivePayloadProcessor
 {
     private const int MaxNestedExtractionDepth = 5;
+    private static readonly byte[] SevenZipSignature = [0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C];
+    private static readonly byte[] RarSignature = [0x52, 0x61, 0x72, 0x21, 0x1A, 0x07];
 
     /// <inheritdoc />
     public async Task ExtractArchivesSafelyAsync(
@@ -180,7 +183,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
                     return false;
                 }
 
-                return ArchiveFactory.IsArchive(filePath, out _) || ZipValidation.IsValidZipFile(filePath);
+                return IsSelfExtractingArchive(filePath);
             }
 
             if (string.IsNullOrEmpty(extension))
@@ -194,6 +197,90 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         {
             return false;
         }
+    }
+
+    private static bool IsSelfExtractingArchive(string filePath)
+    {
+        try
+        {
+            using var zipArchive = ZipFile.OpenRead(filePath);
+            if (zipArchive.Entries.Count > 0)
+            {
+                return true;
+            }
+        }
+        catch
+        {
+            // Not a ZIP SFX
+        }
+
+        try
+        {
+            if (ArchiveFactory.IsArchive(filePath, out _) || ZipValidation.IsValidZipFile(filePath))
+            {
+                return true;
+            }
+        }
+        catch
+        {
+            // Ignore
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(filePath);
+            if (FindSignatureOffset(stream, SevenZipSignature) >= 0)
+            {
+                return true;
+            }
+
+            stream.Position = 0;
+            if (FindSignatureOffset(stream, RarSignature) >= 0)
+            {
+                return true;
+            }
+        }
+        catch
+        {
+            // Ignore
+        }
+
+        return false;
+    }
+
+    private static long FindSignatureOffset(Stream stream, byte[] signature)
+    {
+        var buffer = new byte[8192];
+        long offset = 0;
+        int read;
+        int matchIndex = 0;
+
+        while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            for (int i = 0; i < read; i++)
+            {
+                if (buffer[i] == signature[matchIndex])
+                {
+                    matchIndex++;
+                    if (matchIndex == signature.Length)
+                    {
+                        return offset + i - signature.Length + 1;
+                    }
+                }
+                else
+                {
+                    if (matchIndex > 0)
+                    {
+                        i -= matchIndex;
+                        matchIndex = 0;
+                    }
+                }
+            }
+
+            offset += read;
+        }
+
+        return -1;
     }
 
     private static IReadOnlyList<string> FindArchiveFiles(string rootDirectory, ContentType? contentType = null)
@@ -290,7 +377,36 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         string extractPath,
         CancellationToken cancellationToken)
     {
-        using var archive = ArchiveFactory.OpenArchive(archivePath);
+        var isExe = Path.GetExtension(archivePath).Equals(".exe", StringComparison.OrdinalIgnoreCase);
+        if (isExe)
+        {
+            if (TryExtractZipArchive(archivePath, extractPath, cancellationToken))
+            {
+                return;
+            }
+
+            if (TryExtractSubStreamArchive(archivePath, extractPath, cancellationToken))
+            {
+                return;
+            }
+        }
+
+        try
+        {
+            using var archive = ArchiveFactory.OpenArchive(archivePath);
+            ExtractSharpCompressArchive(archive, extractPath, cancellationToken);
+        }
+        catch when (isExe)
+        {
+            throw new InvalidDataException($"Executable is not a supported self-extracting archive: {archivePath}");
+        }
+    }
+
+    private static void ExtractSharpCompressArchive(
+        IArchive archive,
+        string extractPath,
+        CancellationToken cancellationToken)
+    {
         var entryCount = 0;
         long totalUncompressedSize = 0;
         var extractRoot = Path.GetFullPath(extractPath);
@@ -342,6 +458,115 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
                 ExtractFullPath = false,
                 Overwrite = true,
             });
+        }
+    }
+
+    private static bool TryExtractZipArchive(
+        string archivePath,
+        string extractPath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var zip = ZipFile.OpenRead(archivePath);
+            if (zip.Entries.Count == 0)
+            {
+                return false;
+            }
+
+            var entryCount = 0;
+            long totalUncompressedSize = 0;
+            var extractRoot = Path.GetFullPath(extractPath);
+
+            foreach (var entry in zip.Entries)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (string.IsNullOrEmpty(entry.FullName) || entry.FullName.EndsWith('/') || entry.FullName.EndsWith('\\'))
+                {
+                    continue;
+                }
+
+                entryCount++;
+                if (entryCount > CatalogConstants.MaxZipEntryCount)
+                {
+                    throw new InvalidDataException(
+                        $"Archive exceeds maximum entry count of {CatalogConstants.MaxZipEntryCount}");
+                }
+
+                totalUncompressedSize += entry.Length;
+                if (totalUncompressedSize > CatalogConstants.MaxZipUncompressedSizeBytes)
+                {
+                    throw new InvalidDataException(
+                        $"Archive exceeds maximum uncompressed size of {CatalogConstants.MaxZipUncompressedSizeBytes} bytes");
+                }
+
+                if (Path.IsPathRooted(entry.FullName))
+                {
+                    throw new InvalidDataException($"Archive entry has an unsafe path: {entry.FullName}");
+                }
+
+                var pathResult = ContentPathPolicy.ResolveContainedFile(extractRoot, entry.FullName);
+                if (!pathResult.Success)
+                {
+                    throw new InvalidDataException($"Archive entry has an unsafe path: {entry.FullName}");
+                }
+
+                var destinationPath = pathResult.Data!;
+                var destinationDir = Path.GetDirectoryName(destinationPath);
+                if (!string.IsNullOrEmpty(destinationDir))
+                {
+                    Directory.CreateDirectory(destinationDir);
+                }
+
+                entry.ExtractToFile(destinationPath, overwrite: true);
+            }
+
+            return true;
+        }
+        catch (InvalidDataException)
+        {
+            throw;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryExtractSubStreamArchive(
+        string archivePath,
+        string extractPath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var stream = File.OpenRead(archivePath);
+            var offset = FindSignatureOffset(stream, SevenZipSignature);
+            if (offset < 0)
+            {
+                stream.Position = 0;
+                offset = FindSignatureOffset(stream, RarSignature);
+            }
+
+            if (offset < 0)
+            {
+                return false;
+            }
+
+            stream.Position = offset;
+            using var subStream = new SubStream(stream, offset, stream.Length - offset);
+            using var archive = ArchiveFactory.OpenArchive(subStream);
+            ExtractSharpCompressArchive(archive, extractPath, cancellationToken);
+            return true;
+        }
+        catch (InvalidDataException)
+        {
+            throw;
+        }
+        catch
+        {
+            return false;
         }
     }
 
@@ -624,5 +849,62 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         {
             logger.LogWarning(ex, "Failed to normalize .gib file extensions in: {Directory}", extractedDirectory);
         }
+    }
+
+    private sealed class SubStream(Stream baseStream, long offset, long length) : Stream
+    {
+        private long _position;
+
+        public override bool CanRead => baseStream.CanRead;
+
+        public override bool CanSeek => baseStream.CanSeek;
+
+        public override bool CanWrite => false;
+
+        public override long Length => length;
+
+        public override long Position
+        {
+            get => _position;
+            set
+            {
+                ArgumentOutOfRangeException.ThrowIfNegative(value);
+                ArgumentOutOfRangeException.ThrowIfGreaterThan(value, length);
+                _position = value;
+            }
+        }
+
+        public override void Flush() => baseStream.Flush();
+
+        public override int Read(byte[] buffer, int offsetInBuffer, int count)
+        {
+            if (_position >= length)
+            {
+                return 0;
+            }
+
+            var toRead = (int)Math.Min(count, length - _position);
+            baseStream.Position = offset + _position;
+            var read = baseStream.Read(buffer, offsetInBuffer, toRead);
+            _position += read;
+            return read;
+        }
+
+        public override long Seek(long offsetFromOrigin, SeekOrigin origin)
+        {
+            var target = origin switch
+            {
+                SeekOrigin.Begin => offsetFromOrigin,
+                SeekOrigin.Current => _position + offsetFromOrigin,
+                SeekOrigin.End => length + offsetFromOrigin,
+                _ => throw new ArgumentOutOfRangeException(nameof(origin)),
+            };
+            Position = target;
+            return _position;
+        }
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offsetInBuffer, int count) => throw new NotSupportedException();
     }
 }

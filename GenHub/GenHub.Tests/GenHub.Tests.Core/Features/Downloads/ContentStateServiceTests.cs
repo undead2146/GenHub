@@ -912,6 +912,62 @@ public class ContentStateServiceTests
         Assert.False(ContentStateService.IsNewerVersion(prospectiveId, localId, prospectiveVersionStr: "081326", localVersionStr: "081326"));
     }
 
+    /// <summary>
+    /// Verifies that ModDB content with the same SourceUrl/SupportUrl evaluates to Downloaded,
+    /// even if the discovery prospective date (e.g. publication date 2016-03-18) differs from
+    /// the downloaded manifest date (e.g. submission date 2016-03-16).
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task GetStateAsync_ModDBContent_WithSameSourceUrlAndDifferentDate_ReturnsDownloadedAsync()
+    {
+        // Arrange
+        const string detailUrl = "https://www.moddb.com/mods/cc-shockwave/downloads/shockwave-v1201";
+        var item = new ContentSearchResult
+        {
+            Id = "1.20160318.moddb.mod.shockwaveversion1201",
+            Name = "ShockWave Version 1.201",
+            ProviderName = ModDBConstants.DiscovererSourceName,
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            SourceUrl = detailUrl,
+            LastUpdated = new DateTime(2016, 3, 18),
+        };
+
+        var storedManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.20160316.moddb.mod.shockwaveversion1201"),
+            Name = "ShockWave Version 1.201",
+            Version = "20160316",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            OriginalProviderName = ModDBConstants.DiscovererSourceName,
+            OriginalContentId = detailUrl,
+            Publisher = new PublisherInfo
+            {
+                PublisherType = ModDBConstants.PublisherPrefix,
+                SupportUrl = detailUrl,
+                Website = "https://www.moddb.com",
+            },
+        };
+
+        var pool = new Mock<IContentManifestPool>();
+        pool.Setup(p => p.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([storedManifest]));
+        pool.Setup(p => p.IsManifestAcquiredAsync(It.IsAny<ManifestId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ManifestId id, CancellationToken _) => OperationResult<bool>.CreateSuccess(id == storedManifest.Id));
+
+        var service = new ContentStateService(pool.Object, NullLogger<ContentStateService>.Instance);
+
+        // Act
+        var state = await service.GetStateAsync(item);
+        var localManifestId = await service.GetLocalManifestIdAsync(item);
+
+        // Assert
+        Assert.Equal(ContentState.Downloaded, state);
+        Assert.Equal(storedManifest.Id.Value, localManifestId);
+    }
+
     private static ContentSearchResult CreateSuperHackersCard(GameType gameType)
     {
         var item = new ContentSearchResult

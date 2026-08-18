@@ -137,7 +137,7 @@ public sealed partial class ContentStateService(
         if (ManifestIdValidator.IsValid(item.Id!, out _))
         {
             var direct = await manifestPool.IsManifestAcquiredAsync(item.Id!, cancellationToken);
-            if (direct.Success && direct.Data)
+            if (direct?.Success == true && direct.Data)
             {
                 return true;
             }
@@ -146,7 +146,7 @@ public sealed partial class ContentStateService(
         if (_sessionDownloads.TryGetValue(item.Id!, out var sessionManifestId))
         {
             var mapped = await manifestPool.IsManifestAcquiredAsync(sessionManifestId, cancellationToken);
-            if (mapped.Success && mapped.Data)
+            if (mapped?.Success == true && mapped.Data)
             {
                 return true;
             }
@@ -182,6 +182,15 @@ public sealed partial class ContentStateService(
         ContentSearchResult item,
         CancellationToken cancellationToken)
     {
+        if (IsSameContentSource(persistedManifest, item))
+        {
+            logger.LogInformation(
+                "Content {ContentName} is downloaded (exact content source match with local manifest {LocalId})",
+                item.Name,
+                persistedManifest.Id.Value);
+            return ContentState.Downloaded;
+        }
+
         if (hasRealDate &&
             releaseDate > DateTime.MinValue &&
             IsNewerVersion(prospectiveId, persistedManifest.Id.Value, item.Version, persistedManifest.Version))
@@ -222,6 +231,15 @@ public sealed partial class ContentStateService(
         ContentSearchResult item,
         CancellationToken cancellationToken)
     {
+        if (IsSameContentSource(matchingManifest, item))
+        {
+            logger.LogInformation(
+                "Content {ContentName} is downloaded (exact content source match with local manifest {LocalId})",
+                item.Name,
+                matchingManifest.Id.Value);
+            return ContentState.Downloaded;
+        }
+
         if (isNewerAvailable)
         {
             logger.LogInformation(
@@ -919,6 +937,48 @@ public sealed partial class ContentStateService(
     private static bool IsDateVersion(int version)
     {
         return version is >= 19900101 and <= 21001231;
+    }
+
+    private static bool IsSameContentSource(ContentManifest manifest, ContentSearchResult item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.SourceUrl))
+        {
+            var cleanSource = item.SourceUrl.TrimEnd('/');
+            if (!string.IsNullOrWhiteSpace(manifest.Publisher?.SupportUrl) &&
+                string.Equals(manifest.Publisher.SupportUrl.TrimEnd('/'), cleanSource, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(manifest.Publisher?.Website) &&
+                string.Equals(manifest.Publisher.Website.TrimEnd('/'), cleanSource, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(manifest.OriginalContentId) &&
+                (string.Equals(manifest.OriginalContentId.TrimEnd('/'), cleanSource, StringComparison.OrdinalIgnoreCase) ||
+                 manifest.OriginalContentId.Contains(cleanSource, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.Id) &&
+            !string.IsNullOrWhiteSpace(manifest.OriginalContentId) &&
+            string.Equals(manifest.OriginalContentId, item.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.SelectedDownloadUrl) &&
+            manifest.Files?.Any(f => !string.IsNullOrWhiteSpace(f.DownloadUrl) &&
+                                     string.Equals(f.DownloadUrl, item.SelectedDownloadUrl, StringComparison.OrdinalIgnoreCase)) == true)
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private async Task<ContentManifest?> FindPersistedManifestAsync(
