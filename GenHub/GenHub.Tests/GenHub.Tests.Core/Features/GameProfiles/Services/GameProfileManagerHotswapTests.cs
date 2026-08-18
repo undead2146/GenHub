@@ -54,7 +54,7 @@ public class GameProfileManagerHotswapTests
     /// </summary>
     /// <returns>A task representing the test operation.</returns>
     [Fact]
-    public async Task UpdateProfileAsync_WhenProfileNotRunning_ClearsActiveWorkspaceIdOnContentChange()
+    public async Task UpdateProfileAsync_WhenProfileNotRunning_ClearsActiveWorkspaceIdOnContentChangeAsync()
     {
         // Arrange
         const string profileId = "profile-1";
@@ -91,7 +91,7 @@ public class GameProfileManagerHotswapTests
     /// </summary>
     /// <returns>A task representing the test operation.</returns>
     [Fact]
-    public async Task UpdateProfileAsync_WhenProfileRunning_WithMapChanges_SucceedsAndPreservesActiveWorkspaceId()
+    public async Task UpdateProfileAsync_WhenProfileRunning_WithMapChanges_SucceedsAndPreservesActiveWorkspaceIdAsync()
     {
         // Arrange
         const string profileId = "profile-running-1";
@@ -152,7 +152,7 @@ public class GameProfileManagerHotswapTests
     /// </summary>
     /// <returns>A task representing the test operation.</returns>
     [Fact]
-    public async Task UpdateProfileAsync_WhenProfileRunning_WithModChanges_FailsWithDescriptiveError()
+    public async Task UpdateProfileAsync_WhenProfileRunning_WithModChanges_FailsWithDescriptiveErrorAsync()
     {
         // Arrange
         const string profileId = "profile-running-2";
@@ -203,7 +203,7 @@ public class GameProfileManagerHotswapTests
     /// </summary>
     /// <returns>A task representing the test operation.</returns>
     [Fact]
-    public async Task UpdateProfileAsync_WhenProfileRunning_WithGameClientChanges_FailsWithDescriptiveError()
+    public async Task UpdateProfileAsync_WhenProfileRunning_WithGameClientChanges_FailsWithDescriptiveErrorAsync()
     {
         // Arrange
         const string profileId = "profile-running-3";
@@ -240,7 +240,7 @@ public class GameProfileManagerHotswapTests
     /// </summary>
     /// <returns>A task representing the test operation.</returns>
     [Fact]
-    public async Task UpdateProfileAsync_WhenProfileRunning_WithImmutableMetadataChanges_Fails()
+    public async Task UpdateProfileAsync_WhenProfileRunning_WithImmutableMetadataChanges_FailsAsync()
     {
         // Arrange
         const string profileId = "profile-running-4";

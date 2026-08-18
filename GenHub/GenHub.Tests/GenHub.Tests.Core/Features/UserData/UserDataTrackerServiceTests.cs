@@ -841,7 +841,7 @@ public sealed class UserDataTrackerServiceTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task InstallUserDataAsync_WhenMaterializationThrowsExceptionWithPreExistingUserFile_RestoresOriginalUserFile()
+    public async Task InstallUserDataAsync_WhenMaterializationThrowsExceptionWithPreExistingUserFile_RestoresOriginalUserFileAsync()
     {
         // Arrange
         var gameDataDir = Path.Combine(_zeroHourDataDir, "GeneralsOnlineGameData");
@@ -1119,7 +1119,7 @@ public sealed class UserDataTrackerServiceTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ActivateUserDataManifestsAsync_WhenMaterializationThrowsException_RollsBackActivatedFilesAndRestoresBackups()
+    public async Task ActivateUserDataManifestsAsync_WhenMaterializationThrowsException_RollsBackActivatedFilesAndRestoresBackupsAsync()
     {
         // Arrange
         var gameDataDir = Path.Combine(_zeroHourDataDir, "GeneralsOnlineGameData");

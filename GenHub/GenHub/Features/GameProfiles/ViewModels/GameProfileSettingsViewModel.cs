@@ -79,7 +79,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
 
     private static bool HasShownFirstLoadNotification { get; set; }
 
-    private List<string> _originalEnabledContentIds = [];
+    private readonly List<string> _originalEnabledContentIds = [];
 
     private static string NormalizeResourcePath(string? path, string defaultUri)
     {
