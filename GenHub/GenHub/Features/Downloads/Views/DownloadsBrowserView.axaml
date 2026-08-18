@@ -110,7 +110,12 @@
                              Text="{Binding SearchTerm}"
                              Watermark="Search content..."
                              VerticalAlignment="Center"
-                             IsVisible="{Binding CanSearch}" />
+                             IsVisible="{Binding CanSearch}">
+                        <TextBox.KeyBindings>
+                            <KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" />
+                            <KeyBinding Gesture="Return" Command="{Binding SearchCommand}" />
+                        </TextBox.KeyBindings>
+                    </TextBox>
 
                     <Button Grid.Column="1"
                             Content="Search"

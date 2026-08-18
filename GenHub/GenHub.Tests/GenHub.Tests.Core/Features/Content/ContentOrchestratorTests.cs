@@ -540,6 +540,65 @@ public class ContentOrchestratorTests
             () => orchestrator.AcquireContentAsync(searchResult, progress: null, cts.Token));
     }
 
+    /// <summary>
+    /// Verifies that ResolveManifestAsync successfully resolves manifests with hyphenated and unhyphenated IDs.
+    /// </summary>
+    /// <param name="registeredResolverId">The resolver ID registered in the container.</param>
+    /// <param name="lookupResolverId">The resolver ID on the search result.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Theory]
+    [InlineData("community-outpost", "communityoutpost")]
+    [InlineData("community-outpost", "community-outpost")]
+    [InlineData("community-outpost", "CommunityOutpost")]
+    [InlineData("AODMaps", "aodmaps")]
+    [InlineData("AODMaps", "AODMaps")]
+    public async Task ResolveManifestAsync_ResolvesNormalizedAndAliasedResolvers_SuccessfullyAsync(
+        string registeredResolverId,
+        string lookupResolverId)
+    {
+        // Arrange
+        var resolverMock = new Mock<IContentResolver>();
+        resolverMock.SetupGet(r => r.ResolverId).Returns(registeredResolverId);
+
+        var manifest = new ContentManifest
+        {
+            Id = "1.0.genhub.mod.test",
+            Name = "Test Mod",
+        };
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "test-item",
+            Name = "Test Item",
+            ResolverId = lookupResolverId,
+        };
+
+        resolverMock.Setup(r => r.ResolveAsync(searchResult, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest>.CreateSuccess(manifest));
+
+        _contentValidatorMock.Setup(v => v.ValidateManifestAsync(manifest, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ValidationResult(manifest.Id, []));
+
+        var orchestrator = new ContentOrchestrator(
+            _loggerMock.Object,
+            [],
+            [],
+            [resolverMock.Object],
+            _cacheMock.Object,
+            _contentValidatorMock.Object,
+            _manifestPoolMock.Object,
+            _installationServiceMock.Object,
+            _installationCasPoolServiceMock.Object);
+
+        // Act
+        var result = await orchestrator.ResolveManifestAsync(searchResult);
+
+        // Assert
+        Assert.True(result.Success, $"Resolution failed for lookup '{lookupResolverId}' on registered '{registeredResolverId}': {result.FirstError}");
+        Assert.NotNull(result.Data);
+        Assert.Equal(manifest.Id, result.Data.Id);
+    }
+
     private sealed class SynchronousProgress<T>(Action<T> report) : IProgress<T>
     {
         public void Report(T value) => report(value);

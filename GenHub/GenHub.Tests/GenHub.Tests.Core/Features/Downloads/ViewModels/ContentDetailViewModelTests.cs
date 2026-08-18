@@ -1213,7 +1213,7 @@ public sealed class ContentDetailViewModelTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task PopulateReleases_WhenReleasesShareName_OnlyExactDownloadedReleaseIsMarkedDownloaded()
+    public async Task PopulateReleases_WhenReleasesShareName_OnlyExactDownloadedReleaseIsMarkedDownloadedAsync()
     {
         // Arrange
         const string fullModUrl = "https://www.moddb.com/downloads/start/115960";

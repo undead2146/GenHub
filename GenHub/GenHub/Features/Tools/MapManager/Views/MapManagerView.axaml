@@ -61,6 +61,10 @@
                  Text="{Binding SearchText}"
                  Width="180"
                  VerticalAlignment="Center">
+          <TextBox.KeyBindings>
+            <KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" />
+            <KeyBinding Gesture="Return" Command="{Binding SearchCommand}" />
+          </TextBox.KeyBindings>
           <TextBox.InnerLeftContent>
             <TextBlock Text="🔍" VerticalAlignment="Center" Margin="8,0,0,0" Opacity="0.5"/>
           </TextBox.InnerLeftContent>

@@ -346,7 +346,14 @@ public class ContentOrchestrator(
                 $"Discovered content '{contentSearchResult.Name}' does not have a ResolverId.");
         }
 
-        if (!_resolvers.TryGetValue(contentSearchResult.ResolverId, out IContentResolver? resolver))
+        var lookupId = contentSearchResult.ResolverId;
+        if (!_resolvers.TryGetValue(lookupId, out IContentResolver? resolver))
+        {
+            var altId = lookupId.Contains('-') ? lookupId.Replace("-", string.Empty) : lookupId;
+            _resolvers.TryGetValue(altId, out resolver);
+        }
+
+        if (resolver == null)
         {
             var availableResolvers = string.Join(", ", _resolvers.Keys);
             logger.LogError("No resolver found for ResolverId: {ResolverId}. Available resolvers: [{AvailableResolvers}]. Total count: {Count}", contentSearchResult.ResolverId, availableResolvers, _resolvers.Count);
@@ -912,12 +919,18 @@ public class ContentOrchestrator(
         IEnumerable<IContentResolver> resolvers,
         ILogger<ContentOrchestrator> logger)
     {
-        var dictionary = new ConcurrentDictionary<string, IContentResolver>();
+        var dictionary = new ConcurrentDictionary<string, IContentResolver>(StringComparer.OrdinalIgnoreCase);
         foreach (var resolver in resolvers)
         {
             if (!dictionary.TryAdd(resolver.ResolverId, resolver))
             {
                 logger.LogWarning("Duplicate ResolverId found: {ResolverId}. Skipping resolver.", resolver.ResolverId);
+            }
+
+            var normalized = resolver.ResolverId.Replace("-", string.Empty);
+            if (!string.Equals(normalized, resolver.ResolverId, StringComparison.OrdinalIgnoreCase))
+            {
+                dictionary.TryAdd(normalized, resolver);
             }
         }
 
