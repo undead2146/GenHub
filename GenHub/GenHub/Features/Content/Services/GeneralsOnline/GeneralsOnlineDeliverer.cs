@@ -44,7 +44,8 @@ public class GeneralsOnlineDeliverer(
     public bool CanDeliver(ContentManifest manifest)
     {
         // Can deliver if it's a Generals Online manifest with a portable ZIP URL
-        var isPublisher = string.Equals(manifest.Publisher?.PublisherType, PublisherTypeConstants.GeneralsOnline, StringComparison.OrdinalIgnoreCase);
+        var isPublisher = string.Equals(manifest.Publisher?.PublisherType, PublisherTypeConstants.GeneralsOnline, StringComparison.OrdinalIgnoreCase)
+            || (string.IsNullOrEmpty(manifest.Publisher?.PublisherType) && string.Equals(manifest.Publisher?.Name, GeneralsOnlineConstants.PublisherName, StringComparison.OrdinalIgnoreCase));
         return isPublisher &&
                manifest.Files.Any(f => f.DownloadUrl is { } url && url.EndsWith(GeneralsOnlineConstants.PortableExtension, StringComparison.OrdinalIgnoreCase));
     }
@@ -108,7 +109,7 @@ public class GeneralsOnlineDeliverer(
                 return OperationResult<ContentManifest>.CreateFailure(registrationResult.FirstError ?? "Failed to register variant manifests");
             }
 
-            MoveExtractedFilesToTarget(extractPath);
+            MoveExtractedFilesToTarget(extractPath, cancellationToken);
             DeleteZipSafe(zipPath);
 
             progress?.Report(new ContentAcquisitionProgress
@@ -130,7 +131,11 @@ public class GeneralsOnlineDeliverer(
             logger.LogInformation("Generals Online content delivery was canceled for {Version}", packageManifest.Version);
             if (newlyRegisteredManifests.Count > 0)
             {
-                await RollbackManifestsAsync(newlyRegisteredManifests);
+                var rollbackErrors = await RollbackManifestsAsync(newlyRegisteredManifests);
+                if (rollbackErrors.Count > 0)
+                {
+                    logger.LogWarning("Rollback warnings during cancellation cleanup: {Errors}", string.Join("; ", rollbackErrors));
+                }
             }
 
             CleanupTempArtifacts(zipPath, extractPath, logger);
@@ -308,7 +313,7 @@ public class GeneralsOnlineDeliverer(
         return OperationResult.CreateSuccess();
     }
 
-    private void MoveExtractedFilesToTarget(string extractPath)
+    private void MoveExtractedFilesToTarget(string extractPath, CancellationToken cancellationToken = default)
     {
         var parentDir = Directory.GetParent(extractPath)?.FullName;
         if (parentDir == null)
@@ -323,6 +328,7 @@ public class GeneralsOnlineDeliverer(
         {
             foreach (var file in Directory.GetFiles(extractPath, "*", SearchOption.AllDirectories))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var relativePath = Path.GetRelativePath(extractPath, file);
                 var targetPath = Path.Combine(parentDir, relativePath);
                 var targetDir = Path.GetDirectoryName(targetPath);
@@ -371,9 +377,16 @@ public class GeneralsOnlineDeliverer(
         {
             try
             {
-                if (backupPath != null && File.Exists(backupPath))
+                if (backupPath != null)
                 {
-                    File.Move(backupPath, targetPath, overwrite: true);
+                    if (File.Exists(backupPath))
+                    {
+                        File.Move(backupPath, targetPath, overwrite: true);
+                    }
+                    else
+                    {
+                        logger.LogWarning("Backup file {BackupPath} not found during rollback; leaving {TargetPath} intact to prevent data loss", backupPath, targetPath);
+                    }
                 }
                 else if (File.Exists(targetPath))
                 {

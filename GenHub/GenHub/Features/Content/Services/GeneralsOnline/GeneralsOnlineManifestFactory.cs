@@ -244,7 +244,7 @@ public class GeneralsOnlineManifestFactory(
             Hash = hash,
             SourceType = ContentSourceType.ContentAddressable,
             SourcePath = fileInfo.FullName,
-            InstallTarget = ContentInstallTarget.Workspace,
+            InstallTarget = ContentInstallTarget.UserDataDirectory,
             IsExecutable = false,
         };
     }
@@ -382,7 +382,7 @@ public class GeneralsOnlineManifestFactory(
     }
 
     /// <summary>
-    /// Creates all variant manifests (60Hz, MapPack) from the original manifest.
+    /// Creates all variant manifests (60Hz, MapPack, and GameData Patch) from the original manifest.
     /// This is called AFTER extraction - we use the original manifest's metadata to create variants.
     /// </summary>
     /// <param name="originalManifest">The manifest from the Resolver (contains version, publisher info, etc.).</param>
@@ -505,7 +505,7 @@ public class GeneralsOnlineManifestFactory(
     /// Computes SHA-256 hashes for all files for CAS integration.
     /// Each variant gets only the files it needs plus shared files.
     /// Maps are extracted to the MapPack manifest with UserMapsDirectory install target.
-    /// Game data files are extracted to the Patch manifest with Workspace install target.
+    /// Game data files are extracted to the Patch manifest with UserDataDirectory install target.
     /// </summary>
     /// <param name="manifests">The original content manifests to update.</param>
     /// <param name="extractPath">The path to the directory containing extracted files.</param>
@@ -576,7 +576,7 @@ public class GeneralsOnlineManifestFactory(
             }
             else if (isPatchManifest)
             {
-                // Data patch manifest: only include GeneralsOnlineGameData files with Workspace install target
+                // Data patch manifest: only include GeneralsOnlineGameData files with UserDataDirectory install target
                 foreach (var (relativePath, fileInfo, hash, isMap, isGameData) in filesWithHashes)
                 {
                     if (!isGameData)

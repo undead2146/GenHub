@@ -28,7 +28,7 @@ public class GameProcessManagerTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task StartProcessAsync_WithLiveProcess_ReportsItAsRunning()
+    public async Task StartProcessAsync_WithLiveProcess_ReportsItAsRunningAsync()
     {
         using var harness = LauncherHarness.Create(spawnChild: false);
 
@@ -53,7 +53,7 @@ public class GameProcessManagerTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task GetProcessInfoAsync_ForALiveProcess_ReportsItAsRunning()
+    public async Task GetProcessInfoAsync_ForALiveProcess_ReportsItAsRunningAsync()
     {
         using var harness = LauncherHarness.Create(spawnChild: false);
 
@@ -80,7 +80,7 @@ public class GameProcessManagerTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task StartProcessAsync_WithExpectedChild_TracksTheChildWhileTheLauncherStillRuns()
+    public async Task StartProcessAsync_WithExpectedChild_TracksTheChildWhileTheLauncherStillRunsAsync()
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -121,7 +121,7 @@ public class GameProcessManagerTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task StartProcessAsync_WithExpectedChildThatNeverAppears_FailsInsteadOfTrackingTheLauncher()
+    public async Task StartProcessAsync_WithExpectedChildThatNeverAppears_FailsInsteadOfTrackingTheLauncherAsync()
     {
         using var harness = LauncherHarness.Create(spawnChild: false);
 
@@ -146,7 +146,7 @@ public class GameProcessManagerTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task StartProcessAsync_WhenLauncherExitsCleanlyWithoutChild_FailsWithoutWaitingOutTheTimeout()
+    public async Task StartProcessAsync_WhenLauncherExitsCleanlyWithoutChild_FailsWithoutWaitingOutTheTimeoutAsync()
     {
         using var harness = LauncherHarness.Create(spawnChild: false, exitImmediately: true, stderrMessage: null);
 
@@ -177,7 +177,7 @@ public class GameProcessManagerTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task StartProcessAsync_WhenLauncherExitsCleanlyWithoutChild_ReportsItsStderr()
+    public async Task StartProcessAsync_WhenLauncherExitsCleanlyWithoutChild_ReportsItsStderrAsync()
     {
         const string complaint = "EasyAntiCheat_is_not_installed";
         using var harness = LauncherHarness.Create(spawnChild: false, exitImmediately: true, stderrMessage: complaint);
@@ -206,7 +206,7 @@ public class GameProcessManagerTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task StartProcessAsync_WhenAdoptionIsCancelled_PropagatesCancellation()
+    public async Task StartProcessAsync_WhenAdoptionIsCancelled_PropagatesCancellationAsync()
     {
         using var harness = LauncherHarness.Create(spawnChild: false);
 
@@ -231,7 +231,7 @@ public class GameProcessManagerTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task StartProcessAsync_WithInvalidExecutablePath_ShouldReturnFailure()
+    public async Task StartProcessAsync_WithInvalidExecutablePath_ShouldReturnFailureAsync()
     {
         // Arrange
         var config = new GameLaunchConfiguration
@@ -251,7 +251,7 @@ public class GameProcessManagerTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task TerminateProcessAsync_WithNonExistentProcessId_ShouldReturnFailure()
+    public async Task TerminateProcessAsync_WithNonExistentProcessId_ShouldReturnFailureAsync()
     {
         // Act
         var result = await _processManager.TerminateProcessAsync(99999);
@@ -265,7 +265,7 @@ public class GameProcessManagerTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task GetProcessInfoAsync_WithNonExistentProcessId_ShouldReturnFailure()
+    public async Task GetProcessInfoAsync_WithNonExistentProcessId_ShouldReturnFailureAsync()
     {
         // Act
         var result = await _processManager.GetProcessInfoAsync(99999);
@@ -280,7 +280,7 @@ public class GameProcessManagerTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task GetActiveProcessesAsync_Initially_ShouldReturnEmptyList()
+    public async Task GetActiveProcessesAsync_Initially_ShouldReturnEmptyListAsync()
     {
         // Act
         var result = await _processManager.GetActiveProcessesAsync();
@@ -295,11 +295,11 @@ public class GameProcessManagerTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task TerminateProcessAsync_WithRunningProcess_ShouldReturnSuccess()
+    public async Task TerminateProcessAsync_WithRunningProcess_ShouldReturnSuccessAsync()
     {
         // Arrange - Use cross-platform approach
-        string tempExe;
-        string scriptContent;
+        string tempExe = string.Empty;
+        string scriptContent = string.Empty;
 
         if (OperatingSystem.IsWindows())
         {
@@ -395,8 +395,8 @@ public class GameProcessManagerTests
             var childPath = Path.Combine(workingDirectory, OperatingSystem.IsWindows() ? ChildProcessName + ".exe" : ChildProcessName);
             File.Copy(LongRunningSystemBinary(), childPath);
 
-            string launcherPath;
-            string script;
+            string launcherPath = string.Empty;
+            string script = string.Empty;
             if (OperatingSystem.IsWindows())
             {
                 launcherPath = Path.Combine(workingDirectory, "genhublauncher.bat");
@@ -411,7 +411,7 @@ public class GameProcessManagerTests
                 // open, which would defeat the cleanup delete for the launcher's whole lifetime.
                 var linger = exitImmediately ? string.Empty : $"ping -n {LauncherLifetimeSeconds + 1} 127.0.0.1 >nul\n";
                 var complain = stderrMessage is null ? string.Empty : $"echo {stderrMessage} 1>&2\n";
-                script = $"@echo off\n{recordPid}{complain}{spawn}cd /d \"%TEMP%\"\n{linger}";
+                script = $"@echo off\n{spawn}{complain}{recordPid}cd /d \"%TEMP%\"\n{linger}";
             }
             else
             {
@@ -459,6 +459,39 @@ public class GameProcessManagerTests
             DeleteWorkingDirectory();
         }
 
+        private static string? GetImagePath(System.Diagnostics.Process process)
+        {
+            try
+            {
+                return process.MainModule?.FileName;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string LongRunningSystemBinary()
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "PING.EXE");
+            }
+
+            return File.Exists("/bin/sleep") ? "/bin/sleep" : "/usr/bin/sleep";
+        }
+
+        private static void MakeExecutable(string path)
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                return;
+            }
+
+            using var chmod = System.Diagnostics.Process.Start("chmod", ["+x", path]);
+            chmod?.WaitForExit();
+        }
+
         /// <summary>
         /// Stops the launcher so it does not outlive the test by <see cref="LauncherLifetimeSeconds"/>.
         /// </summary>
@@ -503,39 +536,6 @@ public class GameProcessManagerTests
                     // Best effort.
                 }
             }
-        }
-
-        private static string? GetImagePath(System.Diagnostics.Process process)
-        {
-            try
-            {
-                return process.MainModule?.FileName;
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static string LongRunningSystemBinary()
-        {
-            if (OperatingSystem.IsWindows())
-            {
-                return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "PING.EXE");
-            }
-
-            return File.Exists("/bin/sleep") ? "/bin/sleep" : "/usr/bin/sleep";
-        }
-
-        private static void MakeExecutable(string path)
-        {
-            if (OperatingSystem.IsWindows())
-            {
-                return;
-            }
-
-            using var chmod = System.Diagnostics.Process.Start("chmod", ["+x", path]);
-            chmod?.WaitForExit();
         }
     }
 }
