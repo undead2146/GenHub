@@ -78,6 +78,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     ];
 
     private static bool HasShownFirstLoadNotification { get; set; }
+
     private List<string> _originalEnabledContentIds = [];
 
     private static string NormalizeResourcePath(string? path, string defaultUri)
@@ -123,36 +124,6 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     private static void PopulateGameSettings(UpdateProfileRequest request, UpdateProfileRequest? gameSettings)
     {
         if (gameSettings != null) GameSettingsMapper.PopulateRequest(request, gameSettings);
-    }
-
-    private (bool IsLocked, bool CanToggle) GetItemHotswapState(ContentType contentType)
-    {
-        var isLocked = IsHotswapMode && ContentHotswapClassification.IsLocked(contentType);
-        var canToggle = !IsHotswapMode || ContentHotswapClassification.IsHotswappable(contentType);
-        return (isLocked, canToggle);
-    }
-
-    private ContentDisplayItem ConvertToViewModelContentDisplayItem(Core.Models.Content.ContentDisplayItem coreItem)
-    {
-        var (isLocked, canToggle) = GetItemHotswapState(coreItem.ContentType);
-
-        return new ContentDisplayItem
-        {
-            ManifestId = ManifestId.Create(coreItem.ManifestId),
-            DisplayName = coreItem.DisplayName,
-            ContentType = coreItem.ContentType,
-            GameType = coreItem.GameType,
-            InstallationType = coreItem.InstallationType,
-            Publisher = coreItem.Publisher,
-            Version = coreItem.Version,
-            SourceId = coreItem.SourceId,
-            GameClientId = coreItem.GameClientId,
-            IsEnabled = coreItem.IsEnabled,
-            IsEditable = coreItem.IsEditable,
-            SourcePath = coreItem.SourcePath,
-            IsLocked = isLocked,
-            CanToggle = canToggle,
-        };
     }
 
     private static void ValidateSingleDependencyWarning(
@@ -210,6 +181,36 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
 
     private static bool HasCompatibleCatalogMatch(string declaredId, string availableId) =>
         DependencyResolver.HasCompatibleCatalogIdentity(declaredId, availableId);
+
+    private (bool IsLocked, bool CanToggle) GetItemHotswapState(ContentType contentType)
+    {
+        var isLocked = IsHotswapMode && ContentHotswapClassification.IsLocked(contentType);
+        var canToggle = !IsHotswapMode || ContentHotswapClassification.IsHotswappable(contentType);
+        return (isLocked, canToggle);
+    }
+
+    private ContentDisplayItem ConvertToViewModelContentDisplayItem(Core.Models.Content.ContentDisplayItem coreItem)
+    {
+        var (isLocked, canToggle) = GetItemHotswapState(coreItem.ContentType);
+
+        return new ContentDisplayItem
+        {
+            ManifestId = ManifestId.Create(coreItem.ManifestId),
+            DisplayName = coreItem.DisplayName,
+            ContentType = coreItem.ContentType,
+            GameType = coreItem.GameType,
+            InstallationType = coreItem.InstallationType,
+            Publisher = coreItem.Publisher,
+            Version = coreItem.Version,
+            SourceId = coreItem.SourceId,
+            GameClientId = coreItem.GameClientId,
+            IsEnabled = coreItem.IsEnabled,
+            IsEditable = coreItem.IsEditable,
+            SourcePath = coreItem.SourcePath,
+            IsLocked = isLocked,
+            CanToggle = canToggle,
+        };
+    }
 
     private void UpdateAllItemsHotswapState()
     {
