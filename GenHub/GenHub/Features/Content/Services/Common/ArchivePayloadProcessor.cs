@@ -828,12 +828,12 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
                         var streamOffset = BitConverter.ToUInt32(tableData, start - 36);
                         var compSize = BitConverter.ToUInt32(tableData, start - 32);
 
-                        if (uncompSize > 0 && compSize > 0 && (ulong)uncompSize < (ulong)CatalogConstants.MaxZipUncompressedSizeBytes)
+                        if (uncompSize > 0 &&
+                            compSize > 0 &&
+                            (ulong)uncompSize < (ulong)CatalogConstants.MaxZipUncompressedSizeBytes &&
+                            !records.Exists(r => r.Name == name && r.StreamOffset == streamOffset))
                         {
-                            if (!records.Exists(r => r.Name == name && r.StreamOffset == streamOffset))
-                            {
-                                records.Add((name, uncompSize, streamOffset, compSize));
-                            }
+                            records.Add((name, uncompSize, streamOffset, compSize));
                         }
                     }
 
