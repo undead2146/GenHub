@@ -252,7 +252,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
     {
         var buffer = new byte[8192];
         long offset = 0;
-        int read;
+        int read = 0;
         int matchIndex = 0;
 
         while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
