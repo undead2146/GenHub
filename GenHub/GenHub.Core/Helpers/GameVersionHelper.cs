@@ -34,13 +34,17 @@ public static partial class GameVersionHelper
             digits = digits.TrimStart('0');
         }
 
+        if (digits.Length == 0)
+        {
+            return 0;
+        }
+
         if (digits.Length > 10)
         {
-             // int.MaxValue is ~2.1 billion (10 digits)
             digits = digits[..10];
         }
 
-        if (long.TryParse(digits, out var longResult))
+        if (long.TryParse(digits, NumberStyles.Integer, CultureInfo.InvariantCulture, out var longResult))
         {
             if (longResult > int.MaxValue)
             {
