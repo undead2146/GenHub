@@ -89,7 +89,7 @@ public class WorkspaceIntegrationTests : IDisposable
 
         _serviceProvider = services.BuildServiceProvider();
         _workspaceValidator = _serviceProvider.GetRequiredService<IWorkspaceValidator>();
-        SetupTestGameInstallation().Wait();
+        SetupTestGameInstallationAsync().Wait();
     }
 
     /// <summary>
@@ -231,7 +231,7 @@ public class WorkspaceIntegrationTests : IDisposable
     /// <param name="workspace">The workspace info.</param>
     /// <param name="strategy">The workspace strategy.</param>
     /// <returns>A completed <see cref="Task"/>.</returns>
-    private static Task VerifyWorkspaceStrategy(WorkspaceInfo workspace, WorkspaceStrategy strategy)
+    private static Task VerifyWorkspaceStrategyAsync(WorkspaceInfo workspace, WorkspaceStrategy strategy)
     {
         var testFile = Directory.GetFiles(workspace.WorkspacePath, "*.exe").First();
         var fileInfo = new FileInfo(testFile);
@@ -303,7 +303,7 @@ public class WorkspaceIntegrationTests : IDisposable
     /// Sets up the test game installation files and directories.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous setup.</returns>
-    private async Task SetupTestGameInstallation()
+    private async Task SetupTestGameInstallationAsync()
     {
         Directory.CreateDirectory(_tempGameInstall);
         var testFiles = new[]

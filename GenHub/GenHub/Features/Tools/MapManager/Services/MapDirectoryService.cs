@@ -269,7 +269,7 @@ public sealed class MapDirectoryService(
 
         // Validate name for illegal characters
         var invalidChars = Path.GetInvalidFileNameChars();
-        if (newName.Any(c => invalidChars.Contains(c)))
+        if (newName.IndexOfAny(invalidChars) >= 0)
         {
             logger.LogWarning("Invalid characters in map name: {Name}", newName);
             return false;
@@ -325,28 +325,26 @@ public sealed class MapDirectoryService(
                         logger.LogInformation("Renamed map directory from {OldName} to {NewName}", map.DirectoryName, newName);
                         return true;
                     }
-                    else
+
+                    // Rename standalone .map file
+                    var directory = Path.GetDirectoryName(map.FullPath);
+                    if (string.IsNullOrEmpty(directory))
                     {
-                        // Rename standalone .map file
-                        var directory = Path.GetDirectoryName(map.FullPath);
-                        if (string.IsNullOrEmpty(directory))
-                        {
-                            return false;
-                        }
-
-                        var newFileName = newName + ".map";
-                        var newFilePath = Path.Combine(directory, newFileName);
-
-                        if (File.Exists(newFilePath))
-                        {
-                            logger.LogWarning("Target file already exists: {Path}", newFilePath);
-                            return false;
-                        }
-
-                        File.Move(map.FullPath, newFilePath);
-                        logger.LogInformation("Renamed map from {OldName} to {NewName}", map.FileName, newFileName);
-                        return true;
+                        return false;
                     }
+
+                    var newFileName = newName + ".map";
+                    var newFilePath = Path.Combine(directory, newFileName);
+
+                    if (File.Exists(newFilePath))
+                    {
+                        logger.LogWarning("Target file already exists: {Path}", newFilePath);
+                        return false;
+                    }
+
+                    File.Move(map.FullPath, newFilePath);
+                    logger.LogInformation("Renamed map from {OldName} to {NewName}", map.FileName, newFileName);
+                    return true;
                 }
                 catch (Exception ex)
                 {

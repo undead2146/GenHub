@@ -9,8 +9,8 @@ using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Manifest;
-using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Providers;
+using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Dialogs;
 using GenHub.Core.Models.Enums;
@@ -84,6 +84,7 @@ public class SuperHackersProfileReconciler(
             var strategy = promptResult.Strategy;
             var shouldDeleteOldVersions = promptResult.ShouldDeleteOldVersions;
 
+            // Notify user that update is being installed
             notificationService.ShowInfo(
                 "SuperHackers Update Found",
                 $"Installing SuperHackers {updateResult.LatestVersion}. Please wait...",
@@ -111,7 +112,6 @@ public class SuperHackersProfileReconciler(
             }
 
             var (profilesUpdated, anyFailure) = applyResult.Data;
-
             if (shouldDeleteOldVersions && !anyFailure)
             {
                 await reconciliationService.ScheduleGarbageCollectionAsync(false, cancellationToken);
@@ -328,7 +328,7 @@ public class SuperHackersProfileReconciler(
     }
 
     private async Task<OperationResult<List<ContentManifest>>> AcquireLatestVersionAsync(
-        List<ContentManifest> oldManifests,
+        IReadOnlyList<ContentManifest> oldManifests,
         CancellationToken cancellationToken)
     {
         try
@@ -397,8 +397,8 @@ public class SuperHackersProfileReconciler(
     /// Creates new profiles for the update instead of replacing existing ones.
     /// </summary>
     private async Task<OperationResult<int>> CreateNewProfilesForUpdateAsync(
-        List<ContentManifest> oldManifests,
-        List<ContentManifest> newManifests,
+        IReadOnlyList<ContentManifest> oldManifests,
+        IReadOnlyList<ContentManifest> newManifests,
         string newVersion,
         CancellationToken cancellationToken)
     {

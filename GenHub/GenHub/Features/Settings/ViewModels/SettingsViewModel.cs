@@ -1372,7 +1372,6 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
 
         if (DownloadTimeoutSeconds != message.TimeoutSeconds)
             DownloadTimeoutSeconds = message.TimeoutSeconds;
-
         DownloadUserAgent = message.UserAgent;
     }
 

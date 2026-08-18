@@ -126,16 +126,26 @@ public partial class AddLocalContentWindow : Window
 
     private void OnAdminDrop(string[] files)
     {
-        _ = HandleAdminDropAsync(files);
+        _ = ProcessAdminDropAsync(files);
     }
 
-    private async Task HandleAdminDropAsync(string[] files)
+    private async Task ProcessAdminDropAsync(string[] files)
     {
-        if (DataContext is not AddLocalContentViewModel vm) return;
-
-        foreach (var file in files)
+        if (DataContext is not AddLocalContentViewModel vm)
         {
-            await vm.ImportContentAsync(file);
+            return;
+        }
+
+        try
+        {
+            foreach (var file in files)
+            {
+                await vm.ImportContentAsync(file);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error during admin drop import: {ex.Message}");
         }
     }
 

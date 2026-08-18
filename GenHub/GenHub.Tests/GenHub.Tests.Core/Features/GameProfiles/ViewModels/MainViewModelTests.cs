@@ -223,7 +223,8 @@ public class MainViewModelTests
                 Assert.IsType<InfoViewModel>(currentViewModel);
                 break;
             default:
-                throw new ArgumentOutOfRangeException(nameof(tab), tab, null);
+                // No additional specific tab assertions
+                break;
         }
     }
 

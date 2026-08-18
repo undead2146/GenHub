@@ -389,22 +389,12 @@ public class ManifestGenerationService(
                 publisher = publisherInfo;
             }
             else
-            {
-                // Legacy/Fallback detection
-                string publisherName;
-                if (clientName.Contains("steam", StringComparison.InvariantCultureIgnoreCase))
+                var publisherName = clientName switch
                 {
-                    publisherName = PublisherInfoConstants.Steam.Name;
-                }
-                else if (clientName.Contains("ea", StringComparison.InvariantCultureIgnoreCase))
-                {
-                    publisherName = PublisherInfoConstants.EaApp.Name;
-                }
-                else
-                {
-                    publisherName = PublisherInfoConstants.Retail.Name;
-                }
-
+                    _ when clientName.Contains("steam", StringComparison.InvariantCultureIgnoreCase) => PublisherInfoConstants.Steam.Name,
+                    _ when clientName.Contains("ea", StringComparison.InvariantCultureIgnoreCase) => PublisherInfoConstants.EaApp.Name,
+                    _ => PublisherInfoConstants.Retail.Name,
+                };
                 publisher = new PublisherInfo { Name = publisherName };
             }
 

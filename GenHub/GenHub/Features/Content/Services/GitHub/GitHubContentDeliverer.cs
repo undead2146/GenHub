@@ -305,6 +305,17 @@ public class GitHubContentDeliverer(
                ext == FileTypes.RarFileExtension;
     }
 
+    private static bool IsPathWithinDirectory(string normalizedBase, string fullPath)
+    {
+        var normalizedRoot = Path.GetFullPath(normalizedBase);
+        var normalizedTarget = Path.GetFullPath(fullPath);
+        var relative = Path.GetRelativePath(normalizedRoot, normalizedTarget);
+        return !relative.Equals("..", StringComparison.Ordinal) &&
+               !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) &&
+               !relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal) &&
+               !Path.IsPathRooted(relative);
+    }
+
     /// <summary>
     /// Extracts an archive file to a target directory with progress reporting and bounds enforcement.
     /// </summary>

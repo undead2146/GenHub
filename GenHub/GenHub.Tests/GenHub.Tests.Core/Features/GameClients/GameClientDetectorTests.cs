@@ -318,7 +318,7 @@ public class GameClientDetectorTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task ScanDirectoryForGameClientsAsync_WithEacLauncherBesideSixtyHertz_FindsOnlyWrapper()
+    public async Task ScanDirectoryForGameClientsAsync_WithEacLauncherBesideSixtyHertz_FindsOnlyWrapperAsync()
     {
         var gameDir = Path.Combine(_tempDirectory, "GeneralsOnline");
         Directory.CreateDirectory(gameDir);
@@ -356,7 +356,7 @@ public class GameClientDetectorTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task ScanDirectoryForGameClientsAsync_WithEacLauncherAndUnknownHash_ClassifiesAsZeroHourGeneralsOnline()
+    public async Task ScanDirectoryForGameClientsAsync_WithEacLauncherAndUnknownHash_ClassifiesAsZeroHourGeneralsOnlineAsync()
     {
         var gameDir = Path.Combine(_tempDirectory, "GeneralsOnline");
         Directory.CreateDirectory(gameDir);
@@ -408,7 +408,7 @@ public class GameClientDetectorTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task ScanDirectoryForGameClientsAsync_WhenAnIdentifierThrows_StillTriesTheRest()
+    public async Task ScanDirectoryForGameClientsAsync_WhenAnIdentifierThrows_StillTriesTheRestAsync()
     {
         var gameDir = Path.Combine(_tempDirectory, "GeneralsOnline");
         Directory.CreateDirectory(gameDir);
@@ -456,7 +456,7 @@ public class GameClientDetectorTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task ScanDirectoryForGameClientsAsync_WithoutEacLauncher_FindsSixtyHertzClient()
+    public async Task ScanDirectoryForGameClientsAsync_WithoutEacLauncher_FindsSixtyHertzClientAsync()
     {
         var gameDir = Path.Combine(_tempDirectory, "GeneralsOnlinePreEac");
         Directory.CreateDirectory(gameDir);
@@ -589,7 +589,7 @@ public class GameClientDetectorTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task DetectGameClientsFromInstallationsAsync_WithEacLauncherBesideSixtyHertz_DetectsOnlyWrapper()
+    public async Task DetectGameClientsFromInstallationsAsync_WithEacLauncherBesideSixtyHertz_DetectsOnlyWrapperAsync()
     {
         var identifierMock = new Mock<IGameClientIdentifier>();
         identifierMock.Setup(x => x.PublisherId).Returns(PublisherTypeConstants.GeneralsOnline);

@@ -30,6 +30,7 @@ public class ContentReconciliationConcurrencyTests
     private readonly Mock<ICasLifecycleManager> _casServiceMock;
     private readonly Mock<ILogger<ContentReconciliationService>> _loggerMock;
     private readonly Mock<ICasReferenceTracker> _casReferenceTrackerMock;
+    private readonly object _syncLock = new();
     private readonly ContentReconciliationService _service;
 
     /// <summary>
@@ -83,19 +84,22 @@ public class ContentReconciliationConcurrencyTests
         _profileManagerMock.Setup(x => x.GetAllProfilesAsync(It.IsAny<CancellationToken>()))
             .Returns(async () =>
             {
-                var current = Interlocked.Increment(ref callCounter);
-                int initialMax = 0;
-                int computedMax = 0;
-                do
+                lock (_syncLock)
                 {
-                    initialMax = maxConcurrent;
-                    computedMax = Math.Max(initialMax, current);
+                    callCounter++;
+                    var current = callCounter;
+                    if (current > maxConcurrent)
+                    {
+                        maxConcurrent = current;
+                    }
                 }
-                while (Interlocked.CompareExchange(ref maxConcurrent, computedMax, initialMax) != initialMax);
 
                 await Task.Delay(100);
 
-                Interlocked.Decrement(ref callCounter);
+                lock (_syncLock)
+                {
+                    callCounter--;
+                }
 
                 return ProfileOperationResult<IReadOnlyList<GameProfile>>.CreateSuccess([]);
             });

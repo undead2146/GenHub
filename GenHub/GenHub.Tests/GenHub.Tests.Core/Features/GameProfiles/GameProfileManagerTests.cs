@@ -578,7 +578,7 @@ public class GameProfileManagerTests
 
         ProfileUpdatedMessage? receivedMessage = null;
 
-        WeakReferenceMessenger.Default.Register<ProfileUpdatedMessage>(this, (r, m) => receivedMessage = m);
+        WeakReferenceMessenger.Default.Register<ProfileUpdatedMessage>(this, (_, m) => receivedMessage = m);
 
         // Act
         var result = await _profileManager.UpdateProfileAsync(profileId, request);

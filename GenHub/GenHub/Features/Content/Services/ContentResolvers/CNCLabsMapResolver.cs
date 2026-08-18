@@ -220,6 +220,13 @@ public class CNCLabsMapResolver(
             downloadUrl = $"{CNCLabsConstants.PublisherWebsite.TrimEnd('/')}/{downloadUrl.TrimStart('/')}";
         }
 
+        // Rewrite downloader.aspx to fetch.aspx to bypass JS redirect
+        if (downloadUrl.Contains("downloader.aspx", StringComparison.OrdinalIgnoreCase))
+        {
+            downloadUrl = downloadUrl.Replace("downloader.aspx", "fetch.aspx", StringComparison.OrdinalIgnoreCase);
+            logger.LogDebug("Rewrote downloader URL to direct fetch URL: {DownloadUrl}", downloadUrl);
+        }
+
         logger.LogDebug("Parsed download URL: {DownloadUrl}", downloadUrl);
 
         // 6. File metadata (optional but useful). Prefer the 2026 redesign's <dl> definition list,
