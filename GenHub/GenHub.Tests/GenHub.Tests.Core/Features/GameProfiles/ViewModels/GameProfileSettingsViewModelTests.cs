@@ -159,8 +159,9 @@ public class GameProfileSettingsViewModelTests
     /// <summary>
     /// Verifies that receiving a <see cref="ManifestReplacedMessage"/> updates enabled content without duplication.
     /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public void ReceiveManifestReplacedMessage_UpdatesEnabledContent_WithoutDuplication()
+    public async Task ReceiveManifestReplacedMessage_UpdatesEnabledContent_WithoutDuplication()
     {
         // Arrange
         var mockGameSettingsService = new Mock<IGameSettingsService>();
@@ -179,6 +180,39 @@ public class GameProfileSettingsViewModelTests
             GameType = GenHub.Core.Models.Enums.GameType.Generals,
             InstallationType = GenHub.Core.Models.Enums.GameInstallationType.Steam,
         };
+
+        var manifest = new ContentManifest
+        {
+            Id = GenHub.Core.Models.Manifest.ManifestId.Create(newId),
+            Name = "My Mod v2",
+            Version = "2.0",
+            ContentType = GenHub.Core.Models.Enums.ContentType.Mod,
+            TargetGame = GenHub.Core.Models.Enums.GameType.Generals,
+        };
+
+        mockManifestPool
+            .Setup(m => m.GetManifestAsync(It.Is<GenHub.Core.Models.Manifest.ManifestId>(id => id.Value == newId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(GenHub.Core.Models.Results.OperationResult<ContentManifest?>.CreateSuccess(manifest));
+
+        mockContentLoader
+            .Setup(c => c.CreateManifestDisplayItem(manifest, It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<bool>()))
+            .Returns(new GenHub.Core.Models.Content.ContentDisplayItem
+            {
+                Id = newId,
+                ManifestId = newId,
+                DisplayName = "My Mod v2",
+                IsEnabled = true,
+                ContentType = GenHub.Core.Models.Enums.ContentType.Mod,
+                GameType = GenHub.Core.Models.Enums.GameType.Generals,
+                InstallationType = GenHub.Core.Models.Enums.GameInstallationType.Steam,
+            });
+
+        mockContentLoader
+            .Setup(c => c.LoadAvailableContentAsync(
+                It.IsAny<GenHub.Core.Models.Enums.ContentType>(),
+                It.IsAny<System.Collections.ObjectModel.ObservableCollection<GenHub.Core.Models.Content.ContentDisplayItem>>(),
+                It.IsAny<System.Collections.Generic.IEnumerable<string>>()))
+            .ReturnsAsync(new System.Collections.ObjectModel.ObservableCollection<GenHub.Core.Models.Content.ContentDisplayItem>());
 
         var logger = NullLogger<GameProfileSettingsViewModel>.Instance;
         var vm = new GameProfileSettingsViewModel(
@@ -200,7 +234,7 @@ public class GameProfileSettingsViewModelTests
         vm.EnabledContent.Add(oldItem);
 
         // Act
-        vm.Receive(new ManifestReplacedMessage(oldId, newId));
+        await vm.HandleManifestReplacementAsync(oldId, newId);
 
         // Assert
         // 1. Old item should be gone from EnabledContent

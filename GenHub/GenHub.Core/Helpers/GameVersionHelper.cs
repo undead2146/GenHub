@@ -36,7 +36,7 @@ public static partial class GameVersionHelper
 
         if (digits.Length > 10)
         {
-             // int.MaxValue is ~2.1 billion (10 digits)
+            // int.MaxValue is ~2.1 billion (10 digits)
             digits = digits[..10];
         }
 
