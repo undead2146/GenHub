@@ -97,7 +97,7 @@ public class CommunityOutpostDeliverer(
                     throw new FileNotFoundException($"Archive file not found or empty: {archivePath}");
                 }
 
-                using var archive = ArchiveFactory.Open(archivePath);
+                using var archive = ArchiveFactory.Open(fileInfo);
                 foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
                 {
                     cancellationToken.ThrowIfCancellationRequested();

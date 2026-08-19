@@ -381,7 +381,7 @@ public class GitHubContentDeliverer(
         await Task.Run(
             () =>
             {
-                using var archive = ArchiveFactory.Open(archiveFile);
+                using var archive = ArchiveFactory.Open(new FileInfo(archiveFile));
                 int totalEntries = archive.Entries.Count(e => !e.IsDirectory);
                 int currentEntry = 0;
 

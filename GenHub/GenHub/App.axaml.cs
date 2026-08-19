@@ -67,11 +67,8 @@ public partial class App : Application
             // Subscribe to IPC commands from secondary instances (Windows only)
             SubscribeToSingleInstanceCommands(mainWindow);
 
-            // Handle launch profile from startup args (first launch with shortcut)
-            SafeFireAndForget(HandleLaunchProfileArgsAsync(desktop.Args, mainWindow), nameof(HandleLaunchProfileArgsAsync));
-
-            // Handle subscription URL from startup args (first launch with genhub://subscribe)
-            SafeFireAndForget(HandleSubscriptionArgsAsync(desktop.Args, mainWindow), nameof(HandleSubscriptionArgsAsync));
+            // Handle startup arguments sequentially (launch profile, then subscription if present)
+            SafeFireAndForget(HandleStartupArgsAsync(desktop.Args, mainWindow), nameof(HandleStartupArgsAsync));
         }
 
         base.OnFrameworkInitializationCompleted();
@@ -173,6 +170,17 @@ public partial class App : Application
         }
     }
 
+    private async Task HandleStartupArgsAsync(string[]? args, MainWindow mainWindow)
+    {
+        if (args == null || args.Length == 0)
+        {
+            return;
+        }
+
+        await HandleLaunchProfileArgsAsync(args, mainWindow);
+        await HandleSubscriptionArgsAsync(args, mainWindow);
+    }
+
     private async Task HandleLaunchProfileArgsAsync(string[]? args, MainWindow mainWindow)
     {
         if (args == null || args.Length == 0)
@@ -221,10 +229,7 @@ public partial class App : Application
         }
 
         singleInstanceManager.CommandReceived += (_, command) =>
-        {
-            // Dispatch to UI thread since the event comes from a background pipe listener
             Dispatcher.UIThread.Post(() => HandleSingleInstanceCommand(command, mainWindow));
-        };
 
         var logger = _serviceProvider.GetService<ILogger<App>>();
         logger?.LogDebug("Subscribed to single instance IPC commands");
@@ -308,27 +313,35 @@ public partial class App : Application
 
         try
         {
-            logger?.LogInformation("Handling subscription URL: {Url}", subscriptionUrl);
-
-            if (mainWindow?.DataContext is MainViewModel mainViewModel)
+            var sanitizedUrl = subscriptionUrl.Replace("\r", string.Empty).Replace("\n", string.Empty).Trim('"', '\'', ' ', '\t');
+            if (!Uri.TryCreate(sanitizedUrl, UriKind.Absolute, out var uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
             {
-                mainViewModel.SelectTab(NavigationTab.Downloads);
+                logger?.LogWarning("Invalid or unsafe subscription URL: {Url}", subscriptionUrl);
+                return;
             }
+
+            logger?.LogInformation("Handling subscription URL: {Url}", uri.AbsoluteUri);
 
             var dialogService = _serviceProvider.GetService<IDialogService>();
             if (dialogService != null)
             {
                 var confirmed = await dialogService.ShowConfirmationAsync(
                     "Subscribe to Catalog",
-                    $"Do you want to subscribe to content from:\n{subscriptionUrl}",
+                    $"Do you want to subscribe to content from:\n{uri.AbsoluteUri}",
                     "Subscribe",
                     "Cancel");
 
                 if (confirmed)
                 {
-                    logger?.LogInformation("User confirmed subscription to: {Url}", subscriptionUrl);
+                    if (mainWindow?.DataContext is MainViewModel mainViewModel)
+                    {
+                        mainViewModel.SelectTab(NavigationTab.Downloads);
+                    }
+
+                    logger?.LogInformation("User confirmed subscription to: {Url}", uri.AbsoluteUri);
                     var notificationService = _serviceProvider.GetService<INotificationService>();
-                    notificationService?.ShowSuccess("Subscribed", $"Successfully subscribed to: {subscriptionUrl}");
+                    notificationService?.ShowSuccess("Subscribed", $"Successfully subscribed to: {uri.AbsoluteUri}");
                 }
             }
         }

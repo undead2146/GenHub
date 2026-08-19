@@ -136,4 +136,86 @@ public sealed class CommandLineParserTests
 
         Assert.Equal("https://example.com/catalog.json", result);
     }
+
+    /// <summary>
+    /// Verifies that ExtractSubscriptionUrl returns null when subscribe URI lacks the url query parameter.
+    /// </summary>
+    [Fact]
+    public void ExtractSubscriptionUrl_WithoutUrlParameter_ReturnsNull()
+    {
+        var args = new[] { "genhub://subscribe" };
+
+        var result = CommandLineParser.ExtractSubscriptionUrl(args);
+
+        Assert.Null(result);
+    }
+
+    /// <summary>
+    /// Verifies that ExtractSubscriptionUrl returns null when the url query parameter is empty.
+    /// </summary>
+    [Fact]
+    public void ExtractSubscriptionUrl_WithEmptyUrlParameter_ReturnsNull()
+    {
+        var args = new[] { "genhub://subscribe?url=" };
+
+        var result = CommandLineParser.ExtractSubscriptionUrl(args);
+
+        Assert.Null(result);
+    }
+
+    /// <summary>
+    /// Verifies that ExtractSubscriptionUrl extracts the URL even when preceded by other arguments.
+    /// </summary>
+    [Fact]
+    public void ExtractSubscriptionUrl_WhenNotFirstArgument_ReturnsUrl()
+    {
+        var args = new[] { "--verbose", "--launch-profile", "test-profile", "genhub://subscribe?url=https://example.com/catalog.json" };
+
+        var result = CommandLineParser.ExtractSubscriptionUrl(args);
+
+        Assert.Equal("https://example.com/catalog.json", result);
+    }
+
+    /// <summary>
+    /// Verifies that ExtractSubscriptionUrl returns the first matching subscription URL when multiple are present.
+    /// </summary>
+    [Fact]
+    public void ExtractSubscriptionUrl_MultipleUrls_ReturnsFirstMatch()
+    {
+        var args = new[]
+        {
+            "genhub://subscribe?url=https://example.com/first.json",
+            "genhub://subscribe?url=https://example.com/second.json",
+        };
+
+        var result = CommandLineParser.ExtractSubscriptionUrl(args);
+
+        Assert.Equal("https://example.com/first.json", result);
+    }
+
+    /// <summary>
+    /// Verifies that ExtractSubscriptionUrl returns null for non-HTTP and non-HTTPS URI schemes.
+    /// </summary>
+    [Fact]
+    public void ExtractSubscriptionUrl_NonHttpOrHttpsScheme_ReturnsNull()
+    {
+        var fileSchemeArgs = new[] { "genhub://subscribe?url=file:///C:/malicious.exe" };
+        var jsSchemeArgs = new[] { "genhub://subscribe?url=javascript:alert(1)" };
+
+        Assert.Null(CommandLineParser.ExtractSubscriptionUrl(fileSchemeArgs));
+        Assert.Null(CommandLineParser.ExtractSubscriptionUrl(jsSchemeArgs));
+    }
+
+    /// <summary>
+    /// Verifies that ExtractSubscriptionUrl strips newlines and control characters from the URL.
+    /// </summary>
+    [Fact]
+    public void ExtractSubscriptionUrl_WithNewlinesAndControlChars_ReturnsSanitizedUrl()
+    {
+        var args = new[] { "genhub://subscribe?url=https%3A%2F%2Fexample.com%2Fcatalog.json%0D%0A" };
+
+        var result = CommandLineParser.ExtractSubscriptionUrl(args);
+
+        Assert.Equal("https://example.com/catalog.json", result);
+    }
 }

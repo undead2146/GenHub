@@ -49,10 +49,6 @@ public class Program
         using var bootstrapLoggerFactory = LoggingModule.CreateBootstrapLoggerFactory();
         var bootstrapLogger = bootstrapLoggerFactory.CreateLogger<Program>();
 
-        // Register the genhub:// URI scheme with Windows so clicked links open this executable.
-        // Idempotent and per-user (HKCU), so safe on every launch.
-        Features.Shortcuts.UriSchemeRegistrar.Register(bootstrapLogger);
-
         // Extract profile ID from args if present (for IPC forwarding)
         var profileId = CommandLineParser.ExtractProfileId(args);
 
@@ -97,6 +93,10 @@ public class Program
         {
             bootstrapLogger.LogInformation("Multi-instance mode enabled - skipping single-instance check");
         }
+
+        // Register the genhub:// URI scheme with Windows so clicked links open this executable.
+        // Registered for primary instance only; idempotent and per-user (HKCU).
+        Features.Shortcuts.UriSchemeRegistrar.Register(bootstrapLogger);
 
         try
         {

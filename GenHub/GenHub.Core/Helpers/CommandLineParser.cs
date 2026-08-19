@@ -53,7 +53,23 @@ public static class CommandLineParser
                 if (queryStart != -1)
                 {
                     string url = arg[(queryStart + CommandLineConstants.SubscribeUrlParam.Length)..];
-                    return Uri.UnescapeDataString(url).Trim('"');
+                    string unescaped = Uri.UnescapeDataString(url)
+                        .Replace("\r", string.Empty)
+                        .Replace("\n", string.Empty)
+                        .Trim('"', '\'', ' ', '\t');
+
+                    if (string.IsNullOrWhiteSpace(unescaped))
+                    {
+                        return null;
+                    }
+
+                    if (Uri.TryCreate(unescaped, UriKind.Absolute, out var uri) &&
+                        (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+                    {
+                        return unescaped;
+                    }
+
+                    return null;
                 }
             }
         }

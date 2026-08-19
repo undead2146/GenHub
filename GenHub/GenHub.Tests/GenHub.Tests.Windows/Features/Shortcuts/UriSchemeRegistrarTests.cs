@@ -1,36 +1,26 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.Versioning;
 using GenHub.Windows.Features.Shortcuts;
 using Microsoft.Win32;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace GenHub.Tests.Windows.Features.Shortcuts;
 
 /// <summary>
 /// Unit tests for <see cref="UriSchemeRegistrar"/>.
 /// </summary>
+/// <param name="testOutputHelper">Output helper for surfacing test diagnostic messages.</param>
+[Collection(WindowsRegistryCollection.Name)]
 [SupportedOSPlatform("windows")]
-public sealed class UriSchemeRegistrarTests : IDisposable
+public sealed class UriSchemeRegistrarTests(ITestOutputHelper testOutputHelper) : IDisposable
 {
     private const string TargetKeyPath = @"Software\Classes\genhub";
-    private readonly RegistryKeySnapshot? _snapshot;
-    private readonly bool _existedPrior;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="UriSchemeRegistrarTests"/> class.
-    /// Captures a snapshot of any pre-existing registry state to restore during teardown.
-    /// </summary>
-    public UriSchemeRegistrarTests()
-    {
-        using var rootKey = Registry.CurrentUser.OpenSubKey(TargetKeyPath, writable: false);
-        _existedPrior = rootKey != null;
-        if (rootKey != null)
-        {
-            _snapshot = CaptureSnapshot(rootKey);
-        }
-    }
+    private readonly RegistryKeySnapshot? _snapshot = CaptureInitialSnapshot();
+    private readonly bool _existedPrior = KeyExists();
 
     /// <summary>
     /// Verifies that Register creates or updates the genhub registry keys in HKCU.
@@ -79,8 +69,6 @@ public sealed class UriSchemeRegistrarTests : IDisposable
     {
         try
         {
-            Registry.CurrentUser.DeleteSubKeyTree(TargetKeyPath, throwOnMissingSubKey: false);
-
             if (_existedPrior && _snapshot != null)
             {
                 using var rootKey = Registry.CurrentUser.CreateSubKey(TargetKeyPath, writable: true);
@@ -89,11 +77,27 @@ public sealed class UriSchemeRegistrarTests : IDisposable
                     RestoreSnapshot(rootKey, _snapshot);
                 }
             }
+            else
+            {
+                Registry.CurrentUser.DeleteSubKeyTree(TargetKeyPath, throwOnMissingSubKey: false);
+            }
         }
-        catch
+        catch (Exception ex)
         {
-            // Suppress cleanup exceptions in tests to avoid masking assertion results
+            testOutputHelper.WriteLine($"Failed to restore registry snapshot during test teardown: {ex.Message}");
         }
+    }
+
+    private static bool KeyExists()
+    {
+        using var rootKey = Registry.CurrentUser.OpenSubKey(TargetKeyPath, writable: false);
+        return rootKey != null;
+    }
+
+    private static RegistryKeySnapshot? CaptureInitialSnapshot()
+    {
+        using var rootKey = Registry.CurrentUser.OpenSubKey(TargetKeyPath, writable: false);
+        return rootKey != null ? CaptureSnapshot(rootKey) : null;
     }
 
     private static RegistryKeySnapshot CaptureSnapshot(RegistryKey key)
@@ -124,6 +128,16 @@ public sealed class UriSchemeRegistrarTests : IDisposable
 
     private static void RestoreSnapshot(RegistryKey targetKey, RegistryKeySnapshot snapshot)
     {
+        // Delete values not present in snapshot
+        foreach (var valueName in targetKey.GetValueNames())
+        {
+            if (!snapshot.Values.ContainsKey(valueName))
+            {
+                targetKey.DeleteValue(valueName, throwOnMissingValue: false);
+            }
+        }
+
+        // Restore values
         foreach (var (valueName, (value, kind)) in snapshot.Values)
         {
             if (value != null)
@@ -132,6 +146,17 @@ public sealed class UriSchemeRegistrarTests : IDisposable
             }
         }
 
+        // Delete subkeys not present in snapshot
+        var snapshotSubKeyNames = new HashSet<string>(snapshot.SubKeys.Select(s => s.Name), StringComparer.OrdinalIgnoreCase);
+        foreach (var subKeyName in targetKey.GetSubKeyNames())
+        {
+            if (!snapshotSubKeyNames.Contains(subKeyName))
+            {
+                targetKey.DeleteSubKeyTree(subKeyName, throwOnMissingSubKey: false);
+            }
+        }
+
+        // Restore subkeys recursively
         foreach (var subKeySnapshot in snapshot.SubKeys)
         {
             using var subKey = targetKey.CreateSubKey(subKeySnapshot.Name, writable: true);
