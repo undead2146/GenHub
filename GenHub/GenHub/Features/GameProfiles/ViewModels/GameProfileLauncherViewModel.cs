@@ -1,10 +1,3 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -14,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Common.ViewModels;
 using GenHub.Core.Constants;
+using GenHub.Core.Extensions.GameInstallations;
 using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameClients;
@@ -32,6 +26,13 @@ using GenHub.Core.Models.Manifest;
 using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.GameProfiles.Views;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace GenHub.Features.GameProfiles.ViewModels;
 
@@ -62,6 +63,9 @@ public partial class GameProfileLauncherViewModel(
     private readonly SemaphoreSlim _launchSemaphore = new(1, 1);
     private readonly System.Timers.Timer _headerCollapseTimer = new(TimeIntervals.HeaderCollapseDelayMs);
     private readonly System.Timers.Timer _headerExpansionTimer = new(TimeIntervals.HeaderExpansionDelayMs);
+    private bool _lastOperationSuccess;
+    private string? _expectedProfileIdForSuccess;
+    private bool _isCreatingNewProfile;
 
     [ObservableProperty]
     private ObservableCollection<GameProfileItemViewModel> _profiles = [];
@@ -156,6 +160,8 @@ public partial class GameProfileLauncherViewModel(
             {
                 foreach (var profile in profilesResult.Data)
                 {
+                    if (profile == null) continue;
+
                     // Use ProfileResourceService to get default paths based on game type if profile paths are missing
                     var gameTypeStr = profile.GameClient?.GameType.ToString() ?? "ZeroHour";
 
@@ -177,6 +183,9 @@ public partial class GameProfileLauncherViewModel(
                         EditProfileAction = EditProfile,
                         DeleteProfileAction = DeleteProfile,
                         CreateShortcutAction = CreateShortcut,
+                        StopProfileAction = StopProfile,
+                        ToggleSteamLaunchAction = ToggleSteamLaunch,
+                        CopyProfileAction = CopyProfile,
                     };
 
                     // Add to collection before the "Add New Profile" button (which is always at the end)
@@ -227,6 +236,13 @@ public partial class GameProfileLauncherViewModel(
     /// <param name="message">The profile created message.</param>
     public void Receive(ProfileCreatedMessage message)
     {
+        // Only mark success if we are explicitly expecting a new profile from a user action
+        if (_isCreatingNewProfile)
+        {
+            _lastOperationSuccess = true;
+            _isCreatingNewProfile = false;
+        }
+
         logger.LogInformation("Profile created notification received for {ProfileName}, adding to UI", message.Profile.Name);
 
         // Add profile to UI on UI thread
@@ -249,6 +265,13 @@ public partial class GameProfileLauncherViewModel(
     /// <param name="message">The profile updated message.</param>
     public void Receive(ProfileUpdatedMessage message)
     {
+        // Only mark success if this is the profile we were explicitly editing
+        if (message.Profile.Id == _expectedProfileIdForSuccess)
+        {
+            _lastOperationSuccess = true;
+            _expectedProfileIdForSuccess = null;
+        }
+
         logger.LogInformation("Profile updated notification received for {ProfileName}, refreshing list", message.Profile.Name);
 
         // Refresh specific profile on UI thread to preserve state of others
@@ -260,7 +283,7 @@ public partial class GameProfileLauncherViewModel(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Error refreshing profile after update");
+                logger.LogError(ex, "Error refreshing profile in UI after update");
             }
         });
     }
@@ -312,6 +335,26 @@ public partial class GameProfileLauncherViewModel(
         {
             _headerCollapseTimer.Start();
         }
+    }
+
+    /// <summary>
+    /// Generates a unique profile name by appending a number if needed.
+    /// </summary>
+    /// <param name="baseName">The base name to use for the profile.</param>
+    /// <returns>A unique profile name.</returns>
+    internal string GenerateUniqueProfileName(string baseName)
+    {
+        var copyName = $"{baseName} {ProfileConstants.CopyNameSuffix}";
+        var counter = 2;
+
+        // Keep adding numbers until we find a unique name (case-insensitive comparison)
+        while (Profiles.OfType<GameProfileItemViewModel>().Any(p => string.Equals(p.Name, copyName, StringComparison.OrdinalIgnoreCase)))
+        {
+            counter++;
+            copyName = $"{baseName} {string.Format(ProfileConstants.CopyNameNumberedFormat, counter)}";
+        }
+
+        return copyName;
     }
 
     private static Window? GetMainWindow()
@@ -428,9 +471,19 @@ public partial class GameProfileLauncherViewModel(
                 {
                     logger.LogInformation("No game installations found, prompting user for manual directory selection");
 
+                    // Use the shared manual game addition logic
+                    // We don't await the result here because we want to exit the scan flow if cancelled,
+                    // but AddManualGameAsync handles the full flow including UI updates.
+                    // However, for the scan flow, we need to know if it was successful to show the "Scan Cancelled" message or not.
                     var manualInstallation = await PromptForManualGameDirectoryAsync();
                     if (manualInstallation != null)
                     {
+                        // Proceed to process this installation usually handled inside AddManualGameAsync,
+                        // but here we want to continue the wizard flow.
+
+                        // Actually, let's just reuse the logic from AddManualGameAsync but we need to integrate it into the wizard flow.
+                        // For simplicity in this refactor, let's keep the wizard flow logic here but use the Prompt method.
+
                         // Ensure paths are populated
                         manualInstallation.Fetch();
 
@@ -657,7 +710,7 @@ public partial class GameProfileLauncherViewModel(
             }
 
             // Define profile name based on game client name and installation type
-            var profileName = $"{installation.InstallationType} {gameClient.Name}";
+            var profileName = gameClient.Name;
 
             // Check if a profile already exists for this exact name and installation
             var existingProfiles = await gameProfileManager.GetAllProfilesAsync();
@@ -666,7 +719,7 @@ public partial class GameProfileLauncherViewModel(
                 // Check by name AND installation ID
                 bool profileExists = existingProfiles.Data.Any(p =>
                     p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase) &&
-                    p.GameInstallationId.Equals(installation.Id, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(p.GameInstallationId, installation.Id, StringComparison.OrdinalIgnoreCase));
 
                 if (profileExists)
                 {
@@ -744,7 +797,7 @@ public partial class GameProfileLauncherViewModel(
                 GameInstallationId = installation.Id, // The actual installation GUID
                 GameClientId = gameClient.Id, // Client manifest ID
                 Description = $"Auto-created profile for {installation.InstallationType} {gameClient.Name}",
-                PreferredStrategy = preferredStrategy,
+                WorkspaceStrategy = preferredStrategy,
                 EnabledContentIds = enabledContentIds, // Both GameInstallation and GameClient manifests
                 ThemeColor = GetThemeColorForGameType(gameClient.GameType),
                 IconPath = iconPath,
@@ -778,7 +831,7 @@ public partial class GameProfileLauncherViewModel(
     /// <summary>
     /// Checks if a profile already exists for a game client.
     /// Handles special matching for publisher clients (e.g., GeneralsOnline)
-    /// when the profile name differs slightly from the detected client name (e.g., "GeneralsOnline" vs "GeneralsOnline 30Hz").
+    /// when the profile name differs slightly from the detected client name (e.g., "GeneralsOnline" vs "GeneralsOnline 60Hz").
     /// </summary>
     private async Task<bool> ProfileExistsAsync(GameInstallation installation, GameClient gameClient)
     {
@@ -793,7 +846,7 @@ public partial class GameProfileLauncherViewModel(
                 if (gameClient.IsPublisherClient && !string.IsNullOrEmpty(gameClient.PublisherType))
                 {
                     bool publisherProfileExists = existingProfiles.Data.Any(p =>
-                        p.GameInstallationId.Equals(installation.Id, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(p.GameInstallationId, installation.Id, StringComparison.OrdinalIgnoreCase) &&
                         p.GameClient != null &&
                         p.GameClient.PublisherType?.Equals(gameClient.PublisherType, StringComparison.OrdinalIgnoreCase) == true);
 
@@ -810,7 +863,7 @@ public partial class GameProfileLauncherViewModel(
                 // Standard matching: Check by name AND installation ID
                 bool profileExists = existingProfiles.Data.Any(p =>
                     p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase) &&
-                    p.GameInstallationId.Equals(installation.Id, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(p.GameInstallationId, installation.Id, StringComparison.OrdinalIgnoreCase));
 
                 if (profileExists) return true;
 
@@ -864,6 +917,9 @@ public partial class GameProfileLauncherViewModel(
                 EditProfileAction = EditProfile,
                 DeleteProfileAction = DeleteProfile,
                 CreateShortcutAction = CreateShortcut,
+                StopProfileAction = StopProfile,
+                ToggleSteamLaunchAction = ToggleSteamLaunch,
+                CopyProfileAction = CopyProfile,
             };
 
             // Add to collection before the "Add New Profile" button (which is always at the end)
@@ -911,7 +967,7 @@ public partial class GameProfileLauncherViewModel(
                 logger.LogDebug("[Launch] Launching profile {ProfileName} (ID: {ProfileId})", profile.Name, profile.ProfileId);
 
                 // Normal launch
-                await ExecuteLaunchAsync(profile, skipUserDataCleanup: false);
+                await ExecuteLaunchAsync(profile);
             }
             catch (Exception ex)
             {
@@ -934,18 +990,12 @@ public partial class GameProfileLauncherViewModel(
     /// <summary>
     /// Executes the actual launch operation.
     /// </summary>
-    private async Task ExecuteLaunchAsync(GameProfileItemViewModel profile, bool skipUserDataCleanup)
+    private async Task ExecuteLaunchAsync(GameProfileItemViewModel profile)
     {
         StatusMessage = $"Launching {profile.Name}...";
 
-        // Show "taking a while" message if many maps are being linked
-        if (skipUserDataCleanup && profile.IsLargeMapCount)
-        {
-            StatusMessage = "Adding maps to profile (this might take a while)...";
-            notificationService.ShowInfo("Loading Maps", "Adding many maps to this profile. This may take a moment...", NotificationDurations.Long);
-        }
-
-        var launchResult = await profileLauncherFacade.LaunchProfileAsync(profile.ProfileId, skipUserDataCleanup);
+        // With CAS hardlinks, profile switching is instant - maps are just symlinks
+        var launchResult = await profileLauncherFacade.LaunchProfileAsync(profile.ProfileId, skipUserDataCleanup: false);
 
         if (launchResult.Success && launchResult.Data != null)
         {
@@ -954,7 +1004,6 @@ public partial class GameProfileLauncherViewModel(
 
             liveProfile.IsProcessRunning = true;
             liveProfile.ProcessId = launchResult.Data.ProcessInfo.ProcessId;
-            liveProfile.ShowUserDataConfirmation = false; // Hide confirmation if it was shown
 
             // Ensure notifications are sent for binding updates
             liveProfile.NotifyCanLaunchChanged();
@@ -969,83 +1018,6 @@ public partial class GameProfileLauncherViewModel(
             ErrorMessage = errors;
             notificationService.ShowError("Launch Failed", $"Failed to launch {profile.Name}: {errors}");
         }
-    }
-
-    /// <summary>
-    /// Confirms that user data should be kept and added to the new profile.
-    /// </summary>
-    [RelayCommand]
-    private async Task ConfirmUserDataKeepAsync(GameProfileItemViewModel profile)
-    {
-        profile.ShowUserDataConfirmation = false;
-
-        if (!await _launchSemaphore.WaitAsync(0))
-        {
-            StatusMessage = "A profile is already launching...";
-            return;
-        }
-
-        try
-        {
-            IsLaunching = true;
-            await ExecuteLaunchAsync(profile, skipUserDataCleanup: true);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Error during confirmed launch (Keep) for {ProfileName}", profile.Name);
-            StatusMessage = $"Error launching {profile.Name}";
-            ErrorMessage = ex.Message;
-            notificationService.ShowError("Launch Error", $"Error launching {profile.Name}: {ex.Message}");
-        }
-        finally
-        {
-            IsLaunching = false;
-            _launchSemaphore.Release();
-        }
-    }
-
-    /// <summary>
-    /// Confirms that user data should be removed (normal switch).
-    /// </summary>
-    [RelayCommand]
-    private async Task ConfirmUserDataRemoveAsync(GameProfileItemViewModel profile)
-    {
-        profile.ShowUserDataConfirmation = false;
-
-        if (!await _launchSemaphore.WaitAsync(0))
-        {
-            StatusMessage = "A profile is already launching...";
-            return;
-        }
-
-        try
-        {
-            IsLaunching = true;
-            await ExecuteLaunchAsync(profile, skipUserDataCleanup: false);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Error during confirmed launch (Remove) for {ProfileName}", profile.Name);
-            StatusMessage = $"Error launching {profile.Name}";
-            ErrorMessage = ex.Message;
-            notificationService.ShowError("Launch Error", $"Error launching {profile.Name}: {ex.Message}");
-        }
-        finally
-        {
-            IsLaunching = false;
-            _launchSemaphore.Release();
-        }
-    }
-
-    /// <summary>
-    /// Cancels the user data confirmation and stops the launch.
-    /// </summary>
-    [RelayCommand]
-    private void CancelUserDataConfirmation(GameProfileItemViewModel profile)
-    {
-        profile.ShowUserDataConfirmation = false;
-        profile.UserDataSwitchInfo = null;
-        StatusMessage = "Launch cancelled";
     }
 
     /// <summary>
@@ -1221,11 +1193,21 @@ public partial class GameProfileLauncherViewModel(
                     WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 };
 
-                await settingsWindow.ShowDialog(mainWindow);
+                // Use the profile parameter for the expected profile ID, not SelectedProfile which may be stale
+                _expectedProfileIdForSuccess = profile.ProfileId;
+                _lastOperationSuccess = false;
+                _isCreatingNewProfile = false;
 
-                // Refresh only the edited profile to preserve running state
-                await RefreshSingleProfileAsync(profile.ProfileId);
-                StatusMessage = "Profile updated successfully";
+                try
+                {
+                    await settingsWindow.ShowDialog(mainWindow);
+                    StatusMessage = _lastOperationSuccess ? "Profile updated successfully" : "Edit cancelled";
+                }
+                finally
+                {
+                    // Always clear flags even if an error occurred
+                    _expectedProfileIdForSuccess = null;
+                }
             }
             else
             {
@@ -1259,11 +1241,20 @@ public partial class GameProfileLauncherViewModel(
                     WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 };
 
-                await settingsWindow.ShowDialog(mainWindow);
+                _lastOperationSuccess = false;
+                _expectedProfileIdForSuccess = null;
+                _isCreatingNewProfile = true;
 
-                // Refresh the profiles list after the window closes to show newly created profile
-                await InitializeAsync();
-                StatusMessage = "New profile window closed";
+                try
+                {
+                    await settingsWindow.ShowDialog(mainWindow);
+                    StatusMessage = _lastOperationSuccess ? "Profile created successfully" : "Profile creation cancelled";
+                }
+                finally
+                {
+                    // Always clear flags even if an error occurred
+                    _isCreatingNewProfile = false;
+                }
             }
             else
             {
@@ -1300,7 +1291,7 @@ public partial class GameProfileLauncherViewModel(
                     var loadedProfile = profileResult.Data;
 
                     // Update the existing item's status
-                    profile.UpdateWorkspaceStatus(loadedProfile.ActiveWorkspaceId, loadedProfile.WorkspaceStrategy);
+                    profile.UpdateWorkspaceStatus(loadedProfile.ActiveWorkspaceId, loadedProfile.WorkspaceStrategy ?? WorkspaceConstants.DefaultWorkspaceStrategy);
 
                     // Force UI refresh by removing and re-adding to ObservableCollection
                     var index = Profiles.IndexOf(profile);
@@ -1421,6 +1412,175 @@ public partial class GameProfileLauncherViewModel(
     }
 
     /// <summary>
+    /// Copies the specified profile, creating a new profile with the same settings and content.
+    /// </summary>
+    /// <param name="profile">The profile to copy.</param>
+    [RelayCommand]
+    private async Task CopyProfile(GameProfileItemViewModel profile)
+    {
+        if (string.IsNullOrEmpty(profile.ProfileId))
+        {
+            StatusMessage = "Invalid profile";
+            return;
+        }
+
+        try
+        {
+            StatusMessage = $"Copying profile '{profile.Name}'...";
+            logger.LogInformation("Starting copy operation for profile {ProfileName} ({ProfileId})", profile.Name, profile.ProfileId);
+
+            // Get the source profile
+            var sourceProfileResult = await gameProfileManager.GetProfileAsync(profile.ProfileId);
+            if (!sourceProfileResult.Success || sourceProfileResult.Data == null)
+            {
+                var errors = string.Join(", ", sourceProfileResult.Errors);
+                StatusMessage = $"Failed to load source profile: {errors}";
+                logger.LogWarning("Failed to load source profile {ProfileId}: {Errors}", profile.ProfileId, errors);
+                notificationService.ShowError("Copy Failed", $"Failed to load source profile '{profile.Name}': {errors}");
+                return;
+            }
+
+            var sourceProfile = sourceProfileResult.Data;
+
+            // Create a unique name for the copied profile
+            var copyName = GenerateUniqueProfileName(sourceProfile.Name);
+
+            // Create a copy request with all the same settings
+            var copyRequest = new CreateProfileRequest
+            {
+                Name = copyName,
+                Description = sourceProfile.Description,
+                GameInstallationId = sourceProfile.GameInstallationId,
+                GameClientId = sourceProfile.GameClient?.Id,
+                GameClient = sourceProfile.GameClient,
+                WorkspaceStrategy = sourceProfile.WorkspaceStrategy,
+                EnabledContentIds = sourceProfile.EnabledContentIds != null
+                    ? [.. sourceProfile.EnabledContentIds]
+                    : [],
+                ThemeColor = sourceProfile.ThemeColor,
+                IconPath = sourceProfile.IconPath,
+                CoverPath = sourceProfile.CoverPath,
+                UseSteamLaunch = sourceProfile.UseSteamLaunch,
+                CommandLineArguments = sourceProfile.CommandLineArguments,
+                GameSpyIPAddress = sourceProfile.GameSpyIPAddress,
+
+                // Video Settings
+                VideoResolutionWidth = sourceProfile.VideoResolutionWidth,
+                VideoResolutionHeight = sourceProfile.VideoResolutionHeight,
+                VideoWindowed = sourceProfile.VideoWindowed,
+                VideoTextureQuality = sourceProfile.VideoTextureQuality,
+                EnableVideoShadows = sourceProfile.EnableVideoShadows,
+                VideoParticleEffects = sourceProfile.VideoParticleEffects,
+                VideoExtraAnimations = sourceProfile.VideoExtraAnimations,
+                VideoBuildingAnimations = sourceProfile.VideoBuildingAnimations,
+                VideoGamma = sourceProfile.VideoGamma,
+                VideoAlternateMouseSetup = sourceProfile.VideoAlternateMouseSetup,
+                VideoHeatEffects = sourceProfile.VideoHeatEffects,
+                VideoStaticGameLOD = sourceProfile.VideoStaticGameLOD,
+                VideoIdealStaticGameLOD = sourceProfile.VideoIdealStaticGameLOD,
+                VideoUseDoubleClickAttackMove = sourceProfile.VideoUseDoubleClickAttackMove,
+                VideoScrollFactor = sourceProfile.VideoScrollFactor,
+                VideoRetaliation = sourceProfile.VideoRetaliation,
+                VideoDynamicLOD = sourceProfile.VideoDynamicLOD,
+                VideoMaxParticleCount = sourceProfile.VideoMaxParticleCount,
+                VideoAntiAliasing = sourceProfile.VideoAntiAliasing,
+                VideoSkipEALogo = sourceProfile.VideoSkipEALogo,
+                VideoDrawScrollAnchor = sourceProfile.VideoDrawScrollAnchor,
+                VideoMoveScrollAnchor = sourceProfile.VideoMoveScrollAnchor,
+                VideoGameTimeFontSize = sourceProfile.VideoGameTimeFontSize,
+
+                // Audio Settings
+                AudioSoundVolume = sourceProfile.AudioSoundVolume,
+                AudioThreeDSoundVolume = sourceProfile.AudioThreeDSoundVolume,
+                AudioSpeechVolume = sourceProfile.AudioSpeechVolume,
+                AudioMusicVolume = sourceProfile.AudioMusicVolume,
+                AudioNumSounds = sourceProfile.AudioNumSounds,
+                AudioEnabled = sourceProfile.AudioEnabled,
+
+                // Game Settings
+                GameLanguageFilter = sourceProfile.GameLanguageFilter,
+
+                // Network Settings
+                NetworkSendDelay = sourceProfile.NetworkSendDelay,
+
+                // TheSuperHackers Settings
+                TshArchiveReplays = sourceProfile.TshArchiveReplays,
+                TshCursorCaptureEnabledInFullscreenGame = sourceProfile.TshCursorCaptureEnabledInFullscreenGame,
+                TshCursorCaptureEnabledInFullscreenMenu = sourceProfile.TshCursorCaptureEnabledInFullscreenMenu,
+                TshCursorCaptureEnabledInWindowedGame = sourceProfile.TshCursorCaptureEnabledInWindowedGame,
+                TshCursorCaptureEnabledInWindowedMenu = sourceProfile.TshCursorCaptureEnabledInWindowedMenu,
+                TshMoneyTransactionVolume = sourceProfile.TshMoneyTransactionVolume,
+                TshNetworkLatencyFontSize = sourceProfile.TshNetworkLatencyFontSize,
+                TshPlayerObserverEnabled = sourceProfile.TshPlayerObserverEnabled,
+                TshRenderFpsFontSize = sourceProfile.TshRenderFpsFontSize,
+                TshResolutionFontAdjustment = sourceProfile.TshResolutionFontAdjustment,
+                TshScreenEdgeScrollEnabledInFullscreenApp = sourceProfile.TshScreenEdgeScrollEnabledInFullscreenApp,
+                TshScreenEdgeScrollEnabledInWindowedApp = sourceProfile.TshScreenEdgeScrollEnabledInWindowedApp,
+                TshShowMoneyPerMinute = sourceProfile.TshShowMoneyPerMinute,
+                TshSystemTimeFontSize = sourceProfile.TshSystemTimeFontSize,
+
+                // GeneralsOnline Settings
+                GoShowFps = sourceProfile.GoShowFps,
+                GoShowPing = sourceProfile.GoShowPing,
+                GoAutoLogin = sourceProfile.GoAutoLogin,
+                GoRememberUsername = sourceProfile.GoRememberUsername,
+                GoEnableNotifications = sourceProfile.GoEnableNotifications,
+                GoChatFontSize = sourceProfile.GoChatFontSize,
+                GoEnableSoundNotifications = sourceProfile.GoEnableSoundNotifications,
+                GoShowPlayerRanks = sourceProfile.GoShowPlayerRanks,
+                GoCameraMaxHeightOnlyWhenLobbyHost = sourceProfile.GoCameraMaxHeightOnlyWhenLobbyHost,
+                GoCameraMinHeight = sourceProfile.GoCameraMinHeight,
+                GoCameraMoveSpeedRatio = sourceProfile.GoCameraMoveSpeedRatio,
+                GoChatDurationSecondsUntilFadeOut = sourceProfile.GoChatDurationSecondsUntilFadeOut,
+                GoDebugVerboseLogging = sourceProfile.GoDebugVerboseLogging,
+                GoRenderFpsLimit = sourceProfile.GoRenderFpsLimit,
+                GoRenderLimitFramerate = sourceProfile.GoRenderLimitFramerate,
+                GoRenderStatsOverlay = sourceProfile.GoRenderStatsOverlay,
+                GoSocialNotificationFriendComesOnlineGameplay = sourceProfile.GoSocialNotificationFriendComesOnlineGameplay,
+                GoSocialNotificationFriendComesOnlineMenus = sourceProfile.GoSocialNotificationFriendComesOnlineMenus,
+                GoSocialNotificationFriendGoesOfflineGameplay = sourceProfile.GoSocialNotificationFriendGoesOfflineGameplay,
+                GoSocialNotificationFriendGoesOfflineMenus = sourceProfile.GoSocialNotificationFriendGoesOfflineMenus,
+                GoSocialNotificationPlayerAcceptsRequestGameplay = sourceProfile.GoSocialNotificationPlayerAcceptsRequestGameplay,
+                GoSocialNotificationPlayerAcceptsRequestMenus = sourceProfile.GoSocialNotificationPlayerAcceptsRequestMenus,
+                GoSocialNotificationPlayerSendsRequestGameplay = sourceProfile.GoSocialNotificationPlayerSendsRequestGameplay,
+                GoSocialNotificationPlayerSendsRequestMenus = sourceProfile.GoSocialNotificationPlayerSendsRequestMenus,
+            };
+
+            // Create the copied profile
+            var createResult = await gameProfileManager.CreateProfileAsync(copyRequest);
+            if (createResult.Success && createResult.Data != null)
+            {
+                // Add the new profile to the UI immediately
+                AddProfileToUI(createResult.Data);
+
+                StatusMessage = $"Successfully copied profile '{sourceProfile.Name}' to '{copyName}'";
+                logger.LogInformation(
+                    "Successfully copied profile {SourceName} to {CopyName} (ID: {CopyId})",
+                    sourceProfile.Name,
+                    copyName,
+                    createResult.Data.Id);
+
+                notificationService.ShowSuccess(
+                    "Profile Copied",
+                    $"Successfully copied '{sourceProfile.Name}' to '{copyName}'. The new profile has the same settings, content, and will generate its own workspace.");
+            }
+            else
+            {
+                var errors = string.Join(", ", createResult.Errors);
+                StatusMessage = $"Failed to copy profile: {errors}";
+                logger.LogWarning("Failed to copy profile {ProfileName}: {Errors}", sourceProfile.Name, errors);
+                notificationService.ShowError("Copy Failed", $"Failed to copy profile '{sourceProfile.Name}': {errors}");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error copying profile {ProfileName}", profile.Name);
+            StatusMessage = $"Error copying profile {profile.Name}";
+            notificationService.ShowError("Copy Error", $"An error occurred while copying profile '{profile.Name}'.");
+        }
+    }
+
+    /// <summary>
     /// Handles the process exited event to update profile state when a game exits.
     /// </summary>
     private void OnProcessExited(object? sender, Core.Models.Events.GameProcessExitedEventArgs e)
@@ -1489,8 +1649,11 @@ public partial class GameProfileLauncherViewModel(
                 GameClientConstants.SuperHackersGeneralsExecutable,
             ];
 
-            bool hasZeroHour = zeroHourExecutables.Any(exe => File.Exists(Path.Combine(selectedPath, exe)));
-            bool hasGenerals = generalsExecutables.Any(exe => File.Exists(Path.Combine(selectedPath, exe)));
+            // Case-insensitive, matching the nine sibling detectors. Retail data copied
+            // from a disc or a Windows machine is frequently upper-cased (GENERALS.EXE),
+            // and Linux volumes plus case-sensitive APFS will not match it otherwise.
+            bool hasZeroHour = zeroHourExecutables.Any(exe => Path.Combine(selectedPath, exe).FileExistsCaseInsensitive());
+            bool hasGenerals = generalsExecutables.Any(exe => Path.Combine(selectedPath, exe).FileExistsCaseInsensitive());
 
             if (hasZeroHour || hasGenerals)
             {
@@ -1518,12 +1681,12 @@ public partial class GameProfileLauncherViewModel(
 
             if (Directory.Exists(generalsSubdir))
             {
-                hasGenerals = generalsExecutables.Any(exe => File.Exists(Path.Combine(generalsSubdir, exe)));
+                hasGenerals = generalsExecutables.Any(exe => Path.Combine(generalsSubdir, exe).FileExistsCaseInsensitive());
             }
 
             if (Directory.Exists(zeroHourSubdir))
             {
-                hasZeroHour = zeroHourExecutables.Any(exe => File.Exists(Path.Combine(zeroHourSubdir, exe)));
+                hasZeroHour = zeroHourExecutables.Any(exe => Path.Combine(zeroHourSubdir, exe).FileExistsCaseInsensitive());
             }
 
             if (hasGenerals || hasZeroHour)

@@ -1,9 +1,12 @@
+using System;
+using System.Runtime.Versioning;
 using GenHub.Core.Interfaces.GameInstallations;
+using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Shortcuts;
 using GenHub.Core.Interfaces.Storage;
 using GenHub.Core.Interfaces.Workspace;
-using GenHub.Features.GameInstallations;
+using GenHub.Features.GameSettings;
 using GenHub.Features.Workspace;
 using GenHub.Windows.Features.GitHub.Services;
 using GenHub.Windows.Features.Shortcuts;
@@ -11,7 +14,6 @@ using GenHub.Windows.Features.Workspace;
 using GenHub.Windows.GameInstallations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System;
 
 namespace GenHub.Windows.Infrastructure.DependencyInjection;
 
@@ -29,6 +31,8 @@ public static class WindowsServicesModule
     {
         // Register Windows-specific services
         services.AddSingleton<IGameInstallationDetector, WindowsInstallationDetector>();
+        services.AddSingleton<IGamePathProvider, WindowsGamePathProvider>();
+        services.AddSingleton<ISymlinkCapabilityProvider, WindowsSymlinkCapabilityProvider>();
         services.AddSingleton<IGitHubTokenStorage, WindowsGitHubTokenStorage>();
         services.AddSingleton<IShortcutService, WindowsShortcutService>();
 

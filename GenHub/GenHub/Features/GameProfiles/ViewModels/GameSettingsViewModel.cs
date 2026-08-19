@@ -283,37 +283,37 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
     private bool _tshShowMoneyPerMinute;
 
     [ObservableProperty]
-    private bool _tshPlayerObserverEnabled;
+    private bool _tshPlayerObserverEnabled = GameSettingsTheSuperHackersConstants.DefaultPlayerObserverEnabled;
 
     [ObservableProperty]
-    private int _tshSystemTimeFontSize = 12;
+    private int _tshSystemTimeFontSize = GameSettingsTheSuperHackersConstants.DefaultSystemTimeFontSize;
 
     [ObservableProperty]
-    private int _tshNetworkLatencyFontSize = 12;
+    private int _tshNetworkLatencyFontSize = GameSettingsTheSuperHackersConstants.DefaultNetworkLatencyFontSize;
 
     [ObservableProperty]
-    private int _tshRenderFpsFontSize = 12;
+    private int _tshRenderFpsFontSize = GameSettingsTheSuperHackersConstants.DefaultRenderFpsFontSize;
 
     [ObservableProperty]
-    private int _tshResolutionFontAdjustment = -100;
+    private int _tshResolutionFontAdjustment = GameSettingsTheSuperHackersConstants.DefaultResolutionFontAdjustment;
 
     [ObservableProperty]
-    private bool _tshCursorCaptureEnabledInFullscreenGame;
+    private bool _tshCursorCaptureEnabledInFullscreenGame = GameSettingsTheSuperHackersConstants.DefaultCursorCaptureEnabledInFullscreenGame;
 
     [ObservableProperty]
-    private bool _tshCursorCaptureEnabledInFullscreenMenu;
+    private bool _tshCursorCaptureEnabledInFullscreenMenu = GameSettingsTheSuperHackersConstants.DefaultCursorCaptureEnabledInFullscreenMenu;
 
     [ObservableProperty]
-    private bool _tshCursorCaptureEnabledInWindowedGame;
+    private bool _tshCursorCaptureEnabledInWindowedGame = GameSettingsTheSuperHackersConstants.DefaultCursorCaptureEnabledInWindowedGame;
 
     [ObservableProperty]
-    private bool _tshCursorCaptureEnabledInWindowedMenu;
+    private bool _tshCursorCaptureEnabledInWindowedMenu = GameSettingsTheSuperHackersConstants.DefaultCursorCaptureEnabledInWindowedMenu;
 
     [ObservableProperty]
-    private bool _tshScreenEdgeScrollEnabledInFullscreenApp;
+    private bool _tshScreenEdgeScrollEnabledInFullscreenApp = GameSettingsTheSuperHackersConstants.DefaultScreenEdgeScrollEnabledInFullscreenApp;
 
     [ObservableProperty]
-    private bool _tshScreenEdgeScrollEnabledInWindowedApp;
+    private bool _tshScreenEdgeScrollEnabledInWindowedApp = GameSettingsTheSuperHackersConstants.DefaultScreenEdgeScrollEnabledInWindowedApp;
 
     [ObservableProperty]
     private int _tshMoneyTransactionVolume = 50;
@@ -399,6 +399,16 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
     [ObservableProperty]
     private string? _gameSpyIPAddress;
 
+    // PAT Settings (Demo/UI)
+    [ObservableProperty]
+    private string _patStatusMessage = "Not Configured";
+
+    [ObservableProperty]
+    private string _patStatusColor = "#777777";
+
+    [ObservableProperty]
+    private string _gitHubPatInput = string.Empty;
+
     /// <summary>
     /// Initializes the ViewModel and loads settings for a specific profile.
     /// </summary>
@@ -424,7 +434,15 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
                     return;
                 }
 
-                SelectedGameType = profile.GameClient.GameType;
+                if ((profile.GameClient?.GameType ?? GameType.Unknown) == GameType.Unknown)
+                {
+                    _logger.LogWarning("Cannot initialize settings for profile {Id} with Unknown game type", profile.Id);
+                    SelectedGameType = GameType.Unknown;
+                    StatusMessage = "Profile has an unknown game type. Settings cannot be loaded.";
+                    return;
+                }
+
+                SelectedGameType = profile.GameClient?.GameType ?? GameType.Unknown;
                 _logger.LogInformation(
                     "Auto-selected game type {GameType} for profile {ProfileId}",
                     SelectedGameType,
@@ -578,6 +596,40 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
         StatusMessage = $"Resolution set to {width}x{height}";
     }
 
+    /// <summary>
+    /// Test the PAT (Demo functionality).
+    /// </summary>
+    [RelayCommand]
+    private async Task TestPat()
+    {
+        if (string.IsNullOrWhiteSpace(GitHubPatInput))
+        {
+            PatStatusMessage = "Please enter a token";
+            PatStatusColor = "#FF5252"; // Red
+            return;
+        }
+
+        IsLoading = true;
+        PatStatusMessage = "Verifying token...";
+        PatStatusColor = "#FFC107"; // Amber
+
+        // Simulate network delay
+        await Task.Delay(1500);
+
+        if (GitHubPatInput.StartsWith("ghp_"))
+        {
+            PatStatusMessage = "Valid (Repo Scope)";
+            PatStatusColor = "#4CAF50"; // Green
+        }
+        else
+        {
+             PatStatusMessage = "Invalid Token";
+             PatStatusColor = "#FF5252"; // Red
+        }
+
+        IsLoading = false;
+    }
+
     private IniOptions? _currentOptions;
     private string? _currentProfileId;
     private int _initializationDepth;
@@ -593,6 +645,13 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
         {
             StatusMessage = "Game settings service not available";
             return;
+        }
+
+        if (SelectedGameType == GameType.Unknown)
+        {
+             StatusMessage = "Cannot load settings: Game type is Unknown";
+             _logger.LogWarning("LoadSettings called with Unknown GameType");
+             return;
         }
 
         GameType gameType = SelectedGameType;
@@ -757,7 +816,10 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
         var currentRes = $"{ResolutionWidth}x{ResolutionHeight}";
         SelectedResolutionPreset = ResolutionPresets.Contains(currentRes) ? currentRes : null;
 
-        StatusMessage = $"Loaded profile settings for {profile.GameClient.GameType}";
+        var gameType = profile.GameClient?.GameType;
+        StatusMessage = gameType != null
+            ? $"Loaded profile settings for {gameType}"
+            : "Loaded profile settings (no game client configured)";
         _logger.LogInformation(
             "Loaded profile settings - Windowed={Windowed}, Resolution={Width}x{Height}",
             Windowed,
@@ -1002,7 +1064,8 @@ public partial class GameSettingsViewModel(IGameSettingsService gameSettingsServ
         options.Video.AntiAliasing = AntiAliasing;
 
         // Map TextureQuality to TextureReduction (0-3, inverted)
-        options.Video.TextureReduction = TextureReductionOffset - (int)TextureQuality;
+        // Clamp to 0-2 range for Options.ini compatibility
+        options.Video.TextureReduction = Math.Clamp(TextureReductionOffset - (int)TextureQuality, 0, 2);
         options.Video.UseShadowVolumes = Shadows;
         options.Video.UseShadowDecals = UseShadowDecals;
         options.Video.BuildingOcclusion = BuildingOcclusion;

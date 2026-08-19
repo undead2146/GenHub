@@ -31,10 +31,16 @@ public class ContentDisplayItem
     /// </summary>
     public string? Description { get; set; }
 
+    private string? _version;
+
     /// <summary>
     /// Gets or sets the version of this content item.
     /// </summary>
-    public string? Version { get; set; }
+    public string? Version
+    {
+        get => _version;
+        set => _version = GameVersionHelper.IsDefaultVersion(value) ? string.Empty : value;
+    }
 
     /// <summary>
     /// Gets or sets the content type (Mod, Patch, Addon, etc.).
@@ -92,6 +98,16 @@ public class ContentDisplayItem
     public bool IsEnabled { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether this content is editable (locally created).
+    /// </summary>
+    public bool IsEditable { get; set; }
+
+    /// <summary>
+    /// Gets or sets the path to the original content source (for local content).
+    /// </summary>
+    public string? SourcePath { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether this content is installed.
     /// </summary>
     public bool IsInstalled { get; set; }
@@ -102,14 +118,9 @@ public class ContentDisplayItem
     public bool CanInstall => !IsInstalled;
 
     /// <summary>
-    /// Gets a value indicating whether this content can be enabled/disabled.
-    /// </summary>
-    public bool CanToggle => true;
-
-    /// <summary>
     /// Gets or sets the tags associated with this content.
     /// </summary>
-    public List<string> Tags { get; set; } = new();
+    public List<string> Tags { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the underlying content manifest if available.
@@ -119,7 +130,7 @@ public class ContentDisplayItem
     /// <summary>
     /// Gets or sets additional metadata as key-value pairs.
     /// </summary>
-    public Dictionary<string, string> Metadata { get; set; } = new();
+    public Dictionary<string, string> Metadata { get; set; } = [];
 
     /// <summary>
     /// Gets or sets a value indicating whether this content is required for the profile.
@@ -137,7 +148,7 @@ public class ContentDisplayItem
     /// <summary>
     /// Gets or sets the list of dependency manifest IDs.
     /// </summary>
-    public List<string> Dependencies { get; set; } = new();
+    public List<string> Dependencies { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the status message.
@@ -220,7 +231,7 @@ public class ContentDisplayItem
             if (!string.IsNullOrEmpty(Publisher))
                 parts.Add($"By {Publisher}");
 
-            if (!string.IsNullOrEmpty(Version))
+            if (!string.IsNullOrWhiteSpace(Version) && Version != "0")
                 parts.Add($"v{Version}");
 
             if (FileSize.HasValue)

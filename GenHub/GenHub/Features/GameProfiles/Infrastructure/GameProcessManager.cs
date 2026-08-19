@@ -21,13 +21,9 @@ namespace GenHub.Features.GameProfiles.Infrastructure;
 /// Manages game processes and their lifecycle.
 /// </summary>
 public class GameProcessManager(
-    IConfigurationProviderService configProvider,
     ILogger<GameProcessManager> logger) : IGameProcessManager, IDisposable
 {
     private const int CleanupIntervalMs = ProcessConstants.ProcessCleanupIntervalMs;
-
-    private readonly IConfigurationProviderService _configProvider = configProvider;
-    private readonly ILogger<GameProcessManager> _logger = logger;
     private readonly ConcurrentDictionary<int, Process> _managedProcesses = new();
     private readonly SemaphoreSlim _terminationSemaphore = new(1, 1);
 
@@ -56,29 +52,39 @@ public class GameProcessManager(
             // Validate configuration
             if (configuration == null)
             {
-                _logger.LogError("GameLaunchConfiguration is null");
+                logger.LogError("GameLaunchConfiguration is null");
                 return OperationResult<GameProcessInfo>.CreateFailure("Configuration cannot be null");
             }
 
             if (string.IsNullOrEmpty(configuration.ExecutablePath))
             {
-                _logger.LogError("ExecutablePath is null or empty in configuration");
+                logger.LogError("ExecutablePath is null or empty in configuration");
                 return OperationResult<GameProcessInfo>.CreateFailure("ExecutablePath cannot be null or empty");
             }
 
             if (!File.Exists(configuration.ExecutablePath))
             {
-                _logger.LogError("Executable not found at path: {ExecutablePath}", configuration.ExecutablePath);
+                logger.LogError("Executable not found at path: {ExecutablePath}", configuration.ExecutablePath);
                 return OperationResult<GameProcessInfo>.CreateFailure($"Executable not found: {configuration.ExecutablePath}");
             }
 
-            _logger.LogInformation("[Process] Starting process for executable: {ExecutablePath}", configuration.ExecutablePath);
+            // Verify, never fix. Setting the bit here could mutate a shared content-store
+            // blob under the hard-link workspace strategy; the workspace build already
+            // applies it to a copy it owns. A failure here means that step did not run.
+            if (!OperatingSystem.IsWindows() && !HasExecutePermission(configuration.ExecutablePath))
+            {
+                logger.LogError("[Process] Executable is not marked executable: {ExecutablePath}", configuration.ExecutablePath);
+                return OperationResult<GameProcessInfo>.CreateFailure(
+                    $"'{configuration.ExecutablePath}' does not have the execute permission set, so it cannot be launched.");
+            }
+
+            logger.LogInformation("[Process] Starting process for executable: {ExecutablePath}", configuration.ExecutablePath);
 
             var workingDirectory = configuration.WorkingDirectory
                 ?? Path.GetDirectoryName(configuration.ExecutablePath)
                 ?? Environment.CurrentDirectory;
 
-            _logger.LogDebug("[Process] Working directory: {WorkingDirectory}", workingDirectory);
+            logger.LogDebug("[Process] Working directory: {WorkingDirectory}", workingDirectory);
 
             var extension = Path.GetExtension(configuration.ExecutablePath).ToLowerInvariant();
             var isBatchFile = Environment.OSVersion.Platform == PlatformID.Win32NT && (extension == ".bat" || extension == ".cmd");
@@ -93,12 +99,18 @@ public class GameProcessManager(
                 FileName = configuration.ExecutablePath,
                 UseShellExecute = false,
                 CreateNoWindow = false,
+
+                // Captured so that a process which dies during startup can say why.
+                // A dynamic-loader failure prints "library not loaded" here and then exits;
+                // without this the user sees no window and no error, and the exit code
+                // alone does not identify the missing library.
+                RedirectStandardError = true,
             };
 
             // Add arguments using Arguments string
             if (configuration.Arguments != null && configuration.Arguments.Count > 0)
             {
-                _logger.LogDebug("[Process] Adding {ArgumentCount} arguments to process", configuration.Arguments.Count);
+                logger.LogDebug("[Process] Adding {ArgumentCount} arguments to process", configuration.Arguments.Count);
                 var argList = new List<string>();
 
                 foreach (var arg in configuration.Arguments)
@@ -114,28 +126,28 @@ public class GameProcessManager(
                             argList.Add(quotedValue);
                         }
 
-                        _logger.LogDebug("Added flag argument: {Key} {Value}", arg.Key, arg.Value);
+                        logger.LogDebug("Added flag argument: {Key} {Value}", arg.Key, arg.Value);
                     }
                     else if (arg.Key.StartsWith("_pos"))
                     {
                         // Positional argument with index - quote if contains spaces
                         var quotedValue = arg.Value.Contains(' ') ? $"\"{arg.Value}\"" : arg.Value;
                         argList.Add(quotedValue);
-                        _logger.LogDebug("Added positional argument: {Value}", quotedValue);
+                        logger.LogDebug("Added positional argument: {Value}", quotedValue);
                     }
                     else if (string.IsNullOrEmpty(arg.Key))
                     {
                         // Legacy positional argument - quote if contains spaces
                         var quotedValue = arg.Value.Contains(' ') ? $"\"{arg.Value}\"" : arg.Value;
                         argList.Add(quotedValue);
-                        _logger.LogDebug("Added positional argument: {Value}", quotedValue);
+                        logger.LogDebug("Added positional argument: {Value}", quotedValue);
                     }
                     else
                     {
                         // Key=value format - quote the value if it contains spaces
                         var quotedValue = arg.Value.Contains(' ') ? $"\"{arg.Value}\"" : arg.Value;
                         argList.Add($"{arg.Key}={quotedValue}");
-                        _logger.LogDebug("Added key-value argument: {Key}={Value}", arg.Key, quotedValue);
+                        logger.LogDebug("Added key-value argument: {Key}={Value}", arg.Key, quotedValue);
                     }
                 }
 
@@ -145,18 +157,18 @@ public class GameProcessManager(
             // With UseShellExecute = false, we can set environment variables
             if (configuration.EnvironmentVariables != null && configuration.EnvironmentVariables.Count > 0)
             {
-                _logger.LogDebug(
+                logger.LogDebug(
                     "[Process] Setting {Count} environment variables",
                     configuration.EnvironmentVariables.Count);
 
                 foreach (var envVar in configuration.EnvironmentVariables)
                 {
                     processStartInfo.EnvironmentVariables[envVar.Key] = envVar.Value;
-                    _logger.LogDebug("[Process] Set environment variable: {Key}={Value}", envVar.Key, envVar.Value);
+                    logger.LogDebug("[Process] Set environment variable: {Key}={Value}", envVar.Key, envVar.Value);
                 }
             }
 
-            _logger.LogInformation(
+            logger.LogInformation(
                 "[Process] Attempting to start process: {FileName} in {WorkingDirectory}",
                 processStartInfo.FileName,
                 processStartInfo.WorkingDirectory);
@@ -168,7 +180,7 @@ public class GameProcessManager(
             }
             catch (Win32Exception win32Ex)
             {
-                _logger.LogError(
+                logger.LogError(
                     win32Ex,
                     "Win32Exception starting process {ExecutablePath}: {ErrorCode} - {Message}",
                     configuration.ExecutablePath,
@@ -178,7 +190,7 @@ public class GameProcessManager(
             }
             catch (InvalidOperationException invOpEx)
             {
-                _logger.LogError(
+                logger.LogError(
                     invOpEx,
                     "InvalidOperationException starting process {ExecutablePath}: {Message}",
                     configuration.ExecutablePath,
@@ -188,11 +200,25 @@ public class GameProcessManager(
 
             if (process == null)
             {
-                _logger.LogError("[Process] Process.Start returned null for executable: {ExecutablePath}", configuration.ExecutablePath);
+                logger.LogError("[Process] Process.Start returned null for executable: {ExecutablePath}", configuration.ExecutablePath);
                 return OperationResult<GameProcessInfo>.CreateFailure("Failed to start process - Process.Start returned null");
             }
 
-            _logger.LogDebug("[Process] Process {ProcessId} started successfully", process.Id);
+            logger.LogDebug("[Process] Process {ProcessId} started successfully", process.Id);
+
+            // Drained continuously via the event handler rather than read at exit, so a
+            // chatty process cannot fill the pipe buffer and deadlock. Only a bounded tail
+            // is retained.
+            var capturedErrors = new BoundedErrorBuffer();
+            process.ErrorDataReceived += (_, e) => capturedErrors.Append(e.Data);
+            try
+            {
+                process.BeginErrorReadLine();
+            }
+            catch (InvalidOperationException ex)
+            {
+                logger.LogDebug(ex, "[Process] Could not capture stderr for process {ProcessId}", process.Id);
+            }
 
             // Check if process exited immediately (launcher pattern)
             // Only apply delay if we need to detect a spawned process
@@ -205,11 +231,20 @@ public class GameProcessManager(
                 {
                     var exitCode = process.ExitCode;
 
-                    // For Generals/Zero Hour, exit code 0 indicates the launcher spawned the actual game and exited
-                    // Try to find the actual game process by executable name
-                    if (exitCode == 0)
+                    // Windows-only launcher-stub heuristic. Some Windows game clients are
+                    // stubs that spawn the real process and exit 0, so the PID that was
+                    // started is not the one to track. Finding the replacement matches on
+                    // the executable's base name.
+                    //
+                    // Not applied on Unix, for two reasons. Native clients exec directly and
+                    // never fork-and-exit, so there is nothing to find. And base-name
+                    // matching strips the extension, which makes the native "generalszh"
+                    // indistinguishable from TheSuperHackers' "generalszh.exe" — so a
+                    // running Windows client under Wine could be adopted as if it were this
+                    // launch, and later terminated on its owner's behalf.
+                    if (exitCode == 0 && OperatingSystem.IsWindows())
                     {
-                        _logger.LogInformation(
+                        logger.LogInformation(
                             "[Process] Launcher process {ProcessId} exited with code 0 - attempting to find spawned game process",
                             process.Id);
 
@@ -218,7 +253,7 @@ public class GameProcessManager(
 
                         if (spawnedProcess != null)
                         {
-                            _logger.LogInformation(
+                            logger.LogInformation(
                                 "[Process] Found spawned game process {ProcessId} for executable {ExecutableName}",
                                 spawnedProcess.Id,
                                 executableName);
@@ -235,7 +270,7 @@ public class GameProcessManager(
                             }
                             catch (Exception ex)
                             {
-                                _logger.LogWarning(ex, "Failed to enable raising events for spawned process {ProcessId}", spawnedProcess.Id);
+                                logger.LogWarning(ex, "Failed to enable raising events for spawned process {ProcessId}", spawnedProcess.Id);
                             }
 
                             GameProcessInfo spawnedProcessInfo;
@@ -251,7 +286,7 @@ public class GameProcessManager(
                             }
                             catch (Exception ex)
                             {
-                                _logger.LogWarning(ex, "Failed to get process information for {ProcessId}, using minimal info", spawnedProcess.Id);
+                                logger.LogWarning(ex, "Failed to get process information for {ProcessId}, using minimal info", spawnedProcess.Id);
                                 spawnedProcessInfo = new GameProcessInfo
                                 {
                                     ProcessId = spawnedProcess.Id,
@@ -261,27 +296,54 @@ public class GameProcessManager(
                                 };
                             }
 
-                            _logger.LogInformation("Started game process {ProcessId} for executable {ExecutablePath}", spawnedProcess.Id, configuration.ExecutablePath);
+                            logger.LogInformation("Started game process {ProcessId} for executable {ExecutablePath}", spawnedProcess.Id, configuration.ExecutablePath);
                             return OperationResult<GameProcessInfo>.CreateSuccess(spawnedProcessInfo);
                         }
                     }
 
-                    _logger.LogWarning("Process {ProcessId} exited immediately with code {ExitCode} (User likely closed it)", process.Id, exitCode);
+                    logger.LogWarning("Process {ProcessId} exited immediately with code {ExitCode}", process.Id, exitCode);
 
-                    // Capture info before disposal
-                    var shortLivedProcessInfo = new GameProcessInfo
-                    {
-                        ProcessId = process.Id,
-                        ProcessName = "ExitedProcess",
-                        StartTime = DateTime.Now,
-                        ExecutablePath = configuration.ExecutablePath,
-                    };
+                    // The process has exited, but the async stderr handlers may not have
+                    // delivered their final lines yet — and this is exactly the path where
+                    // that output explains the failure. The parameterless overload is the
+                    // documented way to wait for those handlers; the timed overloads
+                    // return as soon as the process is gone and leave the capture short.
+                    DrainStandardError(process, capturedErrors);
 
                     process.Dispose();
 
-                    // Return Success instead of Failure to avoid "Process exited immediately" error popup
-                    // The process is not tracked, so UI will correctly revert to "Play" state naturally
-                    return OperationResult<GameProcessInfo>.CreateSuccess(shortLivedProcessInfo);
+                    // If it exits immediately with a non-zero code (like a crash or missing DLL), this is a genuine failure
+                    if (exitCode != 0)
+                    {
+                        var stderrTail = capturedErrors.ToString();
+                        var detail = string.IsNullOrWhiteSpace(stderrTail)
+                            ? "No output was captured."
+                            : stderrTail;
+
+                        logger.LogError(
+                            "[Process] Process exited immediately with code {ExitCode}. Output: {Output}",
+                            exitCode,
+                            detail);
+
+                        return OperationResult<GameProcessInfo>.CreateFailure(
+                            $"Process exited immediately with code {exitCode}. {detail}");
+                    }
+                    else
+                    {
+                        // A clean exit with no spawned child is still an unexplained failure, and
+                        // stderr was already drained above — reporting it only on a non-zero exit
+                        // discarded the one diagnostic available for this case.
+                        var stderrTail = capturedErrors.ToString();
+                        var suffix = string.IsNullOrWhiteSpace(stderrTail) ? string.Empty : $" {stderrTail}";
+
+                        logger.LogError(
+                            "[Process] Process exited immediately with code 0 and no spawned process was found. Output: {Output}",
+                            string.IsNullOrWhiteSpace(stderrTail) ? "No output was captured." : stderrTail);
+
+                        // Still a failure: without a process to track the UI would sit in 'running'.
+                        return OperationResult<GameProcessInfo>.CreateFailure(
+                            $"Process exited immediately after launch.{suffix}");
+                    }
                 }
             }
 
@@ -290,7 +352,13 @@ public class GameProcessManager(
             if (configuration.WaitForExit)
             {
                 var timeoutMs = configuration.Timeout.HasValue ? (int)configuration.Timeout.Value.TotalMilliseconds : Timeout.Infinite;
-                process.WaitForExit(timeoutMs);
+                if (process.WaitForExit(timeoutMs))
+                {
+                    // Only once the process is known to have exited: the timed overload
+                    // does not wait for the redirected-output handlers, so the capture
+                    // would otherwise be read while lines are still in flight.
+                    DrainStandardError(process, capturedErrors);
+                }
             }
 
             try
@@ -300,7 +368,7 @@ public class GameProcessManager(
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to enable raising events for process {ProcessId}, process cleanup may not work properly", process.Id);
+                logger.LogWarning(ex, "Failed to enable raising events for process {ProcessId}, process cleanup may not work properly", process.Id);
             }
 
             GameProcessInfo processInfo;
@@ -316,7 +384,7 @@ public class GameProcessManager(
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to get process information for {ProcessId}, using minimal info", process.Id);
+                logger.LogWarning(ex, "Failed to get process information for {ProcessId}, using minimal info", process.Id);
                 processInfo = new GameProcessInfo
                 {
                     ProcessId = process.Id,
@@ -326,12 +394,12 @@ public class GameProcessManager(
                 };
             }
 
-            _logger.LogInformation("Started game process {ProcessId} for executable {ExecutablePath}", process.Id, configuration.ExecutablePath);
+            logger.LogInformation("Started game process {ProcessId} for executable {ExecutablePath}", process.Id, configuration.ExecutablePath);
             return OperationResult<GameProcessInfo>.CreateSuccess(processInfo);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to start process for executable {ExecutablePath}", configuration.ExecutablePath);
+            logger.LogError(ex, "Failed to start process for executable {ExecutablePath}", configuration.ExecutablePath);
             return OperationResult<GameProcessInfo>.CreateFailure($"Failed to start process: {ex.Message}");
         }
     }
@@ -344,40 +412,40 @@ public class GameProcessManager(
         await _terminationSemaphore.WaitAsync(cancellationToken);
         try
         {
-            _logger.LogInformation("[Terminate] Starting termination of process {ProcessId}", processId);
+            logger.LogInformation("[Terminate] Starting termination of process {ProcessId}", processId);
 
             // Try to get from managed processes first
             if (!_managedProcesses.TryRemove(processId, out Process? process))
             {
-                _logger.LogDebug("[Terminate] Process {ProcessId} not in managed processes, trying system lookup", processId);
+                logger.LogDebug("[Terminate] Process {ProcessId} not in managed processes, trying system lookup", processId);
 
                 // Try to get from system processes
                 try
                 {
                     process = Process.GetProcessById(processId);
-                    _logger.LogDebug("[Terminate] Found process {ProcessId} via system lookup", processId);
+                    logger.LogDebug("[Terminate] Found process {ProcessId} via system lookup", processId);
                 }
                 catch (ArgumentException)
                 {
                     // Process not found - it may have already exited
-                    _logger.LogInformation("[Terminate] Process {ProcessId} not found - already exited", processId);
+                    logger.LogInformation("[Terminate] Process {ProcessId} not found - already exited", processId);
                     return OperationResult<bool>.CreateSuccess(true);
                 }
                 catch (InvalidOperationException)
                 {
                     // Process access denied or already exited
-                    _logger.LogInformation("[Terminate] Process {ProcessId} is no longer accessible - access denied or already exited", processId);
+                    logger.LogInformation("[Terminate] Process {ProcessId} is no longer accessible - access denied or already exited", processId);
                     return OperationResult<bool>.CreateSuccess(true);
                 }
             }
             else
             {
-                _logger.LogDebug("[Terminate] Found process {ProcessId} in managed processes", processId);
+                logger.LogDebug("[Terminate] Found process {ProcessId} in managed processes", processId);
             }
 
             if (process == null)
             {
-                _logger.LogInformation("[Terminate] Process {ProcessId} is null - already exited", processId);
+                logger.LogInformation("[Terminate] Process {ProcessId} is null - already exited", processId);
                 return OperationResult<bool>.CreateSuccess(true);
             }
 
@@ -386,37 +454,37 @@ public class GameProcessManager(
             // that can take several seconds when terminating a process tree
             try
             {
-                _logger.LogInformation("[Terminate] Force killing process {ProcessId} and its process tree", processId);
+                logger.LogInformation("[Terminate] Force killing process {ProcessId} and its process tree", processId);
 
                 // Run Kill() on a background thread to prevent UI freeze
                 await Task.Run(() => process.Kill(entireProcessTree: true), cancellationToken);
 
-                _logger.LogInformation("[Terminate] Process {ProcessId} terminated successfully", processId);
+                logger.LogInformation("[Terminate] Process {ProcessId} terminated successfully", processId);
             }
             catch (InvalidOperationException ex)
             {
                 // Process already exited
-                _logger.LogInformation("[Terminate] Process {ProcessId} already exited: {Message}", processId, ex.Message);
+                logger.LogInformation("[Terminate] Process {ProcessId} already exited: {Message}", processId, ex.Message);
             }
             catch (System.ComponentModel.Win32Exception ex)
             {
-                _logger.LogError(ex, "[Terminate] Win32 error killing process {ProcessId}: {ErrorCode}", processId, ex.NativeErrorCode);
+                logger.LogError(ex, "[Terminate] Win32 error killing process {ProcessId}: {ErrorCode}", processId, ex.NativeErrorCode);
                 process.Dispose();
                 return OperationResult<bool>.CreateFailure($"Failed to terminate process: {ex.Message}");
             }
 
             process.Dispose();
-            _logger.LogInformation("Terminated process {ProcessId}", processId);
+            logger.LogInformation("Terminated process {ProcessId}", processId);
             return OperationResult<bool>.CreateSuccess(true);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            _logger.LogInformation("Process {ProcessId} termination was cancelled", processId);
+            logger.LogInformation("Process {ProcessId} termination was cancelled", processId);
             throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to terminate process {ProcessId}", processId);
+            logger.LogError(ex, "Failed to terminate process {ProcessId}", processId);
             return OperationResult<bool>.CreateFailure($"Failed to terminate process: {ex.Message}");
         }
         finally
@@ -475,7 +543,7 @@ public class GameProcessManager(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get process info for {ProcessId}", processId);
+            logger.LogError(ex, "Failed to get process info for {ProcessId}", processId);
             return Task.FromResult(OperationResult<GameProcessInfo>.CreateFailure("Process not found"));
         }
     }
@@ -511,7 +579,7 @@ public class GameProcessManager(
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to get info for managed process {ProcessId}", kvp.Key);
+                    logger.LogWarning(ex, "Failed to get info for managed process {ProcessId}", kvp.Key);
                     _managedProcesses.TryRemove(kvp.Key, out _);
                 }
             }
@@ -520,15 +588,41 @@ public class GameProcessManager(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get active processes");
+            logger.LogError(ex, "Failed to get active processes");
             return Task.FromResult(OperationResult<IReadOnlyList<GameProcessInfo>>.CreateFailure($"Failed to get active processes: {ex.Message}"));
+        }
+    }
+
+    /// <inheritdoc/>
+    public void TrackProcess(Process process)
+    {
+        ArgumentNullException.ThrowIfNull(process);
+
+        if (process.HasExited)
+        {
+            logger.LogWarning("[Process] Attempted to track already exited process {ProcessId}", process.Id);
+            return;
+        }
+
+        logger.LogInformation("[Process] Registering existing process for tracking: {ProcessId} ({ProcessName})", process.Id, process.ProcessName);
+
+        _managedProcesses[process.Id] = process;
+
+        try
+        {
+            process.EnableRaisingEvents = true;
+            process.Exited += OnProcessExited;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "[Process] Failed to enable raising events for tracked process {ProcessId}", process.Id);
         }
     }
 
     /// <inheritdoc/>
     public async Task<OperationResult<GameProcessInfo>> DiscoverAndTrackProcessAsync(string processName, string workingDirectory, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("[Discover] Attempting to discover and track process: {Name} in {Directory}", processName, workingDirectory);
+        logger.LogInformation("[Discover] Attempting to discover and track process: {Name} in {Directory}", processName, workingDirectory);
 
         // Poll for up to 45 seconds since Steam might need to start first, then launch the game
         // If Steam isn't running, steam:// URL will launch Steam (5-10s), then Steam launches the game (5-10s)
@@ -545,7 +639,7 @@ public class GameProcessManager(
             var process = FindSpawnedGameProcess(processName, workingDirectory);
             if (process != null)
             {
-                _logger.LogInformation("[Discover] Successfully discovered and tracked process {ProcessId}", process.Id);
+                logger.LogInformation("[Discover] Successfully discovered and tracked process {ProcessId}", process.Id);
 
                 // Track it
                 _managedProcesses[process.Id] = process;
@@ -557,7 +651,7 @@ public class GameProcessManager(
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to enable raising events for discovered process {ProcessId}", process.Id);
+                    logger.LogWarning(ex, "Failed to enable raising events for discovered process {ProcessId}", process.Id);
                 }
 
                 return OperationResult<GameProcessInfo>.CreateSuccess(new GameProcessInfo
@@ -572,7 +666,7 @@ public class GameProcessManager(
             await Task.Delay(DelayMs, cancellationToken);
         }
 
-        _logger.LogWarning("[Discover] Failed to discover process {Name} after {Attempts} attempts", processName, MaxAttempts);
+        logger.LogWarning("[Discover] Failed to discover process {Name} after {Attempts} attempts", processName, MaxAttempts);
         return OperationResult<GameProcessInfo>.CreateFailure($"Could not find process {processName} within the timeout period.");
     }
 
@@ -607,12 +701,12 @@ public class GameProcessManager(
         foreach (var processId in deadProcessIds)
         {
             _managedProcesses.TryRemove(processId, out _);
-            _logger.LogTrace("Cleaned up dead process {ProcessId} from managed processes", processId);
+            logger.LogTrace("Cleaned up dead process {ProcessId} from managed processes", processId);
         }
 
         if (deadProcessIds.Count > 0)
         {
-            _logger.LogDebug("Cleaned up {Count} dead processes from managed processes dictionary", deadProcessIds.Count);
+            logger.LogDebug("Cleaned up {Count} dead processes from managed processes dictionary", deadProcessIds.Count);
         }
     }
 
@@ -626,7 +720,7 @@ public class GameProcessManager(
             return;
         }
 
-        _logger.LogDebug("Disposing GameProcessManager with {Count} managed processes", _managedProcesses.Count);
+        logger.LogDebug("Disposing GameProcessManager with {Count} managed processes", _managedProcesses.Count);
 
         // Dispose cleanup timer first
         _cleanupTimer?.Dispose();
@@ -640,7 +734,7 @@ public class GameProcessManager(
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Error disposing process {ProcessId}", kvp.Key);
+                logger.LogWarning(ex, "Error disposing process {ProcessId}", kvp.Key);
             }
         }
 
@@ -650,7 +744,7 @@ public class GameProcessManager(
 
         GC.SuppressFinalize(this);
 
-        _logger.LogInformation("GameProcessManager disposed");
+        logger.LogInformation("GameProcessManager disposed");
     }
 
     private static string GetProcessExecutablePath(Process process)
@@ -668,6 +762,32 @@ public class GameProcessManager(
         {
             // Process has exited
             return string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// Determines whether a file carries the Unix execute bit for the current user.
+    /// </summary>
+    /// <param name="path">The executable path.</param>
+    /// <returns><c>true</c> on Windows, or when any execute bit is set.</returns>
+    private static bool HasExecutePermission(string path)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return true;
+        }
+
+        try
+        {
+            var mode = File.GetUnixFileMode(path);
+            return mode.HasFlag(UnixFileMode.UserExecute)
+                || mode.HasFlag(UnixFileMode.GroupExecute)
+                || mode.HasFlag(UnixFileMode.OtherExecute);
+        }
+        catch (Exception)
+        {
+            // Unreadable metadata should not block a launch that might otherwise work.
+            return true;
         }
     }
 
@@ -700,7 +820,7 @@ public class GameProcessManager(
 
         ProcessExited?.Invoke(this, args);
 
-        _logger.LogInformation("Process {ProcessId} exited with code {ExitCode}", processId, exitCode);
+        logger.LogInformation("Process {ProcessId} exited with code {ExitCode}", processId, exitCode);
     }
 
     /// <summary>
@@ -772,8 +892,142 @@ public class GameProcessManager(
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to find spawned game process for {ExecutableName}", executableName);
+            logger.LogWarning(ex, "Failed to find spawned game process for {ExecutableName}", executableName);
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Waits for the asynchronous stderr handlers to finish before the capture is read.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Process.WaitForExit()"/> without a timeout additionally waits for
+    /// redirected-output handlers to complete; the timed overloads do not, so reading the
+    /// buffer straight after the process exits can miss the final lines. Only stderr is
+    /// redirected, so there is no stdout stream to drain.
+    /// </remarks>
+    /// <param name="process">The exited process.</param>
+    /// <param name="capturedErrors">The buffer receiving stderr lines.</param>
+    private void DrainStandardError(Process process, BoundedErrorBuffer capturedErrors)
+    {
+        try
+        {
+            process.WaitForExit();
+        }
+        catch (Exception ex)
+        {
+            // The process may already be disposed or inaccessible; the capture is then
+            // whatever arrived, which is better than propagating from a diagnostics path.
+            logger.LogDebug(ex, "[Process] Could not wait for stderr handlers to complete");
+        }
+
+        if (!capturedErrors.EndOfStreamReached)
+        {
+            logger.LogDebug(
+                "[Process] stderr did not signal end of stream; the captured output may be incomplete");
+        }
+    }
+
+    /// <summary>
+    /// Retains a bounded excerpt of a process's stderr for diagnostics.
+    /// </summary>
+    /// <remarks>
+    /// Keeps the first lines as well as the last. A tail-only buffer loses the startup
+    /// context — the missing library, the rejected argument — which is usually where the
+    /// cause is, while the tail holds the symptom. Both are bounded by line count, by
+    /// individual line length and by total size, so a process writing a pathological
+    /// volume cannot exhaust memory.
+    /// </remarks>
+    private sealed class BoundedErrorBuffer
+    {
+        private const int MaxHeadLines = 10;
+        private const int MaxTailLines = 20;
+        private const int MaxLineLength = 2000;
+        private const int MaxTotalChars = 64 * 1024;
+
+        private readonly List<string> _head = [];
+        private readonly Queue<string> _tail = new();
+        private readonly object _gate = new();
+        private int _retainedChars;
+        private int _droppedLines;
+        private bool _endOfStream;
+
+        /// <inheritdoc/>
+        public override string ToString()
+        {
+            lock (_gate)
+            {
+                var parts = new List<string>(_head);
+
+                if (_droppedLines > 0)
+                {
+                    parts.Add($"…[{_droppedLines} line(s) omitted]");
+                }
+
+                parts.AddRange(_tail);
+
+                return string.Join(" | ", parts);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether the stream signalled end of output.
+        /// </summary>
+        /// <remarks>
+        /// The framework raises the handler once with a null <c>Data</c> when the stream
+        /// closes. That, not process exit, is the point at which the capture is known to
+        /// be complete.
+        /// </remarks>
+        internal bool EndOfStreamReached
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _endOfStream;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Appends a line, or records end of stream when <paramref name="line"/> is null.
+        /// </summary>
+        /// <param name="line">The line received, or null at end of stream.</param>
+        internal void Append(string? line)
+        {
+            lock (_gate)
+            {
+                if (line is null)
+                {
+                    _endOfStream = true;
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    return;
+                }
+
+                var trimmed = line.Length > MaxLineLength
+                    ? string.Concat(line.AsSpan(0, MaxLineLength), "…[line truncated]")
+                    : line;
+
+                if (_head.Count < MaxHeadLines)
+                {
+                    _head.Add(trimmed);
+                    _retainedChars += trimmed.Length;
+                    return;
+                }
+
+                _tail.Enqueue(trimmed);
+                _retainedChars += trimmed.Length;
+
+                while (_tail.Count > MaxTailLines || (_retainedChars > MaxTotalChars && _tail.Count > 0))
+                {
+                    _retainedChars -= _tail.Dequeue().Length;
+                    _droppedLines++;
+                }
+            }
         }
     }
 }

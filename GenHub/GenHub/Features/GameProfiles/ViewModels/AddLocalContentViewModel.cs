@@ -4,9 +4,12 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using GenHub.Core.Constants;
+using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Models.Enums;
 using Microsoft.Extensions.Logging;
@@ -17,9 +20,15 @@ namespace GenHub.Features.GameProfiles.ViewModels;
 /// View model for the "Add Local Content" dialog.
 /// </summary>
 /// <param name="localContentService">Service for handling local content operations.</param>
+/// <param name="contentStorageService">Service for content storage operations.</param>
+/// <param name="genLauncherNormalizationService">Service for GenLauncher file normalization.</param>
+/// <param name="dialogService">Service for showing dialogs.</param>
 /// <param name="logger">Logger instance.</param>
 public partial class AddLocalContentViewModel(
     ILocalContentService localContentService,
+    IContentStorageService? contentStorageService,
+    IGenLauncherNormalizationService? genLauncherNormalizationService,
+    IDialogService? dialogService,
     ILogger<AddLocalContentViewModel>? logger = null) : ObservableObject
 {
     /// <summary>
@@ -80,6 +89,25 @@ public partial class AddLocalContentViewModel(
 
     private readonly string _stagingPath = Path.Combine(Path.GetTempPath(), "GenHub_Staging_" + Guid.NewGuid());
 
+    private string? _originalManifestId;
+
+    /// <summary>
+    /// Gets a value indicating whether we are editing existing content.
+    /// </summary>
+    public bool IsEditing => _originalManifestId != null;
+
+    /// <summary>
+    /// Gets the title for the dialog.
+    /// </summary>
+    public string DialogTitle => IsEditing ? "Edit Local Content" : "Add Local Content";
+
+    /// <summary>
+    /// Gets the text to display on the action button.
+    /// </summary>
+    public string ActionButtonText => IsEditing ? "Save Changes" : "Add to Library";
+
+    private CancellationTokenSource? _cts;
+
     /// <summary>
     /// Gets or sets the name of the content.
     /// </summary>
@@ -121,7 +149,14 @@ public partial class AddLocalContentViewModel(
     /// Gets or sets a value indicating whether the view model is busy.
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowLoadingOverlay))]
     private bool _isBusy;
+
+    /// <summary>
+    /// Gets a value indicating whether the loading overlay should be visible.
+    /// Virtual to allow demos to suppress it.
+    /// </summary>
+    public virtual bool ShowLoadingOverlay => IsBusy;
 
     /// <summary>
     /// Gets or sets the status message for the user.
@@ -134,6 +169,12 @@ public partial class AddLocalContentViewModel(
     /// </summary>
     [ObservableProperty]
     private bool _canAdd;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the view model is in demo mode.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isDemoMode;
 
     /// <summary>
     /// Gets or sets the selected executable item (for Executable/ModdingTool content type).
@@ -196,6 +237,68 @@ public partial class AddLocalContentViewModel(
     public Func<Task<IReadOnlyList<string>?>>? BrowseFileAction { get; set; }
 
     /// <summary>
+    /// Loads existing content for editing.
+    /// </summary>
+    /// <param name="item">The item to load.</param>
+    /// <returns>A task representing the operation.</returns>
+    public async Task LoadFromManifestAsync(ContentDisplayItem item)
+    {
+        if (contentStorageService == null)
+        {
+            StatusMessage = "Storage service unavailable.";
+            return;
+        }
+
+        try
+        {
+            IsBusy = true;
+            StatusMessage = "Loading existing content...";
+
+            _originalManifestId = item.ManifestId.Value;
+            ContentName = item.DisplayName ?? string.Empty;
+            SelectedContentType = item.ContentType;
+            SelectedGameType = item.GameType;
+            SourcePath = item.SourcePath ?? string.Empty;
+
+            OnPropertyChanged(nameof(IsEditing));
+            OnPropertyChanged(nameof(DialogTitle));
+            OnPropertyChanged(nameof(ActionButtonText));
+
+            // Prepare staging directory
+            if (Directory.Exists(_stagingPath))
+            {
+                Directory.Delete(_stagingPath, true);
+            }
+
+            Directory.CreateDirectory(_stagingPath);
+
+            // Retrieve content from CAS to staging
+            var result = await contentStorageService.RetrieveContentAsync(
+                Core.Models.Manifest.ManifestId.Create(_originalManifestId),
+                _stagingPath);
+
+            if (result.Success)
+            {
+                StatusMessage = "Success!";
+                await RefreshStagingTreeAsync();
+            }
+            else
+            {
+                StatusMessage = $"Failed to load content: {result.FirstError}";
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Error loading content for editing");
+            StatusMessage = $"Error loading content: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>
     /// Imports content from the specified path into the staging directory.
     /// </summary>
     /// <param name="path">The local path to the file or directory.</param>
@@ -253,21 +356,124 @@ public partial class AddLocalContentViewModel(
             }
             else if (Directory.Exists(path))
             {
-                // FLATTEN: Import contents of directory directly to staging root
-                // previously: var targetSubDir = Path.Combine(_stagingPath, dirName);
-                var targetDir = new DirectoryInfo(_stagingPath);
-                var sourceDir = new DirectoryInfo(path);
+                // Preserve directory structure by copying the folder itself into staging
+                var dirInfo = new DirectoryInfo(path);
+                var dirName = dirInfo.Name;
 
-                logger?.LogDebug("ImportContentAsync: Flattening directory structure. Source: {Source}, Target: {Target}", path, _stagingPath);
+                // Ensure we don't try to copy to the staging root itself if Name is somehow empty
+                if (string.IsNullOrWhiteSpace(dirName))
+                {
+                    dirName = "Imported_Folder";
+                }
 
-                await Task.Run(() => CopyDirectory(sourceDir, targetDir));
+                var targetSubDir = Path.Combine(_stagingPath, dirName);
+                logger?.LogDebug("ImportContentAsync: Preserving directory structure. Source: {Source}, Target: {Target}", path, targetSubDir);
+
+                await Task.Run(() => CopyDirectory(dirInfo, new DirectoryInfo(targetSubDir)));
             }
 
             // Auto-organization: If we have .map files at the root level, move them into subdirectories
             CreateMapFoldersIfNeeded();
 
+            // Detect and normalize GenLauncher files
+            _cts ??= new CancellationTokenSource();
+            if (_cts.IsCancellationRequested)
+            {
+                _cts.Dispose();
+                _cts = new CancellationTokenSource();
+            }
+
+            var cancellationToken = _cts.Token;
+            var normalizationSetStatus = false;
+            try
+            {
+                if (genLauncherNormalizationService != null && dialogService != null)
+                {
+                    var detectionResult = await genLauncherNormalizationService.DetectGenLauncherFilesAsync(_stagingPath, cancellationToken);
+
+                    if (detectionResult.HasGenLauncherFiles)
+                    {
+                        logger?.LogInformation("GenLauncher files detected: {Summary}", detectionResult.GetSummary());
+
+                        var normalizationPrompt =
+                            $"This content contains GenLauncher-modified files:\n\n{detectionResult.GetSummary()}\n\nWould you like to normalize these files to standard format?\n\n" +
+                            "This will:\n" +
+                            $"• Convert {GenLauncherConstants.GibExtension} files to {GenLauncherConstants.BigExtension}\n" +
+                            $"• Remove {string.Join(", ", GenLauncherConstants.AllSuffixes)} suffixes\n" +
+                            "• Remove symbolic links";
+
+                        var shouldNormalize = await dialogService.ShowConfirmationAsync(
+                            "GenLauncher Files Detected",
+                            normalizationPrompt,
+                            "Normalize",
+                            "Skip",
+                            sessionKey: GenLauncherConstants.NormalizationDialogSessionKey);
+
+                        if (shouldNormalize)
+                        {
+                            StatusMessage = "Normalizing GenLauncher files...";
+                            logger?.LogInformation("User confirmed normalization");
+
+                            var normalizationResult = await genLauncherNormalizationService.NormalizeFilesAsync(
+                                _stagingPath,
+                                cancellationToken);
+
+                            if (normalizationResult.Success)
+                            {
+                                var result = normalizationResult.Data;
+                                StatusMessage = result.IsFullySuccessful
+                                    ? $"Normalized {result.NormalizedCount} file(s). Import successful."
+                                    : $"Normalized {result.NormalizedCount} file(s); {result.FailedFiles.Count} failed. Import successful.";
+                                normalizationSetStatus = true;
+                                logger?.LogInformation(
+                                    "Normalization completed: {NormalizedCount} files, {SymlinksRemoved} symlinks removed",
+                                    result.NormalizedCount,
+                                    result.SymbolicLinksRemoved);
+
+                                if (!result.IsFullySuccessful)
+                                {
+                                    logger?.LogWarning(
+                                        "Some files failed to normalize: {FailedFiles}",
+                                        string.Join(", ", result.FailedFiles));
+                                }
+                            }
+                            else
+                            {
+                                StatusMessage = $"Normalization warning: {normalizationResult.FirstError}. Import will continue.";
+                                normalizationSetStatus = true;
+                                logger?.LogWarning("Normalization failed: {Error}", normalizationResult.FirstError);
+                            }
+                        }
+                        else
+                        {
+                            logger?.LogInformation("User skipped normalization");
+                            StatusMessage = "Import successful (GenLauncher files not normalized).";
+                            normalizationSetStatus = true;
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                logger?.LogInformation("GenLauncher detection/normalization was cancelled");
+                StatusMessage = "Import cancelled.";
+                return;
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "Error during GenLauncher detection/normalization");
+                StatusMessage = "Import successful (normalization check failed).";
+                normalizationSetStatus = true;
+            }
+
             await RefreshStagingTreeAsync();
-            StatusMessage = "Import successful.";
+
+            // Only set generic message if normalization didn't set a specific one
+            if (!normalizationSetStatus)
+            {
+                StatusMessage = "Import successful.";
+            }
+
             Validate();
         }
         catch (Exception ex)
@@ -397,6 +603,7 @@ public partial class AddLocalContentViewModel(
     [RelayCommand]
     private void Cancel()
     {
+        _cts?.Cancel();
         CleanupStaging();
         RequestClose?.Invoke(this, false);
     }
@@ -427,34 +634,61 @@ public partial class AddLocalContentViewModel(
             {
                 if (p.TotalCount > 0)
                 {
-                    StatusMessage = $"Importing: {p.Percentage:0}% ({p.ProcessedCount}/{p.TotalCount} files)";
+                    StatusMessage = $"{(IsEditing ? "Updating" : "Importing")}: {p.Percentage:0}% ({p.ProcessedCount}/{p.TotalCount} files)";
                 }
             });
 
-            var result = await localContentService.CreateLocalContentManifestAsync(
-                _stagingPath,
-                ContentName,
-                SelectedContentType,
-                targetGame,
-                progress);
+            _cts = new CancellationTokenSource();
+
+            // Preserve SourcePath metadata if available
+            // Note: We no longer write to "source.path" file to avoid polluting the content.
+            // Instead we pass the SourcePath directly to the service.
+            GenHub.Core.Models.Results.OperationResult<GenHub.Core.Models.Manifest.ContentManifest> result;
+
+            if (IsEditing && _originalManifestId != null)
+            {
+                 result = await localContentService.UpdateLocalContentManifestAsync(
+                    _originalManifestId,
+                    ContentName,
+                    _stagingPath,
+                    SelectedContentType,
+                    targetGame,
+                    SourcePath,
+                    progress,
+                    _cts.Token);
+            }
+            else
+            {
+                result = await localContentService.CreateLocalContentManifestAsync(
+                    _stagingPath,
+                    ContentName,
+                    SelectedContentType,
+                    targetGame,
+                    SourcePath,
+                    progress,
+                    _cts.Token);
+            }
 
             if (result.Success)
             {
                 var manifest = result.Data;
                 CreatedContentItem = new ContentDisplayItem
                 {
+                    Id = manifest.Id.Value,
                     ManifestId = Core.Models.Manifest.ManifestId.Create(manifest.Id),
                     DisplayName = manifest.Name ?? ContentName,
                     ContentType = manifest.ContentType,
                     GameType = manifest.TargetGame,
                     InstallationType = GameInstallationType.Unknown,
                     Publisher = manifest.Publisher?.Name ?? "GenHub (Local)",
-                    Version = manifest.Version ?? "1.0.0",
-                    SourceId = SourcePath,
+                    Version = manifest.Version ?? string.Empty,
+                    SourcePath = SourcePath,
+                    SourceId = SourcePath, // Preserve legacy field for compatibility
                     IsEnabled = false,
+                    IsEditable = true,
                 };
 
-                CleanupStaging();
+                // CleanupStaging(); // Moved to finally block
                 ContentAdded?.Invoke(this, EventArgs.Empty);
                 RequestClose?.Invoke(this, true);
             }
@@ -463,6 +697,11 @@ public partial class AddLocalContentViewModel(
                 StatusMessage = $"Error: {result.FirstError}";
             }
         }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = "Operation cancelled";
+            logger?.LogInformation("Content creation/update cancelled by user");
+        }
         catch (Exception ex)
         {
             StatusMessage = $"Error: {ex.Message}";
@@ -470,6 +709,9 @@ public partial class AddLocalContentViewModel(
         }
         finally
         {
+            _cts?.Dispose();
+            _cts = null;
+            CleanupStaging(); // Ensure cleanup happens on success, failure, or cancellation
             IsBusy = false;
         }
     }

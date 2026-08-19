@@ -1,10 +1,12 @@
 using GenHub.Core.Interfaces.Workspace;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameClients;
+using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Workspace;
 using GenHub.Features.Workspace.Strategies;
 using Microsoft.Extensions.Logging;
 using Moq;
+using ManifestContentType = GenHub.Core.Models.Enums.ContentType;
 
 namespace GenHub.Tests.Core.Features.Workspace;
 
@@ -251,6 +253,108 @@ public class StrategyTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies that hard-link preparation copies CAS content instead of rejecting a cross-volume workspace.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task HardLinkStrategy_WhenVolumesDiffer_FallsBackToCopy()
+    {
+        const string Hash = "test-hash";
+        var strategy = new HardLinkStrategy(_fileOps.Object, new Mock<ILogger<HardLinkStrategy>>().Object);
+        var configuration = new WorkspaceConfiguration
+        {
+            Id = "cross-volume",
+            Strategy = WorkspaceStrategy.HardLink,
+            WorkspaceRootPath = _tempDir,
+            BaseInstallationPath = "relative-installation-path",
+            GameClient = new GameClient { Id = "test" },
+            Manifests =
+            [
+                new ContentManifest
+                {
+                    ContentType = ManifestContentType.GameClient,
+                    Files =
+                    [
+                        new ManifestFile
+                        {
+                            RelativePath = "game.exe",
+                            Hash = Hash,
+                            Size = 1024,
+                            InstallTarget = ContentInstallTarget.Workspace,
+                            SourceType = ContentSourceType.ContentAddressable,
+                        },
+                    ],
+                },
+            ],
+        };
+        _fileOps
+            .Setup(service => service.LinkFromCasAsync(
+                Hash,
+                It.IsAny<string>(),
+                true,
+                ManifestContentType.GameClient,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        _fileOps
+            .Setup(service => service.CopyFromCasAsync(
+                Hash,
+                It.IsAny<string>(),
+                ManifestContentType.GameClient,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var result = await strategy.PrepareAsync(configuration, null, CancellationToken.None);
+
+        Assert.True(result.IsPrepared);
+        _fileOps.Verify(
+            service => service.CopyFromCasAsync(
+                Hash,
+                It.IsAny<string>(),
+                ManifestContentType.GameClient,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Tests that for all strategies, a file with InstallTarget != Workspace
+    /// does NOT result in a call to file operations for that specific path.
+    /// </summary>
+    /// <param name="strategyType">The strategy type to test.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Theory]
+    [InlineData(WorkspaceStrategy.FullCopy)]
+    [InlineData(WorkspaceStrategy.SymlinkOnly)]
+    [InlineData(WorkspaceStrategy.HybridCopySymlink)]
+    [InlineData(WorkspaceStrategy.HardLink)]
+    public async Task AllStrategies_NonWorkspaceTarget_ExcludesFromFileOperations(WorkspaceStrategy strategyType)
+    {
+        // Arrange
+        var strategy = CreateStrategy(strategyType);
+        var config = CreateValidConfiguration(strategyType);
+
+        // Add a file that should be ignored by workspace strategies
+        var mapFile = new ManifestFile
+        {
+            RelativePath = "Maps/MyTestMap.map",
+            Size = 5000,
+            InstallTarget = ContentInstallTarget.UserMapsDirectory,
+            SourceType = ContentSourceType.LocalFile,
+        };
+        config.Manifests[0].Files.Add(mapFile);
+
+        // Act
+        await strategy.PrepareAsync(config, null, CancellationToken.None);
+
+        // Assert
+        // The workspace path for the map file should NOT have been touched by any workspace-specific file operations
+        var workspaceMapPath = Path.Combine(_tempDir, "test", mapFile.RelativePath);
+
+        _fileOps.Verify(f => f.CopyFileAsync(It.IsAny<string>(), It.Is<string>(p => p == workspaceMapPath), It.IsAny<CancellationToken>()), Times.Never());
+        _fileOps.Verify(f => f.CreateHardLinkAsync(It.Is<string>(p => p == workspaceMapPath), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never());
+        _fileOps.Verify(f => f.CreateSymlinkAsync(It.Is<string>(p => p == workspaceMapPath), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never());
+    }
+
+    /// <summary>
     /// Disposes of test resources.
     /// </summary>
     public void Dispose()
@@ -259,6 +363,8 @@ public class StrategyTests : IDisposable
         {
             Directory.Delete(_tempDir, true);
         }
+
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>
