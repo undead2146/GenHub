@@ -15,9 +15,9 @@ public static class CommandLineParser
     /// <returns>The extracted profile identifier if present; otherwise, <c>null</c>.</returns>
     public static string? ExtractProfileId(string[] args)
     {
-        for (var i = 0; i < args.Length; i++)
+        for (int i = 0; i < args.Length; i++)
         {
-            var arg = args[i];
+            string arg = args[i];
 
             if (arg.Equals(CommandLineConstants.LaunchProfileArg, StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
             {
@@ -34,22 +34,25 @@ public static class CommandLineParser
     }
 
     /// <summary>
-    /// Extracts a subscription URL from command line arguments.
-    /// Supports the URI scheme format: <c>genhub://subscribe?url=&lt;url&gt;</c>.
+    /// Extracts the absolute URL from a <c>genhub://subscribe?url=...</c> startup argument.
     /// </summary>
+    /// <remarks>
+    /// The returned value is the <c>url</c> query value only (not the <c>genhub://</c> wrapper).
+    /// Callers treat it as a GenHub catalog JSON URL today; later it may also be a Provider
+    /// Definition URL without changing this parser.
+    /// </remarks>
     /// <param name="args">The command line arguments.</param>
-    /// <returns>The extracted catalog URL if present; otherwise, <c>null</c>.</returns>
+    /// <returns>The decoded absolute URL if present; otherwise, <c>null</c>.</returns>
     public static string? ExtractSubscriptionUrl(string[] args)
     {
-        foreach (var arg in args)
+        foreach (string arg in args)
         {
             if (arg.StartsWith(CommandLineConstants.SubscribeUriPrefix, StringComparison.OrdinalIgnoreCase))
             {
-                // Simple parsing for ?url=...
-                var queryStart = arg.IndexOf(CommandLineConstants.SubscribeUrlParam, StringComparison.OrdinalIgnoreCase);
+                int queryStart = arg.IndexOf(CommandLineConstants.SubscribeUrlParam, StringComparison.OrdinalIgnoreCase);
                 if (queryStart != -1)
                 {
-                    var url = arg[(queryStart + CommandLineConstants.SubscribeUrlParam.Length)..];
+                    string url = arg[(queryStart + CommandLineConstants.SubscribeUrlParam.Length)..];
                     return Uri.UnescapeDataString(url).Trim('"');
                 }
             }
