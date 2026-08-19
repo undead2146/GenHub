@@ -7,7 +7,7 @@ using GenHub.Core.Models.Storage;
 namespace GenHub.Core.Models.Common;
 
 /// <summary>Represents application-level and user-specific settings for GenHub.</summary>
-public class UserSettings : ICloneable
+public class UserSettings
 {
     /// <summary>Gets or sets the application theme preference.</summary>
     public string? Theme { get; set; } = GenHub.Core.Constants.AppConstants.DefaultThemeName;
@@ -137,7 +137,7 @@ public class UserSettings : ICloneable
 
     /// <summary>Creates a deep copy of the current UserSettings instance.</summary>
     /// <returns>A new UserSettings instance with all properties deeply copied.</returns>
-    public object Clone()
+    public UserSettings Clone()
     {
         return new UserSettings
         {
@@ -267,7 +267,7 @@ public class UserSettings : ICloneable
     /// <returns>True if subscribed; otherwise, false.</returns>
     public bool IsSubscribedTo(string publisherId)
     {
-        return GetSubscription(publisherId)?.IsActive ?? false; // Default to not subscribed for safety
+        return GetSubscription(publisherId)?.IsActive == true; // Default to not subscribed for safety
     }
 
     /// <summary>
@@ -296,7 +296,7 @@ public class UserSettings : ICloneable
     {
         // Check new subscription system
         var subscription = GetSubscription(publisherId);
-        if (subscription != null && subscription.ShouldSkipVersion(version))
+        if (subscription?.ShouldSkipVersion(version) == true)
         {
             return true;
         }

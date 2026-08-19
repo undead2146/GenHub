@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
@@ -72,13 +73,28 @@ public partial class AddLocalContentWindow : Window
         }
     }
 
-    private async void OnAdminDrop(string[] files)
+    private void OnAdminDrop(string[] files)
     {
-        if (DataContext is not AddLocalContentViewModel vm) return;
+        _ = ProcessAdminDropAsync(files);
+    }
 
-        foreach (var file in files)
+    private async Task ProcessAdminDropAsync(string[] files)
+    {
+        if (DataContext is not AddLocalContentViewModel vm)
         {
-            await vm.ImportContentAsync(file);
+            return;
+        }
+
+        try
+        {
+            foreach (var file in files)
+            {
+                await vm.ImportContentAsync(file);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error during admin drop import: {ex.Message}");
         }
     }
 
@@ -90,14 +106,7 @@ public partial class AddLocalContentWindow : Window
     // Drag & Drop handlers
     private void OnDragOver(object? sender, DragEventArgs e)
     {
-        if (e.Data.Contains(DataFormats.Files))
-        {
-            e.DragEffects = DragDropEffects.Copy;
-        }
-        else
-        {
-            e.DragEffects = DragDropEffects.None;
-        }
+        e.DragEffects = e.Data.Contains(DataFormats.Files) ? DragDropEffects.Copy : DragDropEffects.None;
     }
 
     private async void OnDrop(object? sender, DragEventArgs e)

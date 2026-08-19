@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.UserData;
 using GenHub.Core.Interfaces.Workspace;
 using GenHub.Core.Models.Enums;
@@ -26,7 +27,8 @@ namespace GenHub.Features.UserData.Services;
 public class UserDataTrackerService(
     IConfigurationProviderService configProvider,
     IFileOperationsService fileOperations,
-    ILogger<UserDataTrackerService> logger) : IUserDataTracker
+    ILogger<UserDataTrackerService> logger,
+    IGamePathProvider pathProvider) : IUserDataTracker
 {
     private static readonly SemaphoreSlim IndexLock = new(1, 1);
     private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
@@ -56,6 +58,7 @@ public class UserDataTrackerService(
             profileId,
             targetGame);
 
+        await IndexLock.WaitAsync(cancellationToken);
         try
         {
             // Filter to only user data files
@@ -84,108 +87,71 @@ public class UserDataTrackerService(
             };
 
             var userDataBasePath = GetUserDataBasePath(targetGame);
-            long totalSize = 0;
-
+            var resolvedFiles = new List<(ManifestFile File, string TargetPath)>(userDataFiles.Count);
             foreach (var file in userDataFiles)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    var targetPath = ResolveUserDataTargetPath(file.InstallTarget, file.RelativePath, userDataBasePath);
+                    resolvedFiles.Add((file, targetPath));
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "[UserData] Invalid file path in manifest: {Path}", file.RelativePath);
+                    return OperationResult<UserDataManifest>.CreateFailure($"Invalid file path in manifest: {file.RelativePath}");
+                }
+            }
 
-                var targetPath = ResolveUserDataTargetPath(file.InstallTarget, file.RelativePath, userDataBasePath);
+            long totalSize = 0;
+            var existingManifest = await LoadUserDataManifestByKeyAsync(userDataManifest.InstallationKey, cancellationToken);
+            var priorFiles = existingManifest?.InstalledFiles?.ToDictionary(
+                f => f.AbsolutePath,
+                f => f,
+                OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+
+            foreach (var (file, targetPath) in resolvedFiles)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
 
                 logger.LogDebug("[UserData] Installing {RelativePath} to {TargetPath}", file.RelativePath, targetPath);
 
-                // Check for conflicts
-                var conflictResult = await CheckFileConflictAsync(targetPath, cancellationToken);
-                var wasOverwritten = false;
-                string? backupPath = null;
+                UserDataFileEntry? priorEntry = null;
+                priorFiles?.TryGetValue(targetPath, out priorEntry);
 
-                if (File.Exists(targetPath))
+                var installResult = await InstallSingleUserDataFileAsync(file, targetPath, targetGame, userDataManifest.InstallationKey, priorEntry, cancellationToken);
+                if (!installResult.Success || installResult.Data == null)
                 {
-                    // File exists - back it up if it's not from another installation
-                    if (conflictResult.Success && string.IsNullOrEmpty(conflictResult.Data))
-                    {
-                        // User's own file - back it up
-                        backupPath = await BackupExistingFileAsync(targetPath, targetGame, cancellationToken);
-                        wasOverwritten = true;
-                        logger.LogInformation("[UserData] Backed up existing user file: {Path} -> {Backup}", targetPath, backupPath);
-                    }
-                    else if (conflictResult.Data != userDataManifest.InstallationKey)
-                    {
-                        // Another installation owns this file - skip or handle conflict
-                        logger.LogWarning("[UserData] File conflict with installation {Key}: {Path}", conflictResult.Data, targetPath);
-                    }
-
-                    // Delete existing to replace
-                    FileOperationsService.DeleteFileIfExists(targetPath);
+                    await CleanupInstalledFilesAsync(userDataManifest, CancellationToken.None);
+                    return OperationResult<UserDataManifest>.CreateFailure(installResult.FirstError ?? $"Failed to install '{targetPath}'.");
                 }
 
-                // Ensure target directory exists
-                var targetDir = Path.GetDirectoryName(targetPath);
-                if (!string.IsNullOrEmpty(targetDir))
-                {
-                    Directory.CreateDirectory(targetDir);
-                }
-
-                // Try to create hard link from CAS if possible
-                var isHardLink = false;
-                if (!string.IsNullOrEmpty(file.Hash))
-                {
-                    var linkResult = await fileOperations.LinkFromCasAsync(
-                        file.Hash,
-                        targetPath,
-                        useHardLink: true,
-                        contentType: null,
-                        cancellationToken: cancellationToken);
-
-                    if (linkResult)
-                    {
-                        isHardLink = true;
-                        logger.LogDebug("[UserData] Created hard link for {Path}", targetPath);
-                    }
-                    else
-                    {
-                        // Fall back to copy
-                        var copyResult = await fileOperations.CopyFromCasAsync(file.Hash, targetPath, contentType: null, cancellationToken: cancellationToken);
-                        if (!copyResult)
-                        {
-                            logger.LogError("[UserData] Failed to install file {Path}", targetPath);
-                            continue;
-                        }
-
-                        logger.LogDebug("[UserData] Copied file for {Path} (hard link failed)", targetPath);
-                    }
-                }
-                else
-                {
-                    logger.LogWarning("[UserData] File {Path} has no hash, skipping", file.RelativePath);
-                    continue;
-                }
-
-                var entry = new UserDataFileEntry
-                {
-                    RelativePath = file.RelativePath,
-                    AbsolutePath = targetPath,
-                    SourceHash = file.Hash,
-                    FileSize = file.Size,
-                    InstallTarget = file.InstallTarget,
-                    WasOverwritten = wasOverwritten,
-                    BackupPath = backupPath,
-                    InstalledAt = DateTime.UtcNow,
-                    IsHardLink = isHardLink,
-                    CasHash = file.Hash,
-                };
-
+                var entry = installResult.Data;
                 userDataManifest.InstalledFiles.Add(entry);
-                totalSize += file.Size;
+                totalSize += entry.FileSize;
             }
 
             userDataManifest.TotalSizeBytes = totalSize;
 
-            // Save the manifest
-            await SaveUserDataManifestAsync(userDataManifest, cancellationToken);
+            try
+            {
+                // Save the manifest
+                await SaveUserDataManifestAsync(userDataManifest, cancellationToken);
 
-            // Update the index
-            await UpdateIndexAsync(userDataManifest, isAdd: true, cancellationToken);
+                // Update the index
+                await UpdateIndexUnlockedAsync(userDataManifest, isAdd: true, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                await CleanupInstalledFilesAsync(userDataManifest, CancellationToken.None);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[UserData] Failed to persist manifest or update index for {ManifestId}; cleaning up installed files", manifestId);
+                await CleanupInstalledFilesAsync(userDataManifest, CancellationToken.None);
+                throw;
+            }
 
             logger.LogInformation(
                 "[UserData] Successfully installed {Count} files ({Size} bytes) for manifest {ManifestId}",
@@ -195,10 +161,18 @@ public class UserDataTrackerService(
 
             return OperationResult<UserDataManifest>.CreateSuccess(userDataManifest);
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "[UserData] Failed to install user data for manifest {ManifestId}", manifestId);
             return OperationResult<UserDataManifest>.CreateFailure($"Failed to install user data: {ex.Message}");
+        }
+        finally
+        {
+            IndexLock.Release();
         }
     }
 
@@ -210,6 +184,7 @@ public class UserDataTrackerService(
     {
         logger.LogInformation("[UserData] Uninstalling user data for manifest {ManifestId}, profile {ProfileId}", manifestId, profileId);
 
+        await IndexLock.WaitAsync(cancellationToken);
         try
         {
             var manifestResult = await GetUserDataManifestAsync(manifestId, profileId, cancellationToken);
@@ -227,7 +202,7 @@ public class UserDataTrackerService(
             await DeleteUserDataManifestAsync(manifestId, profileId, cancellationToken);
 
             // Update the index
-            await UpdateIndexAsync(manifest, isAdd: false, cancellationToken);
+            await UpdateIndexUnlockedAsync(manifest, isAdd: false, cancellationToken);
 
             logger.LogInformation("[UserData] Successfully uninstalled user data for manifest {ManifestId}", manifestId);
             return OperationResult<bool>.CreateSuccess(true);
@@ -241,6 +216,10 @@ public class UserDataTrackerService(
             logger.LogError(ex, "[UserData] Failed to uninstall user data for manifest {ManifestId}", manifestId);
             return OperationResult<bool>.CreateFailure($"Failed to uninstall user data: {ex.Message}");
         }
+        finally
+        {
+            IndexLock.Release();
+        }
     }
 
     /// <inheritdoc />
@@ -248,12 +227,18 @@ public class UserDataTrackerService(
         string profileId,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         logger.LogInformation("[UserData] Activating user data for profile {ProfileId}", profileId);
 
         try
         {
             var manifestsResult = await GetProfileUserDataAsync(profileId, cancellationToken);
-            if (!manifestsResult.Success || manifestsResult.Data == null)
+            if (!manifestsResult.Success)
+            {
+                return OperationResult<bool>.CreateFailure(manifestsResult.FirstError ?? "Failed to get user data manifests");
+            }
+
+            if (manifestsResult.Data == null || manifestsResult.Data.Count == 0)
             {
                 return OperationResult<bool>.CreateSuccess(true); // No user data to activate
             }
@@ -265,46 +250,19 @@ public class UserDataTrackerService(
                     continue; // Already active
                 }
 
-                // Re-create hard links for all files
-                foreach (var file in manifest.InstalledFiles)
+                var activationResult = await ActivateSingleManifestAsync(manifest, profileId, cancellationToken);
+                if (!activationResult.Success)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    if (File.Exists(file.AbsolutePath))
-                    {
-                        continue; // File already exists
-                    }
-
-                    if (!string.IsNullOrEmpty(file.CasHash))
-                    {
-                        var targetDir = Path.GetDirectoryName(file.AbsolutePath);
-                        if (!string.IsNullOrEmpty(targetDir))
-                        {
-                            Directory.CreateDirectory(targetDir);
-                        }
-
-                        var linkResult = await fileOperations.LinkFromCasAsync(
-                            file.CasHash,
-                            file.AbsolutePath,
-                            useHardLink: true,
-                            contentType: null,
-                            cancellationToken: cancellationToken);
-
-                        if (!linkResult)
-                        {
-                            // Fall back to copy
-                            await fileOperations.CopyFromCasAsync(file.CasHash, file.AbsolutePath, contentType: null, cancellationToken: cancellationToken);
-                        }
-                    }
+                    return activationResult;
                 }
-
-                // Update manifest state
-                manifest.IsActive = true;
-                await SaveUserDataManifestAsync(manifest, cancellationToken);
             }
 
             logger.LogInformation("[UserData] Activated {Count} manifests for profile {ProfileId}", manifestsResult.Data.Count, profileId);
             return OperationResult<bool>.CreateSuccess(true);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -318,15 +276,24 @@ public class UserDataTrackerService(
         string profileId,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         logger.LogInformation("[UserData] Deactivating user data for profile {ProfileId}", profileId);
 
         try
         {
             var manifestsResult = await GetProfileUserDataAsync(profileId, cancellationToken);
-            if (!manifestsResult.Success || manifestsResult.Data == null)
+            if (!manifestsResult.Success)
+            {
+                return OperationResult<bool>.CreateFailure(manifestsResult.FirstError ?? "Failed to get user data manifests");
+            }
+
+            if (manifestsResult.Data == null || manifestsResult.Data.Count == 0)
             {
                 return OperationResult<bool>.CreateSuccess(true); // No user data to deactivate
             }
+
+            var allSuccess = true;
+            var deactivatedCount = 0;
 
             foreach (var manifest in manifestsResult.Data)
             {
@@ -335,32 +302,96 @@ public class UserDataTrackerService(
                     continue; // Already inactive
                 }
 
-                // Remove hard links but keep tracking
+                var manifestHasErrors = false;
+                var userDataBasePath = GetUserDataBasePath(manifest.TargetGame);
+
+                // Remove hard links and copied files but keep tracking
                 foreach (var file in manifest.InstalledFiles)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    if (file.IsHardLink && File.Exists(file.AbsolutePath))
+                    if (File.Exists(file.AbsolutePath))
                     {
                         try
                         {
-                            File.Delete(file.AbsolutePath);
-                            CleanupEmptyDirectories(Path.GetDirectoryName(file.AbsolutePath));
+                            var isMatch = await fileOperations.VerifyFileHashAsync(file.AbsolutePath, file.SourceHash, cancellationToken);
+                            cancellationToken.ThrowIfCancellationRequested();
+
+                            if (isMatch)
+                            {
+                                File.Delete(file.AbsolutePath);
+                                CleanupEmptyDirectories(Path.GetDirectoryName(file.AbsolutePath), userDataBasePath);
+                            }
+                            else
+                            {
+                                logger.LogWarning("[UserData] File hash mismatch, user may have modified: {Path}; preserving file", file.AbsolutePath);
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            manifestHasErrors = true;
+                            allSuccess = false;
+                            throw;
                         }
                         catch (Exception ex)
                         {
-                            logger.LogWarning(ex, "[UserData] Failed to remove hard link: {Path}", file.AbsolutePath);
+                            logger.LogWarning(ex, "[UserData] Failed to remove active file: {Path}", file.AbsolutePath);
+                            manifestHasErrors = true;
+                            allSuccess = false;
+                        }
+                    }
+
+                    // If an original user file was backed up and the target file was removed or absent, restore it upon deactivation
+                    if (!File.Exists(file.AbsolutePath) && !string.IsNullOrEmpty(file.BackupPath) && File.Exists(file.BackupPath))
+                    {
+                        try
+                        {
+                            var targetDir = Path.GetDirectoryName(file.AbsolutePath);
+                            if (!string.IsNullOrEmpty(targetDir))
+                            {
+                                Directory.CreateDirectory(targetDir);
+                            }
+
+                            File.Copy(file.BackupPath, file.AbsolutePath, overwrite: true);
+                            logger.LogInformation("[UserData] Restored backup during deactivation: {Backup} -> {Path}", file.BackupPath, file.AbsolutePath);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            throw;
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogWarning(ex, "[UserData] Failed to restore backup during deactivation: {Path}", file.AbsolutePath);
+                            manifestHasErrors = true;
+                            allSuccess = false;
                         }
                     }
                 }
 
-                // Update manifest state
-                manifest.IsActive = false;
-                await SaveUserDataManifestAsync(manifest, cancellationToken);
+                // Update manifest state only after all files in this manifest are processed without errors
+                if (!manifestHasErrors)
+                {
+                    manifest.IsActive = false;
+                    await SaveUserDataManifestAsync(manifest, CancellationToken.None);
+                    deactivatedCount++;
+                }
+                else
+                {
+                    logger.LogWarning("[UserData] Deactivation had errors for manifest {ManifestId}; keeping IsActive unchanged for retry", manifest.ManifestId);
+                }
             }
 
-            logger.LogInformation("[UserData] Deactivated {Count} manifests for profile {ProfileId}", manifestsResult.Data.Count, profileId);
+            if (!allSuccess)
+            {
+                return OperationResult<bool>.CreateFailure("One or more files failed during deactivation; active state preserved for retry");
+            }
+
+            logger.LogInformation("[UserData] Deactivated {Count} manifests for profile {ProfileId}", deactivatedCount, profileId);
             return OperationResult<bool>.CreateSuccess(true);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -394,6 +425,10 @@ public class UserDataTrackerService(
 
             return OperationResult<IReadOnlyList<UserDataManifest>>.CreateSuccess(manifests);
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "[UserData] Failed to get profile user data for {ProfileId}", profileId);
@@ -416,7 +451,7 @@ public class UserDataTrackerService(
             foreach (var file in manifestFiles)
             {
                 var manifest = await LoadUserDataManifestFromFileAsync(file, cancellationToken);
-                if (manifest != null && manifest.TargetGame == targetGame)
+                if (manifest is { TargetGame: var manifestGame } && manifestGame == targetGame)
                 {
                     manifests.Add(manifest);
                 }
@@ -476,14 +511,11 @@ public class UserDataTrackerService(
                     continue;
                 }
 
-                if (!file.IsHardLink)
+                if (!file.IsHardLink &&
+                    !await fileOperations.VerifyFileHashAsync(file.AbsolutePath, file.SourceHash, cancellationToken))
                 {
-                    // Verify hash for copied files
-                    if (!await fileOperations.VerifyFileHashAsync(file.AbsolutePath, file.SourceHash, cancellationToken))
-                    {
-                        logger.LogWarning("[UserData] File hash mismatch: {Path}", file.AbsolutePath);
-                        allValid = false;
-                    }
+                    logger.LogWarning("[UserData] File hash mismatch: {Path}", file.AbsolutePath);
+                    allValid = false;
                 }
             }
 
@@ -655,33 +687,31 @@ public class UserDataTrackerService(
         }
     }
 
-    private static string GetUserDataBasePath(GameType gameType)
-    {
-        var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-
-        return gameType switch
-        {
-            GameType.Generals => Path.Combine(documentsPath, GameSettingsConstants.FolderNames.Generals),
-            GameType.ZeroHour => Path.Combine(documentsPath, GameSettingsConstants.FolderNames.ZeroHour),
-            _ => Path.Combine(documentsPath, GameSettingsConstants.FolderNames.ZeroHour),
-        };
-    }
-
     private static string ResolveUserDataTargetPath(ContentInstallTarget installTarget, string relativePath, string userDataBasePath)
     {
-        return installTarget switch
+        var normalizedRelativePath = relativePath.Replace('\\', '/');
+        var targetPath = installTarget switch
         {
-            ContentInstallTarget.UserDataDirectory => Path.Combine(userDataBasePath, relativePath),
-            ContentInstallTarget.UserMapsDirectory => Path.Combine(userDataBasePath, GameSettingsConstants.FolderNames.Maps, StripLeadingDirectory(relativePath, "Maps")),
-            ContentInstallTarget.UserReplaysDirectory => Path.Combine(userDataBasePath, GameSettingsConstants.FolderNames.Replays, StripLeadingDirectory(relativePath, "Replays")),
-            ContentInstallTarget.UserScreenshotsDirectory => Path.Combine(userDataBasePath, GameSettingsConstants.FolderNames.Screenshots, StripLeadingDirectory(relativePath, "Screenshots")),
-            _ => Path.Combine(userDataBasePath, relativePath),
+            ContentInstallTarget.UserDataDirectory => Path.Combine(userDataBasePath, normalizedRelativePath),
+            ContentInstallTarget.UserMapsDirectory => Path.Combine(userDataBasePath, GameSettingsConstants.FolderNames.Maps, StripLeadingDirectory(normalizedRelativePath, "Maps")),
+            ContentInstallTarget.UserReplaysDirectory => Path.Combine(userDataBasePath, GameSettingsConstants.FolderNames.Replays, StripLeadingDirectory(normalizedRelativePath, "Replays")),
+            ContentInstallTarget.UserScreenshotsDirectory => Path.Combine(userDataBasePath, GameSettingsConstants.FolderNames.Screenshots, StripLeadingDirectory(normalizedRelativePath, "Screenshots")),
+            _ => Path.Combine(userDataBasePath, normalizedRelativePath),
         };
+
+        var fullPath = Path.GetFullPath(targetPath);
+        var basePath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(userDataBasePath));
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (!fullPath.StartsWith(basePath + Path.DirectorySeparatorChar, comparison))
+        {
+            throw new InvalidOperationException($"Relative path escapes the user data directory: {relativePath}");
+        }
+
+        return fullPath;
     }
 
     /// <summary>
-    /// Strips a leading directory name from a path if present.
-    /// Handles both forward and back slashes.
+    /// Strips a leading directory name from a relative path if present.
     /// </summary>
     /// <param name="path">The path to process.</param>
     /// <param name="directoryName">The directory name to strip (without slashes).</param>
@@ -700,18 +730,65 @@ public class UserDataTrackerService(
         return path;
     }
 
-    private static void CleanupEmptyDirectories(string? directoryPath)
+    private static void RestoreBackupQuietly(string? backupPath, string targetPath, bool wasOverwritten, ILogger? logger = null)
     {
-        if (string.IsNullOrEmpty(directoryPath))
+        if (wasOverwritten && !string.IsNullOrEmpty(backupPath) && File.Exists(backupPath))
+        {
+            try
+            {
+                File.Copy(backupPath, targetPath, overwrite: true);
+                File.Delete(backupPath);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "[UserData] Failed to restore safety backup from {BackupPath} to {TargetPath}", backupPath, targetPath);
+            }
+        }
+    }
+
+    private static void CleanupSupersededBackups(IReadOnlyList<string> supersededBackups, ILogger logger)
+    {
+        foreach (var oldBackup in supersededBackups)
+        {
+            try
+            {
+                if (File.Exists(oldBackup))
+                {
+                    File.Delete(oldBackup);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "[UserData] Failed to delete superseded backup file {OldBackup}", oldBackup);
+            }
+        }
+    }
+
+    private static void CleanupEmptyDirectories(string? directoryPath, string? stopAtDirectory = null)
+    {
+        if (string.IsNullOrEmpty(directoryPath) || string.IsNullOrEmpty(stopAtDirectory))
         {
             return;
         }
 
         try
         {
-            while (Directory.Exists(directoryPath) &&
-                   !Directory.EnumerateFileSystemEntries(directoryPath).Any())
+            var normalizedStop = Path.TrimEndingDirectorySeparator(Path.GetFullPath(stopAtDirectory));
+            var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            while (Directory.Exists(directoryPath))
             {
+                var fullDir = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directoryPath));
+                if (string.Equals(fullDir, normalizedStop, comparison) ||
+                    !fullDir.StartsWith(normalizedStop + Path.DirectorySeparatorChar, comparison))
+                {
+                    break;
+                }
+
+                if (Directory.EnumerateFileSystemEntries(directoryPath).Any())
+                {
+                    break;
+                }
+
                 Directory.Delete(directoryPath);
                 directoryPath = Path.GetDirectoryName(directoryPath);
 
@@ -727,32 +804,311 @@ public class UserDataTrackerService(
         }
     }
 
-    private async Task CleanupInstalledFilesAsync(UserDataManifest manifest, CancellationToken cancellationToken)
+    private async Task<OperationResult<bool>> ActivateSingleManifestAsync(
+        UserDataManifest manifest,
+        string profileId,
+        CancellationToken cancellationToken)
     {
-        foreach (var file in manifest.InstalledFiles)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
+        var filesActivatedInThisManifest = new List<UserDataFileEntry>();
+        var supersededBackups = new List<string>();
 
+        try
+        {
+            foreach (var file in manifest.InstalledFiles)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var fileResult = await ActivateSingleFileAsync(file, manifest, filesActivatedInThisManifest, supersededBackups, cancellationToken);
+                if (!fileResult.Success)
+                {
+                    var userDataBasePath = GetUserDataBasePath(manifest.TargetGame);
+                    RollbackActivatedFiles(filesActivatedInThisManifest, userDataBasePath);
+
+                    manifest.IsActive = false;
+                    try
+                    {
+                        await SaveUserDataManifestAsync(manifest, CancellationToken.None);
+                    }
+                    catch (Exception saveEx)
+                    {
+                        logger.LogError(saveEx, "[UserData] Failed to persist rolled-back manifest state for {ManifestId}", manifest.ManifestId);
+                    }
+
+                    CleanupSupersededBackups(supersededBackups, logger);
+
+                    return fileResult;
+                }
+            }
+
+            manifest.IsActive = true;
+            await SaveUserDataManifestAsync(manifest, cancellationToken);
+            CleanupSupersededBackups(supersededBackups, logger);
+            return OperationResult<bool>.CreateSuccess(true);
+        }
+        catch (OperationCanceledException)
+        {
+            var userDataBasePath = GetUserDataBasePath(manifest.TargetGame);
+            RollbackActivatedFiles(filesActivatedInThisManifest, userDataBasePath);
+
+            manifest.IsActive = false;
             try
             {
-                if (File.Exists(file.AbsolutePath))
-                {
-                    // Verify we should delete this file (hash matches or is our hard link)
-                    if (file.IsHardLink || await fileOperations.VerifyFileHashAsync(file.AbsolutePath, file.SourceHash, cancellationToken))
-                    {
-                        File.Delete(file.AbsolutePath);
-                        logger.LogDebug("[UserData] Deleted file: {Path}", file.AbsolutePath);
+                await SaveUserDataManifestAsync(manifest, CancellationToken.None);
+            }
+            catch (Exception saveEx)
+            {
+                logger.LogError(saveEx, "[UserData] Failed to persist cancelled manifest state for {ManifestId}", manifest.ManifestId);
+            }
 
-                        // Clean up empty directories
-                        CleanupEmptyDirectories(Path.GetDirectoryName(file.AbsolutePath));
-                    }
-                    else
-                    {
-                        logger.LogWarning("[UserData] File hash mismatch, user may have modified: {Path}", file.AbsolutePath);
-                    }
+            CleanupSupersededBackups(supersededBackups, logger);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[UserData] Failed during activation of manifest {ManifestId} for profile {ProfileId}; rolling back", manifest.ManifestId, profileId);
+            var userDataBasePath = GetUserDataBasePath(manifest.TargetGame);
+            RollbackActivatedFiles(filesActivatedInThisManifest, userDataBasePath);
+
+            manifest.IsActive = false;
+            try
+            {
+                await SaveUserDataManifestAsync(manifest, CancellationToken.None);
+            }
+            catch (Exception saveEx)
+            {
+                logger.LogError(saveEx, "[UserData] Failed to persist rolled-back manifest state for {ManifestId}", manifest.ManifestId);
+            }
+
+            CleanupSupersededBackups(supersededBackups, logger);
+            throw;
+        }
+    }
+
+    private async Task<OperationResult<bool>> ActivateSingleFileAsync(
+        UserDataFileEntry file,
+        UserDataManifest manifest,
+        List<UserDataFileEntry> filesActivatedInThisManifest,
+        List<string> supersededBackups,
+        CancellationToken cancellationToken)
+    {
+        if (File.Exists(file.AbsolutePath))
+        {
+            if (await fileOperations.VerifyFileHashAsync(file.AbsolutePath, file.SourceHash, cancellationToken))
+            {
+                return OperationResult<bool>.CreateSuccess(true);
+            }
+
+            var oldBackup = file.BackupPath;
+            var backupPath = await BackupExistingFileAsync(file.AbsolutePath, manifest.TargetGame, cancellationToken);
+            if (string.IsNullOrEmpty(backupPath))
+            {
+                logger.LogError("[UserData] Failed to create safety backup for {Path} during activation", file.AbsolutePath);
+                return OperationResult<bool>.CreateFailure($"Failed to create safety backup for '{file.AbsolutePath}' during activation");
+            }
+
+            var pathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            if (!string.IsNullOrEmpty(oldBackup) && !string.Equals(oldBackup, backupPath, pathComparison))
+            {
+                supersededBackups.Add(oldBackup);
+            }
+
+            file.BackupPath = backupPath;
+            file.WasOverwritten = true;
+
+            FileOperationsService.DeleteFileIfExists(file.AbsolutePath);
+        }
+
+        filesActivatedInThisManifest.Add(file);
+
+        if (string.IsNullOrEmpty(file.CasHash))
+        {
+            logger.LogError("[UserData] File {Path} has no CAS hash; cannot activate", file.AbsolutePath);
+            return OperationResult<bool>.CreateFailure($"File '{file.AbsolutePath}' has no CAS hash");
+        }
+
+        var targetDir = Path.GetDirectoryName(file.AbsolutePath);
+        if (!string.IsNullOrEmpty(targetDir))
+        {
+            Directory.CreateDirectory(targetDir);
+        }
+
+        var fileMaterialized = false;
+        try
+        {
+            var linkResult = await fileOperations.LinkFromCasAsync(
+                file.CasHash,
+                file.AbsolutePath,
+                useHardLink: true,
+                contentType: null,
+                cancellationToken: cancellationToken);
+
+            if (linkResult)
+            {
+                fileMaterialized = true;
+            }
+            else
+            {
+                var copyResult = await fileOperations.CopyFromCasAsync(file.CasHash, file.AbsolutePath, contentType: null, cancellationToken: cancellationToken);
+                if (copyResult)
+                {
+                    fileMaterialized = true;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[UserData] Exception while materializing file {Path} during activation", file.AbsolutePath);
+        }
+
+        if (!fileMaterialized)
+        {
+            logger.LogError("[UserData] Failed to materialize file {Path} during activation", file.AbsolutePath);
+            return OperationResult<bool>.CreateFailure($"Failed to materialize file '{file.AbsolutePath}' during activation");
+        }
+
+        return OperationResult<bool>.CreateSuccess(true);
+    }
+
+    private async Task<OperationResult<UserDataFileEntry>> InstallSingleUserDataFileAsync(
+        ManifestFile file,
+        string targetPath,
+        GameType targetGame,
+        string installationKey,
+        UserDataFileEntry? priorEntry,
+        CancellationToken cancellationToken)
+    {
+        var conflictResult = await CheckFileConflictUnlockedAsync(targetPath, cancellationToken);
+        if (!conflictResult.Success)
+        {
+            logger.LogError("[UserData] Failed to check file conflict for {Path}: {Error}; aborting installation", targetPath, conflictResult.FirstError);
+            return OperationResult<UserDataFileEntry>.CreateFailure($"Failed to check file conflict for '{targetPath}': {conflictResult.FirstError}");
+        }
+
+        if (!string.IsNullOrEmpty(conflictResult.Data) && conflictResult.Data != installationKey)
+        {
+            logger.LogError("[UserData] File conflict with installation {Key}: {Path}; aborting installation", conflictResult.Data, targetPath);
+            return OperationResult<UserDataFileEntry>.CreateFailure($"File '{targetPath}' is already managed by installation '{conflictResult.Data}'. Installation aborted.");
+        }
+
+        var wasOverwritten = false;
+        string? backupPath = null;
+
+        if (File.Exists(targetPath))
+        {
+            if (string.IsNullOrEmpty(conflictResult.Data))
+            {
+                backupPath = await BackupExistingFileAsync(targetPath, targetGame, cancellationToken);
+                if (string.IsNullOrEmpty(backupPath))
+                {
+                    logger.LogError("[UserData] Failed to create safety backup for user file {Path}; aborting installation to prevent data loss", targetPath);
+                    return OperationResult<UserDataFileEntry>.CreateFailure($"Failed to create safety backup for '{targetPath}'. Installation aborted.");
                 }
 
-                // Restore backup if exists
+                wasOverwritten = true;
+                logger.LogInformation("[UserData] Backed up existing user file: {Path} -> {Backup}", targetPath, backupPath);
+            }
+            else if (conflictResult.Data == installationKey && priorEntry != null)
+            {
+                wasOverwritten = priorEntry.WasOverwritten;
+                backupPath = priorEntry.BackupPath;
+            }
+
+            FileOperationsService.DeleteFileIfExists(targetPath);
+        }
+        else if (conflictResult.Data == installationKey && priorEntry != null)
+        {
+            wasOverwritten = priorEntry.WasOverwritten;
+            backupPath = priorEntry.BackupPath;
+        }
+
+        var targetDir = Path.GetDirectoryName(targetPath);
+        if (!string.IsNullOrEmpty(targetDir))
+        {
+            Directory.CreateDirectory(targetDir);
+        }
+
+        if (string.IsNullOrEmpty(file.Hash))
+        {
+            logger.LogError("[UserData] File {Path} has no hash; aborting installation", file.RelativePath);
+            RestoreBackupQuietly(backupPath, targetPath, wasOverwritten, logger);
+            return OperationResult<UserDataFileEntry>.CreateFailure($"File '{file.RelativePath}' has no hash. Installation aborted.");
+        }
+
+        var (materialized, isHardLink) = await MaterializeFileFromCasAsync(file.Hash, targetPath, backupPath, wasOverwritten, cancellationToken);
+        if (!materialized)
+        {
+            logger.LogError("[UserData] Failed to install file {Path}; aborting installation", targetPath);
+            RestoreBackupQuietly(backupPath, targetPath, wasOverwritten, logger);
+            return OperationResult<UserDataFileEntry>.CreateFailure($"Failed to install file '{targetPath}'. Installation aborted.");
+        }
+
+        return OperationResult<UserDataFileEntry>.CreateSuccess(new UserDataFileEntry
+        {
+            RelativePath = file.RelativePath,
+            AbsolutePath = targetPath,
+            SourceHash = file.Hash,
+            FileSize = file.Size,
+            InstallTarget = file.InstallTarget,
+            WasOverwritten = wasOverwritten,
+            BackupPath = backupPath,
+            InstalledAt = DateTime.UtcNow,
+            IsHardLink = isHardLink,
+            CasHash = file.Hash,
+        });
+    }
+
+    private async Task<(bool Materialized, bool IsHardLink)> MaterializeFileFromCasAsync(
+        string hash,
+        string targetPath,
+        string? backupPath,
+        bool wasOverwritten,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var linkResult = await fileOperations.LinkFromCasAsync(
+                hash,
+                targetPath,
+                useHardLink: true,
+                contentType: null,
+                cancellationToken: cancellationToken);
+
+            if (linkResult)
+            {
+                logger.LogDebug("[UserData] Created hard link for {Path}", targetPath);
+                return (true, true);
+            }
+
+            var copyResult = await fileOperations.CopyFromCasAsync(hash, targetPath, contentType: null, cancellationToken: cancellationToken);
+            if (copyResult)
+            {
+                logger.LogDebug("[UserData] Copied file for {Path} (hard link failed)", targetPath);
+                return (true, false);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            RestoreBackupQuietly(backupPath, targetPath, wasOverwritten, logger);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[UserData] Exception while materializing file {Path} from CAS", targetPath);
+        }
+
+        return (false, false);
+    }
+
+    private void RollbackActivatedFiles(IReadOnlyList<UserDataFileEntry> filesActivated, string userDataBasePath)
+    {
+        foreach (var file in filesActivated)
+        {
+            try
+            {
                 if (!string.IsNullOrEmpty(file.BackupPath) && File.Exists(file.BackupPath))
                 {
                     var targetDir = Path.GetDirectoryName(file.AbsolutePath);
@@ -761,7 +1117,68 @@ public class UserDataTrackerService(
                         Directory.CreateDirectory(targetDir);
                     }
 
-                    File.Move(file.BackupPath, file.AbsolutePath);
+                    File.Copy(file.BackupPath, file.AbsolutePath, overwrite: true);
+                }
+                else
+                {
+                    if (!string.IsNullOrEmpty(file.BackupPath))
+                    {
+                        logger.LogWarning("[UserData] Backup file not found during rollback for {Path}: {BackupPath}", file.AbsolutePath, file.BackupPath);
+                    }
+
+                    if (File.Exists(file.AbsolutePath))
+                    {
+                        File.Delete(file.AbsolutePath);
+                    }
+
+                    CleanupEmptyDirectories(Path.GetDirectoryName(file.AbsolutePath), userDataBasePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "[UserData] Error rolling back activation for {Path}", file.AbsolutePath);
+            }
+        }
+    }
+
+    private string GetUserDataBasePath(GameType gameType) => pathProvider.GetOptionsDirectory(gameType);
+
+    private async Task CleanupInstalledFilesAsync(UserDataManifest manifest, CancellationToken cancellationToken)
+    {
+        var userDataBasePath = GetUserDataBasePath(manifest.TargetGame);
+        foreach (var file in manifest.InstalledFiles)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                if (File.Exists(file.AbsolutePath))
+                {
+                    // Verify we should delete this file (hash matches)
+                    if (await fileOperations.VerifyFileHashAsync(file.AbsolutePath, file.SourceHash, cancellationToken))
+                    {
+                        File.Delete(file.AbsolutePath);
+                        logger.LogDebug("[UserData] Deleted file: {Path}", file.AbsolutePath);
+
+                        // Clean up empty directories up to the base user data path
+                        CleanupEmptyDirectories(Path.GetDirectoryName(file.AbsolutePath), userDataBasePath);
+                    }
+                    else
+                    {
+                        logger.LogWarning("[UserData] File hash mismatch, user may have modified: {Path}", file.AbsolutePath);
+                    }
+                }
+
+                // Restore backup if exists and target file was removed or absent
+                if (!File.Exists(file.AbsolutePath) && !string.IsNullOrEmpty(file.BackupPath) && File.Exists(file.BackupPath))
+                {
+                    var targetDir = Path.GetDirectoryName(file.AbsolutePath);
+                    if (!string.IsNullOrEmpty(targetDir))
+                    {
+                        Directory.CreateDirectory(targetDir);
+                    }
+
+                    File.Move(file.BackupPath, file.AbsolutePath, overwrite: true);
                     logger.LogInformation("[UserData] Restored backup: {Backup} -> {Path}", file.BackupPath, file.AbsolutePath);
                 }
             }
@@ -784,14 +1201,37 @@ public class UserDataTrackerService(
         try
         {
             var fileName = Path.GetFileName(filePath);
-            var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
-            var relativeDirPath = Path.GetDirectoryName(Path.GetRelativePath(GetUserDataBasePath(gameType), filePath)) ?? string.Empty;
+            var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
+            var uniqueSuffix = Guid.NewGuid().ToString("N")[..8];
+            var relativeDirPath = string.Empty;
+            try
+            {
+                var rel = Path.GetRelativePath(GetUserDataBasePath(gameType), filePath);
+                if (!rel.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(rel))
+                {
+                    relativeDirPath = Path.GetDirectoryName(rel) ?? string.Empty;
+                }
+            }
+            catch
+            {
+                relativeDirPath = string.Empty;
+            }
+
             var backupDir = Path.Combine(_backupsPath, gameType.ToString(), relativeDirPath);
             Directory.CreateDirectory(backupDir);
 
-            var backupPath = Path.Combine(backupDir, $"{Path.GetFileNameWithoutExtension(fileName)}.{timestamp}{Path.GetExtension(fileName)}{FileTypes.BackupExtension}");
+            var backupPath = Path.Combine(backupDir, $"{Path.GetFileNameWithoutExtension(fileName)}.{timestamp}_{uniqueSuffix}{Path.GetExtension(fileName)}{FileTypes.BackupExtension}");
 
-            await Task.Run(() => File.Copy(filePath, backupPath, overwrite: true), cancellationToken);
+            // Ensure backupPath never escapes _backupsPath
+            var fullBackupPath = Path.GetFullPath(backupPath);
+            var fullBackupsRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_backupsPath)) + Path.DirectorySeparatorChar;
+            var pathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            if (!fullBackupPath.StartsWith(fullBackupsRoot, pathComparison))
+            {
+                backupPath = Path.Combine(_backupsPath, gameType.ToString(), $"{Path.GetFileNameWithoutExtension(fileName)}.{timestamp}_{uniqueSuffix}{Path.GetExtension(fileName)}{FileTypes.BackupExtension}");
+            }
+
+            await Task.Run(() => File.Copy(filePath, backupPath, overwrite: false), cancellationToken);
 
             return backupPath;
         }
@@ -811,8 +1251,18 @@ public class UserDataTrackerService(
     {
         EnsureDirectoriesExist();
         var filePath = GetManifestFilePath(manifest.InstallationKey);
-        var json = JsonSerializer.Serialize(manifest, _jsonOptions);
-        await File.WriteAllTextAsync(filePath, json, cancellationToken);
+        var tempPath = $"{filePath}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            var json = JsonSerializer.Serialize(manifest, _jsonOptions);
+            await File.WriteAllTextAsync(tempPath, json, cancellationToken);
+            File.Move(tempPath, filePath, overwrite: true);
+        }
+        catch
+        {
+            FileOperationsService.DeleteFileIfExists(tempPath);
+            throw;
+        }
     }
 
     private async Task DeleteUserDataManifestAsync(string manifestId, string profileId, CancellationToken cancellationToken)
@@ -896,88 +1346,115 @@ public class UserDataTrackerService(
         _cachedIndex = index;
     }
 
+    private async Task<OperationResult<string?>> CheckFileConflictUnlockedAsync(
+        string absolutePath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var index = await LoadIndexUnlockedAsync(cancellationToken);
+            var normalizedPath = Path.GetFullPath(absolutePath);
+
+            if (index.FileToInstallationMap.TryGetValue(normalizedPath, out var installationKey))
+            {
+                return OperationResult<string?>.CreateSuccess(installationKey);
+            }
+
+            return OperationResult<string?>.CreateSuccess(null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[UserData] Failed to check file conflict for {Path}", absolutePath);
+            return OperationResult<string?>.CreateFailure($"Failed to check file conflict: {ex.Message}");
+        }
+    }
+
     private async Task UpdateIndexAsync(UserDataManifest manifest, bool isAdd, CancellationToken cancellationToken)
     {
         await IndexLock.WaitAsync(cancellationToken);
         try
         {
-            // Use LoadIndexUnlockedAsync to avoid deadlock (we already hold IndexLock)
-            var index = await LoadIndexUnlockedAsync(cancellationToken);
-            var key = manifest.InstallationKey;
-
-            if (isAdd)
-            {
-                if (!index.InstallationKeys.Contains(key))
-                {
-                    index.InstallationKeys.Add(key);
-                }
-
-                // Update file mappings
-                foreach (var file in manifest.InstalledFiles)
-                {
-                    index.FileToInstallationMap[file.AbsolutePath] = key;
-                }
-
-                // Update profile mappings
-                if (!index.ProfileInstallations.TryGetValue(manifest.ProfileId, out var profileKeys))
-                {
-                    profileKeys = [];
-                    index.ProfileInstallations[manifest.ProfileId] = profileKeys;
-                }
-
-                if (!profileKeys.Contains(key))
-                {
-                    profileKeys.Add(key);
-                }
-
-                // Update manifest mappings
-                if (!index.ManifestInstallations.TryGetValue(manifest.ManifestId, out var manifestKeys))
-                {
-                    manifestKeys = [];
-                    index.ManifestInstallations[manifest.ManifestId] = manifestKeys;
-                }
-
-                if (!manifestKeys.Contains(key))
-                {
-                    manifestKeys.Add(key);
-                }
-            }
-            else
-            {
-                index.InstallationKeys.Remove(key);
-
-                // Remove file mappings
-                foreach (var file in manifest.InstalledFiles)
-                {
-                    index.FileToInstallationMap.Remove(file.AbsolutePath);
-                }
-
-                // Remove from profile mappings
-                if (index.ProfileInstallations.TryGetValue(manifest.ProfileId, out var profileKeys))
-                {
-                    profileKeys.Remove(key);
-                    if (profileKeys.Count == 0)
-                    {
-                        index.ProfileInstallations.Remove(manifest.ProfileId);
-                    }
-                }
-
-                // Remove from manifest mappings
-                if (index.ManifestInstallations.TryGetValue(manifest.ManifestId, out var manifestKeys))
-                {
-                    manifestKeys.Remove(key);
-                    if (manifestKeys.Count == 0)
-                    {
-                        index.ManifestInstallations.Remove(manifest.ManifestId);
-                    }
-                }
-            }
-
-            await SaveIndexAsync(index, cancellationToken);
+            await UpdateIndexUnlockedAsync(manifest, isAdd, cancellationToken);
         }
         finally
         {
             IndexLock.Release();
         }
+    }
+
+    private async Task UpdateIndexUnlockedAsync(UserDataManifest manifest, bool isAdd, CancellationToken cancellationToken)
+    {
+        var index = await LoadIndexUnlockedAsync(cancellationToken);
+        var key = manifest.InstallationKey;
+
+        if (isAdd)
+        {
+            if (!index.InstallationKeys.Contains(key))
+            {
+                index.InstallationKeys.Add(key);
+            }
+
+            // Update file mappings
+            foreach (var file in manifest.InstalledFiles)
+            {
+                index.FileToInstallationMap[file.AbsolutePath] = key;
+            }
+
+            // Update profile mappings
+            if (!index.ProfileInstallations.TryGetValue(manifest.ProfileId, out var profileKeys))
+            {
+                profileKeys = [];
+                index.ProfileInstallations[manifest.ProfileId] = profileKeys;
+            }
+
+            if (!profileKeys.Contains(key))
+            {
+                profileKeys.Add(key);
+            }
+
+            // Update manifest mappings
+            if (!index.ManifestInstallations.TryGetValue(manifest.ManifestId, out var manifestKeys))
+            {
+                manifestKeys = [];
+                index.ManifestInstallations[manifest.ManifestId] = manifestKeys;
+            }
+
+            if (!manifestKeys.Contains(key))
+            {
+                manifestKeys.Add(key);
+            }
+        }
+        else
+        {
+            index.InstallationKeys.Remove(key);
+
+            // Remove file mappings
+            foreach (var file in manifest.InstalledFiles)
+            {
+                index.FileToInstallationMap.Remove(file.AbsolutePath);
+            }
+
+            // Remove from profile mappings
+            if (index.ProfileInstallations.TryGetValue(manifest.ProfileId, out var profileKeys))
+            {
+                profileKeys.Remove(key);
+                if (profileKeys.Count == 0)
+                {
+                    index.ProfileInstallations.Remove(manifest.ProfileId);
+                }
+            }
+
+            // Remove from manifest mappings
+            if (index.ManifestInstallations.TryGetValue(manifest.ManifestId, out var manifestKeys))
+            {
+                manifestKeys.Remove(key);
+                if (manifestKeys.Count == 0)
+                {
+                    index.ManifestInstallations.Remove(manifest.ManifestId);
+                }
+            }
+        }
+
+        await SaveIndexAsync(index, cancellationToken);
     }
 }

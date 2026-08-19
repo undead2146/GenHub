@@ -1333,17 +1333,13 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         if (Math.Abs(DownloadBufferSizeKB - message.BufferSizeKB) > 0.01)
             DownloadBufferSizeKB = message.BufferSizeKB;
 
-        if (DownloadTimeoutSeconds != message.TimeoutSeconds)
-            DownloadTimeoutSeconds = message.TimeoutSeconds;
-
-        if (DownloadUserAgent != message.UserAgent)
-            DownloadUserAgent = message.UserAgent;
+        DownloadTimeoutSeconds = message.TimeoutSeconds;
+        DownloadUserAgent = message.UserAgent;
     }
 
     private void OnThemeSettingsChanged(ThemeChangedMessage message)
     {
-        if (Theme != message.ThemeName)
-            Theme = message.ThemeName;
+        Theme = message.ThemeName;
     }
 
     [RelayCommand]
@@ -1506,14 +1502,9 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             {
                 // Fallback to try to find any installation
                 var installations = await _installationService.GetAllInstallationsAsync();
-                if (installations.Success && installations.Data?.Any() == true)
-                {
-                    path = _storageLocationService.GetWorkspacePath(installations.Data[0]);
-                }
-                else
-                {
-                    path = Path.Combine(_configurationProvider.GetApplicationDataPath(), DirectoryNames.Workspaces);
-                }
+                path = (installations.Success && installations.Data?.Any() == true)
+                    ? _storageLocationService.GetWorkspacePath(installations.Data[0])
+                    : Path.Combine(_configurationProvider.GetApplicationDataPath(), DirectoryNames.Workspaces);
             }
 
             _logger.LogInformation("Opening workspaces directory: {Path}", path);
@@ -1554,14 +1545,9 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             {
                 // Fallback to try to find any installation
                 var installations = await _installationService.GetAllInstallationsAsync();
-                if (installations.Success && installations.Data?.Any() == true)
-                {
-                    path = _storageLocationService.GetCasPoolPath(installations.Data[0]);
-                }
-                else
-                {
-                    path = _configurationProvider.GetCasConfiguration().CasRootPath;
-                }
+                path = (installations.Success && installations.Data?.Any() == true)
+                    ? _storageLocationService.GetCasPoolPath(installations.Data[0])
+                    : _configurationProvider.GetCasConfiguration().CasRootPath;
             }
 
             _logger.LogInformation("Opening CAS pool directory: {Path}", path);

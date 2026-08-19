@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security;
 using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
@@ -132,18 +133,15 @@ public class WorkspaceValidator(ILogger<WorkspaceValidator> logger) : IWorkspace
         if (strategy != null)
         {
             // Use properties directly from the interface
-            if (strategy.RequiresAdminRights)
+            if (strategy.RequiresAdminRights && !IsRunningAsAdministrator())
             {
-                if (!IsRunningAsAdministrator())
+                issues.Add(new ValidationIssue
                 {
-                    issues.Add(new ValidationIssue
-                    {
-                        IssueType = ValidationIssueType.AccessDenied,
-                        Severity = ValidationSeverity.Error,
-                        Message = $"Strategy '{strategy.Name}' requires administrator privileges",
-                        Path = "System",
-                    });
-                }
+                    IssueType = ValidationIssueType.AccessDenied,
+                    Severity = ValidationSeverity.Error,
+                    Message = $"Strategy '{strategy.Name}' requires administrator privileges",
+                    Path = "System",
+                });
             }
 
             if (strategy.RequiresSameVolume)
@@ -360,7 +358,16 @@ public class WorkspaceValidator(ILogger<WorkspaceValidator> logger) : IWorkspace
 
         try
         {
-            await Task.Run(() => ExecutableFileSwap.MakeExecutable(executablePath), cancellationToken);
+            var quarantineCleared = await Task.Run(
+                () => ExecutableFileSwap.MakeExecutable(executablePath),
+                cancellationToken);
+            if (!quarantineCleared)
+            {
+                logger.LogWarning(
+                    "Could not clear the macOS quarantine attribute from workspace entry point {ExecutablePath}; " +
+                    "macOS may refuse to launch it until it is cleared manually",
+                    executablePath);
+            }
         }
         catch (Exception ex)
         {
@@ -420,9 +427,29 @@ public class WorkspaceValidator(ILogger<WorkspaceValidator> logger) : IWorkspace
             executablePath = resolved;
             return true;
         }
-        catch (Exception)
+        catch (ArgumentException)
         {
             // An entry point that cannot even be resolved is treated as escaping.
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
+        catch (PathTooLongException)
+        {
+            return false;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (SecurityException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
             return false;
         }
     }
@@ -505,7 +532,15 @@ public class WorkspaceValidator(ILogger<WorkspaceValidator> logger) : IWorkspace
             var principal = new WindowsPrincipal(identity);
             return principal.IsInRole(WindowsBuiltInRole.Administrator);
         }
-        catch (Exception)
+        catch (SecurityException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
         {
             return false;
         }

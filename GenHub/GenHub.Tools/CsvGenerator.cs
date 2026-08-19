@@ -11,42 +11,33 @@ namespace GenHub.Tools;
 /// <summary>
 /// Generates CSV files from game installations.
 /// </summary>
-internal class CsvGenerator
+/// <param name="arguments">The command line arguments.</param>
+/// <param name="logger">The logger.</param>
+internal class CsvGenerator(Dictionary<string, string> arguments, ILogger logger)
 {
-    private readonly Dictionary<string, string> arguments;
-    private readonly ILogger logger;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="CsvGenerator"/> class.
-    /// </summary>
-    /// <param name="arguments">The command line arguments.</param>
-    /// <param name="logger">The logger.</param>
-    public CsvGenerator(Dictionary<string, string> arguments, ILogger logger)
-    {
-        this.arguments = arguments ?? throw new ArgumentNullException(nameof(arguments));
-        this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
-
     /// <summary>
     /// Generates the CSV file based on arguments.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task GenerateCsvFileAsync()
     {
-        var installDir = this.arguments["installDir"];
-        var output = this.arguments["output"];
-        var gameType = this.arguments["gameType"];
-        var version = this.arguments["version"];
-        var language = this.arguments["language"];
+        ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        var installDir = arguments["installDir"];
+        var output = arguments["output"];
+        var gameType = arguments["gameType"];
+        var version = arguments["version"];
+        var language = arguments["language"];
 
         if (!Directory.Exists(installDir))
         {
             throw new DirectoryNotFoundException($"Installation directory not found: {installDir}");
         }
 
-        this.logger.LogInformation("Scanning directory: {Path}", installDir);
+        logger.LogInformation("Scanning directory: {Path} for {GameType} {Version}", installDir, gameType, version);
 
-        var entries = await this.ScanInstallationAsync(installDir, gameType, language);
+        var entries = await ScanInstallationAsync(installDir, gameType, language);
 
         // Ensure output directory exists
         var outputDir = Path.GetDirectoryName(output);
@@ -55,8 +46,8 @@ internal class CsvGenerator
             Directory.CreateDirectory(outputDir);
         }
 
-        await this.WriteCsvFileAsync(entries, output);
-        this.logger.LogInformation("Generated CSV file: {Path} with {Count} entries", output, entries.Count);
+        await WriteCsvFileAsync(entries, output);
+        logger.LogInformation("Generated CSV file: {Path} with {Count} entries", output, entries.Count);
     }
 
     private async Task<List<CsvCatalogEntry>> ScanInstallationAsync(string installationPath, string gameType, string languageCode)
@@ -65,19 +56,19 @@ internal class CsvGenerator
         var files = Directory.GetFiles(installationPath, "*", SearchOption.AllDirectories);
         var totalFiles = files.Length;
 
-        this.logger.LogInformation("Scanning {Count} files in {Path}", totalFiles, installationPath);
+        logger.LogInformation("Scanning {Count} files in {Path}", totalFiles, installationPath);
 
         for (var i = 0; i < totalFiles; i++)
         {
             var file = files[i];
             if (i % 100 == 0)
             {
-                this.logger.LogInformation("Processed {Current}/{Total} files", i, totalFiles);
+                logger.LogInformation("Processed {Current}/{Total} files", i, totalFiles);
             }
 
             try
             {
-                var entry = await this.CreateCsvEntryAsync(file, installationPath, gameType, languageCode);
+                var entry = await CreateCsvEntryAsync(file, installationPath, gameType, languageCode);
                 if (entry != null)
                 {
                     entries.Add(entry);
@@ -85,7 +76,7 @@ internal class CsvGenerator
             }
             catch (Exception ex)
             {
-                this.logger.LogWarning(ex, "Failed to process file: {Path}", file);
+                logger.LogWarning(ex, "Failed to process file: {Path}", file);
             }
         }
 
@@ -102,8 +93,8 @@ internal class CsvGenerator
             return null; // Skip empty files
         }
 
-        var (md5, sha256) = await this.CalculateHashesAsync(filePath);
-        var isSpecific = this.IsLanguageSpecific(relativePath);
+        var (md5, sha256) = await CalculateHashesAsync(filePath);
+        var isSpecific = IsLanguageSpecific(relativePath);
 
         return new CsvCatalogEntry
         {
@@ -113,8 +104,8 @@ internal class CsvGenerator
             Sha256 = sha256,
             GameType = gameType,
             Language = isSpecific ? defaultLanguage : "All",
-            IsRequired = this.IsRequiredFile(relativePath),
-            Metadata = this.GetFileMetadata(relativePath),
+            IsRequired = IsRequiredFile(relativePath),
+            Metadata = GetFileMetadata(relativePath),
         };
     }
 
@@ -193,7 +184,7 @@ internal class CsvGenerator
         using var sha256 = SHA256.Create();
 
         var buffer = new byte[IoConstants.DefaultFileBufferSize];
-        int bytesRead;
+        int bytesRead = 0;
 
         while ((bytesRead = await stream.ReadAsync(buffer)) > 0)
         {
@@ -293,7 +284,7 @@ internal class CsvGenerator
         var config = new CsvConfiguration(System.Globalization.CultureInfo.InvariantCulture)
         {
             HasHeaderRecord = true,
-            PrepareHeaderForMatch = args => args.Header.ToLower(), // This is for reading
+            PrepareHeaderForMatch = args => args.Header.ToLower(System.Globalization.CultureInfo.InvariantCulture), // This is for reading
         };
 
         // Custom map for writing is better

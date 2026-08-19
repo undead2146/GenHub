@@ -189,12 +189,9 @@ public class CNCLabsMapResolver(
         var downloadUrl = downloadLink?.GetAttribute(CNCLabsConstants.HrefAttribute) ?? string.Empty;
 
         // Ensure absolute URL
-        if (!string.IsNullOrEmpty(downloadUrl))
+        if (!string.IsNullOrEmpty(downloadUrl) && !downloadUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
         {
-            if (!downloadUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-            {
-                downloadUrl = $"{CNCLabsConstants.PublisherWebsite.TrimEnd('/')}/{downloadUrl.TrimStart('/')}";
-            }
+            downloadUrl = $"{CNCLabsConstants.PublisherWebsite.TrimEnd('/')}/{downloadUrl.TrimStart('/')}";
         }
 
         // Rewrite downloader.aspx to fetch.aspx to bypass JS redirect
@@ -209,9 +206,6 @@ public class CNCLabsMapResolver(
         // 6. File metadata (optional but useful)
         var fileSizeText = ExtractMetadataValue(document, "File Size:");
         var fileSize = FileSizeFormatter.ParseToBytes(fileSizeText);
-
-        var maxPlayersText = ExtractMetadataValue(document, "Max Players:");
-        var maxPlayers = int.TryParse(maxPlayersText?.Trim(), out var p) ? p : 0;
 
         var submittedText = ExtractMetadataValue(document, "Submitted:");
         var submissionDate = DateTime.TryParse(submittedText, out var sd) ? sd : DateTime.MinValue;

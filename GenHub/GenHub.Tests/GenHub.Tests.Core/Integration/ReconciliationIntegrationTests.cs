@@ -103,7 +103,7 @@ public class ReconciliationIntegrationTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task CommunityOutpost_UpdateAvailable_ShouldUpdateProfile()
+    public async Task CommunityOutpost_UpdateAvailable_ShouldUpdateProfileAsync()
     {
         // Arrange
         var oldManifestId = "1.10.communityoutpost.patch.communitypatch";
@@ -184,7 +184,7 @@ public class ReconciliationIntegrationTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task GeneralsOnline_UpdateWithMapPack_ShouldEnforceDependency()
+    public async Task GeneralsOnline_UpdateWithMapPack_ShouldEnforceDependencyAsync()
     {
         // Arrange
         var updateServiceMock = new Mock<IGeneralsOnlineUpdateService>();
@@ -304,7 +304,7 @@ public class ReconciliationIntegrationTests : IDisposable
         _profileManagerMock.Verify(
             x => x.UpdateProfileAsync(
                 profile.Id,
-                It.Is<UpdateProfileRequest>(r => r != null && r.EnabledContentIds != null && r.EnabledContentIds.Contains(newMapPack.Id.Value)),
+                It.Is<UpdateProfileRequest>(r => MatchesEnabledContent(r, newMapPack.Id.Value)),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -314,7 +314,7 @@ public class ReconciliationIntegrationTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task SuperHackers_UpdateVariants_ShouldPreserveGameType()
+    public async Task SuperHackers_UpdateVariants_ShouldPreserveGameTypeAsync()
     {
         // Arrange
         var updateServiceMock = new Mock<ISuperHackersUpdateService>();
@@ -385,11 +385,17 @@ public class ReconciliationIntegrationTests : IDisposable
         // Verify that the profile was updated with the generals GameClient ID (not zerohour)
         _profileManagerMock.Verify(
             x => x.CreateProfileAsync(
-                It.Is<CreateProfileRequest>(req => req.GameClient != null && req.GameClient.Id == newGeneralsParams.Id.Value),
+                It.Is<CreateProfileRequest>(req => MatchesGameClient(req, newGeneralsParams.Id.Value)),
                 It.IsAny<CancellationToken>()),
             Times.Once,
             "Should preserve the generals GameClient ID variant");
     }
+
+    private static bool MatchesEnabledContent(UpdateProfileRequest request, string contentId) =>
+        request.EnabledContentIds?.Contains(contentId) == true;
+
+    private static bool MatchesGameClient(CreateProfileRequest request, string gameClientId) =>
+        request.GameClient?.Id == gameClientId;
 
     private static ContentManifest CreateManifest(string id, string version, ContentType type, string publisher, GameType targetGame)
     {

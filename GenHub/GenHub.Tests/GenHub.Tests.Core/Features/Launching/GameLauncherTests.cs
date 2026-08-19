@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameInstallations;
@@ -149,7 +150,7 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task LaunchProfileAsync_WithValidProfile_ShouldSucceed()
+    public async Task LaunchProfileAsync_WithValidProfile_ShouldSucceedAsync()
     {
         // Arrange
         var profile = CreateTestProfile();
@@ -199,7 +200,7 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task LaunchProfileAsync_WithProfileNotFound_ShouldFail()
+    public async Task LaunchProfileAsync_WithProfileNotFound_ShouldFailAsync()
     {
         // Arrange
         var profileId = Guid.NewGuid().ToString();
@@ -219,7 +220,7 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task LaunchProfileAsync_WithManifestNotFound_ShouldFail()
+    public async Task LaunchProfileAsync_WithManifestNotFound_ShouldFailAsync()
     {
         // Arrange
         var profile = CreateTestProfile();
@@ -245,7 +246,7 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task LaunchProfileAsync_WithNullManifest_ShouldFail()
+    public async Task LaunchProfileAsync_WithNullManifest_ShouldFailAsync()
     {
         // Arrange
         var profile = CreateTestProfile();
@@ -271,7 +272,7 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task LaunchProfileAsync_WithWorkspaceFailure_ShouldFail()
+    public async Task LaunchProfileAsync_WithWorkspaceFailure_ShouldFailAsync()
     {
         // Arrange
         var profile = CreateTestProfile();
@@ -296,7 +297,7 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task LaunchProfileAsync_WithProcessStartFailure_ShouldFail()
+    public async Task LaunchProfileAsync_WithProcessStartFailure_ShouldFailAsync()
     {
         // Arrange
         var profile = CreateTestProfile();
@@ -331,7 +332,7 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task TerminateGameAsync_WithValidLaunchId_ShouldSucceed()
+    public async Task TerminateGameAsync_WithValidLaunchId_ShouldSucceedAsync()
     {
         // Arrange
         var launchId = Guid.NewGuid().ToString();
@@ -361,7 +362,7 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task TerminateGameAsync_WithInvalidLaunchId_ShouldFail()
+    public async Task TerminateGameAsync_WithInvalidLaunchId_ShouldFailAsync()
     {
         // Arrange
         var launchId = Guid.NewGuid().ToString();
@@ -380,15 +381,14 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task LaunchProfileAsync_WithProgressTracking_ShouldReportProgress()
+    public async Task LaunchProfileAsync_WithProgressTracking_ShouldReportProgressAsync()
     {
         // Arrange
         var profile = CreateTestProfile();
         var workspaceInfo = new WorkspaceInfo { Id = profile.Id, WorkspacePath = @"C:\workspace", IsPrepared = true, ExecutablePath = @"C:\workspace\generals.exe" };
         var processInfo = new GameProcessInfo { ProcessId = 123, ProcessName = "generals.exe" };
         var manifest = new ContentManifest { Id = "1.0.genhub.mod.test", Name = "Test Content" };
-        var progressReports = new List<LaunchProgress>();
-        var progressLock = new object();
+        var progressReports = new ConcurrentBag<LaunchProgress>();
         var progressComplete = new TaskCompletionSource<bool>();
 
         _profileManagerMock.Setup(x => x.GetProfileAsync(profile.Id, It.IsAny<CancellationToken>()))
@@ -421,13 +421,10 @@ public class GameLauncherTests : IDisposable
 
         var progress = new Progress<LaunchProgress>(p =>
         {
-            lock (progressLock)
+            progressReports.Add(p);
+            if (p.Phase == LaunchPhase.Running)
             {
-                progressReports.Add(p);
-                if (p.Phase == LaunchPhase.Running)
-                {
-                    progressComplete.TrySetResult(true);
-                }
+                progressComplete.TrySetResult(true);
             }
         });
 
@@ -439,11 +436,7 @@ public class GameLauncherTests : IDisposable
 
         // Assert
         Assert.True(result.Success);
-        List<LaunchProgress> reports;
-        lock (progressLock)
-        {
-            reports = [.. progressReports]; // Create a copy for safe enumeration
-        }
+        var reports = progressReports.ToList();
 
         Assert.NotEmpty(reports);
 
@@ -467,7 +460,7 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task LaunchProfileAsync_WithCancellation_ShouldRespectCancellation()
+    public async Task LaunchProfileAsync_WithCancellation_ShouldRespectCancellationAsync()
     {
         // Arrange
         var profileId = "test-profile";
@@ -481,10 +474,7 @@ public class GameLauncherTests : IDisposable
             .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
 
         // Act & Assert
-        await Assert.ThrowsAsync<TaskCanceledException>(async () =>
-        {
-            await _gameLauncher.LaunchProfileAsync(profileId, cancellationToken: cts.Token);
-        });
+        await Assert.ThrowsAsync<TaskCanceledException>(() => _gameLauncher.LaunchProfileAsync(profileId, cancellationToken: cts.Token));
     }
 
     /// <summary>
@@ -492,13 +482,12 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task LaunchProfileAsync_ConcurrentSteamProfilesSharingInstallation_SerializesSetup()
+    public async Task LaunchProfileAsync_ConcurrentSteamProfilesSharingInstallation_SerializesSetupAsync()
     {
         // Arrange
         var testRoot = Path.Combine(
             Path.GetTempPath(),
-            "GenHub-GameLauncherAliasTests",
-            Guid.NewGuid().ToString("N"));
+            $"GenHub-GameLauncherAliasTests-{Guid.NewGuid():N}");
         var physicalInstallationPath = Path.Combine(testRoot, "physical-installation");
         var installationAliasPath = Path.Combine(testRoot, "installation-alias");
         Directory.CreateDirectory(physicalInstallationPath);
@@ -594,7 +583,7 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task LaunchProfileAsync_WithEmptyEnabledContent_ShouldSucceed()
+    public async Task LaunchProfileAsync_WithEmptyEnabledContent_ShouldSucceedAsync()
     {
         // Arrange
         var profile = CreateTestProfile();
@@ -624,7 +613,7 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task TerminateGameAsync_WithProcessTerminationFailure_ShouldNotUnregister()
+    public async Task TerminateGameAsync_WithProcessTerminationFailure_ShouldNotUnregisterAsync()
     {
         // Arrange
         var launchId = Guid.NewGuid().ToString();
@@ -655,7 +644,7 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task GetActiveGamesAsync_ShouldReturnActiveProcesses()
+    public async Task GetActiveGamesAsync_ShouldReturnActiveProcessesAsync()
     {
         // Arrange
         var activeProcesses = new List<GameProcessInfo>
@@ -682,7 +671,7 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task LaunchRegistry_ShouldTrackActiveLaunches()
+    public async Task LaunchRegistry_ShouldTrackActiveLaunchesAsync()
     {
         // Arrange
         var activeLaunches = new List<GameLaunchInfo>
@@ -716,7 +705,7 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task LaunchProfileAsync_WithMultipleContentManifests_ShouldResolveAll()
+    public async Task LaunchProfileAsync_WithMultipleContentManifests_ShouldResolveAllAsync()
     {
         // Arrange
         var profile = CreateTestProfile();
@@ -763,7 +752,7 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task LaunchProfileAsync_WithProfileSettings_ShouldWriteIniOptionsBeforeLaunch()
+    public async Task LaunchProfileAsync_WithProfileSettings_ShouldWriteIniOptionsBeforeLaunchAsync()
     {
         // Arrange
         var profile = CreateTestProfile();
@@ -816,7 +805,7 @@ public class GameLauncherTests : IDisposable
 
         _processManagerMock.Verify(
             x => x.StartProcessAsync(
-                It.Is<GameLaunchConfiguration>(c => c.Arguments != null && c.Arguments.ContainsKey("-win")),
+                It.Is<GameLaunchConfiguration>(c => HasArgument(c, "-win")),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -826,7 +815,7 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task LaunchProfileAsync_WithWindowedMode_ShouldAddWinArgument()
+    public async Task LaunchProfileAsync_WithWindowedMode_ShouldAddWinArgumentAsync()
     {
         // Arrange
         var profile = CreateTestProfile();
@@ -864,10 +853,7 @@ public class GameLauncherTests : IDisposable
         // Verify that -win argument was added
         _processManagerMock.Verify(
             x => x.StartProcessAsync(
-                It.Is<GameLaunchConfiguration>(c =>
-                    c.Arguments != null &&
-                    c.Arguments.ContainsKey("-win") &&
-                    c.Arguments["-win"] == string.Empty),
+                It.Is<GameLaunchConfiguration>(c => HasArgument(c, "-win", string.Empty)),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -878,7 +864,7 @@ public class GameLauncherTests : IDisposable
     /// </summary>
     /// <returns>The async task.</returns>
     [Fact]
-    public async Task LaunchProfileAsync_WithoutProfileSettings_ShouldStillSaveOptionsIni()
+    public async Task LaunchProfileAsync_WithoutProfileSettings_ShouldStillSaveOptionsIniAsync()
     {
         // Arrange
         var profile = CreateTestProfile();
@@ -941,6 +927,16 @@ public class GameLauncherTests : IDisposable
             GameClient = new GameClient { Id = "version-1", ExecutablePath = @"C:\Games\generals.exe", GameType = GameType.Generals },
             EnabledContentIds = ["1.0.genhub.mod.test"],
         };
+    }
+
+    private static bool HasArgument(GameLaunchConfiguration? config, string key)
+    {
+        return config?.Arguments is not null && config.Arguments.ContainsKey(key);
+    }
+
+    private static bool HasArgument(GameLaunchConfiguration? config, string key, string expectedValue)
+    {
+        return config?.Arguments is not null && config.Arguments.TryGetValue(key, out var val) && val == expectedValue;
     }
 
     private static void CreateDirectoryAlias(string aliasPath, string targetPath)

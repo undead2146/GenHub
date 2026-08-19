@@ -35,40 +35,35 @@ public class StderrCaptureRaceTests
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task StartProcessAsync_WithImmediateFailure_CapturesBothEndsOfStderr()
+    public async Task StartProcessAsync_WithImmediateFailure_CapturesBothEndsOfStderrAsync()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             return;
         }
 
-        // Arguments are key/value pairs; a leading '-' key is emitted as a flag followed
-        // by its value, which produces `/bin/sh -c <script>`.
+        // 50 lines exceeds the 10 head + 20 tail (30 total) bounded error buffer capacity
+        // to verify middle line dropping without causing race conditions from heavy I/O in CI.
+        const int noiseLines = 50;
         var script =
             $"echo {HeadLine} >&2; " +
-            "for i in $(seq 1 200); do echo noise-$i >&2; done; " +
+            $"for i in $(seq 1 {noiseLines}); do echo noise-$i >&2; done; " +
             $"echo {TailLine} >&2; " +
             "exit 3";
 
-        var manager = new GameProcessManager(Mock.Of<ILogger<GameProcessManager>>());
-        try
+        using var manager = new GameProcessManager(Mock.Of<ILogger<GameProcessManager>>());
+        var result = await manager.StartProcessAsync(new GameLaunchConfiguration
         {
-            var result = await manager.StartProcessAsync(new GameLaunchConfiguration
-            {
-                ExecutablePath = "/bin/sh",
-                Arguments = new Dictionary<string, string> { ["-c"] = script },
-                WorkingDirectory = Path.GetTempPath(),
-            });
+            ExecutablePath = "/bin/sh",
+            Arguments = new Dictionary<string, string> { ["-c"] = script },
+            WorkingDirectory = Path.GetTempPath(),
+        });
 
-            var reported = string.Join(" ", result.Errors);
+        var reported = string.Join(" ", result.Errors);
 
-            Assert.Contains("3", reported);
-            Assert.Contains(HeadLine, reported);
-            Assert.Contains(TailLine, reported);
-        }
-        finally
-        {
-            manager.Dispose();
-        }
+        Assert.Contains("3", reported);
+        Assert.Contains(HeadLine, reported);
+        Assert.Contains(TailLine, reported);
+        Assert.DoesNotContain("noise-25", reported);
     }
 }
