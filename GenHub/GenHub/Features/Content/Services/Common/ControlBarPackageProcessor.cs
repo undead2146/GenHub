@@ -113,70 +113,79 @@ public class ControlBarPackageProcessor(
                 var artBigPath = Path.Combine(extractedDirectory, artBigName);
                 var dataBigPath = Path.Combine(extractedDirectory, dataBigName);
 
-                logger.LogInformation(
-                    "Repacking Control Bar variant {Variant} into Art/Data BIG files: {ArtBig}, {DataBig}",
-                    variantId,
-                    artBigName,
-                    dataBigName);
-
-                var artSource = Path.Combine(variantBigRoot, "Art");
-                var dataSource = Path.Combine(variantBigRoot, "Data");
-                var windowSource = Path.Combine(variantBigRoot, "Window");
-                var genToolSource = Path.Combine(variantBigRoot, "GenTool");
-
-                var tempRoot = Path.Combine(extractedDirectory, $"cbpro-pack-{variantId}");
-                var artPackRoot = Path.Combine(tempRoot, "ArtPack");
-                var dataPackRoot = Path.Combine(tempRoot, "DataPack");
-
-                if (Directory.Exists(tempRoot))
+                if (!File.Exists(artBigPath) || !File.Exists(dataBigPath))
                 {
-                    Directory.Delete(tempRoot, recursive: true);
-                }
+                    logger.LogInformation(
+                        "Repacking Control Bar variant {Variant} into Art/Data BIG files: {ArtBig}, {DataBig}",
+                        variantId,
+                        artBigName,
+                        dataBigName);
 
-                Directory.CreateDirectory(artPackRoot);
-                Directory.CreateDirectory(dataPackRoot);
+                    var artSource = Path.Combine(variantBigRoot, "Art");
+                    var dataSource = Path.Combine(variantBigRoot, "Data");
+                    var windowSource = Path.Combine(variantBigRoot, "Window");
+                    var genToolSource = Path.Combine(variantBigRoot, "GenTool");
 
-                if (Directory.Exists(artSource))
-                {
-                    CopyDirectory(artSource, Path.Combine(artPackRoot, "Art"));
-                }
+                    var tempRoot = Path.Combine(extractedDirectory, $"cbpro-pack-{variantId}");
+                    var artPackRoot = Path.Combine(tempRoot, "ArtPack");
+                    var dataPackRoot = Path.Combine(tempRoot, "DataPack");
 
-                if (Directory.Exists(dataSource))
-                {
-                    CopyDirectory(dataSource, Path.Combine(dataPackRoot, "Data"));
-                }
+                    if (Directory.Exists(tempRoot))
+                    {
+                        Directory.Delete(tempRoot, recursive: true);
+                    }
 
-                if (Directory.Exists(windowSource))
-                {
-                    CopyDirectory(windowSource, Path.Combine(dataPackRoot, "Window"));
-                }
+                    Directory.CreateDirectory(artPackRoot);
+                    Directory.CreateDirectory(dataPackRoot);
 
-                if (Directory.Exists(genToolSource))
-                {
-                    CopyDirectory(genToolSource, Path.Combine(dataPackRoot, "GenTool"));
-                }
+                    if (Directory.Exists(artSource))
+                    {
+                        CopyDirectory(artSource, Path.Combine(artPackRoot, "Art"));
+                    }
 
-                try
-                {
-                    // Convert AVIF/WebP images to TGA prior to packing
-                    await avifConverter.ConvertDirectoryAsync(artPackRoot, cancellationToken);
-                    await avifConverter.ConvertDirectoryAsync(dataPackRoot, cancellationToken);
+                    if (Directory.Exists(dataSource))
+                    {
+                        CopyDirectory(dataSource, Path.Combine(dataPackRoot, "Data"));
+                    }
 
-                    await BigFilePacker.PackAsync(artPackRoot, artBigPath);
-                    await BigFilePacker.PackAsync(dataPackRoot, dataBigPath);
-                }
-                finally
-                {
+                    if (Directory.Exists(windowSource))
+                    {
+                        CopyDirectory(windowSource, Path.Combine(dataPackRoot, "Window"));
+                    }
+
+                    if (Directory.Exists(genToolSource))
+                    {
+                        CopyDirectory(genToolSource, Path.Combine(dataPackRoot, "GenTool"));
+                    }
+
                     try
                     {
-                        if (Directory.Exists(tempRoot))
-                        {
-                            Directory.Delete(tempRoot, recursive: true);
-                        }
+                        // Convert AVIF/WebP images to TGA prior to packing
+                        await avifConverter.ConvertDirectoryAsync(artPackRoot, cancellationToken);
+                        await avifConverter.ConvertDirectoryAsync(dataPackRoot, cancellationToken);
+
+                        var tempArtBig = Path.Combine(tempRoot, "temp_art.big");
+                        var tempDataBig = Path.Combine(tempRoot, "temp_data.big");
+
+                        await BigFilePacker.PackAsync(artPackRoot, tempArtBig);
+                        await BigFilePacker.PackAsync(dataPackRoot, tempDataBig);
+
+                        File.Move(tempArtBig, artBigPath, overwrite: true);
+                        File.Move(tempDataBig, dataBigPath, overwrite: true);
                     }
-                    catch (Exception ex)
+                    finally
                     {
-                        logger.LogWarning(ex, "Failed to cleanup temporary pack directory {TempRoot}", tempRoot);
+                        try
+                        {
+                            if (Directory.Exists(tempRoot))
+                            {
+                                Directory.Delete(tempRoot, recursive: true);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogWarning(ex, "Failed to cleanup temporary pack directory {TempRoot}", tempRoot);
+                        }
                     }
                 }
 
@@ -210,6 +219,7 @@ public class ControlBarPackageProcessor(
                     var name = Path.GetFileName(p);
                     return name.Contains("Art", StringComparison.OrdinalIgnoreCase) ||
                            name.Contains("Data", StringComparison.OrdinalIgnoreCase) ||
+                           name.Contains("-Fix", StringComparison.OrdinalIgnoreCase) ||
                            name.Equals("340_ControlBarProZH.big", StringComparison.OrdinalIgnoreCase) ||
                            name.Equals("340_ControlBarProLemonEditionZH.big", StringComparison.OrdinalIgnoreCase);
                 })];

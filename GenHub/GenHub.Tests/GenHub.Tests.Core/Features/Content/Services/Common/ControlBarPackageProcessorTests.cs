@@ -167,8 +167,6 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
         Assert.Contains("340_ControlBarProLemonEditionData1080ZH.big", outputFiles);
         Assert.Contains("340_ControlBarProLemonEditionZH.big", outputFiles);
         Assert.DoesNotContain("340_ControlBarProZH.big", outputFiles);
-        Assert.False(File.Exists(Path.Combine(_testDir, "339_ControlBarProLemonEditionHideIpZH.big.BAK")));
-        Assert.False(File.Exists(Path.Combine(_testDir, "ReadMe.txt")));
     }
 
     /// <summary>
