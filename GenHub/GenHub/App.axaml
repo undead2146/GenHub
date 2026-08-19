@@ -2,13 +2,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:GenHub.Infrastructure.Converters"
              x:Class="GenHub.App">
-    <Application.Styles>
-        <FluentTheme />
-        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
-        <StyleInclude Source="avares://GenHub/Assets/Styles/ComboBoxStyles.axaml" />
-        <StyleInclude Source="avares://GenHub/Common/Controls/SidebarLayoutStyles.axaml" />
-        <StyleInclude Source="avares://GenHub/Assets/Styles/ScrollbarStyles.axaml" />
-    </Application.Styles>
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -22,11 +15,19 @@
         <local:EqualityConverter x:Key="EqualityConverter" />
         <local:BoolToExpandIconConverter x:Key="BoolToExpandIconConverter" />
         <local:BoolToExpandTextConverter x:Key="BoolToExpandTextConverter" />
+        <local:FileIconConverter x:Key="FileIconConverter" />
+        <local:ActiveBorderConverter x:Key="ActiveBorderConverter" />
+        <local:IndentConverter x:Key="IndentConverter" />
+        <local:BoolToColorConverter x:Key="BoolToColorConverter" />
+        <local:BoolToTextConverter x:Key="BoolToTextConverter" />
+        <local:BoolToTextConverter x:Key="BoolToStringConverter" />
     </Application.Resources>
     <Application.Styles>
         <FluentTheme />
         <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
         <StyleInclude Source="avares://GenHub/Assets/Styles/ComboBoxStyles.axaml" />
+        <StyleInclude Source="avares://GenHub/Common/Controls/SidebarLayoutStyles.axaml" />
+        <StyleInclude Source="avares://GenHub/Assets/Styles/ScrollbarStyles.axaml" />
         <StyleInclude Source="avares://GenHub/Assets/Styles/SidebarStyles.axaml" />
     </Application.Styles>
 </Application>

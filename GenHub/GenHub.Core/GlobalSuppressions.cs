@@ -62,3 +62,24 @@ using System.Diagnostics.CodeAnalysis;
     "StyleCop.CSharp.DocumentationRules",
     "SA1633:File should have header",
     Justification = "Licensing and other information is provided in seperate files.")]
+
+[assembly: SuppressMessage(
+    "Design",
+    "CS-R1138:Inappropriate ordering of parameters",
+    Scope = "type",
+    Target = "~T:GenHub.Core.Models.Tools.ModBuilder.Converters.BundlePackListConverter",
+    Justification = "System.Text.Json requires ref Utf8JsonReader as the first parameter in JsonConverter<T>.Read overrides.")]
+
+[assembly: SuppressMessage(
+    "StyleCop.CSharp.MaintainabilityRules",
+    "SA1402:FileMayOnlyContainASingleType",
+    Scope = "namespaceanddescendants",
+    Target = "~N:GenHub.Core.Models.Tools.ModBuilder",
+    Justification = "Python configuration DTOs are grouped together in PythonConfigModels.cs for cohesion.")]
+
+[assembly: SuppressMessage(
+    "StyleCop.CSharp.DocumentationRules",
+    "SA1649:FileNameMustMatchTypeName",
+    Scope = "namespaceanddescendants",
+    Target = "~N:GenHub.Core.Models.Tools.ModBuilder",
+    Justification = "PythonConfigModels.cs groups related DTO types.")]

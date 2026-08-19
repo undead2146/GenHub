@@ -40,7 +40,7 @@ public class WorkspaceIntegrationTests : IDisposable
         _tempWorkspaceRoot = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
 
         var services = new ServiceCollection();
-        services.AddLogging(builder => builder.AddConsole());
+        services.AddLogging();
 
         // Add mock download service for FileOperationsService
         var mockDownloadService = new Mock<IDownloadService>();
@@ -223,6 +223,11 @@ public class WorkspaceIntegrationTests : IDisposable
         {
             // Ignore cleanup errors
         }
+
+        if (_serviceProvider is IDisposable disposable)
+        {
+            disposable.Dispose();
+        }
     }
 
     /// <summary>
@@ -236,14 +241,13 @@ public class WorkspaceIntegrationTests : IDisposable
         var testFile = Directory.GetFiles(workspace.WorkspacePath, "*.exe").First();
         var fileInfo = new FileInfo(testFile);
 
-        switch (strategy)
+        if (strategy == WorkspaceStrategy.FullCopy)
         {
-            case WorkspaceStrategy.FullCopy:
-                Assert.Null(fileInfo.LinkTarget);
-                break;
-            case WorkspaceStrategy.SymlinkOnly:
-                Assert.NotNull(fileInfo.LinkTarget);
-                break;
+            Assert.Null(fileInfo.LinkTarget);
+        }
+        else if (strategy == WorkspaceStrategy.SymlinkOnly)
+        {
+            Assert.NotNull(fileInfo.LinkTarget);
         }
 
         return Task.CompletedTask;

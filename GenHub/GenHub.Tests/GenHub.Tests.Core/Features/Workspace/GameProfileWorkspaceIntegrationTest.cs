@@ -51,7 +51,7 @@ public class GameProfileWorkspaceIntegrationTest : IDisposable
         Directory.CreateDirectory(_tempContentStorage);
 
         var services = new ServiceCollection();
-        services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Debug));
+        services.AddLogging();
 
         // Add core services
         var mockDownloadService = new Mock<IDownloadService>();
@@ -353,7 +353,7 @@ public class GameProfileWorkspaceIntegrationTest : IDisposable
         var manifests = CreateTestManifests();
         var workspaceConfig = new WorkspaceConfiguration
         {
-            Id = $"test-workspace-{strategy.ToString().ToLower()}",
+            Id = $"test-workspace-{strategy.ToString().ToLowerInvariant()}",
             Manifests = manifests,
             GameClient = new GameClient
             {
