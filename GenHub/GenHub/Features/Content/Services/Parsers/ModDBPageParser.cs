@@ -2230,7 +2230,10 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
 
     /// <inheritdoc />
     public bool CanParse(string url) =>
-        url.Contains("moddb.com", StringComparison.OrdinalIgnoreCase);
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+        (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
+        (uri.Host.Equals("moddb.com", StringComparison.OrdinalIgnoreCase) ||
+         uri.Host.EndsWith(".moddb.com", StringComparison.OrdinalIgnoreCase));
 
     /// <inheritdoc />
     public async Task<ParsedWebPage> ParseAsync(string url, CancellationToken cancellationToken = default)
@@ -2469,7 +2472,10 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
     {
         if (IsModDetailPage(url))
         {
-            var baseUrl = url.TrimEnd('/');
+            var baseUrl = Uri.TryCreate(url, UriKind.Absolute, out var uri)
+                ? $"{uri.Scheme}://{uri.Authority}{uri.AbsolutePath.TrimEnd('/')}"
+                : url.Split('?')[0].Split('#')[0].TrimEnd('/');
+
             return
             [
                 url,
@@ -2485,7 +2491,10 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         var parentModUrl = ExtractParentModUrl(url);
         if (!string.IsNullOrEmpty(parentModUrl))
         {
-            var baseUrl = parentModUrl.TrimEnd('/');
+            var baseUrl = Uri.TryCreate(parentModUrl, UriKind.Absolute, out var parentUri)
+                ? $"{parentUri.Scheme}://{parentUri.Authority}{parentUri.AbsolutePath.TrimEnd('/')}"
+                : parentModUrl.Split('?')[0].Split('#')[0].TrimEnd('/');
+
             return
             [
                 url,
