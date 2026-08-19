@@ -108,7 +108,7 @@ public class ContentOrchestrator : IContentOrchestrator
         _logger.LogDebug("Starting orchestrated content search with query: {SearchTerm}, ContentType: {ContentType}", query.SearchTerm, query.ContentType);
 
         // Check cache first
-        var cacheKey = $"search::{query.ProviderName}::{query.SearchTerm}::{query.ContentType}::{query.Skip}::{query.Take}::{query.SortOrder}";
+        var cacheKey = $"search::{query.ProviderName}::{query.SearchTerm}::{query.ContentType}::{query.TargetGame}::{query.AuthorName}::{query.GitHubAuthor}::{query.Language}::{query.Skip}::{query.Take}::{query.SortOrder}";
         var cachedResults = await _cache.GetAsync<List<ContentSearchResult>>(cacheKey, cancellationToken);
         if (cachedResults != null)
         {
@@ -187,8 +187,19 @@ public class ContentOrchestrator : IContentOrchestrator
         // than an exception, which would otherwise surface here as an empty successful search.
         cancellationToken.ThrowIfCancellationRequested();
 
+        // Deduplicate results by manifest ID across providers before sorting and pagination,
+        // preferring specialized publisher providers over generic GitHub providers.
+        var deduplicatedResults = allResults
+            .GroupBy(r => r.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g
+                .OrderByDescending(r =>
+                    !string.Equals(r.ProviderName, ContentSourceNames.GitHubDiscoverer, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(r.ProviderName, ContentSourceNames.GitHubReleasesDiscoverer, StringComparison.OrdinalIgnoreCase) ? 1 : 0)
+                .First())
+            .ToList();
+
         // Apply orchestrator-level sorting and pagination
-        var sortedResults = ApplySorting(allResults, query.SortOrder)
+        var sortedResults = ApplySorting(deduplicatedResults, query.SortOrder)
             .Skip(query.Skip)
             .Take(query.Take)
             .ToList();
