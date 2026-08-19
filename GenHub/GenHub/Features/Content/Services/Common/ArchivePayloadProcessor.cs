@@ -471,10 +471,8 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
                 Directory.CreateDirectory(destinationDir);
             }
 
-            using (var entryStream = entry.OpenEntryStream())
-            {
-                CopyEntryWithCap(entryStream, destinationPath, ref totalUncompressedSize, cancellationToken);
-            }
+            using var entryStream = entry.OpenEntryStream();
+            CopyEntryWithCap(entryStream, destinationPath, ref totalUncompressedSize, cancellationToken);
         }
     }
 
@@ -486,7 +484,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
     {
         using var dest = File.Create(destinationPath);
         var buffer = new byte[81920];
-        int read;
+        var read = 0;
         while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -557,10 +555,8 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
                     Directory.CreateDirectory(destinationDir);
                 }
 
-                using (var entryStream = entry.Open())
-                {
-                    CopyEntryWithCap(entryStream, destinationPath, ref totalUncompressedSize, cancellationToken);
-                }
+                using var entryStream = entry.Open();
+                CopyEntryWithCap(entryStream, destinationPath, ref totalUncompressedSize, cancellationToken);
             }
 
             return true;
@@ -765,123 +761,142 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         foreach (var rec in records)
         {
             cancellationToken.ThrowIfCancellationRequested();
-
-            var pathResult = ContentPathPolicy.ResolveContainedFile(extractRoot, rec.Name);
-            if (!pathResult.Success)
-            {
-                throw new InvalidDataException($"Smart Install Maker entry has an unsafe path: {rec.Name}");
-            }
-
-            var destinationPath = pathResult.Data!;
-            var destinationDir = Path.GetDirectoryName(destinationPath);
-            if (!string.IsNullOrEmpty(destinationDir))
-            {
-                Directory.CreateDirectory(destinationDir);
-            }
-
-            var filePos = payloadOffset + rec.StreamOffset;
-            if (filePos < 0 || filePos + rec.CompressedSize > stream.Length)
-            {
-                throw new InvalidDataException($"Smart Install Maker entry '{rec.Name}' compressed range exceeds stream bounds.");
-            }
-
-            stream.Position = filePos;
-            var header = new byte[2];
-            var headerRead = stream.Read(header, 0, 2);
-            stream.Position = filePos;
-
-            long written = 0;
-
-            if (headerRead >= 2 && header[0] == 'B' && header[1] == 'Z')
-            {
-                using var bz2 = SharpCompress.Compressors.BZip2.BZip2Stream.Create(
-                    stream,
-                    SharpCompress.Compressors.CompressionMode.Decompress,
-                    decompressConcatenated: false,
-                    leaveOpen: true);
-
-                using var outStream = File.Create(destinationPath);
-                while (written < rec.UncompressedSize)
-                {
-                    var toRead = (int)Math.Min(copyBuffer.Length, rec.UncompressedSize - written);
-                    var readBytes = bz2.Read(copyBuffer, 0, toRead);
-                    if (readBytes <= 0)
-                    {
-                        break;
-                    }
-
-                    outStream.Write(copyBuffer, 0, readBytes);
-                    written += readBytes;
-                }
-            }
-            else if (headerRead >= 2 && header[0] == 0x78 && (header[1] == 0xDA || header[1] == 0x9C || header[1] == 0x01 || header[1] == 0x5E))
-            {
-                stream.Position = filePos + 2; // skip zlib header
-                using var def = new DeflateStream(stream, CompressionMode.Decompress, leaveOpen: true);
-                using var outStream = File.Create(destinationPath);
-                while (written < rec.UncompressedSize)
-                {
-                    var toRead = (int)Math.Min(copyBuffer.Length, rec.UncompressedSize - written);
-                    var readBytes = def.Read(copyBuffer, 0, toRead);
-                    if (readBytes <= 0)
-                    {
-                        break;
-                    }
-
-                    outStream.Write(copyBuffer, 0, readBytes);
-                    written += readBytes;
-                }
-            }
-            else
-            {
-                using var outStream = File.Create(destinationPath);
-                while (written < rec.UncompressedSize)
-                {
-                    var toRead = (int)Math.Min(copyBuffer.Length, rec.UncompressedSize - written);
-                    var readBytes = stream.Read(copyBuffer, 0, toRead);
-                    if (readBytes <= 0)
-                    {
-                        break;
-                    }
-
-                    outStream.Write(copyBuffer, 0, readBytes);
-                    written += readBytes;
-                }
-            }
-
-            if (written != rec.UncompressedSize)
-            {
-                // Fallback to raw copy if sniffed decompressor failed but raw payload is available
-                if (filePos + rec.UncompressedSize <= stream.Length)
-                {
-                    stream.Position = filePos;
-                    using var outStream = File.Create(destinationPath);
-                    written = 0;
-                    while (written < rec.UncompressedSize)
-                    {
-                        var toRead = (int)Math.Min(copyBuffer.Length, rec.UncompressedSize - written);
-                        var readBytes = stream.Read(copyBuffer, 0, toRead);
-                        if (readBytes <= 0)
-                        {
-                            break;
-                        }
-
-                        outStream.Write(copyBuffer, 0, readBytes);
-                        written += readBytes;
-                    }
-                }
-            }
-
-            if (written != rec.UncompressedSize)
-            {
-                throw new InvalidDataException(
-                    $"Smart Install Maker entry '{rec.Name}' decompressed size mismatch: expected {rec.UncompressedSize} bytes, got {written} bytes.");
-            }
-
+            ExtractSingleSmartInstallMakerRecord(stream, payloadOffset, rec, extractRoot, copyBuffer);
             extractedCount++;
         }
 
         return extractedCount;
+    }
+
+    private static void ExtractSingleSmartInstallMakerRecord(
+        Stream stream,
+        long payloadOffset,
+        (string Name, uint UncompressedSize, uint StreamOffset, uint CompressedSize) rec,
+        string extractRoot,
+        byte[] copyBuffer)
+    {
+        var pathResult = ContentPathPolicy.ResolveContainedFile(extractRoot, rec.Name);
+        if (!pathResult.Success)
+        {
+            throw new InvalidDataException($"Smart Install Maker entry has an unsafe path: {rec.Name}");
+        }
+
+        var destinationPath = pathResult.Data!;
+        var destinationDir = Path.GetDirectoryName(destinationPath);
+        if (!string.IsNullOrEmpty(destinationDir))
+        {
+            Directory.CreateDirectory(destinationDir);
+        }
+
+        var filePos = payloadOffset + rec.StreamOffset;
+        if (filePos < 0 || filePos + rec.CompressedSize > stream.Length)
+        {
+            throw new InvalidDataException($"Smart Install Maker entry '{rec.Name}' compressed range exceeds stream bounds.");
+        }
+
+        stream.Position = filePos;
+        var header = new byte[2];
+        var headerRead = stream.Read(header, 0, 2);
+        stream.Position = filePos;
+
+        var written = TryDecompressSmartInstallMakerRecord(stream, filePos, header, headerRead, destinationPath, rec.UncompressedSize, copyBuffer);
+
+        if (written != rec.UncompressedSize && filePos + rec.UncompressedSize <= stream.Length)
+        {
+            // Fallback to raw copy if sniffed decompressor failed but raw payload is available
+            stream.Position = filePos;
+            using var outStream = File.Create(destinationPath);
+            written = 0;
+            while (written < rec.UncompressedSize)
+            {
+                var toRead = (int)Math.Min(copyBuffer.Length, rec.UncompressedSize - written);
+                var readBytes = stream.Read(copyBuffer, 0, toRead);
+                if (readBytes <= 0)
+                {
+                    break;
+                }
+
+                outStream.Write(copyBuffer, 0, readBytes);
+                written += readBytes;
+            }
+        }
+
+        if (written != rec.UncompressedSize)
+        {
+            throw new InvalidDataException(
+                $"Smart Install Maker entry '{rec.Name}' decompressed size mismatch: expected {rec.UncompressedSize} bytes, got {written} bytes.");
+        }
+    }
+
+    private static long TryDecompressSmartInstallMakerRecord(
+        Stream stream,
+        long filePos,
+        byte[] header,
+        int headerRead,
+        string destinationPath,
+        uint uncompressedSize,
+        byte[] copyBuffer)
+    {
+        long written = 0;
+
+        if (headerRead >= 2 && header[0] == 'B' && header[1] == 'Z')
+        {
+            using var bz2 = SharpCompress.Compressors.BZip2.BZip2Stream.Create(
+                stream,
+                SharpCompress.Compressors.CompressionMode.Decompress,
+                decompressConcatenated: false,
+                leaveOpen: true);
+
+            using var outStream = File.Create(destinationPath);
+            while (written < uncompressedSize)
+            {
+                var toRead = (int)Math.Min(copyBuffer.Length, uncompressedSize - written);
+                var readBytes = bz2.Read(copyBuffer, 0, toRead);
+                if (readBytes <= 0)
+                {
+                    break;
+                }
+
+                outStream.Write(copyBuffer, 0, readBytes);
+                written += readBytes;
+            }
+        }
+        else if (headerRead >= 2 && header[0] == 0x78 && (header[1] == 0xDA || header[1] == 0x9C || header[1] == 0x01 || header[1] == 0x5E))
+        {
+            stream.Position = filePos + 2; // skip zlib header
+            using var def = new DeflateStream(stream, CompressionMode.Decompress, leaveOpen: true);
+            using var outStream = File.Create(destinationPath);
+            while (written < uncompressedSize)
+            {
+                var toRead = (int)Math.Min(copyBuffer.Length, uncompressedSize - written);
+                var readBytes = def.Read(copyBuffer, 0, toRead);
+                if (readBytes <= 0)
+                {
+                    break;
+                }
+
+                outStream.Write(copyBuffer, 0, readBytes);
+                written += readBytes;
+            }
+        }
+        else
+        {
+            using var outStream = File.Create(destinationPath);
+            while (written < uncompressedSize)
+            {
+                var toRead = (int)Math.Min(copyBuffer.Length, uncompressedSize - written);
+                var readBytes = stream.Read(copyBuffer, 0, toRead);
+                if (readBytes <= 0)
+                {
+                    break;
+                }
+
+                outStream.Write(copyBuffer, 0, readBytes);
+                written += readBytes;
+            }
+        }
+
+        return written;
     }
 
     private static List<(string Name, uint UncompressedSize, uint StreamOffset, uint CompressedSize)> ParseSmartInstallMakerFileTable(
