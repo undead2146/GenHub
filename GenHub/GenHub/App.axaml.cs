@@ -11,6 +11,8 @@ using GenHub.Core.Constants;
 using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameProfiles;
+using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Models.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -66,7 +68,10 @@ public partial class App : Application
             SubscribeToSingleInstanceCommands(mainWindow);
 
             // Handle launch profile from startup args (first launch with shortcut)
-            SafeFireAndForget(HandleLaunchProfileArgsAsync(desktop.Args, mainWindow), "HandleLaunchProfileArgsAsync");
+            SafeFireAndForget(HandleLaunchProfileArgsAsync(desktop.Args, mainWindow), nameof(HandleLaunchProfileArgsAsync));
+
+            // Handle subscription URL from startup args (first launch with genhub://subscribe)
+            SafeFireAndForget(HandleSubscriptionArgsAsync(desktop.Args, mainWindow), nameof(HandleSubscriptionArgsAsync));
         }
 
         base.OnFrameworkInitializationCompleted();
@@ -187,6 +192,25 @@ public partial class App : Application
         await LaunchProfileByIdAsync(profileId, mainWindow);
     }
 
+    private async Task HandleSubscriptionArgsAsync(string[]? args, MainWindow mainWindow)
+    {
+        if (args == null || args.Length == 0)
+        {
+            return;
+        }
+
+        var subscriptionUrl = CommandLineParser.ExtractSubscriptionUrl(args);
+        if (string.IsNullOrWhiteSpace(subscriptionUrl))
+        {
+            return;
+        }
+
+        var logger = _serviceProvider.GetService<ILogger<App>>();
+        logger?.LogInformation("Startup subscription detected for URL: {Url}", subscriptionUrl);
+
+        await HandleSubscriptionUrlAsync(subscriptionUrl, mainWindow);
+    }
+
     private void SubscribeToSingleInstanceCommands(MainWindow mainWindow)
     {
         // Get the SingleInstanceManager from AppLocator (set by Windows Program.cs)
@@ -216,7 +240,15 @@ public partial class App : Application
             logger?.LogInformation("Received IPC launch command for profile: {ProfileId}", profileId);
 
             // Launch the profile
-            SafeFireAndForget(LaunchProfileByIdAsync(profileId, mainWindow), "LaunchProfileByIdAsync");
+            SafeFireAndForget(LaunchProfileByIdAsync(profileId, mainWindow), nameof(LaunchProfileByIdAsync));
+        }
+        else if (command.StartsWith(IpcCommands.SubscribePrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var subscriptionUrl = command[IpcCommands.SubscribePrefix.Length..];
+            logger?.LogInformation("Received IPC subscribe command for URL: {Url}", subscriptionUrl);
+
+            // Handle the subscription URL
+            SafeFireAndForget(HandleSubscriptionUrlAsync(subscriptionUrl, mainWindow), nameof(HandleSubscriptionUrlAsync));
         }
         else
         {
@@ -267,6 +299,42 @@ public partial class App : Application
         catch (Exception ex)
         {
             logger?.LogError(ex, "Exception while launching profile {ProfileId}", profileId);
+        }
+    }
+
+    private async Task HandleSubscriptionUrlAsync(string subscriptionUrl, MainWindow mainWindow)
+    {
+        var logger = _serviceProvider.GetService<ILogger<App>>();
+
+        try
+        {
+            logger?.LogInformation("Handling subscription URL: {Url}", subscriptionUrl);
+
+            if (mainWindow?.DataContext is MainViewModel mainViewModel)
+            {
+                mainViewModel.SelectTab(NavigationTab.Downloads);
+            }
+
+            var dialogService = _serviceProvider.GetService<IDialogService>();
+            if (dialogService != null)
+            {
+                var confirmed = await dialogService.ShowConfirmationAsync(
+                    "Subscribe to Catalog",
+                    $"Do you want to subscribe to content from:\n{subscriptionUrl}",
+                    "Subscribe",
+                    "Cancel");
+
+                if (confirmed)
+                {
+                    logger?.LogInformation("User confirmed subscription to: {Url}", subscriptionUrl);
+                    var notificationService = _serviceProvider.GetService<INotificationService>();
+                    notificationService?.ShowSuccess("Subscribed", $"Successfully subscribed to: {subscriptionUrl}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Exception while handling subscription URL {Url}", subscriptionUrl);
         }
     }
 }
