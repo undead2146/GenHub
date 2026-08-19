@@ -54,12 +54,13 @@ public partial class AddLocalContentWindow : Window
                     return null;
                 }
 
-                var result = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+                var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
                 {
                     Title = "Select Content Folder",
                     AllowMultiple = false,
                 });
-                return result.Count > 0 ? result[0].Path.LocalPath : null;
+
+                return folders.Count > 0 ? folders[0].Path.LocalPath : null;
             };
 
             vm.BrowseFileAction = async () =>
@@ -69,14 +70,45 @@ public partial class AddLocalContentWindow : Window
                     return null;
                 }
 
-                var result = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+                var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
                 {
-                    Title = "Select Files",
+                    Title = "Select Archive File",
                     AllowMultiple = true,
-                    FileTypeFilter = [FilePickerFileTypes.All, new("Zip Archives") { Patterns = ["*.zip"] }],
+                    FileTypeFilter =
+                    [
+                        new FilePickerFileType("Archive Files")
+                        {
+                            Patterns = ["*.zip", "*.7z", "*.rar", "*.tar", "*.gz", "*.big"],
+                        },
+                        new FilePickerFileType("All Files")
+                        {
+                            Patterns = ["*.*"],
+                        },
+                    ],
                 });
-                return result.Count > 0 ? result.Select(f => f.Path.LocalPath).ToList() : null;
+
+                return files.Count > 0 ? files.Select(f => f.Path.LocalPath).ToList() : null;
             };
+        }
+    }
+
+    /// <summary>
+    /// Handles pointer pressed on the title bar for dragging and maximizing.
+    /// </summary>
+    /// <param name="sender">The sender.</param>
+    /// <param name="e">The event arguments.</param>
+    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            if (e.ClickCount == 2 && CanResize)
+            {
+                WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+            }
+            else
+            {
+                BeginMoveDrag(e);
+            }
         }
     }
 
