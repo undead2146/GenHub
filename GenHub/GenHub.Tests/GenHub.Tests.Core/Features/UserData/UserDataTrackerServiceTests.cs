@@ -1097,6 +1097,8 @@ public sealed class UserDataTrackerServiceTests : IDisposable
 
         _fileOperationsMock.Setup(f => f.LinkFromCasAsync("throwhash123", It.IsAny<string>(), true, null, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new IOException("Simulated disk error"));
+        _fileOperationsMock.Setup(f => f.CopyFromCasAsync("throwhash123", It.IsAny<string>(), null, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("Simulated disk error"));
 
         // Act
         var result = await _trackerService.InstallUserDataAsync(
