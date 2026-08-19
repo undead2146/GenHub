@@ -218,4 +218,17 @@ public sealed class CommandLineParserTests
 
         Assert.Equal("https://example.com/catalog.json", result);
     }
+
+    /// <summary>
+    /// Verifies that ExtractSubscriptionUrl returns null for non-command subscribe-prefixed URIs.
+    /// </summary>
+    [Fact]
+    public void ExtractSubscriptionUrl_WithNonCommandSubscribePrefixedUri_ReturnsNull()
+    {
+        var args = new[] { "genhub://subscribe-anything?url=https://example.com/catalog.json" };
+
+        var result = CommandLineParser.ExtractSubscriptionUrl(args);
+
+        Assert.Null(result);
+    }
 }

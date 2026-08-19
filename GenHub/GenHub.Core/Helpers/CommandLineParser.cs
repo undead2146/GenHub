@@ -49,6 +49,12 @@ public static class CommandLineParser
         {
             if (arg.StartsWith(CommandLineConstants.SubscribeUriPrefix, StringComparison.OrdinalIgnoreCase))
             {
+                string remainder = arg[CommandLineConstants.SubscribeUriPrefix.Length..];
+                if (!remainder.StartsWith('?') && !remainder.StartsWith("/?", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
                 int queryStart = arg.IndexOf(CommandLineConstants.SubscribeUrlParam, StringComparison.OrdinalIgnoreCase);
                 if (queryStart != -1)
                 {
