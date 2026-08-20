@@ -168,19 +168,19 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
 
         if (dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId)
         {
-            bool found = manifestsById.ContainsKey(dependency.Id.ToString());
-            if (!found && !dependency.StrictPublisher)
+            var declaredId = dependency.Id.ToString();
+            bool found = manifestsById.ContainsKey(declaredId);
+            if (!found)
             {
-                var depIdSegments = dependency.Id.ToString().Split('.');
-                if (depIdSegments.Length >= 5)
+                var depIdSegments = declaredId.Split('.');
+                found = potentialMatches.Any(m =>
                 {
-                    var (depType, depName) = (depIdSegments[3], depIdSegments[4]);
-                    found = potentialMatches.Any(m =>
-                    {
-                        var segments = m.Id.ToString().Split('.');
-                        return segments.Length >= 5 && segments[3].Equals(depType, StringComparison.OrdinalIgnoreCase) && segments[4].Equals(depName, StringComparison.OrdinalIgnoreCase);
-                    });
-                }
+                    var segments = m.Id.ToString().Split('.');
+                    return HasCompatibleCatalogMatch(declaredId, m.Id.ToString()) ||
+                        (!dependency.StrictPublisher && segments.Length >= 5 && depIdSegments.Length >= 5 &&
+                         segments[3].Equals(depIdSegments[3], StringComparison.OrdinalIgnoreCase) &&
+                         segments[4].Equals(depIdSegments[4], StringComparison.OrdinalIgnoreCase));
+                });
             }
 
             if (!found && !dependency.IsOptional) warnings.Add($"'{manifest.Name}' requires '{dependency.Name}' which is not enabled.");
@@ -191,6 +191,18 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
             if (manifestsById.TryGetValue(conflictId.ToString(), out var conflicting))
                 warnings.Add($"'{manifest.Name}' conflicts with '{conflicting.Name}' - these cannot be used together.");
         }
+    }
+
+    private static bool HasCompatibleCatalogMatch(string declaredId, string availableId)
+    {
+        if (string.Equals(declaredId, availableId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var declaredParts = declaredId.Split('.');
+        var availableParts = availableId.Split('.');
+        return DependencyResolver.HasCompatibleCatalogIdentity(declaredParts, availableParts);
     }
 
     private readonly IGameProfileManager? _gameProfileManager;
@@ -399,10 +411,23 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
 
     private async Task OnContentTypeChangedAsync() => await LoadAvailableContentAsync();
 
-    private async Task EnableContentInternal(ContentDisplayItem? contentItem, bool bypassLoadingGuard = false)
+    private async Task EnableContentInternal(
+        ContentDisplayItem? contentItem,
+        bool bypassLoadingGuard = false,
+        bool isRootOperation = true,
+        List<string>? autoEnabledNames = null)
     {
         if (contentItem == null) return;
         if (IsLoadingContent && !bypassLoadingGuard) return;
+
+        if (contentItem.ContentType == ContentType.GameInstallation)
+        {
+            if (SelectedGameInstallation == contentItem && contentItem.IsEnabled)
+            {
+                return;
+            }
+        }
+
         if (contentItem.IsLocked)
         {
             StatusMessage = "This content item is locked and cannot be modified";
@@ -477,19 +502,34 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         StatusMessage = $"Enabled {contentItem.DisplayName}";
         _logger?.LogInformation("Enabled content {ContentName} for profile", contentItem.DisplayName);
 
-        _localNotificationService.ShowSuccess(
-            "Content Enabled",
-            $"Enabled '{contentItem.DisplayName}'");
-
         if (contentItem.ContentType == ContentType.GameClient && Name == "New Profile")
         {
             Name = contentItem.DisplayName;
         }
 
-        await ResolveDependenciesAsync(contentItem);
+        var autoResolved = autoEnabledNames ?? [];
+        await ResolveDependenciesAsync(contentItem, autoResolved);
+
+        if (isRootOperation)
+        {
+            if (autoResolved.Count > 0)
+            {
+                _localNotificationService.ShowSuccess(
+                    "Content Enabled",
+                    $"Enabled '{contentItem.DisplayName}' and auto-resolved: {string.Join(", ", autoResolved)}");
+            }
+            else
+            {
+                _localNotificationService.ShowSuccess(
+                    "Content Enabled",
+                    $"Enabled '{contentItem.DisplayName}'");
+            }
+
+            await ValidateEnabledContentDependenciesAsync(contentItem.DisplayName);
+        }
     }
 
-    private async Task ResolveDependenciesAsync(ContentDisplayItem contentItem)
+    private async Task ResolveDependenciesAsync(ContentDisplayItem contentItem, List<string> autoEnabledNames)
     {
         try
         {
@@ -498,7 +538,6 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
             var manifest = await GetOrSynthesizeManifestForContentAsync(contentItem);
             if (manifest?.Dependencies == null || manifest.Dependencies.Count == 0)
             {
-                _ = ValidateEnabledContentDependenciesAsync(contentItem.DisplayName);
                 return;
             }
 
@@ -506,20 +545,17 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
             {
                 if (dependency.DependencyType == ContentType.GameInstallation)
                 {
-                    await ResolveGameInstallationDependencyAsync(contentItem, dependency);
+                    await ResolveGameInstallationDependencyAsync(contentItem, dependency, autoEnabledNames);
                 }
                 else
                 {
-                    await ResolveContentDependencyAsync(dependency);
+                    await ResolveContentDependencyAsync(dependency, autoEnabledNames);
                 }
             }
-
-            await ValidateEnabledContentDependenciesAsync(contentItem.DisplayName);
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error resolving dependencies for {ContentName}", contentItem.DisplayName);
-            _ = ValidateEnabledContentDependenciesAsync(contentItem.DisplayName);
         }
     }
 
@@ -561,7 +597,10 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         return null;
     }
 
-    private async Task ResolveGameInstallationDependencyAsync(ContentDisplayItem contentItem, ContentDependency dependency)
+    private async Task ResolveGameInstallationDependencyAsync(
+        ContentDisplayItem contentItem,
+        ContentDependency dependency,
+        List<string> autoEnabledNames)
     {
         bool isSatisfied = false;
         var isDefaultDep = dependency.Id.ToString() == ManifestConstants.DefaultContentDependencyId;
@@ -607,15 +646,24 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
 
         if (compatibleInstallation != null)
         {
-            _localNotificationService.ShowSuccess("Auto-Resolved", $"Switched Game Installation to '{compatibleInstallation.DisplayName}' as required by '{contentItem.DisplayName}'.");
-            await EnableContentInternal(compatibleInstallation, bypassLoadingGuard: true);
+            if (!autoEnabledNames.Contains(compatibleInstallation.DisplayName))
+            {
+                autoEnabledNames.Add(compatibleInstallation.DisplayName);
+            }
+
+            await EnableContentInternal(compatibleInstallation, bypassLoadingGuard: true, isRootOperation: false, autoEnabledNames);
         }
     }
 
-    private async Task ResolveContentDependencyAsync(ContentDependency dependency)
+    private async Task ResolveContentDependencyAsync(
+        ContentDependency dependency,
+        List<string> autoEnabledNames)
     {
-        bool alreadyEnabled = dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId
-            ? EnabledContent.Any(x => x.ManifestId.Value == dependency.Id.ToString())
+        var declaredId = dependency.Id.ToString();
+        bool alreadyEnabled = declaredId != ManifestConstants.DefaultContentDependencyId
+            ? EnabledContent.Any(x => x.ManifestId.Value == declaredId ||
+                (x.ContentType == dependency.DependencyType &&
+                 HasCompatibleCatalogMatch(declaredId, x.ManifestId.Value)))
             : EnabledContent.Any(x => x.ContentType == dependency.DependencyType);
 
         if (alreadyEnabled || dependency.IsOptional || _profileContentLoader == null) return;
@@ -632,19 +680,22 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
             })),
             EnabledContent.Select(x => x.ManifestId.Value));
 
-        Core.Models.Content.ContentDisplayItem? match = null;
-        if (dependency.Id.ToString() != ManifestConstants.DefaultContentDependencyId)
-        {
-            match = availableOfTargetType.FirstOrDefault(x => x.ManifestId == dependency.Id.ToString());
-        }
+        var match = declaredId != ManifestConstants.DefaultContentDependencyId
+            ? (availableOfTargetType.FirstOrDefault(x => x.ManifestId == declaredId)
+               ?? availableOfTargetType.FirstOrDefault(x => HasCompatibleCatalogMatch(declaredId, x.ManifestId)))
+            : availableOfTargetType.FirstOrDefault(x => x.ContentType == dependency.DependencyType);
 
         if (match != null)
         {
             var viewModelItem = ConvertToViewModelContentDisplayItem(match);
             if (!viewModelItem.IsEnabled)
             {
-                _localNotificationService.ShowSuccess("Auto-Resolved", $"Automatically enabled required content: '{viewModelItem.DisplayName}'");
-                await EnableContentInternal(viewModelItem, bypassLoadingGuard: true);
+                if (!autoEnabledNames.Contains(viewModelItem.DisplayName))
+                {
+                    autoEnabledNames.Add(viewModelItem.DisplayName);
+                }
+
+                await EnableContentInternal(viewModelItem, bypassLoadingGuard: true, isRootOperation: false, autoEnabledNames);
             }
         }
     }

@@ -193,4 +193,45 @@ public class DependencyResolver(
 
         return DependencyResolutionResult.CreateSuccess([..resolvedIds], resolvedManifests, missingContentIds);
     }
+
+    /// <summary>
+    /// Matches a declared 5-segment catalog ID to an acquired manifest that shares publisher,
+    /// content type, and content-name identity while allowing the version segment (and a trailing
+    /// variant label such as <c>720p</c>) to differ.
+    /// </summary>
+    /// <param name="declaredParts">The 5 segments of the declared catalog ID.</param>
+    /// <param name="acquiredParts">The 5 segments of the acquired manifest ID.</param>
+    /// <returns><see langword="true"/> if identities are compatible; otherwise, <see langword="false"/>.</returns>
+    public static bool HasCompatibleCatalogIdentity(string[] declaredParts, string[] acquiredParts)
+    {
+        if (declaredParts.Length != 5 || acquiredParts.Length != 5)
+        {
+            return false;
+        }
+
+        if (!declaredParts[0].Equals(acquiredParts[0], StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var isAnyPublisher = declaredParts[2].Equals("any", StringComparison.OrdinalIgnoreCase);
+        if (!isAnyPublisher && !declaredParts[2].Equals(acquiredParts[2], StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!declaredParts[3].Equals(acquiredParts[3], StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var declaredName = declaredParts[4];
+        var acquiredName = acquiredParts[4];
+        if (declaredName.Equals(acquiredName, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return acquiredName.StartsWith(declaredName + "-", StringComparison.OrdinalIgnoreCase);
+    }
 }
