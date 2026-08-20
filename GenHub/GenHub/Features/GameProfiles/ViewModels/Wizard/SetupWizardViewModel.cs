@@ -27,7 +27,7 @@ public sealed partial class SetupWizardViewModel(IEnumerable<SetupWizardItemView
     /// Gets or sets the label for the cancel/skip button.
     /// </summary>
     [ObservableProperty]
-    private string _cancelLabel = "Skip & Create Base Profiles";
+    private string _cancelLabel = "Skip";
 
     /// <summary>
     /// Gets or sets the label for the confirm/continue button.

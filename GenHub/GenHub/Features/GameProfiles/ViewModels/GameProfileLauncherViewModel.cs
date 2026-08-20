@@ -128,8 +128,6 @@ public partial class GameProfileLauncherViewModel(
             _headerCollapseTimer.Elapsed += (s, e) =>
                 Avalonia.Threading.Dispatcher.UIThread.Invoke(() => IsHeaderExpanded = false);
 
-            _headerCollapseTimer.Start();
-
             // Set up expansion timer
             _headerExpansionTimer.AutoReset = false;
             _headerExpansionTimer.Elapsed += (s, e) =>
@@ -542,6 +540,12 @@ public partial class GameProfileLauncherViewModel(
         List<GameInstallation> installationsList,
         SetupWizardResult wizardResult)
     {
+        if (!wizardResult.Confirmed)
+        {
+            logger.LogInformation("Setup wizard was skipped by user, skipping profile creation");
+            return 0;
+        }
+
         var cpDecision = wizardResult.CommunityPatchAction;
         var goDecision = wizardResult.GeneralsOnlineAction;
         var shDecision = wizardResult.SuperHackersAction;

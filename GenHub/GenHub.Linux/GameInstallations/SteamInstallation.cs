@@ -171,71 +171,159 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
     /// <returns>List of Steam library paths.</returns>
     private List<string> GetSteamLibraryPaths()
     {
-        var libraryPaths = new List<string>();
+        var libraryPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         try
         {
             var homeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            var steamConfigPaths = new Dictionary<string, LinuxInstallationType>
-            {
-                {
-                    ".steam/steam/steamapps/libraryfolders.vdf",
-                    LinuxInstallationType.Binary
-                },
-                {
-                    ".local/share/Steam/steamapps/libraryfolders.vdf",
-                    LinuxInstallationType.Binary
-                },
-                {
-                    ".var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/libraryfolders.vdf",
-                    LinuxInstallationType.Flatpack
-                },
-                {
-                    "snap/steam/common/.local/share/Steam/steamapps/libraryfolders.vdf",
-                    LinuxInstallationType.Snap
-                },
-                {
-                    "/usr/share/steam/steamapps/libraryfolders.vdf",
-                    LinuxInstallationType.Unknown
-                },
-            };
+            var envHome = Environment.GetEnvironmentVariable("HOME");
 
-            string? configFile = null;
-            foreach (KeyValuePair<string, LinuxInstallationType> entry in steamConfigPaths)
+            var homeDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrEmpty(homeDirectory))
             {
-                if (File.Exists(Path.Combine(homeDirectory, entry.Key)))
+                homeDirs.Add(homeDirectory);
+                if (homeDirectory.StartsWith("/home/"))
                 {
-                    configFile = Path.Combine(homeDirectory, entry.Key);
-                    PackageInstallationType = entry.Value;
-                    break;
+                    homeDirs.Add("/var" + homeDirectory);
+                }
+                else if (homeDirectory.StartsWith("/var/home/"))
+                {
+                    homeDirs.Add(homeDirectory.Substring(4));
                 }
             }
 
-            if (configFile == null)
+            if (!string.IsNullOrEmpty(envHome))
             {
-                logger?.LogDebug("Steam library configuration file not found");
-                return libraryPaths;
+                homeDirs.Add(envHome);
+                if (envHome.StartsWith("/home/"))
+                {
+                    homeDirs.Add("/var" + envHome);
+                }
+                else if (envHome.StartsWith("/var/home/"))
+                {
+                    homeDirs.Add(envHome.Substring(4));
+                }
             }
 
-            logger?.LogDebug("Reading Steam library configuration from: {ConfigFile}", configFile);
-
-            var lines = File.ReadAllLines(configFile);
-            foreach (var line in lines)
+            var steamConfigRelativePaths = new (string Path, LinuxInstallationType Type)[]
             {
-                if (!line.Contains("\"path\""))
-                    continue;
+                (".steam/steam/steamapps/libraryfolders.vdf", LinuxInstallationType.Binary),
+                (".steam/root/steamapps/libraryfolders.vdf", LinuxInstallationType.Binary),
+                (".local/share/Steam/steamapps/libraryfolders.vdf", LinuxInstallationType.Binary),
+                (".var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/libraryfolders.vdf", LinuxInstallationType.Flatpack),
+                (".var/app/com.valvesoftware.Steam/data/Steam/steamapps/libraryfolders.vdf", LinuxInstallationType.Flatpack),
+                (".var/app/com.valvesoftware.Steam/.steam/steam/steamapps/libraryfolders.vdf", LinuxInstallationType.Flatpack),
+                (".var/app/com.valvesoftware.Steam/.steam/root/steamapps/libraryfolders.vdf", LinuxInstallationType.Flatpack),
+                ("snap/steam/common/.local/share/Steam/steamapps/libraryfolders.vdf", LinuxInstallationType.Snap),
+            };
 
-                var parts = line.Split('"');
-                if (parts.Length < 4)
-                    continue;
+            var configFiles = new List<(string ConfigFile, LinuxInstallationType Type)>();
 
-                var steamPath = parts[3].Trim();
-                var commonPath = Path.Combine(steamPath, "steamapps", "common");
-
-                if (Directory.Exists(commonPath))
+            foreach (var home in homeDirs)
+            {
+                foreach (var (relPath, type) in steamConfigRelativePaths)
                 {
-                    libraryPaths.Add(commonPath);
-                    logger?.LogDebug("Found Steam library: {LibraryPath}", commonPath);
+                    var fullPath = Path.Combine(home, relPath);
+                    if (File.Exists(fullPath))
+                    {
+                        configFiles.Add((fullPath, type));
+                    }
+                }
+            }
+
+            if (File.Exists("/usr/share/steam/steamapps/libraryfolders.vdf"))
+            {
+                configFiles.Add(("/usr/share/steam/steamapps/libraryfolders.vdf", LinuxInstallationType.Unknown));
+            }
+
+            // Direct standard library folder candidates
+            var standardLibraryRelativePaths = new[]
+            {
+                ".local/share/Steam/steamapps/common",
+                ".steam/steam/steamapps/common",
+                ".steam/root/steamapps/common",
+                ".var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common",
+                ".var/app/com.valvesoftware.Steam/data/Steam/steamapps/common",
+                ".var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common",
+                ".var/app/com.valvesoftware.Steam/.steam/root/steamapps/common",
+                "snap/steam/common/.local/share/Steam/steamapps/common",
+            };
+
+            foreach (var home in homeDirs)
+            {
+                foreach (var relLib in standardLibraryRelativePaths)
+                {
+                    var fullLib = Path.Combine(home, relLib);
+                    if (Directory.Exists(fullLib))
+                    {
+                        libraryPaths.Add(fullLib);
+                        logger?.LogDebug("Found Steam library via standard path: {LibraryPath}", fullLib);
+                    }
+                }
+            }
+
+            if (configFiles.Count == 0 && libraryPaths.Count == 0)
+            {
+                logger?.LogDebug("Steam library configuration file not found");
+                return libraryPaths.ToList();
+            }
+
+            foreach (var (configFile, pkgType) in configFiles)
+            {
+                PackageInstallationType = pkgType;
+                logger?.LogDebug("Reading Steam library configuration from: {ConfigFile}", configFile);
+
+                var lines = File.ReadAllLines(configFile);
+                foreach (var line in lines)
+                {
+                    if (!line.Contains("\"path\""))
+                        continue;
+
+                    var parts = line.Split('"');
+                    if (parts.Length < 4)
+                        continue;
+
+                    var steamPath = parts[3].Trim();
+                    var commonPath = Path.Combine(steamPath, "steamapps", "common");
+
+                    if (Directory.Exists(commonPath))
+                    {
+                        libraryPaths.Add(commonPath);
+                        logger?.LogDebug("Found Steam library: {LibraryPath}", commonPath);
+                    }
+                    else
+                    {
+                        // Check if path is a Flatpak sandbox path that needs host mapping
+                        foreach (var home in homeDirs)
+                        {
+                            var flatpakLocal = Path.Combine(home, ".var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common");
+                            if (Directory.Exists(flatpakLocal))
+                            {
+                                libraryPaths.Add(flatpakLocal);
+                            }
+
+                            var flatpakData = Path.Combine(home, ".var/app/com.valvesoftware.Steam/data/Steam/steamapps/common");
+                            if (Directory.Exists(flatpakData))
+                            {
+                                libraryPaths.Add(flatpakData);
+                            }
+
+                            // Also try mapping /home/user or /var/home/user prefix
+                            if (steamPath.StartsWith("/home/") || steamPath.StartsWith("/var/home/"))
+                            {
+                                var subPath = steamPath.Substring(steamPath.IndexOf('/', 1));
+                                if (subPath.IndexOf('/', 1) > 0)
+                                {
+                                    var relAfterUser = steamPath.Substring(steamPath.IndexOf('/', steamPath.IndexOf('/', 1) + 1));
+                                    var flatpakMapped = Path.Combine(home, ".var/app/com.valvesoftware.Steam", relAfterUser.TrimStart('/'), "steamapps", "common");
+                                    if (Directory.Exists(flatpakMapped))
+                                    {
+                                        libraryPaths.Add(flatpakMapped);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -244,6 +332,6 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
             logger?.LogWarning(ex, "Failed to read Steam library paths");
         }
 
-        return libraryPaths;
+        return libraryPaths.ToList();
     }
 }
