@@ -176,7 +176,7 @@ public class UserSettingsService : IUserSettingsService
     public async Task SaveAsync(CancellationToken cancellationToken = default)
     {
         UserSettings settingsToSave;
-        SettingsFileTarget target;
+        var target = SettingsFileTarget.Unverified(string.Empty);
         lock (_lock)
         {
             target = _target;

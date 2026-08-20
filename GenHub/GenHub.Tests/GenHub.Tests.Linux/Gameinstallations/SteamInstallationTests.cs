@@ -1,5 +1,6 @@
 using GenHub.Core.Models.Enums;
 using GenHub.Linux.GameInstallations;
+using GenHub.Tests.Linux.Infrastructure.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace GenHub.Tests.Linux.Gameinstallations;
@@ -7,6 +8,7 @@ namespace GenHub.Tests.Linux.Gameinstallations;
 /// <summary>
 /// Unit tests for <see cref="SteamInstallation"/>.
 /// </summary>
+[Collection(ApplicationCompositionCollection.Name)]
 public class SteamInstallationTests
 {
     /// <summary>

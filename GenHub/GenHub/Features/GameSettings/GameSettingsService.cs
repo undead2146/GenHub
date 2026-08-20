@@ -324,7 +324,12 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
         {
             File.Delete(temporaryPath);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (IOException)
+        {
+            // Best effort; a leftover temporary file is not worth failing the save over, and
+            // this runs in a finally block where throwing would hide the error being reported.
+        }
+        catch (UnauthorizedAccessException)
         {
             // Best effort; a leftover temporary file is not worth failing the save over, and
             // this runs in a finally block where throwing would hide the error being reported.

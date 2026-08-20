@@ -320,10 +320,17 @@ public class GameProfileLauncherViewModelTests
     public async Task ScanForGamesCommand_WhenWizardCancelled_CreatesZeroProfilesAsync()
     {
         var installationService = new Mock<IGameInstallationService>();
-        var installations = new List<GameInstallation>
-        {
-            new("C:\\Steam\\Games", GameInstallationType.Steam, new Mock<ILogger<GameInstallation>>().Object),
-        };
+        var installation = new GameInstallation("C:\\Steam\\Games", GameInstallationType.Steam, new Mock<ILogger<GameInstallation>>().Object);
+        installation.PopulateGameClients([
+            new GameClient
+            {
+                Id = "cp-client",
+                Name = "Community Patch",
+                PublisherType = CommunityOutpostConstants.PublisherType,
+                GameType = GameType.ZeroHour,
+            },
+        ]);
+        var installations = new List<GameInstallation> { installation };
 
         installationService.Setup(x => x.GetAllInstallationsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<IReadOnlyList<GameInstallation>>.CreateSuccess(installations));
@@ -336,7 +343,11 @@ public class GameProfileLauncherViewModelTests
 
         var setupWizardService = new Mock<ISetupWizardService>();
         setupWizardService.Setup(x => x.RunSetupWizardAsync(It.IsAny<IEnumerable<GameInstallation>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new SetupWizardResult { Confirmed = false });
+            .ReturnsAsync(new SetupWizardResult
+            {
+                Confirmed = false,
+                CommunityPatchAction = GameClientConstants.WizardActionTypes.Install,
+            });
 
         var vm = new GameProfileLauncherViewModel(
             installationService.Object,
@@ -359,6 +370,12 @@ public class GameProfileLauncherViewModelTests
         await vm.ScanForGamesCommand.ExecuteAsync(null);
 
         Assert.Equal("Scan complete. Found 1 installations, created 0 profiles", vm.StatusMessage);
+        publisherOrchestrator.Verify(
+            x => x.CreateProfilesForPublisherClientAsync(It.IsAny<GameInstallation>(), It.IsAny<GameClient>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        profileManager.Verify(
+            x => x.CreateProfileAsync(It.IsAny<CreateProfileRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     /// <summary>
