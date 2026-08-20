@@ -9,6 +9,9 @@ namespace GenHub.Tests.Core.Features.GameProfiles.ViewModels.Wizard;
 /// </summary>
 public class SetupWizardViewModelTests
 {
+    /// <summary>
+    /// Verifies that the constructor initializes labels and items accurately.
+    /// </summary>
     [Fact]
     public void Constructor_InitializesLabelsAndItemsCorrectly()
     {
@@ -28,6 +31,9 @@ public class SetupWizardViewModelTests
         Assert.False(vm.Confirmed);
     }
 
+    /// <summary>
+    /// Verifies that ToggleSelectionCommand toggles item selection for non-mandatory items.
+    /// </summary>
     [Fact]
     public void ToggleSelectionCommand_WhenItemNonMandatory_TogglesSelectionAndUpdatesLabel()
     {
@@ -48,6 +54,9 @@ public class SetupWizardViewModelTests
         Assert.Equal("Continue (1)", vm.ConfirmLabel);
     }
 
+    /// <summary>
+    /// Verifies that ToggleSelectionCommand ignores mandatory items.
+    /// </summary>
     [Fact]
     public void ToggleSelectionCommand_WhenItemMandatory_DoesNotToggleSelection()
     {
@@ -62,6 +71,9 @@ public class SetupWizardViewModelTests
         Assert.Equal("Continue (1)", vm.ConfirmLabel);
     }
 
+    /// <summary>
+    /// Verifies that ToggleSelectionCommand does nothing when item is null.
+    /// </summary>
     [Fact]
     public void ToggleSelectionCommand_WhenItemNull_DoesNothing()
     {
@@ -74,6 +86,9 @@ public class SetupWizardViewModelTests
         Assert.Equal("Continue (1)", vm.ConfirmLabel);
     }
 
+    /// <summary>
+    /// Verifies that ConfirmCommand sets Confirmed to true and signals close.
+    /// </summary>
     [Fact]
     public void ConfirmCommand_SetsConfirmedAndFiresCloseRequested()
     {
@@ -88,6 +103,9 @@ public class SetupWizardViewModelTests
         Assert.True(closeFired);
     }
 
+    /// <summary>
+    /// Verifies that CancelCommand sets Confirmed to false and signals close.
+    /// </summary>
     [Fact]
     public void CancelCommand_SetsConfirmedFalseAndFiresCloseRequested()
     {
