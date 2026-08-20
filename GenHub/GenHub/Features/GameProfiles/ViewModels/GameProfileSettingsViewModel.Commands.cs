@@ -419,8 +419,6 @@ public partial class GameProfileSettingsViewModel
                     StatusMessage = "Profile created successfully";
                     _logger?.LogInformation("Created new profile {ProfileName} with {ContentCount} enabled content items", Name, enabledContentIds.Count);
 
-                    WeakReferenceMessenger.Default.Send(new ProfileCreatedMessage(result.Data));
-
                     ExecuteCancel();
                 }
                 else
@@ -699,7 +697,7 @@ public partial class GameProfileSettingsViewModel
 
             if (dialogOwner == null) return;
 
-            var vm = new AddLocalContentViewModel(
+            using var vm = new AddLocalContentViewModel(
                 _localContentService,
                 _contentStorageService,
                 _genLauncherNormalizationService,
@@ -767,7 +765,7 @@ public partial class GameProfileSettingsViewModel
 
             if (owner == null) return;
 
-            var vm = new AddLocalContentViewModel(
+            using var vm = new AddLocalContentViewModel(
                 _localContentService,
                 _contentStorageService,
                 _genLauncherNormalizationService,

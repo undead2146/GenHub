@@ -11,7 +11,8 @@ public static class IpcCommands
     public const string LaunchProfilePrefix = "launch-profile:";
 
     /// <summary>
-    /// Command prefix used to subscribe to a catalog via IPC.
+    /// Command prefix used to forward a subscribe URL to the primary instance
+    /// (<c>subscribe:&lt;absolute-url&gt;</c>). Same payload as <c>genhub://subscribe?url=...</c>.
     /// </summary>
     public const string SubscribePrefix = "subscribe:";
 }

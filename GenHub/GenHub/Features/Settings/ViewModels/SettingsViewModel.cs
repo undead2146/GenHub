@@ -68,6 +68,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     private readonly IGameInstallationService _installationService;
     private readonly IStorageLocationService _storageLocationService;
     private readonly IUserDataTracker _userDataTracker;
+    private readonly IDialogService _dialogService;
 
     private bool _isViewVisible;
     private bool _disposed;
@@ -127,6 +128,12 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private bool _autoCheckForUpdatesOnStartup = true;
+
+    [ObservableProperty]
+    private bool _autoCheckForUpdatesPeriodically = true;
+
+    [ObservableProperty]
+    private int _periodicUpdateCheckIntervalMinutes = AppUpdateConstants.DefaultPeriodicUpdateCheckIntervalMinutes;
 
     [ObservableProperty]
     private bool _allowBackgroundDownloads = true;
@@ -195,12 +202,6 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _patStatusMessage = string.Empty;
 
-    [ObservableProperty]
-    private bool _isLoadingArtifacts;
-
-    [ObservableProperty]
-    private ObservableCollection<ArtifactUpdateInfo> _availableArtifacts = [];
-
     /// <summary>
     /// Initializes a new instance of the <see cref="SettingsViewModel"/> class.
     /// </summary>
@@ -216,6 +217,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     /// <param name="installationService">Game installation service.</param>
     /// <param name="storageLocationService">Storage location service.</param>
     /// <param name="userDataTracker">User data tracker service.</param>
+    /// <param name="dialogService">Dialog service used to confirm destructive actions.</param>
     /// <param name="gitHubTokenStorage">GitHub token storage.</param>
     public SettingsViewModel(
         IUserSettingsService userSettingsService,
@@ -230,6 +232,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         IGameInstallationService installationService,
         IStorageLocationService storageLocationService,
         IUserDataTracker userDataTracker,
+        IDialogService dialogService,
         IGitHubTokenStorage? gitHubTokenStorage = null)
     {
         _userSettingsService = userSettingsService ?? throw new ArgumentNullException(nameof(userSettingsService));
@@ -244,6 +247,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         _installationService = installationService ?? throw new ArgumentNullException(nameof(installationService));
         _storageLocationService = storageLocationService ?? throw new ArgumentNullException(nameof(storageLocationService));
         _userDataTracker = userDataTracker ?? throw new ArgumentNullException(nameof(userDataTracker));
+        _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
         _gitHubTokenStorage = gitHubTokenStorage;
 
         LoadSettings();
@@ -486,6 +490,8 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             WorkspacePath = settings.WorkspacePath;
             MaxConcurrentDownloads = settings.MaxConcurrentDownloads;
             AutoCheckForUpdatesOnStartup = settings.AutoCheckForUpdatesOnStartup;
+            AutoCheckForUpdatesPeriodically = settings.AutoCheckForUpdatesPeriodically;
+            PeriodicUpdateCheckIntervalMinutes = settings.PeriodicUpdateCheckIntervalMinutes;
             AllowBackgroundDownloads = settings.AllowBackgroundDownloads;
             EnableDetailedLogging = settings.EnableDetailedLogging;
             DefaultWorkspaceStrategy = settings.DefaultWorkspaceStrategy;
@@ -540,6 +546,8 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
                 settings.WorkspacePath = WorkspacePath;
                 settings.MaxConcurrentDownloads = MaxConcurrentDownloads;
                 settings.AutoCheckForUpdatesOnStartup = AutoCheckForUpdatesOnStartup;
+                settings.AutoCheckForUpdatesPeriodically = AutoCheckForUpdatesPeriodically;
+                settings.PeriodicUpdateCheckIntervalMinutes = PeriodicUpdateCheckIntervalMinutes;
                 settings.AllowBackgroundDownloads = AllowBackgroundDownloads;
                 settings.EnableDetailedLogging = EnableDetailedLogging;
                 settings.DefaultWorkspaceStrategy = DefaultWorkspaceStrategy;
@@ -569,6 +577,12 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
 
             await _userSettingsService.SaveAsync();
 
+            // Notify components of updated update settings
+            WeakReferenceMessenger.Default.Send(new UpdateSettingsChangedMessage(
+                AutoCheckForUpdatesOnStartup,
+                AutoCheckForUpdatesPeriodically,
+                PeriodicUpdateCheckIntervalMinutes));
+
             // Apply log level change immediately without restart
             Infrastructure.DependencyInjection.LoggingModule.SetLogLevel(EnableDetailedLogging);
 
@@ -583,6 +597,10 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to save settings");
+            _notificationService.ShowError(
+                "Settings Not Saved",
+                ex.Message,
+                (int)TimeIntervals.NotificationHideDelay.TotalMilliseconds);
         }
         finally
         {
@@ -600,6 +618,8 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             WorkspacePath = string.Empty;
             MaxConcurrentDownloads = DownloadDefaults.MaxConcurrentDownloads;
             AutoCheckForUpdatesOnStartup = true;
+            AutoCheckForUpdatesPeriodically = true;
+            PeriodicUpdateCheckIntervalMinutes = AppUpdateConstants.DefaultPeriodicUpdateCheckIntervalMinutes;
             AllowBackgroundDownloads = true;
             EnableDetailedLogging = false;
             DefaultWorkspaceStrategy = WorkspaceConstants.DefaultWorkspaceStrategy;
@@ -742,6 +762,14 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         {
             _logger.LogWarning("Invalid DownloadBufferSizeKB value: {Value}. Resetting to 80KB.", DownloadBufferSizeKB);
             DownloadBufferSizeKB = DownloadDefaults.BufferSizeKB;
+        }
+
+        // Validate periodic update check interval
+        if (PeriodicUpdateCheckIntervalMinutes < AppUpdateConstants.MinPeriodicUpdateCheckIntervalMinutes ||
+            PeriodicUpdateCheckIntervalMinutes > AppUpdateConstants.MaxPeriodicUpdateCheckIntervalMinutes)
+        {
+            _logger.LogWarning("Invalid PeriodicUpdateCheckIntervalMinutes value: {Value}. Resetting to default.", PeriodicUpdateCheckIntervalMinutes);
+            PeriodicUpdateCheckIntervalMinutes = AppUpdateConstants.DefaultPeriodicUpdateCheckIntervalMinutes;
         }
 
         // Validate game install path if specified
@@ -1007,7 +1035,6 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             HasGitHubPat = false;
             IsPatValid = false;
             PatStatusMessage = "GitHub PAT removed";
-            AvailableArtifacts.Clear();
         }
         catch (Exception ex)
         {
@@ -1034,64 +1061,57 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>
-    /// Loads available CI artifacts for selection.
-    /// </summary>
     [RelayCommand]
-    private async Task LoadArtifactsAsync()
+    private async Task DeleteAllData()
     {
-        if (_updateManager == null || !HasGitHubPat)
-        {
-            PatStatusMessage = "Configure a GitHub PAT to load artifacts";
-            return;
-        }
-
-        IsLoadingArtifacts = true;
-        AvailableArtifacts.Clear();
-
         try
         {
-            var artifact = await _updateManager.CheckForArtifactUpdatesAsync();
-            if (artifact != null)
+            _logger.LogWarning("Deleting ALL application data requested");
+
+            var confirmed = await _dialogService.ShowConfirmationAsync(
+                AppConstants.DeleteAllDataConfirmationTitle,
+                AppConstants.DeleteAllDataConfirmationMessage,
+                confirmText: AppConstants.DeleteAllDataConfirmText);
+
+            if (!confirmed)
             {
-                AvailableArtifacts.Add(artifact);
-                PatStatusMessage = $"Found {AvailableArtifacts.Count} artifact(s)";
+                _logger.LogInformation("Deleting ALL application data was cancelled at the confirmation prompt");
+                return;
+            }
+
+            await DeleteProfiles();
+            await DeleteWorkspaces();
+            await DeleteManifests();
+            await DeleteCasStorage();
+            var userDataDeleted = await DeleteUserDataInternalAsync();
+
+            // Invalidate installation cache to force re-generation of manifests on next scan
+            _installationService.InvalidateCache();
+
+            await UpdateDangerZoneDataAsync();
+
+            // A success toast on top of the partial-failure toast the user data deletion just raised
+            // would tell the user their data is gone while their originals are still on disk.
+            if (userDataDeleted)
+            {
+                _notificationService.ShowSuccess(
+                    "Data Deleted",
+                    $"Profiles, workspaces, manifests, and user data were deleted. {CasDefaults.GarbageCollectionDisabledMessage}",
+                    5000);
             }
             else
             {
-                PatStatusMessage = "No artifacts available";
+                _notificationService.ShowWarning(
+                    "Data Partially Deleted",
+                    $"Profiles, workspaces, and manifests were deleted, but some user data was kept. {CasDefaults.GarbageCollectionDisabledMessage}",
+                    5000);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load artifacts");
-            PatStatusMessage = $"Error loading artifacts: {ex.Message}";
+            _logger.LogError(ex, "Failed to delete all application data");
+            _notificationService.ShowError("Deletion Failed", $"Failed to delete all application data: {ex.Message}", 5000);
         }
-        finally
-        {
-            IsLoadingArtifacts = false;
-        }
-    }
-
-    [RelayCommand]
-    private async Task DeleteAllData()
-    {
-        _logger.LogWarning("Deleting ALL application data requested");
-
-        await DeleteProfiles();
-        await DeleteWorkspaces();
-        await DeleteManifests();
-        await DeleteCasStorage();
-        await DeleteUserData();
-
-        // Invalidate installation cache to force re-generation of manifests on next scan
-        _installationService.InvalidateCache();
-
-        await UpdateDangerZoneDataAsync();
-        _notificationService.ShowSuccess(
-            "Data Deleted",
-            $"Profiles, workspaces, manifests, and user data were deleted. {CasDefaults.GarbageCollectionDisabledMessage}",
-            5000);
     }
 
     [RelayCommand]
@@ -1309,18 +1329,41 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task DeleteUserData()
     {
+        await DeleteUserDataInternalAsync();
+    }
+
+    /// <summary>
+    /// Deletes the tracked user data and reports whether everything was actually removed, so a
+    /// caller that follows it with a summary message cannot contradict the partial-failure it raised.
+    /// </summary>
+    /// <returns><c>true</c> when all tracked user data was deleted; otherwise, <c>false</c>.</returns>
+    private async Task<bool> DeleteUserDataInternalAsync()
+    {
         try
         {
             _logger.LogWarning("Deleting all user data");
-            await _userDataTracker.DeleteAllUserDataAsync();
-            _notificationService.ShowSuccess("User Data Deleted", "All user data deleted successfully.", 3000);
+            var result = await _userDataTracker.DeleteAllUserDataAsync();
+            if (result.Success)
+            {
+                _notificationService.ShowSuccess("User Data Deleted", "All user data deleted successfully.", 3000);
+            }
+            else
+            {
+                _logger.LogWarning("User data deletion kept some data: {Error}", result.FirstError);
+                _notificationService.ShowError(
+                    "User Data Partially Deleted",
+                    result.FirstError ?? "Some tracked user data could not be deleted.",
+                    5000);
+            }
 
             await UpdateDangerZoneDataAsync();
+            return result.Success;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete user data");
             _notificationService.ShowError("Deletion Failed", $"Failed to delete user data: {ex.Message}", 5000);
+            return false;
         }
     }
 
