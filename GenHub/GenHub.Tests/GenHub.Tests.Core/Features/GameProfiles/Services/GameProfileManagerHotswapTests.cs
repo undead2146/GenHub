@@ -290,6 +290,91 @@ public class GameProfileManagerHotswapTests
         var res4 = await _profileManager.UpdateProfileAsync(profileId, req4);
         Assert.False(res4.Success);
         Assert.Contains("working directory", res4.FirstError, StringComparison.OrdinalIgnoreCase);
+
+        // 5. Command line arguments change
+        var req5 = new UpdateProfileRequest { CommandLineArguments = "-win -quickstart" };
+        var res5 = await _profileManager.UpdateProfileAsync(profileId, req5);
+        Assert.False(res5.Success);
+        Assert.Contains("command line arguments", res5.FirstError, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Verifies that updating a running profile with content whose manifest cannot be found fails gracefully.
+    /// </summary>
+    /// <returns>A task representing the test operation.</returns>
+    [Fact]
+    public async Task UpdateProfileAsync_WhenProfileRunning_WithManifestNotFound_ReturnsFailureAsync()
+    {
+        // Arrange
+        const string profileId = "profile-running-missing-manifest";
+        const string missingManifestId = "1.0.0.map.missing";
+
+        var existingProfile = new GameProfile
+        {
+            Id = profileId,
+            Name = "Running Profile",
+            ActiveWorkspaceId = "workspace-live-123",
+            EnabledContentIds = [],
+        };
+
+        _profileRepositoryMock.Setup(r => r.LoadProfileAsync(profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(existingProfile));
+
+        _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
+            .ReturnsAsync([CreateActiveLaunch(profileId)]);
+
+        _manifestPoolMock.Setup(m => m.GetManifestAsync(ManifestId.Create(missingManifestId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest?>.CreateFailure("Manifest not found"));
+
+        var request = new UpdateProfileRequest
+        {
+            EnabledContentIds = [missingManifestId],
+        };
+
+        // Act
+        var result = await _profileManager.UpdateProfileAsync(profileId, request);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("manifest not found", result.FirstError, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Verifies that updating a running profile with an invalid manifest ID format fails gracefully.
+    /// </summary>
+    /// <returns>A task representing the test operation.</returns>
+    [Fact]
+    public async Task UpdateProfileAsync_WhenProfileRunning_WithInvalidManifestId_ReturnsFailureAsync()
+    {
+        // Arrange
+        const string profileId = "profile-running-invalid-manifest";
+        const string invalidManifestId = "invalid manifest id!";
+
+        var existingProfile = new GameProfile
+        {
+            Id = profileId,
+            Name = "Running Profile",
+            ActiveWorkspaceId = "workspace-live-123",
+            EnabledContentIds = [],
+        };
+
+        _profileRepositoryMock.Setup(r => r.LoadProfileAsync(profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(existingProfile));
+
+        _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
+            .ReturnsAsync([CreateActiveLaunch(profileId)]);
+
+        var request = new UpdateProfileRequest
+        {
+            EnabledContentIds = [invalidManifestId],
+        };
+
+        // Act
+        var result = await _profileManager.UpdateProfileAsync(profileId, request);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("invalid manifest ID format", result.FirstError, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

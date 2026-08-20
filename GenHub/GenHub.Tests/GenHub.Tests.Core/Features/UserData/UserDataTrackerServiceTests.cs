@@ -1158,7 +1158,8 @@ public sealed class UserDataTrackerServiceTests : IDisposable
         Assert.True(installResult.Success);
 
         // Now de-activate
-        await _trackerService.DeactivateProfileUserDataAsync("profile-act-throw", CancellationToken.None);
+        var deactivateResult = await _trackerService.DeactivateProfileUserDataAsync("profile-act-throw", CancellationToken.None);
+        Assert.True(deactivateResult.Success);
 
         // On re-activation, the file is restored to original user content (doesn't match CAS hash), and materialization throws
         _fileOperationsMock.Setup(f => f.VerifyFileHashAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))

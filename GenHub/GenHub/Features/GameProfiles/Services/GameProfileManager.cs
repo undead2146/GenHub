@@ -419,9 +419,20 @@ public class GameProfileManager(
             return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change working directory while profile is running.");
         }
 
-        if (request.GameClient != null && !string.Equals(request.GameClient.Id, profile.GameClient?.Id, StringComparison.OrdinalIgnoreCase))
+        if (request.CommandLineArguments != null && !string.Equals(request.CommandLineArguments, profile.CommandLineArguments, StringComparison.Ordinal))
         {
-            return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change game client while profile is running.");
+            return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change command line arguments while profile is running.");
+        }
+
+        if (request.GameClient != null)
+        {
+            if (profile.GameClient == null ||
+                !string.Equals(request.GameClient.Id, profile.GameClient.Id, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(request.GameClient.ExecutablePath, profile.GameClient.ExecutablePath, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(request.GameClient.Version, profile.GameClient.Version, StringComparison.OrdinalIgnoreCase))
+            {
+                return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change game client while profile is running.");
+            }
         }
 
         if (request.EnabledContentIds != null)
@@ -433,7 +444,12 @@ public class GameProfileManager(
 
             foreach (var id in changedIds)
             {
-                var manifestResult = await manifestPool.GetManifestAsync(ManifestId.Create(id), cancellationToken);
+                if (!ManifestId.TryCreate(id, out var manifestId))
+                {
+                    return ProfileOperationResult<GameProfile>.CreateFailure($"Cannot modify content '{id}' while profile is running: invalid manifest ID format.");
+                }
+
+                var manifestResult = await manifestPool.GetManifestAsync(manifestId, cancellationToken);
                 if (!manifestResult.Success || manifestResult.Data == null)
                 {
                     return ProfileOperationResult<GameProfile>.CreateFailure($"Cannot modify content '{id}' while profile is running: manifest not found.");

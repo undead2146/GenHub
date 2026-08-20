@@ -79,8 +79,6 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
 
     private static bool HasShownFirstLoadNotification { get; set; }
 
-    private readonly List<string> _originalEnabledContentIds = [];
-
     private static string NormalizeResourcePath(string? path, string defaultUri)
     {
         if (string.IsNullOrWhiteSpace(path)) return defaultUri;
@@ -256,6 +254,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     private readonly ILaunchRegistry? _launchRegistry;
 
     private readonly NotificationService _localNotificationService = new(NullLogger<NotificationService>.Instance);
+    private readonly List<string> _originalEnabledContentIds = [];
 
     private WorkspaceStrategy? OriginalWorkspaceStrategy { get; set; }
 
@@ -745,6 +744,10 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
             else
             {
                 _logger?.LogWarning("Auto-resolve skipped: Installation {DisplayName} is locked or cannot toggle", compatibleInstallation.DisplayName);
+                if (compatibleInstallation.IsLocked)
+                {
+                    _localNotificationService.ShowWarning("Content Locked", $"Required dependency '{compatibleInstallation.DisplayName}' is locked and cannot be automatically enabled while the game is running.");
+                }
             }
         }
     }
@@ -795,6 +798,10 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
             else if (viewModelItem.IsLocked || !viewModelItem.CanToggle)
             {
                 _logger?.LogWarning("Auto-resolve skipped: Content {DisplayName} is locked or cannot toggle", viewModelItem.DisplayName);
+                if (viewModelItem.IsLocked)
+                {
+                    _localNotificationService.ShowWarning("Content Locked", $"Required dependency '{viewModelItem.DisplayName}' is locked and cannot be automatically enabled while the game is running.");
+                }
             }
         }
     }

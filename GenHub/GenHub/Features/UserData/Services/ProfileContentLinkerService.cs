@@ -25,9 +25,7 @@ public class ProfileContentLinkerService(
     ILogger<ProfileContentLinkerService> logger) : IProfileContentLinker
 {
     private static readonly ConcurrentDictionary<GameType, SemaphoreSlim> _gameSyncLocks = new();
-    private readonly object _activeProfileLock = new();
-
-    private string? _activeProfileId;
+    private static readonly ConcurrentDictionary<GameType, string> _activeProfileByGame = new();
 
     /// <inheritdoc />
     public async Task<OperationResult<bool>> PrepareProfileUserDataAsync(
@@ -139,11 +137,11 @@ public class ProfileContentLinkerService(
         try
         {
             // Clear active profile if it's being deleted
-            lock (_activeProfileLock)
+            foreach (var kvp in _activeProfileByGame)
             {
-                if (_activeProfileId == profileId)
+                if (string.Equals(kvp.Value, profileId, StringComparison.OrdinalIgnoreCase))
                 {
-                    _activeProfileId = null;
+                    _activeProfileByGame.TryRemove(kvp.Key, out _);
                 }
             }
 
@@ -191,11 +189,9 @@ public class ProfileContentLinkerService(
 
             var newManifestIds = userDataManifests.Select(m => m.Id.Value).ToHashSet();
 
-            bool shouldActivate = false;
-            lock (_activeProfileLock)
-            {
-                shouldActivate = _activeProfileId == profileId;
-            }
+            bool shouldActivate = currentManifests.Any(m => m.IsActive) ||
+                (_activeProfileByGame.TryGetValue(targetGame, out var activeId) &&
+                 string.Equals(activeId, profileId, StringComparison.OrdinalIgnoreCase));
 
             var uninstalledSoFar = new List<string>();
             var installedSoFar = new List<ContentManifest>();
@@ -280,20 +276,14 @@ public class ProfileContentLinkerService(
     /// <returns>The active profile ID, or null if no profile is active.</returns>
     public string? GetActiveProfileId()
     {
-        lock (_activeProfileLock)
-        {
-            return _activeProfileId;
-        }
+        return _activeProfileByGame.Values.FirstOrDefault();
     }
 
     /// <inheritdoc />
     /// <returns>True if the specified profile is currently active; otherwise, false.</returns>
     public bool IsProfileActive(string profileId)
     {
-        lock (_activeProfileLock)
-        {
-            return _activeProfileId == profileId;
-        }
+        return _activeProfileByGame.Values.Any(id => string.Equals(id, profileId, StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task<OperationResult<bool>> PrepareProfileUserDataInternalAsync(
@@ -414,10 +404,7 @@ public class ProfileContentLinkerService(
             }
 
             // Set as active profile
-            lock (_activeProfileLock)
-            {
-                _activeProfileId = profileId;
-            }
+            _activeProfileByGame[targetGame] = profileId;
 
             logger.LogInformation("[ProfileContentLinker] Successfully prepared user data for profile {ProfileId}", profileId);
             return OperationResult<bool>.CreateSuccess(true);
@@ -520,12 +507,21 @@ public class ProfileContentLinkerService(
                 rollbackFailed = true;
                 logger.LogWarning("[ProfileContentLinker] Rollback reinstall failed for manifest {ManifestId}: {Error}", manifest.ManifestId, installRes.FirstError);
             }
+            else if (!manifest.IsActive)
+            {
+                var deactivateRes = await userDataTracker.DeactivateProfileUserDataAsync(profileId, CancellationToken.None);
+                if (deactivateRes != null && !deactivateRes.Success)
+                {
+                    rollbackFailed = true;
+                    logger.LogWarning("[ProfileContentLinker] Rollback deactivation failed for manifest {ManifestId}: {Error}", manifest.ManifestId, deactivateRes.FirstError);
+                }
+            }
         }
 
         if (shouldActivate)
         {
             var reactivateRes = await userDataTracker.ActivateProfileUserDataAsync(profileId, CancellationToken.None);
-            if (!reactivateRes.Success)
+            if (reactivateRes != null && !reactivateRes.Success)
             {
                 rollbackFailed = true;
                 logger.LogWarning("[ProfileContentLinker] Rollback activation failed for profile {ProfileId}: {Error}", profileId, reactivateRes.FirstError);

@@ -34,7 +34,9 @@ public static class ContentHotswapClassification
     /// <returns><c>true</c> if the manifest is hotswappable; otherwise, <c>false</c>.</returns>
     public static bool IsHotswappable(ContentManifest manifest)
     {
-        if (manifest == null || !IsHotswappable(manifest.ContentType))
+        ArgumentNullException.ThrowIfNull(manifest);
+
+        if (!IsHotswappable(manifest.ContentType))
         {
             return false;
         }
@@ -62,6 +64,7 @@ public static class ContentHotswapClassification
     /// <returns><c>true</c> if the manifest is locked during active sessions; otherwise, <c>false</c>.</returns>
     public static bool IsLocked(ContentManifest manifest)
     {
+        ArgumentNullException.ThrowIfNull(manifest);
         return !IsHotswappable(manifest);
     }
 }

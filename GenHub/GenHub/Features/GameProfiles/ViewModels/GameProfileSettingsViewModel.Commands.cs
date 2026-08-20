@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -457,9 +458,12 @@ public partial class GameProfileSettingsViewModel
         }
     }
 
-    private async Task UpdateProfileAsync(List<string> enabledContentIds)
+    private async Task UpdateProfileAsync(List<string> enabledContentIds, CancellationToken cancellationToken = default)
     {
         var gameSettings = GameSettingsViewModel.GetProfileSettings();
+
+        bool isProfileRunning = await CheckIsProfileRunningAsync();
+        var liveGameType = SelectedGameInstallation?.GameType ?? GameTypeFilter;
 
         var updateRequest = new UpdateProfileRequest
         {
@@ -472,26 +476,23 @@ public partial class GameProfileSettingsViewModel
                 ? SelectedWorkspaceStrategy
                 : null,
             EnabledContentIds = enabledContentIds,
-            CommandLineArguments = CommandLineArguments,
+            CommandLineArguments = isProfileRunning ? null : CommandLineArguments,
             IconPath = IconPath,
             CoverPath = CoverPath,
         };
 
         PopulateGameSettings(updateRequest, gameSettings);
 
-        bool isProfileRunning = await CheckIsProfileRunningAsync();
-        var liveGameType = SelectedGameInstallation?.GameType ?? GameTypeFilter;
-
         if (isProfileRunning && _profileContentLinker != null && _manifestPool != null)
         {
-            var liveSyncSuccess = await PerformLiveSyncAsync(enabledContentIds, liveGameType);
+            var liveSyncSuccess = await PerformLiveSyncAsync(enabledContentIds, liveGameType, cancellationToken);
             if (!liveSyncSuccess)
             {
                 return;
             }
         }
 
-        var result = await _gameProfileManager!.UpdateProfileAsync(CurrentProfileId!, updateRequest);
+        var result = await _gameProfileManager!.UpdateProfileAsync(CurrentProfileId!, updateRequest, cancellationToken);
         if (result.Success && result.Data != null)
         {
             if (GameSettingsViewModel.SaveSettingsCommand.CanExecute(null))
@@ -514,7 +515,7 @@ public partial class GameProfileSettingsViewModel
         }
         else
         {
-            await HandleProfileUpdateFailureAsync(isProfileRunning, liveGameType, result);
+            await HandleProfileUpdateFailureAsync(isProfileRunning, liveGameType, result, cancellationToken);
         }
     }
 
@@ -529,13 +530,22 @@ public partial class GameProfileSettingsViewModel
         return IsHotswapMode;
     }
 
-    private async Task<bool> PerformLiveSyncAsync(List<string> enabledContentIds, GameType liveGameType)
+    private async Task<bool> PerformLiveSyncAsync(
+        List<string> enabledContentIds,
+        GameType liveGameType,
+        CancellationToken cancellationToken = default)
     {
         var manifests = new List<ContentManifest>();
         var missingManifestIds = new List<string>();
         foreach (var id in enabledContentIds)
         {
-            var manifestRes = await _manifestPool!.GetManifestAsync(ManifestId.Create(id));
+            if (!ManifestId.TryCreate(id, out var manifestId))
+            {
+                missingManifestIds.Add(id);
+                continue;
+            }
+
+            var manifestRes = await _manifestPool!.GetManifestAsync(manifestId, cancellationToken);
             if (manifestRes.Success && manifestRes.Data != null)
             {
                 manifests.Add(manifestRes.Data);
@@ -558,7 +568,8 @@ public partial class GameProfileSettingsViewModel
         var liveUpdateResult = await _profileContentLinker!.UpdateProfileUserDataAsync(
             CurrentProfileId!,
             manifests,
-            liveGameType);
+            liveGameType,
+            cancellationToken);
 
         if (!liveUpdateResult.Success)
         {
@@ -576,7 +587,8 @@ public partial class GameProfileSettingsViewModel
     private async Task HandleProfileUpdateFailureAsync(
         bool isProfileRunning,
         GameType liveGameType,
-        ProfileOperationResult<GameProfile> result)
+        ProfileOperationResult<GameProfile> result,
+        CancellationToken cancellationToken = default)
     {
         if (isProfileRunning && _profileContentLinker != null && _manifestPool != null)
         {
@@ -584,7 +596,13 @@ public partial class GameProfileSettingsViewModel
             var missingOriginalIds = new List<string>();
             foreach (var id in _originalEnabledContentIds)
             {
-                var manifestRes = await _manifestPool.GetManifestAsync(ManifestId.Create(id));
+                if (!ManifestId.TryCreate(id, out var manifestId))
+                {
+                    missingOriginalIds.Add(id);
+                    continue;
+                }
+
+                var manifestRes = await _manifestPool.GetManifestAsync(manifestId, cancellationToken);
                 if (manifestRes.Success && manifestRes.Data != null)
                 {
                     originalManifests.Add(manifestRes.Data);
@@ -609,7 +627,8 @@ public partial class GameProfileSettingsViewModel
             var rollbackResult = await _profileContentLinker.UpdateProfileUserDataAsync(
                 CurrentProfileId!,
                 originalManifests,
-                liveGameType);
+                liveGameType,
+                cancellationToken);
 
             if (!rollbackResult.Success)
             {

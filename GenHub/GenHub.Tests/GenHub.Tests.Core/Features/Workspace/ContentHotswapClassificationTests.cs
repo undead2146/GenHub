@@ -29,6 +29,11 @@ public class ContentHotswapClassificationTests
     [InlineData(ContentType.Mission, false)]
     [InlineData(ContentType.Skin, false)]
     [InlineData(ContentType.LanguagePack, false)]
+    [InlineData(ContentType.ContentBundle, false)]
+    [InlineData(ContentType.PublisherReferral, false)]
+    [InlineData(ContentType.ContentReferral, false)]
+    [InlineData(ContentType.Video, false)]
+    [InlineData(ContentType.Screensaver, false)]
     [InlineData(ContentType.UnknownContentType, false)]
     public void IsHotswappable_ReturnsExpectedResult(ContentType contentType, bool expected)
     {
@@ -58,6 +63,11 @@ public class ContentHotswapClassificationTests
     [InlineData(ContentType.Mission, true)]
     [InlineData(ContentType.Skin, true)]
     [InlineData(ContentType.LanguagePack, true)]
+    [InlineData(ContentType.ContentBundle, true)]
+    [InlineData(ContentType.PublisherReferral, true)]
+    [InlineData(ContentType.ContentReferral, true)]
+    [InlineData(ContentType.Video, true)]
+    [InlineData(ContentType.Screensaver, true)]
     [InlineData(ContentType.UnknownContentType, true)]
     public void IsLocked_ReturnsOppositeOfIsHotswappable(ContentType contentType, bool expected)
     {
@@ -66,6 +76,16 @@ public class ContentHotswapClassificationTests
 
         // Assert
         Assert.Equal(expected, result);
+    }
+
+    /// <summary>
+    /// Verifies that IsHotswappable and IsLocked throw ArgumentNullException when manifest is null.
+    /// </summary>
+    [Fact]
+    public void IsHotswappable_NullManifest_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => ContentHotswapClassification.IsHotswappable(null!));
+        Assert.Throws<ArgumentNullException>(() => ContentHotswapClassification.IsLocked(null!));
     }
 
     /// <summary>
