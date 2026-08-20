@@ -87,7 +87,7 @@ public class SteamInstallationTests
             var gameDir = Path.Combine(
                 tempHome,
                 ".var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common",
-                "Command & Conquer - Generals Zero Hour");
+                GenHub.Core.Constants.GameClientConstants.ZeroHourDirectoryNameAmpersandHyphen);
 
             Directory.CreateDirectory(gameDir);
             File.WriteAllText(Path.Combine(gameDir, "generals.exe"), "mock exe content");
