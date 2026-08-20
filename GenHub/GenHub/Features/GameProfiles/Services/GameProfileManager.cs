@@ -399,6 +399,23 @@ public class GameProfileManager(
         List<string> previousEnabledContentIds,
         CancellationToken cancellationToken)
     {
+        var settingsError = ValidateRunningProfileImmutableSettings(profile, request);
+        if (settingsError != null)
+        {
+            return settingsError;
+        }
+
+        var clientError = ValidateRunningProfileGameClient(profile, request.GameClient);
+        if (clientError != null)
+        {
+            return clientError;
+        }
+
+        return await ValidateRunningProfileContentChangesAsync(previousEnabledContentIds, request.EnabledContentIds, cancellationToken);
+    }
+
+    private ProfileOperationResult<GameProfile>? ValidateRunningProfileImmutableSettings(GameProfile profile, UpdateProfileRequest request)
+    {
         if (request.WorkspaceStrategy.HasValue && request.WorkspaceStrategy.Value != profile.WorkspaceStrategy)
         {
             return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change workspace strategy while profile is running.");
@@ -429,43 +446,62 @@ public class GameProfileManager(
             return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change command line arguments while profile is running.");
         }
 
-        if (request.GameClient != null &&
-            (profile.GameClient == null ||
-             !string.Equals(request.GameClient.Id, profile.GameClient.Id, StringComparison.OrdinalIgnoreCase) ||
-             !string.Equals(request.GameClient.ExecutablePath, profile.GameClient.ExecutablePath, StringComparison.OrdinalIgnoreCase) ||
-             !string.Equals(request.GameClient.Version, profile.GameClient.Version, StringComparison.OrdinalIgnoreCase) ||
-             !string.Equals(request.GameClient.WorkingDirectory, profile.GameClient.WorkingDirectory, StringComparison.OrdinalIgnoreCase) ||
-             !string.Equals(request.GameClient.InstallationId, profile.GameClient.InstallationId, StringComparison.OrdinalIgnoreCase) ||
-             request.GameClient.GameType != profile.GameClient.GameType))
+        return null;
+    }
+
+    private ProfileOperationResult<GameProfile>? ValidateRunningProfileGameClient(GameProfile profile, GameClient? requestedClient)
+    {
+        if (requestedClient == null)
+        {
+            return null;
+        }
+
+        if (profile.GameClient == null ||
+            !string.Equals(requestedClient.Id, profile.GameClient.Id, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(requestedClient.ExecutablePath, profile.GameClient.ExecutablePath, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(requestedClient.Version, profile.GameClient.Version, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(requestedClient.WorkingDirectory, profile.GameClient.WorkingDirectory, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(requestedClient.InstallationId, profile.GameClient.InstallationId, StringComparison.OrdinalIgnoreCase) ||
+            requestedClient.GameType != profile.GameClient.GameType)
         {
             return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change game client while profile is running.");
         }
 
-        if (request.EnabledContentIds != null)
+        return null;
+    }
+
+    private async Task<ProfileOperationResult<GameProfile>?> ValidateRunningProfileContentChangesAsync(
+        List<string> previousEnabledContentIds,
+        List<string>? requestedContentIds,
+        CancellationToken cancellationToken)
+    {
+        if (requestedContentIds == null)
         {
-            var newContentIds = request.EnabledContentIds.ToList();
-            var addedIds = newContentIds.Except(previousEnabledContentIds, StringComparer.OrdinalIgnoreCase).ToList();
-            var removedIds = previousEnabledContentIds.Except(newContentIds, StringComparer.OrdinalIgnoreCase).ToList();
-            var changedIds = addedIds.Concat(removedIds).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            return null;
+        }
 
-            foreach (var id in changedIds)
+        var newContentIds = requestedContentIds.ToList();
+        var addedIds = newContentIds.Except(previousEnabledContentIds, StringComparer.OrdinalIgnoreCase).ToList();
+        var removedIds = previousEnabledContentIds.Except(newContentIds, StringComparer.OrdinalIgnoreCase).ToList();
+        var changedIds = addedIds.Concat(removedIds).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        foreach (var id in changedIds)
+        {
+            if (!ManifestId.TryCreate(id, out var manifestId))
             {
-                if (!ManifestId.TryCreate(id, out var manifestId))
-                {
-                    return ProfileOperationResult<GameProfile>.CreateFailure($"Cannot modify content '{id}' while profile is running: invalid manifest ID format.");
-                }
+                return ProfileOperationResult<GameProfile>.CreateFailure($"Cannot modify content '{id}' while profile is running: invalid manifest ID format.");
+            }
 
-                var manifestResult = await manifestPool.GetManifestAsync(manifestId, cancellationToken);
-                if (!manifestResult.Success || manifestResult.Data == null)
-                {
-                    return ProfileOperationResult<GameProfile>.CreateFailure($"Cannot modify content '{id}' while profile is running: manifest not found.");
-                }
+            var manifestResult = await manifestPool.GetManifestAsync(manifestId, cancellationToken);
+            if (!manifestResult.Success || manifestResult.Data == null)
+            {
+                return ProfileOperationResult<GameProfile>.CreateFailure($"Cannot modify content '{id}' while profile is running: manifest not found.");
+            }
 
-                var manifest = manifestResult.Data;
-                if (!ContentHotswapClassification.IsHotswappable(manifest))
-                {
-                    return ProfileOperationResult<GameProfile>.CreateFailure($"Cannot modify content '{manifest.Name}' while profile is running. Only content targeting user documents (such as maps and replays) can be hot swapped during an active game session.");
-                }
+            var manifest = manifestResult.Data;
+            if (!ContentHotswapClassification.IsHotswappable(manifest))
+            {
+                return ProfileOperationResult<GameProfile>.CreateFailure($"Cannot modify content '{manifest.Name}' while profile is running. Only content targeting user documents (such as maps and replays) can be hot swapped during an active game session.");
             }
         }
 
