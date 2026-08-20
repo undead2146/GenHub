@@ -520,14 +520,13 @@ public partial class GameProfileSettingsViewModel
 
     private async Task<bool> CheckIsProfileRunningAsync()
     {
-        bool isProfileRunning = IsHotswapMode;
         if (_launchRegistry != null && !string.IsNullOrEmpty(CurrentProfileId))
         {
             var activeLaunches = await _launchRegistry.GetAllActiveLaunchesAsync();
-            isProfileRunning = isProfileRunning || activeLaunches.Any(l => string.Equals(l.ProfileId, CurrentProfileId, StringComparison.OrdinalIgnoreCase) && !l.TerminatedAt.HasValue);
+            return activeLaunches.Any(l => string.Equals(l.ProfileId, CurrentProfileId, StringComparison.OrdinalIgnoreCase) && !l.TerminatedAt.HasValue);
         }
 
-        return isProfileRunning;
+        return IsHotswapMode;
     }
 
     private async Task<bool> PerformLiveSyncAsync(List<string> enabledContentIds, GameType liveGameType)

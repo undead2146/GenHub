@@ -114,4 +114,33 @@ public class ContentHotswapClassificationTests
         Assert.True(ContentHotswapClassification.IsHotswappable(manifest));
         Assert.False(ContentHotswapClassification.IsLocked(manifest));
     }
+
+    /// <summary>
+    /// Verifies that IsHotswappable with ContentManifest accounts for variants correctly.
+    /// </summary>
+    [Fact]
+    public void IsHotswappable_ManifestWithVariantTargetingWorkspace_ReturnsFalse()
+    {
+        // Arrange
+        var manifest = new GenHub.Core.Models.Manifest.ContentManifest
+        {
+            Id = GenHub.Core.Models.Manifest.ManifestId.Create("1.0.0.mappack.variant"),
+            Name = "Variant MapPack",
+            ContentType = ContentType.MapPack,
+            Variants =
+            [
+                new GenHub.Core.Models.Manifest.ArtifactVariant
+                {
+                    Files =
+                    [
+                        new GenHub.Core.Models.Manifest.ManifestFile { RelativePath = "INIData.big", InstallTarget = GenHub.Core.Models.Enums.ContentInstallTarget.Workspace },
+                    ],
+                },
+            ],
+        };
+
+        // Act & Assert
+        Assert.False(ContentHotswapClassification.IsHotswappable(manifest));
+        Assert.True(ContentHotswapClassification.IsLocked(manifest));
+    }
 }
