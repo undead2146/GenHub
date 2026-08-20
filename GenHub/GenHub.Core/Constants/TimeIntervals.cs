@@ -5,7 +5,6 @@ namespace GenHub.Core.Constants;
 /// </summary>
 public static class TimeIntervals
 {
-
     /// <summary>
     /// Default timeout for updater operations.
     /// </summary>
