@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -93,7 +94,7 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
                 _logger.LogInformation("Loaded successfully from {FilePath}", filePath);
                 return OperationResult<IniOptions>.CreateSuccess(options);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or NotSupportedException or ArgumentException or InvalidOperationException)
             {
                 _logger.LogError(ex, "Failed to load Options.ini for {GameType}", gameType);
                 return OperationResult<IniOptions>.CreateFailure($"Failed to load options: {ex.Message}");
@@ -146,7 +147,7 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
                 _logger.LogInformation("Saved successfully to {FilePath}", filePath);
                 return OperationResult<bool>.CreateSuccess(true);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or NotSupportedException or ArgumentException or InvalidOperationException)
             {
                 _logger.LogError(ex, "Failed to save Options.ini for {GameType}", gameType);
                 return OperationResult<bool>.CreateFailure($"Failed to save options: {ex.Message}");
@@ -164,30 +165,22 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
     {
         using (_logger.BeginScope(new Dictionary<string, object> { ["GameType"] = gameType, ["Section"] = "TheSuperHackers" }))
         {
-            try
+            var optionsResult = await LoadOptionsAsync(gameType);
+            if (!optionsResult.Success || optionsResult.Data == null)
             {
-                var optionsResult = await LoadOptionsAsync(gameType);
-                if (!optionsResult.Success || optionsResult.Data == null)
-                {
-                    return OperationResult<TheSuperHackersSettings>.CreateFailure(optionsResult.Errors);
-                }
-
-                var settings = new TheSuperHackersSettings();
-                var options = optionsResult.Data;
-
-                if (options.AdditionalSections.TryGetValue("TheSuperHackers", out var tshSection))
-                {
-                    ParseTheSuperHackersSection(settings, tshSection);
-                }
-
-                _logger.LogInformation("Loaded TheSuperHackers settings for {GameType}", gameType);
-                return OperationResult<TheSuperHackersSettings>.CreateSuccess(settings);
+                return OperationResult<TheSuperHackersSettings>.CreateFailure(optionsResult.Errors);
             }
-            catch (Exception ex)
+
+            var settings = new TheSuperHackersSettings();
+            var options = optionsResult.Data;
+
+            if (options.AdditionalSections.TryGetValue("TheSuperHackers", out var tshSection))
             {
-                _logger.LogError(ex, "Failed to load TheSuperHackers settings for {GameType}", gameType);
-                return OperationResult<TheSuperHackersSettings>.CreateFailure($"Failed to load TheSuperHackers settings: {ex.Message}");
+                ParseTheSuperHackersSection(settings, tshSection);
             }
+
+            _logger.LogInformation("Loaded TheSuperHackers settings for {GameType}", gameType);
+            return OperationResult<TheSuperHackersSettings>.CreateSuccess(settings);
         }
     }
 
@@ -196,26 +189,18 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
     {
         using (_logger.BeginScope(new Dictionary<string, object> { ["GameType"] = gameType, ["Section"] = "TheSuperHackers" }))
         {
-            try
+            var optionsResult = await LoadOptionsAsync(gameType);
+            if (!optionsResult.Success || optionsResult.Data == null)
             {
-                var optionsResult = await LoadOptionsAsync(gameType);
-                if (!optionsResult.Success || optionsResult.Data == null)
-                {
-                    return OperationResult<bool>.CreateFailure(optionsResult.Errors);
-                }
-
-                var options = optionsResult.Data;
-                var tshSection = SerializeTheSuperHackersSettings(settings);
-                options.AdditionalSections["TheSuperHackers"] = tshSection;
-
-                var saveResult = await SaveOptionsAsync(gameType, options);
-                return saveResult;
+                return OperationResult<bool>.CreateFailure(optionsResult.Errors);
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to save TheSuperHackers settings for {GameType}", gameType);
-                return OperationResult<bool>.CreateFailure($"Failed to save TheSuperHackers settings: {ex.Message}");
-            }
+
+            var options = optionsResult.Data;
+            var tshSection = SerializeTheSuperHackersSettings(settings);
+            options.AdditionalSections["TheSuperHackers"] = tshSection;
+
+            var saveResult = await SaveOptionsAsync(gameType, options);
+            return saveResult;
         }
     }
 
@@ -250,7 +235,7 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
                 _logger.LogInformation("Loaded GeneralsOnline settings from {SettingsPath}", settingsPath);
                 return OperationResult<GeneralsOnlineSettings>.CreateSuccess(settings);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or NotSupportedException or ArgumentException or InvalidOperationException or JsonException)
             {
                 _logger.LogError(ex, "Failed to load GeneralsOnline settings");
                 return OperationResult<GeneralsOnlineSettings>.CreateFailure($"Failed to load GeneralsOnline settings: {ex.Message}");
@@ -294,7 +279,7 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
                 _logger.LogInformation("Saved GeneralsOnline settings to {SettingsPath}", settingsPath);
                 return OperationResult<bool>.CreateSuccess(true);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or NotSupportedException or ArgumentException or InvalidOperationException or JsonException)
             {
                 _logger.LogError(ex, "Failed to save GeneralsOnline settings");
                 return OperationResult<bool>.CreateFailure($"Failed to save GeneralsOnline settings: {ex.Message}");
