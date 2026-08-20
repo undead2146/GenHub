@@ -424,15 +424,13 @@ public class GameProfileManager(
             return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change command line arguments while profile is running.");
         }
 
-        if (request.GameClient != null)
+        if (request.GameClient != null &&
+            (profile.GameClient == null ||
+             !string.Equals(request.GameClient.Id, profile.GameClient.Id, StringComparison.OrdinalIgnoreCase) ||
+             !string.Equals(request.GameClient.ExecutablePath, profile.GameClient.ExecutablePath, StringComparison.OrdinalIgnoreCase) ||
+             !string.Equals(request.GameClient.Version, profile.GameClient.Version, StringComparison.OrdinalIgnoreCase)))
         {
-            if (profile.GameClient == null ||
-                !string.Equals(request.GameClient.Id, profile.GameClient.Id, StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(request.GameClient.ExecutablePath, profile.GameClient.ExecutablePath, StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(request.GameClient.Version, profile.GameClient.Version, StringComparison.OrdinalIgnoreCase))
-            {
-                return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change game client while profile is running.");
-            }
+            return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change game client while profile is running.");
         }
 
         if (request.EnabledContentIds != null)
