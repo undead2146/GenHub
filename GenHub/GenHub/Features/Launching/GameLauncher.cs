@@ -1048,7 +1048,8 @@ public class GameLauncher(
         bool skipUserDataCleanup,
         CancellationToken cancellationToken)
     {
-        var previousActiveProfileId = profileContentLinker.GetActiveProfileId();
+        var gameType = profile.GameClient?.GameType ?? GameType.ZeroHour;
+        var previousActiveProfileId = profileContentLinker.GetActiveProfileId(gameType);
         try
         {
             logger.LogDebug(
@@ -1059,7 +1060,7 @@ public class GameLauncher(
                 previousActiveProfileId,
                 profile.Id,
                 manifests,
-                profile.GameClient?.GameType ?? GameType.ZeroHour,
+                gameType,
                 skipUserDataCleanup,
                 cancellationToken);
             if (!userDataResult.Success)

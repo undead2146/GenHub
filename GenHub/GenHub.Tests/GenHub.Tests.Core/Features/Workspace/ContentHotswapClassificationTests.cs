@@ -163,4 +163,33 @@ public class ContentHotswapClassificationTests
         Assert.False(ContentHotswapClassification.IsHotswappable(manifest));
         Assert.True(ContentHotswapClassification.IsLocked(manifest));
     }
+
+    /// <summary>
+    /// Verifies that IsHotswappable returns true when the manifest has no files that target workspace.
+    /// </summary>
+    [Fact]
+    public void IsHotswappable_ManifestWithDefaultUserDataTarget_ReturnsTrue()
+    {
+        // Arrange
+        var manifest = new GenHub.Core.Models.Manifest.ContentManifest
+        {
+            Id = GenHub.Core.Models.Manifest.ManifestId.Create("1.0.0.map.custom"),
+            Name = "Custom Map",
+            ContentType = ContentType.Map,
+            Variants =
+            [
+                new GenHub.Core.Models.Manifest.ArtifactVariant
+                {
+                    Files =
+                    [
+                        new GenHub.Core.Models.Manifest.ManifestFile { RelativePath = "Custom.map", InstallTarget = GenHub.Core.Models.Enums.ContentInstallTarget.UserMapsDirectory },
+                    ],
+                },
+            ],
+        };
+
+        // Act & Assert
+        Assert.True(ContentHotswapClassification.IsHotswappable(manifest));
+        Assert.False(ContentHotswapClassification.IsLocked(manifest));
+    }
 }

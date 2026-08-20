@@ -123,6 +123,8 @@ public class GameLauncherTests : IDisposable
 
         _profileContentLinkerMock.Setup(x => x.GetActiveProfileId())
             .Returns((string?)null);
+        _profileContentLinkerMock.Setup(x => x.GetActiveProfileId(It.IsAny<GameType>()))
+            .Returns((string?)null);
 
         // Setup dependency resolver mock - returns resolved manifests including dependencies
         _dependencyResolverMock.Setup(x => x.ResolveDependenciesWithManifestsAsync(

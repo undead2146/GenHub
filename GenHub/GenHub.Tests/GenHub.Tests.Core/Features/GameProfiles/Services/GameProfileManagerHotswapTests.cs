@@ -296,6 +296,18 @@ public class GameProfileManagerHotswapTests
         var res5 = await _profileManager.UpdateProfileAsync(profileId, req5);
         Assert.False(res5.Success);
         Assert.Contains("command line arguments", res5.FirstError, StringComparison.OrdinalIgnoreCase);
+
+        // 6. Active workspace ID change
+        var req6 = new UpdateProfileRequest { ActiveWorkspaceId = "workspace-new-999" };
+        var res6 = await _profileManager.UpdateProfileAsync(profileId, req6);
+        Assert.False(res6.Success);
+        Assert.Contains("active workspace", res6.FirstError, StringComparison.OrdinalIgnoreCase);
+
+        // 7. Game client change
+        var req7 = new UpdateProfileRequest { GameClient = new GameClient { Id = "different-client-id" } };
+        var res7 = await _profileManager.UpdateProfileAsync(profileId, req7);
+        Assert.False(res7.Success);
+        Assert.Contains("game client", res7.FirstError, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

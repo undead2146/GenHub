@@ -141,7 +141,7 @@ public class ProfileContentLinkerService(
             {
                 if (string.Equals(kvp.Value, profileId, StringComparison.OrdinalIgnoreCase))
                 {
-                    _activeProfileByGame.TryRemove(kvp.Key, out _);
+                    _activeProfileByGame.TryRemove(KeyValuePair.Create(kvp.Key, kvp.Value));
                 }
             }
 
@@ -176,7 +176,7 @@ public class ProfileContentLinkerService(
             // Get current user data for the profile
             var currentResult = await userDataTracker.GetProfileUserDataAsync(profileId, cancellationToken);
             var currentManifests = currentResult.Success && currentResult.Data != null
-                ? currentResult.Data.ToList()
+                ? currentResult.Data.Where(m => m.TargetGame == targetGame || m.TargetGame == GameType.Unknown).ToList()
                 : [];
             var currentManifestIds = currentManifests.Select(m => m.ManifestId).ToHashSet();
 
@@ -280,10 +280,25 @@ public class ProfileContentLinkerService(
     }
 
     /// <inheritdoc />
+    /// <returns>The active profile ID for the specified game type, or null if no profile is active.</returns>
+    public string? GetActiveProfileId(GameType targetGame)
+    {
+        return _activeProfileByGame.TryGetValue(targetGame, out var activeId) ? activeId : null;
+    }
+
+    /// <inheritdoc />
     /// <returns>True if the specified profile is currently active; otherwise, false.</returns>
     public bool IsProfileActive(string profileId)
     {
         return _activeProfileByGame.Values.Any(id => string.Equals(id, profileId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Clears the active profiles map. Intended for use in unit tests to ensure test isolation.
+    /// </summary>
+    internal static void ResetActiveProfilesForTesting()
+    {
+        _activeProfileByGame.Clear();
     }
 
     private async Task<OperationResult<bool>> PrepareProfileUserDataInternalAsync(
@@ -507,15 +522,6 @@ public class ProfileContentLinkerService(
                 rollbackFailed = true;
                 logger.LogWarning("[ProfileContentLinker] Rollback reinstall failed for manifest {ManifestId}: {Error}", manifest.ManifestId, installRes.FirstError);
             }
-            else if (!manifest.IsActive)
-            {
-                var deactivateRes = await userDataTracker.DeactivateProfileUserDataAsync(profileId, CancellationToken.None);
-                if (deactivateRes != null && !deactivateRes.Success)
-                {
-                    rollbackFailed = true;
-                    logger.LogWarning("[ProfileContentLinker] Rollback deactivation failed for manifest {ManifestId}: {Error}", manifest.ManifestId, deactivateRes.FirstError);
-                }
-            }
         }
 
         if (shouldActivate)
@@ -525,6 +531,15 @@ public class ProfileContentLinkerService(
             {
                 rollbackFailed = true;
                 logger.LogWarning("[ProfileContentLinker] Rollback activation failed for profile {ProfileId}: {Error}", profileId, reactivateRes.FirstError);
+            }
+        }
+        else
+        {
+            var deactivateRes = await userDataTracker.DeactivateProfileUserDataAsync(profileId, CancellationToken.None);
+            if (deactivateRes != null && !deactivateRes.Success)
+            {
+                rollbackFailed = true;
+                logger.LogWarning("[ProfileContentLinker] Rollback deactivation failed for profile {ProfileId}: {Error}", profileId, deactivateRes.FirstError);
             }
         }
 

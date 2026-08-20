@@ -18,7 +18,7 @@ namespace GenHub.Tests.Core.Features.UserData;
 /// <summary>
 /// Contains unit tests for <see cref="ProfileContentLinkerService"/>.
 /// </summary>
-public class ProfileContentLinkerServiceTests
+public class ProfileContentLinkerServiceTests : IDisposable
 {
     private readonly Mock<IUserDataTracker> _userDataTrackerMock = new();
     private readonly Mock<ILogger<ProfileContentLinkerService>> _loggerMock = new();
@@ -29,9 +29,17 @@ public class ProfileContentLinkerServiceTests
     /// </summary>
     public ProfileContentLinkerServiceTests()
     {
+        ProfileContentLinkerService.ResetActiveProfilesForTesting();
         _linkerService = new ProfileContentLinkerService(
             _userDataTrackerMock.Object,
             _loggerMock.Object);
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        ProfileContentLinkerService.ResetActiveProfilesForTesting();
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>

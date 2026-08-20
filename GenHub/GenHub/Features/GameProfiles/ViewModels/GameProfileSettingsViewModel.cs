@@ -473,6 +473,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         bool bypassLoadingGuard = false,
         bool isRootOperation = true,
         List<string>? autoEnabledNames = null,
+        HashSet<string>? warnedLockedNames = null,
         CancellationToken cancellationToken = default)
     {
         if (contentItem is null || !CanEnableContent(contentItem, bypassLoadingGuard))
@@ -484,7 +485,8 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         ActivateContentItem(contentItem);
 
         var autoResolved = autoEnabledNames ?? [];
-        await ResolveDependenciesAsync(contentItem, autoResolved, cancellationToken);
+        var warnedLocked = warnedLockedNames ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await ResolveDependenciesAsync(contentItem, autoResolved, warnedLocked, cancellationToken);
 
         if (isRootOperation)
         {
@@ -614,7 +616,11 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         await ValidateEnabledContentDependenciesAsync(contentItem.DisplayName, cancellationToken);
     }
 
-    private async Task ResolveDependenciesAsync(ContentDisplayItem contentItem, List<string> autoEnabledNames, CancellationToken cancellationToken = default)
+    private async Task ResolveDependenciesAsync(
+        ContentDisplayItem contentItem,
+        List<string> autoEnabledNames,
+        HashSet<string> warnedLockedNames,
+        CancellationToken cancellationToken = default)
     {
         try
         {
@@ -630,11 +636,11 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
             {
                 if (dependency.DependencyType == ContentType.GameInstallation)
                 {
-                    await ResolveGameInstallationDependencyAsync(contentItem, dependency, autoEnabledNames, cancellationToken);
+                    await ResolveGameInstallationDependencyAsync(contentItem, dependency, autoEnabledNames, warnedLockedNames, cancellationToken);
                 }
                 else
                 {
-                    await ResolveContentDependencyAsync(dependency, autoEnabledNames, cancellationToken);
+                    await ResolveContentDependencyAsync(dependency, autoEnabledNames, warnedLockedNames, cancellationToken);
                 }
             }
         }
@@ -686,6 +692,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         ContentDisplayItem contentItem,
         ContentDependency dependency,
         List<string> autoEnabledNames,
+        HashSet<string> warnedLockedNames,
         CancellationToken cancellationToken = default)
     {
         bool isSatisfied = false;
@@ -739,12 +746,12 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
                     autoEnabledNames.Add(compatibleInstallation.DisplayName);
                 }
 
-                await EnableContentInternal(compatibleInstallation, bypassLoadingGuard: true, isRootOperation: false, autoEnabledNames, cancellationToken);
+                await EnableContentInternal(compatibleInstallation, bypassLoadingGuard: true, isRootOperation: false, autoEnabledNames, warnedLockedNames, cancellationToken);
             }
             else
             {
                 _logger?.LogWarning("Auto-resolve skipped: Installation {DisplayName} is locked or cannot toggle", compatibleInstallation.DisplayName);
-                if (compatibleInstallation.IsLocked)
+                if (compatibleInstallation.IsLocked && warnedLockedNames.Add(compatibleInstallation.DisplayName))
                 {
                     _localNotificationService.ShowWarning("Content Locked", $"Required dependency '{compatibleInstallation.DisplayName}' is locked and cannot be automatically enabled while the game is running.");
                 }
@@ -755,6 +762,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     private async Task ResolveContentDependencyAsync(
         ContentDependency dependency,
         List<string> autoEnabledNames,
+        HashSet<string> warnedLockedNames,
         CancellationToken cancellationToken = default)
     {
         var declaredId = dependency.Id.ToString();
@@ -793,12 +801,12 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
                     autoEnabledNames.Add(viewModelItem.DisplayName);
                 }
 
-                await EnableContentInternal(viewModelItem, bypassLoadingGuard: true, isRootOperation: false, autoEnabledNames, cancellationToken);
+                await EnableContentInternal(viewModelItem, bypassLoadingGuard: true, isRootOperation: false, autoEnabledNames, warnedLockedNames, cancellationToken);
             }
             else if (viewModelItem.IsLocked || !viewModelItem.CanToggle)
             {
                 _logger?.LogWarning("Auto-resolve skipped: Content {DisplayName} is locked or cannot toggle", viewModelItem.DisplayName);
-                if (viewModelItem.IsLocked)
+                if (viewModelItem.IsLocked && warnedLockedNames.Add(viewModelItem.DisplayName))
                 {
                     _localNotificationService.ShowWarning("Content Locked", $"Required dependency '{viewModelItem.DisplayName}' is locked and cannot be automatically enabled while the game is running.");
                 }

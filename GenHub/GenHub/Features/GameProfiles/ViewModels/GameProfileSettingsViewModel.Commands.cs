@@ -400,11 +400,11 @@ public partial class GameProfileSettingsViewModel
 
             if (string.IsNullOrEmpty(CurrentProfileId))
             {
-                await CreateProfileAsync(enabledContentIds);
+                await CreateProfileAsync(enabledContentIds, cancellationToken: default);
             }
             else
             {
-                await UpdateProfileAsync(enabledContentIds);
+                await UpdateProfileAsync(enabledContentIds, cancellationToken: default);
             }
         }
         catch (Exception ex)
@@ -418,7 +418,7 @@ public partial class GameProfileSettingsViewModel
         }
     }
 
-    private async Task CreateProfileAsync(List<string> enabledContentIds)
+    private async Task CreateProfileAsync(List<string> enabledContentIds, CancellationToken cancellationToken = default)
     {
         var createRequest = new CreateProfileRequest
         {
@@ -437,9 +437,11 @@ public partial class GameProfileSettingsViewModel
         var gameSettings = GameSettingsViewModel.GetProfileSettings();
         PopulateGameSettings(createRequest, gameSettings);
 
-        var result = await _gameProfileManager!.CreateProfileAsync(createRequest);
+        var result = await _gameProfileManager!.CreateProfileAsync(createRequest, cancellationToken);
         if (result.Success && result.Data != null)
         {
+            CurrentProfileId = result.Data.Id;
+
             if (GameSettingsViewModel.SaveSettingsCommand.CanExecute(null))
             {
                 await GameSettingsViewModel.SaveSettingsCommand.ExecuteAsync(null);
@@ -476,7 +478,7 @@ public partial class GameProfileSettingsViewModel
                 ? SelectedWorkspaceStrategy
                 : null,
             EnabledContentIds = enabledContentIds,
-            CommandLineArguments = isProfileRunning ? null : CommandLineArguments,
+            CommandLineArguments = CommandLineArguments,
             IconPath = IconPath,
             CoverPath = CoverPath,
         };
@@ -524,7 +526,14 @@ public partial class GameProfileSettingsViewModel
         if (_launchRegistry != null && !string.IsNullOrEmpty(CurrentProfileId))
         {
             var activeLaunches = await _launchRegistry.GetAllActiveLaunchesAsync();
-            return activeLaunches.Any(l => string.Equals(l.ProfileId, CurrentProfileId, StringComparison.OrdinalIgnoreCase) && !l.TerminatedAt.HasValue);
+            var isRunning = activeLaunches.Any(l => string.Equals(l.ProfileId, CurrentProfileId, StringComparison.OrdinalIgnoreCase) && !l.TerminatedAt.HasValue);
+            if (isRunning != IsHotswapMode)
+            {
+                IsHotswapMode = isRunning;
+                UpdateAllItemsHotswapState();
+            }
+
+            return isRunning;
         }
 
         return IsHotswapMode;
