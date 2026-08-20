@@ -325,10 +325,14 @@ public class GameProfileSettingsViewModelHotswapTests
         _profileContentLinkerMock.Verify(
             p => p.UpdateProfileUserDataAsync(
                 profileId,
-                It.Is<IEnumerable<ContentManifest>>(m => m.Any(x => x.Id.Value == mapId)),
-                It.IsAny<GameType>(),
+                It.Is<IEnumerable<ContentManifest>>(m => m.Count() == 2 && m.Any(x => x.Id.Value == mapId) && m.Any(x => x.Id.Value == installId)),
+                GameType.ZeroHour,
                 It.IsAny<CancellationToken>()),
             Times.Once);
+
+        _gameProfileManagerMock.Verify(
+            m => m.UpdateProfileAsync(profileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()),
+            Times.AtLeastOnce());
     }
 
     /// <summary>

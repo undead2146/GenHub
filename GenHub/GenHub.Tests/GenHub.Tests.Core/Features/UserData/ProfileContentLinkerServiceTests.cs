@@ -142,6 +142,7 @@ public class ProfileContentLinkerServiceTests
         // Assert
         Assert.False(result.Success);
         Assert.Contains("Adoption disk error", result.FirstError, StringComparison.OrdinalIgnoreCase);
+        _userDataTrackerMock.Verify(t => t.ActivateProfileUserDataAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     /// <summary>
@@ -278,6 +279,7 @@ public class ProfileContentLinkerServiceTests
             ManifestId = manifest1Id,
             ProfileId = profileId,
             TargetGame = gameType,
+            IsActive = true,
             InstalledFiles = [new UserDataFileEntry { AbsolutePath = "C:\\path\\1.map", RelativePath = "1.map", InstallTarget = ContentInstallTarget.UserMapsDirectory }],
         };
         var existing2 = new UserDataManifest
@@ -285,6 +287,7 @@ public class ProfileContentLinkerServiceTests
             ManifestId = manifest2Id,
             ProfileId = profileId,
             TargetGame = gameType,
+            IsActive = true,
             InstalledFiles = [new UserDataFileEntry { AbsolutePath = "C:\\path\\2.map", RelativePath = "2.map", InstallTarget = ContentInstallTarget.UserMapsDirectory }],
         };
 

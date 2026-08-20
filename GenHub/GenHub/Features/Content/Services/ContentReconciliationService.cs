@@ -417,18 +417,7 @@ public class ContentReconciliationService(
             p.EnabledContentIds?.Contains(manifestId, StringComparer.OrdinalIgnoreCase) == true &&
             !string.IsNullOrEmpty(p.ActiveWorkspaceId)).ToList() ?? [];
 
-        var runningProfileIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (launchRegistry != null)
-        {
-            var activeLaunches = await launchRegistry.GetAllActiveLaunchesAsync();
-            foreach (var launch in activeLaunches)
-            {
-                if (!launch.TerminatedAt.HasValue && !string.IsNullOrEmpty(launch.ProfileId))
-                {
-                    runningProfileIds.Add(launch.ProfileId);
-                }
-            }
-        }
+        var runningProfileIds = await GetRunningProfileIdsAsync();
 
         int invalidatedCount = 0;
         foreach (var profile in affectedProfiles)
@@ -506,18 +495,7 @@ public class ContentReconciliationService(
 
         logger.LogInformation("Found {Count} affected profiles for bulk reconciliation", affectedProfiles.Count);
 
-        var runningProfileIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (launchRegistry != null)
-        {
-            var activeLaunches = await launchRegistry.GetAllActiveLaunchesAsync();
-            foreach (var launch in activeLaunches)
-            {
-                if (!launch.TerminatedAt.HasValue && !string.IsNullOrEmpty(launch.ProfileId))
-                {
-                    runningProfileIds.Add(launch.ProfileId);
-                }
-            }
-        }
+        var runningProfileIds = await GetRunningProfileIdsAsync();
 
         int updatedProfilesCount = 0;
         int invalidatedWorkspacesCount = 0;
@@ -622,18 +600,7 @@ public class ContentReconciliationService(
             return OperationResult<ReconciliationResult>.CreateSuccess(ReconciliationResult.Empty);
         }
 
-        var runningProfileIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (launchRegistry != null)
-        {
-            var activeLaunches = await launchRegistry.GetAllActiveLaunchesAsync();
-            foreach (var launch in activeLaunches)
-            {
-                if (!launch.TerminatedAt.HasValue && !string.IsNullOrEmpty(launch.ProfileId))
-                {
-                    runningProfileIds.Add(launch.ProfileId);
-                }
-            }
-        }
+        var runningProfileIds = await GetRunningProfileIdsAsync();
 
         int updatedProfilesCount = 0;
         int invalidatedWorkspacesCount = 0;
@@ -697,5 +664,23 @@ public class ContentReconciliationService(
         // Return success even with partial failures (as results now include failure count) to allow cleanup of old manifests.
         // Failed profiles are logged for visibility.
         return OperationResult<ReconciliationResult>.CreateSuccess(new ReconciliationResult(updatedProfilesCount, invalidatedWorkspacesCount, failedProfiles.Count));
+    }
+
+    private async Task<HashSet<string>> GetRunningProfileIdsAsync()
+    {
+        var runningProfileIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (launchRegistry != null)
+        {
+            var activeLaunches = await launchRegistry.GetAllActiveLaunchesAsync();
+            foreach (var launch in activeLaunches)
+            {
+                if (!launch.TerminatedAt.HasValue && !string.IsNullOrEmpty(launch.ProfileId))
+                {
+                    runningProfileIds.Add(launch.ProfileId);
+                }
+            }
+        }
+
+        return runningProfileIds;
     }
 }

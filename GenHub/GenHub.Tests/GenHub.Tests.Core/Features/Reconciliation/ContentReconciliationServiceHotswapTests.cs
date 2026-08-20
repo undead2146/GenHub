@@ -242,6 +242,110 @@ public class ContentReconciliationServiceHotswapTests
         _casReferenceTrackerMock.Verify(c => c.UntrackManifestAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    /// <summary>
+    /// Verifies that terminated launches are ignored and their profiles are treated as idle.
+    /// </summary>
+    /// <returns>A task representing the test operation.</returns>
+    [Fact]
+    public async Task OrchestrateBulkRemovalAsync_WhenLaunchIsTerminated_TreatsProfileAsIdleAndCleansUpWorkspaceAsync()
+    {
+        // Arrange
+        const string manifestId = "1.0.0.mod.old";
+        var terminatedProfile = new GameProfile
+        {
+            Id = "profile-terminated",
+            Name = "Terminated Profile",
+            ActiveWorkspaceId = "workspace-term",
+            EnabledContentIds = [manifestId],
+        };
+
+        _profileManagerMock.Setup(p => p.GetAllProfilesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<IReadOnlyList<GameProfile>>.CreateSuccess([terminatedProfile]));
+
+        var terminatedLaunch = CreateActiveLaunch(terminatedProfile.Id, "launch-term", "workspace-term");
+        terminatedLaunch.TerminatedAt = DateTime.UtcNow.AddMinutes(-5);
+
+        _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
+            .ReturnsAsync([terminatedLaunch]);
+
+        _workspaceManagerMock.Setup(w => w.CleanupWorkspaceAsync("workspace-term", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+
+        _profileManagerMock.Setup(p => p.UpdateProfileAsync(terminatedProfile.Id, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(terminatedProfile));
+
+        _casReferenceTrackerMock.Setup(c => c.UntrackManifestAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult.CreateSuccess());
+        _manifestPoolMock.Setup(m => m.RemoveManifestAsync(It.IsAny<ManifestId>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+
+        // Act
+        var result = await _reconciliationService.OrchestrateBulkRemovalAsync([ManifestId.Create(manifestId)]);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Equal(1, result.Data.ProfilesUpdated);
+        Assert.Equal(1, result.Data.WorkspacesInvalidated);
+        Assert.Equal(0, result.Data.FailedProfilesCount);
+
+        _workspaceManagerMock.Verify(w => w.CleanupWorkspaceAsync("workspace-term", It.IsAny<CancellationToken>()), Times.Once);
+        _manifestPoolMock.Verify(m => m.RemoveManifestAsync(It.IsAny<ManifestId>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Verifies that reconciliation succeeds when launch registry is null.
+    /// </summary>
+    /// <returns>A task representing the test operation.</returns>
+    [Fact]
+    public async Task OrchestrateBulkRemovalAsync_WhenLaunchRegistryIsNull_ReconcilesSuccessfullyAsync()
+    {
+        // Arrange
+        const string manifestId = "1.0.0.mod.old";
+        var idleProfile = new GameProfile
+        {
+            Id = "profile-null-reg",
+            Name = "Null Registry Profile",
+            ActiveWorkspaceId = "workspace-null-reg",
+            EnabledContentIds = [manifestId],
+        };
+
+        var serviceWithoutRegistry = new ContentReconciliationService(
+            _profileManagerMock.Object,
+            _workspaceManagerMock.Object,
+            _manifestPoolMock.Object,
+            _casReferenceTrackerMock.Object,
+            _casLifecycleManagerMock.Object,
+            _loggerMock.Object,
+            launchRegistry: null);
+
+        _profileManagerMock.Setup(p => p.GetAllProfilesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<IReadOnlyList<GameProfile>>.CreateSuccess([idleProfile]));
+
+        _workspaceManagerMock.Setup(w => w.CleanupWorkspaceAsync("workspace-null-reg", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+
+        _profileManagerMock.Setup(p => p.UpdateProfileAsync(idleProfile.Id, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(idleProfile));
+
+        _casReferenceTrackerMock.Setup(c => c.UntrackManifestAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult.CreateSuccess());
+        _manifestPoolMock.Setup(m => m.RemoveManifestAsync(It.IsAny<ManifestId>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+
+        // Act
+        var result = await serviceWithoutRegistry.OrchestrateBulkRemovalAsync([ManifestId.Create(manifestId)]);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Equal(1, result.Data.ProfilesUpdated);
+        Assert.Equal(1, result.Data.WorkspacesInvalidated);
+        Assert.Equal(0, result.Data.FailedProfilesCount);
+
+        _workspaceManagerMock.Verify(w => w.CleanupWorkspaceAsync("workspace-null-reg", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     private static GameLaunchInfo CreateActiveLaunch(string profileId, string launchId = "launch-1", string workspaceId = "ws-1") => new()
     {
         LaunchId = launchId,
