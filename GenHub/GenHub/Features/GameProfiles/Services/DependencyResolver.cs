@@ -24,6 +24,30 @@ public class DependencyResolver(
     private readonly ILogger<DependencyResolver> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <summary>
+    /// Matches a declared catalog ID to an acquired manifest ID allowing version and variant differences.
+    /// </summary>
+    /// <param name="declaredId">The declared catalog ID.</param>
+    /// <param name="acquiredId">The acquired manifest ID.</param>
+    /// <returns><see langword="true"/> if identities are compatible; otherwise, <see langword="false"/>.</returns>
+    public static bool HasCompatibleCatalogIdentity(string? declaredId, string? acquiredId)
+    {
+        if (string.IsNullOrWhiteSpace(declaredId) || string.IsNullOrWhiteSpace(acquiredId))
+        {
+            return false;
+        }
+
+        if (string.Equals(declaredId, acquiredId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var declaredParts = declaredId.Split('.');
+        var acquiredParts = acquiredId.Split('.');
+
+        return HasCompatibleCatalogIdentity(declaredParts, acquiredParts);
+    }
+
+    /// <summary>
     /// Matches a declared 5-segment catalog ID to an acquired manifest that shares publisher,
     /// content type, and content-name identity while allowing the version segment (and a trailing
     /// variant label such as <c>720p</c>) to differ.

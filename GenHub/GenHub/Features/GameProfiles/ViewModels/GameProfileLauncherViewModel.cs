@@ -64,6 +64,7 @@ public partial class GameProfileLauncherViewModel(
     private readonly System.Timers.Timer _headerCollapseTimer = new(TimeIntervals.HeaderCollapseDelayMs);
     private readonly System.Timers.Timer _headerExpansionTimer = new(TimeIntervals.HeaderExpansionDelayMs);
     private bool _isHovering;
+    private bool _isTimersConfigured;
     private bool _lastOperationSuccess;
     private string? _expectedProfileIdForSuccess;
     private bool _isCreatingNewProfile;
@@ -125,28 +126,33 @@ public partial class GameProfileLauncherViewModel(
 
         try
         {
-            // Set up timer
-            _headerCollapseTimer.AutoReset = false;
-            _headerCollapseTimer.Elapsed += (s, e) =>
-                Avalonia.Threading.Dispatcher.UIThread.Invoke(() =>
-                {
-                    if (!_isHovering && !IsScanning)
+            if (!_isTimersConfigured)
+            {
+                _isTimersConfigured = true;
+
+                // Set up timer
+                _headerCollapseTimer.AutoReset = false;
+                _headerCollapseTimer.Elapsed += (s, e) =>
+                    Avalonia.Threading.Dispatcher.UIThread.Invoke(() =>
                     {
-                        IsHeaderExpanded = false;
-                    }
-                });
+                        if (!_isHovering && !IsScanning)
+                        {
+                            IsHeaderExpanded = false;
+                        }
+                    });
 
-            // Set up expansion timer
-            _headerExpansionTimer.AutoReset = false;
-            _headerExpansionTimer.Elapsed += (s, e) =>
-                Avalonia.Threading.Dispatcher.UIThread.Invoke(() =>
-                {
-                    IsHeaderExpanded = true;
-                    _isHovering = true;
-                    _headerCollapseTimer.Stop();
-                });
+                // Set up expansion timer
+                _headerExpansionTimer.AutoReset = false;
+                _headerExpansionTimer.Elapsed += (s, e) =>
+                    Avalonia.Threading.Dispatcher.UIThread.Invoke(() =>
+                    {
+                        IsHeaderExpanded = true;
+                        _isHovering = true;
+                        _headerCollapseTimer.Stop();
+                    });
 
-            gameProcessManager.ProcessExited += OnProcessExited;
+                gameProcessManager.ProcessExited += OnProcessExited;
+            }
 
             StatusMessage = "Loading profiles...";
             ErrorMessage = string.Empty;

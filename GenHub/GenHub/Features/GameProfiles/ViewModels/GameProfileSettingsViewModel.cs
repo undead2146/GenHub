@@ -194,17 +194,8 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         }
     }
 
-    private static bool HasCompatibleCatalogMatch(string declaredId, string availableId)
-    {
-        if (string.Equals(declaredId, availableId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        var declaredParts = declaredId.Split('.');
-        var availableParts = availableId.Split('.');
-        return DependencyResolver.HasCompatibleCatalogIdentity(declaredParts, availableParts);
-    }
+    private static bool HasCompatibleCatalogMatch(string declaredId, string availableId) =>
+        DependencyResolver.HasCompatibleCatalogIdentity(declaredId, availableId);
 
     private readonly IGameProfileManager? _gameProfileManager;
     private readonly IGameSettingsService? _gameSettingsService;
@@ -416,7 +407,8 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         ContentDisplayItem? contentItem,
         bool bypassLoadingGuard = false,
         bool isRootOperation = true,
-        List<string>? autoEnabledNames = null)
+        List<string>? autoEnabledNames = null,
+        CancellationToken cancellationToken = default)
     {
         if (!CanEnableContent(contentItem, bypassLoadingGuard))
         {
@@ -427,11 +419,11 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         ActivateContentItem(contentItem!);
 
         var autoResolved = autoEnabledNames ?? [];
-        await ResolveDependenciesAsync(contentItem!, autoResolved);
+        await ResolveDependenciesAsync(contentItem!, autoResolved, cancellationToken);
 
         if (isRootOperation)
         {
-            await HandleRootOperationCompletionAsync(contentItem!, autoResolved);
+            await HandleRootOperationCompletionAsync(contentItem!, autoResolved, cancellationToken);
         }
     }
 
@@ -479,7 +471,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         {
             if (existing.ContentType == ContentType.GameClient && Name == existing.DisplayName)
             {
-                Name = "New Profile";
+                Name = ProfileConstants.DefaultProfileName;
             }
 
             existing.IsEnabled = false;
@@ -531,13 +523,13 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         StatusMessage = $"Enabled {contentItem.DisplayName}";
         _logger?.LogInformation("Enabled content {ContentName} for profile", contentItem.DisplayName);
 
-        if (contentItem.ContentType == ContentType.GameClient && Name == "New Profile")
+        if (contentItem.ContentType == ContentType.GameClient && Name == ProfileConstants.DefaultProfileName)
         {
             Name = contentItem.DisplayName;
         }
     }
 
-    private async Task HandleRootOperationCompletionAsync(ContentDisplayItem contentItem, List<string> autoResolved)
+    private async Task HandleRootOperationCompletionAsync(ContentDisplayItem contentItem, List<string> autoResolved, CancellationToken cancellationToken = default)
     {
         if (autoResolved.Count > 0)
         {
@@ -552,16 +544,16 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
                 $"Enabled '{contentItem.DisplayName}'");
         }
 
-        await ValidateEnabledContentDependenciesAsync(contentItem.DisplayName);
+        await ValidateEnabledContentDependenciesAsync(contentItem.DisplayName, cancellationToken);
     }
 
-    private async Task ResolveDependenciesAsync(ContentDisplayItem contentItem, List<string> autoEnabledNames)
+    private async Task ResolveDependenciesAsync(ContentDisplayItem contentItem, List<string> autoEnabledNames, CancellationToken cancellationToken = default)
     {
         try
         {
             if (_manifestPool == null) return;
 
-            var manifest = await GetOrSynthesizeManifestForContentAsync(contentItem);
+            var manifest = await GetOrSynthesizeManifestForContentAsync(contentItem, cancellationToken);
             if (manifest?.Dependencies == null || manifest.Dependencies.Count == 0)
             {
                 return;
@@ -571,11 +563,11 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
             {
                 if (dependency.DependencyType == ContentType.GameInstallation)
                 {
-                    await ResolveGameInstallationDependencyAsync(contentItem, dependency, autoEnabledNames);
+                    await ResolveGameInstallationDependencyAsync(contentItem, dependency, autoEnabledNames, cancellationToken);
                 }
                 else
                 {
-                    await ResolveContentDependencyAsync(dependency, autoEnabledNames);
+                    await ResolveContentDependencyAsync(dependency, autoEnabledNames, cancellationToken);
                 }
             }
         }
@@ -585,14 +577,14 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         }
     }
 
-    private async Task<ContentManifest?> GetOrSynthesizeManifestForContentAsync(ContentDisplayItem contentItem)
+    private async Task<ContentManifest?> GetOrSynthesizeManifestForContentAsync(ContentDisplayItem contentItem, CancellationToken cancellationToken = default)
     {
         if (_manifestPool == null)
         {
             return null;
         }
 
-        var manifestResult = await _manifestPool.GetManifestAsync(contentItem.ManifestId.Value);
+        var manifestResult = await _manifestPool.GetManifestAsync(ManifestId.Create(contentItem.ManifestId.Value), cancellationToken);
         if (manifestResult.Success && manifestResult.Data != null)
         {
             return manifestResult.Data;
@@ -626,7 +618,8 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     private async Task ResolveGameInstallationDependencyAsync(
         ContentDisplayItem contentItem,
         ContentDependency dependency,
-        List<string> autoEnabledNames)
+        List<string> autoEnabledNames,
+        CancellationToken cancellationToken = default)
     {
         bool isSatisfied = false;
         var isDefaultDep = dependency.Id.ToString() == ManifestConstants.DefaultContentDependencyId;
@@ -677,13 +670,14 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
                 autoEnabledNames.Add(compatibleInstallation.DisplayName);
             }
 
-            await EnableContentInternal(compatibleInstallation, bypassLoadingGuard: true, isRootOperation: false, autoEnabledNames);
+            await EnableContentInternal(compatibleInstallation, bypassLoadingGuard: true, isRootOperation: false, autoEnabledNames, cancellationToken);
         }
     }
 
     private async Task ResolveContentDependencyAsync(
         ContentDependency dependency,
-        List<string> autoEnabledNames)
+        List<string> autoEnabledNames,
+        CancellationToken cancellationToken = default)
     {
         var declaredId = dependency.Id.ToString();
         bool alreadyEnabled = declaredId != ManifestConstants.DefaultContentDependencyId
@@ -721,12 +715,12 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
                     autoEnabledNames.Add(viewModelItem.DisplayName);
                 }
 
-                await EnableContentInternal(viewModelItem, bypassLoadingGuard: true, isRootOperation: false, autoEnabledNames);
+                await EnableContentInternal(viewModelItem, bypassLoadingGuard: true, isRootOperation: false, autoEnabledNames, cancellationToken);
             }
         }
     }
 
-    private async Task ValidateEnabledContentDependenciesAsync(string justEnabledContentName)
+    private async Task ValidateEnabledContentDependenciesAsync(string justEnabledContentName, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -737,7 +731,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
             var manifests = new List<ContentManifest>();
             foreach (var manifestId in enabledManifestIds)
             {
-                var manifestResult = await _manifestPool.GetManifestAsync(manifestId);
+                var manifestResult = await _manifestPool.GetManifestAsync(ManifestId.Create(manifestId), cancellationToken);
                 if (manifestResult.Success && manifestResult.Data != null) manifests.Add(manifestResult.Data);
             }
 
