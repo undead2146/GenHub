@@ -57,6 +57,10 @@
             <Setter Property="Background" Value="#18FFFFFF"/>
             <Setter Property="BorderBrush" Value="#25FFFFFF"/>
         </Style>
+        <Style Selector="Button.wizard-item-card:disabled">
+            <Setter Property="Opacity" Value="0.65"/>
+            <Setter Property="Cursor" Value="Default"/>
+        </Style>
         
         <Style Selector="CheckBox">
             <Setter Property="Cursor" Value="Hand"/>
@@ -118,6 +122,7 @@
                         <DataTemplate>
                             <Button Classes="wizard-item-card"
                                     x:CompileBindings="False"
+                                    IsEnabled="{Binding !IsMandatory}"
                                     Command="{Binding $parent[Window].DataContext.ToggleSelectionCommand}"
                                     CommandParameter="{Binding}">
                                 <Grid ColumnDefinitions="48,*,40">

@@ -320,7 +320,7 @@ public class GameProfileLauncherViewModelTests
     public async Task ScanForGamesCommand_WhenWizardCancelled_CreatesZeroProfilesAsync()
     {
         var installationService = new Mock<IGameInstallationService>();
-        var installation = new GameInstallation("C:\\Steam\\Games", GameInstallationType.Steam, new Mock<ILogger<GameInstallation>>().Object);
+        var installation = new GameInstallation(Path.Combine("C:", "Steam", "Games"), GameInstallationType.Steam, new Mock<ILogger<GameInstallation>>().Object);
         installation.PopulateGameClients([
             new GameClient
             {

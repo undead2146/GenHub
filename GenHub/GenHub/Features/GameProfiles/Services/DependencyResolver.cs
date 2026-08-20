@@ -48,16 +48,17 @@ public class DependencyResolver(
     }
 
     /// <summary>
-    /// Matches a declared 5-segment catalog ID to an acquired manifest that shares publisher,
-    /// content type, and content-name identity while allowing the version segment (and a trailing
-    /// variant label such as <c>720p</c>) to differ.
+    /// Matches a declared 5-segment catalog ID (<c>schemaVersion.userVersion.publisher.contentType.contentName</c>)
+    /// to an acquired manifest ID. Requires <c>schemaVersion</c> (segment 0), <c>publisher</c> (segment 2, or wildcard <c>any</c>),
+    /// and <c>contentType</c> (segment 3) to match, while allowing <c>userVersion</c> (segment 1) and trailing variant labels
+    /// (e.g. <c>-720p</c> on <c>contentName</c> segment 4) to differ.
     /// </summary>
     /// <param name="declaredParts">The 5 segments of the declared catalog ID.</param>
     /// <param name="acquiredParts">The 5 segments of the acquired manifest ID.</param>
     /// <returns><see langword="true"/> if identities are compatible; otherwise, <see langword="false"/>.</returns>
     public static bool HasCompatibleCatalogIdentity(string[] declaredParts, string[] acquiredParts)
     {
-        if (declaredParts.Length != 5 || acquiredParts.Length != 5)
+        if (declaredParts.Length != ManifestConstants.MinManifestSegments || acquiredParts.Length != ManifestConstants.MinManifestSegments)
         {
             return false;
         }
@@ -67,7 +68,7 @@ public class DependencyResolver(
             return false;
         }
 
-        var isAnyPublisher = declaredParts[2].Equals("any", StringComparison.OrdinalIgnoreCase);
+        var isAnyPublisher = declaredParts[2].Equals(ManifestConstants.AnyPublisherToken, StringComparison.OrdinalIgnoreCase);
         if (!isAnyPublisher && !declaredParts[2].Equals(acquiredParts[2], StringComparison.OrdinalIgnoreCase))
         {
             return false;
@@ -85,7 +86,7 @@ public class DependencyResolver(
             return true;
         }
 
-        return acquiredName.StartsWith(declaredName + "-", StringComparison.OrdinalIgnoreCase);
+        return acquiredName.StartsWith(declaredName + ManifestConstants.VariantSeparator, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <inheritdoc/>
