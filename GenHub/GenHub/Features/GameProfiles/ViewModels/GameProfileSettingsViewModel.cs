@@ -418,74 +418,102 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         bool isRootOperation = true,
         List<string>? autoEnabledNames = null)
     {
-        if (contentItem == null) return;
-        if (IsLoadingContent && !bypassLoadingGuard) return;
-
-        if (contentItem.ContentType == ContentType.GameInstallation)
+        if (!CanEnableContent(contentItem, bypassLoadingGuard))
         {
-            if (SelectedGameInstallation == contentItem && contentItem.IsEnabled)
-            {
-                return;
-            }
+            return;
+        }
+
+        ReplaceConflictingEnabledContent(contentItem!);
+        ActivateContentItem(contentItem!);
+
+        var autoResolved = autoEnabledNames ?? [];
+        await ResolveDependenciesAsync(contentItem!, autoResolved);
+
+        if (isRootOperation)
+        {
+            await HandleRootOperationCompletionAsync(contentItem!, autoResolved);
+        }
+    }
+
+    private bool CanEnableContent(ContentDisplayItem? contentItem, bool bypassLoadingGuard)
+    {
+        if (contentItem == null || (IsLoadingContent && !bypassLoadingGuard))
+        {
+            return false;
+        }
+
+        if (contentItem.ContentType == ContentType.GameInstallation && SelectedGameInstallation == contentItem && contentItem.IsEnabled)
+        {
+            return false;
         }
 
         if (contentItem.IsLocked)
         {
             StatusMessage = "This content item is locked and cannot be modified";
-            return;
+            return false;
         }
 
         if (!contentItem.CanToggle)
         {
             StatusMessage = "This content item cannot be toggled";
+            return false;
+        }
+
+        if (contentItem.IsEnabled || EnabledContent.Any(e => e.ManifestId.Value == contentItem.ManifestId.Value))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private void ReplaceConflictingEnabledContent(ContentDisplayItem contentItem)
+    {
+        if (contentItem.ContentType != ContentType.GameInstallation && contentItem.ContentType != ContentType.GameClient)
+        {
             return;
         }
 
-        if (contentItem.IsEnabled) return;
-
-        var alreadyEnabled = EnabledContent.FirstOrDefault(e => e.ManifestId.Value == contentItem.ManifestId.Value);
-        if (alreadyEnabled != null) return;
-
-        if (contentItem.ContentType == ContentType.GameInstallation || contentItem.ContentType == ContentType.GameClient)
+        var existingItems = EnabledContent.Where(e => e.ContentType == contentItem.ContentType).ToList();
+        foreach (var existing in existingItems)
         {
-            var existingItems = EnabledContent.Where(e => e.ContentType == contentItem.ContentType).ToList();
-            foreach (var existing in existingItems)
+            if (existing.ContentType == ContentType.GameClient && Name == existing.DisplayName)
             {
-                if (existing.ContentType == ContentType.GameClient && Name == existing.DisplayName)
-                {
-                    Name = "New Profile";
-                }
+                Name = "New Profile";
+            }
 
-                existing.IsEnabled = false;
-                EnabledContent.Remove(existing);
+            existing.IsEnabled = false;
+            EnabledContent.Remove(existing);
 
-                if (existing.ContentType == SelectedContentType && existing.GameType == GameTypeFilter)
+            if (existing.ContentType == SelectedContentType && existing.GameType == GameTypeFilter)
+            {
+                var alreadyInAvailable = AvailableContent.FirstOrDefault(a => a.ManifestId.Value == existing.ManifestId.Value);
+                if (alreadyInAvailable == null)
                 {
-                    var alreadyInAvailable = AvailableContent.FirstOrDefault(a => a.ManifestId.Value == existing.ManifestId.Value);
-                    if (alreadyInAvailable == null)
+                    AvailableContent.Add(new ContentDisplayItem
                     {
-                        AvailableContent.Add(new ContentDisplayItem
-                        {
-                            ManifestId = existing.ManifestId,
-                            DisplayName = existing.DisplayName,
-                            ContentType = existing.ContentType,
-                            GameType = existing.GameType,
-                            InstallationType = existing.InstallationType,
-                            Publisher = existing.Publisher,
-                            IsEnabled = false,
-                            SourceId = existing.SourceId,
-                            GameClientId = existing.GameClientId,
-                            Version = existing.Version,
-                            IsEditable = existing.IsEditable,
-                            SourcePath = existing.SourcePath,
-                            IsLocked = existing.IsLocked,
-                            CanToggle = existing.CanToggle,
-                        });
-                    }
+                        ManifestId = existing.ManifestId,
+                        DisplayName = existing.DisplayName,
+                        ContentType = existing.ContentType,
+                        GameType = existing.GameType,
+                        InstallationType = existing.InstallationType,
+                        Publisher = existing.Publisher,
+                        IsEnabled = false,
+                        SourceId = existing.SourceId,
+                        GameClientId = existing.GameClientId,
+                        Version = existing.Version,
+                        IsEditable = existing.IsEditable,
+                        SourcePath = existing.SourcePath,
+                        IsLocked = existing.IsLocked,
+                        CanToggle = existing.CanToggle,
+                    });
                 }
             }
         }
+    }
 
+    private void ActivateContentItem(ContentDisplayItem contentItem)
+    {
         contentItem.IsEnabled = true;
         EnabledContent.Add(contentItem);
 
@@ -507,27 +535,24 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         {
             Name = contentItem.DisplayName;
         }
+    }
 
-        var autoResolved = autoEnabledNames ?? [];
-        await ResolveDependenciesAsync(contentItem, autoResolved);
-
-        if (isRootOperation)
+    private async Task HandleRootOperationCompletionAsync(ContentDisplayItem contentItem, List<string> autoResolved)
+    {
+        if (autoResolved.Count > 0)
         {
-            if (autoResolved.Count > 0)
-            {
-                _localNotificationService.ShowSuccess(
-                    "Content Enabled",
-                    $"Enabled '{contentItem.DisplayName}' and auto-resolved: {string.Join(", ", autoResolved)}");
-            }
-            else
-            {
-                _localNotificationService.ShowSuccess(
-                    "Content Enabled",
-                    $"Enabled '{contentItem.DisplayName}'");
-            }
-
-            await ValidateEnabledContentDependenciesAsync(contentItem.DisplayName);
+            _localNotificationService.ShowSuccess(
+                "Content Enabled",
+                $"Enabled '{contentItem.DisplayName}' and auto-resolved: {string.Join(", ", autoResolved)}");
         }
+        else
+        {
+            _localNotificationService.ShowSuccess(
+                "Content Enabled",
+                $"Enabled '{contentItem.DisplayName}'");
+        }
+
+        await ValidateEnabledContentDependenciesAsync(contentItem.DisplayName);
     }
 
     private async Task ResolveDependenciesAsync(ContentDisplayItem contentItem, List<string> autoEnabledNames)
