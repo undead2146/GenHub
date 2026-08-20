@@ -182,16 +182,19 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     private static bool HasCompatibleCatalogMatch(string declaredId, string availableId) =>
         DependencyResolver.HasCompatibleCatalogIdentity(declaredId, availableId);
 
-    private (bool IsLocked, bool CanToggle) GetItemHotswapState(ContentType contentType)
+    private (bool IsLocked, bool CanToggle) GetItemHotswapState(ContentType contentType, ContentManifest? manifest = null)
     {
-        var isLocked = IsHotswapMode && ContentHotswapClassification.IsLocked(contentType);
-        var canToggle = !IsHotswapMode || ContentHotswapClassification.IsHotswappable(contentType);
+        var isHotswappable = manifest != null
+            ? ContentHotswapClassification.IsHotswappable(manifest)
+            : ContentHotswapClassification.IsHotswappable(contentType);
+        var isLocked = IsHotswapMode && !isHotswappable;
+        var canToggle = !IsHotswapMode || isHotswappable;
         return (isLocked, canToggle);
     }
 
     private ContentDisplayItem ConvertToViewModelContentDisplayItem(Core.Models.Content.ContentDisplayItem coreItem)
     {
-        var (isLocked, canToggle) = GetItemHotswapState(coreItem.ContentType);
+        var (isLocked, canToggle) = GetItemHotswapState(coreItem.ContentType, coreItem.Manifest);
 
         return new ContentDisplayItem
         {
@@ -207,6 +210,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
             IsEnabled = coreItem.IsEnabled,
             IsEditable = coreItem.IsEditable,
             SourcePath = coreItem.SourcePath,
+            Manifest = coreItem.Manifest,
             IsLocked = isLocked,
             CanToggle = canToggle,
         };
@@ -216,14 +220,14 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     {
         foreach (var item in EnabledContent)
         {
-            var (isLocked, canToggle) = GetItemHotswapState(item.ContentType);
+            var (isLocked, canToggle) = GetItemHotswapState(item.ContentType, item.Manifest);
             item.IsLocked = isLocked;
             item.CanToggle = canToggle;
         }
 
         foreach (var item in AvailableContent)
         {
-            var (isLocked, canToggle) = GetItemHotswapState(item.ContentType);
+            var (isLocked, canToggle) = GetItemHotswapState(item.ContentType, item.Manifest);
             item.IsLocked = isLocked;
             item.CanToggle = canToggle;
         }

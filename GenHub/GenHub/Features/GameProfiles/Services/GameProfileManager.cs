@@ -198,7 +198,7 @@ public class GameProfileManager(
             if (launchRegistry != null)
             {
                 var activeLaunches = await launchRegistry.GetAllActiveLaunchesAsync();
-                isRunning = activeLaunches.Any(l => string.Equals(l.ProfileId, profileId, StringComparison.OrdinalIgnoreCase));
+                isRunning = activeLaunches.Any(l => string.Equals(l.ProfileId, profileId, StringComparison.OrdinalIgnoreCase) && !l.TerminatedAt.HasValue);
             }
 
             if (isRunning)
@@ -404,7 +404,7 @@ public class GameProfileManager(
             return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change workspace strategy while profile is running.");
         }
 
-        if (!string.IsNullOrEmpty(request.GameInstallationId) && !string.Equals(request.GameInstallationId, profile.GameInstallationId, StringComparison.OrdinalIgnoreCase))
+        if (request.GameInstallationId != null && !string.Equals(request.GameInstallationId, profile.GameInstallationId, StringComparison.OrdinalIgnoreCase))
         {
             return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change game installation while profile is running.");
         }

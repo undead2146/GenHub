@@ -423,7 +423,7 @@ public class ContentReconciliationService(
             var activeLaunches = await launchRegistry.GetAllActiveLaunchesAsync();
             foreach (var launch in activeLaunches)
             {
-                if (!string.IsNullOrEmpty(launch.ProfileId))
+                if (!launch.TerminatedAt.HasValue && !string.IsNullOrEmpty(launch.ProfileId))
                 {
                     runningProfileIds.Add(launch.ProfileId);
                 }
@@ -512,7 +512,7 @@ public class ContentReconciliationService(
             var activeLaunches = await launchRegistry.GetAllActiveLaunchesAsync();
             foreach (var launch in activeLaunches)
             {
-                if (!string.IsNullOrEmpty(launch.ProfileId))
+                if (!launch.TerminatedAt.HasValue && !string.IsNullOrEmpty(launch.ProfileId))
                 {
                     runningProfileIds.Add(launch.ProfileId);
                 }
@@ -628,7 +628,7 @@ public class ContentReconciliationService(
             var activeLaunches = await launchRegistry.GetAllActiveLaunchesAsync();
             foreach (var launch in activeLaunches)
             {
-                if (!string.IsNullOrEmpty(launch.ProfileId))
+                if (!launch.TerminatedAt.HasValue && !string.IsNullOrEmpty(launch.ProfileId))
                 {
                     runningProfileIds.Add(launch.ProfileId);
                 }

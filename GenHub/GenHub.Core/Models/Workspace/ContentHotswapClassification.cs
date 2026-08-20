@@ -39,7 +39,8 @@ public static class ContentHotswapClassification
             return false;
         }
 
-        return manifest.Files.All(f =>
+        var files = ManifestVariantResolver.ResolveFiles(manifest);
+        return files.All(f =>
             f.InstallTarget != ContentInstallTarget.Workspace &&
             f.InstallTarget != ContentInstallTarget.System);
     }

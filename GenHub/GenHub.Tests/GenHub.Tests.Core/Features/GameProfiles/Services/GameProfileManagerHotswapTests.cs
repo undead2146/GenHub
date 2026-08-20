@@ -273,6 +273,12 @@ public class GameProfileManagerHotswapTests
         Assert.False(res2.Success);
         Assert.Contains("game installation", res2.FirstError, StringComparison.OrdinalIgnoreCase);
 
+        // 2b. Empty installation change
+        var req2b = new UpdateProfileRequest { GameInstallationId = string.Empty };
+        var res2b = await _profileManager.UpdateProfileAsync(profileId, req2b);
+        Assert.False(res2b.Success);
+        Assert.Contains("game installation", res2b.FirstError, StringComparison.OrdinalIgnoreCase);
+
         // 3. Custom executable path change
         var req3 = new UpdateProfileRequest { CustomExecutablePath = "C:\\game\\new_generals.exe" };
         var res3 = await _profileManager.UpdateProfileAsync(profileId, req3);
@@ -284,6 +290,46 @@ public class GameProfileManagerHotswapTests
         var res4 = await _profileManager.UpdateProfileAsync(profileId, req4);
         Assert.False(res4.Success);
         Assert.Contains("working directory", res4.FirstError, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Verifies that stale launch records with TerminatedAt set are ignored when checking running status.
+    /// </summary>
+    /// <returns>A task representing the test operation.</returns>
+    [Fact]
+    public async Task UpdateProfileAsync_WhenLaunchRecordIsTerminated_TreatsProfileAsNotRunningAsync()
+    {
+        // Arrange
+        const string profileId = "profile-terminated-1";
+        var existingProfile = new GameProfile
+        {
+            Id = profileId,
+            Name = "Terminated Profile",
+            ActiveWorkspaceId = "workspace-stale",
+            EnabledContentIds = ["1.0.0.mod.first"],
+        };
+
+        var terminatedLaunch = CreateActiveLaunch(profileId);
+        terminatedLaunch.TerminatedAt = DateTime.UtcNow.AddMinutes(-5);
+
+        _profileRepositoryMock.Setup(r => r.LoadProfileAsync(profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(existingProfile));
+        _profileRepositoryMock.Setup(r => r.SaveProfileAsync(It.IsAny<GameProfile>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(existingProfile));
+        _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
+            .ReturnsAsync([terminatedLaunch]);
+
+        var request = new UpdateProfileRequest
+        {
+            EnabledContentIds = ["1.0.0.mod.second"],
+        };
+
+        // Act
+        var result = await _profileManager.UpdateProfileAsync(profileId, request);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Empty(existingProfile.ActiveWorkspaceId);
     }
 
     private static GameLaunchInfo CreateActiveLaunch(string profileId, string launchId = "launch-1", string workspaceId = "ws-1") => new()
