@@ -39,4 +39,37 @@ public class SteamInstallationTests
         var exception = Record.Exception(() => new SteamInstallation(true, NullLogger<SteamInstallation>.Instance));
         Assert.Null(exception);
     }
+
+    /// <summary>
+    /// Verifies SetPaths sets Generals and Zero Hour paths properly.
+    /// </summary>
+    [Fact]
+    public void SetPaths_SetsGeneralsAndZeroHourPaths()
+    {
+        var installation = new SteamInstallation(NullLogger<SteamInstallation>.Instance);
+        installation.SetPaths("/home/user/games/Generals", "/home/user/games/ZeroHour");
+
+        Assert.True(installation.HasGenerals);
+        Assert.Equal("/home/user/games/Generals", installation.GeneralsPath);
+        Assert.True(installation.HasZeroHour);
+        Assert.Equal("/home/user/games/ZeroHour", installation.ZeroHourPath);
+    }
+
+    /// <summary>
+    /// Verifies PopulateGameClients adds clients to AvailableGameClients.
+    /// </summary>
+    [Fact]
+    public void PopulateGameClients_AddsClientsSuccessfully()
+    {
+        var installation = new SteamInstallation(NullLogger<SteamInstallation>.Instance);
+        var clients = new[]
+        {
+            new GenHub.Core.Models.GameClients.GameClient { Id = "test-client-1", Name = "Client 1" },
+        };
+
+        installation.PopulateGameClients(clients);
+
+        Assert.Single(installation.AvailableGameClients);
+        Assert.Equal("test-client-1", installation.AvailableGameClients[0].Id);
+    }
 }
