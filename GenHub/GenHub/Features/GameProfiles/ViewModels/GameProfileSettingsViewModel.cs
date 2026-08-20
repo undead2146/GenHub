@@ -17,6 +17,7 @@ using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
+using GenHub.Features.GameProfiles.Services;
 using GenHub.Features.Notifications.Services;
 using GenHub.Features.Notifications.ViewModels;
 using Microsoft.Extensions.Logging;
