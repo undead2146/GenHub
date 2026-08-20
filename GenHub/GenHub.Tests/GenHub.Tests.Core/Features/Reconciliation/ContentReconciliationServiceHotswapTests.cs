@@ -37,6 +37,9 @@ public class ContentReconciliationServiceHotswapTests
     /// </summary>
     public ContentReconciliationServiceHotswapTests()
     {
+        _profileManagerMock.Setup(p => p.GetProfileAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string id, CancellationToken _) => ProfileOperationResult<GameProfile>.CreateSuccess(new GameProfile { Id = id }));
+
         _reconciliationService = new ContentReconciliationService(
             _profileManagerMock.Object,
             _workspaceManagerMock.Object,

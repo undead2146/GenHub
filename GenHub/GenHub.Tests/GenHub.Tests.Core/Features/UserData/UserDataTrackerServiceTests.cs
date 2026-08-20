@@ -1141,8 +1141,6 @@ public sealed class UserDataTrackerServiceTests : IDisposable
             },
         };
 
-        _fileOperationsMock.Setup(f => f.LinkFromCasAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<ContentType?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
         _fileOperationsMock.Setup(f => f.VerifyFileHashAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
