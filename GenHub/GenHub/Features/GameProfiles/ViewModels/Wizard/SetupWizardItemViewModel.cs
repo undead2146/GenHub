@@ -64,7 +64,7 @@ public partial class SetupWizardItemViewModel : ObservableObject
         get => _version;
         set
         {
-            var displayVersion = GameVersionHelper.IsDefaultVersion(value) ? string.Empty : value;
+            var displayVersion = GameVersionHelper.IsDefaultVersion(value) ? string.Empty : value?.Trim();
             if (!string.IsNullOrEmpty(displayVersion) && (displayVersion.StartsWith('v') || displayVersion.StartsWith('V')))
             {
                 displayVersion = displayVersion[1..];

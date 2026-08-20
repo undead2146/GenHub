@@ -372,6 +372,8 @@ public class GameProfileLauncherViewModelTests
     [InlineData("v02-08-2026", "02-08-2026")]
     [InlineData("V1.04", "1.04")]
     [InlineData("1.08", "1.08")]
+    [InlineData("  v1.04  ", "1.04")]
+    [InlineData("  1.08  ", "1.08")]
     public void SetupWizardItemViewModel_Version_StripsLeadingVPrefix(string rawVersion, string expectedVersion)
     {
         var item = new SetupWizardItemViewModel
