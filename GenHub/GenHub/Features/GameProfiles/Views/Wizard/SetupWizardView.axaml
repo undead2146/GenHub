@@ -17,23 +17,45 @@
         TransparencyLevelHint="AcrylicBlur">
 
     <Window.Styles>
-        <Style Selector="Border.wizard-item-card">
+        <Style Selector="Button.wizard-item-card">
             <Setter Property="Background" Value="#12FFFFFF"/>
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Padding" Value="14"/>
             <Setter Property="Margin" Value="0,0,0,12"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="BorderBrush" Value="#1AFFFFFF"/>
-            <Setter Property="Transitions">
-                <Transitions>
-                    <BrushTransition Property="Background" Duration="0:0:0.15"/>
-                    <BrushTransition Property="BorderBrush" Duration="0:0:0.15"/>
-                </Transitions>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border x:Name="RootBorder"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            Padding="{TemplateBinding Padding}">
+                        <Border.Transitions>
+                            <Transitions>
+                                <BrushTransition Property="Background" Duration="0:0:0.15"/>
+                                <BrushTransition Property="BorderBrush" Duration="0:0:0.15"/>
+                            </Transitions>
+                        </Border.Transitions>
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                    </Border>
+                </ControlTemplate>
             </Setter>
         </Style>
-        <Style Selector="Border.wizard-item-card:pointerover">
+        <Style Selector="Button.wizard-item-card:pointerover /template/ Border#RootBorder">
             <Setter Property="Background" Value="#22FFFFFF"/>
             <Setter Property="BorderBrush" Value="#35FFFFFF"/>
+        </Style>
+        <Style Selector="Button.wizard-item-card:pressed /template/ Border#RootBorder">
+            <Setter Property="Background" Value="#18FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#25FFFFFF"/>
         </Style>
         
         <Style Selector="CheckBox">
@@ -94,7 +116,10 @@
                 <ItemsControl ItemsSource="{Binding Items}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Classes="wizard-item-card">
+                            <Button Classes="wizard-item-card"
+                                    x:CompileBindings="False"
+                                    Command="{Binding $parent[Window].DataContext.ToggleSelectionCommand}"
+                                    CommandParameter="{Binding}">
                                 <Grid ColumnDefinitions="48,*,40">
                                     <!-- Icon -->
                                     <Border Grid.Column="0" Width="36" Height="36" CornerRadius="8" Background="#2A2A2A" VerticalAlignment="Top">
@@ -134,15 +159,14 @@
 
                                     <!-- Selection Checkbox -->
                                     <CheckBox Grid.Column="2" 
-                                              x:CompileBindings="False"
                                               HorizontalAlignment="Right"
                                               IsChecked="{Binding IsSelected}" 
                                               IsEnabled="{Binding !IsMandatory}"
-                                              VerticalAlignment="Center"
-                                              Command="{Binding $parent[Window].DataContext.ToggleSelectionCommand}"
-                                              CommandParameter="{Binding}"/>
+                                              IsHitTestVisible="False"
+                                              Focusable="False"
+                                              VerticalAlignment="Center"/>
                                 </Grid>
-                            </Border>
+                            </Button>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>

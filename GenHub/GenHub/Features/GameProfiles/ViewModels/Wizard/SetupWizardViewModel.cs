@@ -45,11 +45,16 @@ public sealed partial class SetupWizardViewModel(IEnumerable<SetupWizardItemView
     public bool Confirmed => _confirmed;
 
     [RelayCommand]
-    private void ToggleSelection(SetupWizardItemViewModel item)
+    private void ToggleSelection(SetupWizardItemViewModel? item)
     {
+        if (item == null)
+        {
+            return;
+        }
+
         if (!item.IsMandatory)
         {
-            // IsSelected is bound two-way, so we just need to update the summary labels
+            item.IsSelected = !item.IsSelected;
             UpdateLabels();
         }
     }
