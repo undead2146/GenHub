@@ -75,7 +75,7 @@
         </Style>
         <Style Selector="CheckBox:disabled">
             <Setter Property="Opacity" Value="0.5"/>
-            <Setter Property="Cursor" Value="NotAllowed"/>
+            <Setter Property="Cursor" Value="No"/>
         </Style>
     </Window.Styles>
 

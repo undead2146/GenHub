@@ -5,15 +5,6 @@ namespace GenHub.Core.Constants;
 /// </summary>
 public static class TimeIntervals
 {
-    /// <summary>
-    /// Delay before the Game Profiles header automatically collapses.
-    /// </summary>
-    public const int HeaderCollapseDelayMs = 500;
-
-    /// <summary>
-    /// Delay before the Game Profiles header automatically expands (grace period).
-    /// </summary>
-    public const int HeaderExpansionDelayMs = 500;
 
     /// <summary>
     /// Default timeout for updater operations.

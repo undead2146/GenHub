@@ -198,55 +198,23 @@
     </UserControl.Styles>
 
     <Grid RowDefinitions="Auto, *">
-        <!-- Row 0: Collapsible Header Container -->
-        <Grid Grid.Row="0"
-              Background="Transparent"
-              PointerEntered="HeaderZone_PointerEntered"
-              PointerExited="HeaderZone_PointerExited">
-            <!-- Persistent hit-test area that ensures the Grid is Tall enough even when collapsed -->
-            <Panel Height="60"
-                   VerticalAlignment="Top"
-                   IsHitTestVisible="False" />
+        <!-- Row 0: Header Container -->
+        <Border Margin="0,0,0,10">
+            <StackPanel>
+                <!-- Title and Info -->
+                <Grid ColumnDefinitions="*,Auto" Margin="20,16,20,8">
+                    <StackPanel Grid.Column="0" Orientation="Vertical" VerticalAlignment="Center">
+                        <TextBlock Text="Game Profiles" FontSize="20" FontWeight="SemiBold"
+                            Foreground="White" Margin="0 0 0 4" />
+                        <TextBlock Text="Select a profile to launch or create a new one"
+                            Foreground="#AAAAAA" FontSize="13" />
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   Foreground="#BF40BF" FontSize="12"
+                                   IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
 
-            <!-- Animated Header Content -->
-            <Border Classes="header-container" ClipToBounds="True">
-                <Border.Styles>
-                    <Style Selector="Border.header-container">
-                        <Setter Property="Transitions">
-                            <Transitions>
-                                <DoubleTransition Property="MaxHeight" Duration="0:0:0.4" Easing="CubicEaseOut" />
-                                <DoubleTransition Property="Opacity" Duration="0:0:0.4" Easing="CubicEaseOut" />
-                            </Transitions>
-                        </Setter>
-                    </Style>
-                </Border.Styles>
-
-                <!-- Use HeaderMaxHeightConverter and HeaderOpacityConverter -->
-                <Border.MaxHeight>
-                    <Binding Path="IsHeaderExpanded" Converter="{StaticResource HeaderMaxHeightConverter}" />
-                </Border.MaxHeight>
-
-                <Border.Opacity>
-                    <Binding Path="IsHeaderExpanded" Converter="{StaticResource HeaderOpacityConverter}" />
-                </Border.Opacity>
-
-                <StackPanel Margin="0,0,0,10">
-                    <!-- Title and Info -->
-                    <Grid ColumnDefinitions="*,Auto" Margin="20,16,20,8">
-                        <StackPanel Grid.Column="0" Orientation="Vertical" VerticalAlignment="Center">
-                            <TextBlock Text="Game Profiles" FontSize="20" FontWeight="SemiBold"
-                                Foreground="White" Margin="0 0 0 4" />
-                            <TextBlock Text="Select a profile to launch or create a new one"
-                               Foreground="#AAAAAA" FontSize="13" />
-                            <TextBlock Text="{Binding StatusMessage}"
-                                       Foreground="#BF40BF" FontSize="12"
-                                       IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                       Margin="0,4,0,0" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-
-
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
                         <Panel>
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <!-- Scan Button -->
@@ -271,11 +239,10 @@
                                              Foreground="White" />
                             </StackPanel>
                         </Panel>
-                        </StackPanel>
-                    </Grid>
-                </StackPanel>
-            </Border>
-        </Grid>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
 
         <!-- Row 1: Main Content (Game Profiles List) -->
         <ScrollViewer Grid.Row="1" Margin="10">

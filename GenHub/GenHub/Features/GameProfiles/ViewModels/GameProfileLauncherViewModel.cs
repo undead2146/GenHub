@@ -61,8 +61,6 @@ public partial class GameProfileLauncherViewModel(
     IRecipient<ProfileListUpdatedMessage>
 {
     private readonly SemaphoreSlim _launchSemaphore = new(1, 1);
-    private readonly System.Timers.Timer _headerCollapseTimer = new(TimeIntervals.HeaderCollapseDelayMs);
-    private readonly System.Timers.Timer _headerExpansionTimer = new(TimeIntervals.HeaderExpansionDelayMs);
     private bool _lastOperationSuccess;
     private string? _expectedProfileIdForSuccess;
     private bool _isCreatingNewProfile;
@@ -123,23 +121,6 @@ public partial class GameProfileLauncherViewModel(
 
         try
         {
-            // Set up timer
-            _headerCollapseTimer.AutoReset = false;
-            _headerCollapseTimer.Elapsed += (s, e) =>
-                Avalonia.Threading.Dispatcher.UIThread.Invoke(() => IsHeaderExpanded = false);
-
-            // Set up expansion timer
-            _headerExpansionTimer.AutoReset = false;
-            _headerExpansionTimer.Elapsed += (s, e) =>
-                Avalonia.Threading.Dispatcher.UIThread.Invoke(() =>
-                {
-                    IsHeaderExpanded = true;
-                    _isHovering = true;
-
-                    // Stop collapse timer just in case
-                    _headerCollapseTimer.Stop();
-                });
-
             gameProcessManager.ProcessExited += OnProcessExited;
 
             StatusMessage = "Loading profiles...";
@@ -310,22 +291,12 @@ public partial class GameProfileLauncherViewModel(
         ResetHeaderState();
     }
 
-    private bool _isHovering;
-
     /// <summary>
-    /// Resets the header state to expanded and restarts the auto-collapse timer.
+    /// Resets the header state to expanded.
     /// </summary>
     public void ResetHeaderState()
     {
         IsHeaderExpanded = true;
-        _headerCollapseTimer.Stop();
-        _headerExpansionTimer.Stop();
-
-        // Only start the auto-collapse timer if the user is NOT currently hovering
-        if (!_isHovering)
-        {
-            _headerCollapseTimer.Start();
-        }
     }
 
     /// <summary>
@@ -444,7 +415,6 @@ public partial class GameProfileLauncherViewModel(
         {
             IsScanning = true;
             IsHeaderExpanded = true;
-            _headerCollapseTimer.Stop(); // Ensure header stays open during scan
 
             StatusMessage = "Scanning for games...";
             ErrorMessage = string.Empty;
@@ -660,47 +630,21 @@ public partial class GameProfileLauncherViewModel(
     }
 
     /// <summary>
-    /// Expands the header and stops the auto-collapse timer (user is interacting).
+    /// Expands the header (user is interacting).
     /// </summary>
     [RelayCommand]
     private void ExpandHeader()
     {
-        _isHovering = true;
-
-        if (IsHeaderExpanded)
-        {
-            // Already expanded, just ensure it stays that way
-            _headerCollapseTimer.Stop();
-        }
-        else
-        {
-            // Not expanded, start grace period timer
-            // If user leaves before timer fires, StartHeaderTimer will cancel this
-            _headerExpansionTimer.Stop(); // Reset
-            _headerExpansionTimer.Start();
-        }
+        IsHeaderExpanded = true;
     }
 
     /// <summary>
-    /// Restarts the auto-collapse timer (user finished interaction).
+    /// Handles user finishing interaction with the header.
     /// </summary>
     [RelayCommand]
     private void StartHeaderTimer()
     {
-        _isHovering = false;
-
-        if (IsScanning)
-        {
-            return; // Don't collapse header while scanning
-        }
-
-        _headerCollapseTimer.Stop();
-        _headerExpansionTimer.Stop(); // Cancel any pending expansion
-
-        if (IsHeaderExpanded)
-        {
-            _headerCollapseTimer.Start();
-        }
+        IsHeaderExpanded = true;
     }
 
     /// <summary>
