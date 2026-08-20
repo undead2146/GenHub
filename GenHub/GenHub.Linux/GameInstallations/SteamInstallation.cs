@@ -165,39 +165,6 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
         }
     }
 
-    /// <summary>
-    /// Gets Steam library paths on Linux.
-    /// </summary>
-    /// <returns>List of Steam library paths.</returns>
-    private List<string> GetSteamLibraryPaths()
-    {
-        var libraryPaths = new HashSet<string>(StringComparer.Ordinal);
-
-        try
-        {
-            var homeDirs = GetCandidateHomeDirectories();
-            var configFiles = GetSteamConfigFiles(homeDirs);
-            CollectStandardLibraryPaths(homeDirs, libraryPaths);
-
-            if (configFiles.Count == 0 && libraryPaths.Count == 0)
-            {
-                logger?.LogDebug("Steam library configuration file not found");
-                return libraryPaths.ToList();
-            }
-
-            foreach (var (configFile, pkgType) in configFiles)
-            {
-                ParseSteamConfigFile(configFile, pkgType, homeDirs, libraryPaths);
-            }
-        }
-        catch (Exception ex)
-        {
-            logger?.LogWarning(ex, "Failed to read Steam library paths");
-        }
-
-        return libraryPaths.ToList();
-    }
-
     private static IReadOnlyList<string> GetCandidateHomeDirectories()
     {
         var homeDirs = new HashSet<string>(StringComparer.Ordinal);
@@ -294,6 +261,39 @@ public class SteamInstallation(ILogger<SteamInstallation>? logger = null) : IGam
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Gets Steam library paths on Linux.
+    /// </summary>
+    /// <returns>List of Steam library paths.</returns>
+    private List<string> GetSteamLibraryPaths()
+    {
+        var libraryPaths = new HashSet<string>(StringComparer.Ordinal);
+
+        try
+        {
+            var homeDirs = GetCandidateHomeDirectories();
+            var configFiles = GetSteamConfigFiles(homeDirs);
+            CollectStandardLibraryPaths(homeDirs, libraryPaths);
+
+            if (configFiles.Count == 0 && libraryPaths.Count == 0)
+            {
+                logger?.LogDebug("Steam library configuration file not found");
+                return libraryPaths.ToList();
+            }
+
+            foreach (var (configFile, pkgType) in configFiles)
+            {
+                ParseSteamConfigFile(configFile, pkgType, homeDirs, libraryPaths);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to read Steam library paths");
+        }
+
+        return libraryPaths.ToList();
     }
 
     private void CollectStandardLibraryPaths(IEnumerable<string> homeDirs, HashSet<string> libraryPaths)
