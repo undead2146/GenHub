@@ -70,7 +70,7 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
     /// <inheritdoc/>
     public async Task<OperationResult<IniOptions>> LoadOptionsAsync(GameType gameType)
     {
-        using var scope = _logger.BeginScope(new Dictionary<string, object> { ["GameType"] = gameType, ["Section"] = "OptionsIni" });
+        using var _ = _logger.BeginScope(new Dictionary<string, object> { ["GameType"] = gameType, ["Section"] = "OptionsIni" });
 
         // Acquire semaphore to prevent reading while writing
         await _optionsIniWriteSemaphore.WaitAsync();
@@ -107,7 +107,7 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
     /// <inheritdoc/>
     public async Task<OperationResult<bool>> SaveOptionsAsync(GameType gameType, IniOptions options)
     {
-        using var scope = _logger.BeginScope(new Dictionary<string, object> { ["GameType"] = gameType, ["Section"] = "OptionsIni" });
+        using var _ = _logger.BeginScope(new Dictionary<string, object> { ["GameType"] = gameType, ["Section"] = "OptionsIni" });
 
         // Acquire semaphore to serialize Options.ini writes
         await _optionsIniWriteSemaphore.WaitAsync();
@@ -160,7 +160,7 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
     /// <inheritdoc/>
     public async Task<OperationResult<TheSuperHackersSettings>> LoadTheSuperHackersSettingsAsync(GameType gameType)
     {
-        using var scope = _logger.BeginScope(new Dictionary<string, object> { ["GameType"] = gameType, ["Section"] = "TheSuperHackers" });
+        using var _ = _logger.BeginScope(new Dictionary<string, object> { ["GameType"] = gameType, ["Section"] = "TheSuperHackers" });
 
         try
         {
@@ -191,7 +191,7 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
     /// <inheritdoc/>
     public async Task<OperationResult<bool>> SaveTheSuperHackersSettingsAsync(GameType gameType, TheSuperHackersSettings settings)
     {
-        using var scope = _logger.BeginScope(new Dictionary<string, object> { ["GameType"] = gameType, ["Section"] = "TheSuperHackers" });
+        using var _ = _logger.BeginScope(new Dictionary<string, object> { ["GameType"] = gameType, ["Section"] = "TheSuperHackers" });
 
         try
         {
@@ -218,7 +218,7 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
     /// <inheritdoc/>
     public async Task<OperationResult<GeneralsOnlineSettings>> LoadGeneralsOnlineSettingsAsync()
     {
-        using var scope = _logger.BeginScope(new Dictionary<string, object> { ["Section"] = "GeneralsOnline" });
+        using var _ = _logger.BeginScope(new Dictionary<string, object> { ["Section"] = "GeneralsOnline" });
 
         await _generalsOnlineSettingsSemaphore.WaitAsync();
         try
@@ -260,7 +260,7 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
     /// <inheritdoc/>
     public async Task<OperationResult<bool>> SaveGeneralsOnlineSettingsAsync(GeneralsOnlineSettings settings)
     {
-        using var scope = _logger.BeginScope(new Dictionary<string, object> { ["Section"] = "GeneralsOnline" });
+        using var _ = _logger.BeginScope(new Dictionary<string, object> { ["Section"] = "GeneralsOnline" });
 
         string? temporaryPath = null;
         await _generalsOnlineSettingsSemaphore.WaitAsync();
@@ -556,6 +556,8 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
                 case "NumSounds" when int.TryParse(kvp.Value, out var ns):
                     audio.NumSounds = ns;
                     break;
+                default:
+                    break;
             }
         }
     }
@@ -623,6 +625,8 @@ public class GameSettingsService(ILogger<GameSettingsService> logger, IGamePathP
                     break;
                 case "ShowProps":
                     video.ShowProps = ParseBool(kvp.Value);
+                    break;
+                default:
                     break;
             }
         }

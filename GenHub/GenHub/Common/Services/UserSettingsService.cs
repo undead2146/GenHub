@@ -136,7 +136,7 @@ public class UserSettingsService : IUserSettingsService
     {
         ArgumentNullException.ThrowIfNull(applyChanges);
 
-        bool accepted;
+        var accepted = false;
         lock (_lock)
         {
             accepted = applyChanges(_settings);
@@ -175,7 +175,7 @@ public class UserSettingsService : IUserSettingsService
     /// </exception>
     public async Task SaveAsync(CancellationToken cancellationToken = default)
     {
-        UserSettings settingsToSave;
+        var settingsToSave = new UserSettings();
         var target = SettingsFileTarget.Unverified(string.Empty);
         lock (_lock)
         {
