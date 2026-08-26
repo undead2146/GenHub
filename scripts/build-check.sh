@@ -10,6 +10,18 @@ PROJECT=""
 TIMEOUT_SECONDS=120
 VERBOSITY="quiet"
 
+log_status() {
+    local message="$1"
+    printf '\033[2m[build-check]\033[0m %s\n' "$message"
+    return 0
+}
+
+log_err() {
+    local message="$1"
+    printf '\033[2m[build-check]\033[0m \033[31mERROR: %s\033[0m\n' "$message" >&2
+    return 0
+}
+
 usage() {
     cat << 'EOF'
 Usage:
@@ -48,7 +60,7 @@ while [[ $# -gt 0 ]]; do
             usage || exit 1
             ;;
         *)
-            echo "[build-check] ERROR: Unknown argument: $1" >&2
+            log_err "Unknown argument: $1"
             usage || exit 1
             ;;
     esac
@@ -57,7 +69,7 @@ done
 case "$MODE" in
     check|build|restore) ;;
     *)
-        echo "[build-check] ERROR: Invalid mode '$MODE' (expected check, build, or restore)." >&2
+        log_err "Invalid mode '$MODE' (expected check, build, or restore)."
         exit 1
         ;;
 esac
@@ -65,13 +77,13 @@ esac
 case "$VERBOSITY" in
     quiet|minimal|normal|detailed|diagnostic) ;;
     *)
-        echo "[build-check] ERROR: Invalid verbosity '$VERBOSITY' (expected quiet, minimal, normal, detailed, or diagnostic)." >&2
+        log_err "Invalid verbosity '$VERBOSITY' (expected quiet, minimal, normal, detailed, or diagnostic)."
         exit 1
         ;;
 esac
 
 if ! [[ "$TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] || [[ "$TIMEOUT_SECONDS" -le 0 ]]; then
-    echo "[build-check] ERROR: Timeout must be a positive integer." >&2
+    log_err "Timeout must be a positive integer."
     exit 1
 fi
 
@@ -80,18 +92,6 @@ SOLUTION_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/GenHub"
 SOLUTION_FILE="$SOLUTION_DIR/GenHub.sln"
 LOCK_FILE="$SOLUTION_DIR/build.lock"
 LOCK_TIMEOUT="$TIMEOUT_SECONDS"
-
-log_status() {
-    local message="$1"
-    printf '\033[2m[build-check]\033[0m %s\n' "$message"
-    return 0
-}
-
-log_err() {
-    local message="$1"
-    printf '\033[2m[build-check]\033[0m \033[31mERROR: %s\033[0m\n' "$message" >&2
-    return 0
-}
 
 cleanup() {
     rm -f "$LOCK_FILE"
@@ -122,12 +122,12 @@ fi
 TARGET="$SOLUTION_FILE"
 NO_DEPENDENCIES=()
 if [[ -n "$PROJECT" ]]; then
-    if [[ "$PROJECT" =~ \.\. ]]; then
+    if [[ "$PROJECT" == *".."* ]]; then
         log_err "Path traversal not allowed in project argument."
         exit 1
     fi
 
-    if [[ "$PROJECT" = /* ]]; then
+    if [[ "$PROJECT" == /* ]]; then
         TARGET="$PROJECT"
     else
         TARGET="$SOLUTION_DIR/$PROJECT"
@@ -149,8 +149,9 @@ if ! flock -w "$LOCK_TIMEOUT" 9; then
     exit 3
 fi
 
+CURRENT_TIME="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 printf '{"pid": %d, "mode": "%s", "project": "%s", "startedAt": "%s"}\n' \
-    "$$" "$MODE" "${PROJECT:-GenHub.sln}" "$(date -Iseconds)" >"$LOCK_FILE"
+    "$$" "$MODE" "${PROJECT:-GenHub.sln}" "$CURRENT_TIME" >"$LOCK_FILE"
 
 log_status "Build lock acquired."
 
@@ -182,4 +183,4 @@ else
     log_err "Build/check failed with exit code: $EXIT_CODE"
 fi
 
-exit $EXIT_CODE
+exit "$EXIT_CODE"

@@ -946,45 +946,58 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
 
         while (index < tableData.Length - 4)
         {
-            if (tableData[index] != '.' || index < 40)
-            {
-                index++;
-                continue;
-            }
-
-            if (!TryExtractSimCandidateName(tableData, index, out var name, out var nextIndex, out var startOffset))
-            {
-                index++;
-                continue;
-            }
-
-            index = nextIndex;
-
-            if (!IsValidSimEntryName(name))
-            {
-                continue;
-            }
-
-            if (TryReadSimRecord(tableData, startOffset, name, stream, payloadOffset, records, out var record))
-            {
-                if (records.Count >= CatalogConstants.MaxZipEntryCount)
-                {
-                    throw new InvalidDataException(
-                        $"Smart Install Maker archive exceeds maximum entry count of {CatalogConstants.MaxZipEntryCount}");
-                }
-
-                cumulativeUncompressedSize += record.UncompressedSize;
-                if (cumulativeUncompressedSize > CatalogConstants.MaxZipUncompressedSizeBytes)
-                {
-                    throw new InvalidDataException(
-                        $"Smart Install Maker archive exceeds maximum uncompressed size of {CatalogConstants.MaxZipUncompressedSizeBytes} bytes");
-                }
-
-                records.Add(record);
-            }
+            index = ProcessNextSimCandidate(tableData, index, stream, payloadOffset, records, ref cumulativeUncompressedSize);
         }
 
         return records;
+    }
+
+    private static int ProcessNextSimCandidate(
+        byte[] tableData,
+        int index,
+        Stream stream,
+        long payloadOffset,
+        List<(string Name, uint UncompressedSize, uint StreamOffset, uint CompressedSize)> records,
+        ref long cumulativeUncompressedSize)
+    {
+        if (tableData[index] != '.' || index < 40)
+        {
+            return index + 1;
+        }
+
+        if (!TryExtractSimCandidateName(tableData, index, out var name, out var nextIndex, out var startOffset))
+        {
+            return index + 1;
+        }
+
+        if (IsValidSimEntryName(name) &&
+            TryReadSimRecord(tableData, startOffset, name, stream, payloadOffset, records, out var record))
+        {
+            ValidateAndAddSimRecord(record, records, ref cumulativeUncompressedSize);
+        }
+
+        return nextIndex;
+    }
+
+    private static void ValidateAndAddSimRecord(
+        (string Name, uint UncompressedSize, uint StreamOffset, uint CompressedSize) record,
+        List<(string Name, uint UncompressedSize, uint StreamOffset, uint CompressedSize)> records,
+        ref long cumulativeUncompressedSize)
+    {
+        if (records.Count >= CatalogConstants.MaxZipEntryCount)
+        {
+            throw new InvalidDataException(
+                $"Smart Install Maker archive exceeds maximum entry count of {CatalogConstants.MaxZipEntryCount}");
+        }
+
+        cumulativeUncompressedSize += record.UncompressedSize;
+        if (cumulativeUncompressedSize > CatalogConstants.MaxZipUncompressedSizeBytes)
+        {
+            throw new InvalidDataException(
+                $"Smart Install Maker archive exceeds maximum uncompressed size of {CatalogConstants.MaxZipUncompressedSizeBytes} bytes");
+        }
+
+        records.Add(record);
     }
 
     private static bool TryExtractSimCandidateName(
@@ -1258,13 +1271,12 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         var fileNameWithoutExt = Path.GetFileNameWithoutExtension(destinationPath);
         var ext = Path.GetExtension(destinationPath);
         var counter = 1;
-        var newDestPath = string.Empty;
-        do
+        var newDestPath = Path.Combine(dir, $"{fileNameWithoutExt}_{counter}{ext}");
+        while (File.Exists(newDestPath))
         {
-            newDestPath = Path.Combine(dir, $"{fileNameWithoutExt}_{counter}{ext}");
             counter++;
+            newDestPath = Path.Combine(dir, $"{fileNameWithoutExt}_{counter}{ext}");
         }
-        while (File.Exists(newDestPath));
 
         return newDestPath;
     }
@@ -1283,9 +1295,14 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
             return false;
         }
 
-        var bytesRead1 = 0;
-        while ((bytesRead1 = s1.Read(buffer1, 0, bufferSize)) > 0)
+        while (true)
         {
+            var bytesRead1 = s1.Read(buffer1, 0, bufferSize);
+            if (bytesRead1 <= 0)
+            {
+                break;
+            }
+
             var bytesRead2 = s2.Read(buffer2, 0, bufferSize);
             if (bytesRead1 != bytesRead2)
             {
