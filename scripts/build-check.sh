@@ -119,16 +119,17 @@ fi
 TARGET="$SOLUTION_FILE"
 NO_DEPENDENCIES=()
 if [[ -n "$PROJECT" ]]; then
-    if [[ "$PROJECT" == *".."* ]]; then
-        log_err "Path traversal not allowed in project argument."
-        exit 1
-    fi
+    case "$PROJECT" in
+        *..*)
+            log_err "Path traversal not allowed in project argument."
+            exit 1
+            ;;
+    esac
 
-    if [[ "$PROJECT" == /* ]]; then
-        TARGET="$PROJECT"
-    else
-        TARGET="$SOLUTION_DIR/$PROJECT"
-    fi
+    case "$PROJECT" in
+        /*) TARGET="$PROJECT" ;;
+        *) TARGET="$SOLUTION_DIR/$PROJECT" ;;
+    esac
 
     if [[ ! -f "$TARGET" ]]; then
         log_err "Project not found: $TARGET"
