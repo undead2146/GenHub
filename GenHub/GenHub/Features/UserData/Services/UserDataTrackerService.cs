@@ -1402,9 +1402,16 @@ public class UserDataTrackerService(
                     {
                         case FileHashVerification.Match:
                             File.Delete(file.AbsolutePath);
-                            logger.LogDebug("[UserData] Deleted file: {Path}", file.AbsolutePath);
+                            if (File.Exists(file.AbsolutePath))
+                            {
+                                fileProcessed = false;
+                            }
+                            else
+                            {
+                                logger.LogDebug("[UserData] Deleted file: {Path}", file.AbsolutePath);
+                                CleanupEmptyDirectories(Path.GetDirectoryName(file.AbsolutePath), userDataBasePath);
+                            }
 
-                            CleanupEmptyDirectories(Path.GetDirectoryName(file.AbsolutePath), userDataBasePath);
                             break;
 
                         case FileHashVerification.Mismatch when hasBackup:
@@ -1461,7 +1468,7 @@ public class UserDataTrackerService(
                 logger.LogWarning(ex, "[UserData] Failed to uninstall file: {Path}", file.AbsolutePath);
             }
 
-            if (!fileProcessed || (File.Exists(file.AbsolutePath) && !hasBackup))
+            if (!fileProcessed)
             {
                 allCleanedUp = false;
             }
