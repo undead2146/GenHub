@@ -301,6 +301,43 @@ public class ProfileContentLinkerService(
         _activeProfileByGame.Clear();
     }
 
+    private static bool HasProfileUserData(ContentManifest manifest)
+    {
+        return GetUserDataFiles(manifest).Count > 0;
+    }
+
+    private static IReadOnlyList<ManifestFile> GetUserDataFiles(ContentManifest manifest)
+    {
+        return manifest.Files
+            .Where(file => file.InstallTarget != ContentInstallTarget.System &&
+                           (file.InstallTarget != ContentInstallTarget.Workspace ||
+                            manifest.ContentType is ContentType.Map or ContentType.MapPack))
+            .Select(file => (manifest.ContentType is ContentType.Map or ContentType.MapPack) &&
+                            file.InstallTarget == ContentInstallTarget.Workspace
+                ? CreateUserMapsFile(file)
+                : file)
+            .ToList();
+    }
+
+    private static ManifestFile CreateUserMapsFile(ManifestFile file)
+    {
+        return new ManifestFile
+        {
+            RelativePath = file.RelativePath,
+            SourceType = file.SourceType,
+            InstallTarget = ContentInstallTarget.UserMapsDirectory,
+            Size = file.Size,
+            Hash = file.Hash,
+            Permissions = file.Permissions,
+            IsExecutable = file.IsExecutable,
+            DownloadUrl = file.DownloadUrl,
+            IsRequired = file.IsRequired,
+            SourcePath = file.SourcePath,
+            PatchSourceFile = file.PatchSourceFile,
+            PackageInfo = file.PackageInfo,
+        };
+    }
+
     private async Task<OperationResult<bool>> PrepareProfileUserDataInternalAsync(
         string profileId,
         IEnumerable<ContentManifest> manifests,
@@ -433,43 +470,6 @@ public class ProfileContentLinkerService(
             logger.LogError(ex, "[ProfileContentLinker] Failed to prepare user data for profile {ProfileId}", profileId);
             return OperationResult<bool>.CreateFailure($"Failed to prepare user data: {ex.Message}");
         }
-    }
-
-    private static bool HasProfileUserData(ContentManifest manifest)
-    {
-        return GetUserDataFiles(manifest).Count > 0;
-    }
-
-    private static IReadOnlyList<ManifestFile> GetUserDataFiles(ContentManifest manifest)
-    {
-        return manifest.Files
-            .Where(file => file.InstallTarget != ContentInstallTarget.System &&
-                           (file.InstallTarget != ContentInstallTarget.Workspace ||
-                            manifest.ContentType is ContentType.Map or ContentType.MapPack))
-            .Select(file => (manifest.ContentType is ContentType.Map or ContentType.MapPack) &&
-                            file.InstallTarget == ContentInstallTarget.Workspace
-                ? CreateUserMapsFile(file)
-                : file)
-            .ToList();
-    }
-
-    private static ManifestFile CreateUserMapsFile(ManifestFile file)
-    {
-        return new ManifestFile
-        {
-            RelativePath = file.RelativePath,
-            SourceType = file.SourceType,
-            InstallTarget = ContentInstallTarget.UserMapsDirectory,
-            Size = file.Size,
-            Hash = file.Hash,
-            Permissions = file.Permissions,
-            IsExecutable = file.IsExecutable,
-            DownloadUrl = file.DownloadUrl,
-            IsRequired = file.IsRequired,
-            SourcePath = file.SourcePath,
-            PatchSourceFile = file.PatchSourceFile,
-            PackageInfo = file.PackageInfo,
-        };
     }
 
     private SemaphoreSlim GetGameLock(GameType gameType) =>
