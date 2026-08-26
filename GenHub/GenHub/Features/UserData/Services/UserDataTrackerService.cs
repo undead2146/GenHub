@@ -1370,10 +1370,22 @@ public class UserDataTrackerService(
     {
         var userDataBasePath = GetUserDataBasePath(manifest.TargetGame);
         var allBackupsRestored = true;
+        var index = await LoadIndexUnlockedAsync(cancellationToken);
 
         foreach (var file in manifest.InstalledFiles)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            if (index.FileToInstallationMap.TryGetValue(file.AbsolutePath, out var currentOwnerKey) &&
+                currentOwnerKey != manifest.InstallationKey)
+            {
+                logger.LogDebug(
+                    "[UserData] Skipping cleanup of {Path} for installation {Key}; currently owned by {OwnerKey}",
+                    file.AbsolutePath,
+                    manifest.InstallationKey,
+                    currentOwnerKey);
+                continue;
+            }
 
             var hasBackup = !string.IsNullOrEmpty(file.BackupPath) && File.Exists(file.BackupPath);
             var backupRestored = false;
@@ -1720,10 +1732,14 @@ public class UserDataTrackerService(
         {
             index.InstallationKeys.Remove(key);
 
-            // Remove file mappings
+            // Remove file mappings only if still mapped to this installation
             foreach (var file in manifest.InstalledFiles)
             {
-                index.FileToInstallationMap.Remove(file.AbsolutePath);
+                if (index.FileToInstallationMap.TryGetValue(file.AbsolutePath, out var mappedKey) &&
+                    mappedKey == key)
+                {
+                    index.FileToInstallationMap.Remove(file.AbsolutePath);
+                }
             }
 
             // Remove from profile mappings

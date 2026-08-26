@@ -423,12 +423,7 @@ public class ProfileContentLinkerService(
 
         if (userDataFiles.Count == 0)
         {
-            return OperationResult<UserDataManifest>.CreateSuccess(new UserDataManifest
-            {
-                ManifestId = manifest.Id.Value,
-                ProfileId = profileId,
-                TargetGame = targetGame,
-            });
+            return OperationResult<UserDataManifest>.CreateFailure("No user data files to install");
         }
 
         logger.LogDebug(
