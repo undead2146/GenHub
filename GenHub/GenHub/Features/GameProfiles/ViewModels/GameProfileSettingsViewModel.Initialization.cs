@@ -148,52 +148,17 @@ public partial class GameProfileSettingsViewModel
             }
 
             var profile = profileResult.Data;
-            Name = profile.Name;
-            Description = profile.Description ?? string.Empty;
-            ColorValue = profile.ThemeColor ?? "#1976D2";
-            var defaultIconPath = _profileResourceService?.GetDefaultIconPath(profile.GameClient?.GameType.ToString() ?? "ZeroHour")
-                ?? Core.Constants.UriConstants.DefaultIconUri;
-            IconPath = NormalizeResourcePath(profile.IconPath, defaultIconPath);
-            var defaultCoverPath = _profileResourceService?.GetDefaultCoverPath(profile.GameClient?.GameType.ToString() ?? "ZeroHour") ?? string.Empty;
-            CoverPath = NormalizeResourcePath(profile.CoverPath, defaultCoverPath);
-            SelectedWorkspaceStrategy = profile.WorkspaceStrategy ?? GetDefaultWorkspaceStrategy();
-            OriginalWorkspaceStrategy = profile.WorkspaceStrategy ?? GetDefaultWorkspaceStrategy();
-            _originalEnabledContentIds.Clear();
-            if (profile.EnabledContentIds != null)
-            {
-                _originalEnabledContentIds.AddRange(profile.EnabledContentIds);
-            }
-
-            CommandLineArguments = profile.CommandLineArguments ?? string.Empty;
-
-            LoadAvailableIconsAndCovers(profile.GameClient?.GameType.ToString() ?? "ZeroHour");
-            GameTypeFilter = profile.GameClient?.GameType ?? Core.Models.Enums.GameType.ZeroHour;
+            ApplyLoadedProfileProperties(profile);
 
             GameSettingsViewModel.ColorValue = ColorValue;
             await GameSettingsViewModel.InitializeForProfileAsync(profileId, profile);
 
             if (!profile.HasCustomSettings())
             {
-                var gameSettings = GameSettingsViewModel.GetProfileSettings();
-                var updateRequest = new UpdateProfileRequest();
-                PopulateGameSettings(updateRequest, gameSettings);
-
-                var updateResult = await _gameProfileManager.UpdateProfileAsync(profileId, updateRequest);
-                if (updateResult.Success)
-                {
-                    _logger?.LogInformation("Saved default game settings for profile {ProfileId}", profileId);
-                }
+                await SaveDefaultGameSettingsAsync(profileId);
             }
 
-            if (_launchRegistry != null)
-            {
-                var activeLaunches = await _launchRegistry.GetAllActiveLaunchesAsync();
-                IsHotswapMode = activeLaunches.Any(l => string.Equals(l.ProfileId, profileId, StringComparison.OrdinalIgnoreCase) && !l.TerminatedAt.HasValue);
-            }
-            else
-            {
-                IsHotswapMode = false;
-            }
+            IsHotswapMode = await DetermineHotswapModeAsync(profileId);
 
             await LoadEnabledContentForProfileAsync(profile);
             await LoadAvailableGameInstallationsAsync();
@@ -201,25 +166,7 @@ public partial class GameProfileSettingsViewModel
             UpdateAllItemsHotswapState();
             await RefreshVisibleFiltersAsync();
 
-            var enabledInstallation = EnabledContent.FirstOrDefault(c => c.ContentType == Core.Models.Enums.ContentType.GameInstallation);
-            if (enabledInstallation != null)
-            {
-                enabledInstallation.IsEnabled = true;
-                SelectedGameInstallation = AvailableGameInstallations
-                    .FirstOrDefault(a => a.ManifestId.Value == enabledInstallation.ManifestId.Value)
-                    ?? enabledInstallation;
-                SelectedGameInstallation.IsEnabled = true;
-            }
-            else if (!string.IsNullOrEmpty(profile.GameInstallationId))
-            {
-                var matchingInstallation = AvailableGameInstallations
-                    .FirstOrDefault(a => a.SourceId == profile.GameInstallationId && (profile.GameClient == null || a.GameType == profile.GameClient.GameType));
-                if (matchingInstallation != null)
-                {
-                    SelectedGameInstallation = matchingInstallation;
-                    SelectedGameInstallation.IsEnabled = true;
-                }
-            }
+            SelectInitialGameInstallation(profile);
 
             StatusMessage = $"Profile loaded with {EnabledContent.Count} enabled content items";
         }
@@ -285,6 +232,76 @@ public partial class GameProfileSettingsViewModel
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error refreshing visible filters");
+        }
+    }
+
+    private void ApplyLoadedProfileProperties(GameProfile profile)
+    {
+        Name = profile.Name;
+        Description = profile.Description ?? string.Empty;
+        ColorValue = profile.ThemeColor ?? "#1976D2";
+        var defaultIconPath = _profileResourceService?.GetDefaultIconPath(profile.GameClient?.GameType.ToString() ?? "ZeroHour")
+            ?? Core.Constants.UriConstants.DefaultIconUri;
+        IconPath = NormalizeResourcePath(profile.IconPath, defaultIconPath);
+        var defaultCoverPath = _profileResourceService?.GetDefaultCoverPath(profile.GameClient?.GameType.ToString() ?? "ZeroHour") ?? string.Empty;
+        CoverPath = NormalizeResourcePath(profile.CoverPath, defaultCoverPath);
+        SelectedWorkspaceStrategy = profile.WorkspaceStrategy ?? GetDefaultWorkspaceStrategy();
+        OriginalWorkspaceStrategy = profile.WorkspaceStrategy ?? GetDefaultWorkspaceStrategy();
+        _originalEnabledContentIds.Clear();
+        if (profile.EnabledContentIds != null)
+        {
+            _originalEnabledContentIds.AddRange(profile.EnabledContentIds);
+        }
+
+        CommandLineArguments = profile.CommandLineArguments ?? string.Empty;
+        LoadAvailableIconsAndCovers(profile.GameClient?.GameType.ToString() ?? "ZeroHour");
+        GameTypeFilter = profile.GameClient?.GameType ?? Core.Models.Enums.GameType.ZeroHour;
+    }
+
+    private async Task SaveDefaultGameSettingsAsync(string profileId)
+    {
+        var gameSettings = GameSettingsViewModel.GetProfileSettings();
+        var updateRequest = new UpdateProfileRequest();
+        PopulateGameSettings(updateRequest, gameSettings);
+
+        var updateResult = await _gameProfileManager.UpdateProfileAsync(profileId, updateRequest);
+        if (updateResult.Success)
+        {
+            _logger?.LogInformation("Saved default game settings for profile {ProfileId}", profileId);
+        }
+    }
+
+    private async Task<bool> DetermineHotswapModeAsync(string profileId)
+    {
+        if (_launchRegistry == null)
+        {
+            return false;
+        }
+
+        var activeLaunches = await _launchRegistry.GetAllActiveLaunchesAsync();
+        return activeLaunches.Any(l => string.Equals(l.ProfileId, profileId, StringComparison.OrdinalIgnoreCase) && !l.TerminatedAt.HasValue);
+    }
+
+    private void SelectInitialGameInstallation(GameProfile profile)
+    {
+        var enabledInstallation = EnabledContent.FirstOrDefault(c => c.ContentType == Core.Models.Enums.ContentType.GameInstallation);
+        if (enabledInstallation != null)
+        {
+            enabledInstallation.IsEnabled = true;
+            SelectedGameInstallation = AvailableGameInstallations
+                .FirstOrDefault(a => a.ManifestId.Value == enabledInstallation.ManifestId.Value)
+                ?? enabledInstallation;
+            SelectedGameInstallation.IsEnabled = true;
+        }
+        else if (!string.IsNullOrEmpty(profile.GameInstallationId))
+        {
+            var matchingInstallation = AvailableGameInstallations
+                .FirstOrDefault(a => a.SourceId == profile.GameInstallationId && (profile.GameClient == null || a.GameType == profile.GameClient.GameType));
+            if (matchingInstallation != null)
+            {
+                SelectedGameInstallation = matchingInstallation;
+                SelectedGameInstallation.IsEnabled = true;
+            }
         }
     }
 }

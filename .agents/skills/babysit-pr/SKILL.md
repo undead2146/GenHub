@@ -117,6 +117,15 @@ gh api repos/:owner/:repo/issues/$PR_NUMBER/comments \
 # 3. Fetch PR reviews
 gh api repos/:owner/:repo/pulls/$PR_NUMBER/reviews \
   --jq '.[] | {id: .id, user: .user.login, state: .state, body: .body}'
+
+# 4. Fetch Check-Run Annotations & Static Analysis Issues (SonarCloud, DeepSource, etc.)
+# Even if a check-run passes, static analyzers (like SonarCloud Quality Gate) attach issues as check-run annotations!
+# ALWAYS fetch annotations for all static analyzer / linter check runs:
+gh api repos/:owner/:repo/commits/$HEAD_SHA/check-runs \
+  --jq '.check_runs[] | select(.name | test("SonarCloud|DeepSource|Lint|Static"; "i")) | .id' | while read -r RUN_ID; do
+    gh api repos/:owner/:repo/check-runs/$RUN_ID/annotations \
+      --jq '.[] | {title: .title, message: .message, path: .path, start_line: .start_line, annotation_level: .annotation_level}'
+done
 ```
 
 ---
@@ -209,6 +218,6 @@ When:
      --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')
    ```
    Ensure `$UNRESOLVED` is `0`.
-3. No unaddressed bot findings or check failures remain.
+3. Zero unaddressed bot findings, static analyzer annotations (e.g. SonarCloud, DeepSource), or check failures remain.
 
 Report the final clean status to the developer with the live PR URL.

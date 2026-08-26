@@ -336,6 +336,62 @@ public class GameProfileManager(
         }
     }
 
+    private static ProfileOperationResult<GameProfile>? ValidateRunningProfileImmutableSettings(GameProfile profile, UpdateProfileRequest request)
+    {
+        if (request.WorkspaceStrategy.HasValue && request.WorkspaceStrategy.Value != profile.WorkspaceStrategy)
+        {
+            return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change workspace strategy while profile is running.");
+        }
+
+        if (request.GameInstallationId != null && !string.Equals(request.GameInstallationId, profile.GameInstallationId, StringComparison.OrdinalIgnoreCase))
+        {
+            return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change game installation while profile is running.");
+        }
+
+        if (request.ActiveWorkspaceId != null && !string.Equals(request.ActiveWorkspaceId, profile.ActiveWorkspaceId, StringComparison.OrdinalIgnoreCase))
+        {
+            return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change active workspace while profile is running.");
+        }
+
+        if (request.CustomExecutablePath != null && !string.Equals(request.CustomExecutablePath, profile.CustomExecutablePath, StringComparison.OrdinalIgnoreCase))
+        {
+            return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change custom executable path while profile is running.");
+        }
+
+        if (request.WorkingDirectory != null && !string.Equals(request.WorkingDirectory, profile.WorkingDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change working directory while profile is running.");
+        }
+
+        if (request.CommandLineArguments != null && !string.Equals(request.CommandLineArguments, profile.CommandLineArguments, StringComparison.Ordinal))
+        {
+            return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change command line arguments while profile is running.");
+        }
+
+        return null;
+    }
+
+    private static ProfileOperationResult<GameProfile>? ValidateRunningProfileGameClient(GameProfile profile, GameClient? requestedClient)
+    {
+        if (requestedClient == null)
+        {
+            return null;
+        }
+
+        if (profile.GameClient == null ||
+            !string.Equals(requestedClient.Id, profile.GameClient.Id, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(requestedClient.ExecutablePath, profile.GameClient.ExecutablePath, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(requestedClient.Version, profile.GameClient.Version, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(requestedClient.WorkingDirectory, profile.GameClient.WorkingDirectory, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(requestedClient.InstallationId, profile.GameClient.InstallationId, StringComparison.OrdinalIgnoreCase) ||
+            requestedClient.GameType != profile.GameClient.GameType)
+        {
+            return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change game client while profile is running.");
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Validates the profile name.
     /// </summary>
@@ -412,62 +468,6 @@ public class GameProfileManager(
         }
 
         return await ValidateRunningProfileContentChangesAsync(previousEnabledContentIds, request.EnabledContentIds, cancellationToken);
-    }
-
-    private ProfileOperationResult<GameProfile>? ValidateRunningProfileImmutableSettings(GameProfile profile, UpdateProfileRequest request)
-    {
-        if (request.WorkspaceStrategy.HasValue && request.WorkspaceStrategy.Value != profile.WorkspaceStrategy)
-        {
-            return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change workspace strategy while profile is running.");
-        }
-
-        if (request.GameInstallationId != null && !string.Equals(request.GameInstallationId, profile.GameInstallationId, StringComparison.OrdinalIgnoreCase))
-        {
-            return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change game installation while profile is running.");
-        }
-
-        if (request.ActiveWorkspaceId != null && !string.Equals(request.ActiveWorkspaceId, profile.ActiveWorkspaceId, StringComparison.OrdinalIgnoreCase))
-        {
-            return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change active workspace while profile is running.");
-        }
-
-        if (request.CustomExecutablePath != null && !string.Equals(request.CustomExecutablePath, profile.CustomExecutablePath, StringComparison.OrdinalIgnoreCase))
-        {
-            return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change custom executable path while profile is running.");
-        }
-
-        if (request.WorkingDirectory != null && !string.Equals(request.WorkingDirectory, profile.WorkingDirectory, StringComparison.OrdinalIgnoreCase))
-        {
-            return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change working directory while profile is running.");
-        }
-
-        if (request.CommandLineArguments != null && !string.Equals(request.CommandLineArguments, profile.CommandLineArguments, StringComparison.Ordinal))
-        {
-            return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change command line arguments while profile is running.");
-        }
-
-        return null;
-    }
-
-    private ProfileOperationResult<GameProfile>? ValidateRunningProfileGameClient(GameProfile profile, GameClient? requestedClient)
-    {
-        if (requestedClient == null)
-        {
-            return null;
-        }
-
-        if (profile.GameClient == null ||
-            !string.Equals(requestedClient.Id, profile.GameClient.Id, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(requestedClient.ExecutablePath, profile.GameClient.ExecutablePath, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(requestedClient.Version, profile.GameClient.Version, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(requestedClient.WorkingDirectory, profile.GameClient.WorkingDirectory, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(requestedClient.InstallationId, profile.GameClient.InstallationId, StringComparison.OrdinalIgnoreCase) ||
-            requestedClient.GameType != profile.GameClient.GameType)
-        {
-            return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change game client while profile is running.");
-        }
-
-        return null;
     }
 
     private async Task<ProfileOperationResult<GameProfile>?> ValidateRunningProfileContentChangesAsync(
