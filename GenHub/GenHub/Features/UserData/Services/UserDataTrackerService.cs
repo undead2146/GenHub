@@ -1699,9 +1699,9 @@ public class UserDataTrackerService(
             }
 
             // Update file mappings
-            foreach (var file in manifest.InstalledFiles)
+            foreach (var path in manifest.InstalledFiles.Select(file => file.AbsolutePath))
             {
-                index.FileToInstallationMap[file.AbsolutePath] = key;
+                index.FileToInstallationMap[path] = key;
             }
 
             // Update profile mappings
@@ -1733,12 +1733,12 @@ public class UserDataTrackerService(
             index.InstallationKeys.Remove(key);
 
             // Remove file mappings only if still mapped to this installation
-            foreach (var file in manifest.InstalledFiles)
+            foreach (var path in manifest.InstalledFiles.Select(file => file.AbsolutePath))
             {
-                if (index.FileToInstallationMap.TryGetValue(file.AbsolutePath, out var mappedKey) &&
+                if (index.FileToInstallationMap.TryGetValue(path, out var mappedKey) &&
                     mappedKey == key)
                 {
-                    index.FileToInstallationMap.Remove(file.AbsolutePath);
+                    index.FileToInstallationMap.Remove(path);
                 }
             }
 
