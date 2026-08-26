@@ -192,4 +192,34 @@ public class ContentHotswapClassificationTests
         Assert.True(ContentHotswapClassification.IsHotswappable(manifest));
         Assert.False(ContentHotswapClassification.IsLocked(manifest));
     }
+
+    /// <summary>
+    /// Verifies that IsHotswappable returns false when the manifest declares variants but none resolve.
+    /// </summary>
+    [Fact]
+    public void IsHotswappable_ManifestWithUnresolvableVariants_ReturnsFalse()
+    {
+        // Arrange
+        var manifest = new GenHub.Core.Models.Manifest.ContentManifest
+        {
+            Id = GenHub.Core.Models.Manifest.ManifestId.Create("1.0.0.map.unmatched"),
+            Name = "Unmatched Map",
+            ContentType = ContentType.Map,
+            Variants =
+            [
+                new GenHub.Core.Models.Manifest.ArtifactVariant
+                {
+                    RuntimeIdentifiers = ["unsupported-platform-rid-123"],
+                    Files =
+                    [
+                        new GenHub.Core.Models.Manifest.ManifestFile { RelativePath = "Custom.map", InstallTarget = GenHub.Core.Models.Enums.ContentInstallTarget.UserMapsDirectory },
+                    ],
+                },
+            ],
+        };
+
+        // Act & Assert
+        Assert.False(ContentHotswapClassification.IsHotswappable(manifest));
+        Assert.True(ContentHotswapClassification.IsLocked(manifest));
+    }
 }
