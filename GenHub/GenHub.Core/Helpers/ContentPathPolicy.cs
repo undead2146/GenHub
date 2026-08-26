@@ -125,34 +125,14 @@ public static class ContentPathPolicy
             var current = path;
             while (!string.IsNullOrEmpty(current))
             {
-                if (File.Exists(current))
+                if (TryResolveLink(current, path, out var resolvedPath))
                 {
-                    var fileInfo = new FileInfo(current);
-                    if (fileInfo.LinkTarget != null)
-                    {
-                        var target = fileInfo.ResolveLinkTarget(returnFinalTarget: true);
-                        if (target != null)
-                        {
-                            var relativeSuffix = Path.GetRelativePath(current, path);
-                            return relativeSuffix == "." ? target.FullName : Path.GetFullPath(Path.Combine(target.FullName, relativeSuffix));
-                        }
-                    }
-
-                    break;
+                    return resolvedPath;
                 }
 
-                if (Directory.Exists(current))
+                if (File.Exists(current))
                 {
-                    var dirInfo = new DirectoryInfo(current);
-                    if (dirInfo.LinkTarget != null)
-                    {
-                        var target = dirInfo.ResolveLinkTarget(returnFinalTarget: true);
-                        if (target != null)
-                        {
-                            var relativeSuffix = Path.GetRelativePath(current, path);
-                            return relativeSuffix == "." ? target.FullName : Path.GetFullPath(Path.Combine(target.FullName, relativeSuffix));
-                        }
-                    }
+                    break;
                 }
 
                 current = Path.GetDirectoryName(current);
@@ -164,5 +144,42 @@ public static class ContentPathPolicy
         }
 
         return path;
+    }
+
+    private static bool TryResolveLink(string current, string originalPath, out string resolvedPath)
+    {
+        resolvedPath = string.Empty;
+        var targetFullName = TryGetLinkTargetFullName(current);
+        if (string.IsNullOrEmpty(targetFullName))
+        {
+            return false;
+        }
+
+        var relativeSuffix = Path.GetRelativePath(current, originalPath);
+        resolvedPath = relativeSuffix == "."
+            ? targetFullName
+            : Path.GetFullPath(Path.Combine(targetFullName, relativeSuffix));
+        return true;
+    }
+
+    private static string? TryGetLinkTargetFullName(string path)
+    {
+        if (File.Exists(path))
+        {
+            var fileInfo = new FileInfo(path);
+            return fileInfo.LinkTarget != null
+                ? fileInfo.ResolveLinkTarget(returnFinalTarget: true)?.FullName
+                : null;
+        }
+
+        if (Directory.Exists(path))
+        {
+            var dirInfo = new DirectoryInfo(path);
+            return dirInfo.LinkTarget != null
+                ? dirInfo.ResolveLinkTarget(returnFinalTarget: true)?.FullName
+                : null;
+        }
+
+        return null;
     }
 }

@@ -2,15 +2,8 @@
 # build-check.sh - Serialized build/check script for GenHub on Linux/macOS.
 # Linux counterpart to scripts/build-check.ps1. Uses flock to ensure only one
 # build runs at a time and refuses to build while output DLLs are locked.
-#
-# Usage:
-#   ./scripts/build-check.sh                        # quick compile check on full solution
-#   ./scripts/build-check.sh -p GenHub.Core/GenHub.Core.csproj
-#   ./scripts/build-check.sh -m build               # full build with output
-#   ./scripts/build-check.sh -m restore             # NuGet restore only
-#   ./scripts/build-check.sh -t 300                 # longer lock timeout
 
-set -u
+set -euo pipefail
 
 MODE="check"
 PROJECT=""
@@ -18,8 +11,15 @@ TIMEOUT_SECONDS=120
 VERBOSITY="quiet"
 
 usage() {
-    sed -n '2,14p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
-    exit 1
+    cat << 'EOF'
+Usage:
+  ./scripts/build-check.sh                        # quick compile check on full solution
+  ./scripts/build-check.sh -p GenHub.Core/GenHub.Core.csproj
+  ./scripts/build-check.sh -m build               # full build with output
+  ./scripts/build-check.sh -m restore             # NuGet restore only
+  ./scripts/build-check.sh -t 300                 # longer lock timeout
+EOF
+    return 1
 }
 
 while [[ $# -gt 0 ]]; do
@@ -45,11 +45,11 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         -h|--help)
-            usage
+            usage || exit 1
             ;;
         *)
             echo "[build-check] ERROR: Unknown argument: $1" >&2
-            usage
+            usage || exit 1
             ;;
     esac
 done
@@ -62,25 +62,41 @@ case "$MODE" in
         ;;
 esac
 
+case "$VERBOSITY" in
+    quiet|minimal|normal|detailed|diagnostic) ;;
+    *)
+        echo "[build-check] ERROR: Invalid verbosity '$VERBOSITY' (expected quiet, minimal, normal, detailed, or diagnostic)." >&2
+        exit 1
+        ;;
+esac
+
+if ! [[ "$TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] || [[ "$TIMEOUT_SECONDS" -le 0 ]]; then
+    echo "[build-check] ERROR: Timeout must be a positive integer." >&2
+    exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOLUTION_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/GenHub"
 SOLUTION_FILE="$SOLUTION_DIR/GenHub.sln"
 LOCK_FILE="$SOLUTION_DIR/build.lock"
-LOCK_TIMEOUT=$((TIMEOUT_SECONDS))
+LOCK_TIMEOUT="$TIMEOUT_SECONDS"
 
 log_status() {
-    printf '\033[2m[build-check]\033[0m %s\n' "$1"
+    local message="$1"
+    printf '\033[2m[build-check]\033[0m %s\n' "$message"
+    return 0
 }
 
 log_err() {
-    printf '\033[2m[build-check]\033[0m \033[31mERROR: %s\033[0m\n' "$1" >&2
+    local message="$1"
+    printf '\033[2m[build-check]\033[0m \033[31mERROR: %s\033[0m\n' "$message" >&2
+    return 0
 }
 
 cleanup() {
     rm -f "$LOCK_FILE"
-    if [[ -n "${LOCK_FD:-}" ]]; then
-        eval "exec $LOCK_FD>&-"
-    fi
+    exec 9>&- 2>/dev/null || true
+    return 0
 }
 trap cleanup EXIT
 
@@ -106,7 +122,17 @@ fi
 TARGET="$SOLUTION_FILE"
 NO_DEPENDENCIES=()
 if [[ -n "$PROJECT" ]]; then
-    TARGET="$SOLUTION_DIR/$PROJECT"
+    if [[ "$PROJECT" =~ \.\. ]]; then
+        log_err "Path traversal not allowed in project argument."
+        exit 1
+    fi
+
+    if [[ "$PROJECT" = /* ]]; then
+        TARGET="$PROJECT"
+    else
+        TARGET="$SOLUTION_DIR/$PROJECT"
+    fi
+
     if [[ ! -f "$TARGET" ]]; then
         log_err "Project not found: $TARGET"
         exit 1
@@ -130,22 +156,25 @@ log_status "Build lock acquired."
 
 DOTNET_ARGS=(--nologo --verbosity "$VERBOSITY" -maxcpucount:2)
 
+EXIT_CODE=0
 case "$MODE" in
     check)
         log_status "Running compile check on: $(basename "$TARGET")"
-        dotnet build "$TARGET" --no-restore "${DOTNET_ARGS[@]}" "${NO_DEPENDENCIES[@]}"
+        dotnet build "$TARGET" --no-restore "${DOTNET_ARGS[@]}" "${NO_DEPENDENCIES[@]}" || EXIT_CODE=$?
         ;;
     build)
         log_status "Running full build on: $(basename "$TARGET")"
-        dotnet build "$TARGET" "${DOTNET_ARGS[@]}"
+        dotnet build "$TARGET" "${DOTNET_ARGS[@]}" || EXIT_CODE=$?
         ;;
     restore)
         log_status "Running NuGet restore on: $(basename "$TARGET")"
-        dotnet restore "$TARGET" --verbosity "$VERBOSITY"
+        dotnet restore "$TARGET" --verbosity "$VERBOSITY" || EXIT_CODE=$?
+        ;;
+    *)
+        log_err "Unhandled mode: $MODE"
+        EXIT_CODE=1
         ;;
 esac
-
-EXIT_CODE=$?
 
 if [[ $EXIT_CODE -eq 0 ]]; then
     log_status "Completed successfully with no errors."

@@ -8,7 +8,7 @@ namespace GenHub.Tests.Core.Helpers;
 /// <summary>
 /// Unit tests for <see cref="ContentPathPolicy"/>.
 /// </summary>
-public class ContentPathPolicyTests
+public sealed class ContentPathPolicyTests : IDisposable
 {
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "GenHubTests_PathPolicy_" + Guid.NewGuid().ToString("N"));
 
@@ -18,6 +18,22 @@ public class ContentPathPolicyTests
     public ContentPathPolicyTests()
     {
         Directory.CreateDirectory(_tempRoot);
+    }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        if (Directory.Exists(_tempRoot))
+        {
+            try
+            {
+                Directory.Delete(_tempRoot, recursive: true);
+            }
+            catch
+            {
+                // Best effort cleanup
+            }
+        }
     }
 
     /// <summary>
@@ -59,7 +75,7 @@ public class ContentPathPolicyTests
     [InlineData("   ")]
     public void ResolveContainedFile_NullOrEmptyRelativePath_ReturnsFailure(string? invalidPath)
     {
-        var result = ContentPathPolicy.ResolveContainedFile(_tempRoot, invalidPath!);
+        var result = ContentPathPolicy.ResolveContainedFile(_tempRoot, invalidPath);
         Assert.False(result.Success);
     }
 
