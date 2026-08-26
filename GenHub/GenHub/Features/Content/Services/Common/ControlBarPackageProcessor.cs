@@ -549,8 +549,17 @@ public class ControlBarPackageProcessor(
 
     private void CleanupSourceDirectories(string extractedDirectory, HashSet<string> repackedOutputs)
     {
-        if (repackedOutputs.Count == 0)
+        // Destructive cleanup must never run when only the fallback metadata BIG was
+        // produced; otherwise source content that failed to package would be deleted.
+        var hasPackagedContent = repackedOutputs.Any(name =>
+            !name.Equals(GameContentConstants.ControlBarProBaseFileName, StringComparison.OrdinalIgnoreCase) &&
+            !name.Equals(GameContentConstants.ControlBarProLemonBaseFileName, StringComparison.OrdinalIgnoreCase));
+
+        if (!hasPackagedContent)
         {
+            logger.LogWarning(
+                "Skipping Control Bar source cleanup because no content BIG files were produced for {Directory}",
+                extractedDirectory);
             return;
         }
 

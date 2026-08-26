@@ -87,6 +87,8 @@ case "$TIMEOUT_SECONDS" in
         log_err "Timeout must be a positive integer."
         exit 1
         ;;
+    *)
+        ;;
 esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -120,15 +122,13 @@ TARGET="$SOLUTION_FILE"
 NO_DEPENDENCIES=()
 if [[ -n "$PROJECT" ]]; then
     case "$PROJECT" in
-        *..*)
-            log_err "Path traversal not allowed in project argument."
+        ..*|*..*|/*)
+            log_err "Project must be a relative path under $SOLUTION_DIR (no '..' segments or absolute paths)."
             exit 1
             ;;
-    esac
-
-    case "$PROJECT" in
-        /*) TARGET="$PROJECT" ;;
-        *) TARGET="$SOLUTION_DIR/$PROJECT" ;;
+        *)
+            TARGET="$SOLUTION_DIR/$PROJECT"
+            ;;
     esac
 
     if [[ ! -f "$TARGET" ]]; then

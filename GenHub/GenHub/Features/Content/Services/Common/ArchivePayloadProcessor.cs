@@ -63,20 +63,12 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
                     {
                         cancellationToken.ThrowIfCancellationRequested();
 
-                        try
-                        {
-                            EnsureValidArchivePayload(archivePath);
-                            logger.LogInformation("Extracting archive safely: {ArchivePath}", archivePath);
+                        EnsureValidArchivePayload(archivePath);
+                        logger.LogInformation("Extracting archive safely: {ArchivePath}", archivePath);
 
-                            ExtractSingleArchive(archivePath, extractedDirectory, cancellationToken);
-                            File.Delete(archivePath);
-                            logger.LogInformation("Extracted archive and removed archive source: {ArchivePath}", archivePath);
-                        }
-                        catch (Exception ex)
-                        {
-                            logger.LogError(ex, "Failed to extract archive: {ArchivePath}", archivePath);
-                            throw;
-                        }
+                        ExtractSingleArchive(archivePath, extractedDirectory, cancellationToken);
+                        File.Delete(archivePath);
+                        logger.LogInformation("Extracted archive and removed archive source: {ArchivePath}", archivePath);
                     }
                 }
 
@@ -270,41 +262,26 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
 
     private static long FindSignatureOffset(Stream stream, byte[] signature)
     {
+        // Keep the last partial match across chunk boundaries so a signature
+        // split between two reads is still detected.
+        var overlap = signature.Length - 1;
         var buffer = new byte[8192];
         long streamOffset = 0;
-        int read = 0;
-        int matchIndex = 0;
+        var buffered = 0;
+        var read = 0;
 
-        while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
+        while ((read = stream.Read(buffer.AsSpan(buffered))) > 0)
         {
-            var index = 0;
-            while (index < read)
+            var available = buffered + read;
+            var index = buffer.AsSpan(0, available).IndexOf(signature);
+            if (index >= 0)
             {
-                if (buffer[index] == signature[matchIndex])
-                {
-                    matchIndex++;
-                    if (matchIndex == signature.Length)
-                    {
-                        return streamOffset + index - signature.Length + 1;
-                    }
-
-                    index++;
-                }
-                else
-                {
-                    if (matchIndex > 0)
-                    {
-                        index = index - matchIndex + 1;
-                        matchIndex = 0;
-                    }
-                    else
-                    {
-                        index++;
-                    }
-                }
+                return streamOffset + index;
             }
 
-            streamOffset += read;
+            buffered = Math.Min(available, overlap);
+            buffer.AsSpan(available - buffered, buffered).CopyTo(buffer);
+            streamOffset += available - buffered;
         }
 
         return -1;
@@ -1323,8 +1300,8 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         try
         {
             foreach (var subDir in Directory.GetDirectories(rootDirectory, "*", SearchOption.AllDirectories)
-                .OrderByDescending(d => d.Length)
-                .Where(d => Directory.Exists(d) && !Directory.EnumerateFileSystemEntries(d).Any()))
+                .Where(d => Directory.Exists(d) && !Directory.EnumerateFileSystemEntries(d).Any())
+                .OrderByDescending(d => d.Length))
             {
                 Directory.Delete(subDir);
             }
