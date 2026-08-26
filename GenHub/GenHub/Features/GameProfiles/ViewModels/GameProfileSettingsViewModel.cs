@@ -180,6 +180,16 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     private static bool HasCompatibleCatalogMatch(string declaredId, string availableId) =>
         DependencyResolver.HasCompatibleCatalogIdentity(declaredId, availableId);
 
+    private static bool IsDependencyAlreadyEnabled(ContentDependency dependency, IEnumerable<ContentDisplayItem> enabledContent)
+    {
+        var declaredId = dependency.Id.ToString();
+        return declaredId != ManifestConstants.DefaultContentDependencyId
+            ? enabledContent.Any(x => x.ManifestId.Value == declaredId ||
+                (x.ContentType == dependency.DependencyType &&
+                 HasCompatibleCatalogMatch(declaredId, x.ManifestId.Value)))
+            : enabledContent.Any(x => x.ContentType == dependency.DependencyType);
+    }
+
     private static (bool IsLocked, bool CanToggle) GetItemHotswapState(bool isHotswapMode, ContentType contentType, ContentManifest? manifest = null)
     {
         var isHotswappable = manifest != null
@@ -214,6 +224,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         };
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Operates on observable collection properties defined across partial view model classes")]
     private void UpdateAllItemsHotswapState()
     {
         var hotswapMode = IsHotswapMode;
@@ -766,7 +777,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         HashSet<string> warnedLockedNames,
         CancellationToken cancellationToken = default)
     {
-        if (IsDependencyAlreadyEnabled(dependency) || dependency.IsOptional || _profileContentLoader == null)
+        if (IsDependencyAlreadyEnabled(dependency, EnabledContent) || dependency.IsOptional || _profileContentLoader == null)
         {
             return;
         }
@@ -776,16 +787,6 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         {
             await ProcessMatchedDependencyItemAsync(match, autoEnabledNames, warnedLockedNames, cancellationToken);
         }
-    }
-
-    private bool IsDependencyAlreadyEnabled(ContentDependency dependency)
-    {
-        var declaredId = dependency.Id.ToString();
-        return declaredId != ManifestConstants.DefaultContentDependencyId
-            ? EnabledContent.Any(x => x.ManifestId.Value == declaredId ||
-                (x.ContentType == dependency.DependencyType &&
-                 HasCompatibleCatalogMatch(declaredId, x.ManifestId.Value)))
-            : EnabledContent.Any(x => x.ContentType == dependency.DependencyType);
     }
 
     private async Task<Core.Models.Content.ContentDisplayItem?> FindMatchingContentDependencyAsync(ContentDependency dependency)

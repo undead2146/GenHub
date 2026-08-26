@@ -282,6 +282,7 @@ public partial class GameProfileSettingsViewModel
         return activeLaunches.Any(l => string.Equals(l.ProfileId, profileId, StringComparison.OrdinalIgnoreCase) && !l.TerminatedAt.HasValue);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Mutates SelectedGameInstallation and instance collections in partial view model")]
     private void SelectInitialGameInstallation(GameProfile profile)
     {
         var enabledInstallation = EnabledContent.FirstOrDefault(c => c.ContentType == Core.Models.Enums.ContentType.GameInstallation);
