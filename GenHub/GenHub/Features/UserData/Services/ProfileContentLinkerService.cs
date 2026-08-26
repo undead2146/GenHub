@@ -191,12 +191,14 @@ public class ProfileContentLinkerService(
                 (_activeProfileByGame.TryGetValue(targetGame, out var activeId) &&
                  string.Equals(activeId, profileId, StringComparison.OrdinalIgnoreCase));
 
+            var syncContext = new UserDataSyncContext(profileId, targetGame, currentManifests, shouldActivate);
+
             var uninstalledSoFar = new List<string>();
             var installedSoFar = new List<ContentManifest>();
 
             // Find manifests to remove (in current but not in new)
             var toRemove = currentManifestIds.Except(newManifestIds).ToList();
-            var removeResult = await RemoveDeselectedContentAsync(profileId, targetGame, toRemove, installedSoFar, uninstalledSoFar, currentManifests, shouldActivate, cancellationToken);
+            var removeResult = await RemoveDeselectedContentAsync(syncContext, toRemove, installedSoFar, uninstalledSoFar, cancellationToken);
             if (!removeResult.Success)
             {
                 return removeResult;
@@ -204,7 +206,7 @@ public class ProfileContentLinkerService(
 
             // Find manifests to add (in new but not in current)
             var toAdd = userDataManifests.Where(m => !currentManifestIds.Contains(m.Id.Value)).ToList();
-            var installResult = await InstallAddedContentAsync(profileId, targetGame, toAdd, installedSoFar, uninstalledSoFar, currentManifests, shouldActivate, cancellationToken);
+            var installResult = await InstallAddedContentAsync(syncContext, toAdd, installedSoFar, uninstalledSoFar, cancellationToken);
             if (!installResult.Success)
             {
                 return installResult;
@@ -311,24 +313,27 @@ public class ProfileContentLinkerService(
         };
     }
 
+    private sealed record UserDataSyncContext(
+        string ProfileId,
+        GameType TargetGame,
+        IReadOnlyList<UserDataManifest> CurrentManifests,
+        bool ShouldActivate);
+
     private async Task<OperationResult<bool>> RemoveDeselectedContentAsync(
-        string profileId,
-        GameType targetGame,
+        UserDataSyncContext context,
         IReadOnlyList<string> toRemove,
         IReadOnlyList<ContentManifest> installedSoFar,
         List<string> uninstalledSoFar,
-        IReadOnlyList<UserDataManifest> currentManifests,
-        bool shouldActivate,
         CancellationToken cancellationToken)
     {
         foreach (var manifestId in toRemove)
         {
             logger.LogInformation("[ProfileContentLinker] Removing deselected content: {ManifestId}", manifestId);
-            var uninstallRes = await userDataTracker.UninstallUserDataAsync(manifestId, profileId, cancellationToken);
+            var uninstallRes = await userDataTracker.UninstallUserDataAsync(manifestId, context.ProfileId, cancellationToken);
             if (!uninstallRes.Success)
             {
                 logger.LogError("[ProfileContentLinker] Failed to uninstall user data for manifest {ManifestId}: {Error}", manifestId, uninstallRes.FirstError);
-                var rollbackFailed = await RollbackSyncAsync(profileId, targetGame, installedSoFar, uninstalledSoFar, currentManifests, shouldActivate);
+                var rollbackFailed = await RollbackSyncAsync(context.ProfileId, context.TargetGame, installedSoFar, uninstalledSoFar, context.CurrentManifests, context.ShouldActivate);
                 var errorMessage = rollbackFailed
                     ? $"Failed to remove user data for manifest {manifestId}: {uninstallRes.FirstError ?? UnknownErrorMessage} (live rollback was incomplete)"
                     : uninstallRes.FirstError ?? $"Failed to remove user data for manifest {manifestId}";
@@ -342,23 +347,20 @@ public class ProfileContentLinkerService(
     }
 
     private async Task<OperationResult<bool>> InstallAddedContentAsync(
-        string profileId,
-        GameType targetGame,
+        UserDataSyncContext context,
         IReadOnlyList<ContentManifest> toAdd,
         List<ContentManifest> installedSoFar,
         IReadOnlyList<string> uninstalledSoFar,
-        IReadOnlyList<UserDataManifest> currentManifests,
-        bool shouldActivate,
         CancellationToken cancellationToken)
     {
         foreach (var manifest in toAdd)
         {
             logger.LogInformation("[ProfileContentLinker] Installing new content: {ManifestId}", manifest.Id.Value);
-            var installRes = await InstallManifestUserDataAsync(manifest, profileId, targetGame, cancellationToken);
+            var installRes = await InstallManifestUserDataAsync(manifest, context.ProfileId, context.TargetGame, cancellationToken);
             if (!installRes.Success)
             {
                 logger.LogError("[ProfileContentLinker] Failed to install user data for manifest {ManifestId}: {Error}", manifest.Id.Value, installRes.FirstError);
-                var rollbackFailed = await RollbackSyncAsync(profileId, targetGame, installedSoFar, uninstalledSoFar, currentManifests, shouldActivate);
+                var rollbackFailed = await RollbackSyncAsync(context.ProfileId, context.TargetGame, installedSoFar, uninstalledSoFar, context.CurrentManifests, context.ShouldActivate);
                 var errorMessage = rollbackFailed
                     ? $"Failed to install user data for manifest {manifest.Id.Value}: {installRes.FirstError ?? UnknownErrorMessage} (live rollback was incomplete)"
                     : installRes.FirstError ?? $"Failed to install user data for manifest {manifest.Id.Value}";
@@ -481,28 +483,39 @@ public class ProfileContentLinkerService(
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var existingResult = await userDataTracker.GetUserDataManifestAsync(manifest.Id.Value, profileId, cancellationToken);
-            if (existingResult.Success && existingResult.Data != null)
+            var processRes = await ProcessSingleManifestUserDataAsync(manifest, profileId, targetGame, cancellationToken);
+            if (!processRes.Success)
             {
-                var verifyResult = await userDataTracker.VerifyInstallationAsync(manifest.Id.Value, profileId, cancellationToken);
-                if (!verifyResult.Success || !verifyResult.Data)
-                {
-                    var reinstallRes = await ReinstallManifestUserDataAsync(manifest, profileId, targetGame, cancellationToken);
-                    if (!reinstallRes.Success)
-                    {
-                        return reinstallRes;
-                    }
-                }
+                return processRes;
             }
-            else
+        }
+
+        return OperationResult<bool>.CreateSuccess(true);
+    }
+
+    private async Task<OperationResult<bool>> ProcessSingleManifestUserDataAsync(
+        ContentManifest manifest,
+        string profileId,
+        GameType targetGame,
+        CancellationToken cancellationToken)
+    {
+        var existingResult = await userDataTracker.GetUserDataManifestAsync(manifest.Id.Value, profileId, cancellationToken);
+        if (existingResult.Success && existingResult.Data != null)
+        {
+            var verifyResult = await userDataTracker.VerifyInstallationAsync(manifest.Id.Value, profileId, cancellationToken);
+            if (!verifyResult.Success || !verifyResult.Data)
             {
-                var installRes = await InstallManifestUserDataAsync(manifest, profileId, targetGame, cancellationToken);
-                if (!installRes.Success)
-                {
-                    logger.LogError("[ProfileContentLinker] Failed to install user data for manifest {ManifestId}: {Error}", manifest.Id.Value, installRes.FirstError);
-                    return OperationResult<bool>.CreateFailure(installRes.FirstError ?? $"Failed to install user data for manifest {manifest.Id.Value}");
-                }
+                return await ReinstallManifestUserDataAsync(manifest, profileId, targetGame, cancellationToken);
             }
+
+            return OperationResult<bool>.CreateSuccess(true);
+        }
+
+        var installRes = await InstallManifestUserDataAsync(manifest, profileId, targetGame, cancellationToken);
+        if (!installRes.Success)
+        {
+            logger.LogError("[ProfileContentLinker] Failed to install user data for manifest {ManifestId}: {Error}", manifest.Id.Value, installRes.FirstError);
+            return OperationResult<bool>.CreateFailure(installRes.FirstError ?? $"Failed to install user data for manifest {manifest.Id.Value}");
         }
 
         return OperationResult<bool>.CreateSuccess(true);

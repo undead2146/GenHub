@@ -205,5 +205,6 @@ public partial class GameProfileSettingsViewModel
     /// <summary>
     /// Gets a value indicating whether immutable profile metadata can be edited (i.e. not in hotswap mode).
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Observable property accessed via property binding on ViewModel instance")]
     public bool CanEditImmutableMetadata => !IsHotswapMode;
 }
