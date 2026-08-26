@@ -92,7 +92,6 @@ public class GitHubManifestFactory(
                 ContentType.Map => ContentInstallTarget.UserMapsDirectory,
                 ContentType.MapPack => ContentInstallTarget.UserMapsDirectory,
                 ContentType.Replay => ContentInstallTarget.UserReplaysDirectory,
-                ContentType.Patch => ContentInstallTarget.UserDataDirectory,
                 _ => ContentInstallTarget.Workspace,
             };
 
