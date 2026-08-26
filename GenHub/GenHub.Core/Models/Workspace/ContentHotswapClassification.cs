@@ -22,7 +22,6 @@ public static class ContentHotswapClassification
         {
             ContentType.Map => true,
             ContentType.MapPack => true,
-            ContentType.Patch => true,
             ContentType.Replay => true,
             _ => false,
         };

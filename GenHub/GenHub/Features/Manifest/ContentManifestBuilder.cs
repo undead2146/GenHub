@@ -834,11 +834,6 @@ public partial class ContentManifestBuilder(
             return ContentInstallTarget.UserMapsDirectory;
         }
 
-        if (_manifest.ContentType == ContentType.Patch)
-        {
-            return ContentInstallTarget.UserDataDirectory;
-        }
-
         var extension = Path.GetExtension(relativePath).ToLowerInvariant();
 
         if (extension == ".map" ||
