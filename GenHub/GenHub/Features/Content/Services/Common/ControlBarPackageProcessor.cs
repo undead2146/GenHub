@@ -371,15 +371,19 @@ public class ControlBarPackageProcessor(
         }
     }
 
+    private static bool IsMetadataOnlyBig(string fileName)
+    {
+        return fileName.Equals(GameContentConstants.ControlBarProBaseFileName, StringComparison.OrdinalIgnoreCase) ||
+            fileName.Equals(GameContentConstants.ControlBarProLemonBaseFileName, StringComparison.OrdinalIgnoreCase);
+    }
+
     private async Task EnsureMetadataBigIncludedAsync(
         string extractedDirectory,
         string variantId,
         HashSet<string> repackedOutputs,
         CancellationToken cancellationToken)
     {
-        var existingMetadataFileName = repackedOutputs.FirstOrDefault(name =>
-            name.Equals(GameContentConstants.ControlBarProBaseFileName, StringComparison.OrdinalIgnoreCase) ||
-            name.Equals(GameContentConstants.ControlBarProLemonBaseFileName, StringComparison.OrdinalIgnoreCase));
+        var existingMetadataFileName = repackedOutputs.FirstOrDefault(IsMetadataOnlyBig);
 
         if (existingMetadataFileName != null)
         {
@@ -551,9 +555,7 @@ public class ControlBarPackageProcessor(
     {
         // Destructive cleanup must never run when only the fallback metadata BIG was
         // produced; otherwise source content that failed to package would be deleted.
-        var hasPackagedContent = repackedOutputs.Any(name =>
-            !name.Equals(GameContentConstants.ControlBarProBaseFileName, StringComparison.OrdinalIgnoreCase) &&
-            !name.Equals(GameContentConstants.ControlBarProLemonBaseFileName, StringComparison.OrdinalIgnoreCase));
+        var hasPackagedContent = repackedOutputs.Any(name => !IsMetadataOnlyBig(name));
 
         if (!hasPackagedContent)
         {

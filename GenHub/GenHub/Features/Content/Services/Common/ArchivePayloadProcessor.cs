@@ -262,10 +262,15 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
 
     private static long FindSignatureOffset(Stream stream, byte[] signature)
     {
+        if (signature.Length == 0)
+        {
+            return -1;
+        }
+
         // Keep the last partial match across chunk boundaries so a signature
         // split between two reads is still detected.
         var overlap = signature.Length - 1;
-        var buffer = new byte[8192];
+        var buffer = new byte[IoConstants.SignatureScanBufferSize];
         long streamOffset = 0;
         var buffered = 0;
         var read = 0;
