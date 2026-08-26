@@ -82,10 +82,12 @@ case "$VERBOSITY" in
         ;;
 esac
 
-if ! [[ "$TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] || [[ "$TIMEOUT_SECONDS" -le 0 ]]; then
-    log_err "Timeout must be a positive integer."
-    exit 1
-fi
+case "$TIMEOUT_SECONDS" in
+    ''|*[!0-9]*|0*)
+        log_err "Timeout must be a positive integer."
+        exit 1
+        ;;
+esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOLUTION_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/GenHub"
@@ -93,12 +95,7 @@ SOLUTION_FILE="$SOLUTION_DIR/GenHub.sln"
 LOCK_FILE="$SOLUTION_DIR/build.lock"
 LOCK_TIMEOUT="$TIMEOUT_SECONDS"
 
-cleanup() {
-    rm -f "$LOCK_FILE"
-    exec 9>&- 2>/dev/null || true
-    return 0
-}
-trap cleanup EXIT
+trap 'rm -f "$LOCK_FILE"; exec 9>&- 2>/dev/null || true' EXIT
 
 if ! command -v dotnet >/dev/null 2>&1; then
     if [[ -x "$HOME/.dotnet/dotnet" ]]; then
