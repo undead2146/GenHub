@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameProfiles;
@@ -25,10 +27,10 @@ using GenHub.Core.Models.Storage;
 using GenHub.Core.Models.Tools.MapManager;
 using GenHub.Core.Models.Tools.ReplayManager;
 
-// Alias to avoid ambiguity if both have ImportResult
 using MapImportResult = GenHub.Core.Models.Tools.MapManager.ImportResult;
 using ReplayImportResult = GenHub.Core.Models.Tools.ReplayManager.ImportResult;
 
+// Alias to avoid ambiguity if both have ImportResult
 #pragma warning disable SA1649 // File name should match first type name
 #pragma warning disable SA1402 // File may only contain a single type
 
@@ -37,12 +39,14 @@ namespace GenHub.Features.Info.Services;
 /// <summary>
 /// Mock implementation of <see cref="INotificationService"/> for testing and demos.
 /// </summary>
+[SuppressMessage("Minor Code Smell", "S1075:URIs should not be hardcoded", Justification = "Mock implementation for testing/demo UI")]
 public class MockNotificationService : INotificationService
 {
     private readonly Subject<NotificationMessage> _notifications = new();
     private readonly Subject<Guid> _dismissRequests = new();
     private readonly Subject<bool> _dismissAllRequests = new();
     private readonly Subject<NotificationMessage> _notificationHistory = new();
+    private readonly Subject<(Guid Id, string? Title, string Message)> _updateRequests = new();
 
     /// <inheritdoc/>
     public IObservable<NotificationMessage> Notifications => _notifications.AsObservable();
@@ -55,6 +59,9 @@ public class MockNotificationService : INotificationService
 
     /// <inheritdoc/>
     public IObservable<NotificationMessage> NotificationHistory => _notificationHistory.AsObservable();
+
+    /// <inheritdoc/>
+    public IObservable<(Guid Id, string? Title, string Message)> UpdateRequests => _updateRequests.AsObservable();
 
     /// <inheritdoc/>
     public void Show(NotificationMessage notification) => _notifications.OnNext(notification);
@@ -76,13 +83,17 @@ public class MockNotificationService : INotificationService
         => Show(new NotificationMessage(NotificationType.Error, title, message, autoDismissMs, showInBadge: showInBadge));
 
     /// <inheritdoc/>
-    public void Dismiss(Guid id) => _dismissRequests.OnNext(id);
+    public void Update(Guid notificationId, string message, string? title = null)
+        => _updateRequests.OnNext((notificationId, title, message));
+
+    /// <inheritdoc/>
+    public void Dismiss(Guid notificationId) => _dismissRequests.OnNext(notificationId);
 
     /// <inheritdoc/>
     public void DismissAll() => _dismissAllRequests.OnNext(true);
 
     /// <inheritdoc/>
-    public void MarkAsRead(Guid id)
+    public void MarkAsRead(Guid notificationId)
     {
     }
 
@@ -155,21 +166,21 @@ public class MockUploadHistoryService : IUploadHistoryService
 public class MockReplayDirectoryService : IReplayDirectoryService
 {
     /// <inheritdoc/>
-    public Task<bool> DeleteReplaysAsync(IEnumerable<ReplayFile> replays, CancellationToken cancellationToken) => Task.FromResult(true);
+    public Task<bool> DeleteReplaysAsync(IEnumerable<ReplayFile> replays, CancellationToken ct = default) => Task.FromResult(true);
 
     /// <inheritdoc/>
-    public string GetReplayDirectory(GameType gameType)
+    public string GetReplayDirectory(GameType version)
     {
         return "C:\\Mock\\Replays";
     }
 
     /// <inheritdoc/>
-    public void EnsureDirectoryExists(GameType gameType)
+    public void EnsureDirectoryExists(GameType version)
     {
     }
 
     /// <inheritdoc/>
-    public Task<IReadOnlyList<ReplayFile>> GetReplaysAsync(GameType gameType, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<ReplayFile>> GetReplaysAsync(GameType version, CancellationToken ct = default)
     {
         // Populate mock data for both game types for demo purposes
         var list = new List<ReplayFile>
@@ -180,7 +191,7 @@ public class MockReplayDirectoryService : IReplayDirectoryService
                 FullPath = "C:\\Mock\\Demo1.rep",
                 SizeInBytes = 1024 * 500,
                 LastModified = DateTime.UtcNow.AddDays(-1),
-                GameVersion = gameType, // Use requested type so it appears valid
+                GameVersion = version, // Use requested type so it appears valid
             },
             new()
             {
@@ -188,7 +199,7 @@ public class MockReplayDirectoryService : IReplayDirectoryService
                 FullPath = "C:\\Mock\\Demo2.rep",
                 SizeInBytes = 1024 * 1200,
                 LastModified = DateTime.UtcNow.AddHours(-5),
-                GameVersion = gameType, // Use requested type so it appears valid
+                GameVersion = version, // Use requested type so it appears valid
             },
         };
 
@@ -196,7 +207,7 @@ public class MockReplayDirectoryService : IReplayDirectoryService
     }
 
     /// <inheritdoc/>
-    public void OpenInExplorer(GameType gameType)
+    public void OpenInExplorer(GameType version)
     {
     }
 
@@ -248,13 +259,13 @@ public class MockReplayImportService : IReplayImportService
 public class MockReplayExportService : IReplayExportService
 {
     /// <inheritdoc/>
-    public Task<string?> ExportToZipAsync(IEnumerable<ReplayFile> replays, string destinationPath, IProgress<double>? progress, CancellationToken cancellationToken)
+    public Task<string?> ExportToZipAsync(IEnumerable<ReplayFile> replays, string destinationPath, IProgress<double>? progress = null, CancellationToken ct = default)
     {
         return Task.FromResult<string?>(destinationPath);
     }
 
     /// <inheritdoc/>
-    public Task<string?> UploadToUploadThingAsync(IEnumerable<ReplayFile> replays, IProgress<double>? progress, CancellationToken cancellationToken)
+    public Task<string?> UploadToUploadThingAsync(IEnumerable<ReplayFile> replays, IProgress<double>? progress = null, CancellationToken ct = default)
     {
         return Task.FromResult<string?>("https://mock.upload/share/1234");
     }
@@ -266,21 +277,21 @@ public class MockReplayExportService : IReplayExportService
 public class MockMapDirectoryService : IMapDirectoryService
 {
     /// <inheritdoc/>
-    public Task<bool> DeleteMapsAsync(IEnumerable<MapFile> maps, CancellationToken cancellationToken) => Task.FromResult(true);
+    public Task<bool> DeleteMapsAsync(IEnumerable<MapFile> maps, CancellationToken ct = default) => Task.FromResult(true);
 
     /// <inheritdoc/>
-    public void EnsureDirectoryExists(GameType gameType)
+    public void EnsureDirectoryExists(GameType version)
     {
     }
 
     /// <inheritdoc/>
-    public string GetMapDirectory(GameType gameType)
+    public string GetMapDirectory(GameType version)
     {
         return "C:\\Mock\\Maps";
     }
 
     /// <inheritdoc/>
-    public Task<IReadOnlyList<MapFile>> GetMapsAsync(GameType gameType, CancellationToken ct = default)
+    public Task<IReadOnlyList<MapFile>> GetMapsAsync(GameType version, CancellationToken ct = default)
     {
         var list = new List<MapFile>
         {
@@ -338,13 +349,13 @@ public class MockMapDirectoryService : IMapDirectoryService
     }
 
     /// <inheritdoc/>
-    public Task<bool> RenameMapAsync(MapFile map, string newName, CancellationToken cancellationToken)
+    public Task<bool> RenameMapAsync(MapFile map, string newName, CancellationToken ct = default)
     {
         return Task.FromResult(true);
     }
 
     /// <inheritdoc/>
-    public void OpenInExplorer(GameType gameType)
+    public void OpenInExplorer(GameType version)
     {
     }
 
@@ -397,13 +408,13 @@ public class MockMapImportService : IMapImportService
 public class MockMapExportService : IMapExportService
 {
     /// <inheritdoc/>
-    public Task<string?> ExportToZipAsync(IEnumerable<MapFile> maps, string destinationPath, IProgress<double>? progress, CancellationToken cancellationToken)
+    public Task<string?> ExportToZipAsync(IEnumerable<MapFile> maps, string destinationPath, IProgress<double>? progress = null, CancellationToken ct = default)
     {
         return Task.FromResult<string?>(destinationPath);
     }
 
     /// <inheritdoc/>
-    public Task<string?> UploadToUploadThingAsync(IEnumerable<MapFile> maps, IProgress<double>? progress, CancellationToken cancellationToken)
+    public Task<string?> UploadToUploadThingAsync(IEnumerable<MapFile> maps, IProgress<double>? progress = null, CancellationToken ct = default)
     {
         return Task.FromResult<string?>("https://mock.upload/maps/123");
     }
@@ -457,7 +468,18 @@ public class MockMapPackService : IMapPackService
 public class MockLocalContentService : ILocalContentService
 {
     /// <inheritdoc/>
-    public IReadOnlyList<ContentType> AllowedContentTypes => [ContentType.Mod, ContentType.Map, ContentType.GameClient];
+    public IReadOnlyList<ContentType> AllowedContentTypes =>
+    [
+        ContentType.Mod,
+        ContentType.GameClient,
+        ContentType.Executable,
+        ContentType.ModdingTool,
+        ContentType.Patch,
+        ContentType.Addon,
+        ContentType.Map,
+        ContentType.MapPack,
+        ContentType.Mission,
+    ];
 
     /// <inheritdoc/>
     public Task<OperationResult<ContentManifest>> AddLocalContentAsync(string name, string directoryPath, ContentType contentType, GameType targetGame, CancellationToken cancellationToken = default)
@@ -466,18 +488,26 @@ public class MockLocalContentService : ILocalContentService
     }
 
     /// <inheritdoc/>
-    public Task<OperationResult<ContentManifest>> CreateLocalContentManifestAsync(string directoryPath, string name, ContentType contentType, GameType targetGame, string? sourcePath = null, IProgress<ContentStorageProgress>? progress = null, CancellationToken cancellationToken = default)
+    public Task<OperationResult<ContentManifest>> CreateLocalContentManifestAsync(string directoryPath, string name, ContentType contentType, GameType targetGame, string? sourcePath = null, IProgress<ContentStorageProgress>? progress = null, CancellationToken cancellationToken = default, string? entryPoint = null)
     {
-         return Task.FromResult(OperationResult<ContentManifest>.CreateSuccess(new ContentManifest { Name = name, ContentType = contentType, TargetGame = targetGame, SourcePath = sourcePath }));
+        var normalizedEntryPoint = !string.IsNullOrWhiteSpace(entryPoint)
+            ? entryPoint.Replace('\\', '/').TrimStart('/')
+            : null;
+
+        return Task.FromResult(OperationResult<ContentManifest>.CreateSuccess(new ContentManifest { Name = name, ContentType = contentType, TargetGame = targetGame, SourcePath = sourcePath, EntryPoint = normalizedEntryPoint }));
     }
 
     /// <inheritdoc/>
     public Task<OperationResult> DeleteLocalContentAsync(string manifestId, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.CreateSuccess());
 
     /// <inheritdoc/>
-    public Task<OperationResult<ContentManifest>> UpdateLocalContentManifestAsync(string existingManifestId, string name, string directoryPath, ContentType contentType, GameType targetGame, string? sourcePath = null, IProgress<ContentStorageProgress>? progress = null, CancellationToken cancellationToken = default)
+    public Task<OperationResult<ContentManifest>> UpdateLocalContentManifestAsync(string existingManifestId, string name, string directoryPath, ContentType contentType, GameType targetGame, string? sourcePath = null, IProgress<ContentStorageProgress>? progress = null, CancellationToken cancellationToken = default, string? entryPoint = null)
     {
-        return Task.FromResult(OperationResult<ContentManifest>.CreateSuccess(new ContentManifest { Name = name, ContentType = contentType, TargetGame = targetGame, SourcePath = sourcePath }));
+        var normalizedEntryPoint = !string.IsNullOrWhiteSpace(entryPoint)
+            ? entryPoint.Replace('\\', '/').TrimStart('/')
+            : null;
+
+        return Task.FromResult(OperationResult<ContentManifest>.CreateSuccess(new ContentManifest { Name = name, ContentType = contentType, TargetGame = targetGame, SourcePath = sourcePath, EntryPoint = normalizedEntryPoint }));
     }
 }
 
@@ -572,6 +602,12 @@ public class MockConfigurationProviderService : IConfigurationProviderService
 
     /// <inheritdoc/>
     public bool GetAutoCheckForUpdatesOnStartup() => true;
+
+    /// <inheritdoc/>
+    public bool GetAutoCheckForUpdatesPeriodically() => true;
+
+    /// <inheritdoc/>
+    public int GetPeriodicUpdateCheckIntervalMinutes() => AppUpdateConstants.DefaultPeriodicUpdateCheckIntervalMinutes;
 
     /// <inheritdoc/>
     public bool GetEnableDetailedLogging() => false;

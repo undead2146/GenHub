@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace GenHub.Core.Constants;
 
 /// <summary>
@@ -8,6 +10,7 @@ namespace GenHub.Core.Constants;
 /// Endpoint URLs and timeouts are configured via data-driven configuration.
 /// See <c>Providers/communityoutpost.provider.json</c> for runtime-configurable values.
 /// </remarks>
+[SuppressMessage("Minor Code Smell", "S1075:URIs should not be hardcoded", Justification = "Centralized URI constants / mock demo paths")]
 public static class CommunityOutpostConstants
 {
     /// <summary>
@@ -84,6 +87,22 @@ public static class CommunityOutpostConstants
     /// The URL for the patch page (used for relative URL resolution).
     /// </summary>
     public const string PatchPageUrl = "https://legi.cc/downloads/genpatcher/";
+
+    /// <summary>
+    /// Maximum number of file entries a downloaded Community Outpost archive may contain.
+    /// </summary>
+    public const int MaxArchiveEntries = 10000;
+
+    /// <summary>
+    /// Maximum number of bytes a single Community Outpost archive entry may expand to (2 GiB),
+    /// sized to accommodate the largest shipped BIG files.
+    /// </summary>
+    public const long MaxEntryUncompressedBytes = 2L * 1024 * 1024 * 1024;
+
+    /// <summary>
+    /// Maximum aggregate uncompressed bytes a Community Outpost archive may expand to (4 GiB).
+    /// </summary>
+    public const long MaxAggregateUncompressedBytes = 4L * 1024 * 1024 * 1024;
 
     /// <summary>Display name for Game Clients content type.</summary>
     public const string ContentTypeGameClients = "Game Clients";
