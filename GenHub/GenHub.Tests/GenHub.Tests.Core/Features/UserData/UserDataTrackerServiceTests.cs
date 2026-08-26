@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
@@ -10,6 +11,7 @@ using GenHub.Core.Interfaces.GameSettings;
 using GenHub.Core.Interfaces.Workspace;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
+using GenHub.Core.Models.UserData;
 using GenHub.Features.UserData.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -823,5 +825,155 @@ public sealed class UserDataTrackerServiceTests : IDisposable
             Assert.False(result.Success);
             Assert.Contains("Failed to create safety backup", result.FirstError, StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    /// <summary>
+    /// Verifies that when a profile is deactivated, another profile can install the same user data files without encountering a conflict.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task InstallUserDataAsync_WhenPriorOwnerProfileIsDeactivated_SucceedsWithoutConflictAsync()
+    {
+        // Arrange
+        var files = new List<ManifestFile>
+        {
+            new()
+            {
+                RelativePath = "Maps/Arabia v2/AdrianeMapSettings.ini",
+                Hash = "hash-map-settings",
+                Size = 500,
+                InstallTarget = ContentInstallTarget.UserDataDirectory,
+            },
+        };
+
+        // 1. Profile A installs the map pack
+        var installA = await _trackerService.InstallUserDataAsync(
+            "mappack-id",
+            "profile-a",
+            GameType.ZeroHour,
+            files,
+            "1.0",
+            "Map Pack",
+            CancellationToken.None);
+
+        Assert.True(installA.Success);
+
+        // 2. Profile A is deactivated
+        var deactivateA = await _trackerService.DeactivateProfileUserDataAsync("profile-a", CancellationToken.None);
+        Assert.True(deactivateA.Success);
+
+        // 3. Profile B installs the same map pack
+        var installB = await _trackerService.InstallUserDataAsync(
+            "mappack-id",
+            "profile-b",
+            GameType.ZeroHour,
+            files,
+            "1.0",
+            "Map Pack",
+            CancellationToken.None);
+
+        // Assert: Installation succeeds for profile B and ownership transfers
+        Assert.True(installB.Success);
+
+        var targetPath = Path.Combine(_zeroHourDataDir, "Maps", "Arabia v2", "AdrianeMapSettings.ini");
+        var conflictResult = await _trackerService.CheckFileConflictAsync(targetPath, CancellationToken.None);
+        Assert.True(conflictResult.Success);
+        Assert.Equal("mappack-id_profile-b", conflictResult.Data);
+    }
+
+    /// <summary>
+    /// Verifies that when a file is temporarily missing on disk but its manifest is active, conflict checking still reports conflict.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task CheckFileConflictAsync_WhenFileMissingOnDiskButManifestActive_ReportsConflictAsync()
+    {
+        // Arrange
+        var files = new List<ManifestFile>
+        {
+            new()
+            {
+                RelativePath = "Maps/TempMissing/map.ini",
+                Hash = "hash-missing-test",
+                Size = 100,
+                InstallTarget = ContentInstallTarget.UserDataDirectory,
+            },
+        };
+
+        var installResult = await _trackerService.InstallUserDataAsync(
+            "missing-test-manifest",
+            "profile-missing-test",
+            GameType.ZeroHour,
+            files,
+            "1.0",
+            "Missing Test",
+            CancellationToken.None);
+
+        Assert.True(installResult.Success);
+
+        var targetPath = Path.Combine(_zeroHourDataDir, "Maps", "TempMissing", "map.ini");
+        Assert.True(File.Exists(targetPath));
+
+        // Temporarily delete the file from disk
+        File.Delete(targetPath);
+        Assert.False(File.Exists(targetPath));
+
+        // Act
+        var conflictResult = await _trackerService.CheckFileConflictAsync(targetPath, CancellationToken.None);
+
+        // Assert: Conflict is still reported because the owning manifest is active
+        Assert.True(conflictResult.Success);
+        Assert.Equal("missing-test-manifest_profile-missing-test", conflictResult.Data);
+    }
+
+    /// <summary>
+    /// Verifies that when a manifest is deactivated, CheckFileConflictAsync prunes the stale mapping and reports no conflict.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task CheckFileConflictAsync_WhenManifestDeactivated_PrunesStaleMappingAndReturnsNoConflictAsync()
+    {
+        // Arrange
+        var files = new List<ManifestFile>
+        {
+            new()
+            {
+                RelativePath = "Maps/DeactivatedCheck/map.ini",
+                Hash = "hash-deact-test",
+                Size = 100,
+                InstallTarget = ContentInstallTarget.UserDataDirectory,
+            },
+        };
+
+        var installResult = await _trackerService.InstallUserDataAsync(
+            "deact-test-manifest",
+            "profile-deact-test",
+            GameType.ZeroHour,
+            files,
+            "1.0",
+            "Deact Test",
+            CancellationToken.None);
+
+        Assert.True(installResult.Success);
+
+        var targetPath = Path.Combine(_zeroHourDataDir, "Maps", "DeactivatedCheck", "map.ini");
+
+        // Deactivate the profile
+        var deactivateResult = await _trackerService.DeactivateProfileUserDataAsync("profile-deact-test", CancellationToken.None);
+        Assert.True(deactivateResult.Success);
+
+        // Act
+        var conflictResult = await _trackerService.CheckFileConflictAsync(targetPath, CancellationToken.None);
+
+        // Assert: No conflict reported and stale mapping is pruned
+        Assert.True(conflictResult.Success);
+        Assert.Null(conflictResult.Data);
+
+        // Verify index file persisted on disk no longer maps the path
+        var indexPath = Path.Combine(_appDataDir, DirectoryNames.UserData, FileTypes.UserDataIndexFileName);
+        var indexJson = await File.ReadAllTextAsync(indexPath);
+        var index = JsonSerializer.Deserialize<UserDataIndex>(indexJson);
+        Assert.NotNull(index);
+        Assert.False(index.FileToInstallationMap.ContainsKey(Path.GetFullPath(targetPath)));
     }
 }
