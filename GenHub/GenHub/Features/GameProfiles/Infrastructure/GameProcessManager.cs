@@ -75,6 +75,7 @@ public class GameProcessManager(
                 processStartInfo.FileName,
                 processStartInfo.WorkingDirectory);
 
+            var launchAttemptTime = DateTime.UtcNow;
             var startResult = StartNativeProcess(processStartInfo, configuration.ExecutablePath);
             if (!startResult.Success || startResult.Data == null)
             {
@@ -87,7 +88,7 @@ public class GameProcessManager(
             // Read while the launcher is still alive: a Unix process that has exited can no longer
             // report its start time, and that time is the only thing separating the child this
             // launch spawned from an instance of the same game the user already had running.
-            var launcherStartTime = ReadStartTime(process);
+            var launcherStartTime = ReadStartTime(process) ?? launchAttemptTime;
 
             var capturedErrors = SetupErrorRedirection(process);
 
