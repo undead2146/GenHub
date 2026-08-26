@@ -180,19 +180,19 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     private static bool HasCompatibleCatalogMatch(string declaredId, string availableId) =>
         DependencyResolver.HasCompatibleCatalogIdentity(declaredId, availableId);
 
-    private (bool IsLocked, bool CanToggle) GetItemHotswapState(ContentType contentType, ContentManifest? manifest = null)
+    private static (bool IsLocked, bool CanToggle) GetItemHotswapState(bool isHotswapMode, ContentType contentType, ContentManifest? manifest = null)
     {
         var isHotswappable = manifest != null
             ? ContentHotswapClassification.IsHotswappable(manifest)
             : ContentHotswapClassification.IsHotswappable(contentType);
-        var isLocked = IsHotswapMode && !isHotswappable;
-        var canToggle = !IsHotswapMode || isHotswappable;
+        var isLocked = isHotswapMode && !isHotswappable;
+        var canToggle = !isHotswapMode || isHotswappable;
         return (isLocked, canToggle);
     }
 
     private ContentDisplayItem ConvertToViewModelContentDisplayItem(Core.Models.Content.ContentDisplayItem coreItem)
     {
-        var (isLocked, canToggle) = GetItemHotswapState(coreItem.ContentType, coreItem.Manifest);
+        var (isLocked, canToggle) = GetItemHotswapState(IsHotswapMode, coreItem.ContentType, coreItem.Manifest);
 
         return new ContentDisplayItem
         {
@@ -216,24 +216,25 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
 
     private void UpdateAllItemsHotswapState()
     {
+        var hotswapMode = IsHotswapMode;
         foreach (var item in EnabledContent)
         {
-            var (isLocked, canToggle) = GetItemHotswapState(item.ContentType, item.Manifest);
+            var (isLocked, canToggle) = GetItemHotswapState(hotswapMode, item.ContentType, item.Manifest);
             item.IsLocked = isLocked;
             item.CanToggle = canToggle;
         }
 
         foreach (var item in AvailableContent)
         {
-            var (isLocked, canToggle) = GetItemHotswapState(item.ContentType, item.Manifest);
+            var (isLocked, canToggle) = GetItemHotswapState(hotswapMode, item.ContentType, item.Manifest);
             item.IsLocked = isLocked;
             item.CanToggle = canToggle;
         }
 
         foreach (var item in AvailableGameInstallations)
         {
-            item.IsLocked = IsHotswapMode;
-            item.CanToggle = !IsHotswapMode;
+            item.IsLocked = hotswapMode;
+            item.CanToggle = !hotswapMode;
         }
     }
 
@@ -765,15 +766,36 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
         HashSet<string> warnedLockedNames,
         CancellationToken cancellationToken = default)
     {
+        if (IsDependencyAlreadyEnabled(dependency) || dependency.IsOptional || _profileContentLoader == null)
+        {
+            return;
+        }
+
+        var match = await FindMatchingContentDependencyAsync(dependency);
+        if (match != null)
+        {
+            await ProcessMatchedDependencyItemAsync(match, autoEnabledNames, warnedLockedNames, cancellationToken);
+        }
+    }
+
+    private bool IsDependencyAlreadyEnabled(ContentDependency dependency)
+    {
         var declaredId = dependency.Id.ToString();
-        bool alreadyEnabled = declaredId != ManifestConstants.DefaultContentDependencyId
+        return declaredId != ManifestConstants.DefaultContentDependencyId
             ? EnabledContent.Any(x => x.ManifestId.Value == declaredId ||
                 (x.ContentType == dependency.DependencyType &&
                  HasCompatibleCatalogMatch(declaredId, x.ManifestId.Value)))
             : EnabledContent.Any(x => x.ContentType == dependency.DependencyType);
+    }
 
-        if (alreadyEnabled || dependency.IsOptional || _profileContentLoader == null) return;
+    private async Task<Core.Models.Content.ContentDisplayItem?> FindMatchingContentDependencyAsync(ContentDependency dependency)
+    {
+        if (_profileContentLoader == null)
+        {
+            return null;
+        }
 
+        var declaredId = dependency.Id.ToString();
         var availableOfTargetType = await _profileContentLoader.LoadAvailableContentAsync(
             dependency.DependencyType,
             new ObservableCollection<Core.Models.Content.ContentDisplayItem>(AvailableGameInstallations.Select(x => new Core.Models.Content.ContentDisplayItem
@@ -786,30 +808,34 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
             })),
             EnabledContent.Select(x => x.ManifestId.Value));
 
-        var match = declaredId != ManifestConstants.DefaultContentDependencyId
+        return declaredId != ManifestConstants.DefaultContentDependencyId
             ? (availableOfTargetType.FirstOrDefault(x => x.ManifestId == declaredId)
                ?? availableOfTargetType.FirstOrDefault(x => HasCompatibleCatalogMatch(declaredId, x.ManifestId)))
             : availableOfTargetType.FirstOrDefault(x => x.ContentType == dependency.DependencyType);
+    }
 
-        if (match != null)
+    private async Task ProcessMatchedDependencyItemAsync(
+        Core.Models.Content.ContentDisplayItem match,
+        List<string> autoEnabledNames,
+        HashSet<string> warnedLockedNames,
+        CancellationToken cancellationToken)
+    {
+        var viewModelItem = ConvertToViewModelContentDisplayItem(match);
+        if (!viewModelItem.IsEnabled && !viewModelItem.IsLocked && viewModelItem.CanToggle)
         {
-            var viewModelItem = ConvertToViewModelContentDisplayItem(match);
-            if (!viewModelItem.IsEnabled && !viewModelItem.IsLocked && viewModelItem.CanToggle)
+            if (!autoEnabledNames.Contains(viewModelItem.DisplayName))
             {
-                if (!autoEnabledNames.Contains(viewModelItem.DisplayName))
-                {
-                    autoEnabledNames.Add(viewModelItem.DisplayName);
-                }
-
-                await EnableContentInternal(viewModelItem, bypassLoadingGuard: true, isRootOperation: false, autoEnabledNames, warnedLockedNames, cancellationToken);
+                autoEnabledNames.Add(viewModelItem.DisplayName);
             }
-            else if (viewModelItem.IsLocked || !viewModelItem.CanToggle)
+
+            await EnableContentInternal(viewModelItem, bypassLoadingGuard: true, isRootOperation: false, autoEnabledNames, warnedLockedNames, cancellationToken);
+        }
+        else if (viewModelItem.IsLocked || !viewModelItem.CanToggle)
+        {
+            _logger?.LogWarning("Auto-resolve skipped: Content {DisplayName} is locked or cannot toggle", viewModelItem.DisplayName);
+            if (viewModelItem.IsLocked && warnedLockedNames.Add(viewModelItem.DisplayName))
             {
-                _logger?.LogWarning("Auto-resolve skipped: Content {DisplayName} is locked or cannot toggle", viewModelItem.DisplayName);
-                if (viewModelItem.IsLocked && warnedLockedNames.Add(viewModelItem.DisplayName))
-                {
-                    _localNotificationService.ShowWarning("Content Locked", $"Required dependency '{viewModelItem.DisplayName}' is locked and cannot be automatically enabled while the game is running.");
-                }
+                _localNotificationService.ShowWarning("Content Locked", $"Required dependency '{viewModelItem.DisplayName}' is locked and cannot be automatically enabled while the game is running.");
             }
         }
     }
