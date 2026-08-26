@@ -27,43 +27,6 @@ public class ProfileContentLinkerService(
 
     private string? _activeProfileId;
 
-    private static bool HasProfileUserData(ContentManifest manifest)
-    {
-        return GetUserDataFiles(manifest).Count > 0;
-    }
-
-    private static IReadOnlyList<ManifestFile> GetUserDataFiles(ContentManifest manifest)
-    {
-        return manifest.Files
-            .Where(file => file.InstallTarget != ContentInstallTarget.System &&
-                           (file.InstallTarget != ContentInstallTarget.Workspace ||
-                            manifest.ContentType is ContentType.Map or ContentType.MapPack))
-            .Select(file => (manifest.ContentType is ContentType.Map or ContentType.MapPack) &&
-                            file.InstallTarget == ContentInstallTarget.Workspace
-                ? CreateUserMapsFile(file)
-                : file)
-            .ToList();
-    }
-
-    private static ManifestFile CreateUserMapsFile(ManifestFile file)
-    {
-        return new ManifestFile
-        {
-            RelativePath = file.RelativePath,
-            SourceType = file.SourceType,
-            InstallTarget = ContentInstallTarget.UserMapsDirectory,
-            Size = file.Size,
-            Hash = file.Hash,
-            Permissions = file.Permissions,
-            IsExecutable = file.IsExecutable,
-            DownloadUrl = file.DownloadUrl,
-            IsRequired = file.IsRequired,
-            SourcePath = file.SourcePath,
-            PatchSourceFile = file.PatchSourceFile,
-            PackageInfo = file.PackageInfo,
-        };
-    }
-
     /// <inheritdoc />
     public async Task<OperationResult<bool>> PrepareProfileUserDataAsync(
         string profileId,
@@ -407,6 +370,43 @@ public class ProfileContentLinkerService(
         {
             return _activeProfileId == profileId;
         }
+    }
+
+    private static bool HasProfileUserData(ContentManifest manifest)
+    {
+        return GetUserDataFiles(manifest).Count > 0;
+    }
+
+    private static IReadOnlyList<ManifestFile> GetUserDataFiles(ContentManifest manifest)
+    {
+        return manifest.Files
+            .Where(file => file.InstallTarget != ContentInstallTarget.System &&
+                           (file.InstallTarget != ContentInstallTarget.Workspace ||
+                            manifest.ContentType is ContentType.Map or ContentType.MapPack))
+            .Select(file => (manifest.ContentType is ContentType.Map or ContentType.MapPack) &&
+                            file.InstallTarget == ContentInstallTarget.Workspace
+                ? CreateUserMapsFile(file)
+                : file)
+            .ToList();
+    }
+
+    private static ManifestFile CreateUserMapsFile(ManifestFile file)
+    {
+        return new ManifestFile
+        {
+            RelativePath = file.RelativePath,
+            SourceType = file.SourceType,
+            InstallTarget = ContentInstallTarget.UserMapsDirectory,
+            Size = file.Size,
+            Hash = file.Hash,
+            Permissions = file.Permissions,
+            IsExecutable = file.IsExecutable,
+            DownloadUrl = file.DownloadUrl,
+            IsRequired = file.IsRequired,
+            SourcePath = file.SourcePath,
+            PatchSourceFile = file.PatchSourceFile,
+            PackageInfo = file.PackageInfo,
+        };
     }
 
     /// <summary>
