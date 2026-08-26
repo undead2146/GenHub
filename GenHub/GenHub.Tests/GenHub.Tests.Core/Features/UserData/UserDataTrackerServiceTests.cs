@@ -828,7 +828,6 @@ public sealed class UserDataTrackerServiceTests : IDisposable
     }
 
     /// <summary>
-<<<<<<< HEAD
     /// Verifies that when a profile is deactivated, another profile can install the same user data files without encountering a conflict.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
@@ -836,26 +835,10 @@ public sealed class UserDataTrackerServiceTests : IDisposable
     public async Task InstallUserDataAsync_WhenPriorOwnerProfileIsDeactivated_SucceedsWithoutConflictAsync()
     {
         // Arrange
-=======
-    /// Verifies that when CAS materialization throws an exception during install of a pre-existing user file, the original user file is restored.
-    /// </summary>
-    /// <returns>A task representing the asynchronous test.</returns>
-    [Fact]
-    public async Task InstallUserDataAsync_WhenMaterializationThrowsExceptionWithPreExistingUserFile_RestoresOriginalUserFileAsync()
-    {
-        // Arrange
-        var gameDataDir = Path.Combine(_zeroHourDataDir, "GeneralsOnlineGameData");
-        Directory.CreateDirectory(gameDataDir);
-        var splashPath = Path.Combine(gameDataDir, "splash.bmp");
-        var originalUserContent = "original-user-splash-for-throw";
-        File.WriteAllText(splashPath, originalUserContent);
-
->>>>>>> 1c3268c4 (fix(userdata,gameprofiles): handle CAS materialization exceptions, use ordinal containment check, and derive live-sync gametype)
         var files = new List<ManifestFile>
         {
             new()
             {
-<<<<<<< HEAD
                 RelativePath = "Maps/Arabia v2/AdrianeMapSettings.ini",
                 Hash = "hash-map-settings",
                 Size = 500,

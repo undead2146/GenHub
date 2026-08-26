@@ -83,9 +83,32 @@ gh api repos/:owner/:repo/commits/$HEAD_SHA/check-runs \
 Query all comments, review threads, and summary reports posted by human maintainers and AI review bots (e.g., CodeRabbit, Kilo Code, Qodo, DeepSource).
 
 ```bash
-# 1. Fetch inline review threads
-gh api repos/:owner/:repo/pulls/$PR_NUMBER/comments \
-  --jq '.[] | {id: .id, path: .path, line: .line, user: .user.login, body: .body, in_reply_to_id: .in_reply_to_id}'
+# 1. Fetch unresolved inline review threads via GraphQL (includes thread ID for resolution)
+gh api graphql -f query='
+query($owner: String!, $repo: String!, $pr: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $pr) {
+      reviewThreads(first: 100) {
+        nodes {
+          id
+          isResolved
+          isOutdated
+          path
+          line
+          comments(first: 10) {
+            nodes {
+              id
+              databaseId
+              author { login }
+              body
+            }
+          }
+        }
+      }
+    }
+  }
+}' -F owner="$REPO_OWNER" -F repo="$REPO_NAME" -F pr=$PR_NUMBER \
+  --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)'
 
 # 2. Fetch summary / general issue comments (includes Outside Diff Range findings)
 gh api repos/:owner/:repo/issues/$PR_NUMBER/comments \
@@ -108,9 +131,30 @@ Address all actionable items in a single systematic pass:
 2. **Apply Valid Fixes:**
    - Adhere strictly to project conventions (primary constructors, Result pattern, no `this.`, centralized constants).
    - Keep changes minimal and focused directly on the reported defect.
-3. **Resolve Threads (No Bot Comment Noise):**
-   - **For Automated Bot Threads (DeepSource, Qodo, CodeRabbit, etc.):** Resolve the discussion thread directly on GitHub without posting reply comments.
-   - **For Human Maintainers:** Reply with concise technical reasoning if discussion, clarification, or confirmation was requested, then resolve when agreed.
+3. **Reply to Review Comments:**
+   - **For Valid Fixes:** Reply confirming the resolution (e.g., `Fixed: Materialized collection eagerly to prevent deferred enumeration.`).
+   - **For False Positives:** Reply with concise technical reasoning explaining why the current pattern is intentional or required.
+   ```bash
+   # Reply to an inline review comment using its databaseId:
+   gh api repos/:owner/:repo/pulls/$PR_NUMBER/comments/$COMMENT_DATABASE_ID/replies \
+     -f body="Fixed: Addressed in commit by ..."
+   ```
+4. **Resolve Review Threads (MANDATORY):**
+   > [!IMPORTANT]
+   > Replying to a comment or pushing code does NOT automatically resolve review threads on GitHub.
+   > You MUST explicitly execute the `resolveReviewThread` GraphQL mutation for EVERY addressed thread (`id` from Step 3 starting with `PRRT_...`).
+   ```bash
+   # Resolve each review thread via GraphQL:
+   gh api graphql -f query='
+   mutation($threadId: ID!) {
+     resolveReviewThread(input: {threadId: $threadId}) {
+       thread {
+         id
+         isResolved
+       }
+     }
+   }' -F threadId="$THREAD_ID"
+   ```
 
 ---
 
@@ -147,6 +191,24 @@ git push origin HEAD
 
 When:
 1. Every check-run conclusion is `success` (or `neutral` / `skipped`).
-2. No unresolved review threads or unaddressed bot findings remain.
+2. Verify zero unresolved review threads remain by running:
+   ```bash
+   UNRESOLVED=$(gh api graphql -f query='
+   query($owner: String!, $repo: String!, $pr: Int!) {
+     repository(owner: $owner, name: $repo) {
+       pullRequest(number: $pr) {
+         reviewThreads(first: 100) {
+           nodes {
+             id
+             isResolved
+           }
+         }
+       }
+     }
+   }' -F owner="$REPO_OWNER" -F repo="$REPO_NAME" -F pr=$PR_NUMBER \
+     --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')
+   ```
+   Ensure `$UNRESOLVED` is `0`.
+3. No unaddressed bot findings or check failures remain.
 
 Report the final clean status to the developer with the live PR URL.
