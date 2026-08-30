@@ -34,6 +34,13 @@ public partial class AddLocalContentView : UserControl
         InitializeBrowseActions();
     }
 
+    /// <inheritdoc />
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        (DataContext as IDisposable)?.Dispose();
+    }
+
     /// <summary>
     /// Called when the data context changes.
     /// </summary>
@@ -92,14 +99,7 @@ public partial class AddLocalContentView : UserControl
     // Drag & Drop handlers
     private void OnDragOver(object? sender, DragEventArgs e)
     {
-        if (e.Data.Contains(DataFormats.Files))
-        {
-            e.DragEffects = DragDropEffects.Copy;
-        }
-        else
-        {
-            e.DragEffects = DragDropEffects.None;
-        }
+        e.DragEffects = e.Data.Contains(DataFormats.Files) ? DragDropEffects.Copy : DragDropEffects.None;
     }
 
     private async void OnDrop(object? sender, DragEventArgs e)

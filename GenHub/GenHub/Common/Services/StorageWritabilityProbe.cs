@@ -25,13 +25,28 @@ public class StorageWritabilityProbe(ILogger<StorageWritabilityProbe> logger) : 
             return false;
         }
 
-        string fullStoragePath;
+        string fullStoragePath = string.Empty;
 
         try
         {
             fullStoragePath = Path.GetFullPath(storagePath);
         }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or SecurityException or IOException)
+        catch (ArgumentException ex)
+        {
+            logger.LogDebug(ex, "Storage path {StoragePath} could not be resolved", storagePath);
+            return false;
+        }
+        catch (NotSupportedException ex)
+        {
+            logger.LogDebug(ex, "Storage path {StoragePath} could not be resolved", storagePath);
+            return false;
+        }
+        catch (SecurityException ex)
+        {
+            logger.LogDebug(ex, "Storage path {StoragePath} could not be resolved", storagePath);
+            return false;
+        }
+        catch (IOException ex)
         {
             logger.LogDebug(ex, "Storage path {StoragePath} could not be resolved", storagePath);
             return false;
@@ -53,7 +68,19 @@ public class StorageWritabilityProbe(ILogger<StorageWritabilityProbe> logger) : 
         {
             _results.TryRemove(Path.GetFullPath(storagePath), out _);
         }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or SecurityException or IOException)
+        catch (ArgumentException ex)
+        {
+            logger.LogDebug(ex, "Storage path {StoragePath} could not be resolved for invalidation", storagePath);
+        }
+        catch (NotSupportedException ex)
+        {
+            logger.LogDebug(ex, "Storage path {StoragePath} could not be resolved for invalidation", storagePath);
+        }
+        catch (SecurityException ex)
+        {
+            logger.LogDebug(ex, "Storage path {StoragePath} could not be resolved for invalidation", storagePath);
+        }
+        catch (IOException ex)
         {
             logger.LogDebug(ex, "Storage path {StoragePath} could not be resolved for invalidation", storagePath);
         }
@@ -85,7 +112,27 @@ public class StorageWritabilityProbe(ILogger<StorageWritabilityProbe> logger) : 
             probeSucceeded = true;
             return true;
         }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or ArgumentException or NotSupportedException or SecurityException)
+        catch (UnauthorizedAccessException ex)
+        {
+            logger.LogDebug(ex, "Storage path {StoragePath} is not writable", fullStoragePath);
+            return false;
+        }
+        catch (IOException ex)
+        {
+            logger.LogDebug(ex, "Storage path {StoragePath} is not writable", fullStoragePath);
+            return false;
+        }
+        catch (ArgumentException ex)
+        {
+            logger.LogDebug(ex, "Storage path {StoragePath} is not writable", fullStoragePath);
+            return false;
+        }
+        catch (NotSupportedException ex)
+        {
+            logger.LogDebug(ex, "Storage path {StoragePath} is not writable", fullStoragePath);
+            return false;
+        }
+        catch (SecurityException ex)
         {
             logger.LogDebug(ex, "Storage path {StoragePath} is not writable", fullStoragePath);
             return false;
@@ -98,7 +145,11 @@ public class StorageWritabilityProbe(ILogger<StorageWritabilityProbe> logger) : 
                 {
                     File.Delete(probePath);
                 }
-                catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+                catch (UnauthorizedAccessException ex)
+                {
+                    logger.LogDebug(ex, "Could not remove storage write probe {ProbePath}", probePath);
+                }
+                catch (IOException ex)
                 {
                     logger.LogDebug(ex, "Could not remove storage write probe {ProbePath}", probePath);
                 }
@@ -114,7 +165,15 @@ public class StorageWritabilityProbe(ILogger<StorageWritabilityProbe> logger) : 
                         Directory.Delete(fullStoragePath);
                     }
                 }
-                catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or SecurityException)
+                catch (UnauthorizedAccessException ex)
+                {
+                    logger.LogDebug(ex, "Could not remove failed storage probe directory {StoragePath}", fullStoragePath);
+                }
+                catch (IOException ex)
+                {
+                    logger.LogDebug(ex, "Could not remove failed storage probe directory {StoragePath}", fullStoragePath);
+                }
+                catch (SecurityException ex)
                 {
                     logger.LogDebug(ex, "Could not remove failed storage probe directory {StoragePath}", fullStoragePath);
                 }

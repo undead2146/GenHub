@@ -138,7 +138,7 @@ public class GameClientDetector(
         var gameClients = new List<GameClient>();
 
         // Search for all possible executable names using manual recursion to skip excluded directories
-        var allFiles = await Task.Run(() => FindGameExecutablesRecursively(path));
+        var allFiles = await Task.Run(() => FindGameExecutablesRecursively(path), cancellationToken);
 
         foreach (var exe in allFiles)
         {
@@ -171,6 +171,57 @@ public class GameClientDetector(
     }
 
     /// <summary>
+    /// Resolves the single supported Generals Online entry point among one directory's file names.
+    /// The Easy Anti-Cheat bootstrapper takes precedence because it starts the binary named by
+    /// <c>EasyAntiCheat/Settings.json</c>; the bare 60Hz binary is the pre-EAC fallback.
+    /// </summary>
+    /// <param name="fileNames">The file names present in a single directory.</param>
+    /// <returns>The entry point name as it appears on disk, or <see langword="null"/> when none is present.</returns>
+    private static string? ResolveGeneralsOnlineEntryPoint(IEnumerable<string> fileNames)
+    {
+        string? sixtyHertz = null;
+
+        foreach (var fileName in fileNames)
+        {
+            if (fileName.Equals(GameClientConstants.GeneralsOnlineEacLauncherExecutable, StringComparison.OrdinalIgnoreCase))
+            {
+                return fileName;
+            }
+
+            if (fileName.Equals(GameClientConstants.GeneralsOnline60HzExecutable, StringComparison.OrdinalIgnoreCase))
+            {
+                sixtyHertz = fileName;
+            }
+        }
+
+        return sixtyHertz;
+    }
+
+    /// <summary>
+    /// Resolves the single supported Generals Online entry point in a directory. Names are matched
+    /// against the directory listing rather than composed from constants, so the package's own
+    /// casing resolves on case-sensitive file systems.
+    /// </summary>
+    /// <param name="directory">The directory to inspect.</param>
+    /// <returns>The entry point name, or <see langword="null"/> when none is present.</returns>
+    private static string? ResolveGeneralsOnlineEntryPoint(string directory)
+    {
+        try
+        {
+            return ResolveGeneralsOnlineEntryPoint(
+                Directory.EnumerateFiles(directory).Select(Path.GetFileName).OfType<string>());
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Detects a game client from a specific executable file using hash analysis.
     /// </summary>
     /// <param name="executablePath">The path to the executable file.</param>
@@ -189,8 +240,8 @@ public class GameClientDetector(
             // Try to detect version for both game types
             var generalsVersion = hashRegistry.GetVersionFromHash(hash, GameType.Generals);
             var zeroHourVersion = hashRegistry.GetVersionFromHash(hash, GameType.ZeroHour);
-            GameType detectedGameType;
-            string detectedVersion;
+            var detectedGameType = GameType.Unknown;
+            var detectedVersion = GameClientConstants.UnknownVersion;
             if (!string.Equals(generalsVersion, GameClientConstants.UnknownVersion, StringComparison.OrdinalIgnoreCase))
             {
                 detectedGameType = GameType.Generals;
@@ -224,6 +275,17 @@ public class GameClientDetector(
                 };
             }
 
+            // A publisher entry point is absent from the retail hash registry by definition, so an
+            // unrecognized hash means "not retail" rather than "unidentifiable". Ask the publisher
+            // identifiers before falling back, otherwise the GeneralsOnline anti-cheat bootstrapper
+            // is reported as Unknown Game with GameType.Generals and never matches the Zero Hour
+            // launch path.
+            var identifiedClient = IdentifyPublisherClient(executablePath, workingDirectory);
+            if (identifiedClient != null)
+            {
+                return identifiedClient;
+            }
+
             // If hash is not recognized, create a generic entry for manual identification
             logger.LogDebug("Unknown game executable found at {ExecutablePath} with hash {Hash}", executablePath, hash);
             return new GameClient
@@ -243,6 +305,67 @@ public class GameClientDetector(
             logger.LogWarning(ex, "Failed to analyze executable {ExecutablePath}", executablePath);
             return null;
         }
+    }
+
+    /// <summary>
+    /// Classifies an executable through the registered publisher identifiers.
+    /// </summary>
+    /// <param name="executablePath">The path to the executable file.</param>
+    /// <param name="workingDirectory">The working directory for the game client.</param>
+    /// <returns>A GameClient if a publisher recognizes the executable, otherwise null.</returns>
+    private GameClient? IdentifyPublisherClient(string executablePath, string workingDirectory)
+    {
+        foreach (var identifier in gameClientIdentifiers)
+        {
+            try
+            {
+                // Inside the try: a throwing identifier must not stop the ones after it, and
+                // the caller's handler would swallow the executable entirely.
+                if (!identifier.CanIdentify(executablePath))
+                {
+                    continue;
+                }
+
+                var identification = identifier.Identify(executablePath);
+                if (identification == null)
+                {
+                    continue;
+                }
+
+                logger.LogInformation(
+                    "Identified {PublisherId} client {DisplayName} at {ExecutablePath}",
+                    identification.PublisherId,
+                    identification.DisplayName,
+                    executablePath);
+
+                return new GameClient
+                {
+                    Name = identification.DisplayName,
+                    Id = string.Empty, // Will be set by manifest generation
+                    Version = identification.LocalVersion ?? GameClientConstants.UnknownVersion,
+                    ExecutablePath = executablePath,
+                    GameType = identification.GameType,
+                    WorkingDirectory = workingDirectory,
+                    InstallationId = string.Empty,
+                    SourceType = ContentType.GameClient,
+
+                    // IsPublisherClient turns on this alone. Without it the client reads as a
+                    // base retail install, so version resolution picks it as the base game and
+                    // the launcher UI does not see a publisher client at all.
+                    PublisherType = identification.PublisherId,
+                };
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(
+                    ex,
+                    "Publisher identifier {PublisherId} failed for {ExecutablePath}",
+                    identifier.PublisherId,
+                    executablePath);
+            }
+        }
+
+        return null;
     }
 
     private async Task GenerateClientManifestAndSetIdAsync(GameClient gameClient, string clientPath, GameInstallation? installation, GameType gameType)
@@ -353,16 +476,43 @@ public class GameClientDetector(
     /// <returns>A tuple containing the detected version string and the actual executable path found, or (GameClientConstants.UnknownVersion, original path) if not recognized.</returns>
     private async Task<(string Version, string ExecutablePath)> DetectVersionFromInstallationAsync(string installationPath, GameType gameType, CancellationToken cancellationToken)
     {
-        // Use the possible executable names from the registry
+        var hashResult = await DetectVersionFromHashAsync(installationPath, gameType, cancellationToken);
+        if (hashResult.HasValue)
+        {
+            return hashResult.Value;
+        }
+
+        var defaultExecutableName = gameType == GameType.Generals
+            ? GameClientConstants.GeneralsExecutable
+            : GameClientConstants.ZeroHourExecutable;
+        var defaultPath = Path.Combine(installationPath, defaultExecutableName);
+
+        var fallbackVersion = DetectVersionFromFileVersionInfo(defaultPath, defaultExecutableName, gameType);
+        fallbackVersion = NormalizeGenericVersion(fallbackVersion, gameType);
+
+        logger.LogInformation(
+            "Using {ExecutableName} with version {Version} for {GameType}",
+            defaultExecutableName,
+            fallbackVersion,
+            gameType);
+        return (fallbackVersion, defaultPath);
+    }
+
+    private async Task<(string Version, string ExecutablePath)?> DetectVersionFromHashAsync(
+        string installationPath,
+        GameType gameType,
+        CancellationToken cancellationToken)
+    {
         foreach (var executableName in hashRegistry.PossibleExecutableNames)
         {
             var executablePath = Path.Combine(installationPath, executableName);
             if (!File.Exists(executablePath))
+            {
                 continue;
+            }
 
             try
             {
-                // Get the actual filename with correct casing from the filesystem
                 var actualFileName = Path.GetFileName(new FileInfo(executablePath).FullName);
                 var actualExecutablePath = Path.Combine(installationPath, actualFileName);
 
@@ -374,7 +524,6 @@ public class GameClientDetector(
                 }
 
                 var version = hashRegistry.GetVersionFromHash(hash, gameType);
-
                 if (!string.Equals(version, GameClientConstants.UnknownVersion, StringComparison.OrdinalIgnoreCase))
                 {
                     logger.LogInformation(
@@ -385,14 +534,12 @@ public class GameClientDetector(
                         hash);
                     return (version, actualExecutablePath);
                 }
-                else
-                {
-                    logger.LogDebug(
-                        "Unknown hash for {GameType} in {ExecutableName}: {Hash}",
-                        gameType,
-                        actualFileName,
-                        hash);
-                }
+
+                logger.LogDebug(
+                    "Unknown hash for {GameType} in {ExecutableName}: {Hash}",
+                    gameType,
+                    actualFileName,
+                    hash);
             }
             catch (Exception ex)
             {
@@ -400,54 +547,57 @@ public class GameClientDetector(
             }
         }
 
-        // Fallback: try to detect version from the default executable's file info
-        var defaultExecutableName = gameType == GameType.Generals
-            ? GameClientConstants.GeneralsExecutable
-            : GameClientConstants.ZeroHourExecutable;
-        var defaultPath = Path.Combine(installationPath, defaultExecutableName);
+        return null;
+    }
 
-        var fallbackVersion = GameClientConstants.UnknownVersion;
-
-        if (File.Exists(defaultPath))
+    private string DetectVersionFromFileVersionInfo(string defaultPath, string defaultExecutableName, GameType gameType)
+    {
+        if (!File.Exists(defaultPath))
         {
-            try
-            {
-                var versionInfo = System.Diagnostics.FileVersionInfo.GetVersionInfo(defaultPath);
-                var rawVersion = versionInfo.ProductVersion ?? versionInfo.FileVersion;
-
-                if (!string.IsNullOrWhiteSpace(rawVersion))
-                {
-                    var cleanVersion = rawVersion.Split('+')[0].Split('-')[0].Trim();
-                    cleanVersion = cleanVersion.Replace(", ", ".").Replace(",", ".");
-                    var components = cleanVersion.Split('.');
-
-                    if (components.Length > 2)
-                    {
-                        if (components.Length >= 3 && components[0] == "1" && components[1] == "0" && components[2] != "0")
-                        {
-                            cleanVersion = $"1.0{components[2]}"; // 1.0.4 -> 1.04
-                        }
-                        else if (components.Length >= 2)
-                        {
-                            cleanVersion = $"{components[0]}.{components[1]}"; // 1.0.0.0 -> 1.0
-                        }
-                    }
-
-                    fallbackVersion = cleanVersion;
-                    logger.LogInformation(
-                        "Detected {GameType} version {Version} from FileVersionInfo for {ExecutableName}",
-                        gameType,
-                        cleanVersion,
-                        defaultExecutableName);
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to read FileVersionInfo from {ExecutablePath}", defaultPath);
-            }
+            return GameClientConstants.UnknownVersion;
         }
 
-        // Apply smart defaults for generic/unknown versions
+        try
+        {
+            var versionInfo = System.Diagnostics.FileVersionInfo.GetVersionInfo(defaultPath);
+            var rawVersion = versionInfo.ProductVersion ?? versionInfo.FileVersion;
+
+            if (!string.IsNullOrWhiteSpace(rawVersion))
+            {
+                var cleanVersion = rawVersion.Split('+')[0].Split('-')[0].Trim();
+                cleanVersion = cleanVersion.Replace(", ", ".").Replace(",", ".");
+                var components = cleanVersion.Split('.');
+
+                if (components.Length > 2)
+                {
+                    if (components.Length >= 3 && components[0] == "1" && components[1] == "0" && components[2] != "0")
+                    {
+                        cleanVersion = $"1.0{components[2]}"; // 1.0.4 -> 1.04
+                    }
+                    else if (components.Length >= 2)
+                    {
+                        cleanVersion = $"{components[0]}.{components[1]}"; // 1.0.0.0 -> 1.0
+                    }
+                }
+
+                logger.LogInformation(
+                    "Detected {GameType} version {Version} from FileVersionInfo for {ExecutableName}",
+                    gameType,
+                    cleanVersion,
+                    defaultExecutableName);
+                return cleanVersion;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to read FileVersionInfo from {ExecutablePath}", defaultPath);
+        }
+
+        return GameClientConstants.UnknownVersion;
+    }
+
+    private string NormalizeGenericVersion(string fallbackVersion, GameType gameType)
+    {
         if (fallbackVersion == GameClientConstants.UnknownVersion || fallbackVersion == "1.0" || fallbackVersion == "1.00" || fallbackVersion == "0.0" || fallbackVersion == "0.0.0.0")
         {
             var oldVersion = fallbackVersion;
@@ -463,12 +613,7 @@ public class GameClientDetector(
             }
         }
 
-        logger.LogInformation(
-            "Using {ExecutableName} with version {Version} for {GameType}",
-            defaultExecutableName,
-            fallbackVersion,
-            gameType);
-        return (fallbackVersion, defaultPath);
+        return fallbackVersion;
     }
 
     /// <returns>A list of detected publisher game clients.</returns>
@@ -623,7 +768,6 @@ public class GameClientDetector(
     /// </summary>
     /// <param name="installation">The game installation to scan.</param>
     /// <param name="gameType">The type of game (Generals or ZeroHour).</param>
-
     /// <returns>A list of detected GeneralsOnline game clients.</returns>
     /// <remarks>
     /// GeneralsOnline executables are auto-updated by the GeneralsOnline launcher,
@@ -645,34 +789,20 @@ public class GameClientDetector(
         // GeneralsOnline clients auto-update, so we use a fixed version string
         const string generalsOnlineVersion = GameClientConstants.UnknownVersion;
 
-        var generalsOnlineExecutables = GameClientConstants.GeneralsOnlineExecutableNames;
+        // Exactly one entry point per installation. Since 060526_QFE1 the Easy Anti-Cheat
+        // bootstrapper wraps the 60Hz binary and both ship side by side, so detecting each
+        // recognised name in turn would surface the same client twice.
+        var executableName = ResolveGeneralsOnlineEntryPoint(installationPath);
 
-        foreach (var executableName in generalsOnlineExecutables)
+        if (executableName is not null)
         {
             var executablePath = Path.Combine(installationPath, executableName);
 
-            if (!File.Exists(executablePath))
-            {
-                continue;
-            }
-
             try
             {
-                // Determine the variant name from the executable
-                var variantName = executableName switch
-                {
-                    GameClientConstants.GeneralsOnline60HzExecutable => GameClientConstants.GeneralsOnline60HzDisplayName,
-                    _ => null, // Skip unknown variants
-                };
-
-                // Skip if variant is not recognized
-                if (variantName == null)
-                {
-                    logger.LogDebug(
-                        "Skipping unrecognized GeneralsOnline executable: {ExecutableName}",
-                        executableName);
-                    continue;
-                }
+                // Both supported entry points start the 60Hz client: the bootstrapper launches
+                // the binary named by EasyAntiCheat/Settings.json, and pre-EAC packages run it directly.
+                var variantName = GameClientConstants.GeneralsOnline60HzDisplayName;
 
                 logger.LogInformation(
                     "Detected GeneralsOnline client: {VariantName} at {ExecutablePath}",
@@ -828,7 +958,7 @@ public class GameClientDetector(
             // Find the executable file in the manifest
             var executableFile = manifest.Files?.FirstOrDefault(f =>
                 f.IsExecutable ||
-                (f.RelativePath?.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ?? false));
+                (f.RelativePath?.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) == true));
 
             if (executableFile == null)
             {
@@ -880,12 +1010,27 @@ public class GameClientDetector(
             try
             {
                 // Process files in current directory
-                foreach (var file in Directory.EnumerateFiles(currentDir))
+                var files = Directory.EnumerateFiles(currentDir).ToList();
+                var generalsOnlineEntryPoint = ResolveGeneralsOnlineEntryPoint(
+                    files.Select(Path.GetFileName).OfType<string>());
+
+                foreach (var file in files)
                 {
-                    if (hashRegistry.PossibleExecutableNames.Contains(Path.GetFileName(file), StringComparer.OrdinalIgnoreCase))
+                    var fileName = Path.GetFileName(file);
+                    if (!hashRegistry.PossibleExecutableNames.Contains(fileName, StringComparer.OrdinalIgnoreCase))
                     {
-                        results.Add(file);
+                        continue;
                     }
+
+                    // A GeneralsOnline directory holds several supported entry points but is one
+                    // client, so only the resolved entry point counts.
+                    if (GameClientConstants.GeneralsOnlineExecutableNames.Contains(fileName, StringComparer.OrdinalIgnoreCase)
+                        && !fileName.Equals(generalsOnlineEntryPoint, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    results.Add(file);
                 }
 
                 // Enqueue subdirectories if not excluded

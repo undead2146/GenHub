@@ -28,8 +28,7 @@ public sealed class SteamLauncherTests : IDisposable
     {
         _tempDirectory = Path.Combine(
             Path.GetTempPath(),
-            "GenHub-SteamLauncherTests",
-            Guid.NewGuid().ToString("N"));
+            $"GenHub-SteamLauncherTests-{Guid.NewGuid():N}");
         _gameInstallPath = Path.Combine(_tempDirectory, "game");
         _workspacePath = Path.Combine(_tempDirectory, "workspace");
         _originalExecutablePath = Path.Combine(_gameInstallPath, ExecutableName);
@@ -48,7 +47,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task PrepareForProfileAsync_ValidPaths_DeploysProxyAndPreservesExistingDependencies()
+    public async Task PrepareForProfileAsync_ValidPaths_DeploysProxyAndPreservesExistingDependenciesAsync()
     {
         // Arrange
         var backupPath = _originalExecutablePath + SteamConstants.BackupExtension;
@@ -77,7 +76,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task PrepareForProfileAsync_MissingWorkspaceExecutable_DoesNotMutateInstallation()
+    public async Task PrepareForProfileAsync_MissingWorkspaceExecutable_DoesNotMutateInstallationAsync()
     {
         // Arrange
         var missingExecutable = Path.Combine(_workspacePath, "missing.exe");
@@ -100,7 +99,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task PrepareForProfileAsync_MissingTargetWithBackup_DeploysProxyFromRecoveryState()
+    public async Task PrepareForProfileAsync_MissingTargetWithBackup_DeploysProxyFromRecoveryStateAsync()
     {
         // Arrange
         var backupPath = _originalExecutablePath + SteamConstants.BackupExtension;
@@ -121,7 +120,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task PrepareForProfileAsync_LateWriteFailure_RestoresOriginalAndPreExistingFiles()
+    public async Task PrepareForProfileAsync_LateWriteFailure_RestoresOriginalAndPreExistingFilesAsync()
     {
         // Arrange
         var backupPath = _originalExecutablePath + SteamConstants.BackupExtension;
@@ -133,7 +132,7 @@ public sealed class SteamLauncherTests : IDisposable
         File.WriteAllText(workspaceAppIdPath, "pre-existing app id");
 
         var writeCount = 0;
-        async Task FailingWriter(string path, string contents, CancellationToken cancellationToken)
+        async Task FailingWriterAsync(string path, string contents, CancellationToken cancellationToken)
         {
             writeCount++;
             await File.WriteAllTextAsync(path, contents, cancellationToken);
@@ -144,7 +143,7 @@ public sealed class SteamLauncherTests : IDisposable
         }
 
         // Act
-        var result = await PrepareAsync(CreateLauncher(FailingWriter), steamAppId: "12345");
+        var result = await PrepareAsync(CreateLauncher(FailingWriterAsync), steamAppId: "12345");
 
         // Assert
         Assert.False(result.Success);
@@ -161,7 +160,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task PrepareForProfileAsync_UnrelatedPreExistingBackup_FailsWithoutMutation()
+    public async Task PrepareForProfileAsync_UnrelatedPreExistingBackup_FailsWithoutMutationAsync()
     {
         // Arrange
         var backupPath = _originalExecutablePath + SteamConstants.BackupExtension;
@@ -185,7 +184,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task CleanupGameDirectoryAsync_UnrelatedBackup_PreservesExecutableAndArtifacts()
+    public async Task CleanupGameDirectoryAsync_UnrelatedBackup_PreservesExecutableAndArtifactsAsync()
     {
         // Arrange
         var backupPath = _originalExecutablePath + SteamConstants.BackupExtension;
@@ -210,7 +209,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task CleanupGameDirectoryAsync_DeployedProxy_RestoresVerifiedBackup()
+    public async Task CleanupGameDirectoryAsync_DeployedProxy_RestoresVerifiedBackupAsync()
     {
         // Arrange
         var backupPath = _originalExecutablePath + SteamConstants.BackupExtension;
@@ -236,7 +235,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task CleanupGameDirectoryAsync_DeployedProxyWithoutBackup_FailsClosed()
+    public async Task CleanupGameDirectoryAsync_DeployedProxyWithoutBackup_FailsClosedAsync()
     {
         // Arrange
         var configPath = Path.Combine(_gameInstallPath, "proxy_config.json");
@@ -259,7 +258,7 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task PrepareForProfileAsync_ConcurrentProfilesSharingInstallation_SerializesMutations()
+    public async Task PrepareForProfileAsync_ConcurrentProfilesSharingInstallation_SerializesMutationsAsync()
     {
         // Arrange
         var firstWriteStarted = new TaskCompletionSource<bool>(
@@ -269,26 +268,26 @@ public sealed class SteamLauncherTests : IDisposable
         var secondWriteStarted = new TaskCompletionSource<bool>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
-        async Task BlockingWriter(string path, string contents, CancellationToken cancellationToken)
+        async Task BlockingWriterAsync(string path, string contents, CancellationToken cancellationToken)
         {
             firstWriteStarted.TrySetResult(true);
             await releaseFirstWrite.Task.WaitAsync(cancellationToken);
             await File.WriteAllTextAsync(path, contents, cancellationToken);
         }
 
-        async Task ObservedWriter(string path, string contents, CancellationToken cancellationToken)
+        async Task ObservedWriterAsync(string path, string contents, CancellationToken cancellationToken)
         {
             secondWriteStarted.TrySetResult(true);
             await File.WriteAllTextAsync(path, contents, cancellationToken);
         }
 
         var firstPreparation = PrepareAsync(
-            CreateLauncher(BlockingWriter),
+            CreateLauncher(BlockingWriterAsync),
             profileId: "first-profile");
         await firstWriteStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         var secondPreparation = PrepareAsync(
-            CreateLauncher(ObservedWriter),
+            CreateLauncher(ObservedWriterAsync),
             profileId: "second-profile");
 
         try
@@ -314,13 +313,13 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task PrepareForProfileAsync_CanceledAfterMutation_RollsBackCurrentAttempt()
+    public async Task PrepareForProfileAsync_CanceledAfterMutation_RollsBackCurrentAttemptAsync()
     {
         // Arrange
         using var cancellationSource = new CancellationTokenSource();
         var writeCount = 0;
 
-        async Task CancelingWriter(string path, string contents, CancellationToken cancellationToken)
+        async Task CancelingWriterAsync(string path, string contents, CancellationToken cancellationToken)
         {
             writeCount++;
             await File.WriteAllTextAsync(path, contents, cancellationToken);
@@ -332,7 +331,7 @@ public sealed class SteamLauncherTests : IDisposable
 
         // Act
         var result = await PrepareAsync(
-            CreateLauncher(CancelingWriter),
+            CreateLauncher(CancelingWriterAsync),
             steamAppId: "12345",
             cancellationToken: cancellationSource.Token);
 
@@ -350,10 +349,10 @@ public sealed class SteamLauncherTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task PrepareForProfileAsync_ExecutableChangesDuringFailure_ReportsRollbackConflict()
+    public async Task PrepareForProfileAsync_ExecutableChangesDuringFailure_ReportsRollbackConflictAsync()
     {
         // Arrange
-        async Task ConflictingWriter(string path, string contents, CancellationToken cancellationToken)
+        async Task ConflictingWriterAsync(string path, string contents, CancellationToken cancellationToken)
         {
             await File.WriteAllTextAsync(path, contents, cancellationToken);
             File.WriteAllText(_originalExecutablePath, "external executable change");
@@ -361,7 +360,7 @@ public sealed class SteamLauncherTests : IDisposable
         }
 
         // Act
-        var result = await PrepareAsync(CreateLauncher(ConflictingWriter));
+        var result = await PrepareAsync(CreateLauncher(ConflictingWriterAsync));
 
         // Assert
         Assert.False(result.Success);

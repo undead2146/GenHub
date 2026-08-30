@@ -82,4 +82,37 @@ public static class ProcessConstants
     /// Threshold in seconds to consider a process exit as "early" or "immediate".
     /// </summary>
     public const double EarlyExitThresholdSeconds = 10.0;
+
+    /// <summary>
+    /// How many characters of a process name a Unix kernel keeps. Linux stores it in a
+    /// TASK_COMM_LEN buffer and macOS in a MAXCOMLEN one, both of which leave room for fifteen
+    /// characters and a terminator, and the truncated value is what process enumeration matches on.
+    /// </summary>
+    public const int UnixProcessNameMaxLength = 15;
+
+    /// <summary>
+    /// How long to wait for a launcher's expected child process to appear. Measured spawn latency
+    /// for the Easy Anti-Cheat bootstrapper is well under two seconds. Adoption dates a candidate
+    /// against the launcher's own start time rather than <see cref="EarlyExitThresholdSeconds"/>,
+    /// so this may be raised as far as a slow bootstrapper needs.
+    /// </summary>
+    public const int SpawnedChildDiscoveryTimeoutMs = 10_000;
+
+    /// <summary>
+    /// Interval in milliseconds between polls for a launcher's expected child process.
+    /// </summary>
+    public const int SpawnedChildPollIntervalMs = 100;
+
+    /// <summary>
+    /// How long to wait for an abandoned launcher to exit after it is killed. The launcher is
+    /// already being torn down on a cancelled launch, so this only bounds the cleanup.
+    /// </summary>
+    public const int AbandonedLauncherKillWaitMs = 2_000;
+
+    /// <summary>
+    /// How long to keep polling for the expected child after the launcher itself exits cleanly.
+    /// Covers the race between the child being spawned and becoming enumerable, without waiting
+    /// out <see cref="SpawnedChildDiscoveryTimeoutMs"/> once the launcher is known to be gone.
+    /// </summary>
+    public const int LauncherExitGracePeriodMs = 1_000;
 }

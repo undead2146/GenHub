@@ -7,7 +7,7 @@ using GenHub.Core.Models.Storage;
 namespace GenHub.Core.Models.Common;
 
 /// <summary>Represents application-level and user-specific settings for GenHub.</summary>
-public class UserSettings : ICloneable
+public class UserSettings
 {
     /// <summary>Gets or sets the application theme preference.</summary>
     public string? Theme { get; set; } = GenHub.Core.Constants.AppConstants.DefaultThemeName;
@@ -38,6 +38,12 @@ public class UserSettings : ICloneable
 
     /// <summary>Gets or sets a value indicating whether to automatically check for updates on startup.</summary>
     public bool AutoCheckForUpdatesOnStartup { get; set; } = true;
+
+    /// <summary>Gets or sets a value indicating whether to automatically check for updates periodically.</summary>
+    public bool AutoCheckForUpdatesPeriodically { get; set; } = true;
+
+    /// <summary>Gets or sets the interval in minutes between periodic update checks.</summary>
+    public int PeriodicUpdateCheckIntervalMinutes { get; set; } = GenHub.Core.Constants.AppUpdateConstants.DefaultPeriodicUpdateCheckIntervalMinutes;
 
     /// <summary>Gets or sets the timestamp of the last update check in ISO 8601 format.</summary>
     public string? LastUpdateCheckTimestamp { get; set; }
@@ -72,6 +78,12 @@ public class UserSettings : ICloneable
     /// <summary>Gets or sets the list of GitHub repositories for discovery.</summary>
     public List<string>? GitHubDiscoveryRepositories { get; set; }
 
+    /// <summary>Gets or sets the configured CSV catalog index.json path or URL.</summary>
+    public string? IndexFilePath { get; set; }
+
+    /// <summary>Gets or sets the fallback CSV validation catalogs.</summary>
+    public List<CsvCatalogRegistryEntry>? CsvValidationCatalogs { get; set; }
+
     /// <summary>Gets or sets the list of installed tool plugin assembly paths.</summary>
     public List<string>? InstalledToolAssemblyPaths { get; set; }
 
@@ -89,11 +101,39 @@ public class UserSettings : ICloneable
     /// </summary>
     public CasConfiguration CasConfiguration { get; set; } = new();
 
+    /// <summary>
+    /// Gets or sets the collection of installation step keys that have been executed on this machine.
+    /// </summary>
+    public HashSet<string> ExecutedInstallationSteps { get; set; } = [];
+
     /// <summary>Marks a property as explicitly set by the user.</summary>
     /// <param name="propertyName">The name of the property to mark as explicitly set.</param>
     public void MarkAsExplicitlySet(string propertyName)
     {
         ExplicitlySetProperties.Add(propertyName);
+    }
+
+    /// <summary>
+    /// Checks whether an installation step key has already been recorded as executed.
+    /// </summary>
+    /// <param name="stepKey">The unique installation step key.</param>
+    /// <returns><see langword="true"/> if already executed; otherwise, <see langword="false"/>.</returns>
+    public bool IsInstallationStepExecuted(string stepKey)
+    {
+        return !string.IsNullOrWhiteSpace(stepKey) && ExecutedInstallationSteps != null && ExecutedInstallationSteps.Contains(stepKey);
+    }
+
+    /// <summary>
+    /// Records that an installation step key has been executed.
+    /// </summary>
+    /// <param name="stepKey">The unique installation step key.</param>
+    public void RecordInstallationStepExecuted(string stepKey)
+    {
+        if (!string.IsNullOrWhiteSpace(stepKey))
+        {
+            ExecutedInstallationSteps ??= [];
+            ExecutedInstallationSteps.Add(stepKey);
+        }
     }
 
     /// <summary>Checks if a property was explicitly set by the user.</summary>
@@ -137,7 +177,7 @@ public class UserSettings : ICloneable
 
     /// <summary>Creates a deep copy of the current UserSettings instance.</summary>
     /// <returns>A new UserSettings instance with all properties deeply copied.</returns>
-    public object Clone()
+    public UserSettings Clone()
     {
         return new UserSettings
         {
@@ -151,6 +191,8 @@ public class UserSettings : ICloneable
             MaxConcurrentDownloads = MaxConcurrentDownloads,
             AllowBackgroundDownloads = AllowBackgroundDownloads,
             AutoCheckForUpdatesOnStartup = AutoCheckForUpdatesOnStartup,
+            AutoCheckForUpdatesPeriodically = AutoCheckForUpdatesPeriodically,
+            PeriodicUpdateCheckIntervalMinutes = PeriodicUpdateCheckIntervalMinutes,
             LastUpdateCheckTimestamp = LastUpdateCheckTimestamp,
             EnableDetailedLogging = EnableDetailedLogging,
             DefaultWorkspaceStrategy = DefaultWorkspaceStrategy,
@@ -168,11 +210,14 @@ public class UserSettings : ICloneable
             DismissedUpdateVersion = DismissedUpdateVersion,
             ContentDirectories = ContentDirectories != null ? [.. ContentDirectories] : null,
             GitHubDiscoveryRepositories = GitHubDiscoveryRepositories != null ? [.. GitHubDiscoveryRepositories] : null,
+            IndexFilePath = IndexFilePath,
+            CsvValidationCatalogs = CsvValidationCatalogs != null ? [.. CsvValidationCatalogs.Select(c => c.Clone())] : null,
             InstalledToolAssemblyPaths = InstalledToolAssemblyPaths != null ? [.. InstalledToolAssemblyPaths] : null,
             PreferredStorageInstallationId = PreferredStorageInstallationId,
             UseInstallationAdjacentStorage = UseInstallationAdjacentStorage,
             ExplicitlySetProperties = [.. ExplicitlySetProperties],
             CasConfiguration = (CasConfiguration?)CasConfiguration?.Clone() ?? new CasConfiguration(),
+            ExecutedInstallationSteps = ExecutedInstallationSteps != null ? [.. ExecutedInstallationSteps] : [],
             SkippedUpdateVersions = SkippedUpdateVersions != null ? new Dictionary<string, string>(SkippedUpdateVersions) : [],
             PreferredUpdateStrategy = PreferredUpdateStrategy,
             PublisherSubscriptions = PublisherSubscriptions != null
@@ -267,7 +312,7 @@ public class UserSettings : ICloneable
     /// <returns>True if subscribed; otherwise, false.</returns>
     public bool IsSubscribedTo(string publisherId)
     {
-        return GetSubscription(publisherId)?.IsActive ?? false; // Default to not subscribed for safety
+        return GetSubscription(publisherId)?.IsActive == true; // Default to not subscribed for safety
     }
 
     /// <summary>
@@ -296,7 +341,7 @@ public class UserSettings : ICloneable
     {
         // Check new subscription system
         var subscription = GetSubscription(publisherId);
-        if (subscription != null && subscription.ShouldSkipVersion(version))
+        if (subscription?.ShouldSkipVersion(version) == true)
         {
             return true;
         }

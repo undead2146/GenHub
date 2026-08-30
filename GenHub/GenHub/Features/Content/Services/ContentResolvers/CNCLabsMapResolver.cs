@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -16,6 +17,7 @@ using GenHub.Core.Models.Results.Content;
 using GenHub.Features.Content.Services.Helpers;
 using GenHub.Features.Content.Services.Publishers;
 using Microsoft.Extensions.Logging;
+
 using File = GenHub.Core.Models.Parsers.File;
 using ParsedContentDetails = GenHub.Core.Models.Content.ParsedContentDetails;
 
@@ -25,6 +27,7 @@ namespace GenHub.Features.Content.Services.ContentResolvers;
 /// Resolves CNC Labs map details from discovered content items.
 /// Parses HTML detail pages and generates content manifests.
 /// </summary>
+[SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Domain acronym")]
 public class CNCLabsMapResolver(
     HttpClient httpClient,
     CNCLabsManifestFactory manifestFactory,
@@ -189,12 +192,9 @@ public class CNCLabsMapResolver(
         var downloadUrl = downloadLink?.GetAttribute(CNCLabsConstants.HrefAttribute) ?? string.Empty;
 
         // Ensure absolute URL
-        if (!string.IsNullOrEmpty(downloadUrl))
+        if (!string.IsNullOrEmpty(downloadUrl) && !downloadUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
         {
-            if (!downloadUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-            {
-                downloadUrl = $"{CNCLabsConstants.PublisherWebsite.TrimEnd('/')}/{downloadUrl.TrimStart('/')}";
-            }
+            downloadUrl = $"{CNCLabsConstants.PublisherWebsite.TrimEnd('/')}/{downloadUrl.TrimStart('/')}";
         }
 
         // Rewrite downloader.aspx to fetch.aspx to bypass JS redirect
@@ -209,9 +209,6 @@ public class CNCLabsMapResolver(
         // 6. File metadata (optional but useful)
         var fileSizeText = ExtractMetadataValue(document, "File Size:");
         var fileSize = FileSizeFormatter.ParseToBytes(fileSizeText);
-
-        var maxPlayersText = ExtractMetadataValue(document, "Max Players:");
-        var maxPlayers = int.TryParse(maxPlayersText?.Trim(), out var p) ? p : 0;
 
         var submittedText = ExtractMetadataValue(document, "Submitted:");
         var submissionDate = DateTime.TryParse(submittedText, out var sd) ? sd : DateTime.MinValue;
@@ -232,7 +229,7 @@ public class CNCLabsMapResolver(
         var screenshots = document.QuerySelectorAll("img.Screenshot")
             .Select(img => img.GetAttribute("src"))
             .Where(src => !string.IsNullOrEmpty(src))
-            .Select(src => src!.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+            .Select(src => src.StartsWith("http", StringComparison.OrdinalIgnoreCase)
                 ? src
                 : $"https://www.cnclabs.com{src}")
             .ToList();

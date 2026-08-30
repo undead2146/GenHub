@@ -37,7 +37,7 @@ public class ProcessLocalFileAsyncTests : IDisposable
     /// </summary>
     /// <returns>A task that represents the asynchronous test operation.</returns>
     [Fact]
-    public async Task FullCopyStrategy_ProcessLocalFileAsync_CopiesFile()
+    public async Task FullCopyStrategy_ProcessLocalFileAsync_CopiesFileAsync()
     {
         // Arrange
         var logger = new Mock<ILogger<FullCopyStrategy>>();
@@ -46,15 +46,7 @@ public class ProcessLocalFileAsyncTests : IDisposable
         var sourceFile = Path.Combine(_tempSourceDir, "test.exe");
         await File.WriteAllTextAsync(sourceFile, "test content");
 
-        var file = new ManifestFile
-        {
-            RelativePath = "test.exe",
-            Size = 12,
-            SourceType = ContentSourceType.LocalFile,
-        };
-
         var config = CreateTestConfiguration();
-        var targetPath = Path.Combine(_tempWorkspaceDir, file.RelativePath);
 
         // Act
         await strategy.PrepareAsync(config, null, CancellationToken.None);
@@ -73,18 +65,11 @@ public class ProcessLocalFileAsyncTests : IDisposable
     /// </summary>
     /// <returns>A task that represents the asynchronous test operation.</returns>
     [Fact]
-    public async Task SymlinkOnlyStrategy_ProcessLocalFileAsync_CreatesSymlink()
+    public async Task SymlinkOnlyStrategy_ProcessLocalFileAsync_CreatesSymlinkAsync()
     {
         // Arrange
         var logger = new Mock<ILogger<SymlinkOnlyStrategy>>();
         var strategy = new SymlinkOnlyStrategy(_mockFileOperations.Object, logger.Object);
-
-        var file = new ManifestFile
-        {
-            RelativePath = "test.exe",
-            Size = 12,
-            SourceType = ContentSourceType.LocalFile,
-        };
 
         var config = CreateTestConfiguration();
 
@@ -106,18 +91,11 @@ public class ProcessLocalFileAsyncTests : IDisposable
     /// </summary>
     /// <returns>A task that represents the asynchronous test operation.</returns>
     [Fact]
-    public async Task HybridCopySymlinkStrategy_ProcessLocalFileAsync_CopiesEssentialFiles()
+    public async Task HybridCopySymlinkStrategy_ProcessLocalFileAsync_CopiesEssentialFilesAsync()
     {
         // Arrange
         var logger = new Mock<ILogger<HybridCopySymlinkStrategy>>();
         var strategy = new HybridCopySymlinkStrategy(_mockFileOperations.Object, logger.Object);
-
-        var file = new ManifestFile
-        {
-            RelativePath = "generals.exe", // Essential file
-            Size = 500, // Small size - essential
-            SourceType = ContentSourceType.LocalFile,
-        };
 
         var config = CreateTestConfiguration();
 
@@ -138,18 +116,11 @@ public class ProcessLocalFileAsyncTests : IDisposable
     /// </summary>
     /// <returns>A task that represents the asynchronous test operation.</returns>
     [Fact]
-    public async Task HybridCopySymlinkStrategy_ProcessLocalFileAsync_SymlinksNonEssentialFiles()
+    public async Task HybridCopySymlinkStrategy_ProcessLocalFileAsync_SymlinksNonEssentialFilesAsync()
     {
         // Arrange
         var logger = new Mock<ILogger<HybridCopySymlinkStrategy>>();
         var strategy = new HybridCopySymlinkStrategy(_mockFileOperations.Object, logger.Object);
-
-        var file = new ManifestFile
-        {
-            RelativePath = "video.bik", // Non-essential file
-            Size = 50000000, // Large size - non-essential
-            SourceType = ContentSourceType.LocalFile,
-        };
 
         var config = CreateTestConfiguration();
 
@@ -171,18 +142,11 @@ public class ProcessLocalFileAsyncTests : IDisposable
     /// </summary>
     /// <returns>A task that represents the asynchronous test operation.</returns>
     [Fact]
-    public async Task HardLinkStrategy_ProcessLocalFileAsync_CreatesHardLinksOnSameVolume()
+    public async Task HardLinkStrategy_ProcessLocalFileAsync_CreatesHardLinksOnSameVolumeAsync()
     {
         // Arrange
         var logger = new Mock<ILogger<HardLinkStrategy>>();
         var strategy = new HardLinkStrategy(_mockFileOperations.Object, logger.Object);
-
-        var file = new ManifestFile
-        {
-            RelativePath = "test.dat",
-            Size = 1000,
-            SourceType = ContentSourceType.LocalFile,
-        };
 
         var config = CreateTestConfiguration();
 
@@ -211,7 +175,7 @@ public class ProcessLocalFileAsyncTests : IDisposable
     [InlineData(WorkspaceStrategy.SymlinkOnly)]
     [InlineData(WorkspaceStrategy.HybridCopySymlink)]
     [InlineData(WorkspaceStrategy.HardLink)]
-    public async Task AllStrategies_ProcessLocalFileAsync_HandlesMissingSourceFiles(WorkspaceStrategy strategyType)
+    public async Task AllStrategies_ProcessLocalFileAsync_HandlesMissingSourceFilesAsync(WorkspaceStrategy strategyType)
     {
         // Arrange
         var strategy = CreateStrategy(strategyType);
@@ -239,7 +203,7 @@ public class ProcessLocalFileAsyncTests : IDisposable
     /// </summary>
     /// <returns>A task that represents the asynchronous test operation.</returns>
     [Fact]
-    public async Task AllStrategies_ProcessLocalFileAsync_ValidatesConfiguration()
+    public async Task AllStrategies_ProcessLocalFileAsync_ValidatesConfigurationAsync()
     {
         // Arrange
         var logger = new Mock<ILogger<FullCopyStrategy>>();
@@ -264,7 +228,7 @@ public class ProcessLocalFileAsyncTests : IDisposable
     [InlineData(WorkspaceStrategy.SymlinkOnly)]
     [InlineData(WorkspaceStrategy.HybridCopySymlink)]
     [InlineData(WorkspaceStrategy.HardLink)]
-    public async Task AllStrategies_ProcessGameInstallationFileAsync_UsesSourcePathDirectly(WorkspaceStrategy strategyType)
+    public async Task AllStrategies_ProcessGameInstallationFileAsync_UsesSourcePathDirectlyAsync(WorkspaceStrategy strategyType)
     {
         // Arrange
         var strategy = CreateStrategy(strategyType);
@@ -346,6 +310,10 @@ public class ProcessLocalFileAsyncTests : IDisposable
                             gameInstallationPath, // Should use SourcePath directly
                             It.IsAny<CancellationToken>()),
                         Times.Once);
+                    break;
+
+                default:
+                    // No assertions for other strategies
                     break;
             }
 

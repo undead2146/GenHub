@@ -11,6 +11,26 @@ public static class MapManagerConstants
     public const long MaxMapSizeBytes = 10 * 1024 * 1024;
 
     /// <summary>
+    /// Maximum allowed entries in a map ZIP archive.
+    /// </summary>
+    public const int MaxZipEntries = 500;
+
+    /// <summary>
+    /// Maximum aggregate uncompressed bytes for a map ZIP archive (200 MB).
+    /// </summary>
+    public const long MaxAggregateUncompressedBytes = 200 * 1024 * 1024;
+
+    /// <summary>
+    /// Maximum file size for individual map assets in bytes (10 MB).
+    /// </summary>
+    public const long MaxAssetSizeBytes = 10 * 1024 * 1024;
+
+    /// <summary>
+    /// Maximum compression ratio allowed for ZIP archives.
+    /// </summary>
+    public const double MaxCompressionRatio = 100.0;
+
+    /// <summary>
     /// Number of days for rate limit reset period.
     /// </summary>
     public const int RateLimitDays = 3;
@@ -89,6 +109,31 @@ public static class MapManagerConstants
     /// Tool description for Map Manager.
     /// </summary>
     public const string ToolDescription = "Manage, import, and share custom maps. Create MapPacks for easy profile switching.";
+
+    /// <summary>
+    /// Prefix for temporary share archives created for uploads.
+    /// </summary>
+    public const string TempShareFilePrefix = "genhub_maps_";
+
+    /// <summary>
+    /// Mock path separator indicator for demo environments on Windows.
+    /// </summary>
+    public const string WindowsMockPathSegment = ToolConstants.WindowsMockPathSegment;
+
+    /// <summary>
+    /// Mock path separator indicator for demo environments on Unix.
+    /// </summary>
+    public const string UnixMockPathSegment = ToolConstants.UnixMockPathSegment;
+
+    /// <summary>
+    /// Notification title for delete failure.
+    /// </summary>
+    public const string DeleteFailedTitle = ToolConstants.DeleteFailedTitle;
+
+    /// <summary>
+    /// Category identifier for map uploads.
+    /// </summary>
+    public const string UploadCategory = "maps";
 
     /// <summary>
     /// Allowed file extensions for map packages.

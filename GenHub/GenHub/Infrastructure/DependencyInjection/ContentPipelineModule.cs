@@ -26,6 +26,7 @@ using GenHub.Features.GitHub.Services;
 using GenHub.Features.Manifest;
 using GenHub.Features.Storage.Services;
 using GenHub.Infrastructure.Services;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System;
@@ -56,6 +57,7 @@ public static class ContentPipelineModule
         AddCNCLabsPipeline(services);
         AddModDBPipeline(services);
         AddLocalFileSystemPipeline(services);
+        AddCsvPipeline(services);
         AddSharedComponents(services);
 
         return services;
@@ -138,7 +140,13 @@ public static class ContentPipelineModule
         });
 
         // Register GitHub API client
-        services.AddSingleton<IGitHubApiClient, OctokitGitHubApiClient>();
+        services.AddSingleton<IGitHubApiClient>(sp => new OctokitGitHubApiClient(
+            sp.GetRequiredService<Octokit.IGitHubClient>(),
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<ILogger<OctokitGitHubApiClient>>(),
+            sp.GetRequiredService<IMemoryCache>(),
+            sp.GetService<IGitHubTokenStorage>(),
+            sp.GetService<GitHubRateLimitTracker>()));
 
         // Register Local Content Service
         services.AddTransient<ILocalContentService, LocalContentService>();
@@ -345,6 +353,23 @@ public static class ContentPipelineModule
     }
 
     /// <summary>
+    /// Registers CSV content pipeline services.
+    /// </summary>
+    private static void AddCsvPipeline(IServiceCollection services)
+    {
+        // Register CSV content provider
+        services.AddTransient<IContentProvider, CsvContentProvider>();
+
+        // Register CSV discoverer (concrete and interface)
+        services.AddTransient<CsvDiscoverer>();
+        services.AddTransient<IContentDiscoverer, CsvDiscoverer>();
+
+        // Register CSV resolver (concrete and interface)
+        services.AddTransient<CsvResolver>();
+        services.AddTransient<IContentResolver, CsvResolver>();
+    }
+
+    /// <summary>
     /// Registers shared components used across multiple pipelines.
     /// </summary>
     private static void AddSharedComponents(IServiceCollection services)
@@ -361,5 +386,11 @@ public static class ContentPipelineModule
 
         // Register content orchestrator and validator
         services.AddSingleton<IContentValidator, ContentValidator>();
+
+        // Register installation step preconditions
+        services.AddSingleton<IInstallationStepPrecondition, EasyAntiCheatPrecondition>();
+
+        // Register installation instructions execution service
+        services.AddSingleton<IInstallationInstructionsService, InstallationInstructionsService>();
     }
 }

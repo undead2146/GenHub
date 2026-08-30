@@ -63,6 +63,8 @@ public partial class GameProfileLauncherViewModel(
     private readonly SemaphoreSlim _launchSemaphore = new(1, 1);
     private readonly System.Timers.Timer _headerCollapseTimer = new(TimeIntervals.HeaderCollapseDelayMs);
     private readonly System.Timers.Timer _headerExpansionTimer = new(TimeIntervals.HeaderExpansionDelayMs);
+    private bool _isHovering;
+    private bool _isTimersConfigured;
     private bool _lastOperationSuccess;
     private string? _expectedProfileIdForSuccess;
     private bool _isCreatingNewProfile;
@@ -118,38 +120,39 @@ public partial class GameProfileLauncherViewModel(
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     public virtual async Task InitializeAsync()
     {
-        // Reset header state on initialization/activation
-        ResetHeaderState();
+        // On app launch, the header is expanded and persists without auto-collapsing
+        IsHeaderExpanded = true;
+        _isHovering = false;
 
         try
         {
-            // Set up timer
-            _headerCollapseTimer.AutoReset = false;
-            _headerCollapseTimer.Elapsed += (s, e) =>
+            if (!_isTimersConfigured)
             {
-                Avalonia.Threading.Dispatcher.UIThread.Invoke(() =>
-                {
-                    IsHeaderExpanded = false;
-                });
-            };
+                _isTimersConfigured = true;
 
-            _headerCollapseTimer.Start();
+                // Set up timer
+                _headerCollapseTimer.AutoReset = false;
+                _headerCollapseTimer.Elapsed += (s, e) =>
+                    Avalonia.Threading.Dispatcher.UIThread.Invoke(() =>
+                    {
+                        if (!_isHovering && !IsScanning)
+                        {
+                            IsHeaderExpanded = false;
+                        }
+                    });
 
-            // Set up expansion timer
-            _headerExpansionTimer.AutoReset = false;
-            _headerExpansionTimer.Elapsed += (s, e) =>
-            {
-                Avalonia.Threading.Dispatcher.UIThread.Invoke(() =>
-                {
-                    IsHeaderExpanded = true;
-                    _isHovering = true;
+                // Set up expansion timer
+                _headerExpansionTimer.AutoReset = false;
+                _headerExpansionTimer.Elapsed += (s, e) =>
+                    Avalonia.Threading.Dispatcher.UIThread.Invoke(() =>
+                    {
+                        IsHeaderExpanded = true;
+                        _isHovering = true;
+                        _headerCollapseTimer.Stop();
+                    });
 
-                    // Stop collapse timer just in case
-                    _headerCollapseTimer.Stop();
-                });
-            };
-
-            gameProcessManager.ProcessExited += OnProcessExited;
+                gameProcessManager.ProcessExited += OnProcessExited;
+            }
 
             StatusMessage = "Loading profiles...";
             ErrorMessage = string.Empty;
@@ -319,10 +322,8 @@ public partial class GameProfileLauncherViewModel(
         ResetHeaderState();
     }
 
-    private bool _isHovering;
-
     /// <summary>
-    /// Resets the header state to expanded and restarts the auto-collapse timer.
+    /// Resets the header state to expanded and starts the auto-collapse timer.
     /// </summary>
     public void ResetHeaderState()
     {
@@ -331,7 +332,7 @@ public partial class GameProfileLauncherViewModel(
         _headerExpansionTimer.Stop();
 
         // Only start the auto-collapse timer if the user is NOT currently hovering
-        if (!_isHovering)
+        if (!_isHovering && !IsScanning)
         {
             _headerCollapseTimer.Start();
         }
@@ -395,8 +396,7 @@ public partial class GameProfileLauncherViewModel(
     /// </summary>
     private static bool HasPublisherClients(GameInstallation installation)
     {
-        return installation.AvailableGameClients != null &&
-               installation.AvailableGameClients.Any(c => c.IsPublisherClient);
+        return installation.AvailableGameClients?.Any(c => c.IsPublisherClient) == true;
     }
 
     /// <summary>
@@ -463,149 +463,30 @@ public partial class GameProfileLauncherViewModel(
             var installations = await installationService.GetAllInstallationsAsync();
             if (installations.Success && installations.Data != null)
             {
-                // Convert to mutable list to allow adding manual installations
                 var installationsList = installations.Data.ToList();
 
-                // Check if no installations were found and prompt for manual selection
                 if (installationsList.Count == 0)
                 {
-                    logger.LogInformation("No game installations found, prompting user for manual directory selection");
-
-                    // Use the shared manual game addition logic
-                    // We don't await the result here because we want to exit the scan flow if cancelled,
-                    // but AddManualGameAsync handles the full flow including UI updates.
-                    // However, for the scan flow, we need to know if it was successful to show the "Scan Cancelled" message or not.
-                    var manualInstallation = await PromptForManualGameDirectoryAsync();
+                    var manualInstallation = await PromptAndRegisterManualInstallationAsync();
                     if (manualInstallation != null)
                     {
-                        // Proceed to process this installation usually handled inside AddManualGameAsync,
-                        // but here we want to continue the wizard flow.
-
-                        // Actually, let's just reuse the logic from AddManualGameAsync but we need to integrate it into the wizard flow.
-                        // For simplicity in this refactor, let's keep the wizard flow logic here but use the Prompt method.
-
-                        // Ensure paths are populated
-                        manualInstallation.Fetch();
-
-                        // Detect game clients for the manual installation (also generates GameClient manifests)
-                        var detectionResult = await gameClientDetector.DetectGameClientsFromInstallationsAsync([manualInstallation]);
-                        if (detectionResult.Success && detectionResult.Items?.Count > 0)
-                        {
-                            manualInstallation.PopulateGameClients(detectionResult.Items);
-                        }
-
-                        // Create and register GameInstallation manifests to the pool
-                        await CreateAndRegisterManualInstallationManifestsAsync(manualInstallation);
-
-                        // Register the installation with the service cache
-                        var addResult = await installationService.AddInstallationToCacheAsync(manualInstallation);
-                        if (!addResult.Success)
-                        {
-                            logger.LogWarning("Failed to add manual installation to cache: {Error}", addResult.FirstError);
-                        }
-
-                        // Add the manually selected installation to the list
                         installationsList.Add(manualInstallation);
-                        logger.LogInformation("User provided manual installation, proceeding with profile creation");
                     }
                     else
                     {
-                        logger.LogInformation("User cancelled manual directory selection");
                         StatusMessage = "No installations found. Scan cancelled.";
                         return;
                     }
                 }
 
-                var installationCount = installationsList.Count;
-                var generalsCount = installationsList.Count(i => i.HasGenerals);
-                var zeroHourCount = installationsList.Count(i => i.HasZeroHour);
-
                 logger.LogInformation(
                     "Game scan completed. Found {Count} installations ({GeneralsCount} Generals, {ZeroHourCount} Zero Hour)",
-                    installationCount,
-                    generalsCount,
-                    zeroHourCount);
+                    installationsList.Count,
+                    installationsList.Count(i => i.HasGenerals),
+                    installationsList.Count(i => i.HasZeroHour));
 
-                // Run Setup Wizard via Service
                 var wizardResult = await setupWizardService.RunSetupWizardAsync(installationsList);
-
-                var cpDecision = wizardResult.CommunityPatchAction;
-                var goDecision = wizardResult.GeneralsOnlineAction;
-                var shDecision = wizardResult.SuperHackersAction;
-
-                bool wizardConfirmed = wizardResult.Confirmed;
-
-                // Check if any patches were selected globally
-                bool anyPatchSelectedGlobally =
-                    (cpDecision != GameClientConstants.WizardActionTypes.Decline && cpDecision != GameClientConstants.WizardActionTypes.None) ||
-                    (goDecision != GameClientConstants.WizardActionTypes.Decline && goDecision != GameClientConstants.WizardActionTypes.None) ||
-                    (shDecision != GameClientConstants.WizardActionTypes.Decline && shDecision != GameClientConstants.WizardActionTypes.None);
-
-                // 4. Execution Phase: Apply decisions per installation
-                int profilesCreated = 0;
-                foreach (var installation in installationsList)
-                {
-                    if (installation.AvailableGameClients == null || installation.AvailableGameClients.Count == 0)
-                    {
-                        continue;
-                    }
-
-                    logger.LogInformation("Processing installation: {InstallationId} ({Type})", installation.Id, installation.InstallationType);
-                    bool anyPatchHandled = false;
-
-                    // Execute CP Decision
-                    if (cpDecision != GameClientConstants.WizardActionTypes.Decline && cpDecision != GameClientConstants.WizardActionTypes.None)
-                    {
-                        var cpClient = installation.AvailableGameClients.FirstOrDefault(c => c.PublisherType == CommunityOutpostConstants.PublisherType);
-                        if (cpClient != null || cpDecision == GameClientConstants.WizardActionTypes.Install)
-                        {
-                            var clientToUse = cpClient ?? new GameClient { Id = GameClientConstants.SyntheticClientIds.CommunityPatch, Name = "Community Patch", PublisherType = CommunityOutpostConstants.PublisherType, GameType = GameType.ZeroHour, InstallationId = installation.Id };
-                            bool forceAttr = cpDecision == GameClientConstants.WizardActionTypes.Update;
-                            var result = await publisherProfileOrchestrator.CreateProfilesForPublisherClientAsync(installation, clientToUse, forceReacquireContent: forceAttr);
-                            if (result.Success && result.Data > 0) profilesCreated += result.Data;
-                            anyPatchHandled = true;
-                        }
-                    }
-
-                    // Execute GO Decision
-                    if (goDecision != GameClientConstants.WizardActionTypes.Decline && goDecision != GameClientConstants.WizardActionTypes.None)
-                    {
-                        var goClient = installation.AvailableGameClients.FirstOrDefault(c => c.PublisherType == PublisherTypeConstants.GeneralsOnline);
-                        if (goClient != null || goDecision == GameClientConstants.WizardActionTypes.Install)
-                        {
-                            var clientToUse = goClient ?? new GameClient { Id = GameClientConstants.SyntheticClientIds.GeneralsOnline, Name = "GeneralsOnline", PublisherType = PublisherTypeConstants.GeneralsOnline, GameType = GameType.ZeroHour, InstallationId = installation.Id };
-                            bool forceAttr = goDecision == GameClientConstants.WizardActionTypes.Update;
-                            var result = await publisherProfileOrchestrator.CreateProfilesForPublisherClientAsync(installation, clientToUse, forceReacquireContent: forceAttr);
-                            if (result.Success && result.Data > 0) profilesCreated += result.Data;
-                            anyPatchHandled = true;
-                        }
-                    }
-
-                    // Execute SH Decision
-                    if (shDecision != GameClientConstants.WizardActionTypes.Decline && shDecision != GameClientConstants.WizardActionTypes.None)
-                    {
-                        var shClient = installation.AvailableGameClients.FirstOrDefault(c => c.PublisherType == PublisherTypeConstants.TheSuperHackers);
-                        if (shClient != null || shDecision == GameClientConstants.WizardActionTypes.Install)
-                        {
-                            var clientToUse = shClient ?? new GameClient { Id = GameClientConstants.SyntheticClientIds.SuperHackers, Name = "SuperHackers", PublisherType = PublisherTypeConstants.TheSuperHackers, GameType = GameType.ZeroHour, InstallationId = installation.Id };
-                            bool forceAttr = shDecision == GameClientConstants.WizardActionTypes.Update;
-                            var result = await publisherProfileOrchestrator.CreateProfilesForPublisherClientAsync(installation, clientToUse, forceReacquireContent: forceAttr);
-                            if (result.Success && result.Data > 0) profilesCreated += result.Data;
-                            anyPatchHandled = true;
-                        }
-                    }
-
-                    // Fallback to base game profiles if no patches were handled and no patches were selected globally
-                    // If user selected patches globally, we assume they only want those specific patched profiles
-                    if (!anyPatchHandled && !anyPatchSelectedGlobally)
-                    {
-                        logger.LogInformation("No patches selected or found for {InstallationId}, creating base game profiles", installation.Id);
-                        foreach (var client in installation.AvailableGameClients.Where(c => !c.IsPublisherClient).ToList())
-                        {
-                            if (await TryCreateProfileForGameClientAsync(installation, client)) profilesCreated++;
-                        }
-                    }
-                }
+                var profilesCreated = await ApplyInstallationWizardDecisionsAsync(installationsList, wizardResult);
 
                 StatusMessage = $"Scan complete. Found {installationsList.Count} installations, created {profilesCreated} profiles";
 
@@ -632,6 +513,160 @@ public partial class GameProfileLauncherViewModel(
         {
             IsScanning = false;
         }
+    }
+
+    private async Task<GameInstallation?> PromptAndRegisterManualInstallationAsync()
+    {
+        logger.LogInformation("No game installations found, prompting user for manual directory selection");
+
+        var manualInstallation = await PromptForManualGameDirectoryAsync();
+        if (manualInstallation == null)
+        {
+            logger.LogInformation("User cancelled manual directory selection");
+            return null;
+        }
+
+        manualInstallation.Fetch();
+
+        var detectionResult = await gameClientDetector.DetectGameClientsFromInstallationsAsync([manualInstallation]);
+        if (detectionResult.Success && detectionResult.Items?.Count > 0)
+        {
+            manualInstallation.PopulateGameClients(detectionResult.Items);
+        }
+
+        await CreateAndRegisterManualInstallationManifestsAsync(manualInstallation);
+
+        var addResult = await installationService.AddInstallationToCacheAsync(manualInstallation);
+        if (!addResult.Success)
+        {
+            logger.LogWarning("Failed to add manual installation to cache: {Error}", addResult.FirstError);
+        }
+
+        logger.LogInformation("User provided manual installation, proceeding with profile creation");
+        return manualInstallation;
+    }
+
+    private async Task<int> ApplyInstallationWizardDecisionsAsync(
+        List<GameInstallation> installationsList,
+        SetupWizardResult wizardResult)
+    {
+        if (!wizardResult.Confirmed)
+        {
+            logger.LogInformation("Setup wizard was skipped by user, skipping profile creation");
+            return 0;
+        }
+
+        var cpDecision = wizardResult.CommunityPatchAction;
+        var goDecision = wizardResult.GeneralsOnlineAction;
+        var shDecision = wizardResult.SuperHackersAction;
+
+        bool anyPatchSelectedGlobally =
+            (cpDecision != GameClientConstants.WizardActionTypes.Decline && cpDecision != GameClientConstants.WizardActionTypes.None) ||
+            (goDecision != GameClientConstants.WizardActionTypes.Decline && goDecision != GameClientConstants.WizardActionTypes.None) ||
+            (shDecision != GameClientConstants.WizardActionTypes.Decline && shDecision != GameClientConstants.WizardActionTypes.None);
+
+        int profilesCreated = 0;
+        foreach (var installation in installationsList)
+        {
+            if (installation.AvailableGameClients == null || installation.AvailableGameClients.Count == 0)
+            {
+                continue;
+            }
+
+            profilesCreated += await ProcessInstallationDecisionsAsync(
+                installation,
+                cpDecision,
+                goDecision,
+                shDecision,
+                anyPatchSelectedGlobally);
+        }
+
+        return profilesCreated;
+    }
+
+    private async Task<int> ProcessInstallationDecisionsAsync(
+        GameInstallation installation,
+        string cpDecision,
+        string goDecision,
+        string shDecision,
+        bool anyPatchSelectedGlobally)
+    {
+        logger.LogInformation("Processing installation: {InstallationId} ({Type})", installation.Id, installation.InstallationType);
+        int profilesCreated = 0;
+
+        var (cpHandled, cpProfiles) = await TryProcessPublisherDecisionAsync(
+            installation,
+            cpDecision,
+            CommunityOutpostConstants.PublisherType,
+            GameClientConstants.SyntheticClientIds.CommunityPatch,
+            "Community Patch");
+        profilesCreated += cpProfiles;
+
+        var (goHandled, goProfiles) = await TryProcessPublisherDecisionAsync(
+            installation,
+            goDecision,
+            PublisherTypeConstants.GeneralsOnline,
+            GameClientConstants.SyntheticClientIds.GeneralsOnline,
+            "GeneralsOnline");
+        profilesCreated += goProfiles;
+
+        var (shHandled, shProfiles) = await TryProcessPublisherDecisionAsync(
+            installation,
+            shDecision,
+            PublisherTypeConstants.TheSuperHackers,
+            GameClientConstants.SyntheticClientIds.SuperHackers,
+            "SuperHackers");
+        profilesCreated += shProfiles;
+
+        bool anyPatchHandled = cpHandled || goHandled || shHandled;
+
+        if (!anyPatchHandled && !anyPatchSelectedGlobally)
+        {
+            logger.LogInformation("No patches selected or found for {InstallationId}, creating base game profiles", installation.Id);
+            foreach (var client in installation.AvailableGameClients!.Where(c => !c.IsPublisherClient).ToList())
+            {
+                if (await TryCreateProfileForGameClientAsync(installation, client))
+                {
+                    profilesCreated++;
+                }
+            }
+        }
+
+        return profilesCreated;
+    }
+
+    private async Task<(bool Handled, int ProfilesCreated)> TryProcessPublisherDecisionAsync(
+        GameInstallation installation,
+        string decision,
+        string publisherType,
+        string syntheticClientId,
+        string clientName)
+    {
+        if (decision == GameClientConstants.WizardActionTypes.Decline || decision == GameClientConstants.WizardActionTypes.None)
+        {
+            return (false, 0);
+        }
+
+        var client = installation.AvailableGameClients?.FirstOrDefault(c => c.PublisherType == publisherType);
+        if (client == null && decision != GameClientConstants.WizardActionTypes.Install)
+        {
+            return (false, 0);
+        }
+
+        var clientToUse = client ?? new GameClient
+        {
+            Id = syntheticClientId,
+            Name = clientName,
+            PublisherType = publisherType,
+            GameType = GameType.ZeroHour,
+            InstallationId = installation.Id,
+        };
+
+        bool forceAttr = decision == GameClientConstants.WizardActionTypes.Update;
+        var result = await publisherProfileOrchestrator.CreateProfilesForPublisherClientAsync(installation, clientToUse, forceReacquireContent: forceAttr);
+        int profiles = (result.Success && result.Data > 0) ? result.Data : 0;
+
+        return (true, profiles);
     }
 
     /// <summary>
@@ -814,12 +849,10 @@ public partial class GameProfileLauncherViewModel(
 
                 return true;
             }
-            else
-            {
-                var errors = ManifestHelper.FormatErrors(profileResult.Errors);
-                logger.LogWarning("Failed to create profile for {InstallationType} {GameClientName}: {Errors}", installation.InstallationType, gameClient.Name, errors);
-                return false;
-            }
+
+            var errors = ManifestHelper.FormatErrors(profileResult.Errors);
+            logger.LogWarning("Failed to create profile for {InstallationType} {GameClientName}: {Errors}", installation.InstallationType, gameClient.Name, errors);
+            return false;
         }
         catch (Exception ex)
         {
@@ -1518,6 +1551,7 @@ public partial class GameProfileLauncherViewModel(
                 TshScreenEdgeScrollEnabledInWindowedApp = sourceProfile.TshScreenEdgeScrollEnabledInWindowedApp,
                 TshShowMoneyPerMinute = sourceProfile.TshShowMoneyPerMinute,
                 TshSystemTimeFontSize = sourceProfile.TshSystemTimeFontSize,
+                TshGameWindowTransitionSpeedMultiplier = sourceProfile.TshGameWindowTransitionSpeedMultiplier,
 
                 // GeneralsOnline Settings
                 GoShowFps = sourceProfile.GoShowFps,

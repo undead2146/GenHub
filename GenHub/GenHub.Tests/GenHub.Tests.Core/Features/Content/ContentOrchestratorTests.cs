@@ -22,12 +22,12 @@ namespace GenHub.Tests.Core.Features.Content;
 /// </summary>
 public class ContentOrchestratorTests
 {
-    private readonly Mock<IDynamicContentCache> _cacheMock = default!;
-    private readonly Mock<IContentValidator> _contentValidatorMock = default!;
-    private readonly Mock<IContentManifestPool> _manifestPoolMock = default!;
-    private readonly Mock<IGameInstallationService> _installationServiceMock = default!;
-    private readonly Mock<IInstallationCasPoolService> _installationCasPoolServiceMock = default!;
-    private readonly Mock<ILogger<ContentOrchestrator>> _loggerMock = default!;
+    private readonly Mock<IDynamicContentCache> _cacheMock;
+    private readonly Mock<IContentValidator> _contentValidatorMock;
+    private readonly Mock<IContentManifestPool> _manifestPoolMock;
+    private readonly Mock<IGameInstallationService> _installationServiceMock;
+    private readonly Mock<IInstallationCasPoolService> _installationCasPoolServiceMock;
+    private readonly Mock<ILogger<ContentOrchestrator>> _loggerMock;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ContentOrchestratorTests"/> class.
@@ -47,7 +47,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task SearchAsync_AggregatesResultsFromMultipleProviders_Successfully()
+    public async Task SearchAsync_AggregatesResultsFromMultipleProviders_SuccessfullyAsync()
     {
         // Arrange
         var provider1Mock = new Mock<IContentProvider>();
@@ -92,7 +92,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task AcquireContentAsync_ValidatesAndStoresContent_Successfully()
+    public async Task AcquireContentAsync_ValidatesAndStoresContent_SuccessfullyAsync()
     {
         // Arrange
         var searchResult = new ContentSearchResult
@@ -153,7 +153,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task AcquireContentAsync_WhenGameClientPoolCannotBeEnsured_ReturnsFailure()
+    public async Task AcquireContentAsync_WhenGameClientPoolCannotBeEnsured_ReturnsFailureAsync()
     {
         var searchResult = new ContentSearchResult
         {
@@ -233,7 +233,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task SearchAsync_WhenProviderCancels_PropagatesCancellation()
+    public async Task SearchAsync_WhenProviderCancels_PropagatesCancellationAsync()
     {
         var providerMock = new Mock<IContentProvider>();
         providerMock.Setup(provider => provider.IsEnabled).Returns(true);
@@ -263,7 +263,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task SearchAsync_WhenCancelledBeforeCacheHit_PropagatesCancellation()
+    public async Task SearchAsync_WhenCancelledBeforeCacheHit_PropagatesCancellationAsync()
     {
         _cacheMock
             .Setup(cache => cache.GetAsync<List<ContentSearchResult>>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -296,7 +296,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task SearchAsync_WhenProviderTimesOut_KeepsResultsFromOtherProviders()
+    public async Task SearchAsync_WhenProviderTimesOut_KeepsResultsFromOtherProvidersAsync()
     {
         var timingOutProviderMock = new Mock<IContentProvider>();
         timingOutProviderMock.Setup(provider => provider.IsEnabled).Returns(true);
@@ -337,7 +337,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task AcquireContentAsync_WhenProviderCancels_PropagatesCancellation()
+    public async Task AcquireContentAsync_WhenProviderCancels_PropagatesCancellationAsync()
     {
         var searchResult = new ContentSearchResult
         {
@@ -376,7 +376,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task AcquireContentAsync_WhenProviderTimesOut_ReturnsFailure()
+    public async Task AcquireContentAsync_WhenProviderTimesOut_ReturnsFailureAsync()
     {
         var searchResult = new ContentSearchResult
         {
@@ -414,7 +414,7 @@ public class ContentOrchestratorTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Fact]
-    public async Task AcquireContentAsync_WhenInstallationDetectionCancels_PropagatesCancellation()
+    public async Task AcquireContentAsync_WhenInstallationDetectionCancels_PropagatesCancellationAsync()
     {
         var searchResult = new ContentSearchResult
         {
@@ -474,5 +474,123 @@ public class ContentOrchestratorTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => orchestrator.AcquireContentAsync(searchResult, progress: null, cts.Token));
+    }
+
+    /// <summary>
+    /// Verifies that SearchAsync deduplicates results by manifest ID, preferring specialized providers.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    [Fact]
+    public async Task SearchAsync_DeduplicatesResultsById_PrefersSpecializedProviderOverGitHubAsync()
+    {
+        // Arrange
+        var specializedProviderMock = new Mock<IContentProvider>();
+        var githubProviderMock = new Mock<IContentProvider>();
+
+        const string duplicateId = "1.0.thesuperhackers.patch.generalsgamepatch2";
+
+        var specializedResult = new ContentSearchResult
+        {
+            Id = duplicateId,
+            Name = "TheSuperHackers Patch 2",
+            ProviderName = "thesuperhackers",
+        };
+
+        var githubResult = new ContentSearchResult
+        {
+            Id = duplicateId,
+            Name = "GeneralsGamePatch2",
+            ProviderName = "GitHub",
+        };
+
+        specializedProviderMock.Setup(p => p.IsEnabled).Returns(true);
+        specializedProviderMock.Setup(p => p.SearchAsync(It.IsAny<ContentSearchQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess([specializedResult]));
+
+        githubProviderMock.Setup(p => p.IsEnabled).Returns(true);
+        githubProviderMock.Setup(p => p.SearchAsync(It.IsAny<ContentSearchQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess([githubResult]));
+
+        var orchestrator = new ContentOrchestrator(
+            _loggerMock.Object,
+            [githubProviderMock.Object, specializedProviderMock.Object],
+            [],
+            [],
+            _cacheMock.Object,
+            _contentValidatorMock.Object,
+            _manifestPoolMock.Object,
+            _installationServiceMock.Object,
+            _installationCasPoolServiceMock.Object);
+
+        // Act
+        var result = await orchestrator.SearchAsync(new ContentSearchQuery());
+
+        // Assert
+        Assert.True(result.Success);
+        var items = result.Data?.ToList();
+        Assert.NotNull(items);
+        Assert.Single(items);
+        Assert.Equal("thesuperhackers", items[0].ProviderName);
+        Assert.Equal("TheSuperHackers Patch 2", items[0].Name);
+    }
+
+    /// <summary>
+    /// Verifies that ResolveManifestAsync successfully matches resolvers across hyphen and case variations.
+    /// </summary>
+    /// <param name="searchResolverId">The resolver ID variant to test.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    [Theory]
+    [InlineData("community-outpost")]
+    [InlineData("communityoutpost")]
+    [InlineData("community_outpost")]
+    [InlineData("COMMUNITY-OUTPOST")]
+    [InlineData("COMMUNITYOUTPOST")]
+    [InlineData("COMMUNITY_OUTPOST")]
+    public async Task ResolveManifestAsync_MatchesResolverWithHyphenAndCaseVariationsAsync(string searchResolverId)
+    {
+        // Arrange
+        var resolverMock = new Mock<IContentResolver>();
+        resolverMock.Setup(r => r.ResolverId).Returns("community-outpost");
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.0.communityoutpost.addon.gent",
+            Name = "GenTool",
+            ResolverId = searchResolverId,
+        };
+
+        var manifest = new ContentManifest
+        {
+            Id = searchResult.Id,
+            Name = searchResult.Name,
+            ContentType = ContentType.Addon,
+        };
+
+        resolverMock
+            .Setup(r => r.ResolveAsync(searchResult, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest>.CreateSuccess(manifest));
+
+        _contentValidatorMock
+            .Setup(v => v.ValidateManifestAsync(manifest, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ValidationResult(manifest.Id, []));
+
+        var orchestrator = new ContentOrchestrator(
+            _loggerMock.Object,
+            [],
+            [],
+            [resolverMock.Object],
+            _cacheMock.Object,
+            _contentValidatorMock.Object,
+            _manifestPoolMock.Object,
+            _installationServiceMock.Object,
+            _installationCasPoolServiceMock.Object);
+
+        // Act
+        var result = await orchestrator.ResolveManifestAsync(searchResult);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Equal("GenTool", result.Data.Name);
     }
 }

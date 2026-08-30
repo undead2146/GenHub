@@ -71,7 +71,7 @@ public class SteamLauncher : ISteamLauncher
     /// <summary>
     /// Configuration for the proxy launcher.
     /// </summary>
-    private class ProxyConfig
+    private sealed class ProxyConfig
     {
         public string? TargetExecutable { get; set; }
 
@@ -238,9 +238,12 @@ public class SteamLauncher : ISteamLauncher
                 config.WorkingDirectory,
                 config.Arguments.Length);
 
-            foreach (var directory in appIdDirectories)
+            if (!string.IsNullOrEmpty(steamAppId))
             {
-                await WriteSteamAppIdAsync(steamAppId!, directory, rollback, cancellationToken);
+                foreach (var directory in appIdDirectories)
+                {
+                    await WriteSteamAppIdAsync(steamAppId, directory, rollback, cancellationToken);
+                }
             }
 
             foreach (var (sourcePath, destinationPath) in dependencyCopies)
@@ -382,11 +385,11 @@ public class SteamLauncher : ISteamLauncher
         }
     }
 
-    private static async Task<IDisposable> AcquireInstallationMutationLockAsync(
+    private async Task<IDisposable> AcquireInstallationMutationLockAsync(
         string installationPath,
         CancellationToken cancellationToken)
     {
-        var normalizedPath = InstallationPathLockKey.Create(installationPath);
+        var normalizedPath = InstallationPathLockKey.Create(installationPath, _logger);
         var semaphore = _installationMutationLocks.GetOrAdd(
             normalizedPath,
             _ => new SemaphoreSlim(1, 1));
@@ -664,7 +667,7 @@ public class SteamLauncher : ISteamLauncher
             await writer(stagingPath, contents, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             EnsureCapturedFileIsUnchanged(path);
-            var preparedContents = File.ReadAllBytes(stagingPath);
+            var preparedContents = await File.ReadAllBytesAsync(stagingPath, cancellationToken);
             File.Move(stagingPath, path, overwrite: true);
             _preparedFiles[path] = preparedContents;
             TrackMutation(path);

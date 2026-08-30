@@ -1,3 +1,10 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Tools.MapManager;
@@ -5,12 +12,6 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Tools.MapManager;
 using GenHub.Infrastructure.Imaging;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace GenHub.Features.Tools.MapManager.Services;
 
@@ -238,7 +239,12 @@ public sealed class MapDirectoryService(
 
         try
         {
-            System.Diagnostics.Process.Start("explorer.exe", directory);
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = PlatformConstants.WindowsExplorerPath,
+                Arguments = directory,
+                UseShellExecute = true,
+            });
         }
         catch (Exception ex)
         {
@@ -251,7 +257,12 @@ public sealed class MapDirectoryService(
     {
         try
         {
-            System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{map.FullPath}\"");
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = PlatformConstants.WindowsExplorerPath,
+                Arguments = string.Format(PlatformConstants.WindowsExplorerSelectArgument, map.FullPath),
+                UseShellExecute = true,
+            });
         }
         catch (Exception ex)
         {
@@ -269,7 +280,7 @@ public sealed class MapDirectoryService(
 
         // Validate name for illegal characters
         var invalidChars = Path.GetInvalidFileNameChars();
-        if (newName.Any(c => invalidChars.Contains(c)))
+        if (newName.IndexOfAny(invalidChars) >= 0)
         {
             logger.LogWarning("Invalid characters in map name: {Name}", newName);
             return false;
@@ -325,28 +336,26 @@ public sealed class MapDirectoryService(
                         logger.LogInformation("Renamed map directory from {OldName} to {NewName}", map.DirectoryName, newName);
                         return true;
                     }
-                    else
+
+                    // Rename standalone .map file
+                    var directory = Path.GetDirectoryName(map.FullPath);
+                    if (string.IsNullOrEmpty(directory))
                     {
-                        // Rename standalone .map file
-                        var directory = Path.GetDirectoryName(map.FullPath);
-                        if (string.IsNullOrEmpty(directory))
-                        {
-                            return false;
-                        }
-
-                        var newFileName = newName + ".map";
-                        var newFilePath = Path.Combine(directory, newFileName);
-
-                        if (File.Exists(newFilePath))
-                        {
-                            logger.LogWarning("Target file already exists: {Path}", newFilePath);
-                            return false;
-                        }
-
-                        File.Move(map.FullPath, newFilePath);
-                        logger.LogInformation("Renamed map from {OldName} to {NewName}", map.FileName, newFileName);
-                        return true;
+                        return false;
                     }
+
+                    var newFileName = newName + ".map";
+                    var newFilePath = Path.Combine(directory, newFileName);
+
+                    if (File.Exists(newFilePath))
+                    {
+                        logger.LogWarning("Target file already exists: {Path}", newFilePath);
+                        return false;
+                    }
+
+                    File.Move(map.FullPath, newFilePath);
+                    logger.LogInformation("Renamed map from {OldName} to {NewName}", map.FileName, newFileName);
+                    return true;
                 }
                 catch (Exception ex)
                 {

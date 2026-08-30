@@ -25,7 +25,7 @@ public class GameProfileSettingsViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task InitializeForNewProfileAsync_WithRequiredServices_SetsDefaultsAndLoadsContent()
+    public async Task InitializeForNewProfileAsync_WithRequiredServices_SetsDefaultsAndLoadsContentAsync()
     {
         // Arrange
         var mockGameSettingsService = new Mock<IGameSettingsService>();
@@ -126,7 +126,7 @@ public class GameProfileSettingsViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task InitializeForProfileAsync_WithoutProfileManager_SetsLoadingError()
+    public async Task InitializeForProfileAsync_WithoutProfileManager_SetsLoadingErrorAsync()
     {
         // Arrange
         var mockGameSettingsService = new Mock<IGameSettingsService>();
@@ -161,7 +161,7 @@ public class GameProfileSettingsViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ReceiveManifestReplacedMessage_UpdatesEnabledContent_WithoutDuplication()
+    public async Task ReceiveManifestReplacedMessage_UpdatesEnabledContent_WithoutDuplicationAsync()
     {
         // Arrange
         var mockGameSettingsService = new Mock<IGameSettingsService>();
@@ -186,17 +186,6 @@ public class GameProfileSettingsViewModelTests
             Id = GenHub.Core.Models.Manifest.ManifestId.Create(newId),
             Name = "My Mod v2",
             ContentType = GenHub.Core.Models.Enums.ContentType.Mod,
-            Version = "2.0",
-        };
-
-        var newItem = new GenHub.Features.GameProfiles.ViewModels.ContentDisplayItem
-        {
-            ManifestId = GenHub.Core.Models.Manifest.ManifestId.Create(newId),
-            DisplayName = "My Mod v2",
-            IsEnabled = true,
-            ContentType = GenHub.Core.Models.Enums.ContentType.Mod,
-            GameType = GenHub.Core.Models.Enums.GameType.Generals,
-            InstallationType = GenHub.Core.Models.Enums.GameInstallationType.Steam,
             Version = "2.0",
         };
 

@@ -66,6 +66,8 @@ public class UserSettingsServiceTests : IDisposable
         Assert.Equal(DownloadDefaults.MaxConcurrentDownloads, settings.MaxConcurrentDownloads);
         Assert.True(settings.AllowBackgroundDownloads);
         Assert.True(settings.AutoCheckForUpdatesOnStartup);
+        Assert.True(settings.AutoCheckForUpdatesPeriodically);
+        Assert.Equal(AppUpdateConstants.DefaultPeriodicUpdateCheckIntervalMinutes, settings.PeriodicUpdateCheckIntervalMinutes);
         Assert.Equal(WorkspaceConstants.DefaultWorkspaceStrategy, settings.DefaultWorkspaceStrategy);
     }
 
@@ -74,7 +76,7 @@ public class UserSettingsServiceTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task SaveAsync_CreatesFileWithCorrectData()
+    public async Task SaveAsync_CreatesFileWithCorrectDataAsync()
     {
         var service = CreateService();
         var settingsPath = Path.Combine(_tempDirectory, FileTypes.JsonFileExtension);
@@ -99,7 +101,7 @@ public class UserSettingsServiceTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task LoadSettings_AfterSave_LoadsCorrectData()
+    public async Task LoadSettings_AfterSave_LoadsCorrectDataAsync()
     {
         // Use a unique temp directory for this test
         var testDir = Path.Combine(_tempDirectory, Guid.NewGuid().ToString());
@@ -137,7 +139,7 @@ public class UserSettingsServiceTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task LoadSettings_AfterSave_PreservesInstallationPoolProvenanceMarker()
+    public async Task LoadSettings_AfterSave_PreservesInstallationPoolProvenanceMarkerAsync()
     {
         var settingsPath = Path.Combine(_tempDirectory, "provenance", FileTypes.SettingsFileName);
         var historicalPoolPath = "/historical/installation/.genhub-cas";
@@ -170,7 +172,7 @@ public class UserSettingsServiceTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task GetSettings_WithCorruptedJson_ReturnsDefaults()
+    public async Task GetSettings_WithCorruptedJson_ReturnsDefaultsAsync()
     {
         var testDir = Path.Combine(_tempDirectory, Guid.NewGuid().ToString());
         Directory.CreateDirectory(testDir);
@@ -226,15 +228,12 @@ public class UserSettingsServiceTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task SaveAsync_CreatesDirectoryIfNotExists()
+    public async Task SaveAsync_CreatesDirectoryIfNotExistsAsync()
     {
         var nestedPath = Path.Combine(_tempDirectory, "nested", "path");
         var settingsPath = Path.Combine(nestedPath, FileTypes.JsonFileExtension);
         var service = CreateService();
-        var settingsPathField = typeof(UserSettingsService)
-            .GetField("_settingsFilePath", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(settingsPathField);
-        settingsPathField.SetValue(service, settingsPath);
+        service.AdoptSettingsFile(settingsPath);
         await service.SaveAsync();
         Assert.True(Directory.Exists(nestedPath));
         Assert.True(File.Exists(settingsPath));
@@ -255,17 +254,14 @@ public class UserSettingsServiceTests : IDisposable
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task SaveAsync_WithLongPath_CreatesNestedDirectories()
+    public async Task SaveAsync_WithLongPath_CreatesNestedDirectoriesAsync()
     {
         // Arrange
         var deepPath = Path.Combine(_tempDirectory, "very", "deep", "nested", "path");
         var settingsPath = Path.Combine(deepPath, FileTypes.JsonFileExtension);
 
         var service = CreateService();
-        var settingsPathField = typeof(UserSettingsService)
-            .GetField("_settingsFilePath", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(settingsPathField);
-        settingsPathField.SetValue(service, settingsPath);
+        service.AdoptSettingsFile(settingsPath);
 
         // Act
         await service.SaveAsync();
@@ -364,6 +360,196 @@ public class UserSettingsServiceTests : IDisposable
         Assert.Equal(enableLogging, currentSettings.EnableDetailedLogging);
     }
 
+    /// <summary>
+    /// Verifies that periodic update settings can be set and retrieved correctly.
+    /// </summary>
+    [Fact]
+    public void UpdateSettings_PeriodicUpdateSettings_CanBeSetAndRetrieved()
+    {
+        var service = CreateService();
+
+        service.Update(settings =>
+        {
+            settings.AutoCheckForUpdatesPeriodically = false;
+            settings.PeriodicUpdateCheckIntervalMinutes = 15;
+        });
+        var currentSettings = service.Get();
+
+        Assert.False(currentSettings.AutoCheckForUpdatesPeriodically);
+        Assert.Equal(15, currentSettings.PeriodicUpdateCheckIntervalMinutes);
+    }
+
+    /// <summary>
+    /// Verifies that pointing the settings file at a file that already holds settings refuses the
+    /// save instead of replacing that file with values read from a different one, and that the
+    /// edits being saved survive the refusal.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task Update_WhenRepointedAtExistingSettingsFile_RefusesToOverwriteItAsync()
+    {
+        var currentPath = Path.Combine(_tempDirectory, FileTypes.SettingsFileName);
+        var otherPath = Path.Combine(_tempDirectory, "backup.json");
+        var otherJson = """{ "theme": "Light", "maxConcurrentDownloads": 7 }""";
+        File.WriteAllText(currentPath, """{ "theme": "Dark" }""");
+        File.WriteAllText(otherPath, otherJson);
+
+        var service = new TestableUserSettingsService(_mockLogger.Object, CreateAppConfigMock(), currentPath);
+        service.Update(settings =>
+        {
+            settings.WorkspacePath = "/edited";
+            settings.SettingsFilePath = otherPath;
+        });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.SaveAsync());
+
+        Assert.Equal(otherJson, File.ReadAllText(otherPath));
+        Assert.Equal("/edited", service.Get().WorkspacePath);
+    }
+
+    /// <summary>
+    /// Verifies that the same re-point through the combined update-and-save entry point reports
+    /// failure rather than overwriting the file it was pointed at.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task TryUpdateAndSaveAsync_WhenRepointedAtExistingSettingsFile_FailsWithoutOverwritingItAsync()
+    {
+        var currentPath = Path.Combine(_tempDirectory, FileTypes.SettingsFileName);
+        var otherPath = Path.Combine(_tempDirectory, "backup.json");
+        var otherJson = """{ "theme": "Light", "maxConcurrentDownloads": 7 }""";
+        File.WriteAllText(currentPath, """{ "theme": "Dark" }""");
+        File.WriteAllText(otherPath, otherJson);
+
+        var service = new TestableUserSettingsService(_mockLogger.Object, CreateAppConfigMock(), currentPath);
+        var saved = await service.TryUpdateAndSaveAsync(settings =>
+        {
+            settings.SettingsFilePath = otherPath;
+            return true;
+        });
+
+        Assert.False(saved);
+        Assert.Equal(otherJson, File.ReadAllText(otherPath));
+    }
+
+    /// <summary>
+    /// Verifies that relocating the settings to a path that holds nothing is still honoured, since
+    /// there is nothing there for the save to destroy.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task Update_WhenRepointedAtUnusedPath_SavesTheEditsThereAsync()
+    {
+        var currentPath = Path.Combine(_tempDirectory, FileTypes.SettingsFileName);
+        var newPath = Path.Combine(_tempDirectory, "moved", FileTypes.SettingsFileName);
+        File.WriteAllText(currentPath, """{ "theme": "Dark" }""");
+
+        var service = new TestableUserSettingsService(_mockLogger.Object, CreateAppConfigMock(), currentPath);
+        service.Update(settings =>
+        {
+            settings.Theme = "Light";
+            settings.SettingsFilePath = newPath;
+        });
+
+        await service.SaveAsync();
+
+        Assert.Contains("Light", File.ReadAllText(newPath));
+    }
+
+    /// <summary>
+    /// Verifies that a refused re-point is recoverable by pointing back at the file the settings
+    /// were read from, so the refusal cannot strand the session.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task Update_AfterRefusedRepoint_SavesAgainOncePointedBackAsync()
+    {
+        var currentPath = Path.Combine(_tempDirectory, FileTypes.SettingsFileName);
+        var otherPath = Path.Combine(_tempDirectory, "backup.json");
+        var otherJson = """{ "theme": "Light" }""";
+        File.WriteAllText(currentPath, """{ "theme": "Dark" }""");
+        File.WriteAllText(otherPath, otherJson);
+
+        var service = new TestableUserSettingsService(_mockLogger.Object, CreateAppConfigMock(), currentPath);
+        service.Update(settings =>
+        {
+            settings.WorkspacePath = "/edited";
+            settings.SettingsFilePath = otherPath;
+        });
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.SaveAsync());
+
+        service.Update(settings => settings.SettingsFilePath = currentPath);
+        await service.SaveAsync();
+
+        Assert.Contains("/edited", File.ReadAllText(currentPath));
+        Assert.Equal(otherJson, File.ReadAllText(otherPath));
+    }
+
+    /// <summary>
+    /// Verifies that a refused re-point is also recoverable by clearing the path it was refused
+    /// for, so the refusal lasts exactly as long as the file it protects.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task Update_AfterRefusedRepoint_SavesOnceTheConflictingFileIsGoneAsync()
+    {
+        var currentPath = Path.Combine(_tempDirectory, FileTypes.SettingsFileName);
+        var otherPath = Path.Combine(_tempDirectory, "backup.json");
+        File.WriteAllText(currentPath, """{ "theme": "Dark" }""");
+        File.WriteAllText(otherPath, """{ "theme": "Light" }""");
+
+        var service = new TestableUserSettingsService(_mockLogger.Object, CreateAppConfigMock(), currentPath);
+        service.Update(settings =>
+        {
+            settings.WorkspacePath = "/edited";
+            settings.SettingsFilePath = otherPath;
+        });
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.SaveAsync());
+
+        File.Delete(otherPath);
+        service.Update(settings => settings.SettingsFilePath = otherPath);
+        await service.SaveAsync();
+
+        Assert.Contains("/edited", File.ReadAllText(otherPath));
+    }
+
+    /// <summary>
+    /// Verifies that the ordinary save, where the settings name the very file they were read from,
+    /// is unaffected by the re-point check.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task Update_WhenTheSettingsNameTheFileTheyCameFrom_SavesAsync()
+    {
+        var currentPath = Path.Combine(_tempDirectory, FileTypes.SettingsFileName);
+        File.WriteAllText(
+            currentPath,
+            $$"""{ "theme": "Dark", "settingsFilePath": {{JsonSerializer.Serialize(currentPath)}} }""");
+
+        var service = new TestableUserSettingsService(_mockLogger.Object, CreateAppConfigMock(), currentPath);
+        service.Update(settings => settings.Theme = "Light");
+
+        await service.SaveAsync();
+
+        Assert.Contains("Light", File.ReadAllText(currentPath));
+    }
+
+    /// <summary>
+    /// Verifies that a first run, which has no settings file at all, still persists its settings.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task SaveAsync_OnFirstRunWithoutAnExistingFile_PersistsTheSettingsAsync()
+    {
+        var settingsPath = Path.Combine(_tempDirectory, FileTypes.SettingsFileName);
+        var service = CreateServiceWithPath(settingsPath);
+
+        service.Update(settings => settings.Theme = "Light");
+        await service.SaveAsync();
+
+        Assert.Contains("Light", File.ReadAllText(settingsPath));
+    }
+
     private static IAppConfiguration CreateAppConfigMock()
     {
         var appConfig = new Mock<IAppConfiguration>();
@@ -427,5 +613,7 @@ public class UserSettingsServiceTests : IDisposable
             // We then set the path, which will load from the file if it exists.
             SetSettingsFilePath(settingsFilePath);
         }
+
+        public void AdoptSettingsFile(string settingsFilePath) => SetSettingsFilePath(settingsFilePath);
     }
 }
