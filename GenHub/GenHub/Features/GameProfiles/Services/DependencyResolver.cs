@@ -179,27 +179,22 @@ public class DependencyResolver(
         var warnings = new List<string>();
         var toProcess = new Queue<string>(contentIds);
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var processingStack = new HashSet<string>(StringComparer.OrdinalIgnoreCase); // Track currently processing path for circular detection
+        var ancestorMap = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var id in contentIds)
+        {
+            ancestorMap[id] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
 
         while (toProcess.Count > 0)
         {
             var contentId = toProcess.Dequeue();
-
-            // Circular dependency detection
-            if (processingStack.Contains(contentId))
-            {
-                var circularWarning = $"Circular dependency detected: '{contentId}' is already in the resolution path";
-                warnings.Add(circularWarning);
-                logger.LogWarning("Circular dependency detected: {ContentId} is already in the resolution path", contentId);
-                continue;
-            }
 
             if (!visited.Add(contentId))
             {
                 continue;
             }
 
-            processingStack.Add(contentId);
             resolvedIds.Add(contentId);
 
             try
@@ -212,6 +207,9 @@ public class DependencyResolver(
                     if (manifest.Dependencies != null)
                     {
                         var relevantDeps = manifest.Dependencies.Where(d => d.InstallBehavior == DependencyInstallBehavior.RequireExisting || d.InstallBehavior == DependencyInstallBehavior.AutoInstall);
+                        ancestorMap.TryGetValue(contentId, out var currentAncestors);
+                        var currentChain = currentAncestors ?? [];
+
                         foreach (var dep in relevantDeps)
                         {
                             // Skip default/placeholder IDs - these are generic type-based constraints validated separately
@@ -229,14 +227,17 @@ public class DependencyResolver(
                                 continue;
                             }
 
-                            if (visited.Contains(dep.Id))
+                            // True circular dependency: the dependency is already an ancestor of the current node
+                            if (currentChain.Contains(dep.Id) || string.Equals(contentId, dep.Id, StringComparison.OrdinalIgnoreCase))
                             {
                                 var circularWarning = $"Circular dependency detected: '{dep.Id}' is already in the resolution path";
                                 warnings.Add(circularWarning);
                                 logger.LogWarning("Circular dependency detected: {ContentId} is already in the resolution path", dep.Id);
                             }
-                            else if (!resolvedIds.Contains(dep.Id))
+                            else if (!resolvedIds.Contains(dep.Id) && !visited.Contains(dep.Id))
                             {
+                                var depAncestors = new HashSet<string>(currentChain, StringComparer.OrdinalIgnoreCase) { contentId };
+                                ancestorMap[dep.Id] = depAncestors;
                                 toProcess.Enqueue(dep.Id);
                             }
                         }
@@ -252,10 +253,6 @@ public class DependencyResolver(
             {
                 missingContentIds.Add(contentId);
                 logger.LogWarning(ex, "Invalid manifest ID during dependency resolution: {ContentId}", contentId);
-            }
-            finally
-            {
-                processingStack.Remove(contentId);
             }
         }
 
