@@ -10,6 +10,7 @@ using GenHub.Core.Services.Content;
 using GenHub.Core.Services.Providers;
 using GenHub.Core.Services.Providers.VersionSchemes;
 using GenHub.Features.Content.Services;
+using GenHub.Features.Content.Services.Common;
 using GenHub.Features.Content.Services.CommunityOutpost;
 using GenHub.Features.Content.Services.ContentDeliverers;
 using GenHub.Features.Content.Services.ContentDiscoverers;
@@ -56,6 +57,7 @@ public static class ContentPipelineModule
         AddCNCLabsPipeline(services);
         AddModDBPipeline(services);
         AddLocalFileSystemPipeline(services);
+        AddCsvPipeline(services);
         AddSharedComponents(services);
 
         return services;
@@ -345,6 +347,23 @@ public static class ContentPipelineModule
     }
 
     /// <summary>
+    /// Registers CSV content pipeline services.
+    /// </summary>
+    private static void AddCsvPipeline(IServiceCollection services)
+    {
+        // Register CSV content provider
+        services.AddTransient<IContentProvider, CsvContentProvider>();
+
+        // Register CSV discoverer (concrete and interface)
+        services.AddTransient<CsvDiscoverer>();
+        services.AddTransient<IContentDiscoverer, CsvDiscoverer>();
+
+        // Register CSV resolver (concrete and interface)
+        services.AddTransient<CsvResolver>();
+        services.AddTransient<IContentResolver, CsvResolver>();
+    }
+
+    /// <summary>
     /// Registers shared components used across multiple pipelines.
     /// </summary>
     private static void AddSharedComponents(IServiceCollection services)
@@ -361,5 +380,19 @@ public static class ContentPipelineModule
 
         // Register content orchestrator and validator
         services.AddSingleton<IContentValidator, ContentValidator>();
+
+        // Register installation step preconditions
+        services.AddSingleton<IInstallationStepPrecondition, EasyAntiCheatPrecondition>();
+
+        // Register installation instructions execution service
+        services.AddSingleton<IInstallationInstructionsService, InstallationInstructionsService>();
+
+        // Register archive payload processor
+        services.AddSingleton<ArchivePayloadProcessor>();
+        services.AddSingleton<IArchivePayloadProcessor>(sp => sp.GetRequiredService<ArchivePayloadProcessor>());
+
+        // Register control bar packaging processor
+        services.AddSingleton<ControlBarPackageProcessor>();
+        services.AddSingleton<IControlBarPackageProcessor>(sp => sp.GetRequiredService<ControlBarPackageProcessor>());
     }
 }

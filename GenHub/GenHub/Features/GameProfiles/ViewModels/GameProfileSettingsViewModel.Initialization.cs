@@ -36,7 +36,7 @@ public partial class GameProfileSettingsViewModel
             }
 
             CurrentProfileId = null;
-            Name = "New Profile";
+            Name = ProfileConstants.DefaultProfileName;
             Description = "A new game profile";
             ColorValue = "#1976D2";
             SelectedWorkspaceStrategy = GetDefaultWorkspaceStrategy();
@@ -137,7 +137,7 @@ public partial class GameProfileSettingsViewModel
             CurrentProfileId = profileId;
             _logger?.LogInformation("InitializeForProfileAsync called with profileId: {ProfileId}", profileId);
 
-            var profileResult = await _gameProfileManager!.GetProfileAsync(profileId);
+            var profileResult = await _gameProfileManager.GetProfileAsync(profileId);
             if (!profileResult.Success || profileResult.Data == null)
             {
                 _logger?.LogWarning("Failed to load profile {ProfileId}: {Errors}", profileId, string.Join(", ", profileResult.Errors));

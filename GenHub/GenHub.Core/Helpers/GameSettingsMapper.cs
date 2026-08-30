@@ -1,3 +1,4 @@
+using System.Globalization;
 using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
@@ -83,16 +84,24 @@ public static class GameSettingsMapper
         profile.TshCursorCaptureEnabledInWindowedMenu = settings.CursorCaptureEnabledInWindowedMenu;
         profile.TshScreenEdgeScrollEnabledInFullscreenApp = settings.ScreenEdgeScrollEnabledInFullscreenApp;
         profile.TshScreenEdgeScrollEnabledInWindowedApp = settings.ScreenEdgeScrollEnabledInWindowedApp;
+        profile.TshGameWindowTransitionSpeedMultiplier = settings.GameWindowTransitionSpeedMultiplier;
     }
 
     /// <summary>
     /// Applies settings from a GameProfile to a GeneralsOnlineSettings object.
     /// Used by GameLauncher to prepare settings.json for launch.
     /// </summary>
+    /// <remarks>
+    /// Only the fields the profile declares are written, as <see cref="ApplyToOptions"/> does for
+    /// Options.ini. The caller passes the settings already on disk, and anything the profile leaves
+    /// unset is the GeneralsOnline client's own configuration, which a launch must not overwrite.
+    /// </remarks>
     /// <param name="profile">The GameProfile source.</param>
     /// <param name="settings">The GeneralsOnlineSettings to populate.</param>
     public static void ApplyToGeneralsOnlineSettings(GameProfile profile, GeneralsOnlineSettings settings)
     {
+        settings.EnsureNestedSectionsInitialized();
+
         ApplyGoGeneralSettings(profile, settings);
         ApplyGoCameraAndChatSettings(profile, settings);
         ApplyGoRenderAndDebugSettings(profile, settings);
@@ -157,6 +166,7 @@ public static class GameSettingsMapper
         profile.TshScreenEdgeScrollEnabledInFullscreenApp = request.TshScreenEdgeScrollEnabledInFullscreenApp;
         profile.TshScreenEdgeScrollEnabledInWindowedApp = request.TshScreenEdgeScrollEnabledInWindowedApp;
         profile.TshMoneyTransactionVolume = request.TshMoneyTransactionVolume;
+        profile.TshGameWindowTransitionSpeedMultiplier = request.TshGameWindowTransitionSpeedMultiplier;
 
         // GeneralsOnline settings
         profile.GoShowFps = request.GoShowFps;
@@ -251,6 +261,7 @@ public static class GameSettingsMapper
         profile.TshScreenEdgeScrollEnabledInFullscreenApp = request.TshScreenEdgeScrollEnabledInFullscreenApp;
         profile.TshScreenEdgeScrollEnabledInWindowedApp = request.TshScreenEdgeScrollEnabledInWindowedApp;
         profile.TshMoneyTransactionVolume = request.TshMoneyTransactionVolume;
+        profile.TshGameWindowTransitionSpeedMultiplier = request.TshGameWindowTransitionSpeedMultiplier;
 
         // GeneralsOnline settings
         profile.GoShowFps = request.GoShowFps;
@@ -385,6 +396,7 @@ public static class GameSettingsMapper
         target.TshScreenEdgeScrollEnabledInFullscreenApp = source.TshScreenEdgeScrollEnabledInFullscreenApp;
         target.TshScreenEdgeScrollEnabledInWindowedApp = source.TshScreenEdgeScrollEnabledInWindowedApp;
         target.TshMoneyTransactionVolume = source.TshMoneyTransactionVolume;
+        target.TshGameWindowTransitionSpeedMultiplier = source.TshGameWindowTransitionSpeedMultiplier;
 
         target.GoShowFps = source.GoShowFps;
         target.GoShowPing = source.GoShowPing;
@@ -477,6 +489,7 @@ public static class GameSettingsMapper
         target.TshScreenEdgeScrollEnabledInFullscreenApp = source.TshScreenEdgeScrollEnabledInFullscreenApp;
         target.TshScreenEdgeScrollEnabledInWindowedApp = source.TshScreenEdgeScrollEnabledInWindowedApp;
         target.TshMoneyTransactionVolume = source.TshMoneyTransactionVolume;
+        target.TshGameWindowTransitionSpeedMultiplier = source.TshGameWindowTransitionSpeedMultiplier;
 
         target.GoShowFps = source.GoShowFps;
         target.GoShowPing = source.GoShowPing;
@@ -511,6 +524,44 @@ public static class GameSettingsMapper
         target.UseSteamLaunch = source.UseSteamLaunch;
         target.GameSpyIPAddress = source.GameSpyIPAddress;
         target.VideoSkipEALogo = source.VideoSkipEALogo;
+    }
+
+    /// <summary>
+    /// Normalizes and clamps a transition speed multiplier value to the supported range.
+    /// </summary>
+    /// <param name="value">The float value.</param>
+    /// <returns>The clamped float multiplier if finite and non-null; otherwise, null.</returns>
+    public static float? NormalizeTransitionSpeedMultiplier(float? value)
+    {
+        if (value.HasValue && float.IsFinite(value.Value))
+        {
+            return Math.Clamp(
+                value.Value,
+                GameSettingsTheSuperHackersConstants.MinGameWindowTransitionSpeedMultiplier,
+                GameSettingsTheSuperHackersConstants.MaxGameWindowTransitionSpeedMultiplier);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Parses and clamps the GameWindowTransitionSpeedMultiplier from a raw string value.
+    /// </summary>
+    /// <param name="value">The raw string value.</param>
+    /// <returns>The clamped float multiplier if valid; otherwise, null.</returns>
+    public static float? ParseTransitionSpeedMultiplier(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var speed))
+        {
+            return NormalizeTransitionSpeedMultiplier(speed);
+        }
+
+        return null;
     }
 
     private static void ApplyVideoFromOptions(IniOptions options, GameProfile profile)
@@ -571,22 +622,43 @@ public static class GameSettingsMapper
             profile.VideoDynamicLOD = ParseBool(dynLOD);
         if (options.Video.AdditionalProperties.TryGetValue("MaxParticleCount", out var particles) && int.TryParse(particles, out var particleVal))
             profile.VideoMaxParticleCount = particleVal;
+        if (options.Video.AdditionalProperties.TryGetValue(GameSettingsTheSuperHackersConstants.GameWindowTransitionSpeedMultiplierKey, out var speed))
+        {
+            var parsed = ParseTransitionSpeedMultiplier(speed);
+            if (parsed.HasValue)
+            {
+                profile.TshGameWindowTransitionSpeedMultiplier = parsed.Value;
+            }
+        }
     }
 
     private static void ApplyTshHierarchicalSettingsFromOptions(IniOptions options, GameProfile profile)
     {
         if (options.AdditionalSections.TryGetValue("TheSuperHackers", out var tsh))
         {
-            if (tsh.TryGetValue("UseDoubleClickAttackMove", out var doubleClickTsh))
-                profile.VideoUseDoubleClickAttackMove = ParseBool(doubleClickTsh);
-            if (tsh.TryGetValue("ScrollFactor", out var scrollTsh) && int.TryParse(scrollTsh, out var scrollTshVal))
-                profile.VideoScrollFactor = scrollTshVal;
-            if (tsh.TryGetValue("Retaliation", out var retaliationTsh))
-                profile.VideoRetaliation = ParseBool(retaliationTsh);
-            if (tsh.TryGetValue("DynamicLOD", out var dynLODTsh))
-                profile.VideoDynamicLOD = ParseBool(dynLODTsh);
-            if (tsh.TryGetValue("MaxParticleCount", out var particlesTsh) && int.TryParse(particlesTsh, out var particlesTshVal))
-                profile.VideoMaxParticleCount = particlesTshVal;
+            ApplyTshHierarchicalProperties(tsh, profile);
+        }
+    }
+
+    private static void ApplyTshHierarchicalProperties(Dictionary<string, string> tsh, GameProfile profile)
+    {
+        if (tsh.TryGetValue("UseDoubleClickAttackMove", out var doubleClickTsh))
+            profile.VideoUseDoubleClickAttackMove = ParseBool(doubleClickTsh);
+        if (tsh.TryGetValue("ScrollFactor", out var scrollTsh) && int.TryParse(scrollTsh, out var scrollTshVal))
+            profile.VideoScrollFactor = scrollTshVal;
+        if (tsh.TryGetValue("Retaliation", out var retaliationTsh))
+            profile.VideoRetaliation = ParseBool(retaliationTsh);
+        if (tsh.TryGetValue("DynamicLOD", out var dynLODTsh))
+            profile.VideoDynamicLOD = ParseBool(dynLODTsh);
+        if (tsh.TryGetValue("MaxParticleCount", out var particlesTsh) && int.TryParse(particlesTsh, out var particlesTshVal))
+            profile.VideoMaxParticleCount = particlesTshVal;
+        if (tsh.TryGetValue(GameSettingsTheSuperHackersConstants.GameWindowTransitionSpeedMultiplierKey, out var speedTsh))
+        {
+            var parsed = ParseTransitionSpeedMultiplier(speedTsh);
+            if (parsed.HasValue)
+            {
+                profile.TshGameWindowTransitionSpeedMultiplier = parsed.Value;
+            }
         }
     }
 
@@ -607,60 +679,64 @@ public static class GameSettingsMapper
 
     private static void ApplyGoGeneralSettings(GameProfile profile, GeneralsOnlineSettings settings)
     {
-        settings.ShowFps = profile.GoShowFps ?? false;
-        settings.ShowPing = profile.GoShowPing ?? true;
-        settings.ShowPlayerRanks = profile.GoShowPlayerRanks ?? true;
-        settings.AutoLogin = profile.GoAutoLogin ?? false;
-        settings.RememberUsername = profile.GoRememberUsername ?? true;
-        settings.EnableNotifications = profile.GoEnableNotifications ?? true;
-        settings.EnableSoundNotifications = profile.GoEnableSoundNotifications ?? true;
-        settings.ChatFontSize = profile.GoChatFontSize ?? 12;
+        if (profile.GoShowFps.HasValue) settings.ShowFps = profile.GoShowFps.Value;
+        if (profile.GoShowPing.HasValue) settings.ShowPing = profile.GoShowPing.Value;
+        if (profile.GoShowPlayerRanks.HasValue) settings.ShowPlayerRanks = profile.GoShowPlayerRanks.Value;
+        if (profile.GoAutoLogin.HasValue) settings.AutoLogin = profile.GoAutoLogin.Value;
+        if (profile.GoRememberUsername.HasValue) settings.RememberUsername = profile.GoRememberUsername.Value;
+        if (profile.GoEnableNotifications.HasValue) settings.EnableNotifications = profile.GoEnableNotifications.Value;
+        if (profile.GoEnableSoundNotifications.HasValue) settings.EnableSoundNotifications = profile.GoEnableSoundNotifications.Value;
+        if (profile.GoChatFontSize.HasValue) settings.ChatFontSize = profile.GoChatFontSize.Value;
     }
 
     private static void ApplyGoCameraAndChatSettings(GameProfile profile, GeneralsOnlineSettings settings)
     {
-        settings.Camera.MaxHeightOnlyWhenLobbyHost = profile.GoCameraMaxHeightOnlyWhenLobbyHost ?? 310.0f;
-        settings.Camera.MinHeight = profile.GoCameraMinHeight ?? 310.0f;
-        settings.Camera.MoveSpeedRatio = profile.GoCameraMoveSpeedRatio ?? 1.5f;
-        settings.Chat.DurationSecondsUntilFadeOut = profile.GoChatDurationSecondsUntilFadeOut ?? 30;
+        if (profile.GoCameraMaxHeightOnlyWhenLobbyHost.HasValue) settings.Camera.MaxHeightOnlyWhenLobbyHost = profile.GoCameraMaxHeightOnlyWhenLobbyHost.Value;
+        if (profile.GoCameraMinHeight.HasValue) settings.Camera.MinHeight = profile.GoCameraMinHeight.Value;
+        if (profile.GoCameraMoveSpeedRatio.HasValue) settings.Camera.MoveSpeedRatio = profile.GoCameraMoveSpeedRatio.Value;
+        if (profile.GoChatDurationSecondsUntilFadeOut.HasValue) settings.Chat.DurationSecondsUntilFadeOut = profile.GoChatDurationSecondsUntilFadeOut.Value;
     }
 
     private static void ApplyGoRenderAndDebugSettings(GameProfile profile, GeneralsOnlineSettings settings)
     {
-        settings.Debug.VerboseLogging = profile.GoDebugVerboseLogging ?? false;
-        settings.Render.FpsLimit = profile.GoRenderFpsLimit ?? 144;
-        settings.Render.LimitFramerate = profile.GoRenderLimitFramerate ?? true;
-        settings.Render.StatsOverlay = profile.GoRenderStatsOverlay ?? true;
+        if (profile.GoDebugVerboseLogging.HasValue) settings.Debug.VerboseLogging = profile.GoDebugVerboseLogging.Value;
+        if (profile.GoRenderFpsLimit.HasValue) settings.Render.FpsLimit = profile.GoRenderFpsLimit.Value;
+        if (profile.GoRenderLimitFramerate.HasValue) settings.Render.LimitFramerate = profile.GoRenderLimitFramerate.Value;
+        if (profile.GoRenderStatsOverlay.HasValue) settings.Render.StatsOverlay = profile.GoRenderStatsOverlay.Value;
     }
 
     private static void ApplyGoSocialSettings(GameProfile profile, GeneralsOnlineSettings settings)
     {
-        settings.Social.NotificationFriendComesOnlineGameplay = profile.GoSocialNotificationFriendComesOnlineGameplay ?? true;
-        settings.Social.NotificationFriendComesOnlineMenus = profile.GoSocialNotificationFriendComesOnlineMenus ?? true;
-        settings.Social.NotificationFriendGoesOfflineGameplay = profile.GoSocialNotificationFriendGoesOfflineGameplay ?? true;
-        settings.Social.NotificationFriendGoesOfflineMenus = profile.GoSocialNotificationFriendGoesOfflineMenus ?? true;
-        settings.Social.NotificationPlayerAcceptsRequestGameplay = profile.GoSocialNotificationPlayerAcceptsRequestGameplay ?? true;
-        settings.Social.NotificationPlayerAcceptsRequestMenus = profile.GoSocialNotificationPlayerAcceptsRequestMenus ?? true;
-        settings.Social.NotificationPlayerSendsRequestGameplay = profile.GoSocialNotificationPlayerSendsRequestGameplay ?? true;
-        settings.Social.NotificationPlayerSendsRequestMenus = profile.GoSocialNotificationPlayerSendsRequestMenus ?? true;
+        if (profile.GoSocialNotificationFriendComesOnlineGameplay.HasValue) settings.Social.NotificationFriendComesOnlineGameplay = profile.GoSocialNotificationFriendComesOnlineGameplay.Value;
+        if (profile.GoSocialNotificationFriendComesOnlineMenus.HasValue) settings.Social.NotificationFriendComesOnlineMenus = profile.GoSocialNotificationFriendComesOnlineMenus.Value;
+        if (profile.GoSocialNotificationFriendGoesOfflineGameplay.HasValue) settings.Social.NotificationFriendGoesOfflineGameplay = profile.GoSocialNotificationFriendGoesOfflineGameplay.Value;
+        if (profile.GoSocialNotificationFriendGoesOfflineMenus.HasValue) settings.Social.NotificationFriendGoesOfflineMenus = profile.GoSocialNotificationFriendGoesOfflineMenus.Value;
+        if (profile.GoSocialNotificationPlayerAcceptsRequestGameplay.HasValue) settings.Social.NotificationPlayerAcceptsRequestGameplay = profile.GoSocialNotificationPlayerAcceptsRequestGameplay.Value;
+        if (profile.GoSocialNotificationPlayerAcceptsRequestMenus.HasValue) settings.Social.NotificationPlayerAcceptsRequestMenus = profile.GoSocialNotificationPlayerAcceptsRequestMenus.Value;
+        if (profile.GoSocialNotificationPlayerSendsRequestGameplay.HasValue) settings.Social.NotificationPlayerSendsRequestGameplay = profile.GoSocialNotificationPlayerSendsRequestGameplay.Value;
+        if (profile.GoSocialNotificationPlayerSendsRequestMenus.HasValue) settings.Social.NotificationPlayerSendsRequestMenus = profile.GoSocialNotificationPlayerSendsRequestMenus.Value;
     }
 
     private static void ApplyGoTshSettings(GameProfile profile, GeneralsOnlineSettings settings)
     {
-        settings.ArchiveReplays = profile.TshArchiveReplays ?? false;
-        settings.MoneyTransactionVolume = profile.TshMoneyTransactionVolume ?? 50;
-        settings.ShowMoneyPerMinute = profile.TshShowMoneyPerMinute ?? false;
-        settings.PlayerObserverEnabled = profile.TshPlayerObserverEnabled ?? GameSettingsTheSuperHackersConstants.DefaultPlayerObserverEnabled;
-        settings.SystemTimeFontSize = profile.TshSystemTimeFontSize ?? GameSettingsTheSuperHackersConstants.DefaultSystemTimeFontSize;
-        settings.NetworkLatencyFontSize = profile.TshNetworkLatencyFontSize ?? GameSettingsTheSuperHackersConstants.DefaultNetworkLatencyFontSize;
-        settings.RenderFpsFontSize = profile.TshRenderFpsFontSize ?? GameSettingsTheSuperHackersConstants.DefaultRenderFpsFontSize;
-        settings.ResolutionFontAdjustment = profile.TshResolutionFontAdjustment ?? GameSettingsTheSuperHackersConstants.DefaultResolutionFontAdjustment;
-        settings.CursorCaptureEnabledInFullscreenGame = profile.TshCursorCaptureEnabledInFullscreenGame ?? GameSettingsTheSuperHackersConstants.DefaultCursorCaptureEnabledInFullscreenGame;
-        settings.CursorCaptureEnabledInFullscreenMenu = profile.TshCursorCaptureEnabledInFullscreenMenu ?? GameSettingsTheSuperHackersConstants.DefaultCursorCaptureEnabledInFullscreenMenu;
-        settings.CursorCaptureEnabledInWindowedGame = profile.TshCursorCaptureEnabledInWindowedGame ?? GameSettingsTheSuperHackersConstants.DefaultCursorCaptureEnabledInWindowedGame;
-        settings.CursorCaptureEnabledInWindowedMenu = profile.TshCursorCaptureEnabledInWindowedMenu ?? GameSettingsTheSuperHackersConstants.DefaultCursorCaptureEnabledInWindowedMenu;
-        settings.ScreenEdgeScrollEnabledInFullscreenApp = profile.TshScreenEdgeScrollEnabledInFullscreenApp ?? GameSettingsTheSuperHackersConstants.DefaultScreenEdgeScrollEnabledInFullscreenApp;
-        settings.ScreenEdgeScrollEnabledInWindowedApp = profile.TshScreenEdgeScrollEnabledInWindowedApp ?? GameSettingsTheSuperHackersConstants.DefaultScreenEdgeScrollEnabledInWindowedApp;
+        if (profile.TshArchiveReplays.HasValue) settings.ArchiveReplays = profile.TshArchiveReplays.Value;
+        if (profile.TshMoneyTransactionVolume.HasValue) settings.MoneyTransactionVolume = profile.TshMoneyTransactionVolume.Value;
+        if (profile.TshShowMoneyPerMinute.HasValue) settings.ShowMoneyPerMinute = profile.TshShowMoneyPerMinute.Value;
+        if (profile.TshPlayerObserverEnabled.HasValue) settings.PlayerObserverEnabled = profile.TshPlayerObserverEnabled.Value;
+        if (profile.TshSystemTimeFontSize.HasValue) settings.SystemTimeFontSize = profile.TshSystemTimeFontSize.Value;
+        if (profile.TshNetworkLatencyFontSize.HasValue) settings.NetworkLatencyFontSize = profile.TshNetworkLatencyFontSize.Value;
+        if (profile.TshRenderFpsFontSize.HasValue) settings.RenderFpsFontSize = profile.TshRenderFpsFontSize.Value;
+        if (profile.TshResolutionFontAdjustment.HasValue) settings.ResolutionFontAdjustment = profile.TshResolutionFontAdjustment.Value;
+        if (profile.TshCursorCaptureEnabledInFullscreenGame.HasValue) settings.CursorCaptureEnabledInFullscreenGame = profile.TshCursorCaptureEnabledInFullscreenGame.Value;
+        if (profile.TshCursorCaptureEnabledInFullscreenMenu.HasValue) settings.CursorCaptureEnabledInFullscreenMenu = profile.TshCursorCaptureEnabledInFullscreenMenu.Value;
+        if (profile.TshCursorCaptureEnabledInWindowedGame.HasValue) settings.CursorCaptureEnabledInWindowedGame = profile.TshCursorCaptureEnabledInWindowedGame.Value;
+        if (profile.TshCursorCaptureEnabledInWindowedMenu.HasValue) settings.CursorCaptureEnabledInWindowedMenu = profile.TshCursorCaptureEnabledInWindowedMenu.Value;
+        if (profile.TshScreenEdgeScrollEnabledInFullscreenApp.HasValue) settings.ScreenEdgeScrollEnabledInFullscreenApp = profile.TshScreenEdgeScrollEnabledInFullscreenApp.Value;
+        if (profile.TshScreenEdgeScrollEnabledInWindowedApp.HasValue) settings.ScreenEdgeScrollEnabledInWindowedApp = profile.TshScreenEdgeScrollEnabledInWindowedApp.Value;
+        if (NormalizeTransitionSpeedMultiplier(profile.TshGameWindowTransitionSpeedMultiplier) is { } speedMult)
+        {
+            settings.GameWindowTransitionSpeedMultiplier = speedMult;
+        }
     }
 
     private static void ApplyVideoResolutionAndQualityToOptions(GameProfile profile, IniOptions options, ILogger? logger)
@@ -897,6 +973,17 @@ public static class GameSettingsMapper
     private static void ApplyTshToOptions(GameProfile profile, IniOptions options)
     {
         var tshDict = new Dictionary<string, string>();
+        ApplyTshUiSettingsToDict(profile, tshDict);
+        ApplyTshControlsSettingsToDict(profile, tshDict);
+
+        if (tshDict.Count > 0)
+        {
+            options.AdditionalSections["TheSuperHackers"] = tshDict;
+        }
+    }
+
+    private static void ApplyTshUiSettingsToDict(GameProfile profile, Dictionary<string, string> tshDict)
+    {
         if (profile.TshArchiveReplays.HasValue) tshDict["ArchiveReplays"] = BoolToString(profile.TshArchiveReplays.Value);
         if (profile.TshShowMoneyPerMinute.HasValue) tshDict["ShowMoneyPerMinute"] = BoolToString(profile.TshShowMoneyPerMinute.Value);
         if (profile.TshPlayerObserverEnabled.HasValue) tshDict["PlayerObserverEnabled"] = BoolToString(profile.TshPlayerObserverEnabled.Value);
@@ -904,6 +991,10 @@ public static class GameSettingsMapper
         if (profile.TshNetworkLatencyFontSize.HasValue) tshDict["NetworkLatencyFontSize"] = profile.TshNetworkLatencyFontSize.Value.ToString();
         if (profile.TshRenderFpsFontSize.HasValue) tshDict["RenderFpsFontSize"] = profile.TshRenderFpsFontSize.Value.ToString();
         if (profile.TshResolutionFontAdjustment.HasValue) tshDict["ResolutionFontAdjustment"] = profile.TshResolutionFontAdjustment.Value.ToString();
+    }
+
+    private static void ApplyTshControlsSettingsToDict(GameProfile profile, Dictionary<string, string> tshDict)
+    {
         if (profile.TshCursorCaptureEnabledInFullscreenGame.HasValue) tshDict["CursorCaptureEnabledInFullscreenGame"] = BoolToString(profile.TshCursorCaptureEnabledInFullscreenGame.Value);
         if (profile.TshCursorCaptureEnabledInFullscreenMenu.HasValue) tshDict["CursorCaptureEnabledInFullscreenMenu"] = BoolToString(profile.TshCursorCaptureEnabledInFullscreenMenu.Value);
         if (profile.TshCursorCaptureEnabledInWindowedGame.HasValue) tshDict["CursorCaptureEnabledInWindowedGame"] = BoolToString(profile.TshCursorCaptureEnabledInWindowedGame.Value);
@@ -911,10 +1002,9 @@ public static class GameSettingsMapper
         if (profile.TshScreenEdgeScrollEnabledInFullscreenApp.HasValue) tshDict["ScreenEdgeScrollEnabledInFullscreenApp"] = BoolToString(profile.TshScreenEdgeScrollEnabledInFullscreenApp.Value);
         if (profile.TshScreenEdgeScrollEnabledInWindowedApp.HasValue) tshDict["ScreenEdgeScrollEnabledInWindowedApp"] = BoolToString(profile.TshScreenEdgeScrollEnabledInWindowedApp.Value);
         if (profile.TshMoneyTransactionVolume.HasValue) tshDict["MoneyTransactionVolume"] = profile.TshMoneyTransactionVolume.Value.ToString();
-
-        if (tshDict.Count > 0)
+        if (NormalizeTransitionSpeedMultiplier(profile.TshGameWindowTransitionSpeedMultiplier) is { } speedMultiplier)
         {
-            options.AdditionalSections["TheSuperHackers"] = tshDict;
+            tshDict[GameSettingsTheSuperHackersConstants.GameWindowTransitionSpeedMultiplierKey] = speedMultiplier.ToString(CultureInfo.InvariantCulture);
         }
     }
 
@@ -959,6 +1049,7 @@ public static class GameSettingsMapper
         profile.TshScreenEdgeScrollEnabledInFullscreenApp = request.TshScreenEdgeScrollEnabledInFullscreenApp ?? profile.TshScreenEdgeScrollEnabledInFullscreenApp;
         profile.TshScreenEdgeScrollEnabledInWindowedApp = request.TshScreenEdgeScrollEnabledInWindowedApp ?? profile.TshScreenEdgeScrollEnabledInWindowedApp;
         profile.TshMoneyTransactionVolume = request.TshMoneyTransactionVolume ?? profile.TshMoneyTransactionVolume;
+        profile.TshGameWindowTransitionSpeedMultiplier = request.TshGameWindowTransitionSpeedMultiplier ?? profile.TshGameWindowTransitionSpeedMultiplier;
     }
 
     private static void PatchGeneralsOnlineSettings(GameProfile profile, CreateProfileRequest request)
@@ -1041,6 +1132,7 @@ public static class GameSettingsMapper
         profile.TshScreenEdgeScrollEnabledInFullscreenApp = request.TshScreenEdgeScrollEnabledInFullscreenApp ?? profile.TshScreenEdgeScrollEnabledInFullscreenApp;
         profile.TshScreenEdgeScrollEnabledInWindowedApp = request.TshScreenEdgeScrollEnabledInWindowedApp ?? profile.TshScreenEdgeScrollEnabledInWindowedApp;
         profile.TshMoneyTransactionVolume = request.TshMoneyTransactionVolume ?? profile.TshMoneyTransactionVolume;
+        profile.TshGameWindowTransitionSpeedMultiplier = request.TshGameWindowTransitionSpeedMultiplier ?? profile.TshGameWindowTransitionSpeedMultiplier;
     }
 
     private static void UpdateGeneralsOnlineFromRequest(GameProfile profile, UpdateProfileRequest request)

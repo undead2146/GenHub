@@ -18,9 +18,6 @@ public partial class GenericMessageWindow : Window
     public GenericMessageWindow()
     {
         InitializeComponent();
-#if DEBUG
-        this.AttachDevTools();
-#endif
     }
 
     /// <inheritdoc/>

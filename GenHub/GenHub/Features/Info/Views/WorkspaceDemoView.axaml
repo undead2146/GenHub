@@ -32,7 +32,7 @@
 
             <!-- Operation List -->
             <Border Grid.Row="1" Background="#0F0F0F" CornerRadius="8" BorderBrush="#252525" BorderThickness="1">
-                <ScrollViewer x:Name="OperationsScroll">
+                <ScrollViewer x:Name="OperationsScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding Operations}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -65,7 +65,7 @@
 
             <!-- Footer / Progress -->
             <StackPanel Grid.Row="2" Margin="0,15,0,0" Spacing="8">
-                <ProgressBar Value="{Binding Progress}" Height="4" Background="#1A1A1A" Foreground="{StaticResource SystemAccentColorBrush}"/>
+                <ProgressBar Value="{Binding Progress}" Height="4" Background="{DynamicResource SurfaceHoverBrush}" Foreground="{DynamicResource AccentBrush}"/>
                 <TextBlock Text="💡 This process creates a full 'virtual' game installation in milliseconds using almost zero disk space."
                            FontSize="11" Foreground="#666" HorizontalAlignment="Center" FontStyle="Italic"/>
             </StackPanel>

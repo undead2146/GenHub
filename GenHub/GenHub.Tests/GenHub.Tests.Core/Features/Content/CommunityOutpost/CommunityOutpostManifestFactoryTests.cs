@@ -1,4 +1,5 @@
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Models.CommunityOutpost;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
@@ -22,6 +23,7 @@ public class CommunityOutpostManifestFactoryTests : IDisposable
 {
     private readonly Mock<ILogger<CommunityOutpostManifestFactory>> _loggerMock;
     private readonly Mock<IFileHashProvider> _hashProviderMock;
+    private readonly Mock<IControlBarPackageProcessor> _controlBarProcessorMock;
     private readonly CommunityOutpostManifestFactory _factory;
     private readonly string _tempDir;
 
@@ -32,11 +34,12 @@ public class CommunityOutpostManifestFactoryTests : IDisposable
     {
         _loggerMock = new Mock<ILogger<CommunityOutpostManifestFactory>>();
         _hashProviderMock = new Mock<IFileHashProvider>();
+        _controlBarProcessorMock = new Mock<IControlBarPackageProcessor>();
 
         _hashProviderMock.Setup(x => x.ComputeFileHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("abc123hash");
 
-        _factory = new CommunityOutpostManifestFactory(_loggerMock.Object, _hashProviderMock.Object, null!);
+        _factory = new CommunityOutpostManifestFactory(_loggerMock.Object, _hashProviderMock.Object, _controlBarProcessorMock.Object);
         _tempDir = Path.Combine(Path.GetTempPath(), "GenHubTest_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tempDir);
     }
@@ -64,15 +67,19 @@ public class CommunityOutpostManifestFactoryTests : IDisposable
         // Arrange
         var zhEnDir = Path.Combine(_tempDir, "ZH", "BIG EN");
         var zhDeDir = Path.Combine(_tempDir, "ZH", "BIG DE");
+        var zhRuDir = Path.Combine(_tempDir, "ZH", "BIG RU");
         var ccgEnDir = Path.Combine(_tempDir, "CCG", "BIG EN");
 
         Directory.CreateDirectory(zhEnDir);
         Directory.CreateDirectory(zhDeDir);
+        Directory.CreateDirectory(zhRuDir);
         Directory.CreateDirectory(ccgEnDir);
 
         File.WriteAllText(Path.Combine(zhEnDir, "!HotkeysLeikezeENZH.big"), "mock content");
         File.WriteAllText(Path.Combine(zhDeDir, "!HotkeysLeikezeDEZH.big"), "mock content");
+        File.WriteAllText(Path.Combine(zhRuDir, "!HotkeysLeikezeRUZH.big"), "mock content");
         File.WriteAllText(Path.Combine(ccgEnDir, "!HotkeysLeikezeEN.big"), "mock content");
+        File.WriteAllText(Path.Combine(_tempDir, "!HotkeysLeikezeIndicatorsZH.big"), "mock indicator");
 
         var originalManifest = new ContentManifest
         {
@@ -90,23 +97,31 @@ public class CommunityOutpostManifestFactoryTests : IDisposable
         var manifests = await _factory.CreateManifestsFromExtractedContentAsync(originalManifest, _tempDir);
 
         // Assert
-        Assert.Equal(3, manifests.Count);
+        Assert.Equal(4, manifests.Count);
 
         var zhEnManifest = manifests.FirstOrDefault(m => m.Id.Value.Contains("-zerohour-en"));
         Assert.NotNull(zhEnManifest);
         Assert.Equal(GameType.ZeroHour, zhEnManifest.TargetGame);
         Assert.Contains("(EN)", zhEnManifest.Name);
-        Assert.Single(zhEnManifest.Files);
+        Assert.Equal(2, zhEnManifest.Files.Count);
 
         var zhDeManifest = manifests.FirstOrDefault(m => m.Id.Value.Contains("-zerohour-de"));
         Assert.NotNull(zhDeManifest);
         Assert.Equal(GameType.ZeroHour, zhDeManifest.TargetGame);
         Assert.Contains("(DE)", zhDeManifest.Name);
+        Assert.Equal(2, zhDeManifest.Files.Count);
+
+        var zhRuManifest = manifests.FirstOrDefault(m => m.Id.Value.Contains("-zerohour-ru"));
+        Assert.NotNull(zhRuManifest);
+        Assert.Equal(GameType.ZeroHour, zhRuManifest.TargetGame);
+        Assert.Contains("(RU)", zhRuManifest.Name);
+        Assert.Equal(2, zhRuManifest.Files.Count);
 
         var ccgEnManifest = manifests.FirstOrDefault(m => m.Id.Value.Contains("-generals-en"));
         Assert.NotNull(ccgEnManifest);
         Assert.Equal(GameType.Generals, ccgEnManifest.TargetGame);
         Assert.Contains("[Generals]", ccgEnManifest.Name);
+        Assert.Single(ccgEnManifest.Files);
     }
 
     /// <summary>
