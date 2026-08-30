@@ -89,10 +89,26 @@ public class DependencyResolver(
             return true;
         }
 
-        // Allow publisher client or installation variants (e.g. 60hz, unlocked, eac-zerohour)
+        // Allow publisher client or installation variants (e.g. 60hz, unlocked, eac-zerohour) for compatible games
         if (declaredParts[3].Equals(ContentType.GameClient.ToManifestIdString(), StringComparison.OrdinalIgnoreCase) ||
             declaredParts[3].Equals(ContentType.GameInstallation.ToManifestIdString(), StringComparison.OrdinalIgnoreCase))
         {
+            var isDeclaredZeroHour = declaredName.Contains("zerohour", StringComparison.OrdinalIgnoreCase) || declaredName.Contains("zh", StringComparison.OrdinalIgnoreCase);
+            var isAcquiredZeroHour = acquiredName.Contains("zerohour", StringComparison.OrdinalIgnoreCase) || acquiredName.Contains("zh", StringComparison.OrdinalIgnoreCase);
+            var isDeclaredGenerals = declaredName.Contains("generals", StringComparison.OrdinalIgnoreCase) && !isDeclaredZeroHour;
+            var isAcquiredGenerals = acquiredName.Contains("generals", StringComparison.OrdinalIgnoreCase) && !isAcquiredZeroHour;
+
+            // Reject cross-game mismatches (Generals client matching Zero Hour, or vice versa)
+            if (isDeclaredZeroHour && isAcquiredGenerals)
+            {
+                return false;
+            }
+
+            if (isDeclaredGenerals && isAcquiredZeroHour)
+            {
+                return false;
+            }
+
             return true;
         }
 
