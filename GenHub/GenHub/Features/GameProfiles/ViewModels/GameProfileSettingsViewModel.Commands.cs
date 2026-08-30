@@ -60,15 +60,7 @@ public partial class GameProfileSettingsViewModel
             IsLoadingContent = true;
             StatusMessage = "Loading content...";
 
-            if (!string.IsNullOrEmpty(CurrentProfileId))
-            {
-                var isRunning = await DetermineHotswapModeAsync(CurrentProfileId);
-                if (isRunning != IsHotswapMode)
-                {
-                    IsHotswapMode = isRunning;
-                    UpdateAllItemsHotswapState();
-                }
-            }
+            await RefreshHotswapStateAsync();
 
             AvailableContent.Clear();
 
@@ -486,24 +478,7 @@ public partial class GameProfileSettingsViewModel
         }
 
         var liveGameType = SelectedGameInstallation?.GameType ?? GameTypeFilter;
-
-        var updateRequest = new UpdateProfileRequest
-        {
-            Name = Name,
-            Description = Description,
-            ThemeColor = ColorValue,
-            GameInstallationId = SelectedGameInstallation?.SourceId,
-
-            WorkspaceStrategy = OriginalWorkspaceStrategy.HasValue && SelectedWorkspaceStrategy != OriginalWorkspaceStrategy.Value
-                ? SelectedWorkspaceStrategy
-                : null,
-            EnabledContentIds = enabledContentIds,
-            CommandLineArguments = CommandLineArguments,
-            IconPath = IconPath,
-            CoverPath = CoverPath,
-        };
-
-        PopulateGameSettings(updateRequest, gameSettings);
+        var updateRequest = BuildUpdateRequest(enabledContentIds, gameSettings);
 
         if (isProfileRunning && _profileContentLinker != null && _manifestPool != null)
         {
@@ -517,23 +492,7 @@ public partial class GameProfileSettingsViewModel
         var result = await _gameProfileManager.UpdateProfileAsync(CurrentProfileId, updateRequest, cancellationToken);
         if (result.Success && result.Data != null)
         {
-            if (!isProfileRunning && GameSettingsViewModel.SaveSettingsCommand.CanExecute(null))
-            {
-                await GameSettingsViewModel.SaveSettingsCommand.ExecuteAsync(null);
-            }
-
-            if (isProfileRunning)
-            {
-                _localNotificationService.ShowSuccess(
-                    "Live Update Complete",
-                    "Content changes have been applied to the active game session.");
-            }
-
-            StatusMessage = "Profile updated successfully";
-            _logger?.LogInformation("Updated profile {ProfileId} with {ContentCount} enabled content items", CurrentProfileId, enabledContentIds.Count);
-
-            WeakReferenceMessenger.Default.Send(new ProfileUpdatedMessage(result.Data));
-            ExecuteCancel();
+            await HandleProfileUpdateSuccessAsync(result, enabledContentIds, isProfileRunning);
         }
         else
         {
@@ -541,21 +500,51 @@ public partial class GameProfileSettingsViewModel
         }
     }
 
-    private async Task<bool> CheckIsProfileRunningAsync()
+    private UpdateProfileRequest BuildUpdateRequest(List<string> enabledContentIds, UpdateProfileRequest? gameSettings)
     {
-        if (_launchRegistry != null && !string.IsNullOrEmpty(CurrentProfileId))
+        var updateRequest = new UpdateProfileRequest
         {
-            var activeLaunches = await _launchRegistry.GetAllActiveLaunchesAsync();
-            var isRunning = activeLaunches.Any(l => string.Equals(l.ProfileId, CurrentProfileId, StringComparison.OrdinalIgnoreCase) && !l.TerminatedAt.HasValue);
-            if (isRunning != IsHotswapMode)
-            {
-                IsHotswapMode = isRunning;
-                UpdateAllItemsHotswapState();
-            }
+            Name = Name,
+            Description = Description,
+            ThemeColor = ColorValue,
+            GameInstallationId = SelectedGameInstallation?.SourceId,
+            WorkspaceStrategy = OriginalWorkspaceStrategy.HasValue && SelectedWorkspaceStrategy != OriginalWorkspaceStrategy.Value
+                ? SelectedWorkspaceStrategy
+                : null,
+            EnabledContentIds = enabledContentIds,
+            CommandLineArguments = CommandLineArguments,
+            IconPath = IconPath,
+            CoverPath = CoverPath,
+        };
 
-            return isRunning;
+        PopulateGameSettings(updateRequest, gameSettings);
+        return updateRequest;
+    }
+
+    private async Task HandleProfileUpdateSuccessAsync(ProfileOperationResult<GameProfile> result, List<string> enabledContentIds, bool isProfileRunning)
+    {
+        if (!isProfileRunning && GameSettingsViewModel.SaveSettingsCommand.CanExecute(null))
+        {
+            await GameSettingsViewModel.SaveSettingsCommand.ExecuteAsync(null);
         }
 
+        if (isProfileRunning)
+        {
+            _localNotificationService.ShowSuccess(
+                "Live Update Complete",
+                "Content changes have been applied to the active game session.");
+        }
+
+        StatusMessage = "Profile updated successfully";
+        _logger?.LogInformation("Updated profile {ProfileId} with {ContentCount} enabled content items", CurrentProfileId, enabledContentIds.Count);
+
+        WeakReferenceMessenger.Default.Send(new ProfileUpdatedMessage(result.Data!));
+        ExecuteCancel();
+    }
+
+    private async Task<bool> CheckIsProfileRunningAsync()
+    {
+        await RefreshHotswapStateAsync();
         return IsHotswapMode;
     }
 
