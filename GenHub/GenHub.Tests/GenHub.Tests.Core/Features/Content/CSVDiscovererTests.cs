@@ -173,17 +173,24 @@ public class CSVDiscovererTests
     public async Task DiscoverAsync_CachesEntriesBetweenCalls()
     {
         var tempIndex = CreateIndexFile(CreateEntry("https://example.com/generals.csv", "Generals", "1.08", "EN"));
-        var discoverer = CreateDiscoverer(new CsvCatalogConfiguration { IndexFilePath = tempIndex.FilePath });
+        try
+        {
+            var discoverer = CreateDiscoverer(new CsvCatalogConfiguration { IndexFilePath = tempIndex.FilePath });
 
-        var firstResult = await discoverer.DiscoverAsync(new ContentSearchQuery());
-        firstResult.Data!.Items.Should().HaveCount(1);
+            var firstResult = await discoverer.DiscoverAsync(new ContentSearchQuery());
+            firstResult.Data!.Items.Should().HaveCount(1);
 
-        // Delete file - second call should still succeed from cache
-        tempIndex.Dispose();
+            // Delete file - second call should still succeed from cache
+            tempIndex.Dispose();
 
-        var secondResult = await discoverer.DiscoverAsync(new ContentSearchQuery());
-        secondResult.Success.Should().BeTrue();
-        secondResult.Data!.Items.Should().HaveCount(1);
+            var secondResult = await discoverer.DiscoverAsync(new ContentSearchQuery());
+            secondResult.Success.Should().BeTrue();
+            secondResult.Data!.Items.Should().HaveCount(1);
+        }
+        finally
+        {
+            tempIndex.Dispose();
+        }
     }
 
     /// <summary>
@@ -203,11 +210,26 @@ public class CSVDiscovererTests
     }
 
     /// <summary>
-    /// Verifies that <see cref="CSVDiscoverer.DiscoverAsync"/> returns a failure result when network requests fail and no fallback is available.
+    /// Verifies that <see cref="CSVDiscoverer.DiscoverAsync"/> returns a failure result when query is null.
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>
     [Fact]
-    public async Task DiscoverAsync_WhenNetworkFails_ReturnsFailure()
+    public async Task DiscoverAsync_WhenQueryIsNull_ReturnsFailure()
+    {
+        var discoverer = CreateDiscoverer(new CsvCatalogConfiguration());
+
+        var result = await discoverer.DiscoverAsync(null!);
+
+        result.Success.Should().BeFalse();
+        result.Errors.Should().NotBeEmpty();
+    }
+
+    /// <summary>
+    /// Verifies that <see cref="CSVDiscoverer.DiscoverAsync"/> returns an empty result when network requests fail and no fallback is available.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task DiscoverAsync_WhenNetworkFails_ReturnsEmptyResult()
     {
         var httpHandler = new StubHttpMessageHandler(statusCode: HttpStatusCode.InternalServerError);
         var discoverer = CreateDiscoverer(
@@ -219,6 +241,57 @@ public class CSVDiscovererTests
         result.Success.Should().BeTrue();
         result.Data.Should().NotBeNull();
         result.Data!.Items.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Verifies that <see cref="CSVDiscoverer.DiscoverAsync"/> retries loading on next query after a transient failure without permanently caching empty results.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task DiscoverAsync_WhenFirstLoadFails_RetriesOnNextCall()
+    {
+        var tempIndex = CreateIndexFile(CreateEntry("https://example.com/generals.csv", "Generals", "1.08", "EN"));
+        try
+        {
+            // First point to non-existent file
+            var discoverer = CreateDiscoverer(new CsvCatalogConfiguration { IndexFilePath = tempIndex.FilePath + ".nonexistent" });
+            var firstResult = await discoverer.DiscoverAsync(new ContentSearchQuery());
+            firstResult.Success.Should().BeTrue();
+            firstResult.Data!.Items.Should().BeEmpty();
+
+            // Next point to actual file with a new discoverer or reconfigured discoverer
+            var secondDiscoverer = CreateDiscoverer(new CsvCatalogConfiguration { IndexFilePath = tempIndex.FilePath });
+            var secondResult = await secondDiscoverer.DiscoverAsync(new ContentSearchQuery());
+            secondResult.Success.Should().BeTrue();
+            secondResult.Data!.Items.Should().HaveCount(1);
+        }
+        finally
+        {
+            tempIndex.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Verifies that <see cref="CSVDiscoverer.DiscoverAsync"/> gives precedence to the configured index over default.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task DiscoverAsync_ConfiguredIndexTakesPrecedenceOverDefault()
+    {
+        var tempIndex = CreateIndexFile(CreateEntry("https://custom.com/custom.csv", "Generals", "1.08", "EN"));
+        try
+        {
+            var discoverer = CreateDiscoverer(new CsvCatalogConfiguration { IndexFilePath = tempIndex.FilePath });
+            var result = await discoverer.DiscoverAsync(new ContentSearchQuery());
+
+            result.Success.Should().BeTrue();
+            result.Data!.Items.Should().ContainSingle();
+            result.Data.Items.First().SourceUrl.Should().Be("https://custom.com/custom.csv");
+        }
+        finally
+        {
+            tempIndex.Dispose();
+        }
     }
 
     /// <summary>

@@ -90,21 +90,24 @@ function Test-DebuggerActive {
     }
 
     # Check if GenHub output DLLs are locked (indicates active debugging)
-    $binDebugDirs = Get-ChildItem -Path $SolutionDir -Directory -Recurse -Filter "Debug" |
+    $binDebugDirs = Get-ChildItem -Path $SolutionDir -Directory -Recurse -Filter "Debug" -ErrorAction SilentlyContinue |
         Where-Object { $_.Parent.Name -eq "bin" }
 
     foreach ($dir in $binDebugDirs) {
-        $dlls = Get-ChildItem -Path $dir.FullName -Filter "GenHub*.dll" -ErrorAction SilentlyContinue
+        $dlls = Get-ChildItem -Path $dir.FullName -Filter "GenHub*.dll" -Recurse -ErrorAction SilentlyContinue
         foreach ($dll in $dlls) {
             try {
-                # Try to open exclusively - if it fails, the file is locked (debugger)
+                # Try to open with ReadWrite/None to test for exclusive debugger locks
                 $stream = [System.IO.File]::Open($dll.FullName, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
                 $stream.Close()
                 $stream.Dispose()
             }
-            catch {
+            catch [System.IO.IOException] {
                 # File is locked - debugger is likely active
                 return $true
+            }
+            catch {
+                # Ignore non-lock errors
             }
         }
     }
@@ -233,8 +236,8 @@ try {
     exit $exitCode
 }
 finally {
-    # Clean up lock file
-    if (Test-Path $LockFilePath) {
+    # Clean up lock file only if we acquired the lock
+    if ($acquired -and (Test-Path $LockFilePath)) {
         Remove-Item $LockFilePath -Force -ErrorAction SilentlyContinue
     }
 

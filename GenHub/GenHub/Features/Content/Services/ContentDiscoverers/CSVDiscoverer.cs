@@ -60,6 +60,11 @@ public class CSVDiscoverer(
         ContentSearchQuery query,
         CancellationToken cancellationToken = default)
     {
+        if (query == null)
+        {
+            return OperationResult<ContentDiscoveryResult>.CreateFailure("Search query cannot be null.");
+        }
+
         try
         {
             // If ContentType is specified and NOT GameInstallation, return empty result
@@ -92,29 +97,33 @@ public class CSVDiscoverer(
                 filteredEntries = filteredEntries.Where(e => e.GameType.Equals(targetGameStr, StringComparison.OrdinalIgnoreCase)).ToList();
             }
 
+            var queryLanguage = ContentSearchQuery.NormalizeLanguage(query.Language);
+
             foreach (var entry in filteredEntries)
             {
-                var normalizedQueryLanguage = !string.IsNullOrWhiteSpace(query.Language)
-                    ? NormalizeLanguage(query.Language)
-                    : null;
-                var normalizedEntryLanguages = (entry.SupportedLanguages ?? [])
+                var rawLanguages = entry.SupportedLanguages is { Count: > 0 }
+                    ? entry.SupportedLanguages
+                    : [CsvConstants.AllLanguagesFilter];
+
+                var normalizedEntryLanguages = rawLanguages
                     .Where(l => !string.IsNullOrWhiteSpace(l))
-                    .Select(NormalizeLanguage)
+                    .Select(ContentSearchQuery.NormalizeLanguage)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
 
                 List<string> languagesToInclude;
-                if (string.IsNullOrWhiteSpace(query.Language) || normalizedQueryLanguage == CsvConstants.AllLanguagesFilter)
+                if (string.IsNullOrWhiteSpace(query.Language) || string.Equals(queryLanguage, CsvConstants.AllLanguagesFilter, StringComparison.OrdinalIgnoreCase))
                 {
                     languagesToInclude = normalizedEntryLanguages;
                 }
-                else if (normalizedEntryLanguages.Contains(CsvConstants.AllLanguagesFilter))
+                else if (normalizedEntryLanguages.Any(l => string.Equals(l, CsvConstants.AllLanguagesFilter, StringComparison.OrdinalIgnoreCase)))
                 {
-                    languagesToInclude = [normalizedQueryLanguage!];
+                    languagesToInclude = [queryLanguage];
                 }
                 else
                 {
                     languagesToInclude = normalizedEntryLanguages
-                        .Where(l => l == normalizedQueryLanguage)
+                        .Where(l => string.Equals(l, queryLanguage, StringComparison.OrdinalIgnoreCase))
                         .ToList();
                 }
 
@@ -170,24 +179,12 @@ public class CSVDiscoverer(
     {
         if (!_disposed)
         {
+            _disposed = true;
             if (disposing)
             {
                 _cacheLock.Dispose();
             }
-
-            _disposed = true;
         }
-    }
-
-    private static string NormalizeLanguage(string language)
-    {
-        var trimmed = language.Trim();
-        if (string.Equals(trimmed, CsvConstants.AllLanguagesFilter, StringComparison.OrdinalIgnoreCase))
-        {
-            return CsvConstants.AllLanguagesFilter;
-        }
-
-        return trimmed.ToUpperInvariant();
     }
 
     private static List<CsvCatalogRegistryEntry> GetValidCatalogEntries(IEnumerable<CsvCatalogRegistryEntry>? entries)
@@ -204,6 +201,11 @@ public class CSVDiscoverer(
         if (cached != null)
         {
             return cached;
+        }
+
+        if (_disposed)
+        {
+            return [];
         }
 
         await _cacheLock.WaitAsync(cancellationToken);
@@ -242,12 +244,20 @@ public class CSVDiscoverer(
                 }
             }
 
-            _cachedEntries = loadedEntries;
-            return _cachedEntries;
+            if (loadedEntries.Count > 0)
+            {
+                _cachedEntries = loadedEntries;
+                return _cachedEntries;
+            }
+
+            return [];
         }
         finally
         {
-            _cacheLock.Release();
+            if (!_disposed)
+            {
+                _cacheLock.Release();
+            }
         }
     }
 
@@ -256,7 +266,7 @@ public class CSVDiscoverer(
         var configuredSource = _config.IndexFilePath?.Trim();
         var seenIndexSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var indexSource in new[] { CsvConstants.DefaultIndexFileUrl, configuredSource })
+        foreach (var indexSource in new[] { configuredSource, CsvConstants.DefaultIndexFileUrl })
         {
             if (string.IsNullOrWhiteSpace(indexSource) || !seenIndexSources.Add(indexSource))
             {
@@ -295,12 +305,18 @@ public class CSVDiscoverer(
             return await httpClient.GetStringAsync(indexUri, cancellationToken);
         }
 
-        return await File.ReadAllTextAsync(indexPath, cancellationToken);
+        var resolvedPath = Path.IsPathRooted(indexPath)
+            ? indexPath
+            : Path.GetFullPath(indexPath);
+
+        return await File.ReadAllTextAsync(resolvedPath, cancellationToken);
     }
 
     private ContentSearchResult? CreateSearchResult(CsvCatalogRegistryEntry entry, string language)
     {
-        if (!Enum.TryParse<GameType>(entry.GameType, true, out var gameType))
+        if (!Enum.TryParse<GameType>(entry.GameType, true, out var gameType) ||
+            gameType == GameType.Unknown ||
+            !Enum.IsDefined(gameType))
         {
             logger.LogWarning("Invalid game type in catalog entry: {GameType}", entry.GameType);
             return null;
@@ -332,7 +348,7 @@ public class CSVDiscoverer(
             RequiresResolution = true,
             ResolverId = CsvConstants.ResolverId,
             SourceUrl = entry.Url,
-            DownloadSize = 0,
+            DownloadSize = entry.TotalSizeBytes,
         };
 
         result.ResolverMetadata[CsvConstants.CsvUrlMetadataKey] = entry.Url;

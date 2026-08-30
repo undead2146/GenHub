@@ -153,7 +153,6 @@ public class ContentSearchQuery
     private static readonly Dictionary<string, string> LanguageMap =
     new(StringComparer.OrdinalIgnoreCase)
     {
-        ["ALL"] = "All",
         ["All"] = "All",
         ["EN"] = "EN",
         ["DE"] = "DE",
@@ -172,7 +171,12 @@ public class ContentSearchQuery
         ["TW"] = "ZH-TW",
     };
 
-    private static string? NormalizeLanguage(string? language)
+    /// <summary>
+    /// Normalizes a language code to the canonical casing and alias mapping.
+    /// </summary>
+    /// <param name="language">The raw language string.</param>
+    /// <returns>The normalized language string, defaulting to "All" when null or empty.</returns>
+    public static string NormalizeLanguage(string? language)
     {
         if (string.IsNullOrWhiteSpace(language))
         {

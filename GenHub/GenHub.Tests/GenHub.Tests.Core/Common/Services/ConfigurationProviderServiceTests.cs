@@ -1291,8 +1291,9 @@ public class ConfigurationProviderServiceTests
                 new CsvCatalogRegistryEntry { Url = "https://example.com/catalog.csv", GameType = "Generals" },
             ],
         };
+        var testDataPath = Path.Combine(Path.GetTempPath(), $"genhub-test-{Guid.NewGuid():N}");
         _mockAppConfig.Setup(x => x.GetCsvCatalogConfiguration()).Returns(appConfig);
-        _mockAppConfig.Setup(x => x.GetConfiguredDataPath()).Returns(Path.GetTempPath());
+        _mockAppConfig.Setup(x => x.GetConfiguredDataPath()).Returns(testDataPath);
         _mockUserSettings.Setup(x => x.Get()).Returns(new UserSettings());
 
         var provider = CreateProvider();
@@ -1305,6 +1306,40 @@ public class ConfigurationProviderServiceTests
         Assert.NotNull(settings.CsvValidationCatalogs);
         Assert.Single(settings.CsvValidationCatalogs);
         Assert.Equal("https://example.com/catalog.csv", settings.CsvValidationCatalogs[0].Url);
+    }
+
+    /// <summary>
+    /// Verifies that an explicitly set empty catalog list overrides app config.
+    /// </summary>
+    [Fact]
+    public void GetCsvCatalogConfiguration_WithExplicitEmptyList_OverridesAppConfig()
+    {
+        // Arrange
+        var appConfig = new CsvCatalogConfiguration
+        {
+            IndexFilePath = "https://example.com/index.json",
+            CsvValidationCatalogs =
+            [
+                new CsvCatalogRegistryEntry { Url = "https://example.com/catalog.csv", GameType = "Generals" },
+            ],
+        };
+        var userSettings = new UserSettings
+        {
+            CsvValidationCatalogs = [],
+        };
+        userSettings.MarkAsExplicitlySet(nameof(UserSettings.CsvValidationCatalogs));
+
+        _mockAppConfig.Setup(x => x.GetCsvCatalogConfiguration()).Returns(appConfig);
+        _mockUserSettings.Setup(x => x.Get()).Returns(userSettings);
+
+        var provider = CreateProvider();
+
+        // Act
+        var result = provider.GetCsvCatalogConfiguration();
+
+        // Assert
+        Assert.NotNull(result.CsvValidationCatalogs);
+        Assert.Empty(result.CsvValidationCatalogs);
     }
 
     /// <summary>

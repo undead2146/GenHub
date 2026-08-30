@@ -211,7 +211,7 @@ public class UserSettings
             ContentDirectories = ContentDirectories != null ? [.. ContentDirectories] : null,
             GitHubDiscoveryRepositories = GitHubDiscoveryRepositories != null ? [.. GitHubDiscoveryRepositories] : null,
             IndexFilePath = IndexFilePath,
-            CsvValidationCatalogs = CsvValidationCatalogs != null ? [.. CsvValidationCatalogs] : null,
+            CsvValidationCatalogs = CsvValidationCatalogs != null ? [.. CsvValidationCatalogs.Select(c => c.Clone())] : null,
             InstalledToolAssemblyPaths = InstalledToolAssemblyPaths != null ? [.. InstalledToolAssemblyPaths] : null,
             PreferredStorageInstallationId = PreferredStorageInstallationId,
             UseInstallationAdjacentStorage = UseInstallationAdjacentStorage,

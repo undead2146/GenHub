@@ -283,7 +283,7 @@ public class ConfigurationProviderService(
             CachePath = GetCachePath(),
             CasConfiguration = GetCasConfiguration(),
             IndexFilePath = csvCatalogConfiguration.IndexFilePath,
-            CsvValidationCatalogs = [.. csvValidationCatalogs],
+            CsvValidationCatalogs = [.. csvValidationCatalogs.Select(c => c.Clone())],
         };
     }
 
@@ -391,10 +391,9 @@ public class ConfigurationProviderService(
                     ? settings.IndexFilePath
                     : appCatalogConfig.IndexFilePath,
             CsvValidationCatalogs = settings.IsExplicitlySet(nameof(UserSettings.CsvValidationCatalogs)) &&
-                settings.CsvValidationCatalogs != null &&
-                settings.CsvValidationCatalogs.Count > 0
-                    ? [.. settings.CsvValidationCatalogs]
-                    : [.. appCatalogs],
+                settings.CsvValidationCatalogs != null
+                    ? [.. settings.CsvValidationCatalogs.Select(c => c.Clone())]
+                    : [.. appCatalogs.Select(c => c.Clone())],
         };
     }
 
