@@ -31,21 +31,22 @@
     <UserControl.Styles>
         <!-- Section card style -->
         <Style Selector="Border.section-card">
-            <Setter Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="Background" Value="#10FFFFFF" />
+            <Setter Property="BorderBrush" Value="#20FFFFFF" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="12" />
             <Setter Property="Padding" Value="24" />
             <Setter Property="Margin" Value="24,0,24,24" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="MinWidth" Value="0" />
+            <Setter Property="TextElement.Foreground" Value="White" />
         </Style>
 
         <!-- Section title -->
         <Style Selector="TextBlock.section-title">
             <Setter Property="FontSize" Value="20" />
             <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+            <Setter Property="Foreground" Value="White" />
             <Setter Property="Margin" Value="0,0,0,20" />
         </Style>
 
@@ -82,8 +83,8 @@
 
         <!-- Content Card Styles -->
         <Style Selector="Button.content-card-btn">
-            <Setter Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="Background" Value="#08FFFFFF" />
+            <Setter Property="BorderBrush" Value="#15FFFFFF" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="Padding" Value="14" />
@@ -102,7 +103,7 @@
             </Setter>
         </Style>
         <Style Selector="Button.content-card-btn:pointerover">
-            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+            <Setter Property="Background" Value="#18FFFFFF" />
             <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="RenderTransform" Value="translateY(-1px)" />
         </Style>
@@ -139,8 +140,8 @@
 
         <!-- Sidebar Navigation -->
         <Border Grid.Column="0"
-                Background="{DynamicResource SurfaceBackgroundBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
+                Background="#10000000"
+                BorderBrush="#20FFFFFF"
                 BorderThickness="0,0,1,0"
                 Padding="12,24">
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
