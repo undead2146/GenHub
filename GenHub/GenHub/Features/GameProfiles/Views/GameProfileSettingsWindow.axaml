@@ -488,7 +488,8 @@
                     <views:GameProfileGeneralSettingsView IsVisible="{Binding SelectedTabIndex, Converter={StaticResource TabIndexToVisibilityConverter}, ConverterParameter=1}" />
 
                     <!-- Game Settings Panel (Index 2) -->
-                    <Panel IsVisible="{Binding SelectedTabIndex, Converter={StaticResource TabIndexToVisibilityConverter}, ConverterParameter=2}">
+                    <Panel IsVisible="{Binding SelectedTabIndex, Converter={StaticResource TabIndexToVisibilityConverter}, ConverterParameter=2}"
+                           IsEnabled="{Binding CanEditImmutableMetadata}">
                         <views:GameSettingsView DataContext="{Binding GameSettingsViewModel}" />
                     </Panel>
                 </Grid>

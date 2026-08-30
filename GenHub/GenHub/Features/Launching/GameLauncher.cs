@@ -793,7 +793,14 @@ public class GameLauncher(
             }
 
             progress?.Report(new LaunchProgress { Phase = LaunchPhase.PreparingUserData, PercentComplete = 82 });
-            await PrepareUserDataAsync(profile, manifests, skipUserDataCleanup, cancellationToken);
+            var userDataPrepResult = await PrepareUserDataAsync(profile, manifests, skipUserDataCleanup, cancellationToken);
+            if (!userDataPrepResult.Success)
+            {
+                steamInstallationLock?.Dispose();
+                steamInstallationLock = null;
+                await launchRegistry.UnregisterLaunchAsync(launchId);
+                return LaunchOperationResult<GameLaunchInfo>.CreateFailure(userDataPrepResult.FirstError ?? "User data preparation failed", launchId, profile.Id);
+            }
 
             progress?.Report(new LaunchProgress { Phase = LaunchPhase.Starting, PercentComplete = 90 });
             var executableResult = ResolveAndValidateExecutablePath(profile, workspaceInfo);
@@ -1042,7 +1049,7 @@ public class GameLauncher(
         return OperationResult<WorkspaceInfo>.CreateSuccess(workspaceInfo);
     }
 
-    private async Task PrepareUserDataAsync(
+    private async Task<OperationResult<bool>> PrepareUserDataAsync(
         GameProfile profile,
         List<ContentManifest> manifests,
         bool skipUserDataCleanup,
@@ -1065,12 +1072,12 @@ public class GameLauncher(
                 cancellationToken);
             if (!userDataResult.Success)
             {
-                logger.LogWarning("[GameLauncher] User data preparation had issues: {Error}", userDataResult.FirstError);
+                logger.LogError("[GameLauncher] User data preparation failed: {Error}", userDataResult.FirstError);
+                return OperationResult<bool>.CreateFailure(userDataResult.FirstError ?? "User data preparation failed");
             }
-            else
-            {
-                logger.LogInformation("[GameLauncher] User data content prepared for profile {ProfileId}", profile.Id);
-            }
+
+            logger.LogInformation("[GameLauncher] User data content prepared for profile {ProfileId}", profile.Id);
+            return OperationResult<bool>.CreateSuccess(true);
         }
         catch (OperationCanceledException)
         {
@@ -1079,6 +1086,7 @@ public class GameLauncher(
         catch (Exception ex)
         {
             logger.LogError(ex, "[GameLauncher] Unexpected error in user data linkage for profile {ProfileId}", profile.Id);
+            return OperationResult<bool>.CreateFailure($"Failed to prepare user data: {ex.Message}");
         }
     }
 

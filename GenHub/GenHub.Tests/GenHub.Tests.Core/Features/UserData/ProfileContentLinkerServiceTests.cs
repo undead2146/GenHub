@@ -455,4 +455,78 @@ public sealed class ProfileContentLinkerServiceTests : IDisposable
         Assert.False(result.Success);
         Assert.Contains("live rollback was incomplete", result.FirstError, StringComparison.OrdinalIgnoreCase);
     }
+
+    /// <summary>
+    /// Verifies that a workspace-targeted map is recognized as profile user data and is not uninstalled when another map is added during live sync.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task UpdateProfileUserDataAsync_WhenWorkspaceTargetedMapExistsAndNewUserMapAdded_PreservesWorkspaceTargetedMapAsync()
+    {
+        // Arrange
+        const string profileId = "profile-workspace-map";
+        const GameType gameType = GameType.ZeroHour;
+        const string legacyMapId = "1.0.0.map.legacymap";
+        const string newMapId = "1.0.0.map.newmap";
+
+        var existingLegacyMap = new UserDataManifest
+        {
+            ManifestId = legacyMapId,
+            ProfileId = profileId,
+            TargetGame = gameType,
+            IsActive = true,
+            InstalledFiles = [new UserDataFileEntry { AbsolutePath = "C:\\path\\legacy.map", RelativePath = "legacy.map", InstallTarget = ContentInstallTarget.UserMapsDirectory }],
+        };
+
+        _userDataTrackerMock.Setup(t => t.GetProfileUserDataAsync(profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IReadOnlyList<UserDataManifest>>.CreateSuccess([existingLegacyMap]));
+
+        var legacyMapManifest = new ContentManifest
+        {
+            Id = ManifestId.Create(legacyMapId),
+            Name = "Legacy Map",
+            ContentType = ContentType.Map,
+            Files = [new ManifestFile { RelativePath = "Maps\\legacy.map", InstallTarget = ContentInstallTarget.Workspace, Hash = "hash-legacy" }],
+        };
+
+        var newMapManifest = new ContentManifest
+        {
+            Id = ManifestId.Create(newMapId),
+            Name = "New Map",
+            ContentType = ContentType.Map,
+            Files = [new ManifestFile { RelativePath = "Maps\\new.map", InstallTarget = ContentInstallTarget.UserMapsDirectory, Hash = "hash-new" }],
+        };
+
+        _userDataTrackerMock.Setup(t => t.InstallUserDataAsync(
+            newMapId,
+            profileId,
+            gameType,
+            It.IsAny<IEnumerable<ManifestFile>>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<UserDataManifest>.CreateSuccess(new UserDataManifest { ManifestId = newMapId, ProfileId = profileId }));
+
+        _userDataTrackerMock.Setup(t => t.ActivateProfileUserDataAsync(profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+
+        // Act
+        var result = await _linkerService.UpdateProfileUserDataAsync(profileId, [legacyMapManifest, newMapManifest], gameType);
+
+        // Assert
+        Assert.True(result.Success);
+        _userDataTrackerMock.Verify(
+            t => t.UninstallUserDataAsync(legacyMapId, profileId, It.IsAny<CancellationToken>()),
+            Times.Never);
+        _userDataTrackerMock.Verify(
+            t => t.InstallUserDataAsync(
+                newMapId,
+                profileId,
+                gameType,
+                It.IsAny<IEnumerable<ManifestFile>>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
 }

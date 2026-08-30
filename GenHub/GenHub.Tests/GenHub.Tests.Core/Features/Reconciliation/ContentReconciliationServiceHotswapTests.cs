@@ -51,11 +51,11 @@ public class ContentReconciliationServiceHotswapTests
     }
 
     /// <summary>
-    /// Verifies that ReconcileBulkManifestReplacementAsync updates the manifest reference while preserving the workspace for running profiles.
+    /// Verifies that ReconcileBulkManifestReplacementAsync skips replacing manifests in running profiles and preserves workspace.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ReconcileBulkManifestReplacementAsync_WhenProfileRunning_PreservesWorkspaceAndUpdatesProfileAsync()
+    public async Task ReconcileBulkManifestReplacementAsync_WhenProfileRunning_SkipsReplacementAndPreservesWorkspaceAsync()
     {
         // Arrange
         const string runningProfileId = "running-profile-1";
@@ -78,8 +78,6 @@ public class ContentReconciliationServiceHotswapTests
 
         _profileManagerMock.Setup(p => p.GetAllProfilesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(ProfileOperationResult<IReadOnlyList<GameProfile>>.CreateSuccess([runningProfile]));
-        _profileManagerMock.Setup(p => p.UpdateProfileAsync(runningProfileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(runningProfile));
 
         _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
             .ReturnsAsync([CreateActiveLaunch(runningProfileId)]);
@@ -97,13 +95,16 @@ public class ContentReconciliationServiceHotswapTests
 
         // Assert
         Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Equal(0, result.Data.ProfilesUpdated);
+        Assert.Equal(1, result.Data.FailedProfilesCount);
         _workspaceManagerMock.Verify(w => w.CleanupWorkspaceAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         _profileManagerMock.Verify(
             p => p.UpdateProfileAsync(
-                runningProfileId,
-                It.Is<UpdateProfileRequest>(r => r.ActiveWorkspaceId == "workspace-live-1" && r.EnabledContentIds!.Contains(newManifestId)),
+                It.IsAny<string>(),
+                It.IsAny<UpdateProfileRequest>(),
                 It.IsAny<CancellationToken>()),
-            Times.Once);
+            Times.Never);
     }
 
     /// <summary>
