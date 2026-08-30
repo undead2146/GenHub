@@ -366,16 +366,23 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     /// <returns>A task representing the asynchronous operation.</returns>
     public virtual async Task RefreshHotswapStateAsync()
     {
-        if (string.IsNullOrEmpty(CurrentProfileId))
+        try
         {
-            return;
-        }
+            if (string.IsNullOrEmpty(CurrentProfileId))
+            {
+                return;
+            }
 
-        var isRunning = await DetermineHotswapModeAsync(CurrentProfileId);
-        if (isRunning != IsHotswapMode)
+            var isRunning = await DetermineHotswapModeAsync(CurrentProfileId);
+            if (isRunning != IsHotswapMode)
+            {
+                IsHotswapMode = isRunning;
+                UpdateAllItemsHotswapState();
+            }
+        }
+        catch (Exception ex)
         {
-            IsHotswapMode = isRunning;
-            UpdateAllItemsHotswapState();
+            _logger?.LogWarning(ex, "Error refreshing hotswap mode for profile {ProfileId}", CurrentProfileId);
         }
     }
 
