@@ -333,7 +333,7 @@ public partial class GitHubTopicsDiscoverer(
             return true;
 
         // Check for source-related patterns
-        if (VariantPatterns.ExcludedPatterns.Any(p => lowerName.Contains(p)))
+        if (VariantPatterns.ExcludedPatterns.Any(lowerName.Contains))
             return true;
 
         return false;
@@ -345,7 +345,7 @@ public partial class GitHubTopicsDiscoverer(
     private static bool IsArchiveAsset(string assetName)
     {
         var lowerName = assetName.ToLowerInvariant();
-        return VariantPatterns.ArchiveExtensions.Any(ext => lowerName.EndsWith(ext));
+        return VariantPatterns.ArchiveExtensions.Any(lowerName.EndsWith);
     }
 
     /// <summary>

@@ -247,7 +247,6 @@
             <Setter Property="CornerRadius" Value="8" />
             <Setter Property="Padding" Value="12" />
             <Setter Property="Margin" Value="4" />
-            <Setter Property="MinWidth" Value="250" />
             <Setter Property="MaxWidth" Value="400" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Stretch" />
@@ -641,7 +640,7 @@
             <Border ZIndex="500"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Bottom"
-                    Margin="0,0,40,40"
+                    Margin="0,0,10,10"
                     BoxShadow="0 15 35 0 #80000000"
                     CornerRadius="25"
                     IsVisible="{Binding !IsSaving}"

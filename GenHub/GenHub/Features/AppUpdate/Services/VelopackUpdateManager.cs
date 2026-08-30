@@ -894,13 +894,10 @@ public partial class VelopackUpdateManager : IVelopackUpdateManager, IDisposable
         CancellationToken cancellationToken = default)
     {
         var artifact = prInfo.LatestArtifact;
-        if (artifact == null)
+        if (artifact == null && _gitHubTokenStorage is { } storage && await storage.LoadTokenAsync() is { } token)
         {
-            if (_gitHubTokenStorage != null && await _gitHubTokenStorage.LoadTokenAsync() is { } token)
-            {
-                using var client = CreateConfiguredHttpClientWithToken(token);
-                artifact = await FindLatestArtifactForPrAsync(client, prInfo.Number, cancellationToken);
-            }
+            using var client = CreateConfiguredHttpClientWithToken(token);
+            artifact = await FindLatestArtifactForPrAsync(client, prInfo.Number, cancellationToken);
         }
 
         if (artifact == null)

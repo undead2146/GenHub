@@ -53,7 +53,7 @@ public class OctokitGitHubApiClient(
     /// <summary>
     /// Gets a value indicating whether the GitHub API rate limit is reached.
     /// </summary>
-    public bool IsRateLimited => rateLimitTracker?.IsAtLimit ?? false;
+    public bool IsRateLimited => rateLimitTracker is { IsAtLimit: true };
 
     /// <summary>
     /// Sets the GitHub token for authentication.
@@ -906,12 +906,12 @@ public class OctokitGitHubApiClient(
             return;
         }
 
-        if (tokenStorage != null && tokenStorage.HasToken())
+        if (tokenStorage is { } storage && storage.HasToken())
         {
             try
             {
-                var storedToken = await tokenStorage.LoadTokenAsync();
-                if (storedToken != null && storedToken.Length > 0)
+                var storedToken = await storage.LoadTokenAsync();
+                if (storedToken is { Length: > 0 })
                 {
                     SetAuthenticationToken(storedToken);
                     return;
@@ -950,12 +950,12 @@ public class OctokitGitHubApiClient(
             return;
         }
 
-        if (tokenStorage != null && tokenStorage.HasToken())
+        if (tokenStorage is { } storage && storage.HasToken())
         {
             try
             {
-                var storedToken = tokenStorage.LoadTokenAsync().GetAwaiter().GetResult();
-                if (storedToken != null && storedToken.Length > 0)
+                var storedToken = storage.LoadTokenAsync().GetAwaiter().GetResult();
+                if (storedToken is { Length: > 0 })
                 {
                     SetAuthenticationToken(storedToken);
                     return;
@@ -992,12 +992,12 @@ public class OctokitGitHubApiClient(
         try
         {
             var apiInfo = gitHubClient.GetLastApiInfo();
-            if (apiInfo?.RateLimit != null && rateLimitTracker != null)
+            if (apiInfo?.RateLimit is { } rateLimit && rateLimitTracker is { } tracker)
             {
-                rateLimitTracker.UpdateFromHeaders(
-                    apiInfo.RateLimit.Remaining,
-                    apiInfo.RateLimit.Limit,
-                    apiInfo.RateLimit.Reset.UtcDateTime);
+                tracker.UpdateFromHeaders(
+                    rateLimit.Remaining,
+                    rateLimit.Limit,
+                    rateLimit.Reset.UtcDateTime);
             }
         }
         catch (Exception ex)
