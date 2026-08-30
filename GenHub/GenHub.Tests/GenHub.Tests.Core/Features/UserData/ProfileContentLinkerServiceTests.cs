@@ -153,6 +153,103 @@ public sealed class ProfileContentLinkerServiceTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies that SwitchProfileUserDataAsync adopts only manifests matching targetGame or GameType.Unknown during skipCleanup.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task SwitchProfileUserDataAsync_WhenSkipCleanupTrue_AdoptsOnlyManifestsMatchingTargetGameOrUnknownAsync()
+    {
+        // Arrange
+        const string oldProfileId = "profile-old";
+        const string newProfileId = "profile-new";
+        const GameType gameType = GameType.ZeroHour;
+
+        var matchingManifest = new UserDataManifest
+        {
+            ManifestId = "1.0.0.map.zh-map",
+            ProfileId = oldProfileId,
+            TargetGame = GameType.ZeroHour,
+            InstalledFiles = [new UserDataFileEntry { AbsolutePath = "C:\\path\\ZH.map", RelativePath = "Maps\\ZH.map", InstallTarget = ContentInstallTarget.UserMapsDirectory }],
+        };
+
+        var otherGameManifest = new UserDataManifest
+        {
+            ManifestId = "1.0.0.map.gen-map",
+            ProfileId = oldProfileId,
+            TargetGame = GameType.Generals,
+            InstalledFiles = [new UserDataFileEntry { AbsolutePath = "C:\\path\\Gen.map", RelativePath = "Maps\\Gen.map", InstallTarget = ContentInstallTarget.UserMapsDirectory }],
+        };
+
+        var unknownGameManifest = new UserDataManifest
+        {
+            ManifestId = "1.0.0.map.unknown-map",
+            ProfileId = oldProfileId,
+            TargetGame = GameType.Unknown,
+            InstalledFiles = [new UserDataFileEntry { AbsolutePath = "C:\\path\\Unknown.map", RelativePath = "Maps\\Unknown.map", InstallTarget = ContentInstallTarget.UserMapsDirectory }],
+        };
+
+        _userDataTrackerMock.Setup(t => t.GetProfileUserDataAsync(oldProfileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IReadOnlyList<UserDataManifest>>.CreateSuccess([matchingManifest, otherGameManifest, unknownGameManifest]));
+
+        _userDataTrackerMock.Setup(t => t.InstallUserDataAsync(
+            It.IsAny<string>(),
+            newProfileId,
+            gameType,
+            It.IsAny<IEnumerable<ManifestFile>>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string manifestId, string profileId, GameType game, IEnumerable<ManifestFile> _, string _, string _, CancellationToken _) =>
+                OperationResult<UserDataManifest>.CreateSuccess(new UserDataManifest { ManifestId = manifestId, ProfileId = profileId, TargetGame = game }));
+
+        _userDataTrackerMock.Setup(t => t.GetGameUserDataAsync(gameType, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IReadOnlyList<UserDataManifest>>.CreateSuccess([]));
+
+        // Act
+        var result = await _linkerService.SwitchProfileUserDataAsync(
+            oldProfileId: oldProfileId,
+            newProfileId: newProfileId,
+            newManifests: [],
+            targetGame: gameType,
+            skipCleanup: true);
+
+        // Assert
+        Assert.True(result.Success);
+        _userDataTrackerMock.Verify(
+            t => t.InstallUserDataAsync(
+                "1.0.0.map.zh-map",
+                newProfileId,
+                gameType,
+                It.IsAny<IEnumerable<ManifestFile>>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        _userDataTrackerMock.Verify(
+            t => t.InstallUserDataAsync(
+                "1.0.0.map.unknown-map",
+                newProfileId,
+                gameType,
+                It.IsAny<IEnumerable<ManifestFile>>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        _userDataTrackerMock.Verify(
+            t => t.InstallUserDataAsync(
+                "1.0.0.map.gen-map",
+                It.IsAny<string>(),
+                It.IsAny<GameType>(),
+                It.IsAny<IEnumerable<ManifestFile>>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    /// <summary>
     /// Verifies that PrepareProfileUserDataAsync cleans up any lingering active user data from other profiles before activating the target profile.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>

@@ -73,7 +73,11 @@ public class ProfileContentLinkerService(
                 var oldUserDataResult = await userDataTracker.GetProfileUserDataAsync(oldProfileId, cancellationToken);
                 if (oldUserDataResult.Success && oldUserDataResult.Data != null)
                 {
-                    var fileCount = oldUserDataResult.Data.Sum(m => m.InstalledFiles.Count);
+                    var matchingManifests = oldUserDataResult.Data
+                        .Where(m => m.TargetGame == targetGame || m.TargetGame == GameType.Unknown)
+                        .ToList();
+
+                    var fileCount = matchingManifests.Sum(m => m.InstalledFiles.Count);
                     if (fileCount > 100)
                     {
                         logger.LogInformation("[ProfileContentLinker] Linking large number of maps ({Count}). This might take a while.", fileCount);
@@ -81,7 +85,7 @@ public class ProfileContentLinkerService(
 
                     // Register this manifest's files for the new profile as well
                     // This ensures they are tracked and won't be deleted when switching FROM the new profile later
-                    foreach (var manifest in oldUserDataResult.Data)
+                    foreach (var manifest in matchingManifests)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
 
