@@ -12,7 +12,7 @@
     <UserControl.Styles>
         <Style Selector="Border.feed-container">
             <Setter Property="Background" Value="#E61A1A1A" />
-            <Setter Property="BorderBrush" Value="#40A855F7" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBadgeBackgroundBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="12" />
             <Setter Property="BoxShadow" Value="0 12 30 0 #80000000" />
@@ -52,8 +52,8 @@
 
         <Style Selector="Button.clear-button">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="#A855F7" />
-            <Setter Property="BorderBrush" Value="#40A855F7" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBadgeBackgroundBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="6" />
             <Setter Property="Padding" Value="10,4" />
@@ -69,8 +69,8 @@
         </Style>
 
         <Style Selector="Button.clear-button:pointerover">
-            <Setter Property="Background" Value="#20A855F7" />
-            <Setter Property="Foreground" Value="#C084FC" />
+            <Setter Property="Background" Value="{DynamicResource AccentBadgeBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentLightBrush}" />
         </Style>
 
         <Style Selector="ScrollViewer.feed-scroll">
@@ -88,74 +88,6 @@
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="#60FFFFFF" />
             <Setter Property="TextAlignment" Value="Center" />
-        </Style>
-
-        <Style Selector="Border.notification-item">
-            <Setter Property="Background" Value="#252525" />
-            <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="Padding" Value="12" />
-            <Setter Property="Margin" Value="0,0,8,0" />
-        </Style>
-
-        <Style Selector="Border.notification-item:pointerover">
-            <Setter Property="Background" Value="#2D3737" />
-        </Style>
-
-        <Style Selector="Border.notification-item.unread">
-            <Setter Property="Background" Value="#2A2A2A" />
-        </Style>
-
-        <Style Selector="TextBlock.notification-title">
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="#E0E0E0" />
-        </Style>
-
-        <Style Selector="TextBlock.notification-message">
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="#B0B0B0" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-        </Style>
-
-        <Style Selector="TextBlock.notification-time">
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="Foreground" Value="#808080" />
-        </Style>
-
-        <Style Selector="ItemsControl.actions-panel">
-            <Setter Property="Margin" Value="12,8,0,0" />
-        </Style>
-
-        <Style Selector="Border.action-button">
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Padding" Value="6,12" />
-            <Setter Property="TextElement.FontSize" Value="12" />
-            <Setter Property="TextElement.FontWeight" Value="Medium" />
-            <Setter Property="Cursor" Value="Hand" />
-        </Style>
-
-        <Style Selector="Border.action-button.primary">
-            <Setter Property="Background" Value="#4A9EFF" />
-            <Setter Property="TextElement.Foreground" Value="White" />
-        </Style>
-
-        <Style Selector="Border.action-button.secondary">
-            <Setter Property="Background" Value="#6B7280" />
-            <Setter Property="TextElement.Foreground" Value="White" />
-        </Style>
-
-        <Style Selector="Border.action-button.danger">
-            <Setter Property="Background" Value="#EF4444" />
-            <Setter Property="TextElement.Foreground" Value="White" />
-        </Style>
-
-        <Style Selector="Border.action-button.success">
-            <Setter Property="Background" Value="#10B981" />
-            <Setter Property="TextElement.Foreground" Value="White" />
-        </Style>
-
-        <Style Selector="Border.action-button:pointerover">
-            <Setter Property="Opacity" Value="0.8" />
         </Style>
     </UserControl.Styles>
 
@@ -279,7 +211,7 @@
                     MinHeight="220">
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
                     <PathIcon Data="M12,22A2,2 0 0,0 14,20H10A2,2 0 0,0 12,22M18,16V11C18,7.93 16.36,5.36 13.5,4.68V4A1.5,1.5 0 0,0 12,2.5A1.5,1.5 0 0,0 10.5,4V4.68C7.63,5.36 6,7.92 6,11V16L4,18V19H20V18L18,16Z"
-                              Foreground="#30A855F7" Width="32" Height="32" />
+                              Foreground="{DynamicResource AccentBadgeBackgroundBrush}" Width="32" Height="32" />
                     <TextBlock Classes="empty-text" Text="All caught up!" />
                 </StackPanel>
             </Border>
