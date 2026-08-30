@@ -1218,7 +1218,7 @@ public class ConfigurationProviderServiceTests
             IndexFilePath = "https://example.com/index.json",
             CsvValidationCatalogs =
             [
-                new CsvCatalogRegistryEntry { Url = "https://example.com/catalog.csv", GameType = "Generals" },
+                new CsvCatalogRegistryEntry { Url = "https://example.com/catalog.csv", GameType = CsvConstants.GeneralsGameType },
             ],
         };
         _mockAppConfig.Setup(x => x.GetCsvCatalogConfiguration()).Returns(appConfig);
@@ -1247,7 +1247,7 @@ public class ConfigurationProviderServiceTests
             IndexFilePath = "https://example.com/app-index.json",
             CsvValidationCatalogs =
             [
-                new CsvCatalogRegistryEntry { Url = "https://example.com/app.csv", GameType = "Generals" },
+                new CsvCatalogRegistryEntry { Url = "https://example.com/app.csv", GameType = CsvConstants.GeneralsGameType },
             ],
         };
         var userSettings = new UserSettings
@@ -1255,7 +1255,7 @@ public class ConfigurationProviderServiceTests
             IndexFilePath = "https://example.com/user-index.json",
             CsvValidationCatalogs =
             [
-                new CsvCatalogRegistryEntry { Url = "https://example.com/user.csv", GameType = "ZeroHour" },
+                new CsvCatalogRegistryEntry { Url = "https://example.com/user.csv", GameType = CsvConstants.ZeroHourGameType },
             ],
         };
         userSettings.MarkAsExplicitlySet(nameof(UserSettings.IndexFilePath));
@@ -1273,7 +1273,7 @@ public class ConfigurationProviderServiceTests
         Assert.Equal("https://example.com/user-index.json", result.IndexFilePath);
         Assert.Single(result.CsvValidationCatalogs);
         Assert.Equal("https://example.com/user.csv", result.CsvValidationCatalogs[0].Url);
-        Assert.Equal("ZeroHour", result.CsvValidationCatalogs[0].GameType);
+        Assert.Equal(CsvConstants.ZeroHourGameType, result.CsvValidationCatalogs[0].GameType);
     }
 
     /// <summary>
@@ -1288,7 +1288,7 @@ public class ConfigurationProviderServiceTests
             IndexFilePath = "https://example.com/index.json",
             CsvValidationCatalogs =
             [
-                new CsvCatalogRegistryEntry { Url = "https://example.com/catalog.csv", GameType = "Generals" },
+                new CsvCatalogRegistryEntry { Url = "https://example.com/catalog.csv", GameType = CsvConstants.GeneralsGameType },
             ],
         };
         var testDataPath = Path.Combine(Path.GetTempPath(), $"genhub-test-{Guid.NewGuid():N}");
@@ -1320,7 +1320,7 @@ public class ConfigurationProviderServiceTests
             IndexFilePath = "https://example.com/index.json",
             CsvValidationCatalogs =
             [
-                new CsvCatalogRegistryEntry { Url = "https://example.com/catalog.csv", GameType = "Generals" },
+                new CsvCatalogRegistryEntry { Url = "https://example.com/catalog.csv", GameType = CsvConstants.GeneralsGameType },
             ],
         };
         var userSettings = new UserSettings

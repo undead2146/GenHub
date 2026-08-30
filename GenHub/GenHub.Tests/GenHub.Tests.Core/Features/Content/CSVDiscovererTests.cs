@@ -25,6 +25,12 @@ namespace GenHub.Tests.Core.Features.Content;
 /// </summary>
 public class CSVDiscovererTests
 {
+    private const string GeneralsVersion = "1.08";
+    private const string ZeroHourVersion = "1.04";
+    private const string TestGeneralsCsvUrl = "https://example.com/generals.csv";
+    private const string TestZeroHourCsvUrl = "https://example.com/zerohour.csv";
+    private const string TestFallbackCsvUrl = "https://example.com/fallback.csv";
+
     /// <summary>
     /// Verifies that <see cref="CSVDiscoverer.DiscoverAsync"/> returns an empty result when the query specifies a non-game-installation content type.
     /// </summary>
@@ -50,8 +56,8 @@ public class CSVDiscovererTests
     public async Task DiscoverAsync_WhenIndexJsonAvailable_ReturnsEntries()
     {
         using var indexFile = CreateIndexFile(
-            CreateEntry("https://example.com/generals.csv", "Generals", "1.08", "EN"),
-            CreateEntry("https://example.com/zerohour.csv", "ZeroHour", "1.04", "EN"));
+            CreateEntry(TestGeneralsCsvUrl, CsvConstants.GeneralsGameType, GeneralsVersion, CsvConstants.LanguageEn),
+            CreateEntry(TestZeroHourCsvUrl, CsvConstants.ZeroHourGameType, ZeroHourVersion, CsvConstants.LanguageEn));
 
         var discoverer = CreateDiscoverer(new CsvCatalogConfiguration { IndexFilePath = indexFile.FilePath });
 
@@ -74,7 +80,7 @@ public class CSVDiscovererTests
             IndexFilePath = "https://nonexistent.invalid/index.json",
             CsvValidationCatalogs =
             [
-                CreateEntry("https://example.com/fallback.csv", "Generals", "1.08", "EN"),
+                CreateEntry(TestFallbackCsvUrl, CsvConstants.GeneralsGameType, GeneralsVersion, CsvConstants.LanguageEn),
             ],
         });
 
@@ -83,7 +89,7 @@ public class CSVDiscovererTests
         result.Success.Should().BeTrue();
         result.Data.Should().NotBeNull();
         result.Data!.Items.Should().ContainSingle();
-        result.Data.Items.First().ResolverMetadata[CsvConstants.CsvUrlMetadataKey].Should().Be("https://example.com/fallback.csv");
+        result.Data.Items.First().ResolverMetadata[CsvConstants.CsvUrlMetadataKey].Should().Be(TestFallbackCsvUrl);
     }
 
     /// <summary>
@@ -114,7 +120,7 @@ public class CSVDiscovererTests
     public async Task DiscoverAsync_WithSpecificLanguageQuery_ReturnsFilteredResult()
     {
         using var indexFile = CreateIndexFile(
-            CreateEntry("https://example.com/generals.csv", "Generals", "1.08", "EN", "DE", "FR"));
+            CreateEntry(TestGeneralsCsvUrl, CsvConstants.GeneralsGameType, GeneralsVersion, CsvConstants.LanguageEn, CsvConstants.LanguageDe, CsvConstants.LanguageFr));
 
         var discoverer = CreateDiscoverer(new CsvCatalogConfiguration { IndexFilePath = indexFile.FilePath });
 
@@ -123,7 +129,7 @@ public class CSVDiscovererTests
         result.Success.Should().BeTrue();
         result.Data.Should().NotBeNull();
         result.Data!.Items.Should().ContainSingle();
-        result.Data.Items.First().ResolverMetadata[CsvConstants.LanguageMetadataKey].Should().Be("DE");
+        result.Data.Items.First().ResolverMetadata[CsvConstants.LanguageMetadataKey].Should().Be(CsvConstants.LanguageDe);
     }
 
     /// <summary>
@@ -134,7 +140,7 @@ public class CSVDiscovererTests
     public async Task DiscoverAsync_WithAllLanguageQuery_ReturnsAllSupportedLanguages()
     {
         using var indexFile = CreateIndexFile(
-            CreateEntry("https://example.com/generals.csv", "Generals", "1.08", "EN", "DE", "FR"));
+            CreateEntry(TestGeneralsCsvUrl, CsvConstants.GeneralsGameType, GeneralsVersion, CsvConstants.LanguageEn, CsvConstants.LanguageDe, CsvConstants.LanguageFr));
 
         var discoverer = CreateDiscoverer(new CsvCatalogConfiguration { IndexFilePath = indexFile.FilePath });
 
@@ -153,7 +159,7 @@ public class CSVDiscovererTests
     public async Task DiscoverAsync_WhenEntryHasAllLanguage_MatchesAnyQuery()
     {
         using var indexFile = CreateIndexFile(
-            CreateEntry("https://example.com/generals.csv", "Generals", "1.08", CsvConstants.AllLanguagesFilter));
+            CreateEntry(TestGeneralsCsvUrl, CsvConstants.GeneralsGameType, GeneralsVersion, CsvConstants.AllLanguagesFilter));
 
         var discoverer = CreateDiscoverer(new CsvCatalogConfiguration { IndexFilePath = indexFile.FilePath });
 
@@ -162,7 +168,7 @@ public class CSVDiscovererTests
         result.Success.Should().BeTrue();
         result.Data.Should().NotBeNull();
         result.Data!.Items.Should().ContainSingle();
-        result.Data.Items.First().ResolverMetadata[CsvConstants.LanguageMetadataKey].Should().Be("FR");
+        result.Data.Items.First().ResolverMetadata[CsvConstants.LanguageMetadataKey].Should().Be(CsvConstants.LanguageFr);
     }
 
     /// <summary>
@@ -172,7 +178,7 @@ public class CSVDiscovererTests
     [Fact]
     public async Task DiscoverAsync_CachesEntriesBetweenCalls()
     {
-        var tempIndex = CreateIndexFile(CreateEntry("https://example.com/generals.csv", "Generals", "1.08", "EN"));
+        var tempIndex = CreateIndexFile(CreateEntry(TestGeneralsCsvUrl, CsvConstants.GeneralsGameType, GeneralsVersion, CsvConstants.LanguageEn));
         try
         {
             var discoverer = CreateDiscoverer(new CsvCatalogConfiguration { IndexFilePath = tempIndex.FilePath });
@@ -250,7 +256,7 @@ public class CSVDiscovererTests
     [Fact]
     public async Task DiscoverAsync_WhenFirstLoadFails_RetriesOnNextCall()
     {
-        var tempIndex = CreateIndexFile(CreateEntry("https://example.com/generals.csv", "Generals", "1.08", "EN"));
+        var tempIndex = CreateIndexFile(CreateEntry(TestGeneralsCsvUrl, CsvConstants.GeneralsGameType, GeneralsVersion, CsvConstants.LanguageEn));
         try
         {
             // First point to non-existent file
@@ -278,7 +284,7 @@ public class CSVDiscovererTests
     [Fact]
     public async Task DiscoverAsync_ConfiguredIndexTakesPrecedenceOverDefault()
     {
-        var tempIndex = CreateIndexFile(CreateEntry("https://custom.com/custom.csv", "Generals", "1.08", "EN"));
+        var tempIndex = CreateIndexFile(CreateEntry("https://custom.com/custom.csv", CsvConstants.GeneralsGameType, GeneralsVersion, CsvConstants.LanguageEn));
         try
         {
             var discoverer = CreateDiscoverer(new CsvCatalogConfiguration { IndexFilePath = tempIndex.FilePath });
@@ -307,10 +313,10 @@ public class CSVDiscovererTests
             [
                 new CsvCatalogRegistryEntry
                 {
-                    Url = "https://config.com/fallback.csv",
-                    GameType = "Generals",
-                    Version = "1.08",
-                    SupportedLanguages = ["EN"],
+                    Url = TestFallbackCsvUrl,
+                    GameType = CsvConstants.GeneralsGameType,
+                    Version = GeneralsVersion,
+                    SupportedLanguages = [CsvConstants.LanguageEn],
                 },
             ],
         });
@@ -318,7 +324,7 @@ public class CSVDiscovererTests
         var result = await discoverer.DiscoverAsync(new ContentSearchQuery());
 
         result.Data!.Items.Should().ContainSingle();
-        result.Data.Items.First().ResolverMetadata[CsvConstants.CsvUrlMetadataKey].Should().Be("https://config.com/fallback.csv");
+        result.Data.Items.First().ResolverMetadata[CsvConstants.CsvUrlMetadataKey].Should().Be(TestFallbackCsvUrl);
     }
 
     /// <summary>
@@ -328,7 +334,7 @@ public class CSVDiscovererTests
     [Fact]
     public async Task DiscoverAsync_WithUnsupportedTargetGame_ReturnsEmpty()
     {
-        using var indexFile = CreateIndexFile(CreateEntry("https://example.com/generals.csv", "Generals", "1.08", "EN"));
+        using var indexFile = CreateIndexFile(CreateEntry(TestGeneralsCsvUrl, CsvConstants.GeneralsGameType, GeneralsVersion, CsvConstants.LanguageEn));
         var discoverer = CreateDiscoverer(new CsvCatalogConfiguration { IndexFilePath = indexFile.FilePath });
 
         var result = await discoverer.DiscoverAsync(new ContentSearchQuery { TargetGame = (GameType)999 });
@@ -345,7 +351,7 @@ public class CSVDiscovererTests
     [Fact]
     public async Task DiscoverAsync_WithZeroHourQuery_ReturnsValidResult()
     {
-        using var indexFile = CreateIndexFile(CreateEntry("https://example.com/zerohour.csv", "ZeroHour", "1.04", "EN"));
+        using var indexFile = CreateIndexFile(CreateEntry(TestZeroHourCsvUrl, CsvConstants.ZeroHourGameType, ZeroHourVersion, CsvConstants.LanguageEn));
         var discoverer = CreateDiscoverer(new CsvCatalogConfiguration { IndexFilePath = indexFile.FilePath });
 
         var result = await discoverer.DiscoverAsync(new ContentSearchQuery { TargetGame = GameType.ZeroHour });
@@ -363,7 +369,7 @@ public class CSVDiscovererTests
     [Fact]
     public async Task DiscoverAsync_WithNonMatchingGameType_ReturnsEmpty()
     {
-        using var indexFile = CreateIndexFile(CreateEntry("https://example.com/generals.csv", "Generals", "1.08", "EN"));
+        using var indexFile = CreateIndexFile(CreateEntry(TestGeneralsCsvUrl, CsvConstants.GeneralsGameType, GeneralsVersion, CsvConstants.LanguageEn));
         var discoverer = CreateDiscoverer(new CsvCatalogConfiguration { IndexFilePath = indexFile.FilePath });
 
         var result = await discoverer.DiscoverAsync(new ContentSearchQuery { TargetGame = GameType.ZeroHour });

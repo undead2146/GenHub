@@ -64,4 +64,54 @@ public static class CsvConstants
     /// Special language filter value to include all languages.
     /// </summary>
     public const string AllLanguagesFilter = "All";
+
+    /// <summary>
+    /// Canonical language code for English.
+    /// </summary>
+    public const string LanguageEn = "EN";
+
+    /// <summary>
+    /// Canonical language code for German.
+    /// </summary>
+    public const string LanguageDe = "DE";
+
+    /// <summary>
+    /// Canonical language code for French.
+    /// </summary>
+    public const string LanguageFr = "FR";
+
+    /// <summary>
+    /// Canonical language code for Polish.
+    /// </summary>
+    public const string LanguagePl = "PL";
+
+    /// <summary>
+    /// Canonical language code for Spanish.
+    /// </summary>
+    public const string LanguageEs = "ES";
+
+    /// <summary>
+    /// Canonical language code for Italian.
+    /// </summary>
+    public const string LanguageIt = "IT";
+
+    /// <summary>
+    /// Canonical language code for Korean.
+    /// </summary>
+    public const string LanguageKo = "KO";
+
+    /// <summary>
+    /// Canonical language code for Brazilian Portuguese.
+    /// </summary>
+    public const string LanguagePtBr = "PT-BR";
+
+    /// <summary>
+    /// Canonical language code for Simplified Chinese.
+    /// </summary>
+    public const string LanguageZhCn = "ZH-CN";
+
+    /// <summary>
+    /// Canonical language code for Traditional Chinese.
+    /// </summary>
+    public const string LanguageZhTw = "ZH-TW";
 }

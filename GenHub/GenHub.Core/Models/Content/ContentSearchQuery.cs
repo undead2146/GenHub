@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
 
 namespace GenHub.Core.Models.Content;
@@ -153,22 +154,22 @@ public class ContentSearchQuery
     private static readonly Dictionary<string, string> LanguageMap =
     new(StringComparer.OrdinalIgnoreCase)
     {
-        ["All"] = "All",
-        ["EN"] = "EN",
-        ["DE"] = "DE",
-        ["FR"] = "FR",
-        ["PL"] = "PL",
-        ["ES"] = "ES",
-        ["IT"] = "IT",
-        ["KO"] = "KO",
-        ["PT-BR"] = "PT-BR",
-        ["BR"] = "PT-BR",
-        ["PT"] = "PT-BR",
-        ["ZH-CN"] = "ZH-CN",
-        ["CN"] = "ZH-CN",
-        ["ZH"] = "ZH-CN",
-        ["ZH-TW"] = "ZH-TW",
-        ["TW"] = "ZH-TW",
+        [CsvConstants.AllLanguagesFilter] = CsvConstants.AllLanguagesFilter,
+        [CsvConstants.LanguageEn] = CsvConstants.LanguageEn,
+        [CsvConstants.LanguageDe] = CsvConstants.LanguageDe,
+        [CsvConstants.LanguageFr] = CsvConstants.LanguageFr,
+        [CsvConstants.LanguagePl] = CsvConstants.LanguagePl,
+        [CsvConstants.LanguageEs] = CsvConstants.LanguageEs,
+        [CsvConstants.LanguageIt] = CsvConstants.LanguageIt,
+        [CsvConstants.LanguageKo] = CsvConstants.LanguageKo,
+        [CsvConstants.LanguagePtBr] = CsvConstants.LanguagePtBr,
+        ["BR"] = CsvConstants.LanguagePtBr,
+        ["PT"] = CsvConstants.LanguagePtBr,
+        [CsvConstants.LanguageZhCn] = CsvConstants.LanguageZhCn,
+        ["CN"] = CsvConstants.LanguageZhCn,
+        ["ZH"] = CsvConstants.LanguageZhCn,
+        [CsvConstants.LanguageZhTw] = CsvConstants.LanguageZhTw,
+        ["TW"] = CsvConstants.LanguageZhTw,
     };
 
     /// <summary>

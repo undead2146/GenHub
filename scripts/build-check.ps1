@@ -47,6 +47,7 @@ param(
 
     [string]$Project = "",
 
+    [ValidateRange(0, 2147483)]
     [int]$TimeoutSeconds = 120,
 
     [ValidateSet("quiet", "minimal", "normal", "detailed")]
