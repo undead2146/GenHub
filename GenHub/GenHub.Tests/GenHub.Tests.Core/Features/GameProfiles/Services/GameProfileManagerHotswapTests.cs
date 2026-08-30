@@ -194,7 +194,8 @@ public class GameProfileManagerHotswapTests
         // Assert
         Assert.False(result.Success);
         Assert.Contains("ShockWave Mod", result.FirstError);
-        Assert.Contains("Mod", result.FirstError);
+        Assert.Contains("while profile is running", result.FirstError, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("hot swapped", result.FirstError, StringComparison.OrdinalIgnoreCase);
         _profileRepositoryMock.Verify(r => r.SaveProfileAsync(It.IsAny<GameProfile>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 

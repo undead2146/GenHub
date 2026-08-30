@@ -544,8 +544,19 @@ public partial class GameProfileSettingsViewModel
 
     private async Task<bool> CheckIsProfileRunningAsync()
     {
-        await RefreshHotswapStateAsync();
-        return IsHotswapMode;
+        if (string.IsNullOrEmpty(CurrentProfileId))
+        {
+            return false;
+        }
+
+        var isRunning = await DetermineHotswapModeAsync(CurrentProfileId);
+        if (isRunning != IsHotswapMode)
+        {
+            IsHotswapMode = isRunning;
+            UpdateAllItemsHotswapState();
+        }
+
+        return isRunning;
     }
 
     private async Task<bool> PerformLiveSyncAsync(

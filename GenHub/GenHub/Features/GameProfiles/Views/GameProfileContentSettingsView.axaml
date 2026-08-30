@@ -181,7 +181,7 @@
                         </Grid>
 
                         <!-- List Background -->
-                        <Border Background="#10FFFFFF" BorderBrush="#20FFFFFF" BorderThickness="1" CornerRadius="12" Padding="12">
+                        <Border Background="{DynamicResource SurfaceCardBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="12">
                              <ItemsControl ItemsSource="{Binding AvailableContent}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>

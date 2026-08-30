@@ -87,7 +87,7 @@
             <Setter Property="Background" Value="#15FFFFFF" />
             <Setter Property="BorderBrush" Value="#40FFFFFF" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Foreground" Value="#9575CD" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
             <Setter Property="CornerRadius" Value="6" />
             <Setter Property="Padding" Value="14,6" />
             <Setter Property="FontSize" Value="12" />
@@ -95,8 +95,8 @@
             <Setter Property="Cursor" Value="Hand" />
         </Style>
         <Style Selector="Button.btn-add:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="#9575CD" />
-            <Setter Property="BorderBrush" Value="#9575CD" />
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="Foreground" Value="White" />
         </Style>
 
@@ -219,6 +219,13 @@
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Opacity" Value="1" />
             <Setter Property="Foreground" Value="White" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                    <BrushTransition Property="Background" Duration="0:0:0.2" />
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.2" />
+                </Transitions>
+            </Setter>
         </Style>
         <Style Selector="Button.tab-icon-btn PathIcon">
              <Setter Property="Foreground" Value="White" />
@@ -228,7 +235,6 @@
         </Style>
         <Style Selector="Button.tab-icon-btn:pointerover /template/ ContentPresenter" x:CompileBindings="False">
             <Setter Property="Background" Value="{Binding ColorValue, Converter={StaticResource ColorToBrushConverter}}" />
-            <Setter Property="Opacity" Value="0.2" />
         </Style>
         <Style Selector="Button.tab-icon-btn:pointerover">
             <Setter Property="Background" Value="#50000000" />
@@ -253,29 +259,6 @@
         </Style>
         <Style Selector="Button.tab-icon-btn.selected Panel > Border">
              <Setter Property="Background" Value="White" />
-        </Style>
-
-        <!-- Scrollbar theming -->
-        <Style Selector="ScrollBar">
-            <Setter Property="Background" Value="#0F0F0F" />
-        </Style>
-        <Style Selector="ScrollBar /template/ Thumb">
-            <Setter Property="Background" Value="#5E35B1" />
-            <Setter Property="Opacity" Value="0.7" />
-        </Style>
-        <Style Selector="ScrollBar /template/ Thumb:pointerover">
-            <Setter Property="Opacity" Value="0.9" />
-        </Style>
-        <Style Selector="ScrollBar /template/ Thumb:pressed">
-            <Setter Property="Opacity" Value="1" />
-        </Style>
-        <Style Selector="ScrollBar.vertical /template/ Thumb">
-            <Setter Property="MinWidth" Value="6" />
-            <Setter Property="CornerRadius" Value="3" />
-        </Style>
-        <Style Selector="ScrollBar.horizontal /template/ Thumb">
-            <Setter Property="MinHeight" Value="6" />
-            <Setter Property="CornerRadius" Value="3" />
         </Style>
 
         <!-- New Content Card Styles -->
@@ -388,15 +371,16 @@
 
                     <Button Command="{Binding SaveCommand}"
                             Background="White"
-                            Foreground="#5E35B1"
+                            Foreground="{DynamicResource AccentBrush}"
                             Width="100" Height="38"
                             CornerRadius="19"
                             FontWeight="Bold"
                             FontSize="14"
+                            ToolTip.Tip="Save profile changes (Ctrl+S)"
                             HorizontalContentAlignment="Center"
                             VerticalContentAlignment="Center">
                         <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                            <PathIcon Data="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" Width="14" Height="14" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center"/>
+                            <PathIcon Data="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" Width="14" Height="14" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center"/>
                             <TextBlock Text="Save" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
@@ -552,8 +536,8 @@
                                                         Tag="{Binding Path, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={Binding $parent[ItemsControl].((vm:GameProfileSettingsViewModel)DataContext).IconPath}}">
                                                     <Border.Styles>
                                                         <Style Selector="Border[Tag=True]">
-                                                            <Setter Property="Background" Value="#405E35B1" />
-                                                            <Setter Property="BorderBrush" Value="#5E35B1" />
+                                                            <Setter Property="Background" Value="{DynamicResource AccentBadgeBackgroundBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                                             <Setter Property="BorderThickness" Value="2" />
                                                         </Style>
                                                     </Border.Styles>
@@ -605,8 +589,8 @@
                                                         Tag="{Binding Path, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={Binding $parent[ItemsControl].((vm:GameProfileSettingsViewModel)DataContext).CoverPath}}">
                                                     <Border.Styles>
                                                         <Style Selector="Border[Tag=True]">
-                                                            <Setter Property="Background" Value="#405E35B1" />
-                                                            <Setter Property="BorderBrush" Value="#5E35B1" />
+                                                            <Setter Property="Background" Value="{DynamicResource AccentBadgeBackgroundBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                                             <Setter Property="BorderThickness" Value="2" />
                                                         </Style>
                                                     </Border.Styles>
