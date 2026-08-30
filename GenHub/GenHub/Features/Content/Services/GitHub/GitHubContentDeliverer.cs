@@ -384,8 +384,7 @@ public class GitHubContentDeliverer(
         await Task.Run(
             async () =>
             {
-                using var stream = File.OpenRead(archiveFile);
-                using var archive = ArchiveFactory.Open(stream);
+                using var archive = ArchiveFactory.OpenArchive(new FileInfo(archiveFile));
                 var fileEntries = archive.Entries.Where(e => !e.IsDirectory).ToList();
 
                 if (fileEntries.Count > GitHubConstants.MaxArchiveEntries)
