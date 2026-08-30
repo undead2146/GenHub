@@ -318,8 +318,7 @@ public sealed class BoundedArchiveExtractorTests : IDisposable
         var archivePath = Path.Combine(_workingDirectory, "spoofed.zip");
         ArchiveFixtures.CreateWithSpoofedEntrySize(archivePath, "bomb.dat", actualBytes, declaredBytes);
 
-        using var stream = File.OpenRead(archivePath);
-        using var archive = ArchiveFactory.Open(stream);
+        using var archive = ArchiveFactory.OpenArchive(archivePath);
         var entry = archive.Entries.First(e => !e.IsDirectory);
         Assert.Equal(declaredBytes, entry.Size);
 
