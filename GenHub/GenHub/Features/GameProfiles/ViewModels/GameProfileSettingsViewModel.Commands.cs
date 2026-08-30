@@ -59,10 +59,16 @@ public partial class GameProfileSettingsViewModel
         {
             IsLoadingContent = true;
             StatusMessage = "Loading content...";
-            var existingLocks = AvailableContent
-                .Concat(EnabledContent)
-                .GroupBy(x => x.ManifestId.Value, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => (g.First().IsLocked, g.First().CanToggle), StringComparer.OrdinalIgnoreCase);
+
+            if (!string.IsNullOrEmpty(CurrentProfileId))
+            {
+                var isRunning = await DetermineHotswapModeAsync(CurrentProfileId);
+                if (isRunning != IsHotswapMode)
+                {
+                    IsHotswapMode = isRunning;
+                    UpdateAllItemsHotswapState();
+                }
+            }
 
             AvailableContent.Clear();
 
@@ -113,12 +119,6 @@ public partial class GameProfileSettingsViewModel
                     }
 
                     var viewModelItem = ConvertToViewModelContentDisplayItem(coreItem);
-                    if (existingLocks.TryGetValue(coreItem.ManifestId, out var lockState))
-                    {
-                        viewModelItem.IsLocked = lockState.IsLocked;
-                        viewModelItem.CanToggle = lockState.CanToggle;
-                    }
-
                     AvailableContent.Add(viewModelItem);
                 }
                 catch (ArgumentException argEx)
@@ -474,7 +474,17 @@ public partial class GameProfileSettingsViewModel
 
         var gameSettings = GameSettingsViewModel.GetProfileSettings();
 
+        var wasHotswap = IsHotswapMode;
         bool isProfileRunning = await CheckIsProfileRunningAsync();
+        if (!wasHotswap && isProfileRunning)
+        {
+            StatusMessage = "Game session started; non-hotswappable settings are now locked";
+            _localNotificationService.ShowWarning(
+                "Hotswap Mode Enabled",
+                "The game was started while editing this profile. Non-hotswappable settings have been locked. Please review your changes and save again.");
+            return;
+        }
+
         var liveGameType = SelectedGameInstallation?.GameType ?? GameTypeFilter;
 
         var updateRequest = new UpdateProfileRequest
@@ -507,7 +517,7 @@ public partial class GameProfileSettingsViewModel
         var result = await _gameProfileManager.UpdateProfileAsync(CurrentProfileId, updateRequest, cancellationToken);
         if (result.Success && result.Data != null)
         {
-            if (GameSettingsViewModel.SaveSettingsCommand.CanExecute(null))
+            if (!isProfileRunning && GameSettingsViewModel.SaveSettingsCommand.CanExecute(null))
             {
                 await GameSettingsViewModel.SaveSettingsCommand.ExecuteAsync(null);
             }

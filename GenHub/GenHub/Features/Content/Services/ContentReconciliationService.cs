@@ -529,12 +529,17 @@ public class ContentReconciliationService(
                     };
                 }
 
-                bool isRunning = runningProfileIds.Contains(profile.Id);
+                if (runningProfileIds.Contains(profile.Id))
+                {
+                    logger.LogWarning("Cannot replace manifests in profile '{ProfileName}' because it is actively running", profile.Name);
+                    failedProfiles.Add(profile.Name);
+                    continue;
+                }
 
                 bool workspaceInvalidated = false;
 
-                // Clear workspace to force launch-time sync only if not running
-                if (!isRunning && !string.IsNullOrEmpty(profile.ActiveWorkspaceId))
+                // Clear workspace to force launch-time sync
+                if (!string.IsNullOrEmpty(profile.ActiveWorkspaceId))
                 {
                     logger.LogDebug("Cleaning up workspace '{WorkspaceId}' for stale profile '{ProfileName}'", profile.ActiveWorkspaceId, profile.Name);
                     var cleanupResult = await workspaceManager.CleanupWorkspaceAsync(profile.ActiveWorkspaceId, cancellationToken);
@@ -550,7 +555,7 @@ public class ContentReconciliationService(
                 {
                     EnabledContentIds = newContentIds,
                     GameClient = newGameClient,
-                    ActiveWorkspaceId = isRunning ? profile.ActiveWorkspaceId : string.Empty,
+                    ActiveWorkspaceId = string.Empty,
                 };
 
                 var updateResult = await profileManager.UpdateProfileAsync(profile.Id, updateRequest, cancellationToken);

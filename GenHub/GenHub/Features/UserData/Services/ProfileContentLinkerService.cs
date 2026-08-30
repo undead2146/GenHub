@@ -176,16 +176,12 @@ public class ProfileContentLinkerService(
             var currentManifests = currentResult.Success && currentResult.Data != null
                 ? currentResult.Data.Where(m => m.TargetGame == targetGame || m.TargetGame == GameType.Unknown).ToList()
                 : [];
-            var currentManifestIds = currentManifests.Select(m => m.ManifestId).ToHashSet();
+            var currentManifestIds = currentManifests.Select(m => m.ManifestId).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             // Filter to manifests with user data
-            var userDataManifests = newManifests
-                .Where(m => m.Files.Any(f =>
-                    f.InstallTarget != ContentInstallTarget.Workspace &&
-                    f.InstallTarget != ContentInstallTarget.System))
-                .ToList();
+            var userDataManifests = newManifests.Where(HasProfileUserData).ToList();
 
-            var newManifestIds = userDataManifests.Select(m => m.Id.Value).ToHashSet();
+            var newManifestIds = userDataManifests.Select(m => m.Id.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             bool shouldActivate = currentManifests.Any(m => m.IsActive) ||
                 (_activeProfileByGame.TryGetValue(targetGame, out var activeId) &&
@@ -197,7 +193,7 @@ public class ProfileContentLinkerService(
             var installedSoFar = new List<ContentManifest>();
 
             // Find manifests to remove (in current but not in new)
-            var toRemove = currentManifestIds.Except(newManifestIds).ToList();
+            var toRemove = currentManifestIds.Except(newManifestIds, StringComparer.OrdinalIgnoreCase).ToList();
             var removeResult = await RemoveDeselectedContentAsync(syncContext, toRemove, installedSoFar, uninstalledSoFar, cancellationToken);
             if (!removeResult.Success)
             {
@@ -612,7 +608,7 @@ public class ProfileContentLinkerService(
         IReadOnlyList<UserDataManifest> originalManifests)
     {
         bool failed = false;
-        foreach (var manifest in originalManifests.Where(m => uninstalledSoFar.Contains(m.ManifestId)))
+        foreach (var manifest in originalManifests.Where(m => uninstalledSoFar.Contains(m.ManifestId, StringComparer.OrdinalIgnoreCase)))
         {
             var installRes = await userDataTracker.InstallUserDataAsync(
                 manifest.ManifestId,

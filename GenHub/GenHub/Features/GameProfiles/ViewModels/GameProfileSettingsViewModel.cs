@@ -361,6 +361,25 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     }
 
     /// <summary>
+    /// Refreshes the hotswap mode and updates item lock states if the profile running state has changed.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    public virtual async Task RefreshHotswapStateAsync()
+    {
+        if (string.IsNullOrEmpty(CurrentProfileId))
+        {
+            return;
+        }
+
+        var isRunning = await DetermineHotswapModeAsync(CurrentProfileId);
+        if (isRunning != IsHotswapMode)
+        {
+            IsHotswapMode = isRunning;
+            UpdateAllItemsHotswapState();
+        }
+    }
+
+    /// <summary>
     /// Handles the replacement of a manifest ID with a new one globally.
     /// Updates enabled and available content collections to use the new manifest ID.
     /// </summary>
