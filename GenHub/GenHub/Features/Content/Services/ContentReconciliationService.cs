@@ -297,8 +297,12 @@ public class ContentReconciliationService(
                 }
             }
 
-            // Return success even with partial failures to allow cleanup of old manifests.
-            // Failed manifests are logged for visibility.
+            if (failedManifests.Count > 0)
+            {
+                return OperationResult<ReconciliationResult>.CreateFailure(
+                    $"Failed to remove manifests still referenced by active or unreconciled profiles: {string.Join(", ", failedManifests)}");
+            }
+
             return OperationResult<ReconciliationResult>.CreateSuccess(totalResult);
         }
         catch (OperationCanceledException)

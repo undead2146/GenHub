@@ -141,7 +141,8 @@ public class ContentReconciliationServiceHotswapTests
         var result = await _reconciliationService.OrchestrateBulkRemovalAsync([ManifestId.Create(manifestId)]);
 
         // Assert
-        Assert.True(result.Success);
+        Assert.False(result.Success);
+        Assert.Contains("active or unreconciled profiles", result.FirstError, StringComparison.OrdinalIgnoreCase);
         _workspaceManagerMock.Verify(w => w.CleanupWorkspaceAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         _manifestPoolMock.Verify(m => m.RemoveManifestAsync(It.IsAny<ManifestId>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
         _casReferenceTrackerMock.Verify(c => c.UntrackManifestAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -231,11 +232,8 @@ public class ContentReconciliationServiceHotswapTests
         var result = await _reconciliationService.OrchestrateBulkRemovalAsync([ManifestId.Create(manifestId)]);
 
         // Assert
-        Assert.True(result.Success);
-        Assert.NotNull(result.Data);
-        Assert.Equal(1, result.Data.ProfilesUpdated);
-        Assert.Equal(1, result.Data.WorkspacesInvalidated);
-        Assert.Equal(1, result.Data.FailedProfilesCount);
+        Assert.False(result.Success);
+        Assert.Contains("active or unreconciled profiles", result.FirstError, StringComparison.OrdinalIgnoreCase);
 
         // Idle profile's workspace cleaned up and profile updated
         _workspaceManagerMock.Verify(w => w.CleanupWorkspaceAsync("workspace-idle", It.IsAny<CancellationToken>()), Times.Once);
