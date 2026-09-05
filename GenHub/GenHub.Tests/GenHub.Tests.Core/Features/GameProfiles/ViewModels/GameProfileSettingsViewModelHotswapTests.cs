@@ -935,14 +935,27 @@ public class GameProfileSettingsViewModelHotswapTests
         await _viewModel.InitializeForProfileAsync(profileId);
         _gameProfileManagerMock.Invocations.Clear();
 
+        _viewModel.Name = "New Edited Name";
+        _viewModel.Description = "New Edited Description";
+
         // Act
         await _viewModel.SaveCommand.ExecuteAsync(null);
 
         // Assert
         Assert.Equal("Live synchronization failed; profile changes were rolled back", _viewModel.StatusMessage);
+        Assert.Equal("PostSave Profile", _viewModel.Name);
         _gameProfileManagerMock.Verify(
-            m => m.UpdateProfileAsync(profileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()),
-            Times.Exactly(2));
+            m => m.UpdateProfileAsync(
+                profileId,
+                It.Is<UpdateProfileRequest>(r => r.Name == "New Edited Name"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        _gameProfileManagerMock.Verify(
+            m => m.UpdateProfileAsync(
+                profileId,
+                It.Is<UpdateProfileRequest>(r => r.Name == "PostSave Profile" && r.EnabledContentIds != null && r.EnabledContentIds.Contains(originalMapId)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     /// <summary>

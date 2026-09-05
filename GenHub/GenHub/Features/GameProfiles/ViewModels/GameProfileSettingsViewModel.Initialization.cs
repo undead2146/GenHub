@@ -237,6 +237,7 @@ public partial class GameProfileSettingsViewModel
 
     private void ApplyLoadedProfileProperties(GameProfile profile)
     {
+        _originalProfile = profile;
         Name = profile.Name;
         Description = profile.Description ?? string.Empty;
         ColorValue = profile.ThemeColor ?? "#1976D2";

@@ -502,10 +502,17 @@ public partial class GameProfileSettingsViewModel
                     if (!liveSyncSuccess)
                     {
                         _logger?.LogWarning("Live sync failed after profile update for {ProfileId}; rolling back persisted profile", CurrentProfileId);
-                        var rollbackRequest = BuildUpdateRequest(_originalEnabledContentIds.ToList(), null);
+                        var rollbackRequest = _originalProfile != null
+                            ? BuildRollbackRequest(_originalProfile, _originalEnabledContentIds.ToList())
+                            : BuildUpdateRequest(_originalEnabledContentIds.ToList(), null);
                         var rollbackResult = await _gameProfileManager.UpdateProfileAsync(CurrentProfileId, rollbackRequest, cancellationToken);
                         if (rollbackResult.Success)
                         {
+                            if (_originalProfile != null)
+                            {
+                                ApplyLoadedProfileProperties(_originalProfile);
+                            }
+
                             StatusMessage = "Live synchronization failed; profile changes were rolled back";
                             _localNotificationService.ShowWarning(
                                 "Live Sync Failed",
@@ -533,6 +540,28 @@ public partial class GameProfileSettingsViewModel
         {
             await HandleProfileUpdateFailureAsync(isProfileRunning, liveGameType, result, cancellationToken);
         }
+    }
+
+    private UpdateProfileRequest BuildRollbackRequest(GameProfile originalProfile, List<string> originalEnabledContentIds)
+    {
+        return new UpdateProfileRequest
+        {
+            Name = originalProfile.Name,
+            Description = originalProfile.Description,
+            ThemeColor = originalProfile.ThemeColor,
+            GameInstallationId = originalProfile.GameInstallationId,
+            WorkspaceStrategy = originalProfile.WorkspaceStrategy,
+            EnabledContentIds = originalEnabledContentIds,
+            CommandLineArguments = originalProfile.CommandLineArguments,
+            IconPath = originalProfile.IconPath,
+            CoverPath = originalProfile.CoverPath,
+            GameClient = originalProfile.GameClient,
+            VideoResolutionWidth = originalProfile.VideoResolutionWidth,
+            VideoResolutionHeight = originalProfile.VideoResolutionHeight,
+            VideoWindowed = originalProfile.VideoWindowed,
+            VideoTextureQuality = originalProfile.VideoTextureQuality,
+            EnableVideoShadows = originalProfile.EnableVideoShadows,
+        };
     }
 
     private UpdateProfileRequest BuildUpdateRequest(List<string> enabledContentIds, UpdateProfileRequest? gameSettings)
