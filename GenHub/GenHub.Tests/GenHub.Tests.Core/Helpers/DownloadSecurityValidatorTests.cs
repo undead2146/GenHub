@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using GenHub.Core.Helpers;
+using GenHub.Core.Models.Results;
 using Xunit;
 
 /// <summary>
@@ -72,6 +73,50 @@ public class DownloadSecurityValidatorTests
             {
                 File.Delete(tempFile);
             }
+        }
+    }
+
+    /// <summary>
+    /// Verifies that both SHA-256 and publisher criteria are required in either validation path.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the test.</returns>
+    /// <param name="hashMatches">Whether the supplied SHA-256 hash matches the file.</param>
+    /// <param name="lockFile">Whether to validate through the locked-file path.</param>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task ValidateCombinedCriteriaAsync_RequiresEveryCriterionAsync(bool hashMatches, bool lockFile)
+    {
+        var (tempFile, expectedHash) = await CreateTempFileWithHashAsync("Every validation criterion must pass.");
+        try
+        {
+            var hashToValidate = hashMatches
+                ? expectedHash
+                : "0000000000000000000000000000000000000000000000000000000000000000";
+            var result = await ValidateWithCombinedCriteriaAsync(
+                tempFile,
+                hashToValidate,
+                lockFile);
+
+            Assert.False(result.Success);
+            if (hashMatches)
+            {
+                Assert.DoesNotContain(result.Errors, e => e.Contains("SHA-256 hash mismatch"));
+                Assert.Contains(
+                    result.Errors,
+                    e => e.Contains("Authenticode", StringComparison.OrdinalIgnoreCase) ||
+                         e.Contains("publisher", StringComparison.OrdinalIgnoreCase));
+            }
+            else
+            {
+                Assert.Contains(result.Errors, e => e.Contains("SHA-256 hash mismatch"));
+            }
+        }
+        finally
+        {
+            File.Delete(tempFile);
         }
     }
 
@@ -179,5 +224,41 @@ public class DownloadSecurityValidatorTests
         var computedHash = await DownloadSecurityValidator.ComputeSha256Async(ms);
 
         Assert.Equal(expectedHash, computedHash);
+    }
+
+    private static async Task<(string Path, string Sha256)> CreateTempFileWithHashAsync(string text)
+    {
+        var path = Path.GetTempFileName();
+        var content = Encoding.UTF8.GetBytes(text);
+        await File.WriteAllBytesAsync(path, content);
+        return (path, Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant());
+    }
+
+    private static async Task<OperationResult<bool>> ValidateWithCombinedCriteriaAsync(
+        string filePath,
+        string expectedHash,
+        bool lockFile)
+    {
+        if (!lockFile)
+        {
+            return await DownloadSecurityValidator.ValidateFileAsync(
+                filePath,
+                allowedSha256Hashes: [expectedHash],
+                expectedAuthenticodePublisher: "Publisher That Does Not Match");
+        }
+
+        var result = await DownloadSecurityValidator.ValidateAndLockFileAsync(
+            filePath,
+            allowedSha256Hashes: [expectedHash],
+            expectedAuthenticodePublisher: "Publisher That Does Not Match");
+
+        if (result.Data is not null)
+        {
+            await result.Data.DisposeAsync();
+        }
+
+        return result.Success
+            ? OperationResult<bool>.CreateSuccess(true)
+            : OperationResult<bool>.CreateFailure(result.Errors);
     }
 }
