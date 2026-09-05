@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace GenHub.Core.Constants;
 
 /// <summary>
@@ -38,5 +40,6 @@ public static class ImageCacheConstants
     /// <summary>
     /// Fixed referrer URL required by ModDB to serve image requests and prevent hotlink blocking.
     /// </summary>
+    [SuppressMessage("Minor Code Smell", "S1075:URIs should not be hardcoded", Justification = "ModDB requires its own fixed referrer to serve images and prevent hotlink blocking.")]
     public const string ModDbReferrerUrl = "https://www.moddb.com/";
 }

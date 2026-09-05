@@ -648,26 +648,23 @@ public sealed class ImageCacheService : IImageCacheService
     private async Task<HttpResponseMessage?> ExecuteRequestWithRedirectsAsync(string initialUrl)
     {
         var currentUrl = initialUrl;
-        HttpResponseMessage? response = null;
 
         for (var redirectCount = 0; redirectCount <= ImageCacheConstants.MaxRedirects; redirectCount++)
         {
             if (!IsSafeRemoteUrl(currentUrl, out var targetUri) || targetUri == null)
             {
-                response?.Dispose();
                 return null;
             }
 
             var request = CreateImageHttpRequest(currentUrl);
-            response?.Dispose();
-            response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
 
             if ((int)response.StatusCode is >= 300 and <= 399)
             {
                 var nextUrl = ResolveRedirectUrl(response.Headers.Location, targetUri);
+                response.Dispose();
                 if (nextUrl == null)
                 {
-                    response.Dispose();
                     return null;
                 }
 
@@ -678,7 +675,6 @@ public sealed class ImageCacheService : IImageCacheService
             return response;
         }
 
-        response?.Dispose();
         return null;
     }
 
