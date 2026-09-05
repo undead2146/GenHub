@@ -35,9 +35,7 @@ public static class ContentPathPolicy
         if (Path.IsPathRooted(relativePath) ||
             relativePath.StartsWith('/') ||
             relativePath.StartsWith('\\') ||
-            (relativePath.Length >= 2 && relativePath[1] == ':' && char.IsLetter(relativePath[0])) ||
-            relativePath.StartsWith("\\\\", StringComparison.Ordinal) ||
-            relativePath.StartsWith("//", StringComparison.Ordinal))
+            (relativePath.Length >= 2 && relativePath[1] == ':' && char.IsLetter(relativePath[0])))
         {
             return OperationResult<string>.CreateFailure($"Relative path cannot be rooted or absolute: {relativePath}");
         }

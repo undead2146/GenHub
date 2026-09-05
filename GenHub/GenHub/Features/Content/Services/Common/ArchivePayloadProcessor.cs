@@ -400,7 +400,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         try
         {
             using var archive = ArchiveFactory.OpenArchive(archivePath);
-            ExtractSharpCompressArchive(archive, extractPath, cancellationToken);
+            ExtractSharpCompressArchive(archive, archivePath, extractPath, cancellationToken);
         }
         catch when (isExe)
         {
@@ -410,12 +410,14 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
 
     private static void ExtractSharpCompressArchive(
         IArchive archive,
+        string archivePath,
         string extractPath,
         CancellationToken cancellationToken)
     {
         var entryCount = 0;
         long totalUncompressedSize = 0;
         var extractRoot = Path.GetFullPath(extractPath);
+        var fullArchivePath = Path.GetFullPath(archivePath);
 
         foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
         {
@@ -445,6 +447,11 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
             }
 
             var destinationPath = pathResult.Data;
+            if (string.Equals(destinationPath, fullArchivePath, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException($"Archive entry cannot overwrite the archive itself: {entry.Key}");
+            }
+
             var destinationDir = Path.GetDirectoryName(destinationPath);
             if (!string.IsNullOrEmpty(destinationDir))
             {
@@ -500,6 +507,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
             var entryCount = 0;
             long totalUncompressedSize = 0;
             var extractRoot = Path.GetFullPath(extractPath);
+            var fullArchivePath = Path.GetFullPath(archivePath);
 
             foreach (var entry in zip.Entries)
             {
@@ -517,7 +525,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
                         $"Archive exceeds maximum entry count of {CatalogConstants.MaxZipEntryCount}");
                 }
 
-                ExtractSingleZipEntry(entry, extractRoot, ref totalUncompressedSize, cancellationToken);
+                ExtractSingleZipEntry(entry, fullArchivePath, extractRoot, ref totalUncompressedSize, cancellationToken);
             }
 
             return true;
@@ -538,6 +546,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
 
     private static void ExtractSingleZipEntry(
         ZipArchiveEntry entry,
+        string fullArchivePath,
         string extractRoot,
         ref long totalUncompressedSize,
         CancellationToken cancellationToken)
@@ -554,6 +563,11 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         }
 
         var destinationPath = pathResult.Data;
+        if (string.Equals(destinationPath, fullArchivePath, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException($"Archive entry cannot overwrite the archive itself: {entry.FullName}");
+        }
+
         var destinationDir = Path.GetDirectoryName(destinationPath);
         if (!string.IsNullOrEmpty(destinationDir))
         {
@@ -587,7 +601,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
             stream.Position = offset;
             using var subStream = new SubStream(stream, offset, stream.Length - offset);
             using var archive = ArchiveFactory.OpenArchive(subStream);
-            ExtractSharpCompressArchive(archive, extractPath, cancellationToken);
+            ExtractSharpCompressArchive(archive, archivePath, extractPath, cancellationToken);
             return true;
         }
         catch (OperationCanceledException)
@@ -847,7 +861,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
                     return written;
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or InvalidDataException)
             {
                 // Fall back to raw copy if BZ2 decompression fails
             }
@@ -865,7 +879,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
                     return written;
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or InvalidDataException)
             {
                 // Fall back to raw copy if Deflate decompression fails
             }

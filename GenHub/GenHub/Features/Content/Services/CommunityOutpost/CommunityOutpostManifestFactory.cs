@@ -109,7 +109,7 @@ public class CommunityOutpostManifestFactory(
                 }
             }
 
-            if (isControlBarContent && allControlBarOutputs != null && allControlBarOutputs.Count > 0)
+            if (isControlBarContent && allControlBarOutputs.Count > 0)
             {
                 controlBarProcessor.CleanupSourceDirectories(extractedDirectory, allControlBarOutputs);
             }

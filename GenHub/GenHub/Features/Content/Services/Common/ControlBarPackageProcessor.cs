@@ -23,7 +23,14 @@ public class ControlBarPackageProcessor(
 {
     private const string ControlBarMetadataBigBase64 = "QklHRngBAAAAAAACAAAAUwAAAFMAAAEkQ29udHJvbEJhclByby50eHQAAAABdwAAAAFHZW5Ub29sXGZ1bGx2aWV3cG9ydC5kYXQAAAAAAAAAAABDb250cm9sIEJhciBQcm8gZm9yIENPTU1BTkQgQU5EIENPTlFVRVIgR0VORVJBTFM6IFpFUk8gSE9VUg0KDQpBVVRIT1I6DQpFQSBHYW1lcywgRkFTLCB4ZXpvbg0KDQpPUklHSU5BTCBET1dOTE9BRCBVUkw6DQpodHRwOi8vZ2VudG9vbC5uZXQvZG93bmxvYWQvY29udHJvbGJhcnBybw0KDQpTT1VSQ0UgQ09ERSAmIEFTU0VUUzoNCmh0dHBzOi8vZ2l0aHViLmNvbS9UaGVTdXBlckhhY2tlcnMvR2VuZXJhbHNDb250cm9sQmFyDQoNCkRPTkFUSU9OIExJTks6DQpodHRwczovL3d3dy5wYXlwYWwubWUvZ2VudG9vbA0KMQ==";
 
-    private static readonly string[] KnownResolutionVariants = ["720p", "900p", "1080p", "1440p", "4k", "2160p"];
+    private const string Variant720p = "720p";
+    private const string Variant900p = "900p";
+    private const string Variant1080p = "1080p";
+    private const string Variant1440p = "1440p";
+    private const string Variant2160p = "2160p";
+    private const string Variant4k = "4k";
+
+    private static readonly string[] KnownResolutionVariants = [Variant720p, Variant900p, Variant1080p, Variant1440p, Variant4k, Variant2160p];
     private static readonly TimeSpan RegexMatchTimeout = TimeSpan.FromSeconds(1);
     private static readonly Regex WordVariantRegex = new(@"\b(720p?|900p?|1080p?|1440p?|2160p?|4k)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexMatchTimeout);
     private static readonly Regex InlineVariantRegex = new(@"(720p|900p|1080p|1440p|2160p|4k)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexMatchTimeout);
@@ -31,6 +38,11 @@ public class ControlBarPackageProcessor(
     /// <inheritdoc/>
     public bool IsControlBarContent(string extractedDirectory, ContentManifest manifest)
     {
+        if (manifest.ContentType != ContentType.Addon)
+        {
+            return false;
+        }
+
         return HasControlBarManifestMetadata(manifest) || HasControlBarFiles(extractedDirectory);
     }
 
@@ -74,7 +86,10 @@ public class ControlBarPackageProcessor(
     /// <inheritdoc/>
     public void CleanupSourceDirectories(string extractedDirectory, IEnumerable<string> repackedOutputs)
     {
-        var outputSet = repackedOutputs as HashSet<string> ?? new HashSet<string>(repackedOutputs, StringComparer.OrdinalIgnoreCase);
+        ArgumentNullException.ThrowIfNull(repackedOutputs);
+        var outputSet = repackedOutputs as HashSet<string> is { Comparer: var comp } && comp == StringComparer.OrdinalIgnoreCase
+            ? (HashSet<string>)repackedOutputs
+            : new HashSet<string>(repackedOutputs, StringComparer.OrdinalIgnoreCase);
         CleanupSourceDirectories(extractedDirectory, outputSet);
     }
 
@@ -82,32 +97,31 @@ public class ControlBarPackageProcessor(
     public string? FindControlBarVariantBigRoot(string extractedDirectory, string variantId)
     {
         var rawSuffix = GetControlBarVariantSuffix(variantId);
-        var candidates = new[]
-        {
-            Path.Combine(extractedDirectory, "ZH", variantId, GameContentConstants.BigEnDirectoryName),
-            Path.Combine(extractedDirectory, "ZH", variantId, GameContentConstants.BigDirectoryName),
-            Path.Combine(extractedDirectory, "ZH", variantId),
-            Path.Combine(extractedDirectory, "ZH", rawSuffix, GameContentConstants.BigEnDirectoryName),
-            Path.Combine(extractedDirectory, "ZH", rawSuffix, GameContentConstants.BigDirectoryName),
-            Path.Combine(extractedDirectory, "ZH", rawSuffix),
-            Path.Combine(extractedDirectory, "CCG", variantId, GameContentConstants.BigEnDirectoryName),
-            Path.Combine(extractedDirectory, "CCG", variantId, GameContentConstants.BigDirectoryName),
-            Path.Combine(extractedDirectory, "CCG", variantId),
-            Path.Combine(extractedDirectory, "CCG", rawSuffix, GameContentConstants.BigEnDirectoryName),
-            Path.Combine(extractedDirectory, "CCG", rawSuffix, GameContentConstants.BigDirectoryName),
-            Path.Combine(extractedDirectory, "CCG", rawSuffix),
-            Path.Combine(extractedDirectory, variantId, GameContentConstants.BigEnDirectoryName),
-            Path.Combine(extractedDirectory, variantId, GameContentConstants.BigDirectoryName),
-            Path.Combine(extractedDirectory, variantId),
-            Path.Combine(extractedDirectory, rawSuffix, GameContentConstants.BigEnDirectoryName),
-            Path.Combine(extractedDirectory, rawSuffix, GameContentConstants.BigDirectoryName),
-            Path.Combine(extractedDirectory, rawSuffix),
-        };
+        var tokens = variantId.Equals(Variant4k, StringComparison.OrdinalIgnoreCase) ||
+                     variantId.Equals(Variant2160p, StringComparison.OrdinalIgnoreCase) ||
+                     variantId.Equals("2160", StringComparison.OrdinalIgnoreCase)
+            ? [variantId, rawSuffix, Variant2160p, "2160", Variant4k, "4K"]
+            : new[] { variantId, rawSuffix };
 
-        var existingCandidate = candidates.FirstOrDefault(Directory.Exists);
-        if (existingCandidate != null)
+        var prefixes = new[] { "ZH", "CCG", string.Empty };
+        var subDirs = new[] { GameContentConstants.BigEnDirectoryName, GameContentConstants.BigDirectoryName, string.Empty };
+
+        foreach (var prefix in prefixes)
         {
-            return existingCandidate;
+            foreach (var token in tokens.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                foreach (var subDir in subDirs)
+                {
+                    var candidate = string.IsNullOrEmpty(prefix)
+                        ? (string.IsNullOrEmpty(subDir) ? Path.Combine(extractedDirectory, token) : Path.Combine(extractedDirectory, token, subDir))
+                        : (string.IsNullOrEmpty(subDir) ? Path.Combine(extractedDirectory, prefix, token) : Path.Combine(extractedDirectory, prefix, token, subDir));
+
+                    if (Directory.Exists(candidate))
+                    {
+                        return candidate;
+                    }
+                }
+            }
         }
 
         if (Directory.Exists(Path.Combine(extractedDirectory, GameContentConstants.WindowDirectoryName)) ||
@@ -124,9 +138,9 @@ public class ControlBarPackageProcessor(
     /// <inheritdoc/>
     public string GetControlBarVariantSuffix(string variantId)
     {
-        if (variantId.Equals("2160p", StringComparison.OrdinalIgnoreCase) ||
+        if (variantId.Equals(Variant2160p, StringComparison.OrdinalIgnoreCase) ||
             variantId.Equals("2160", StringComparison.OrdinalIgnoreCase) ||
-            variantId.Equals("4k", StringComparison.OrdinalIgnoreCase))
+            variantId.Equals(Variant4k, StringComparison.OrdinalIgnoreCase))
         {
             return "4K";
         }
@@ -159,7 +173,7 @@ public class ControlBarPackageProcessor(
 
     private static bool HasControlBarManifestMetadata(ContentManifest manifest)
     {
-        if (manifest.ContentType is not (ContentType.Addon or ContentType.Mod))
+        if (manifest.ContentType != ContentType.Addon)
         {
             return false;
         }
@@ -276,11 +290,11 @@ public class ControlBarPackageProcessor(
             var token = match.Value.ToLowerInvariant();
             return token switch
             {
-                "720" or "720p" => "720p",
-                "900" or "900p" => "900p",
-                "1080" or "1080p" => "1080p",
-                "1440" or "1440p" => "1440p",
-                "2160" or "2160p" or "4k" => "4k",
+                "720" or Variant720p => Variant720p,
+                "900" or Variant900p => Variant900p,
+                "1080" or Variant1080p => Variant1080p,
+                "1440" or Variant1440p => Variant1440p,
+                "2160" or Variant2160p or Variant4k => Variant4k,
                 _ => token,
             };
         }
@@ -291,7 +305,7 @@ public class ControlBarPackageProcessor(
             var inlineVal = inlineMatch.Value.ToLowerInvariant();
             return inlineVal switch
             {
-                "2160p" or "2160" or "4k" => "4k",
+                Variant2160p or Variant4k => Variant4k,
                 _ => inlineVal,
             };
         }
@@ -591,7 +605,7 @@ public class ControlBarPackageProcessor(
 
         try
         {
-            var targetSourceDirNames = new[] { "ZH", "CCG", "Art", "Data", GameContentConstants.WindowDirectoryName, GameContentConstants.GenToolDirectoryName, "720p", "900p", "1080p", "1440p", "2160p", "4k" };
+            var targetSourceDirNames = new[] { "ZH", "CCG", "Art", "Data", GameContentConstants.WindowDirectoryName, GameContentConstants.GenToolDirectoryName, Variant720p, Variant900p, Variant1080p, Variant1440p, Variant2160p, Variant4k };
             foreach (var dirName in targetSourceDirNames)
             {
                 var dirPath = Path.Combine(extractedDirectory, dirName);

@@ -288,4 +288,21 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
 
         Assert.False(result);
     }
+
+    /// <summary>
+    /// Verifies that FindControlBarVariantBigRoot finds a 2160p folder layout when requested variant is 4k.
+    /// </summary>
+    [Fact]
+    public void FindControlBarVariantBigRoot_With2160pFolderAnd4kVariant_FindsRoot()
+    {
+        var variantDir = Path.Combine(_testDir, "ZH", "2160p", "BIG");
+        Directory.CreateDirectory(variantDir);
+
+        var converter = new CompressedImageToTgaConverter(NullLogger<CompressedImageToTgaConverter>.Instance);
+        var processor = new ControlBarPackageProcessor(converter, NullLogger<ControlBarPackageProcessor>.Instance);
+
+        var result = processor.FindControlBarVariantBigRoot(_testDir, "4k");
+
+        Assert.Equal(variantDir, result);
+    }
 }

@@ -501,7 +501,7 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     /// Verifies that Smart Install Maker SFX executables (e.g. ShockWave) are safely extracted and normalized.
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
-    [Fact(Skip = "Requires local ShockWave installer")]
+    [Fact]
     public async Task ExtractArchivesSafelyAsync_WithSmartInstallMakerExecutable_ExtractsAndNormalizesSuccessfully()
     {
         var casPath = @"A:\Steam\steamapps\common\.genhub-cas\objects\f4\f45e14d6b4a1e6e6feaa2ad737528b385586ad81ab7535bf9a330972db834c4e";
@@ -611,6 +611,30 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
         Assert.Contains("Readme content", rootText);
         Assert.Contains("Readme content", wrapperText);
         Assert.NotEqual(rootText, wrapperText);
+    }
+
+    /// <summary>
+    /// Verifies that extracting an archive containing an entry that matches the archive path throws an InvalidDataException to prevent self-clobbering.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ExtractArchivesSafelyAsync_WithArchiveContainingSelfEntry_ThrowsInvalidDataExceptionAsync()
+    {
+        // Arrange
+        Directory.CreateDirectory(_stagingDirectory);
+        var zipPath = Path.Combine(_stagingDirectory, "conflict.zip");
+        using (var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create))
+        {
+            var entry = archive.CreateEntry("conflict.zip");
+            using var writer = new StreamWriter(entry.Open());
+            await writer.WriteAsync("clobber content");
+        }
+
+        var processor = CreateProcessor();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            processor.ExtractArchivesSafelyAsync(_stagingDirectory));
     }
 
     /// <inheritdoc />
