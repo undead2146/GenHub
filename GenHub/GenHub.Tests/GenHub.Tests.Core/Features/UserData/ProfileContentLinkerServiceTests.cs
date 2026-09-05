@@ -404,7 +404,7 @@ public sealed class ProfileContentLinkerServiceTests : IDisposable
             .ReturnsAsync(OperationResult<bool>.CreateFailure("File locked"));
 
         _userDataTrackerMock.Setup(t => t.InstallUserDataAsync(
-            manifest1Id,
+            It.IsAny<string>(),
             profileId,
             gameType,
             It.IsAny<IEnumerable<ManifestFile>>(),
@@ -420,10 +420,20 @@ public sealed class ProfileContentLinkerServiceTests : IDisposable
         Assert.False(result.Success);
         Assert.Contains("File locked", result.FirstError, StringComparison.OrdinalIgnoreCase);
 
-        // Verify manifest-1 was reinstalled as part of rollback
+        // Verify both manifests were reinstalled as part of rollback compensation
         _userDataTrackerMock.Verify(
             t => t.InstallUserDataAsync(
                 manifest1Id,
+                profileId,
+                gameType,
+                It.IsAny<IEnumerable<ManifestFile>>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        _userDataTrackerMock.Verify(
+            t => t.InstallUserDataAsync(
+                manifest2Id,
                 profileId,
                 gameType,
                 It.IsAny<IEnumerable<ManifestFile>>(),
@@ -484,7 +494,7 @@ public sealed class ProfileContentLinkerServiceTests : IDisposable
             It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<UserDataManifest>.CreateFailure("Disk full"));
 
-        _userDataTrackerMock.Setup(t => t.UninstallUserDataAsync(manifest1Id, profileId, It.IsAny<CancellationToken>()))
+        _userDataTrackerMock.Setup(t => t.UninstallUserDataAsync(It.IsAny<string>(), profileId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
 
         // Act - install both manifests
@@ -494,8 +504,9 @@ public sealed class ProfileContentLinkerServiceTests : IDisposable
         Assert.False(result.Success);
         Assert.Contains("Disk full", result.FirstError, StringComparison.OrdinalIgnoreCase);
 
-        // Verify manifest-1 was uninstalled as part of rollback
+        // Verify both manifests were uninstalled as part of rollback compensation
         _userDataTrackerMock.Verify(t => t.UninstallUserDataAsync(manifest1Id, profileId, It.IsAny<CancellationToken>()), Times.Once);
+        _userDataTrackerMock.Verify(t => t.UninstallUserDataAsync(manifest2Id, profileId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     /// <summary>
@@ -536,7 +547,7 @@ public sealed class ProfileContentLinkerServiceTests : IDisposable
 
         // Compensating reinstall fails during rollback
         _userDataTrackerMock.Setup(t => t.InstallUserDataAsync(
-            manifest1Id,
+            It.IsAny<string>(),
             profileId,
             gameType,
             It.IsAny<IEnumerable<ManifestFile>>(),

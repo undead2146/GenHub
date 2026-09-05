@@ -874,15 +874,19 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
                 PatStatusMessage = "GitHub PAT configured ✓";
                 IsPatValid = true;
             }
-            else if (_gitHubApiClient?.IsAuthenticated == true)
-            {
-                PatStatusMessage = "Configured via environment variable";
-                IsPatValid = true;
-            }
             else
             {
-                PatStatusMessage = "No GitHub PAT configured";
-                IsPatValid = false;
+                var isAuth = _gitHubApiClient != null && await _gitHubApiClient.EnsureAuthenticatedAsync().ConfigureAwait(false);
+                if (isAuth)
+                {
+                    PatStatusMessage = "Configured via environment variable";
+                    IsPatValid = true;
+                }
+                else
+                {
+                    PatStatusMessage = "No GitHub PAT configured";
+                    IsPatValid = false;
+                }
             }
         }
         catch (Exception ex)

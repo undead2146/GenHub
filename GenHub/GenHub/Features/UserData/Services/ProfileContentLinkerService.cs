@@ -333,6 +333,7 @@ public class ProfileContentLinkerService(
             if (!uninstallRes.Success)
             {
                 logger.LogError("[ProfileContentLinker] Failed to uninstall user data for manifest {ManifestId}: {Error}", manifestId, uninstallRes.FirstError);
+                uninstalledSoFar.Add(manifestId);
                 var rollbackFailed = await RollbackSyncAsync(context.ProfileId, context.TargetGame, installedSoFar, uninstalledSoFar, context.CurrentManifests, context.ShouldActivate);
                 var errorMessage = rollbackFailed
                     ? $"Failed to remove user data for manifest {manifestId}: {uninstallRes.FirstError ?? UnknownErrorMessage} (live rollback was incomplete)"
@@ -360,6 +361,7 @@ public class ProfileContentLinkerService(
             if (!installRes.Success)
             {
                 logger.LogError("[ProfileContentLinker] Failed to install user data for manifest {ManifestId}: {Error}", manifest.Id.Value, installRes.FirstError);
+                installedSoFar.Add(manifest);
                 var rollbackFailed = await RollbackSyncAsync(context.ProfileId, context.TargetGame, installedSoFar, uninstalledSoFar, context.CurrentManifests, context.ShouldActivate);
                 var errorMessage = rollbackFailed
                     ? $"Failed to install user data for manifest {manifest.Id.Value}: {installRes.FirstError ?? UnknownErrorMessage} (live rollback was incomplete)"
@@ -595,10 +597,10 @@ public class ProfileContentLinkerService(
         foreach (var manifestId in installedSoFar.Select(manifest => manifest.Id.Value))
         {
             var uninstallRes = await userDataTracker.UninstallUserDataAsync(manifestId, profileId, CancellationToken.None);
-            if (!uninstallRes.Success)
+            if (uninstallRes == null || !uninstallRes.Success)
             {
                 failed = true;
-                logger.LogWarning("[ProfileContentLinker] Rollback uninstall failed for manifest {ManifestId}: {Error}", manifestId, uninstallRes.FirstError);
+                logger.LogWarning("[ProfileContentLinker] Rollback uninstall failed for manifest {ManifestId}: {Error}", manifestId, uninstallRes?.FirstError ?? "Operation failed");
             }
         }
 
@@ -629,10 +631,10 @@ public class ProfileContentLinkerService(
                 manifest.ManifestName,
                 CancellationToken.None);
 
-            if (!installRes.Success)
+            if (installRes == null || !installRes.Success)
             {
                 failed = true;
-                logger.LogWarning("[ProfileContentLinker] Rollback reinstall failed for manifest {ManifestId}: {Error}", manifest.ManifestId, installRes.FirstError);
+                logger.LogWarning("[ProfileContentLinker] Rollback reinstall failed for manifest {ManifestId}: {Error}", manifest.ManifestId, installRes?.FirstError ?? "Operation failed");
             }
         }
 

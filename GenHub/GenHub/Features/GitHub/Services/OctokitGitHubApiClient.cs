@@ -423,6 +423,11 @@ public class OctokitGitHubApiClient(
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
+                if (run.Conclusion?.Value != WorkflowRunConclusion.Success)
+                {
+                    continue;
+                }
+
                 try
                 {
                     var artifacts = await gitHubClient.Actions.Artifacts.ListWorkflowArtifacts(owner, repo, run.Id)
@@ -933,7 +938,7 @@ public class OctokitGitHubApiClient(
                 var task = storage.LoadTokenAsync();
                 if (task.IsCompleted)
                 {
-                    var storedToken = task.GetAwaiter().GetResult();
+                    using var storedToken = task.GetAwaiter().GetResult();
                     if (storedToken is { Length: > 0 })
                     {
                         SetAuthenticationToken(storedToken);
@@ -969,7 +974,7 @@ public class OctokitGitHubApiClient(
         {
             try
             {
-                var storedToken = await storage.LoadTokenAsync().ConfigureAwait(false);
+                using var storedToken = await storage.LoadTokenAsync().ConfigureAwait(false);
                 if (storedToken is { Length: > 0 })
                 {
                     SetAuthenticationToken(storedToken);
@@ -1031,11 +1036,10 @@ public class OctokitGitHubApiClient(
 
                 secure.MakeReadOnly();
                 SetAuthenticationToken(secure);
-                var prefix = fallbackToken.Length >= 4 ? fallbackToken[..4] + "..." : "***";
                 logger.LogWarning(
-                    "Configured GitHub credentials from generic fallback environment variable '{EnvVar}' (token prefix: {Prefix}). Prefer using '{PreferredVar}' for GenHub to avoid unintended token sharing across tools.",
+                    "Configured GitHub credentials from generic fallback environment variable '{EnvVar}' (token length: {Length}). Prefer using '{PreferredVar}' for GenHub to avoid unintended token sharing across tools.",
                     GitHubConstants.GitHubTokenEnvVar,
-                    prefix,
+                    fallbackToken.Length,
                     GitHubConstants.GenHubTokenEnvVar);
             }
             catch (Exception ex)

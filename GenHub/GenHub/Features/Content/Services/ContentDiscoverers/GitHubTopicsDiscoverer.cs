@@ -58,7 +58,7 @@ public partial class GitHubTopicsDiscoverer(
         /// </summary>
         public static readonly string[] ArchiveExtensions =
         [
-            ".zip", ".7z", ".rar", ".tar.gz",
+            ".zip", ".7z", ".rar", ".tar.gz", ".tgz",
         ];
 
         /// <summary>
@@ -82,6 +82,8 @@ public partial class GitHubTopicsDiscoverer(
                 { "2160p", "4K" },
                 { "4k", "4K" },
                 { "3840x2160", "4K" },
+                { "5120x2880", "5K" },
+                { "7680x4320", "8K" },
                 { "720p", "720p" },
                 { "1280x720", "720p" },
             };
@@ -445,7 +447,8 @@ public partial class GitHubTopicsDiscoverer(
             return true;
         }
 
-        if (rateLimitTracker != null && (rateLimitTracker.IsAtLimit || rateLimitTracker.RemainingRequests <= 0))
+        if (rateLimitTracker != null && rateLimitTracker.TimeUntilReset > TimeSpan.Zero &&
+            (rateLimitTracker.IsAtLimit || rateLimitTracker.RemainingRequests <= 0))
         {
             return true;
         }
