@@ -105,60 +105,6 @@ public class ControlBarPackageProcessor(
         return HasLooseControlBarDirectories(extractedDirectory) ? extractedDirectory : null;
     }
 
-    private string? FindVariantBigRootCandidate(string extractedDirectory, string variantId)
-    {
-        var tokens = GetVariantCandidateTokens(variantId);
-        var prefixes = new[] { "ZH", "CCG", string.Empty };
-        var subDirs = new[] { GameContentConstants.BigEnDirectoryName, GameContentConstants.BigDirectoryName, string.Empty };
-
-        foreach (var prefix in prefixes)
-        {
-            foreach (var token in tokens)
-            {
-                foreach (var subDir in subDirs)
-                {
-                    var candidate = BuildCandidatePath(extractedDirectory, prefix, token, subDir);
-                    if (Directory.Exists(candidate))
-                    {
-                        return candidate;
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private string[] GetVariantCandidateTokens(string variantId)
-    {
-        var rawSuffix = GetControlBarVariantSuffix(variantId);
-        if (variantId.Equals(Variant4k, StringComparison.OrdinalIgnoreCase) ||
-            variantId.Equals(Variant2160p, StringComparison.OrdinalIgnoreCase) ||
-            variantId.Equals("2160", StringComparison.OrdinalIgnoreCase))
-        {
-            return [variantId, rawSuffix, Variant2160p, "2160", Variant4k, "4K"];
-        }
-
-        return [variantId, rawSuffix];
-    }
-
-    private static string BuildCandidatePath(string baseDir, string prefix, string token, string subDir)
-    {
-        var path = string.IsNullOrEmpty(prefix)
-            ? Path.Combine(baseDir, token)
-            : Path.Combine(baseDir, prefix, token);
-
-        return string.IsNullOrEmpty(subDir) ? path : Path.Combine(path, subDir);
-    }
-
-    private static bool HasLooseControlBarDirectories(string directory)
-    {
-        return Directory.Exists(Path.Combine(directory, GameContentConstants.WindowDirectoryName)) ||
-               Directory.Exists(Path.Combine(directory, "Art")) ||
-               Directory.Exists(Path.Combine(directory, "Data")) ||
-               Directory.Exists(Path.Combine(directory, GameContentConstants.GenToolDirectoryName));
-    }
-
     /// <inheritdoc/>
     public string GetControlBarVariantSuffix(string variantId)
     {
@@ -193,6 +139,23 @@ public class ControlBarPackageProcessor(
             || fileName.Equals("400_ControlBarHDEnglishZH.big", StringComparison.OrdinalIgnoreCase)
             || fileName.Equals("400_ControlBarProCoreZH.big", StringComparison.OrdinalIgnoreCase)
             || fileName.Equals("400_ControlBarHDBaseZH.big", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string BuildCandidatePath(string baseDir, string prefix, string token, string subDir)
+    {
+        var path = string.IsNullOrEmpty(prefix)
+            ? Path.Combine(baseDir, token)
+            : Path.Combine(baseDir, prefix, token);
+
+        return string.IsNullOrEmpty(subDir) ? path : Path.Combine(path, subDir);
+    }
+
+    private static bool HasLooseControlBarDirectories(string directory)
+    {
+        return Directory.Exists(Path.Combine(directory, GameContentConstants.WindowDirectoryName)) ||
+               Directory.Exists(Path.Combine(directory, "Art")) ||
+               Directory.Exists(Path.Combine(directory, "Data")) ||
+               Directory.Exists(Path.Combine(directory, GameContentConstants.GenToolDirectoryName));
     }
 
     private static bool HasControlBarManifestMetadata(ContentManifest manifest)
@@ -373,6 +336,43 @@ public class ControlBarPackageProcessor(
                 await Task.Delay(delayMs);
             }
         }
+    }
+
+    private string? FindVariantBigRootCandidate(string extractedDirectory, string variantId)
+    {
+        var tokens = GetVariantCandidateTokens(variantId);
+        var prefixes = new[] { "ZH", "CCG", string.Empty };
+        var subDirs = new[] { GameContentConstants.BigEnDirectoryName, GameContentConstants.BigDirectoryName, string.Empty };
+
+        foreach (var prefix in prefixes)
+        {
+            foreach (var token in tokens)
+            {
+                foreach (var subDir in subDirs)
+                {
+                    var candidate = BuildCandidatePath(extractedDirectory, prefix, token, subDir);
+                    if (Directory.Exists(candidate))
+                    {
+                        return candidate;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private string[] GetVariantCandidateTokens(string variantId)
+    {
+        var rawSuffix = GetControlBarVariantSuffix(variantId);
+        if (variantId.Equals(Variant4k, StringComparison.OrdinalIgnoreCase) ||
+            variantId.Equals(Variant2160p, StringComparison.OrdinalIgnoreCase) ||
+            variantId.Equals("2160", StringComparison.OrdinalIgnoreCase))
+        {
+            return [variantId, rawSuffix, Variant2160p, "2160", Variant4k, "4K"];
+        }
+
+        return [variantId, rawSuffix];
     }
 
     private async Task ProcessVariantBigRootAsync(
