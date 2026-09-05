@@ -28,7 +28,7 @@ namespace GenHub.Features.Content.Services.Tools;
 /// <param name="configurationProvider">Application configuration provider.</param>
 /// <param name="dialogService">Dialog service used to confirm managed Chromium installation.</param>
 /// <param name="notificationService">Optional notifications shown before a headed browser window opens.</param>
-public class PlaywrightService(
+public sealed class PlaywrightService(
     ILogger<PlaywrightService> logger,
     IConfigurationProviderService configurationProvider,
     IDialogService dialogService,
@@ -397,6 +397,8 @@ public class PlaywrightService(
         }
 
         Task.Run(() => DisposeAsync().AsTask()).GetAwaiter().GetResult();
+        _disposed = true;
+        GC.SuppressFinalize(this);
     }
 
     /// <inheritdoc />
@@ -482,6 +484,7 @@ public class PlaywrightService(
         }
 
         _disposed = true;
+        GC.SuppressFinalize(this);
     }
 
     /// <inheritdoc />
@@ -698,6 +701,7 @@ public class PlaywrightService(
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("csharpsquid", "S4158", Justification = "Populated asynchronously via page.Popup event handler.")]
     private async Task<DownloadResult> DownloadFileCoreAsync(
         GenHub.Core.Models.Common.DownloadConfiguration configuration,
         bool usePersistentModDbProfile,
@@ -708,7 +712,7 @@ public class PlaywrightService(
             ? await CreatePersistentPageAsync(ModDBConstants.BrowserProfileName, cancellationToken)
             : await CreatePageAsync(cancellationToken: cancellationToken);
 
-        List<IPage> popups = [];
+        System.Collections.Concurrent.ConcurrentBag<IPage> popups = [];
         var downloadTcs = new TaskCompletionSource<IDownload>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         void OnDownload(object? sender, IDownload download) => downloadTcs.TrySetResult(download);
@@ -749,51 +753,7 @@ public class PlaywrightService(
                 WaitUntil = WaitUntilState.DOMContentLoaded,
             });
 
-            // Race the download TCS against a short delay to check if it auto-started. If not,
-            // try to click a fallback download link on the page (mirrors, manual Download btn).
-            var waitTask = Task.Delay(5000, cancellationToken);
-            var completedTask = await Task.WhenAny(downloadTcs.Task, waitTask);
-
-            if (completedTask != downloadTcs.Task)
-            {
-                logger.LogInformation("Download did not start automatically within 5s. Attempting to find fallback link...");
-
-                const string FallbackSelector = "a[href*='media.moddb.com'], a[href*='files.moddb.com'], a:has-text('click here'), a:has-text('Click here'), a:has-text('here'), a#download, a.download, a.btn-download, a.buttondownload, a[href*='/mirror/'], a[href*='/downloads/start/'], a[href*='/addons/start/'], a:has-text('Download Now'), a:has-text('download now'), a:has-text('Download'), a:has-text('download'), a:has-text('mirror')";
-
-                var fallbackLink = await page.QuerySelectorAsync(FallbackSelector);
-
-                if (fallbackLink != null)
-                {
-                    var text = await fallbackLink.InnerTextAsync();
-                    logger.LogInformation("Found fallback link '{Text}', clicking...", text);
-                    try
-                    {
-                        await fallbackLink.ClickAsync(new ElementHandleClickOptions { Timeout = 5000 });
-
-                        // If clicking navigated to a /start/ page, wait briefly and check for direct mirror link
-                        var secondWait = Task.Delay(4000, cancellationToken);
-                        var secondCompleted = await Task.WhenAny(downloadTcs.Task, secondWait);
-                        if (secondCompleted != downloadTcs.Task && !string.IsNullOrWhiteSpace(page.Url) && page.Url.Contains("/start/", StringComparison.OrdinalIgnoreCase))
-                        {
-                            var startPageFallback = await page.QuerySelectorAsync("a:has-text('click here'), a:has-text('Click here'), a[href*='media.moddb.com'], a[href*='files.moddb.com'], a[href*='/mirror/']");
-                            if (startPageFallback != null)
-                            {
-                                var startText = await startPageFallback.InnerTextAsync();
-                                logger.LogInformation("Found start-page mirror link '{Text}', clicking...", startText);
-                                await startPageFallback.ClickAsync(new ElementHandleClickOptions { Timeout = 5000 });
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogWarning(ex, "Failed to click fallback link.");
-                    }
-                }
-                else
-                {
-                    logger.LogWarning("No fallback download link found. Continuing to wait for download event...");
-                }
-            }
+            await TryTriggerFallbackDownloadAsync(page, downloadTcs, cancellationToken);
 
             // Wait for the download to START (not finish) with a generous timeout. ModDB's
             // redirect chain plus Cloudflare can take a while before the binary begins streaming.
@@ -834,21 +794,7 @@ public class PlaywrightService(
         {
             page.Popup -= OnPopup;
             page.Download -= OnDownload;
-            foreach (var popup in popups)
-            {
-                popup.Download -= OnDownload;
-                if (!popup.IsClosed)
-                {
-                    try
-                    {
-                        await popup.CloseAsync();
-                    }
-                    catch (PlaywrightException ex)
-                    {
-                        logger.LogDebug(ex, "Popup already closed during download cleanup.");
-                    }
-                }
-            }
+            await CleanupPopupsAsync(popups, OnDownload);
 
             if (usePersistentModDbProfile)
             {
@@ -877,6 +823,75 @@ public class PlaywrightService(
                             logger.LogDebug(ex, "Context already closed during download cleanup.");
                         }
                     }
+                }
+            }
+        }
+    }
+
+    private async Task TryTriggerFallbackDownloadAsync(IPage page, TaskCompletionSource<IDownload> downloadTcs, CancellationToken cancellationToken)
+    {
+        var waitTask = Task.Delay(5000, cancellationToken);
+        var completedTask = await Task.WhenAny(downloadTcs.Task, waitTask);
+
+        if (completedTask == downloadTcs.Task)
+        {
+            return;
+        }
+
+        logger.LogInformation("Download did not start automatically within 5s. Attempting to find fallback link...");
+
+        const string FallbackSelector = "a[href*='media.moddb.com'], a[href*='files.moddb.com'], a:has-text('click here'), a:has-text('Click here'), a:has-text('here'), a#download, a.download, a.btn-download, a.buttondownload, a[href*='/mirror/'], a[href*='/downloads/start/'], a[href*='/addons/start/'], a:has-text('Download Now'), a:has-text('download now'), a:has-text('Download'), a:has-text('download'), a:has-text('mirror')";
+
+        var fallbackLink = await page.QuerySelectorAsync(FallbackSelector);
+        if (fallbackLink == null)
+        {
+            logger.LogWarning("No fallback download link found. Continuing to wait for download event...");
+            return;
+        }
+
+        var text = await fallbackLink.InnerTextAsync();
+        logger.LogInformation("Found fallback link '{Text}', clicking...", text);
+        try
+        {
+            await fallbackLink.ClickAsync(new ElementHandleClickOptions { Timeout = 5000 });
+            await CheckStartPageFallbackAsync(page, downloadTcs, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to click fallback link.");
+        }
+    }
+
+    private async Task CheckStartPageFallbackAsync(IPage page, TaskCompletionSource<IDownload> downloadTcs, CancellationToken cancellationToken)
+    {
+        var secondWait = Task.Delay(4000, cancellationToken);
+        var secondCompleted = await Task.WhenAny(downloadTcs.Task, secondWait);
+        if (secondCompleted != downloadTcs.Task && !string.IsNullOrWhiteSpace(page.Url) && page.Url.Contains("/start/", StringComparison.OrdinalIgnoreCase))
+        {
+            var startPageFallback = await page.QuerySelectorAsync("a:has-text('click here'), a:has-text('Click here'), a[href*='media.moddb.com'], a[href*='files.moddb.com'], a[href*='/mirror/']");
+            if (startPageFallback != null)
+            {
+                var startText = await startPageFallback.InnerTextAsync();
+                logger.LogInformation("Found start-page mirror link '{Text}', clicking...", startText);
+                await startPageFallback.ClickAsync(new ElementHandleClickOptions { Timeout = 5000 });
+            }
+        }
+    }
+
+    private async Task CleanupPopupsAsync(System.Collections.Concurrent.ConcurrentBag<IPage> popups, EventHandler<IDownload> onDownload)
+    {
+        foreach (var popup in popups)
+        {
+            popup.Download -= onDownload;
+            if (!popup.IsClosed)
+            {
+                try
+                {
+                    await popup.CloseAsync();
+                }
+                catch (PlaywrightException ex)
+                {
+                    logger.LogDebug(ex, "Popup already closed during download cleanup.");
                 }
             }
         }
@@ -1048,7 +1063,7 @@ public class PlaywrightService(
         }
         catch (PlaywrightException ex) when (IsContextClosedError(ex))
         {
-            logger.LogInformation("Persistent browser context was closed; recreating profile {ProfileName}", Path.GetFileName(profileDir));
+            logger.LogInformation(ex, "Persistent browser context was closed; recreating profile {ProfileName}", Path.GetFileName(profileDir));
             await InvalidatePersistentContextAsync();
             await EnsurePersistentContextAsync(profileDir, cancellationToken);
 
@@ -1105,7 +1120,7 @@ public class PlaywrightService(
             return;
         }
 
-        List<IPage> pages = [];
+        List<IPage> pages;
         try
         {
             pages = [.. _persistentContext.Pages];
@@ -1168,7 +1183,7 @@ public class PlaywrightService(
             var runtime = GetOrCreateManagedChromiumRuntime();
             runtime.ConfigureEnvironment();
             _playwright ??= await Playwright.CreateAsync();
-            await runtime.EnsureInstalledAsync(_playwright.Chromium, cancellationToken);
+            await runtime.EnsureInstalledAsync(cancellationToken);
         }
         finally
         {
