@@ -334,4 +334,57 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
         // Assert
         Assert.False(result);
     }
+
+    /// <summary>
+    /// Verifies that an addon containing unrelated files nested inside an allowed directory (such as Data/INI) returns false from IsControlBarContent.
+    /// </summary>
+    [Fact]
+    public void IsControlBarContent_WithNestedUnrelatedAssetsUnderAllowedDirectory_ReturnsFalse()
+    {
+        // Arrange
+        Directory.CreateDirectory(Path.Combine(_testDir, "Data", "INI"));
+        Directory.CreateDirectory(Path.Combine(_testDir, "Window"));
+        File.WriteAllText(Path.Combine(_testDir, "Data", "INI", "GameData.ini"), "GameData = Invalidate");
+        File.WriteAllText(Path.Combine(_testDir, "Window", "ControlBar.wnd"), "WindowData");
+
+        var converter = new CompressedImageToTgaConverter(NullLogger<CompressedImageToTgaConverter>.Instance);
+        var processor = new ControlBarPackageProcessor(converter, NullLogger<ControlBarPackageProcessor>.Instance);
+
+        var manifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.103.github.addon.custombarwithmod"),
+            Name = "Control Bar Pro With Mod Changes",
+            ContentType = ContentType.Addon,
+        };
+
+        // Act
+        var result = processor.IsControlBarContent(_testDir, manifest);
+
+        // Assert
+        Assert.False(result);
+    }
+
+    /// <summary>
+    /// Verifies that flat source directories return the root only for the matching resolution and null for other resolutions.
+    /// </summary>
+    [Fact]
+    public void FindControlBarVariantBigRoot_WithFlatLayout_ReturnsRootOnlyForMatchingVariant()
+    {
+        // Arrange
+        Directory.CreateDirectory(Path.Combine(_testDir, "Window"));
+        File.WriteAllText(Path.Combine(_testDir, "Window", "ControlBar.wnd"), "WindowData");
+
+        var converter = new CompressedImageToTgaConverter(NullLogger<CompressedImageToTgaConverter>.Instance);
+        var processor = new ControlBarPackageProcessor(converter, NullLogger<ControlBarPackageProcessor>.Instance);
+
+        // Act
+        var result1080 = processor.FindControlBarVariantBigRoot(_testDir, "1080p");
+        var result720 = processor.FindControlBarVariantBigRoot(_testDir, "720p");
+        var result1440 = processor.FindControlBarVariantBigRoot(_testDir, "1440p");
+
+        // Assert
+        Assert.Equal(_testDir, result1080);
+        Assert.Null(result720);
+        Assert.Null(result1440);
+    }
 }
