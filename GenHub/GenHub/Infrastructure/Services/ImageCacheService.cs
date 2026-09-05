@@ -863,7 +863,7 @@ public sealed class ImageCacheService : IImageCacheService
     /// <summary>
     /// Represents an in-flight coalesced image download with waiter count tracking and linked cancellation.
     /// </summary>
-    private sealed class CoalescedDownloadOperation
+    private sealed class CoalescedDownloadOperation : IDisposable
     {
         private readonly object syncLock = new();
         private readonly CancellationTokenSource cancellationTokenSource = new();
@@ -872,9 +872,19 @@ public sealed class ImageCacheService : IImageCacheService
         public CoalescedDownloadOperation(Func<CancellationToken, Task<Bitmap?>> downloadFactory)
         {
             Task = downloadFactory(cancellationTokenSource.Token);
+            _ = Task.ContinueWith(
+                _ => cancellationTokenSource.Dispose(),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
         }
 
         public Task<Bitmap?> Task { get; }
+
+        public void Dispose()
+        {
+            cancellationTokenSource.Dispose();
+        }
 
         public IDisposable AddWaiter(CancellationToken callerToken)
         {
@@ -899,6 +909,7 @@ public sealed class ImageCacheService : IImageCacheService
                     }
                     catch (ObjectDisposedException)
                     {
+                        // Ignore if CancellationTokenSource was already disposed concurrently.
                     }
                 }
             }
