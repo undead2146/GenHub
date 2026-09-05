@@ -2507,7 +2507,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         }
 
         Uri? uri;
-        if (!Uri.TryCreate(url, UriKind.Absolute, out uri))
+        if (!Uri.TryCreate(url, UriKind.Absolute, out uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
         {
             if (url.StartsWith('/'))
             {
