@@ -60,7 +60,7 @@ internal sealed class ManagedChromiumRuntime(
             return;
         }
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Managed Chromium is missing. Requesting user consent before installing under {RuntimeDirectory}",
             runtimeDirectory);
 
@@ -69,12 +69,12 @@ internal sealed class ManagedChromiumRuntime(
 
         if (!consented)
         {
-            logger.LogInformation("User declined managed Chromium installation under {RuntimeDirectory}", runtimeDirectory);
+            logger.LogDebug("User declined managed Chromium installation under {RuntimeDirectory}", runtimeDirectory);
             throw new OperationCanceledException(
                 "ModDB requires GenHub's managed Chromium runtime. Installation was cancelled.");
         }
 
-        logger.LogInformation("Managed Chromium install consented. Installing under {RuntimeDirectory}", runtimeDirectory);
+        logger.LogDebug("Managed Chromium install consented. Installing under {RuntimeDirectory}", runtimeDirectory);
 
         int exitCode = 0;
         try

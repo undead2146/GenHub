@@ -166,44 +166,36 @@ public sealed class PlaywrightService(
             throw new ArgumentException($"Invalid or unsupported URL scheme: {url}", nameof(url));
         }
 
+        logger.LogDebug("Fetching HTML from {Url}", url);
+
+        var page = await CreatePageAsync(cancellationToken: cancellationToken);
         try
         {
-            logger.LogDebug("Fetching HTML from {Url}", url);
+            await page.GotoAsync(url, new PageGotoOptions
+            {
+                Timeout = 30000,
+                WaitUntil = WaitUntilState.DOMContentLoaded,
+            });
 
-            var page = await CreatePageAsync(cancellationToken: cancellationToken);
+            // Wait a bit for dynamic content to load
+            await Task.Delay(500, cancellationToken);
+
+            return await page.ContentAsync();
+        }
+        finally
+        {
+            var context = page.Context;
             try
             {
-                await page.GotoAsync(url, new PageGotoOptions
-                {
-                    Timeout = 30000,
-                    WaitUntil = WaitUntilState.DOMContentLoaded,
-                });
-
-                // Wait a bit for dynamic content to load
-                await Task.Delay(500, cancellationToken);
-
-                return await page.ContentAsync();
+                await page.CloseAsync();
             }
             finally
             {
-                var context = page.Context;
-                try
+                if (context != null)
                 {
-                    await page.CloseAsync();
-                }
-                finally
-                {
-                    if (context != null)
-                    {
-                        await context.CloseAsync();
-                    }
+                    await context.CloseAsync();
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to fetch HTML from {Url}", url);
-            throw;
         }
     }
 
@@ -330,35 +322,8 @@ public sealed class PlaywrightService(
                 // Limit parallel tabs to avoid overwhelming system resources (max 5 parallel tabs)
                 using var tabSemaphore = new SemaphoreSlim(Math.Min(orderedUnique.Count, 5));
 
-                var tasks = orderedUnique.Select(async url =>
-                {
-                    await tabSemaphore.WaitAsync(cancellationToken);
-                    IPage? page = null;
-                    try
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-
-                        page = await CreatePersistentPageAsync(profileName, cancellationToken);
-
-                        var html = await NavigatePersistentPageAsync(page, url, cancellationToken);
-                        var doc = await OpenDocumentAsync(html, cancellationToken);
-                        concurrentResults[url] = doc;
-                    }
-                    catch (Exception ex) when (ex is not OperationCanceledException)
-                    {
-                        // Soft-fail per URL so one dead section does not abort the rest of the sweep.
-                        logger.LogWarning(ex, "Failed to fetch persistent URL in parallel batch: {Url}", url);
-                    }
-                    finally
-                    {
-                        if (page != null)
-                        {
-                            await ClosePersistentPageAsync(page);
-                        }
-
-                        tabSemaphore.Release();
-                    }
-                });
+                var tasks = orderedUnique.Select(url =>
+                    FetchSinglePersistentDocumentAsync(profileName, url, concurrentResults, tabSemaphore, cancellationToken));
 
                 await Task.WhenAll(tasks);
 
@@ -668,6 +633,7 @@ public sealed class PlaywrightService(
                     }
                     catch (PlaywrightException)
                     {
+                        // Ignore errors if the page was already closed or detached.
                     }
                 }
 
@@ -675,6 +641,7 @@ public sealed class PlaywrightService(
             }
             catch (PlaywrightException)
             {
+                // Ignore errors if the persistent context was already closed or disposed.
             }
             finally
             {
@@ -765,66 +732,14 @@ public sealed class PlaywrightService(
                 return DownloadResult.CreateFailure("Download failed to initialize (null download object).");
             }
 
-            if (File.Exists(configuration.DestinationPath) && configuration.OverwriteExisting)
-            {
-                File.Delete(configuration.DestinationPath);
-            }
-
-            var dir = Path.GetDirectoryName(configuration.DestinationPath);
-            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-            {
-                Directory.CreateDirectory(dir);
-            }
-
-            // Wait for the full byte stream to land on disk before reporting success. SaveAsAsync
-            // streams the download into the destination; without awaiting it the file would be
-            // incomplete (or missing) and downstream extraction would fail.
-            await download.SaveAsAsync(configuration.DestinationPath);
-
-            var fileInfo = new FileInfo(configuration.DestinationPath);
-            logger.LogInformation("Playwright download completed: {Path}, Size: {Size}", configuration.DestinationPath, fileInfo.Length);
-
-            return DownloadResult.CreateSuccess(
-                configuration.DestinationPath,
-                fileInfo.Length,
-                stopwatch.Elapsed,
-                hashVerified: false);
+            return await SaveDownloadFileAsync(download, configuration, stopwatch);
         }
         finally
         {
             page.Popup -= OnPopup;
             page.Download -= OnDownload;
             await CleanupPopupsAsync(popups, OnDownload);
-
-            if (usePersistentModDbProfile)
-            {
-                await ClosePersistentPageAsync(page);
-            }
-            else
-            {
-                var context = page.Context;
-                try
-                {
-                    if (!page.IsClosed)
-                    {
-                        await page.CloseAsync();
-                    }
-                }
-                finally
-                {
-                    if (context != null)
-                    {
-                        try
-                        {
-                            await context.CloseAsync();
-                        }
-                        catch (PlaywrightException ex)
-                        {
-                            logger.LogDebug(ex, "Context already closed during download cleanup.");
-                        }
-                    }
-                }
-            }
+            await CleanupDownloadPageAsync(page, usePersistentModDbProfile);
         }
     }
 
@@ -925,8 +840,8 @@ public sealed class PlaywrightService(
                 }
             }
 
-            await EnsureManagedPlaywrightAsync(cancellationToken);
-            _browser = await _playwright!.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            var playwright = await EnsureManagedPlaywrightAsync(cancellationToken);
+            _browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
             {
                 // The shared browser is headless for ordinary parsing/fetching. Bot-protected
                 // sites that need a visible window use the persistent context instead.
@@ -985,10 +900,10 @@ public sealed class PlaywrightService(
                 await ClosePersistentContextCoreUnderLockAsync();
             }
 
-            await EnsureManagedPlaywrightAsync(cancellationToken);
+            var playwright = await EnsureManagedPlaywrightAsync(cancellationToken);
             Directory.CreateDirectory(profileDir);
 
-            var context = await _playwright!.Chromium.LaunchPersistentContextAsync(
+            var context = await playwright.Chromium.LaunchPersistentContextAsync(
                 profileDir,
                 new BrowserTypeLaunchPersistentContextOptions
                 {
@@ -1175,7 +1090,7 @@ public sealed class PlaywrightService(
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A task representing the browser runtime initialization.</returns>
-    private async Task EnsureManagedPlaywrightAsync(CancellationToken cancellationToken)
+    private async Task<IPlaywright> EnsureManagedPlaywrightAsync(CancellationToken cancellationToken)
     {
         await _playwrightLock.WaitAsync(cancellationToken);
         try
@@ -1184,6 +1099,7 @@ public sealed class PlaywrightService(
             runtime.ConfigureEnvironment();
             _playwright ??= await Playwright.CreateAsync();
             await runtime.EnsureInstalledAsync(_playwright.Chromium, cancellationToken);
+            return _playwright;
         }
         finally
         {
@@ -1317,9 +1233,8 @@ public sealed class PlaywrightService(
 
             try
             {
-                var title = await page.TitleAsync();
-                var isVerificationPage = IsModDbVerificationPage(title);
-                if (isVerificationPage)
+                var (ready, isVerification) = await ProbeForModDbContentOrVerificationAsync(page);
+                if (isVerification)
                 {
                     if (!verificationObserved)
                     {
@@ -1329,19 +1244,14 @@ public sealed class PlaywrightService(
                         verificationObserved = true;
                     }
                 }
-                else
+                else if (ready)
                 {
-                    var contentMarker = await page.QuerySelectorAsync(
-                        "#downloadsinfo, .row.rowcontent, .headerbox, #articlebrowse, #profile");
-                    if (contentMarker != null)
+                    if (verificationObserved)
                     {
-                        if (verificationObserved)
-                        {
-                            logger.LogInformation("ModDB verification completed; parsing content from {Url}", url);
-                        }
-
-                        return;
+                        logger.LogInformation("ModDB verification completed; parsing content from {Url}", url);
                     }
+
+                    return;
                 }
             }
             catch (PlaywrightException ex) when (IsContextClosedError(ex))
@@ -1439,5 +1349,114 @@ public sealed class PlaywrightService(
         _inUsePersistentPages.Clear();
         _persistentContext = null;
         _persistentProfileName = null;
+    }
+
+    private async Task FetchSinglePersistentDocumentAsync(
+        string profileName,
+        string url,
+        System.Collections.Concurrent.ConcurrentDictionary<string, IDocument> concurrentResults,
+        SemaphoreSlim tabSemaphore,
+        CancellationToken cancellationToken)
+    {
+        await tabSemaphore.WaitAsync(cancellationToken);
+        IPage? page = null;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            page = await CreatePersistentPageAsync(profileName, cancellationToken);
+
+            var html = await NavigatePersistentPageAsync(page, url, cancellationToken);
+            var doc = await OpenDocumentAsync(html, cancellationToken);
+            concurrentResults[url] = doc;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Soft-fail per URL so one dead section does not abort the rest of the sweep.
+            logger.LogWarning(ex, "Failed to fetch persistent URL in parallel batch: {Url}", url);
+        }
+        finally
+        {
+            if (page != null)
+            {
+                await ClosePersistentPageAsync(page);
+            }
+
+            tabSemaphore.Release();
+        }
+    }
+
+    private async Task<DownloadResult> SaveDownloadFileAsync(
+        IDownload download,
+        GenHub.Core.Models.Common.DownloadConfiguration configuration,
+        System.Diagnostics.Stopwatch stopwatch)
+    {
+        if (File.Exists(configuration.DestinationPath) && configuration.OverwriteExisting)
+        {
+            File.Delete(configuration.DestinationPath);
+        }
+
+        var dir = Path.GetDirectoryName(configuration.DestinationPath);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        await download.SaveAsAsync(configuration.DestinationPath);
+
+        var fileInfo = new FileInfo(configuration.DestinationPath);
+        logger.LogInformation("Playwright download completed: {Path}, Size: {Size}", configuration.DestinationPath, fileInfo.Length);
+
+        return DownloadResult.CreateSuccess(
+            configuration.DestinationPath,
+            fileInfo.Length,
+            stopwatch.Elapsed,
+            hashVerified: false);
+    }
+
+    private async Task CleanupDownloadPageAsync(IPage page, bool usePersistentModDbProfile)
+    {
+        if (usePersistentModDbProfile)
+        {
+            await ClosePersistentPageAsync(page);
+        }
+        else
+        {
+            var context = page.Context;
+            try
+            {
+                if (!page.IsClosed)
+                {
+                    await page.CloseAsync();
+                }
+            }
+            finally
+            {
+                if (context != null)
+                {
+                    try
+                    {
+                        await context.CloseAsync();
+                    }
+                    catch (PlaywrightException ex)
+                    {
+                        logger.LogDebug(ex, "Context already closed during download cleanup.");
+                    }
+                }
+            }
+        }
+    }
+
+    private async Task<(bool Ready, bool IsVerification)> ProbeForModDbContentOrVerificationAsync(IPage page)
+    {
+        var title = await page.TitleAsync();
+        if (IsModDbVerificationPage(title))
+        {
+            return (false, true);
+        }
+
+        var contentMarker = await page.QuerySelectorAsync(
+            "#downloadsinfo, .row.rowcontent, .headerbox, #articlebrowse, #profile");
+        return (contentMarker != null, false);
     }
 }

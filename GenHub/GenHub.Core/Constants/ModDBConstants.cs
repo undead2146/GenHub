@@ -46,14 +46,17 @@ public static class ModDBConstants
 
     // ===== Publisher Info =====
 
+    /// <summary>Canonical lowercase identifier for ModDB.</summary>
+    public const string CanonicalIdentifier = "moddb";
+
     /// <summary>Publisher prefix for ModDB content (to be combined with author: moddb-{author}).</summary>
-    public const string PublisherPrefix = "moddb";
+    public const string PublisherPrefix = CanonicalIdentifier;
 
     /// <summary>Publisher type identifier for ModDB content pipeline.</summary>
-    public const string PublisherType = "moddb";
+    public const string PublisherType = CanonicalIdentifier;
 
     /// <summary>Publisher ID for the ModDB service.</summary>
-    public const string PublisherId = "moddb";
+    public const string PublisherId = CanonicalIdentifier;
 
     /// <summary>Display name for the publisher.</summary>
     public const string PublisherDisplayName = "ModDB";
@@ -79,7 +82,7 @@ public static class ModDBConstants
     /// On-disk Playwright browser profile name used to persist the Cloudflare clearance cookie so
     /// the user only solves the bot challenge once per session (and across restarts until expiry).
     /// </summary>
-    public const string BrowserProfileName = "moddb";
+    public const string BrowserProfileName = CanonicalIdentifier;
 
     /// <summary>Short description for publisher card display.</summary>
     public const string ShortDescription = "Community mods, maps, and content from ModDB";
