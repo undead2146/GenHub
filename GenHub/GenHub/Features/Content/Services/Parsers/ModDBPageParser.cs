@@ -21,32 +21,38 @@ namespace GenHub.Features.Content.Services.Parsers;
 /// </summary>
 public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogger<ModDBPageParser> logger) : IWebPageParser
 {
-    [GeneratedRegex(ModDBParserConstants.ParentModPathRegex, RegexOptions.IgnoreCase, "en-US")]
+    [GeneratedRegex(ModDBParserConstants.ParentModPathRegex, RegexOptions.IgnoreCase, 1000, "en-US")]
     private static partial Regex MyRegex();
 
-    [GeneratedRegex(@"/(?:crop|thumb)_[^/]+/", RegexOptions.IgnoreCase, "en-US")]
+    [GeneratedRegex(@"/(?:crop|thumb)_[^/]+/", RegexOptions.IgnoreCase, 1000, "en-US")]
     private static partial Regex ModDBImageCropRegex();
 
-    [GeneratedRegex(@"(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", RegexOptions.None, "en-US")]
+    [GeneratedRegex(@"(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", RegexOptions.None, 1000, "en-US")]
     private static partial Regex CamelCaseSplitRegex();
 
-    [GeneratedRegex(@"(?:\b|\()(\d+(?:[.,]\d+)?\s*(?:GB|MB|KB|B|bytes|byte|gigabytes|megabytes|kilobytes)(?:\s*\([^)]+\))?)", RegexOptions.IgnoreCase, "en-US")]
+    [GeneratedRegex(@"(?:\b|\()(\d+(?:[.,]\d+)?\s*(?:GB|MB|KB|B|bytes|byte|gigabytes|megabytes|kilobytes)(?:\s*\([^)]+\))?)", RegexOptions.IgnoreCase, 1000, "en-US")]
     private static partial Regex FileSizeRegex();
 
-    [GeneratedRegex(@"(?:\(|\b)(\d[\d,\s]*)\s*bytes", RegexOptions.IgnoreCase, "en-US")]
+    [GeneratedRegex(@"(?:\(|\b)(\d[\d,\s]*)\s*bytes", RegexOptions.IgnoreCase, 1000, "en-US")]
     private static partial Regex ExactBytesRegex();
 
-    [GeneratedRegex(@"(\d+(?:[.,]\d+)?)\s*([a-zA-Z]+)", RegexOptions.IgnoreCase, "en-US")]
+    [GeneratedRegex(@"(\d+(?:[.,]\d+)?)\s*([a-zA-Z]+)", RegexOptions.IgnoreCase, 1000, "en-US")]
     private static partial Regex NumericSizeWithUnitRegex();
 
-    [GeneratedRegex(@"(?:(?:v|embed|shorts|vi)/|(?:\?|&)v=|youtu\.be/)([a-zA-Z0-9_-]{11})", RegexOptions.IgnoreCase, "en-US")]
+    [GeneratedRegex(@"(?:(?:v|embed|shorts|vi)/|(?:\?|&)v=|youtu\.be/)([a-zA-Z0-9_-]{11})", RegexOptions.IgnoreCase, 1000, "en-US")]
     private static partial Regex YouTubeVideoIdRegex();
 
-    [GeneratedRegex(@"vimeo\.com/(?:video/)?(\d+)", RegexOptions.IgnoreCase, "en-US")]
+    [GeneratedRegex(@"vimeo\.com/(?:video/)?(\d+)", RegexOptions.IgnoreCase, 1000, "en-US")]
     private static partial Regex VimeoVideoIdRegex();
 
-    [GeneratedRegex(@"^(?<title>.+?)\s+(?:file|addon|patch|demo|mod)\s+-", RegexOptions.IgnoreCase, "en-US")]
+    [GeneratedRegex(@"^(?<title>.+?)\s+(?:file|addon|patch|demo|mod)\s+-", RegexOptions.IgnoreCase, 1000, "en-US")]
     private static partial Regex ModDBPageTitleRegex();
+
+    [GeneratedRegex(@"\s+", RegexOptions.None, 1000)]
+    private static partial Regex WhitespaceRegex();
+
+    [GeneratedRegex(@"[\d,]+", RegexOptions.None, 1000)]
+    private static partial Regex DigitsRegex();
 
     /// <summary>
     /// Extracts parent mod URL from a FileDetail page URL.
@@ -746,7 +752,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             formatted = CamelCaseSplitRegex().Replace(formatted, " ");
         }
 
-        formatted = Regex.Replace(formatted, @"\s+", " ").Trim();
+        formatted = WhitespaceRegex().Replace(formatted, " ").Trim();
 
         return string.IsNullOrWhiteSpace(formatted) ? "Video" : formatted;
     }
@@ -1154,7 +1160,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             formatted = CamelCaseSplitRegex().Replace(formatted, " ");
         }
 
-        formatted = Regex.Replace(formatted, @"\s+", " ").Trim();
+        formatted = WhitespaceRegex().Replace(formatted, " ").Trim();
 
         return string.IsNullOrWhiteSpace(formatted) ? "Image" : formatted;
     }
@@ -1239,7 +1245,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             if (dateEl != null)
             {
                 var dateStr = dateEl.GetAttribute("datetime") ?? dateEl.TextContent?.Trim();
-                if (!string.IsNullOrEmpty(dateStr) && DateTime.TryParse(dateStr, out var parsedDate))
+                if (!string.IsNullOrEmpty(dateStr) && DateTime.TryParse(dateStr, System.Globalization.CultureInfo.InvariantCulture, out var parsedDate))
                 {
                     publishDate = parsedDate;
                 }
@@ -1298,7 +1304,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             if (dateEl != null)
             {
                 var dateStr = dateEl.GetAttribute("datetime") ?? dateEl.TextContent?.Trim();
-                if (!string.IsNullOrEmpty(dateStr) && DateTime.TryParse(dateStr, out var parsedDate))
+                if (!string.IsNullOrEmpty(dateStr) && DateTime.TryParse(dateStr, System.Globalization.CultureInfo.InvariantCulture, out var parsedDate))
                 {
                     date = parsedDate;
                 }
@@ -1466,7 +1472,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             var dateStr = dateEl.GetAttribute("datetime") ?? dateEl.TextContent?.Trim();
             if (!string.IsNullOrEmpty(dateStr))
             {
-                return DateTime.TryParse(dateStr, out var parsedDate)
+                return DateTime.TryParse(dateStr, System.Globalization.CultureInfo.InvariantCulture, out var parsedDate)
                     ? parsedDate
                     : ParseModDBDate(dateStr);
             }
@@ -2369,6 +2375,19 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<ParsedWebPage> ParseAsync(string url, string html, CancellationToken cancellationToken = default)
+    {
+        if (!CanParse(url))
+        {
+            throw new ArgumentException($"URL is not supported by {ParserId}: {url}", nameof(url));
+        }
+
+        var browsingContext = BrowsingContext.New(Configuration.Default);
+        var document = await browsingContext.OpenAsync(req => req.Content(html), cancellationToken).ConfigureAwait(false);
+        return ParseInternal(url, document);
+    }
+
     /// <summary>
     /// File-only parse for acquisition: returns the single <see cref="DownloadableFile"/> from a
     /// FileDetail page and the page's own metadata, without fetching the parent mod's downloads,
@@ -2472,19 +2491,6 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         }
 
         return results;
-    }
-
-    /// <inheritdoc />
-    public async Task<ParsedWebPage> ParseAsync(string url, string html, CancellationToken cancellationToken = default)
-    {
-        if (!CanParse(url))
-        {
-            throw new ArgumentException($"URL is not supported by {ParserId}: {url}", nameof(url));
-        }
-
-        var browsingContext = BrowsingContext.New(Configuration.Default);
-        var document = await browsingContext.OpenAsync(req => req.Content(html), cancellationToken).ConfigureAwait(false);
-        return ParseInternal(url, document);
     }
 
     /// <summary>
@@ -2928,7 +2934,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         if (releaseDateEl != null)
         {
             var dateStr = releaseDateEl.GetAttribute("datetime") ?? releaseDateEl.TextContent?.Trim();
-            if (!string.IsNullOrEmpty(dateStr) && DateTime.TryParse(dateStr, out var parsedDate))
+            if (!string.IsNullOrEmpty(dateStr) && DateTime.TryParse(dateStr, System.Globalization.CultureInfo.InvariantCulture, out var parsedDate))
             {
                 releaseDate = parsedDate;
             }
@@ -2952,7 +2958,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         }
 
         // 5. Extract description. File pages put copy in #downloadsummary / #downloaddescription;
-        // the first .summary on those pages is the breadcrumb "Games : ... : Files".
+        // the first summary element is breadcrumb navigation.
         var description = ExtractDescription(document);
 
         // 6. Extract game name
@@ -3139,13 +3145,18 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             foreach (var row in flexRows)
             {
                 var labelEl = row.QuerySelector("h5, h4, dt, strong, .label, .rowlabel");
-                var label = labelEl?.TextContent?.Trim().ToLowerInvariant().Replace(":", string.Empty);
+                if (labelEl == null)
+                {
+                    continue;
+                }
+
+                var label = labelEl.TextContent?.Trim().ToLowerInvariant().Replace(":", string.Empty);
                 if (string.IsNullOrWhiteSpace(label))
                 {
                     continue;
                 }
 
-                var valueElement = labelEl?.NextElementSibling
+                var valueElement = labelEl.NextElementSibling
                     ?? row.QuerySelector("span.summary, dd, time, a, .content, span");
                 var value = valueElement?.TextContent?.Trim();
                 if (!string.IsNullOrWhiteSpace(value))
@@ -3245,7 +3256,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
 
         if (!string.IsNullOrEmpty(addedStr))
         {
-            if (DateTime.TryParse(addedStr, out var parsedDate))
+            if (DateTime.TryParse(addedStr, System.Globalization.CultureInfo.InvariantCulture, out var parsedDate))
             {
                 uploadDate = parsedDate;
                 releaseDate = parsedDate;
@@ -3287,7 +3298,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
 
         if (!string.IsNullOrEmpty(downloadsStr))
         {
-            var numberMatch = System.Text.RegularExpressions.Regex.Match(downloadsStr, @"[\d,]+");
+            var numberMatch = DigitsRegex().Match(downloadsStr);
             if (numberMatch.Success && int.TryParse(numberMatch.Value.Replace(",", string.Empty), out var parsedDl))
             {
                 return parsedDl;

@@ -34,17 +34,6 @@ public class PlaywrightService(
     IDialogService dialogService,
     INotificationService? notificationService = null) : IPlaywrightService, IDisposable, IAsyncDisposable
 {
-    private static readonly SemaphoreSlim _browserLock = new(1, 1);
-    private static readonly SemaphoreSlim _persistentLock = new(1, 1);
-    private static readonly SemaphoreSlim _playwrightLock = new(1, 1);
-
-    /// <summary>
-    /// Serializes all headed persistent-profile operations (single fetch, multi-URL sweep, ModDB
-    /// download).
-    /// </summary>
-    private static readonly SemaphoreSlim _persistentFetchLock = new(1, 1);
-    private static readonly AsyncLocal<bool> _isInPersistentSession = new();
-    private static readonly HashSet<IPage> _inUsePersistentPages = [];
     private static readonly HashSet<string> UnsafeExtraHeaders = new(StringComparer.OrdinalIgnoreCase)
     {
         "Connection",
@@ -56,11 +45,23 @@ public class PlaywrightService(
         "Upgrade",
     };
 
-    private static IPlaywright? _playwright;
-    private static IBrowser? _browser;
-    private static IBrowserContext? _persistentContext;
-    private static string? _persistentProfileName;
-    private static int _activePersistentSessions;
+    private readonly SemaphoreSlim _browserLock = new(1, 1);
+    private readonly SemaphoreSlim _persistentLock = new(1, 1);
+    private readonly SemaphoreSlim _playwrightLock = new(1, 1);
+
+    /// <summary>
+    /// Serializes all headed persistent-profile operations (single fetch, multi-URL sweep, ModDB
+    /// download).
+    /// </summary>
+    private readonly SemaphoreSlim _persistentFetchLock = new(1, 1);
+    private readonly AsyncLocal<bool> _isInPersistentSession = new();
+    private readonly HashSet<IPage> _inUsePersistentPages = [];
+
+    private IPlaywright? _playwright;
+    private IBrowser? _browser;
+    private IBrowserContext? _persistentContext;
+    private string? _persistentProfileName;
+    private int _activePersistentSessions;
 
     private ManagedChromiumRuntime? managedChromiumRuntime;
 
@@ -95,8 +96,9 @@ public class PlaywrightService(
             {
                 await context.CloseAsync();
             }
-            catch (PlaywrightException)
+            catch (PlaywrightException ex)
             {
+                logger.LogDebug(ex, "Failed to close context during page creation failure.");
             }
 
             throw;
@@ -142,87 +144,11 @@ public class PlaywrightService(
 
             if (_persistentContext != null && IsPersistentContextAlive())
             {
-                try
-                {
-                    var otherPages = _persistentContext.Pages.Where(p => !p.IsClosed && p != page).ToList();
-
-                    if (_activePersistentSessions > 0)
-                    {
-                        // inside an active session: if this is the last page, navigate to about:blank
-                        // so chromium remains alive for subsequent steps within the session.
-                        if (otherPages.Count == 0 && _inUsePersistentPages.Count == 0)
-                        {
-                            if (!page.IsClosed)
-                            {
-                                try
-                                {
-                                    await page.GotoAsync("about:blank");
-                                }
-                                catch (PlaywrightException)
-                                {
-                                }
-                            }
-                        }
-                        else if (!page.IsClosed)
-                        {
-                            try
-                            {
-                                await page.CloseAsync();
-                            }
-                            catch (PlaywrightException ex)
-                            {
-                                logger.LogDebug(ex, "Persistent page already closed during cleanup.");
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // outside an active session: close page and immediately shut down persistent context
-                        // once all active pages finish.
-                        if (!page.IsClosed)
-                        {
-                            try
-                            {
-                                await page.CloseAsync();
-                            }
-                            catch (PlaywrightException ex)
-                            {
-                                logger.LogDebug(ex, "Persistent page already closed during cleanup.");
-                            }
-                        }
-
-                        if (_inUsePersistentPages.Count == 0)
-                        {
-                            await ClosePersistentContextCoreUnderLockAsync();
-                        }
-                    }
-                }
-                catch (PlaywrightException ex) when (IsContextClosedError(ex))
-                {
-                    _inUsePersistentPages.Clear();
-                    _persistentContext = null;
-                    _persistentProfileName = null;
-                }
-                catch (Exception ex)
-                {
-                    logger.LogDebug(ex, "Failed to inspect persistent context after page close.");
-                    _inUsePersistentPages.Clear();
-                    _persistentContext = null;
-                    _persistentProfileName = null;
-                }
+                await HandlePageCloseUnderActiveContextAsync(page);
             }
             else
             {
-                if (!page.IsClosed)
-                {
-                    try
-                    {
-                        await page.CloseAsync();
-                    }
-                    catch (PlaywrightException)
-                    {
-                    }
-                }
+                await SafeClosePageAsync(page);
             }
         }
         finally
@@ -365,12 +291,10 @@ public class PlaywrightService(
 
         if (string.Equals(profileName, ModDBConstants.BrowserProfileName, StringComparison.OrdinalIgnoreCase))
         {
-            foreach (var url in urls)
+            var invalidUrl = urls.FirstOrDefault(url => !string.IsNullOrWhiteSpace(url) && !IsModDbHost(url));
+            if (invalidUrl != null)
             {
-                if (!string.IsNullOrWhiteSpace(url) && !IsModDbHost(url))
-                {
-                    throw new ArgumentException($"URL host is not permitted for profile '{profileName}': {url}", nameof(urls));
-                }
+                throw new ArgumentException($"URL host is not permitted for profile '{profileName}': {invalidUrl}", nameof(urls));
             }
         }
 
@@ -492,8 +416,9 @@ public class PlaywrightService(
                 {
                     await _persistentContext.CloseAsync();
                 }
-                catch
+                catch (PlaywrightException ex)
                 {
+                    logger.LogDebug(ex, "Persistent context closed during disposal.");
                 }
                 finally
                 {
@@ -517,8 +442,9 @@ public class PlaywrightService(
                 {
                     await _browser.CloseAsync();
                 }
-                catch
+                catch (PlaywrightException ex)
                 {
+                    logger.LogDebug(ex, "Browser closed during disposal.");
                 }
                 finally
                 {
@@ -540,8 +466,9 @@ public class PlaywrightService(
                 {
                     _playwright.Dispose();
                 }
-                catch
+                catch (Exception ex)
                 {
+                    logger.LogDebug(ex, "Playwright disposed during disposal.");
                 }
                 finally
                 {
@@ -651,13 +578,39 @@ public class PlaywrightService(
         ex.Message.Contains("Target frame was detached", StringComparison.OrdinalIgnoreCase) ||
         ex.Message.Contains("Target.createTarget", StringComparison.OrdinalIgnoreCase);
 
+    private static bool IsBlankStartupUrl(string url) =>
+        string.IsNullOrWhiteSpace(url) ||
+        url.Equals("about:blank", StringComparison.OrdinalIgnoreCase) ||
+        url.StartsWith("chrome://newtab", StringComparison.OrdinalIgnoreCase) ||
+        url.StartsWith("chrome://new-tab", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsModDbVerificationPage(string? title) =>
+        !string.IsNullOrWhiteSpace(title) &&
+        (title.Contains("Just a moment", StringComparison.OrdinalIgnoreCase) ||
+         title.Contains("Attention Required", StringComparison.OrdinalIgnoreCase) ||
+         title.Contains("Checking your browser", StringComparison.OrdinalIgnoreCase) ||
+         title.Contains("Verify you are human", StringComparison.OrdinalIgnoreCase) ||
+         title.Contains("Cloudflare", StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsModDbHost(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+        (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
+        (uri.Host.Equals("moddb.com", StringComparison.OrdinalIgnoreCase) ||
+         uri.Host.EndsWith(".moddb.com", StringComparison.OrdinalIgnoreCase));
+
+    private static async Task<IDocument> OpenDocumentAsync(string html, CancellationToken cancellationToken)
+    {
+        var browsingContext = BrowsingContext.New(Configuration.Default);
+        return await browsingContext.OpenAsync(req => req.Content(html), cancellationToken);
+    }
+
     /// <summary>
     /// A persistent context is only reusable while it is live and still owns at least one open
     /// page. A headed Chromium process exits once its final page closes, after which the cached
     /// IBrowserContext reference throws on every call. Touching <see cref="IBrowserContext.Pages"/>
     /// is the cheapest probe: it fails on a dead channel and succeeds on a live one.
     /// </summary>
-    private static bool IsPersistentContextAlive()
+    private bool IsPersistentContextAlive()
     {
         if (_persistentContext == null)
         {
@@ -676,16 +629,10 @@ public class PlaywrightService(
         }
     }
 
-    private static bool IsBlankStartupUrl(string url) =>
-        string.IsNullOrWhiteSpace(url) ||
-        url.Equals("about:blank", StringComparison.OrdinalIgnoreCase) ||
-        url.StartsWith("chrome://newtab", StringComparison.OrdinalIgnoreCase) ||
-        url.StartsWith("chrome://new-tab", StringComparison.OrdinalIgnoreCase);
-
     /// <summary>
     /// Clears a closed persistent browser context so the next request launches a fresh one.
     /// </summary>
-    private static async Task InvalidatePersistentContextAsync()
+    private async Task InvalidatePersistentContextAsync()
     {
         await _persistentLock.WaitAsync();
         try
@@ -703,7 +650,7 @@ public class PlaywrightService(
     /// <summary>
     /// Closes the persistent browser context when called under _persistentLock.
     /// </summary>
-    private static async Task ClosePersistentContextCoreUnderLockAsync()
+    private async Task ClosePersistentContextCoreUnderLockAsync()
     {
         if (_persistentContext != null)
         {
@@ -738,7 +685,7 @@ public class PlaywrightService(
     /// <summary>
     /// Closes the persistent browser context and acquires _persistentLock.
     /// </summary>
-    private static async Task ClosePersistentContextCoreAsync()
+    private async Task ClosePersistentContextCoreAsync()
     {
         await _persistentLock.WaitAsync();
         try
@@ -749,26 +696,6 @@ public class PlaywrightService(
         {
             _persistentLock.Release();
         }
-    }
-
-    private static bool IsModDbVerificationPage(string? title) =>
-        !string.IsNullOrWhiteSpace(title) &&
-        (title.Contains("Just a moment", StringComparison.OrdinalIgnoreCase) ||
-         title.Contains("Attention Required", StringComparison.OrdinalIgnoreCase) ||
-         title.Contains("Checking your browser", StringComparison.OrdinalIgnoreCase) ||
-         title.Contains("Verify you are human", StringComparison.OrdinalIgnoreCase) ||
-         title.Contains("Cloudflare", StringComparison.OrdinalIgnoreCase));
-
-    private static bool IsModDbHost(string url) =>
-        Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
-        (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
-        (uri.Host.Equals("moddb.com", StringComparison.OrdinalIgnoreCase) ||
-         uri.Host.EndsWith(".moddb.com", StringComparison.OrdinalIgnoreCase));
-
-    private static async Task<IDocument> OpenDocumentAsync(string html, CancellationToken cancellationToken)
-    {
-        var browsingContext = BrowsingContext.New(Configuration.Default);
-        return await browsingContext.OpenAsync(req => req.Content(html), cancellationToken);
     }
 
     private async Task<DownloadResult> DownloadFileCoreAsync(
@@ -1417,5 +1344,85 @@ public class PlaywrightService(
             verificationObserved
                 ? "ModDB verification was not completed in the Chromium window. Complete the check and open the content again."
                 : $"ModDB did not expose parseable content for {url}.");
+    }
+
+    private async Task HandlePageCloseUnderActiveContextAsync(IPage page)
+    {
+        try
+        {
+            var otherPages = _persistentContext!.Pages.Where(p => !p.IsClosed && p != page).ToList();
+
+            if (_activePersistentSessions > 0)
+            {
+                await HandlePageCloseInActiveSessionAsync(page, otherPages.Count);
+            }
+            else
+            {
+                await HandlePageCloseOutsideActiveSessionAsync(page);
+            }
+        }
+        catch (PlaywrightException ex) when (IsContextClosedError(ex))
+        {
+            ResetPersistentContextState();
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Failed to inspect persistent context after page close.");
+            ResetPersistentContextState();
+        }
+    }
+
+    private async Task HandlePageCloseInActiveSessionAsync(IPage page, int otherPageCount)
+    {
+        if (otherPageCount == 0 && _inUsePersistentPages.Count == 0)
+        {
+            if (!page.IsClosed)
+            {
+                try
+                {
+                    await page.GotoAsync("about:blank");
+                }
+                catch (PlaywrightException ex)
+                {
+                    logger.LogDebug(ex, "Failed navigating persistent page to blank.");
+                }
+            }
+        }
+        else
+        {
+            await SafeClosePageAsync(page);
+        }
+    }
+
+    private async Task HandlePageCloseOutsideActiveSessionAsync(IPage page)
+    {
+        await SafeClosePageAsync(page);
+
+        if (_inUsePersistentPages.Count == 0)
+        {
+            await ClosePersistentContextCoreUnderLockAsync();
+        }
+    }
+
+    private async Task SafeClosePageAsync(IPage page)
+    {
+        if (!page.IsClosed)
+        {
+            try
+            {
+                await page.CloseAsync();
+            }
+            catch (PlaywrightException ex)
+            {
+                logger.LogDebug(ex, "Persistent page already closed during cleanup.");
+            }
+        }
+    }
+
+    private void ResetPersistentContextState()
+    {
+        _inUsePersistentPages.Clear();
+        _persistentContext = null;
+        _persistentProfileName = null;
     }
 }

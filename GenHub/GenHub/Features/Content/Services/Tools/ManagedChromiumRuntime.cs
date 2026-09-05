@@ -57,7 +57,7 @@ internal sealed class ManagedChromiumRuntime(
             return;
         }
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Managed Chromium is missing. Requesting user consent before installing under {RuntimeDirectory}",
             runtimeDirectory);
 
@@ -129,7 +129,7 @@ internal sealed class ManagedChromiumRuntime(
         return "win32_x64";
     }
 
-    private static string? _cachedDriverPath;
+    private string? _cachedDriverPath;
 
     private void EnsureDriverEnvironmentVariable()
     {
@@ -174,7 +174,7 @@ internal sealed class ManagedChromiumRuntime(
             }
 
             var current = new DirectoryInfo(dir);
-            for (var depth = 0; depth < 4 && current?.Parent != null; depth++)
+            for (var depth = 0; depth < 4 && current.Parent != null; depth++)
             {
                 current = current.Parent;
                 candidate = Path.Combine(current.FullName, ".playwright", "node", platformFolder, nodeBinaryName);
