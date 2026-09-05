@@ -503,12 +503,23 @@ public partial class GameProfileSettingsViewModel
                     {
                         _logger?.LogWarning("Live sync failed after profile update for {ProfileId}; rolling back persisted profile", CurrentProfileId);
                         var rollbackRequest = BuildUpdateRequest(_originalEnabledContentIds.ToList(), null);
-                        await _gameProfileManager.UpdateProfileAsync(CurrentProfileId, rollbackRequest, cancellationToken);
+                        var rollbackResult = await _gameProfileManager.UpdateProfileAsync(CurrentProfileId, rollbackRequest, cancellationToken);
+                        if (rollbackResult.Success)
+                        {
+                            StatusMessage = "Live synchronization failed; profile changes were rolled back";
+                            _localNotificationService.ShowWarning(
+                                "Live Sync Failed",
+                                "A game session was started during save, but live synchronization failed. Profile changes were rolled back to match the running game.");
+                        }
+                        else
+                        {
+                            _logger?.LogError("Failed to roll back profile {ProfileId} after live sync failure: {Error}", CurrentProfileId, rollbackResult.FirstError);
+                            StatusMessage = "Live synchronization failed and profile rollback could not be persisted";
+                            _localNotificationService.ShowError(
+                                "Live Sync & Rollback Failed",
+                                $"A game session was started during save, and live synchronization failed. Furthermore, rolling back persisted profile changes failed: {rollbackResult.FirstError}. Profile and running game may be out of sync.");
+                        }
 
-                        StatusMessage = "Live synchronization failed; profile changes were rolled back";
-                        _localNotificationService.ShowWarning(
-                            "Live Sync Failed",
-                            "A game session was started during save, but live synchronization failed. Profile changes were rolled back to match the running game.");
                         return;
                     }
 

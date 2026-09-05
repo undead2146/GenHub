@@ -851,6 +851,203 @@ public class GameProfileSettingsViewModelHotswapTests
         Assert.Equal(installId, _viewModel.SelectedGameInstallation?.ManifestId.Value);
     }
 
+/// <summary>
+    /// Verifies that when a game session starts during save, live sync fails, and profile rollback succeeds,
+    /// SaveAsync sets the appropriate rollback status message.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task SaveAsync_WhenGameStartsDuringSaveAndLiveSyncFails_RollsBackPersistedProfileAsync()
+    {
+        // Arrange
+        const string profileId = "profile-postsave-1";
+        const string installId = "1.108.steam.gameinstallation.zh";
+        const string originalMapId = "1.0.0.map.desert";
+
+        var profile = new GameProfile
+        {
+            Id = profileId,
+            Name = "PostSave Profile",
+            EnabledContentIds = [installId, originalMapId],
+            GameClient = new GameClient
+            {
+                Id = "client-zh",
+                Name = "Zero Hour",
+                GameType = GameType.ZeroHour,
+            },
+        };
+
+        _gameProfileManagerMock.Setup(m => m.GetProfileAsync(profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
+
+        _gameProfileManagerMock.Setup(m => m.UpdateProfileAsync(profileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
+
+        int launchCheckCount = 0;
+        _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
+            .ReturnsAsync(() =>
+            {
+                launchCheckCount++;
+                return launchCheckCount > 3
+                    ? [CreateActiveLaunch(profileId)]
+                    : [];
+            });
+
+        var enabledItems = new ObservableCollection<CoreContentDisplayItem>
+        {
+            new()
+            {
+                Id = installId,
+                ManifestId = installId,
+                DisplayName = "Command & Conquer: Zero Hour",
+                ContentType = ContentType.GameInstallation,
+                GameType = GameType.ZeroHour,
+            },
+            new()
+            {
+                Id = originalMapId,
+                ManifestId = originalMapId,
+                DisplayName = "Tournament Desert",
+                ContentType = ContentType.Map,
+                GameType = GameType.ZeroHour,
+            },
+        };
+
+        _contentLoaderMock.Setup(c => c.LoadEnabledContentForProfileAsync(profile))
+            .ReturnsAsync(enabledItems);
+        _contentLoaderMock.Setup(c => c.LoadAvailableGameInstallationsAsync())
+            .ReturnsAsync([]);
+        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync([]);
+        _manifestPoolMock.Setup(m => m.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([]));
+
+        _manifestPoolMock.Setup(m => m.GetManifestAsync(It.IsAny<ManifestId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(new ContentManifest { Id = ManifestId.Create(installId) }));
+
+        _profileContentLinkerMock.Setup(p => p.UpdateProfileUserDataAsync(
+            profileId,
+            It.IsAny<IEnumerable<ContentManifest>>(),
+            It.IsAny<GameType>(),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateFailure("Cannot sync locked files"));
+
+        await _viewModel.InitializeForProfileAsync(profileId);
+        _gameProfileManagerMock.Invocations.Clear();
+
+        // Act
+        await _viewModel.SaveCommand.ExecuteAsync(null);
+
+        // Assert
+        Assert.Equal("Live synchronization failed; profile changes were rolled back", _viewModel.StatusMessage);
+        _gameProfileManagerMock.Verify(
+            m => m.UpdateProfileAsync(profileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
+    }
+
+    /// <summary>
+    /// Verifies that when a game session starts during save, live sync fails, and profile rollback fails,
+    /// SaveAsync sets the failure status message.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task SaveAsync_WhenGameStartsDuringSaveAndLiveSyncFailsAndRollbackFails_SetsRollbackFailureStatusMessageAsync()
+    {
+        // Arrange
+        const string profileId = "profile-postsave-2";
+        const string installId = "1.108.steam.gameinstallation.zh";
+        const string originalMapId = "1.0.0.map.desert";
+
+        var profile = new GameProfile
+        {
+            Id = profileId,
+            Name = "PostSave Profile 2",
+            EnabledContentIds = [installId, originalMapId],
+            GameClient = new GameClient
+            {
+                Id = "client-zh",
+                Name = "Zero Hour",
+                GameType = GameType.ZeroHour,
+            },
+        };
+
+        _gameProfileManagerMock.Setup(m => m.GetProfileAsync(profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
+        _gameProfileManagerMock.Setup(m => m.UpdateProfileAsync(profileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
+
+        int launchCheckCount = 0;
+        _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
+            .ReturnsAsync(() =>
+            {
+                launchCheckCount++;
+                return launchCheckCount > 3
+                    ? [CreateActiveLaunch(profileId)]
+                    : [];
+            });
+
+        var enabledItems = new ObservableCollection<CoreContentDisplayItem>
+        {
+            new()
+            {
+                Id = installId,
+                ManifestId = installId,
+                DisplayName = "Command & Conquer: Zero Hour",
+                ContentType = ContentType.GameInstallation,
+                GameType = GameType.ZeroHour,
+            },
+            new()
+            {
+                Id = originalMapId,
+                ManifestId = originalMapId,
+                DisplayName = "Tournament Desert",
+                ContentType = ContentType.Map,
+                GameType = GameType.ZeroHour,
+            },
+        };
+
+        _contentLoaderMock.Setup(c => c.LoadEnabledContentForProfileAsync(profile))
+            .ReturnsAsync(enabledItems);
+        _contentLoaderMock.Setup(c => c.LoadAvailableGameInstallationsAsync())
+            .ReturnsAsync([]);
+        _contentLoaderMock.Setup(c => c.LoadAvailableContentAsync(It.IsAny<ContentType>(), It.IsAny<ObservableCollection<CoreContentDisplayItem>>(), It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync([]);
+        _manifestPoolMock.Setup(m => m.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([]));
+
+        _manifestPoolMock.Setup(m => m.GetManifestAsync(It.IsAny<ManifestId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(new ContentManifest { Id = ManifestId.Create(installId) }));
+
+        _profileContentLinkerMock.Setup(p => p.UpdateProfileUserDataAsync(
+            profileId,
+            It.IsAny<IEnumerable<ContentManifest>>(),
+            It.IsAny<GameType>(),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateFailure("Cannot sync locked files"));
+
+        await _viewModel.InitializeForProfileAsync(profileId);
+        _gameProfileManagerMock.Invocations.Clear();
+
+        int updateCount = 0;
+        _gameProfileManagerMock.Setup(m => m.UpdateProfileAsync(profileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            {
+                updateCount++;
+                return updateCount == 1
+                    ? ProfileOperationResult<GameProfile>.CreateSuccess(profile)
+                    : ProfileOperationResult<GameProfile>.CreateFailure("Failed to persist rollback");
+            });
+
+        // Act
+        await _viewModel.SaveCommand.ExecuteAsync(null);
+
+        // Assert
+        Assert.Equal("Live synchronization failed and profile rollback could not be persisted", _viewModel.StatusMessage);
+        _gameProfileManagerMock.Verify(
+            m => m.UpdateProfileAsync(profileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
+    }
+
     private static GameLaunchInfo CreateActiveLaunch(string profileId, string launchId = "launch-1", string workspaceId = "ws-1") => new()
     {
         LaunchId = launchId,
