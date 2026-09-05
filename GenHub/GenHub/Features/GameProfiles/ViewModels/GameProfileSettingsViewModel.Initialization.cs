@@ -152,6 +152,7 @@ public partial class GameProfileSettingsViewModel
 
             GameSettingsViewModel.ColorValue = ColorValue;
             await GameSettingsViewModel.InitializeForProfileAsync(profileId, profile);
+            _originalGameSettings = GameSettingsViewModel.GetProfileSettings();
 
             IsHotswapMode = await DetermineHotswapModeAsync(profileId);
 

@@ -869,6 +869,9 @@ public class GameProfileSettingsViewModelHotswapTests
             Id = profileId,
             Name = "PostSave Profile",
             EnabledContentIds = [installId, originalMapId],
+            VideoResolutionWidth = 800,
+            VideoResolutionHeight = 600,
+            AudioSoundVolume = 50,
             GameClient = new GameClient
             {
                 Id = "client-zh",
@@ -937,6 +940,9 @@ public class GameProfileSettingsViewModelHotswapTests
 
         _viewModel.Name = "New Edited Name";
         _viewModel.Description = "New Edited Description";
+        _viewModel.GameSettingsViewModel.ResolutionWidth = 1920;
+        _viewModel.GameSettingsViewModel.ResolutionHeight = 1080;
+        _viewModel.GameSettingsViewModel.SoundVolume = 95;
 
         // Act
         await _viewModel.SaveCommand.ExecuteAsync(null);
@@ -953,9 +959,18 @@ public class GameProfileSettingsViewModelHotswapTests
         _gameProfileManagerMock.Verify(
             m => m.UpdateProfileAsync(
                 profileId,
-                It.Is<UpdateProfileRequest>(r => r.Name == "PostSave Profile" && r.EnabledContentIds != null && r.EnabledContentIds.Contains(originalMapId)),
+                It.Is<UpdateProfileRequest>(r =>
+                    r.Name == "PostSave Profile" &&
+                    r.EnabledContentIds != null &&
+                    r.EnabledContentIds.Contains(originalMapId) &&
+                    r.VideoResolutionWidth == 800 &&
+                    r.VideoResolutionHeight == 600 &&
+                    r.AudioSoundVolume == 50),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+        Assert.Equal(800, _viewModel.GameSettingsViewModel.ResolutionWidth);
+        Assert.Equal(600, _viewModel.GameSettingsViewModel.ResolutionHeight);
+        Assert.Equal(50, _viewModel.GameSettingsViewModel.SoundVolume);
     }
 
     /// <summary>

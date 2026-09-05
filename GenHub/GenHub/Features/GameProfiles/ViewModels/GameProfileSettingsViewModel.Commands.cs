@@ -503,14 +503,15 @@ public partial class GameProfileSettingsViewModel
                     {
                         _logger?.LogWarning("Live sync failed after profile update for {ProfileId}; rolling back persisted profile", CurrentProfileId);
                         var rollbackRequest = _originalProfile != null
-                            ? BuildRollbackRequest(_originalProfile, _originalEnabledContentIds.ToList())
-                            : BuildUpdateRequest(_originalEnabledContentIds.ToList(), null);
+                            ? BuildRollbackRequest(_originalProfile, _originalEnabledContentIds.ToList(), _originalGameSettings)
+                            : BuildUpdateRequest(_originalEnabledContentIds.ToList(), _originalGameSettings);
                         var rollbackResult = await _gameProfileManager.UpdateProfileAsync(CurrentProfileId, rollbackRequest, cancellationToken);
                         if (rollbackResult.Success)
                         {
                             if (_originalProfile != null)
                             {
                                 ApplyLoadedProfileProperties(_originalProfile);
+                                await GameSettingsViewModel.InitializeForProfileAsync(CurrentProfileId, _originalProfile);
                             }
 
                             StatusMessage = "Live synchronization failed; profile changes were rolled back";
@@ -542,9 +543,12 @@ public partial class GameProfileSettingsViewModel
         }
     }
 
-    private UpdateProfileRequest BuildRollbackRequest(GameProfile originalProfile, List<string> originalEnabledContentIds)
+    private UpdateProfileRequest BuildRollbackRequest(
+        GameProfile originalProfile,
+        List<string> originalEnabledContentIds,
+        UpdateProfileRequest? originalGameSettings)
     {
-        return new UpdateProfileRequest
+        var rollbackRequest = new UpdateProfileRequest
         {
             Name = originalProfile.Name,
             Description = originalProfile.Description,
@@ -556,12 +560,10 @@ public partial class GameProfileSettingsViewModel
             IconPath = originalProfile.IconPath,
             CoverPath = originalProfile.CoverPath,
             GameClient = originalProfile.GameClient,
-            VideoResolutionWidth = originalProfile.VideoResolutionWidth,
-            VideoResolutionHeight = originalProfile.VideoResolutionHeight,
-            VideoWindowed = originalProfile.VideoWindowed,
-            VideoTextureQuality = originalProfile.VideoTextureQuality,
-            EnableVideoShadows = originalProfile.EnableVideoShadows,
         };
+
+        PopulateGameSettings(rollbackRequest, originalGameSettings);
+        return rollbackRequest;
     }
 
     private UpdateProfileRequest BuildUpdateRequest(List<string> enabledContentIds, UpdateProfileRequest? gameSettings)

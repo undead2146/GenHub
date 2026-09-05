@@ -268,6 +268,7 @@ public partial class GameProfileSettingsViewModel : ViewModelBase,
     private readonly NotificationService _localNotificationService = new(NullLogger<NotificationService>.Instance);
     private readonly List<string> _originalEnabledContentIds = [];
     private GameProfile? _originalProfile;
+    private UpdateProfileRequest? _originalGameSettings;
 
     private WorkspaceStrategy? OriginalWorkspaceStrategy { get; set; }
 
