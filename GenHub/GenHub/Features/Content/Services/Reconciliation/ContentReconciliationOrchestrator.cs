@@ -66,6 +66,7 @@ public class ContentReconciliationOrchestrator(
             await ExecuteStep2UntrackManifestsAsync(
                 request,
                 operationId,
+                criticalFailureOccurred,
                 warnings,
                 () => criticalFailureOccurred = true,
                 cancellationToken);
@@ -216,6 +217,7 @@ public class ContentReconciliationOrchestrator(
             // STEP 1: Update profiles to remove manifest references
             int profilesUpdated = 0;
             int invalidatedWorkspacesCount = 0;
+            var successfulReconciledIds = new List<string>();
             foreach (var manifestId in ids)
             {
                 var reconcileResult = await reconciliationService.ReconcileManifestRemovalAsync(ManifestId.Create(manifestId), skipUntrack: true, cancellationToken);
@@ -223,10 +225,12 @@ public class ContentReconciliationOrchestrator(
                 {
                     profilesUpdated += reconcileResult.Data.ProfilesUpdated;
                     invalidatedWorkspacesCount += reconcileResult.Data.WorkspacesInvalidated;
+                    successfulReconciledIds.Add(manifestId);
                 }
                 else
                 {
                      logger.LogWarning("[Orchestrator:{OpId}] ReconcileManifestRemoval failed for {ManifestId}: {Error}", operationId, manifestId, reconcileResult.FirstError);
+                     warnings.Add($"Manifest removal reconciliation failed for {manifestId}: {reconcileResult.FirstError}");
 
                      // We don't abort here, but track it so we don't do unsafe optimized cleanup later
                      // If profiles failed to update, they might still reference the content
@@ -234,18 +238,22 @@ public class ContentReconciliationOrchestrator(
                 }
             }
 
-            // STEP 2: Untrack all manifests
+            // STEP 2: Untrack only successfully reconciled manifests
             // CasLifecycleManager.UntrackManifestsAsync guarantees Success=true only when all manifests untrack without errors
-            var untrackResult = await casLifecycleManager.UntrackManifestsAsync(ids, cancellationToken);
-            if (!untrackResult.Success)
+            if (successfulReconciledIds.Count > 0)
             {
-                logger.LogError("[Orchestrator:{OpId}] Bulk untracking failed entirely: {Error}", operationId, untrackResult.FirstError);
-                criticalFailureOccurred = true;
-            }
+                var untrackResult = await casLifecycleManager.UntrackManifestsAsync(successfulReconciledIds, cancellationToken);
+                if (!untrackResult.Success)
+                {
+                    logger.LogError("[Orchestrator:{OpId}] Bulk untracking failed entirely: {Error}", operationId, untrackResult.FirstError);
+                    warnings.Add($"Manifest untracking failed: {untrackResult.FirstError}");
+                    criticalFailureOccurred = true;
+                }
 
-            foreach (var manifestId in ids)
-            {
-                WeakReferenceMessenger.Default.Send(new ContentRemovingEvent(manifestId, null, "Removal"));
+                foreach (var manifestId in successfulReconciledIds)
+                {
+                    WeakReferenceMessenger.Default.Send(new ContentRemovingEvent(manifestId, null, "Removal"));
+                }
             }
 
             // STEP 3: Remove manifest files from pool
@@ -253,10 +261,11 @@ public class ContentReconciliationOrchestrator(
             if (criticalFailureOccurred)
             {
                 logger.LogWarning("[Orchestrator:{OpId}] Skipping manifest removal step due to previous errors", operationId);
+                warnings.Add("Manifest removal step skipped due to previous errors in profile update or untracking.");
             }
             else
             {
-                foreach (var id in ids)
+                foreach (var id in successfulReconciledIds)
                 {
                     try
                     {
@@ -270,6 +279,7 @@ public class ContentReconciliationOrchestrator(
                         else
                         {
                             logger.LogWarning("[Orchestrator:{OpId}] Failed to remove manifest {ManifestId}: {Error}", operationId, id, removeResult.FirstError);
+                            warnings.Add($"Failed to remove manifest {id}: {removeResult.FirstError}");
                             criticalFailureOccurred = true;
                         }
                     }
@@ -281,6 +291,7 @@ public class ContentReconciliationOrchestrator(
                     catch (Exception ex)
                     {
                         logger.LogWarning(ex, "[Orchestrator:{OpId}] Failed to remove manifest {ManifestId}", operationId, id);
+                        warnings.Add($"Error removing manifest {id}: {ex.Message}");
                         criticalFailureOccurred = true;
                     }
                 }
@@ -593,12 +604,20 @@ public class ContentReconciliationOrchestrator(
     private async Task ExecuteStep2UntrackManifestsAsync(
         ContentReplacementRequest request,
         string operationId,
+        bool criticalFailureOccurred,
         List<string> warnings,
         Action onCriticalFailure,
         CancellationToken cancellationToken)
     {
         if (!request.RemoveOldManifests)
         {
+            return;
+        }
+
+        if (criticalFailureOccurred)
+        {
+            logger.LogWarning("[Orchestrator:{OpId}] Skipping manifest untracking step due to previous errors in profile update", operationId);
+            warnings.Add("Manifest untracking skipped due to previous errors in profile update.");
             return;
         }
 
