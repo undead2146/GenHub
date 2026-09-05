@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Messages;
 using GenHub.Core.Models.AppUpdate;
@@ -257,6 +258,62 @@ public class BackgroundUpdateCoordinatorTests
         Assert.NotNull(updateNotification);
         Assert.Equal(AppUpdateConstants.BranchStaleUpdateAvailableNotificationTitle, updateNotification.Title);
         Assert.Contains("1.5.0", updateNotification.Message);
+    }
+
+    /// <summary>
+    /// Verifies that a token-authenticated main subscription notifies from the release fallback when no branch artifact exists.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task CheckForUpdatesAsync_WhenMainBranchHasNoArtifact_NotifiesFromStandardReleaseFallbackAsync()
+    {
+        var notificationShown = new TaskCompletionSource<NotificationMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var settings = new UserSettings { SubscribedBranch = AppUpdateConstants.MainBranch };
+        var mockUserSettings = new Mock<IUserSettingsService>();
+        mockUserSettings.Setup(x => x.Get()).Returns(settings);
+
+        var mockVelopack = new Mock<IVelopackUpdateManager>();
+        mockVelopack.SetupProperty(x => x.SubscribedPrNumber, null);
+        mockVelopack.SetupProperty(x => x.SubscribedBranch, AppUpdateConstants.MainBranch);
+        mockVelopack.Setup(x => x.CheckForArtifactUpdatesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ArtifactUpdateInfo?)null);
+        var stableRelease = new Velopack.VelopackAsset
+        {
+            PackageId = "GenHub",
+            Version = NuGet.Versioning.NuGetVersion.Parse("1.5.0"),
+            Type = Velopack.VelopackAssetType.Full,
+            FileName = "GenHub-1.5.0-full.nupkg",
+            SHA1 = "0000000000000000000000000000000000000000",
+            Size = 1024,
+        };
+        var stableUpdate = new Velopack.UpdateInfo(stableRelease, false, null, []);
+        mockVelopack.Setup(x => x.CheckForUpdatesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(stableUpdate);
+        mockVelopack.SetupGet(x => x.HasUpdateAvailableFromGitHub).Returns(false);
+
+        var mockTokenStorage = new Mock<IGitHubTokenStorage>();
+        mockTokenStorage.Setup(x => x.HasToken()).Returns(true);
+        var mockNotificationService = CreateNotificationServiceMock();
+        mockNotificationService.Setup(x => x.Show(It.IsAny<NotificationMessage>()))
+            .Callback<NotificationMessage>(message => notificationShown.TrySetResult(message));
+
+        using var coordinator = new BackgroundUpdateCoordinator(
+            mockVelopack.Object,
+            mockUserSettings.Object,
+            mockNotificationService.Object,
+            new Mock<ILogger<BackgroundUpdateCoordinator>>().Object,
+            mockTokenStorage.Object);
+
+        await coordinator.CheckForUpdatesAsync();
+        var notification = await notificationShown.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        mockVelopack.Verify(x => x.CheckForArtifactUpdatesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        mockVelopack.Verify(x => x.CheckForUpdatesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal(AppUpdateConstants.UpdateAvailableNotificationTitle, notification.Title);
+        Assert.Contains("1.5.0", notification.Message);
+        Assert.Single(notification.Actions);
+        Assert.True(notification.IsPersistent);
+        Assert.True(notification.ShowInBadge);
     }
 
     /// <summary>
