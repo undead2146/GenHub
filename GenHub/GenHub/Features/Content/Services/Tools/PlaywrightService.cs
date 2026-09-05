@@ -65,7 +65,7 @@ public sealed class PlaywrightService(
 
     private ManagedChromiumRuntime? managedChromiumRuntime;
 
-    private bool _disposed;
+    private int _disposeState;
 
     /// <inheritdoc />
     public async Task<IPage> CreatePageAsync(BrowserNewContextOptions? options = null, CancellationToken cancellationToken = default)
@@ -79,7 +79,7 @@ public sealed class PlaywrightService(
 
         var contextOptions = options ?? new BrowserNewContextOptions
         {
-            UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            UserAgent = ModDBConstants.BrowserUserAgent,
             ViewportSize = new ViewportSize { Width = 1366, Height = 768 },
             Locale = "en-US",
         };
@@ -108,6 +108,7 @@ public sealed class PlaywrightService(
     /// <inheritdoc />
     public async Task<IPage> CreatePersistentPageAsync(string profileName, CancellationToken cancellationToken = default)
     {
+        ValidateProfileName(profileName);
         var profileDir = Path.Combine(
             configurationProvider.GetApplicationDataPath(),
             DirectoryNames.BrowserProfiles,
@@ -187,13 +188,30 @@ public sealed class PlaywrightService(
             var context = page.Context;
             try
             {
-                await page.CloseAsync();
+                if (!page.IsClosed)
+                {
+                    try
+                    {
+                        await page.CloseAsync();
+                    }
+                    catch (PlaywrightException ex)
+                    {
+                        logger.LogDebug(ex, "Failed to close page during cleanup.");
+                    }
+                }
             }
             finally
             {
                 if (context != null)
                 {
-                    await context.CloseAsync();
+                    try
+                    {
+                        await context.CloseAsync();
+                    }
+                    catch (PlaywrightException ex)
+                    {
+                        logger.LogDebug(ex, "Failed to close context during cleanup.");
+                    }
                 }
             }
         }
@@ -228,6 +246,7 @@ public sealed class PlaywrightService(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(operation);
+        ValidateProfileName(profileName);
 
         var profileDir = Path.Combine(
             configurationProvider.GetApplicationDataPath(),
@@ -274,6 +293,7 @@ public sealed class PlaywrightService(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(urls);
+        ValidateProfileName(profileName);
 
         var results = new Dictionary<string, IDocument>(StringComparer.Ordinal);
         if (urls.Count == 0)
@@ -281,28 +301,9 @@ public sealed class PlaywrightService(
             return results;
         }
 
-        if (string.Equals(profileName, ModDBConstants.BrowserProfileName, StringComparison.OrdinalIgnoreCase))
-        {
-            var invalidUrl = urls.FirstOrDefault(url => !string.IsNullOrWhiteSpace(url) && !IsModDbHost(url));
-            if (invalidUrl != null)
-            {
-                throw new ArgumentException($"URL host is not permitted for profile '{profileName}': {invalidUrl}", nameof(urls));
-            }
-        }
+        ValidatePersistentUrls(profileName, urls);
 
-        // Preserve caller order while skipping duplicate URLs (section sweeps sometimes repeat a path).
-        var orderedUnique = new List<string>(urls.Count);
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var url in urls)
-        {
-            if (string.IsNullOrWhiteSpace(url) || !seen.Add(url))
-            {
-                continue;
-            }
-
-            orderedUnique.Add(url);
-        }
-
+        var orderedUnique = FilterUniqueUrls(urls);
         if (orderedUnique.Count == 0)
         {
             return results;
@@ -356,99 +357,24 @@ public sealed class PlaywrightService(
     /// <inheritdoc />
     public void Dispose()
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0)
         {
             return;
         }
 
-        Task.Run(() => DisposeAsync().AsTask()).GetAwaiter().GetResult();
-        _disposed = true;
+        Task.Run(() => DisposeCoreAsync()).GetAwaiter().GetResult();
         GC.SuppressFinalize(this);
     }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0)
         {
             return;
         }
 
-        await _persistentLock.WaitAsync();
-        try
-        {
-            if (_persistentContext != null)
-            {
-                try
-                {
-                    await _persistentContext.CloseAsync();
-                }
-                catch (PlaywrightException ex)
-                {
-                    logger.LogDebug(ex, "Persistent context closed during disposal.");
-                }
-                finally
-                {
-                    _inUsePersistentPages.Clear();
-                    _persistentContext = null;
-                    _persistentProfileName = null;
-                }
-            }
-        }
-        finally
-        {
-            _persistentLock.Release();
-        }
-
-        await _browserLock.WaitAsync();
-        try
-        {
-            if (_browser != null)
-            {
-                try
-                {
-                    await _browser.CloseAsync();
-                }
-                catch (PlaywrightException ex)
-                {
-                    logger.LogDebug(ex, "Browser closed during disposal.");
-                }
-                finally
-                {
-                    _browser = null;
-                }
-            }
-        }
-        finally
-        {
-            _browserLock.Release();
-        }
-
-        await _playwrightLock.WaitAsync();
-        try
-        {
-            if (_playwright != null)
-            {
-                try
-                {
-                    _playwright.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    logger.LogDebug(ex, "Playwright disposed during disposal.");
-                }
-                finally
-                {
-                    _playwright = null;
-                }
-            }
-        }
-        finally
-        {
-            _playwrightLock.Release();
-        }
-
-        _disposed = true;
+        await DisposeCoreAsync().ConfigureAwait(false);
         GC.SuppressFinalize(this);
     }
 
@@ -460,8 +386,13 @@ public sealed class PlaywrightService(
             logger.LogInformation("Starting Playwright download from {Url}", configuration.Url);
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-            var usePersistentModDbProfile = configuration.Url.Host.Equals("moddb.com", StringComparison.OrdinalIgnoreCase) ||
-                                            configuration.Url.Host.EndsWith(".moddb.com", StringComparison.OrdinalIgnoreCase);
+            var isModDb = IsModDbHost(configuration.Url);
+            var usePersistentModDbProfile = isModDb && configuration.Url.Scheme == Uri.UriSchemeHttps;
+
+            if (isModDb && !usePersistentModDbProfile)
+            {
+                logger.LogDebug("Download URL {Url} uses HTTP; persistent ModDB profile will not be used.", configuration.Url);
+            }
 
             // Headed ModDB profile is shared with FetchPersistentHtmlAsync / multi-URL sweeps —
             // serialize so a download cannot relaunch Chromium while a section page is mid-Goto.
@@ -480,9 +411,17 @@ public sealed class PlaywrightService(
             {
                 if (isOuterSession)
                 {
-                    if (_activePersistentSessions == 0 && _inUsePersistentPages.Count == 0)
+                    await _persistentLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+                    try
                     {
-                        await ClosePersistentContextCoreAsync();
+                        if (Volatile.Read(ref _activePersistentSessions) == 0 && _inUsePersistentPages.Count == 0)
+                        {
+                            await ClosePersistentContextCoreUnderLockAsync().ConfigureAwait(false);
+                        }
+                    }
+                    finally
+                    {
+                        _persistentLock.Release();
                     }
 
                     _isInPersistentSession.Value = false;
@@ -490,7 +429,7 @@ public sealed class PlaywrightService(
                 }
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "Playwright download failed for {Url}", configuration.Url);
             var message = ex.Message.Contains("Executable doesn't exist", StringComparison.OrdinalIgnoreCase)
@@ -552,6 +491,18 @@ public sealed class PlaywrightService(
         url.StartsWith("chrome://newtab", StringComparison.OrdinalIgnoreCase) ||
         url.StartsWith("chrome://new-tab", StringComparison.OrdinalIgnoreCase);
 
+    private static void ValidateProfileName(string profileName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(profileName);
+        if (profileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+            profileName.Contains("..", StringComparison.Ordinal) ||
+            profileName.Contains('/') ||
+            profileName.Contains('\\'))
+        {
+            throw new ArgumentException($"Invalid profile name '{profileName}': contains invalid path characters.", nameof(profileName));
+        }
+    }
+
     private static bool IsModDbVerificationPage(string? title) =>
         !string.IsNullOrWhiteSpace(title) &&
         (title.Contains("Just a moment", StringComparison.OrdinalIgnoreCase) ||
@@ -560,16 +511,71 @@ public sealed class PlaywrightService(
          title.Contains("Verify you are human", StringComparison.OrdinalIgnoreCase) ||
          title.Contains("Cloudflare", StringComparison.OrdinalIgnoreCase));
 
-    private static bool IsModDbHost(string url) =>
-        Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+    private static bool IsModDbHost(Uri uri) =>
         (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
         (uri.Host.Equals("moddb.com", StringComparison.OrdinalIgnoreCase) ||
          uri.Host.EndsWith(".moddb.com", StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsModDbHost(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) && IsModDbHost(uri);
+
+    private static bool IsHttpsModDbUrl(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+        uri.Scheme == Uri.UriSchemeHttps &&
+        IsModDbHost(uri);
 
     private static async Task<IDocument> OpenDocumentAsync(string html, CancellationToken cancellationToken)
     {
         var browsingContext = BrowsingContext.New(Configuration.Default);
         return await browsingContext.OpenAsync(req => req.Content(html), cancellationToken);
+    }
+
+    private static async Task<(bool Ready, bool IsVerification)> ProbeForModDbContentOrVerificationAsync(IPage page)
+    {
+        var title = await page.TitleAsync();
+        if (IsModDbVerificationPage(title))
+        {
+            return (false, true);
+        }
+
+        var contentMarker = await page.QuerySelectorAsync(
+            "#downloadsinfo, .row.rowcontent, .headerbox, #articlebrowse, #profile");
+        return (contentMarker != null, false);
+    }
+
+    private static void ValidatePersistentUrls(string profileName, IReadOnlyList<string> urls)
+    {
+        foreach (var url in urls)
+        {
+            if (string.IsNullOrWhiteSpace(url) ||
+                !Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            {
+                throw new ArgumentException($"Invalid URL (must be absolute HTTP/HTTPS): {url}", nameof(urls));
+            }
+
+            if (string.Equals(profileName, ModDBConstants.BrowserProfileName, StringComparison.OrdinalIgnoreCase) && !IsHttpsModDbUrl(url))
+            {
+                throw new ArgumentException($"URL is not permitted for profile '{profileName}' (must be HTTPS ModDB): {url}", nameof(urls));
+            }
+        }
+    }
+
+    private static List<string> FilterUniqueUrls(IReadOnlyList<string> urls)
+    {
+        var orderedUnique = new List<string>(urls.Count);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var url in urls)
+        {
+            if (string.IsNullOrWhiteSpace(url) || !seen.Add(url))
+            {
+                continue;
+            }
+
+            orderedUnique.Add(url);
+        }
+
+        return orderedUnique;
     }
 
     /// <summary>
@@ -580,7 +586,8 @@ public sealed class PlaywrightService(
     /// </summary>
     private bool IsPersistentContextAlive()
     {
-        if (_persistentContext == null)
+        var context = _persistentContext;
+        if (context == null)
         {
             return false;
         }
@@ -588,12 +595,89 @@ public sealed class PlaywrightService(
         try
         {
             // Any property/method round-trip to the dead channel raises TargetClosedException.
-            _ = _persistentContext.Pages;
+            _ = context.Pages;
             return true;
         }
         catch (PlaywrightException ex) when (IsContextClosedError(ex))
         {
             return false;
+        }
+    }
+
+    private async Task DisposeCoreAsync()
+    {
+        await _persistentLock.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_persistentContext != null)
+            {
+                try
+                {
+                    await _persistentContext.CloseAsync().ConfigureAwait(false);
+                }
+                catch (PlaywrightException ex)
+                {
+                    logger.LogDebug(ex, "Persistent context closed during disposal.");
+                }
+                finally
+                {
+                    _inUsePersistentPages.Clear();
+                    _persistentContext = null;
+                    _persistentProfileName = null;
+                }
+            }
+        }
+        finally
+        {
+            _persistentLock.Release();
+        }
+
+        await _browserLock.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_browser != null)
+            {
+                try
+                {
+                    await _browser.CloseAsync().ConfigureAwait(false);
+                }
+                catch (PlaywrightException ex)
+                {
+                    logger.LogDebug(ex, "Browser closed during disposal.");
+                }
+                finally
+                {
+                    _browser = null;
+                }
+            }
+        }
+        finally
+        {
+            _browserLock.Release();
+        }
+
+        await _playwrightLock.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_playwright != null)
+            {
+                try
+                {
+                    _playwright.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    logger.LogDebug(ex, "Playwright disposed during disposal.");
+                }
+                finally
+                {
+                    _playwright = null;
+                }
+            }
+        }
+        finally
+        {
+            _playwrightLock.Release();
         }
     }
 
@@ -732,7 +816,7 @@ public sealed class PlaywrightService(
                 return DownloadResult.CreateFailure("Download failed to initialize (null download object).");
             }
 
-            return await SaveDownloadFileAsync(download, configuration, stopwatch);
+            return await SaveDownloadFileAsync(download, configuration, usePersistentModDbProfile, stopwatch);
         }
         finally
         {
@@ -755,7 +839,7 @@ public sealed class PlaywrightService(
 
         logger.LogInformation("Download did not start automatically within 5s. Attempting to find fallback link...");
 
-        const string FallbackSelector = "a[href*='media.moddb.com'], a[href*='files.moddb.com'], a:has-text('click here'), a:has-text('Click here'), a:has-text('here'), a#download, a.download, a.btn-download, a.buttondownload, a[href*='/mirror/'], a[href*='/downloads/start/'], a[href*='/addons/start/'], a:has-text('Download Now'), a:has-text('download now'), a:has-text('Download'), a:has-text('download'), a:has-text('mirror')";
+        const string FallbackSelector = "a[href*='media.moddb.com'], a[href*='files.moddb.com'], a#download, a.download, a.btn-download, a.buttondownload, a[href*='/mirror/'], a[href*='/downloads/start/'], a[href*='/addons/start/']";
 
         var fallbackLink = await page.QuerySelectorAsync(FallbackSelector);
         if (fallbackLink == null)
@@ -771,7 +855,7 @@ public sealed class PlaywrightService(
             await fallbackLink.ClickAsync(new ElementHandleClickOptions { Timeout = 5000 });
             await CheckStartPageFallbackAsync(page, downloadTcs, cancellationToken);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "Failed to click fallback link.");
         }
@@ -929,7 +1013,7 @@ public sealed class PlaywrightService(
                         "--password-store=basic",
                         "--use-mock-keychain",
                     ],
-                    UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                    UserAgent = ModDBConstants.BrowserUserAgent,
                     ViewportSize = new ViewportSize { Width = 1366, Height = 768 },
                     Locale = "en-US",
                     IgnoreDefaultArgs = ["--enable-automation"],
@@ -938,12 +1022,25 @@ public sealed class PlaywrightService(
             var ctx = context;
             context.Close += (_, _) =>
             {
-                if (ReferenceEquals(_persistentContext, ctx))
-                {
-                    _inUsePersistentPages.Clear();
-                    _persistentContext = null;
-                    _persistentProfileName = null;
-                }
+                Task.Run(
+                    async () =>
+                    {
+                        await _persistentLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+                        try
+                        {
+                            if (ReferenceEquals(_persistentContext, ctx))
+                            {
+                                _inUsePersistentPages.Clear();
+                                _persistentContext = null;
+                                _persistentProfileName = null;
+                            }
+                        }
+                        finally
+                        {
+                            _persistentLock.Release();
+                        }
+                    },
+                    CancellationToken.None);
             };
 
             _persistentContext = context;
@@ -1092,28 +1189,39 @@ public sealed class PlaywrightService(
     /// <returns>A task representing the browser runtime initialization.</returns>
     private async Task<IPlaywright> EnsureManagedPlaywrightAsync(CancellationToken cancellationToken)
     {
+        var runtime = GetOrCreateManagedChromiumRuntime();
+        runtime.ConfigureEnvironment();
+
+        IPlaywright playwright;
         await _playwrightLock.WaitAsync(cancellationToken);
         try
         {
-            var runtime = GetOrCreateManagedChromiumRuntime();
-            runtime.ConfigureEnvironment();
             _playwright ??= await Playwright.CreateAsync();
-            await runtime.EnsureInstalledAsync(_playwright.Chromium, cancellationToken);
-            return _playwright;
+            playwright = _playwright;
         }
         finally
         {
             _playwrightLock.Release();
         }
+
+        await runtime.EnsureInstalledAsync(playwright.Chromium, cancellationToken);
+        return playwright;
     }
 
     private ManagedChromiumRuntime GetOrCreateManagedChromiumRuntime()
     {
-        return managedChromiumRuntime ??= new ManagedChromiumRuntime(
+        if (managedChromiumRuntime != null)
+        {
+            return managedChromiumRuntime;
+        }
+
+        var newRuntime = new ManagedChromiumRuntime(
             Path.Combine(configurationProvider.GetApplicationDataPath(), DirectoryNames.BrowserRuntime),
             Microsoft.Playwright.Program.Main,
             RequestManagedChromiumInstallConsentAsync,
             logger);
+
+        return Interlocked.CompareExchange(ref managedChromiumRuntime, newRuntime, null) ?? newRuntime;
     }
 
     /// <summary>
@@ -1157,9 +1265,17 @@ public sealed class PlaywrightService(
     /// <returns>The page HTML.</returns>
     private async Task<string> FetchPersistentHtmlAsync(string profileName, string url, CancellationToken cancellationToken)
     {
-        if (string.Equals(profileName, ModDBConstants.BrowserProfileName, StringComparison.OrdinalIgnoreCase) && !IsModDbHost(url))
+        ValidateProfileName(profileName);
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
         {
-            throw new ArgumentException($"URL host is not permitted for profile '{profileName}': {url}", nameof(url));
+            throw new ArgumentException($"Invalid URL (must be absolute HTTP/HTTPS): {url}", nameof(url));
+        }
+
+        if (string.Equals(profileName, ModDBConstants.BrowserProfileName, StringComparison.OrdinalIgnoreCase) && !IsHttpsModDbUrl(url))
+        {
+            throw new ArgumentException($"URL is not permitted for profile '{profileName}' (must be HTTPS ModDB): {url}", nameof(url));
         }
 
         logger.LogDebug("Fetching HTML (persistent profile '{Profile}') from {Url}", profileName, url);
@@ -1389,8 +1505,15 @@ public sealed class PlaywrightService(
     private async Task<DownloadResult> SaveDownloadFileAsync(
         IDownload download,
         GenHub.Core.Models.Common.DownloadConfiguration configuration,
+        bool usePersistentModDbProfile,
         System.Diagnostics.Stopwatch stopwatch)
     {
+        if (usePersistentModDbProfile && !IsHttpsModDbUrl(download.Url))
+        {
+            logger.LogWarning("Download URL {DownloadUrl} is not a valid HTTPS ModDB URL. Aborting download.", download.Url);
+            throw new InvalidOperationException($"Download URL '{download.Url}' must be an HTTPS ModDB URL for persistent profile.");
+        }
+
         if (File.Exists(configuration.DestinationPath) && configuration.OverwriteExisting)
         {
             File.Delete(configuration.DestinationPath);
@@ -1445,18 +1568,5 @@ public sealed class PlaywrightService(
                 }
             }
         }
-    }
-
-    private async Task<(bool Ready, bool IsVerification)> ProbeForModDbContentOrVerificationAsync(IPage page)
-    {
-        var title = await page.TitleAsync();
-        if (IsModDbVerificationPage(title))
-        {
-            return (false, true);
-        }
-
-        var contentMarker = await page.QuerySelectorAsync(
-            "#downloadsinfo, .row.rowcontent, .headerbox, #articlebrowse, #profile");
-        return (contentMarker != null, false);
     }
 }

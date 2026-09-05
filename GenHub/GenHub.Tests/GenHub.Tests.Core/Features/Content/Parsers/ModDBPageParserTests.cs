@@ -282,6 +282,17 @@ public sealed class ModDBPageParserTests
         const string pageUrl = "https://www.moddb.com/mods/genspeed/downloads/genspeed-v25";
         var fetchedUrls = new List<string>();
         var playwright = CreatePlaywrightMock();
+        var fileDoc = await CreateDocumentAsync("""
+            <html><body>
+              <h1><a>GenSpeed v2.5</a></h1>
+              <div class="sidecolumn"><img class="icon" src="https://static.moddb.com/html/cutoff/images/guest/guest4.png" /></div>
+              <div id="downloadsinfo">
+                <div class="row clear"><h5>Filename</h5><span class="summary">GenSpeed-v2.5.zip</span></div>
+                <div class="row clear"><a href="/downloads/start/311183">Download Now</a></div>
+              </div>
+            </body></html>
+            """);
+
         playwright
             .Setup(service => service.FetchAndParsePersistentAsync(
                 ModDBConstants.BrowserProfileName,
@@ -290,16 +301,7 @@ public sealed class ModDBPageParserTests
             .Returns((string _, string url, CancellationToken _) =>
             {
                 fetchedUrls.Add(url);
-                return Task.FromResult(CreateDocumentAsync("""
-                    <html><body>
-                      <h1><a>GenSpeed v2.5</a></h1>
-                      <div class="sidecolumn"><img class="icon" src="https://static.moddb.com/html/cutoff/images/guest/guest4.png" /></div>
-                      <div id="downloadsinfo">
-                        <div class="row clear"><h5>Filename</h5><span class="summary">GenSpeed-v2.5.zip</span></div>
-                        <div class="row clear"><a href="/downloads/start/311183">Download Now</a></div>
-                      </div>
-                    </body></html>
-                    """).GetAwaiter().GetResult());
+                return Task.FromResult(fileDoc);
             });
         var parser = new ModDBPageParser(playwright.Object, new Mock<ILogger<ModDBPageParser>>().Object);
 
@@ -1048,12 +1050,12 @@ public sealed class ModDBPageParserTests
     }
 
     /// <summary>
-    /// Verifies that non-video iframes (like download widgets) and recommendation boxes
-    /// ("You may also like...") are not parsed into the Videos collection.
+    /// Verifies that gallery videos in legitimate and substring-named containers are parsed
+    /// while non-video iframes (like download widgets) and recommendation boxes are ignored.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ParseAsync_WithDownloadWidgetAndRecommendations_IgnoresNonVideoWidgetsAndRecommendationsAsync()
+    public async Task ParseAsync_WithWidgetsAndRecommendations_ExtractsGalleryVideosAndIgnoresNonVideoWidgetsAsync()
     {
         // Arrange
         const string pageUrl = "https://www.moddb.com/mods/zhe/downloads/patch-1";
@@ -1093,11 +1095,19 @@ public sealed class ModDBPageParserTests
                       <span class="title"><a href="/mods/zhe/videos/real-trailer">Real Mod Trailer</a></span>
                     </div>
                   </div>
-                  <div id="recommendations">
-                    <h3>You may also like...</h3>
+                  <div class="similarity-note">
                     <div class="holder">
-                      <a href="/mods/other-mod/videos/other-trailer" title="You may also like...">
-                        <img src="https://media.moddb.com/cache/images/videos/2/2/other.jpg" alt="You may also like..." />
+                      <a href="/mods/zhe/videos/similar-note-trailer" title="Similar Note Trailer">
+                        <img src="https://media.moddb.com/cache/images/videos/3/3/similar.jpg" alt="Similar Note Trailer" />
+                      </a>
+                      <span class="title"><a href="/mods/zhe/videos/similar-note-trailer">Similar Note Trailer</a></span>
+                    </div>
+                  </div>
+                  <div id="recommendations">
+                    <h3>Recommended Content</h3>
+                    <div class="holder">
+                      <a href="/mods/other-mod/videos/other-trailer" title="Other Mod Trailer">
+                        <img src="https://media.moddb.com/cache/images/videos/2/2/other.jpg" alt="Other Mod Trailer" />
                       </a>
                     </div>
                   </div>
@@ -1134,11 +1144,16 @@ public sealed class ModDBPageParserTests
         var videos = parsed.Sections.OfType<Video>().ToList();
         var images = parsed.Sections.OfType<Image>().ToList();
 
-        // Only the 1 real trailer should be extracted, NOT the download widget or recommendation box
-        var video = Assert.Single(videos);
-        Assert.Equal("Real Mod Trailer", video.Title);
-        Assert.Equal("https://www.moddb.com/mods/zhe/videos/real-trailer", video.EmbedUrl);
-        Assert.Equal("https://media.moddb.com/cache/images/videos/1/1/trailer.jpg", video.ThumbnailUrl);
+        // Real trailer and non-recommendation substring container (e.g. similarity-note) should be extracted,
+        // while the download widget and recommendation box must be excluded.
+        Assert.Equal(2, videos.Count);
+        Assert.Contains(videos, v => v.Title == "Real Mod Trailer" &&
+            v.EmbedUrl == "https://www.moddb.com/mods/zhe/videos/real-trailer" &&
+            v.ThumbnailUrl == "https://media.moddb.com/cache/images/videos/1/1/trailer.jpg");
+        Assert.Contains(videos, v => v.Title == "Similar Note Trailer" &&
+            v.EmbedUrl == "https://www.moddb.com/mods/zhe/videos/similar-note-trailer" &&
+            v.ThumbnailUrl == "https://media.moddb.com/cache/images/videos/3/3/similar.jpg");
+        Assert.DoesNotContain(videos, v => v.Title == "Other Mod Trailer");
 
         // Preview image from file detail page should be extracted into Images
         var image = Assert.Single(images);
@@ -1329,6 +1344,7 @@ public sealed class ModDBPageParserTests
         { "9,72 MB", (long)(9.72 * 1024 * 1024) },
         { "1.07mb (1,125,450 bytes)", 1125450L },
         { "289.6 MB", (long)(289.6 * 1024 * 1024) },
+        { "1,234.56 MB", (long)(1234.56 * 1024 * 1024) },
     };
 
     /// <summary>
@@ -1371,7 +1387,7 @@ public sealed class ModDBPageParserTests
         var file = Assert.Single(parsed.Sections.OfType<DownloadableFile>());
         Assert.NotNull(file.SizeBytes);
 
-        // Allow within 1% tolerance for floating-point calculations where byte count was not explicit
+        // Allow within 5% tolerance for floating-point calculations where byte count was not explicit
         if (sizeString.Contains("bytes", StringComparison.OrdinalIgnoreCase))
         {
             Assert.Equal(expectedBytes, file.SizeBytes.Value);
@@ -1691,6 +1707,7 @@ public sealed class ModDBPageParserTests
     [InlineData("https://www.moddb.com/mods/cool-mod", false)]
     [InlineData("https://www.moddb.com/games/cc-generals-zero-hour/downloads", false)]
     [InlineData("https://moddb.com.attacker.example/downloads/start/310120", false)]
+    [InlineData("https://moddb.com@attacker.example/downloads/start/310120", false)]
     [InlineData("https://external-site.com/downloads/start/310120", false)]
     [InlineData("javascript:alert(1)", false)]
     [InlineData("", false)]

@@ -18,6 +18,7 @@ public sealed class ManagedChromiumRuntimeTests : IDisposable
 {
     private readonly string _runtimeDirectory = Path.Combine(Path.GetTempPath(), "GenHubTests", Guid.NewGuid().ToString("N"));
     private readonly string? _originalBrowserPath = Environment.GetEnvironmentVariable(ManagedChromiumRuntime.BrowserPathEnvironmentVariable);
+    private readonly string? _originalDriverPath = Environment.GetEnvironmentVariable(ManagedChromiumRuntime.DriverPathEnvironmentVariable);
 
     /// <summary>
     /// Verifies a pre-provisioned app-owned Chromium executable does not trigger another install.
@@ -67,6 +68,7 @@ public sealed class ManagedChromiumRuntimeTests : IDisposable
     {
         // Arrange
         var executablePath = Path.Combine(_runtimeDirectory, "chromium.exe");
+        var installerCalls = 0;
         IReadOnlyList<string>? installerArguments = null;
         string? consentPath = null;
         var chromium = new Mock<IBrowserType>(MockBehavior.Strict);
@@ -75,6 +77,7 @@ public sealed class ManagedChromiumRuntimeTests : IDisposable
             _runtimeDirectory,
             arguments =>
             {
+                installerCalls++;
                 installerArguments = arguments;
                 Directory.CreateDirectory(_runtimeDirectory);
                 File.WriteAllText(executablePath, "browser");
@@ -92,6 +95,7 @@ public sealed class ManagedChromiumRuntimeTests : IDisposable
 
         // Assert
         Assert.Equal(_runtimeDirectory, consentPath);
+        Assert.Equal(1, installerCalls);
         Assert.Equal(["install", "chromium"], installerArguments);
         Assert.True(File.Exists(executablePath));
         Assert.Equal(_runtimeDirectory, Environment.GetEnvironmentVariable(ManagedChromiumRuntime.BrowserPathEnvironmentVariable));
@@ -120,11 +124,11 @@ public sealed class ManagedChromiumRuntimeTests : IDisposable
             new Mock<ILogger>().Object);
 
         // Act
-        var ex = await Assert.ThrowsAsync<OperationCanceledException>(
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => runtime.EnsureInstalledAsync(chromium.Object, default));
 
         // Assert
-        Assert.Contains("cancelled", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("declined", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, installerCalls);
         Assert.False(File.Exists(executablePath));
     }
@@ -160,6 +164,7 @@ public sealed class ManagedChromiumRuntimeTests : IDisposable
     public void Dispose()
     {
         Environment.SetEnvironmentVariable(ManagedChromiumRuntime.BrowserPathEnvironmentVariable, _originalBrowserPath);
+        Environment.SetEnvironmentVariable(ManagedChromiumRuntime.DriverPathEnvironmentVariable, _originalDriverPath);
         if (Directory.Exists(_runtimeDirectory))
         {
             Directory.Delete(_runtimeDirectory, recursive: true);

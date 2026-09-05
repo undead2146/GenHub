@@ -29,6 +29,7 @@ internal sealed class ManagedChromiumRuntime(
     /// </summary>
     internal const string DriverPathEnvironmentVariable = "PLAYWRIGHT_DRIVER_PATH";
 
+    private readonly SemaphoreSlim _installLock = new(1, 1);
     private string? _cachedDriverPath;
 
     /// <summary>
@@ -44,12 +45,13 @@ internal sealed class ManagedChromiumRuntime(
     /// <summary>
     /// Installs Chromium exactly once when the app-owned executable is unavailable,
     /// after the user confirms the download via the standard confirmation dialog.
+    /// Note that cooperative cancellation is honored before and after the install process.
     /// </summary>
     /// <param name="chromium">The Playwright Chromium browser type.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A task representing the asynchronous provisioning operation.</returns>
-    /// <exception cref="OperationCanceledException">Thrown when the user declines installation.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when Chromium could not be provisioned.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the user declines installation or when Chromium could not be provisioned.</exception>
+    /// <exception cref="OperationCanceledException">Thrown when the cancellation token is requested.</exception>
     public async Task EnsureInstalledAsync(IBrowserType chromium, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(chromium);
@@ -60,52 +62,65 @@ internal sealed class ManagedChromiumRuntime(
             return;
         }
 
-        logger.LogDebug(
-            "Managed Chromium is missing. Requesting user consent before installing under {RuntimeDirectory}",
-            runtimeDirectory);
-
-        var consented = await requestInstallConsentAsync(runtimeDirectory);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        if (!consented)
-        {
-            logger.LogDebug("User declined managed Chromium installation under {RuntimeDirectory}", runtimeDirectory);
-            throw new OperationCanceledException(
-                "ModDB requires GenHub's managed Chromium runtime. Installation was cancelled.");
-        }
-
-        logger.LogDebug("Managed Chromium install consented. Installing under {RuntimeDirectory}", runtimeDirectory);
-
-        int exitCode = 0;
+        await _installLock.WaitAsync(cancellationToken);
         try
         {
-            exitCode = await Task.Run(
-                () =>
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    return installer(["install", "chromium"]);
-                },
-                cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException(
-                "GenHub could not install its managed Chromium runtime. Check the network connection and try the ModDB action again.",
-                ex);
-        }
+            if (File.Exists(chromium.ExecutablePath))
+            {
+                return;
+            }
 
-        cancellationToken.ThrowIfCancellationRequested();
-        if (exitCode != 0 || !File.Exists(chromium.ExecutablePath))
-        {
-            throw new InvalidOperationException(
-                "GenHub could not install its managed Chromium runtime. Check the network connection and try the ModDB action again.");
-        }
+            logger.LogDebug(
+                "Managed Chromium is missing. Requesting user consent before installing under {RuntimeDirectory}",
+                runtimeDirectory);
 
-        logger.LogInformation("Managed Chromium installation completed in {RuntimeDirectory}", runtimeDirectory);
+            var consented = await requestInstallConsentAsync(runtimeDirectory);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!consented)
+            {
+                logger.LogDebug("User declined managed Chromium installation under {RuntimeDirectory}", runtimeDirectory);
+                throw new InvalidOperationException(
+                    "ModDB requires GenHub's managed Chromium runtime. The installation was declined.");
+            }
+
+            logger.LogDebug("Managed Chromium install consented. Installing under {RuntimeDirectory}", runtimeDirectory);
+
+            int exitCode = 0;
+            try
+            {
+                exitCode = await Task.Run(
+                    () =>
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        return installer(["install", "chromium"]);
+                    },
+                    cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    "GenHub could not install its managed Chromium runtime. Check the network connection and try the ModDB action again.",
+                    ex);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (exitCode != 0 || !File.Exists(chromium.ExecutablePath))
+            {
+                throw new InvalidOperationException(
+                    "GenHub could not install its managed Chromium runtime. Check the network connection and try the ModDB action again.");
+            }
+
+            logger.LogInformation("Managed Chromium installation completed in {RuntimeDirectory}", runtimeDirectory);
+        }
+        finally
+        {
+            _installLock.Release();
+        }
     }
 
     private static string GetPlatformFolder()

@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -43,34 +45,34 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
     [GeneratedRegex(ModDBParserConstants.ParentModPathRegex, RegexOptions.IgnoreCase, 1000, "en-US")]
     private static partial Regex MyRegex();
 
-    [GeneratedRegex(@"/(?:crop|thumb)_[^/]+/", RegexOptions.IgnoreCase, 1000, "en-US")]
+    [GeneratedRegex(ModDBParserConstants.ImageCropPattern, RegexOptions.IgnoreCase, 1000, "en-US")]
     private static partial Regex ModDBImageCropRegex();
 
-    [GeneratedRegex(@"(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", RegexOptions.None, 1000, "en-US")]
+    [GeneratedRegex(ModDBParserConstants.CamelCaseSplitPattern, RegexOptions.None, 1000, "en-US")]
     private static partial Regex CamelCaseSplitRegex();
 
-    [GeneratedRegex(@"(?:\b|\()(\d+(?:[.,]\d+)?\s*(?:GB|MB|KB|B|bytes|byte|gigabytes|megabytes|kilobytes)(?:\s*\([^)]+\))?)", RegexOptions.IgnoreCase, 1000, "en-US")]
+    [GeneratedRegex(ModDBParserConstants.FileSizePattern, RegexOptions.IgnoreCase, 1000, "en-US")]
     private static partial Regex FileSizeRegex();
 
-    [GeneratedRegex(@"(?:\(|\b)(\d[\d,\s]*)\s*bytes", RegexOptions.IgnoreCase, 1000, "en-US")]
+    [GeneratedRegex(ModDBParserConstants.ExactBytesPattern, RegexOptions.IgnoreCase, 1000, "en-US")]
     private static partial Regex ExactBytesRegex();
 
-    [GeneratedRegex(@"(\d+(?:[.,]\d+)?)\s*([a-zA-Z]+)", RegexOptions.IgnoreCase, 1000, "en-US")]
+    [GeneratedRegex(ModDBParserConstants.NumericSizeWithUnitPattern, RegexOptions.IgnoreCase, 1000, "en-US")]
     private static partial Regex NumericSizeWithUnitRegex();
 
-    [GeneratedRegex(@"(?:(?:v|embed|shorts|vi)/|(?:\?|&)v=|youtu\.be/)([a-zA-Z0-9_-]{11})", RegexOptions.IgnoreCase, 1000, "en-US")]
+    [GeneratedRegex(ModDBParserConstants.YouTubeVideoIdPattern, RegexOptions.IgnoreCase, 1000, "en-US")]
     private static partial Regex YouTubeVideoIdRegex();
 
-    [GeneratedRegex(@"vimeo\.com/(?:video/)?(\d+)", RegexOptions.IgnoreCase, 1000, "en-US")]
+    [GeneratedRegex(ModDBParserConstants.VimeoVideoIdPattern, RegexOptions.IgnoreCase, 1000, "en-US")]
     private static partial Regex VimeoVideoIdRegex();
 
-    [GeneratedRegex(@"^(?<title>.+?)\s+(?:file|addon|patch|demo|mod)\s+-", RegexOptions.IgnoreCase, 1000, "en-US")]
+    [GeneratedRegex(ModDBParserConstants.ModDBPageTitlePattern, RegexOptions.IgnoreCase, 1000, "en-US")]
     private static partial Regex ModDBPageTitleRegex();
 
-    [GeneratedRegex(@"\s+", RegexOptions.None, 1000)]
+    [GeneratedRegex(ModDBParserConstants.WhitespacePattern, RegexOptions.None, 1000)]
     private static partial Regex WhitespaceRegex();
 
-    [GeneratedRegex(@"[\d,]+", RegexOptions.None, 1000)]
+    [GeneratedRegex(ModDBParserConstants.DigitsPattern, RegexOptions.None, 1000)]
     private static partial Regex DigitsRegex();
 
     /// <summary>
@@ -118,6 +120,10 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
     /// <summary>
     /// Detects the page type based on URL patterns and DOM structure.
     /// </summary>
+    private static bool IsAddonsListUrl(string url) =>
+        url.Contains(AddonsSlashPath, StringComparison.OrdinalIgnoreCase) ||
+        url.EndsWith(AddonsPath, StringComparison.OrdinalIgnoreCase);
+
     private static PageType DetectPageType(string url, IDocument document)
     {
         // Check for file detail page
@@ -127,7 +133,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         }
 
         // Addons listings are row tables. A mod's /images tab is a gallery (#imagebox), not a list.
-        if (url.Contains(AddonsPath, StringComparison.OrdinalIgnoreCase))
+        if (IsAddonsListUrl(url))
         {
             return PageType.List;
         }
@@ -347,19 +353,47 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         return (downloadUrl, detailsUrl);
     }
 
+    private static string? GetImageSource(IElement? img)
+    {
+        if (img == null)
+        {
+            return null;
+        }
+
+        var src = img.GetAttribute("src");
+        var dataSrc = img.GetAttribute(DataSrcAttr) ?? img.GetAttribute("data-original");
+
+        var isPlaceholder = string.IsNullOrWhiteSpace(src) ||
+            src.EndsWith(BlankGif, StringComparison.OrdinalIgnoreCase) ||
+            src.EndsWith(ClearGif, StringComparison.OrdinalIgnoreCase) ||
+            src.Contains("/blank.gif", StringComparison.OrdinalIgnoreCase) ||
+            src.Contains("/clear.gif", StringComparison.OrdinalIgnoreCase) ||
+            src.StartsWith("data:image/gif", StringComparison.OrdinalIgnoreCase);
+
+        if (isPlaceholder && !string.IsNullOrWhiteSpace(dataSrc))
+        {
+            return dataSrc;
+        }
+
+        return !isPlaceholder ? src : dataSrc;
+    }
+
     private static string? ExtractRowThumbnail(IElement row)
     {
         var imgEl = row.QuerySelector("img");
-        var thumbnailUrl = imgEl?.GetAttribute("src") ?? imgEl?.GetAttribute(DataSrcAttr);
-        if (!string.IsNullOrEmpty(thumbnailUrl))
+        var src = GetImageSource(imgEl);
+        if (string.IsNullOrWhiteSpace(src))
         {
-            return (thumbnailUrl.Contains(BlankGif, StringComparison.OrdinalIgnoreCase) ||
-                    thumbnailUrl.Contains(ClearGif, StringComparison.OrdinalIgnoreCase))
-                ? null
-                : ToAbsoluteUrl(thumbnailUrl);
+            return null;
         }
 
-        return null;
+        if (src.Contains(BlankGif, StringComparison.OrdinalIgnoreCase) ||
+            src.Contains(ClearGif, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return ToAbsoluteUrl(src);
     }
 
     private static string? ExtractRowSummary(IElement row)
@@ -382,98 +416,6 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         }
 
         return null;
-    }
-
-    private static (long? SizeBytes, string SizeDisplay) ParseProfileSize(string content)
-    {
-        long? sizeBytes = null;
-        if (content.Contains("bytes", StringComparison.OrdinalIgnoreCase) && content.Contains('(') && content.Contains(')'))
-        {
-            var parts = content.Split('(');
-            var bytesPart = parts[^1].Replace("bytes)", string.Empty, StringComparison.OrdinalIgnoreCase).Replace(",", string.Empty, StringComparison.Ordinal).Trim();
-            if (long.TryParse(bytesPart, out var bytesVal))
-            {
-                sizeBytes = bytesVal;
-            }
-        }
-
-        sizeBytes ??= ParseFileSize(content);
-        return (sizeBytes, content);
-    }
-
-    private static DateTime? ParseProfileReleaseDate(string content)
-    {
-        return DateTime.TryParse(content, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt)
-            ? dt
-            : null;
-    }
-
-    /// <summary>
-    /// Extracts metadata from the sidebar profile section.
-    /// </summary>
-    private static ProfileMeta ExtractProfileMeta(IDocument document)
-    {
-        var sidebar = document.QuerySelector(ModDBParserConstants.ProfileSidebarSelector);
-        if (sidebar == null)
-        {
-            return new ProfileMeta(null, null, null, null, null, null);
-        }
-
-        string? name = null; // Often the page title, but sometimes in sidebar
-        long? sizeBytes = null;
-        string? sizeDisplay = null;
-        DateTime? releaseDate = null;
-        string? developer = null;
-        string? md5Hash = null;
-
-        var rows = sidebar.QuerySelectorAll(ModDBParserConstants.ProfileRowSelector);
-        foreach (var row in rows)
-        {
-            var labelEl = row.QuerySelector(ModDBParserConstants.ProfileLabelSelector);
-            var contentEl = row.QuerySelector(ModDBParserConstants.ProfileContentSelector);
-
-            if (labelEl == null || contentEl == null)
-            {
-                continue;
-            }
-
-            var label = labelEl.TextContent?.Trim().ToLowerInvariant().Replace(":", string.Empty);
-            var content = contentEl.TextContent?.Trim();
-
-            if (string.IsNullOrEmpty(label) || string.IsNullOrEmpty(content))
-            {
-                continue;
-            }
-
-            switch (label)
-            {
-                case "filename":
-                case "file":
-                    name = content;
-                    break;
-                case "size":
-                    (sizeBytes, sizeDisplay) = ParseProfileSize(content);
-                    break;
-                case "uploader":
-                case "author":
-                    developer = content;
-                    break;
-                case "added":
-                case "date":
-                case "release date":
-                    releaseDate = ParseProfileReleaseDate(content) ?? releaseDate;
-                    break;
-                case "md5 hash":
-                case "md5":
-                    md5Hash = content;
-                    break;
-                default:
-                    // Ignore other metadata labels
-                    break;
-            }
-        }
-
-        return new ProfileMeta(name, sizeBytes, sizeDisplay, releaseDate, developer, md5Hash);
     }
 
     /// <summary>
@@ -943,7 +885,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         var elements = document.QuerySelectorAll(ModDBParserConstants.GalleryImageSelector);
         foreach (var img in elements)
         {
-            var src = img.GetAttribute("src") ?? img.GetAttribute(DataSrcAttr);
+            var src = GetImageSource(img);
             if (!IsUsableModGalleryImage(src, img))
             {
                 continue;
@@ -1205,7 +1147,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             return null;
         }
 
-        var src = img.GetAttribute("src");
+        var src = GetImageSource(img);
         if (string.IsNullOrEmpty(src))
         {
             return null;
@@ -1579,7 +1521,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             return null;
         }
 
-        var lines = rawText.Split('\r', '\n');
+        var lines = rawText.Split(['\r', '\n'], StringSplitOptions.None);
         var cleanLines = new List<string>();
         foreach (var line in lines)
         {
@@ -2062,6 +2004,52 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         return "title:" + video.Title.ToLowerInvariant();
     }
 
+    private static long? TryParseExactBytes(string sizeText)
+    {
+        var bytesMatch = ExactBytesRegex().Match(sizeText);
+        if (bytesMatch.Success)
+        {
+            var rawDigits = bytesMatch.Groups[1].Value.Replace(",", string.Empty, StringComparison.Ordinal).Replace(" ", string.Empty, StringComparison.Ordinal).Trim();
+            if (long.TryParse(rawDigits, NumberStyles.Integer, CultureInfo.InvariantCulture, out var exactBytesVal))
+            {
+                return exactBytesVal;
+            }
+        }
+
+        return null;
+    }
+
+    private static string NormalizeNumericString(string rawNum)
+    {
+        if (rawNum.Contains(',', StringComparison.Ordinal) && rawNum.Contains('.', StringComparison.Ordinal))
+        {
+            return rawNum.Replace(",", string.Empty, StringComparison.Ordinal);
+        }
+
+        if (rawNum.Contains(',', StringComparison.Ordinal) && !rawNum.Contains('.', StringComparison.Ordinal))
+        {
+            var commaIdx = rawNum.LastIndexOf(',');
+            var decimalsAfterComma = rawNum.Length - commaIdx - 1;
+            if (decimalsAfterComma == 3 && rawNum.IndexOf(',') == commaIdx)
+            {
+                return rawNum.Replace(",", string.Empty, StringComparison.Ordinal);
+            }
+
+            return rawNum.Replace(',', '.');
+        }
+
+        return rawNum;
+    }
+
+    private static long? ConvertValueWithUnit(double value, string unit) => unit switch
+    {
+        var u when u.StartsWith("G", StringComparison.OrdinalIgnoreCase) => (long)(value * 1024 * 1024 * 1024),
+        var u when u.StartsWith("M", StringComparison.OrdinalIgnoreCase) => (long)(value * 1024 * 1024),
+        var u when u.StartsWith("K", StringComparison.OrdinalIgnoreCase) => (long)(value * 1024),
+        var u when u.StartsWith("B", StringComparison.OrdinalIgnoreCase) => (long)value,
+        _ => null,
+    };
+
     /// <summary>
     /// Parses a file size string into bytes (e.g., "15.5 MB", "188.3kb (192,819 bytes)", "9,72 MB").
     /// </summary>
@@ -2072,53 +2060,25 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             return null;
         }
 
-        // Check for exact byte count in parentheses or text, e.g. "(192,819 bytes)"
-        var bytesMatch = ExactBytesRegex().Match(sizeText);
-        if (bytesMatch.Success)
+        var exactBytes = TryParseExactBytes(sizeText);
+        if (exactBytes.HasValue)
         {
-            var rawDigits = bytesMatch.Groups[1].Value.Replace(",", string.Empty).Replace(" ", string.Empty).Trim();
-            if (long.TryParse(rawDigits, NumberStyles.Integer, CultureInfo.InvariantCulture, out var exactBytesVal))
-            {
-                return exactBytesVal;
-            }
+            return exactBytes;
         }
 
-        // Parse floating point size with unit, supporting comma or dot decimals and optional spacing
         var match = NumericSizeWithUnitRegex().Match(sizeText);
         if (!match.Success)
         {
             return null;
         }
 
-        var numStr = match.Groups[1].Value.Replace(',', '.');
+        var numStr = NormalizeNumericString(match.Groups[1].Value);
         if (!double.TryParse(numStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
         {
             return null;
         }
 
-        var unit = match.Groups[2].Value.ToUpperInvariant();
-
-        if (unit.StartsWith("G", StringComparison.OrdinalIgnoreCase))
-        {
-            return (long)(value * 1024 * 1024 * 1024);
-        }
-
-        if (unit.StartsWith("M", StringComparison.OrdinalIgnoreCase))
-        {
-            return (long)(value * 1024 * 1024);
-        }
-
-        if (unit.StartsWith("K", StringComparison.OrdinalIgnoreCase))
-        {
-            return (long)(value * 1024);
-        }
-
-        if (unit.StartsWith("B", StringComparison.OrdinalIgnoreCase))
-        {
-            return (long)value;
-        }
-
-        return null;
+        return ConvertValueWithUnit(value, match.Groups[2].Value);
     }
 
     /// <summary>
@@ -2174,13 +2134,6 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
     /// <summary>
     /// Helper class for profile metadata.
     /// </summary>
-    private sealed record ProfileMeta(
-        string? Name,
-        long? SizeBytes,
-        string? SizeDisplay,
-        DateTime? ReleaseDate,
-        string? Developer,
-        string? Md5Hash);
 
     /// <summary>
     /// Extracts content sections from list pages (addons, images).
@@ -2264,6 +2217,69 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         return sections;
     }
 
+    private static bool ShouldIncludeArticle(Article article, HashSet<string> seenArticles)
+    {
+        var key = !string.IsNullOrWhiteSpace(article.Url) ? article.Url : article.Title;
+        return string.IsNullOrWhiteSpace(key) || seenArticles.Add(key);
+    }
+
+    private static bool ShouldIncludeReview(Review review, HashSet<string> seenReviews)
+    {
+        var contentSnippet = review.Content?.Length > 64 ? review.Content[..64] : review.Content;
+        var key = $"{review.Author}_{review.Date}_{review.Rating}_{contentSnippet}";
+        return seenReviews.Add(key);
+    }
+
+    private static bool ShouldIncludeVideo(Video video, HashSet<string> seenVideos)
+    {
+        var key = !string.IsNullOrWhiteSpace(video.EmbedUrl) ? video.EmbedUrl : video.Title;
+        return string.IsNullOrWhiteSpace(key) || seenVideos.Add(key);
+    }
+
+    private static bool ShouldIncludeImage(Image image, HashSet<string> seenImages)
+    {
+        var key = !string.IsNullOrWhiteSpace(image.FullSizeUrl) ? image.FullSizeUrl : image.ThumbnailUrl;
+        return string.IsNullOrWhiteSpace(key) || seenImages.Add(key);
+    }
+
+    private static bool ShouldIncludeSection(
+        ContentSection section,
+        HashSet<string> seenArticles,
+        HashSet<string> seenReviews,
+        HashSet<string> seenVideos,
+        HashSet<string> seenImages)
+    {
+        return section switch
+        {
+            Article article => ShouldIncludeArticle(article, seenArticles),
+            Review review => ShouldIncludeReview(review, seenReviews),
+            Video video => ShouldIncludeVideo(video, seenVideos),
+            Image image => ShouldIncludeImage(image, seenImages),
+            _ => true,
+        };
+    }
+
+    private static List<ContentSection> DeduplicateSections(List<ContentSection> sections)
+    {
+        var deduplicated = new List<ContentSection>(sections.Count);
+        var seenArticles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenReviews = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenVideos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenImages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Explicit indexed loop ensures ordered single-pass stateful deduplication without side-effecting LINQ predicates
+        for (var i = 0; i < sections.Count; i++)
+        {
+            var section = sections[i];
+            if (ShouldIncludeSection(section, seenArticles, seenReviews, seenVideos, seenImages))
+            {
+                deduplicated.Add(section);
+            }
+        }
+
+        return deduplicated;
+    }
+
     /// <inheritdoc />
     public string ParserId => ModDbPlatform;
 
@@ -2281,6 +2297,8 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         {
             throw new ArgumentException($"URL is not supported by {ParserId}: {url}", nameof(url));
         }
+
+        url = NormalizeToHttps(url);
 
         logger.LogInformation("Parsing ModDB page: {Url}", url);
 
@@ -2315,8 +2333,10 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             throw new ArgumentException($"URL is not supported by {ParserId}: {url}", nameof(url));
         }
 
-        var browsingContext = BrowsingContext.New(Configuration.Default);
-        var document = await browsingContext.OpenAsync(req => req.Content(html), cancellationToken).ConfigureAwait(false);
+        url = NormalizeToHttps(url);
+
+        using var browsingContext = BrowsingContext.New(Configuration.Default);
+        using var document = await browsingContext.OpenAsync(req => req.Content(html), cancellationToken).ConfigureAwait(false);
         return ParseInternal(url, document);
     }
 
@@ -2337,6 +2357,8 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         {
             throw new ArgumentException($"URL is not supported by {ParserId}: {url}", nameof(url));
         }
+
+        url = NormalizeToHttps(url);
 
         logger.LogInformation("Parsing ModDB file detail (acquisition path): {Url}", url);
 
@@ -2414,9 +2436,13 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
                     Sections: sections,
                     PageType: PageType.FileDetail);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException or FormatException or AngleSharp.Dom.DomException)
             {
                 logger.LogWarning(ex, "Failed to parse file detail for {Url}", url);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError(ex, "Unexpected error parsing file detail for {Url}", url);
             }
         }
 
@@ -2456,12 +2482,10 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             return false;
         }
 
-        if (!Uri.TryCreate(url, UriKind.Absolute, out uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        if ((!Uri.TryCreate(url, UriKind.Absolute, out uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            && (!url.StartsWith('/') || !Uri.TryCreate(new Uri(ModDBConstants.BaseUrl), url, out uri)))
         {
-            if (!url.StartsWith('/') || !Uri.TryCreate(new Uri(ModDBConstants.BaseUrl), url, out uri))
-            {
-                return false;
-            }
+            return false;
         }
 
         return uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps;
@@ -2483,16 +2507,30 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
     }
 
     /// <summary>
+    /// Upgrades HTTP ModDB URLs to HTTPS to prevent cleartext credential/cookie transmission.
+    /// </summary>
+    private static string NormalizeToHttps(string url)
+    {
+        if (url.StartsWith(UriConstants.HttpUriScheme, StringComparison.OrdinalIgnoreCase))
+        {
+            return UriConstants.HttpsUriScheme + url[UriConstants.HttpUriScheme.Length..];
+        }
+
+        return url;
+    }
+
+    /// <summary>
     /// Returns the canonical base URL without query parameters, fragments, or trailing slashes.
     /// </summary>
     private static string GetCanonicalBaseUrl(string url)
     {
-        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        var normalized = NormalizeToHttps(url);
+        if (Uri.TryCreate(normalized, UriKind.Absolute, out var uri))
         {
-            return $"{uri.Scheme}://{uri.Authority}{uri.AbsolutePath.TrimEnd('/')}";
+            return $"{UriConstants.HttpsUriScheme}{uri.Authority}{uri.AbsolutePath.TrimEnd('/')}";
         }
 
-        return url.Split('?')[0].Split('#')[0].TrimEnd('/');
+        return normalized.Split('?')[0].Split('#')[0].TrimEnd('/');
     }
 
     /// <summary>
@@ -2802,10 +2840,14 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         if (string.IsNullOrEmpty(sizeDisplay))
         {
             var downloadButton = document.QuerySelector(ModDBParserConstants.MainDownloadButtonSelector);
-            sizeDisplay = downloadButton?.TextContent?.Trim();
-            if (!string.IsNullOrEmpty(sizeDisplay))
+            var buttonText = downloadButton?.TextContent?.Trim();
+            if (!string.IsNullOrEmpty(buttonText))
             {
-                sizeBytes = ParseFileSize(sizeDisplay);
+                sizeBytes = ParseFileSize(buttonText);
+                if (sizeBytes.HasValue)
+                {
+                    sizeDisplay = buttonText;
+                }
             }
         }
 
@@ -2848,7 +2890,25 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             var href = downloadButton.GetAttribute("href");
             if (!string.IsNullOrEmpty(href))
             {
-                return ToAbsoluteUrl(href);
+                var absUrl = ToAbsoluteUrl(href);
+                if (IsDirectDownloadUrl(absUrl))
+                {
+                    return absUrl;
+                }
+            }
+        }
+
+        var fallbackLinks = document.QuerySelectorAll(ModDBParserConstants.FileDownloadSelector);
+        foreach (var link in fallbackLinks)
+        {
+            var href = link.GetAttribute("href");
+            if (!string.IsNullOrEmpty(href))
+            {
+                var absUrl = ToAbsoluteUrl(href);
+                if (IsDirectDownloadUrl(absUrl))
+                {
+                    return absUrl;
+                }
             }
         }
 
@@ -2879,7 +2939,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         var imageEls = document.QuerySelectorAll(ModDBParserConstants.FilePreviewImagesSelector);
         foreach (var img in imageEls)
         {
-            var src = img.GetAttribute("src") ?? img.GetAttribute(DataSrcAttr);
+            var src = GetImageSource(img);
             if (string.IsNullOrWhiteSpace(src) ||
                 src.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ||
                 src.Contains(BlankGif, StringComparison.OrdinalIgnoreCase) ||
@@ -2925,7 +2985,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         {
             PageType.List => ExtractListSections(
                 document,
-                url.Contains(AddonsPath, StringComparison.OrdinalIgnoreCase) ? FileSectionType.Addons : FileSectionType.Downloads),
+                IsAddonsListUrl(url) ? FileSectionType.Addons : FileSectionType.Downloads),
             PageType.Summary => ExtractSummarySections(document),
             PageType.Detail => ExtractDetailSections(document),
             _ => [],
@@ -2966,7 +3026,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         {
             case PageType.List:
                 // Determine if this is an addons list or generic list
-                var sectionType = url.Contains(AddonsPath, StringComparison.OrdinalIgnoreCase)
+                var sectionType = IsAddonsListUrl(url)
                     ? FileSectionType.Addons
                     : FileSectionType.Downloads;
                 sections.AddRange(ExtractListSections(document, sectionType));
@@ -3272,7 +3332,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
 
         var baseUrl = GetCanonicalBaseUrl(url);
         AppendFetchedSections(sections, baseUrl, fetched);
-        return sections;
+        return DeduplicateSections(sections);
     }
 
     private List<ContentSection> ExtractFileDetailWithParentSections(
@@ -3313,7 +3373,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             AppendFetchedSections(sections, baseUrl, fetched);
         }
 
-        return sections;
+        return DeduplicateSections(sections);
     }
 
     private Dictionary<string, DownloadableFile> ExtractEnrichedFiles(IReadOnlyDictionary<string, IDocument> enrichedFetched)
@@ -3347,6 +3407,12 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             Name = !string.IsNullOrEmpty(detailed.Name) && !string.Equals(detailed.Name, UnknownValue, StringComparison.OrdinalIgnoreCase)
                 ? detailed.Name
                 : file.Name,
+            CommentCount = detailed.CommentCount > 0 ? detailed.CommentCount : file.CommentCount,
+            Version = !string.IsNullOrEmpty(detailed.Version) ? detailed.Version : file.Version,
+            Uploader = !string.IsNullOrEmpty(detailed.Uploader) ? detailed.Uploader : file.Uploader,
+            DownloadCount = detailed.DownloadCount > 0 ? detailed.DownloadCount : file.DownloadCount,
+            Description = !string.IsNullOrEmpty(detailed.Description) ? detailed.Description : file.Description,
+            Md5Hash = !string.IsNullOrEmpty(detailed.Md5Hash) ? detailed.Md5Hash : file.Md5Hash,
         };
     }
 

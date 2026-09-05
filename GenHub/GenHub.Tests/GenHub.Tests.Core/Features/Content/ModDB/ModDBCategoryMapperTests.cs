@@ -55,6 +55,11 @@ public class ModDBCategoryMapperTests
     [InlineData("Mapping Tool", ContentType.ModdingTool)]
     [InlineData("Language Pack", ContentType.LanguagePack)]
     [InlineData("Trailer", ContentType.Video)]
+    [InlineData("Video", ContentType.Video)]
+    [InlineData("Gameplay Video", ContentType.Video)]
+    [InlineData("Mapping Tool Video", ContentType.Video)]
+    [InlineData("IDE", ContentType.ModdingTool)]
+    [InlineData("Modding IDE", ContentType.ModdingTool)]
     public void MapCategoryByName_MapsNamesCorrectly(string categoryName, ContentType expected)
     {
         var result = ModDBCategoryMapper.MapCategoryByName(categoryName);

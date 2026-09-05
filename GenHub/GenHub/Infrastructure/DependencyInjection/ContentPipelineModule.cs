@@ -317,7 +317,6 @@ public static class ContentPipelineModule
         services.AddSingleton<IPlaywrightService, PlaywrightService>();
 
         // Register ModDB page parser (concrete and interface)
-        // Note: Multiple IWebPageParser implementations are registered for IEnumerable<IWebPageParser> injection
         services.AddSingleton<ModDBPageParser>();
         services.AddSingleton<IWebPageParser>(sp => sp.GetRequiredService<ModDBPageParser>());
 
