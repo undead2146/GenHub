@@ -501,6 +501,14 @@ public partial class GameProfileSettingsViewModel
                     var liveSyncSuccess = await PerformLiveSyncAsync(enabledContentIds, liveGameType, cancellationToken);
                     if (!liveSyncSuccess)
                     {
+                        _logger?.LogWarning("Live sync failed after profile update for {ProfileId}; rolling back persisted profile", CurrentProfileId);
+                        var rollbackRequest = BuildUpdateRequest(_originalEnabledContentIds.ToList(), null);
+                        await _gameProfileManager.UpdateProfileAsync(CurrentProfileId, rollbackRequest, cancellationToken);
+
+                        StatusMessage = "Live synchronization failed; profile changes were rolled back";
+                        _localNotificationService.ShowWarning(
+                            "Live Sync Failed",
+                            "A game session was started during save, but live synchronization failed. Profile changes were rolled back to match the running game.");
                         return;
                     }
 
