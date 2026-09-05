@@ -39,7 +39,7 @@ public class ControlBarPackageProcessor(
     private const string Resolution1440 = "1440";
     private const string Resolution2160 = "2160";
     private const string BigFileExtension = ".big";
-    private const string ControlBarToken = ControlBarToken;
+    private const string ControlBarToken = "controlbar";
 
     private static readonly string[] KnownResolutionVariants = [Variant720p, Variant900p, Variant1080p, Variant1440p, Variant4k, Variant2160p];
     private static readonly TimeSpan RegexMatchTimeout = TimeSpan.FromSeconds(1);
