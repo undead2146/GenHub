@@ -49,7 +49,7 @@ public sealed class StripHtmlConverterTests
     }
 
     /// <summary>
-    /// Verifies Convert handles non-string input by returning value untouched.
+    /// Verifies Convert strips script and style elements including their contents.
     /// </summary>
     [Fact]
     public void Convert_WithScriptAndStyleTags_StripsContents()
@@ -78,5 +78,17 @@ public sealed class StripHtmlConverterTests
     {
         Assert.Throws<NotSupportedException>(() =>
             _converter.ConvertBack("test", typeof(string), null, CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>
+    /// Verifies that HTML comments and doctype declarations are stripped.
+    /// </summary>
+    [Fact]
+    public void Convert_WithCommentsAndDocType_StripsThem()
+    {
+        var input = "<!DOCTYPE html><!-- comment here --><p>Content</p>";
+        var result = _converter.Convert(input, typeof(string), null, CultureInfo.InvariantCulture);
+
+        Assert.Equal("Content", result);
     }
 }

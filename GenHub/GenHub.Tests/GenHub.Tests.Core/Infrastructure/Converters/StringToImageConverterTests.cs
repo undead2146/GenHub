@@ -5,6 +5,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Media.Imaging;
 using GenHub.Core.Constants;
 using GenHub.Infrastructure.Converters;
+using GenHub.Tests.Core.App;
 using Xunit;
 
 namespace GenHub.Tests.Core.Infrastructure.Converters;
@@ -12,6 +13,7 @@ namespace GenHub.Tests.Core.Infrastructure.Converters;
 /// <summary>
 /// Unit tests for <see cref="StringToImageConverter"/>.
 /// </summary>
+[Collection(HeadlessTestCollectionDefinition.Name)]
 public class StringToImageConverterTests
 {
     private static readonly byte[] ValidPngBytes = Convert.FromBase64String(

@@ -26,7 +26,7 @@ public sealed class ImageCacheService : IImageCacheService
 {
     private static readonly object InstanceLock = new();
     private static readonly Uri ModDbReferrerUri = new(ImageCacheConstants.ModDbReferrerUrl);
-    private static IImageCacheService? instance;
+    private static volatile IImageCacheService? instance;
 
     private readonly LruMemoryCache memoryCache = new(ImageCacheConstants.MaxMemoryCacheEntries);
     private readonly ConcurrentDictionary<string, Lazy<CoalescedDownloadOperation>> pendingDownloads = new(StringComparer.OrdinalIgnoreCase);
@@ -720,15 +720,28 @@ public sealed class ImageCacheService : IImageCacheService
             return;
         }
 
+        string? tempPath = null;
         try
         {
             Directory.CreateDirectory(dir);
-            var tempPath = Path.Combine(dir, $"{Guid.NewGuid():N}.tmp");
+            tempPath = Path.Combine(dir, $"{Guid.NewGuid():N}.tmp");
             File.WriteAllBytes(tempPath, imageBytes);
             File.Move(tempPath, diskPath, overwrite: true);
         }
         catch (Exception ex)
         {
+            if (tempPath != null && File.Exists(tempPath))
+            {
+                try
+                {
+                    File.Delete(tempPath);
+                }
+                catch
+                {
+                    // Ignore deletion failure of temp file
+                }
+            }
+
             logger?.LogWarning(ex, "Failed to write disk cache file '{Path}'", diskPath);
         }
     }
@@ -875,7 +888,7 @@ public sealed class ImageCacheService : IImageCacheService
             _ = Task.ContinueWith(
                 _ => cancellationTokenSource.Dispose(),
                 CancellationToken.None,
-                TaskContinuationOptions.ExecuteSynchronously,
+                TaskContinuationOptions.None,
                 TaskScheduler.Default);
         }
 
@@ -898,19 +911,25 @@ public sealed class ImageCacheService : IImageCacheService
 
         private void RemoveWaiter()
         {
+            var shouldCancel = false;
             lock (syncLock)
             {
                 waiterCount--;
                 if (waiterCount <= 0 && !Task.IsCompleted)
                 {
-                    try
-                    {
-                        cancellationTokenSource.Cancel();
-                    }
-                    catch (ObjectDisposedException)
-                    {
-                        // Ignore if CancellationTokenSource was already disposed concurrently.
-                    }
+                    shouldCancel = true;
+                }
+            }
+
+            if (shouldCancel)
+            {
+                try
+                {
+                    cancellationTokenSource.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Ignore if CancellationTokenSource was already disposed concurrently.
                 }
             }
         }
@@ -921,9 +940,9 @@ public sealed class ImageCacheService : IImageCacheService
             private readonly CancellationTokenRegistration registration;
             private int removed;
 
-            public WaiterRegistration(CoalescedDownloadOperation operation, CancellationToken callerToken)
+            public WaiterRegistration(CoalescedDownloadOperation owner, CancellationToken callerToken)
             {
-                this.operation = operation;
+                operation = owner;
                 if (callerToken.CanBeCanceled)
                 {
                     registration = callerToken.Register(OnCancelled);

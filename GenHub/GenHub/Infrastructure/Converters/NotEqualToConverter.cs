@@ -31,15 +31,12 @@ public sealed class NotEqualToConverter : IValueConverter
         // If the bound value is an Enum, parse or compare the string against the enum value.
         if (value is Enum && parameter is string enumStr)
         {
-            try
+            if (Enum.TryParse(value.GetType(), enumStr, ignoreCase: true, out var parsed))
             {
-                var parsed = Enum.Parse(value.GetType(), enumStr, ignoreCase: true);
                 return !value.Equals(parsed);
             }
-            catch
-            {
-                return !string.Equals(value.ToString(), enumStr, StringComparison.OrdinalIgnoreCase);
-            }
+
+            return !string.Equals(value.ToString(), enumStr, StringComparison.OrdinalIgnoreCase);
         }
 
         if (parameter is string paramStr && string.Equals(value.ToString(), paramStr, StringComparison.OrdinalIgnoreCase))

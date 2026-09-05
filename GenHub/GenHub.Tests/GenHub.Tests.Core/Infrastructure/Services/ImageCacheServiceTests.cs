@@ -10,6 +10,7 @@ using Avalonia.Media.Imaging;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Infrastructure.Services;
+using GenHub.Tests.Core.App;
 using Moq;
 using Moq.Protected;
 using Xunit;
@@ -19,6 +20,7 @@ namespace GenHub.Tests.Core.Infrastructure.Services;
 /// <summary>
 /// Unit tests for <see cref="ImageCacheService"/> security, caching, and download logic.
 /// </summary>
+[Collection(HeadlessTestCollectionDefinition.Name)]
 public class ImageCacheServiceTests
 {
     private static readonly byte[] ValidPngBytes = Convert.FromBase64String(
@@ -212,24 +214,45 @@ public class ImageCacheServiceTests
                 return res;
             });
 
-        var httpClient = new HttpClient(handlerMock.Object);
-        var service = new ImageCacheService(null, httpClient);
-
-        // Fetch the first image which will be in memory cache
-        var bitmap0 = await service.GetBitmapAsync($"https://example.com/first_image_{Guid.NewGuid():N}.png");
-        Assert.NotNull(bitmap0);
-
-        // Flood cache with 205 items to trigger LRU eviction (MaxMemoryCacheEntries = 200)
-        for (int i = 0; i < 205; i++)
+        var tempDir = Path.Combine(Path.GetTempPath(), $"genhub_eviction_test_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
         {
-            await service.GetBitmapAsync($"https://example.com/flood_{Guid.NewGuid():N}.png");
+            var configMock = new Mock<IConfigurationProviderService>();
+            configMock.Setup(c => c.GetApplicationDataPath()).Returns(tempDir);
+
+            var httpClient = new HttpClient(handlerMock.Object);
+            var service = new ImageCacheService(configMock.Object, httpClient);
+
+            // Fetch the first image which will be in memory cache
+            var bitmap0 = await service.GetBitmapAsync($"https://example.com/first_image_{Guid.NewGuid():N}.png");
+            Assert.NotNull(bitmap0);
+
+            // Flood cache with 205 items to trigger LRU eviction (MaxMemoryCacheEntries = 200)
+            for (int i = 0; i < 205; i++)
+            {
+                await service.GetBitmapAsync($"https://example.com/flood_{Guid.NewGuid():N}.png");
+            }
+
+            // Also test ClearMemoryCache
+            service.ClearMemoryCache();
+
+            // Bitmap0 should still be usable and not throw ObjectDisposedException
+            Assert.Equal(1, bitmap0.PixelSize.Width);
         }
-
-        // Also test ClearMemoryCache
-        service.ClearMemoryCache();
-
-        // Bitmap0 should still be usable and not throw ObjectDisposedException
-        Assert.Equal(1, bitmap0.PixelSize.Width);
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try
+                {
+                    Directory.Delete(tempDir, true);
+                }
+                catch
+                {
+                }
+            }
+        }
     }
 
     /// <summary>

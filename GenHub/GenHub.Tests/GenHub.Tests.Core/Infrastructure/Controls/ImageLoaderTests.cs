@@ -6,6 +6,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Media.Imaging;
 using GenHub.Infrastructure.Controls;
 using GenHub.Infrastructure.Services;
+using GenHub.Tests.Core.App;
 using Xunit;
 
 namespace GenHub.Tests.Core.Infrastructure.Controls;
@@ -13,6 +14,7 @@ namespace GenHub.Tests.Core.Infrastructure.Controls;
 /// <summary>
 /// Headless UI tests for <see cref="ImageLoader"/> attached properties and lifecycle behavior.
 /// </summary>
+[Collection(HeadlessTestCollectionDefinition.Name)]
 public class ImageLoaderTests
 {
     private static readonly byte[] ValidPngBytes = Convert.FromBase64String(
@@ -29,10 +31,10 @@ public class ImageLoaderTests
         var placeholder = new Bitmap(ms);
 
         ImageLoader.SetPlaceholder(image, placeholder);
-        ImageLoader.SetSource(image, "https://example.com/test.png");
+        ImageLoader.SetSource(image, "http://127.0.0.1/test.png");
 
         Assert.Equal(placeholder, ImageLoader.GetPlaceholder(image));
-        Assert.Equal("https://example.com/test.png", ImageLoader.GetSource(image));
+        Assert.Equal("http://127.0.0.1/test.png", ImageLoader.GetSource(image));
     }
 
     /// <summary>
@@ -51,7 +53,7 @@ public class ImageLoaderTests
         ImageLoader.SetPlaceholder(image, placeholderBitmap);
 
         // Changing the URL should immediately replace initialBitmap with the placeholder
-        ImageLoader.SetSource(image, "https://example.com/new_image.png");
+        ImageLoader.SetSource(image, "http://127.0.0.1/new_image.png");
 
         Assert.Equal(placeholderBitmap, image.Source);
     }
@@ -88,9 +90,9 @@ public class ImageLoaderTests
             ImageLoader.SetSource(image, tempFile);
 
             // Allow async load to complete
-            for (int i = 0; i < 20 && image.Source == null; i++)
+            for (int i = 0; i < 40 && image.Source == null; i++)
             {
-                await Task.Delay(25);
+                await Task.Delay(50);
             }
 
             Assert.NotNull(image.Source);

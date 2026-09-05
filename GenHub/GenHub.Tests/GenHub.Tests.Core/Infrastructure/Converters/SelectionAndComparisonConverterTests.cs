@@ -5,6 +5,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Media;
 using GenHub.Core.Models.Enums;
 using GenHub.Infrastructure.Converters;
+using GenHub.Tests.Core.App;
 using Xunit;
 
 namespace GenHub.Tests.Core.Infrastructure.Converters;
@@ -13,6 +14,7 @@ namespace GenHub.Tests.Core.Infrastructure.Converters;
 /// Unit tests for <see cref="NotEqualToConverter"/>, <see cref="BoolToBackgroundConverter"/>,
 /// <see cref="BoolToBorderConverter"/>, <see cref="GameTypeInitialConverter"/>, and <see cref="IndentToMarginConverter"/>.
 /// </summary>
+[Collection(HeadlessTestCollectionDefinition.Name)]
 public class SelectionAndComparisonConverterTests
 {
     private readonly CultureInfo _culture = CultureInfo.InvariantCulture;
@@ -113,6 +115,7 @@ public class SelectionAndComparisonConverterTests
     /// <param name="level">The hierarchy indentation level.</param>
     /// <param name="expectedLeftMargin">The expected left margin.</param>
     [Theory]
+    [InlineData(-1, 0)]
     [InlineData(0, 0)]
     [InlineData(1, 24)]
     [InlineData(2, 48)]

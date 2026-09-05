@@ -32,12 +32,19 @@ public static partial class HtmlTextHelper
 
         if (html.Length > UiConstants.MaxHtmlInputLength)
         {
-            html = html[..UiConstants.MaxHtmlInputLength];
+            var length = UiConstants.MaxHtmlInputLength;
+            if (char.IsHighSurrogate(html[length - 1]))
+            {
+                length--;
+            }
+
+            html = html[..length];
         }
 
-        // 0. Remove script and style elements along with their contents (including unclosed tags)
+        // 0. Remove script, style, comments, and doctype declarations along with their contents
         var text = ScriptTagRegex().Replace(html, string.Empty);
         text = StyleTagRegex().Replace(text, string.Empty);
+        text = HtmlCommentAndDocTypeRegex().Replace(text, string.Empty);
 
         // 1. Convert <br> tags to newline
         text = BrTagRegex().Replace(text, "\n");
@@ -134,6 +141,9 @@ public static partial class HtmlTextHelper
 
     [GeneratedRegex(@"<style\b[^>]*>(?:[\s\S]*?</style\s*>|[\s\S]*$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex StyleTagRegex();
+
+    [GeneratedRegex(@"<!--[\s\S]*?-->|<!DOCTYPE[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex HtmlCommentAndDocTypeRegex();
 
     [GeneratedRegex(@"</?(?:script|style|iframe|object|embed|applet)\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex DangerousTagRegex();

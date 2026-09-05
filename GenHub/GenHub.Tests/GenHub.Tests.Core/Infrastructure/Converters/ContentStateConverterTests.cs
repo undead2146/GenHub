@@ -5,6 +5,7 @@ using Avalonia.Media;
 using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
 using GenHub.Infrastructure.Converters;
+using GenHub.Tests.Core.App;
 using Xunit;
 
 namespace GenHub.Tests.Core.Infrastructure.Converters;
@@ -13,6 +14,7 @@ namespace GenHub.Tests.Core.Infrastructure.Converters;
 /// Unit tests for <see cref="ContentStateToBrushConverter"/>, <see cref="ContentStateToPathDataConverter"/>,
 /// and <see cref="ContentStateToTextConverter"/>.
 /// </summary>
+[Collection(HeadlessTestCollectionDefinition.Name)]
 public class ContentStateConverterTests
 {
     private readonly CultureInfo _culture = CultureInfo.InvariantCulture;
@@ -24,12 +26,17 @@ public class ContentStateConverterTests
     public void ContentStateToBrushConverter_ReturnsExpectedBrush()
     {
         var converter = new ContentStateToBrushConverter();
-        foreach (var state in new[] { ContentState.Downloaded, ContentState.UpdateAvailable, ContentState.NotDownloaded })
-        {
-            var result = converter.Convert(state, typeof(IBrush), null, _culture);
-            Assert.IsAssignableFrom<IBrush>(result);
-            Assert.Throws<NotSupportedException>(() => converter.ConvertBack(result, typeof(ContentState), null, _culture));
-        }
+
+        var downloadedBrush = Assert.IsAssignableFrom<ISolidColorBrush>(converter.Convert(ContentState.Downloaded, typeof(IBrush), null, _culture));
+        Assert.Equal(Color.Parse(UiConstants.StatusDownloadedColor), downloadedBrush.Color);
+
+        var updateBrush = Assert.IsAssignableFrom<ISolidColorBrush>(converter.Convert(ContentState.UpdateAvailable, typeof(IBrush), null, _culture));
+        Assert.Equal(Color.Parse(UiConstants.StatusUpdateAvailableColor), updateBrush.Color);
+
+        var notDownloadedBrush = Assert.IsAssignableFrom<ISolidColorBrush>(converter.Convert(ContentState.NotDownloaded, typeof(IBrush), null, _culture));
+        Assert.Equal(Color.Parse(UiConstants.StatusNotDownloadedColor), notDownloadedBrush.Color);
+
+        Assert.Throws<NotSupportedException>(() => converter.ConvertBack(downloadedBrush, typeof(ContentState), null, _culture));
     }
 
     /// <summary>

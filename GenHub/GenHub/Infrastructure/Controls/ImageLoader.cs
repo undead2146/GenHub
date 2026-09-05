@@ -1,3 +1,5 @@
+using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -23,6 +25,9 @@ public static class ImageLoader
     /// </summary>
     public static readonly AttachedProperty<IImage?> PlaceholderProperty =
         AvaloniaProperty.RegisterAttached<Image, IImage?>("Placeholder", typeof(ImageLoader));
+
+    private static readonly AttachedProperty<CancellationTokenSource?> CurrentCtsProperty =
+        AvaloniaProperty.RegisterAttached<Image, CancellationTokenSource?>("CurrentCts", typeof(ImageLoader));
 
     static ImageLoader()
     {
@@ -60,6 +65,9 @@ public static class ImageLoader
     private static void OnSourceChanged(Image image, AvaloniaPropertyChangedEventArgs e)
     {
         image.AttachedToVisualTree -= OnAttachedToVisualTree;
+        image.DetachedFromVisualTree -= OnDetachedFromVisualTree;
+
+        CancelActiveLoad(image);
 
         // Clear previous source immediately to avoid displaying stale thumbnails during virtual scrolling or loading
         var placeholder = GetPlaceholder(image);
@@ -73,7 +81,11 @@ public static class ImageLoader
         }
 
         image.AttachedToVisualTree += OnAttachedToVisualTree;
-        _ = ApplySourceAsync(image, url);
+        image.DetachedFromVisualTree += OnDetachedFromVisualTree;
+
+        var cts = new CancellationTokenSource();
+        image.SetValue(CurrentCtsProperty, cts);
+        _ = ApplySourceAsync(image, url, cts.Token);
     }
 
     private static void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
@@ -96,32 +108,73 @@ public static class ImageLoader
             return;
         }
 
-        _ = ApplySourceAsync(image, url);
+        CancelActiveLoad(image);
+        var cts = new CancellationTokenSource();
+        image.SetValue(CurrentCtsProperty, cts);
+        _ = ApplySourceAsync(image, url, cts.Token);
     }
 
-    private static async Task ApplySourceAsync(Image image, string url)
+    private static void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
     {
-        var bitmap = ImageCacheService.Instance.GetBitmapFromMemory(url)
-            ?? await ImageCacheService.Instance.GetBitmapAsync(url);
-
-        void UpdateSource()
+        if (sender is Image image)
         {
-            if (GetSource(image) != url)
+            CancelActiveLoad(image);
+        }
+    }
+
+    private static void CancelActiveLoad(Image image)
+    {
+        var existingCts = image.GetValue(CurrentCtsProperty);
+        if (existingCts != null)
+        {
+            try
             {
-                return;
+                existingCts.Cancel();
+                existingCts.Dispose();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Ignore if already disposed concurrently.
             }
 
-            image.Source = bitmap ?? GetPlaceholder(image);
-            InvalidateImage(image);
+            image.ClearValue(CurrentCtsProperty);
         }
+    }
 
-        if (Dispatcher.UIThread.CheckAccess())
+    private static async Task ApplySourceAsync(Image image, string url, CancellationToken cancellationToken)
+    {
+        try
         {
-            UpdateSource();
+            var bitmap = ImageCacheService.Instance.GetBitmapFromMemory(url)
+                ?? await ImageCacheService.Instance.GetBitmapAsync(url, cancellationToken);
+
+            void UpdateSource()
+            {
+                if (cancellationToken.IsCancellationRequested || GetSource(image) != url)
+                {
+                    return;
+                }
+
+                image.Source = bitmap ?? GetPlaceholder(image);
+                InvalidateImage(image);
+            }
+
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                UpdateSource();
+            }
+            else
+            {
+                await Dispatcher.UIThread.InvokeAsync(UpdateSource);
+            }
         }
-        else
+        catch (OperationCanceledException)
         {
-            await Dispatcher.UIThread.InvokeAsync(UpdateSource);
+            // Expected when the load is cancelled by a subsequent Source change or detachment.
+        }
+        catch
+        {
+            // Suppress unexpected background load failures to prevent unhandled task exceptions.
         }
     }
 

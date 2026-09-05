@@ -8,7 +8,6 @@ using Moq;
 using Xunit;
 
 [assembly: AvaloniaTestApplication(typeof(GenHub.Tests.Core.App.TestAppBuilder))]
-[assembly: CollectionBehavior(CollectionBehavior.CollectionPerAssembly, DisableTestParallelization = true)]
 
 namespace GenHub.Tests.Core.App;
 
