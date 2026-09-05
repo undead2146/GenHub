@@ -10,7 +10,6 @@ using Avalonia.Media.Imaging;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Infrastructure.Services;
-using GenHub.Tests.Core.App;
 using Moq;
 using Moq.Protected;
 using Xunit;
@@ -20,7 +19,6 @@ namespace GenHub.Tests.Core.Infrastructure.Services;
 /// <summary>
 /// Unit tests for <see cref="ImageCacheService"/> security, caching, and download logic.
 /// </summary>
-[Collection(HeadlessTestCollectionDefinition.Name)]
 public class ImageCacheServiceTests
 {
     private static readonly byte[] ValidPngBytes = Convert.FromBase64String(

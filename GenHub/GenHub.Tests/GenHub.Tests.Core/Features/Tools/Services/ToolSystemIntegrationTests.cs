@@ -3,18 +3,15 @@ using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Tools;
 using GenHub.Core.Models.Common;
 using GenHub.Core.Services.Tools;
-using GenHub.Tests.Core.App;
 using GenHub.Tests.Core.Features.Tools.Mocks;
 using Microsoft.Extensions.Logging;
 using Moq;
-using Xunit;
 
 namespace GenHub.Tests.Core.Features.Tools.Services;
 
 /// <summary>
 /// Integration tests for the tool plugin system.
 /// </summary>
-[Collection(HeadlessTestCollectionDefinition.Name)]
 public class ToolSystemIntegrationTests
 {
     private readonly Mock<ILogger<ToolPluginLoader>> _mockLoaderLogger;

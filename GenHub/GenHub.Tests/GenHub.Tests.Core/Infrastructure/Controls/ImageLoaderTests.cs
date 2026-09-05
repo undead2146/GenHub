@@ -6,7 +6,6 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Media.Imaging;
 using GenHub.Infrastructure.Controls;
 using GenHub.Infrastructure.Services;
-using GenHub.Tests.Core.App;
 using Xunit;
 
 namespace GenHub.Tests.Core.Infrastructure.Controls;
@@ -14,7 +13,6 @@ namespace GenHub.Tests.Core.Infrastructure.Controls;
 /// <summary>
 /// Headless UI tests for <see cref="ImageLoader"/> attached properties and lifecycle behavior.
 /// </summary>
-[Collection(HeadlessTestCollectionDefinition.Name)]
 public class ImageLoaderTests
 {
     private static readonly byte[] ValidPngBytes = Convert.FromBase64String(

@@ -1,15 +1,12 @@
 using System.Globalization;
 using Avalonia.Headless.XUnit;
 using GenHub.Infrastructure.Converters;
-using GenHub.Tests.Core.App;
-using Xunit;
 
 namespace GenHub.Tests.Core.Infrastructure.Converters;
 
 /// <summary>
 /// Unit tests for <see cref="BoolToColorConverter"/>.
 /// </summary>
-[Collection(HeadlessTestCollectionDefinition.Name)]
 public class BoolToColorConverterTests
 {
     private readonly BoolToColorConverter _defaultConverter = new();

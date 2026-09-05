@@ -12,7 +12,6 @@ namespace GenHub.Tests.Core.App;
 /// <summary>
 /// Unit tests for the <see cref="App"/> lifecycle and DI requirements.
 /// </summary>
-[Collection(HeadlessTestCollectionDefinition.Name)]
 public class AppLifecycleTests
 {
     /// <summary>

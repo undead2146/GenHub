@@ -5,7 +5,6 @@ using Avalonia.Media;
 using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
 using GenHub.Infrastructure.Converters;
-using GenHub.Tests.Core.App;
 using Xunit;
 
 namespace GenHub.Tests.Core.Infrastructure.Converters;
@@ -14,7 +13,6 @@ namespace GenHub.Tests.Core.Infrastructure.Converters;
 /// Unit tests for <see cref="ContentStateToBrushConverter"/>, <see cref="ContentStateToPathDataConverter"/>,
 /// and <see cref="ContentStateToTextConverter"/>.
 /// </summary>
-[Collection(HeadlessTestCollectionDefinition.Name)]
 public class ContentStateConverterTests
 {
     private readonly CultureInfo _culture = CultureInfo.InvariantCulture;
