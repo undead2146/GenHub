@@ -27,11 +27,11 @@ public class SelectionAndComparisonConverterTests
 
         // Enum value equals its string representation -> should return false (meaning they are equal)
         var equalsResult = converter.Convert(ContentState.Downloaded, typeof(bool), "Downloaded", _culture);
-        Assert.Equal(false, equalsResult);
+        Assert.False((bool)equalsResult!);
 
         // Enum value does not equal different string -> should return true (meaning not equal)
         var notEqualsResult = converter.Convert(ContentState.Downloaded, typeof(bool), "NotDownloaded", _culture);
-        Assert.Equal(true, notEqualsResult);
+        Assert.True((bool)notEqualsResult!);
     }
 
     /// <summary>
@@ -42,11 +42,11 @@ public class SelectionAndComparisonConverterTests
     {
         var converter = new NotEqualToConverter();
 
-        Assert.Equal(false, converter.Convert(null, typeof(bool), null, _culture));
-        Assert.Equal(true, converter.Convert("test", typeof(bool), null, _culture));
-        Assert.Equal(true, converter.Convert(null, typeof(bool), "test", _culture));
-        Assert.Equal(false, converter.Convert("test", typeof(bool), "test", _culture));
-        Assert.Equal(true, converter.Convert("test1", typeof(bool), "test2", _culture));
+        Assert.False((bool)converter.Convert(null, typeof(bool), null, _culture)!);
+        Assert.True((bool)converter.Convert("test", typeof(bool), null, _culture)!);
+        Assert.True((bool)converter.Convert(null, typeof(bool), "test", _culture)!);
+        Assert.False((bool)converter.Convert("test", typeof(bool), "test", _culture)!);
+        Assert.True((bool)converter.Convert("test1", typeof(bool), "test2", _culture)!);
     }
 
     /// <summary>

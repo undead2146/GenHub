@@ -34,4 +34,9 @@ public static class ImageCacheConstants
     /// Maximum allowed HTTP redirects when downloading images.
     /// </summary>
     public const int MaxRedirects = 5;
+
+    /// <summary>
+    /// Fixed referrer URL required by ModDB to serve image requests and prevent hotlink blocking.
+    /// </summary>
+    public const string ModDbReferrerUrl = "https://www.moddb.com/";
 }
