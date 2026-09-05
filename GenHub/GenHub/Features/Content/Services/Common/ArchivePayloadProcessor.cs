@@ -402,6 +402,14 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
             using var archive = ArchiveFactory.OpenArchive(archivePath);
             ExtractSharpCompressArchive(archive, archivePath, extractPath, cancellationToken);
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (InvalidDataException)
+        {
+            throw;
+        }
         catch when (isExe)
         {
             throw new InvalidDataException($"Executable is not a supported self-extracting archive: {archivePath}");
@@ -433,11 +441,6 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
             {
                 throw new InvalidDataException(
                     $"Archive exceeds maximum entry count of {CatalogConstants.MaxZipEntryCount}");
-            }
-
-            if (Path.IsPathRooted(entry.Key))
-            {
-                throw new InvalidDataException($"Archive entry has an unsafe path: {entry.Key}");
             }
 
             var pathResult = ContentPathPolicy.ResolveContainedFile(extractRoot, entry.Key);
@@ -813,27 +816,10 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         var headerRead = stream.Read(header, 0, 2);
         stream.Position = filePos;
 
-        var written = TryDecompressSmartInstallMakerRecord(stream, filePos, header, headerRead, destinationPath, rec.UncompressedSize, copyBuffer);
-
-        if (written != rec.UncompressedSize && filePos + rec.UncompressedSize <= stream.Length)
-        {
-            // Fallback to raw copy if sniffed decompressor failed but raw payload is available
-            stream.Position = filePos;
-            using var outStream = File.Create(destinationPath);
-            written = 0;
-            while (written < rec.UncompressedSize)
-            {
-                var toRead = (int)Math.Min(copyBuffer.Length, rec.UncompressedSize - written);
-                var readBytes = stream.Read(copyBuffer, 0, toRead);
-                if (readBytes <= 0)
-                {
-                    break;
-                }
-
-                outStream.Write(copyBuffer, 0, readBytes);
-                written += readBytes;
-            }
-        }
+        var isStored = rec.CompressedSize == rec.UncompressedSize;
+        var written = isStored
+            ? DecompressRawSmartInstallMakerRecord(stream, destinationPath, rec.CompressedSize, copyBuffer)
+            : TryDecompressSmartInstallMakerRecord(stream, filePos, header, headerRead, destinationPath, rec.UncompressedSize, copyBuffer);
 
         if (written != rec.UncompressedSize)
         {
@@ -887,7 +873,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
             stream.Position = filePos;
         }
 
-        return DecompressRawSmartInstallMakerRecord(stream, destinationPath, uncompressedSize, copyBuffer);
+        return 0;
     }
 
     private static long DecompressBz2SmartInstallMakerRecord(Stream stream, string destinationPath, uint uncompressedSize, byte[] copyBuffer)
@@ -938,13 +924,13 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         return written;
     }
 
-    private static long DecompressRawSmartInstallMakerRecord(Stream stream, string destinationPath, uint uncompressedSize, byte[] copyBuffer)
+    private static long DecompressRawSmartInstallMakerRecord(Stream stream, string destinationPath, uint byteCount, byte[] copyBuffer)
     {
         using var outStream = File.Create(destinationPath);
         long written = 0;
-        while (written < uncompressedSize)
+        while (written < byteCount)
         {
-            var toRead = (int)Math.Min(copyBuffer.Length, uncompressedSize - written);
+            var toRead = (int)Math.Min(copyBuffer.Length, byteCount - written);
             var readBytes = stream.Read(copyBuffer, 0, toRead);
             if (readBytes <= 0)
             {

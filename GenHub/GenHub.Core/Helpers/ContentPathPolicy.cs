@@ -32,35 +32,43 @@ public static class ContentPathPolicy
             return OperationResult<string>.CreateFailure("Relative path cannot be null or empty.");
         }
 
-        if (Path.IsPathRooted(relativePath) ||
-            relativePath.StartsWith('/') ||
-            relativePath.StartsWith('\\') ||
-            (relativePath.Length >= 2 && relativePath[1] == ':' && char.IsLetter(relativePath[0])))
+        try
         {
-            return OperationResult<string>.CreateFailure($"Relative path cannot be rooted or absolute: {relativePath}");
+            if (Path.IsPathRooted(relativePath) ||
+                relativePath.StartsWith('/') ||
+                relativePath.StartsWith('\\') ||
+                (relativePath.Length >= 2 && relativePath[1] == ':' && char.IsLetter(relativePath[0])))
+            {
+                return OperationResult<string>.CreateFailure($"Relative path cannot be rooted or absolute: {relativePath}");
+            }
+
+            // Normalize directory separators
+            var normalizedRelative = relativePath.Replace('/', Path.DirectorySeparatorChar)
+                                                 .Replace('\\', Path.DirectorySeparatorChar);
+
+            if (string.IsNullOrWhiteSpace(normalizedRelative))
+            {
+                return OperationResult<string>.CreateFailure("Normalized relative path cannot be empty.");
+            }
+
+            var normalizedRoot = rootDirectory.Replace('\\', Path.DirectorySeparatorChar)
+                                              .Replace('/', Path.DirectorySeparatorChar);
+            var fullRoot = Path.GetFullPath(normalizedRoot);
+            var fullCandidate = Path.GetFullPath(Path.Combine(fullRoot, normalizedRelative));
+
+            if (!IsContainedInternal(fullRoot, fullCandidate))
+            {
+                return OperationResult<string>.CreateFailure(
+                    $"Path '{relativePath}' escapes target root directory '{rootDirectory}'.");
+            }
+
+            return OperationResult<string>.CreateSuccess(fullCandidate);
         }
-
-        // Normalize directory separators
-        var normalizedRelative = relativePath.Replace('/', Path.DirectorySeparatorChar)
-                                             .Replace('\\', Path.DirectorySeparatorChar);
-
-        if (string.IsNullOrWhiteSpace(normalizedRelative))
-        {
-            return OperationResult<string>.CreateFailure("Normalized relative path cannot be empty.");
-        }
-
-        var normalizedRoot = rootDirectory.Replace('\\', Path.DirectorySeparatorChar)
-                                          .Replace('/', Path.DirectorySeparatorChar);
-        var fullRoot = Path.GetFullPath(normalizedRoot);
-        var fullCandidate = Path.GetFullPath(Path.Combine(fullRoot, normalizedRelative));
-
-        if (!IsContainedInternal(fullRoot, fullCandidate))
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {
             return OperationResult<string>.CreateFailure(
-                $"Path '{relativePath}' escapes target root directory '{rootDirectory}'.");
+                $"Invalid path format for relative path '{relativePath}': {ex.Message}");
         }
-
-        return OperationResult<string>.CreateSuccess(fullCandidate);
     }
 
     /// <summary>

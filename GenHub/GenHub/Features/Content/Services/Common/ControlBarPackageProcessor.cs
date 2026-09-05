@@ -23,6 +23,10 @@ public class ControlBarPackageProcessor(
 {
     private const string ControlBarMetadataBigBase64 = "QklHRngBAAAAAAACAAAAUwAAAFMAAAEkQ29udHJvbEJhclByby50eHQAAAABdwAAAAFHZW5Ub29sXGZ1bGx2aWV3cG9ydC5kYXQAAAAAAAAAAABDb250cm9sIEJhciBQcm8gZm9yIENPTU1BTkQgQU5EIENPTlFVRVIgR0VORVJBTFM6IFpFUk8gSE9VUg0KDQpBVVRIT1I6DQpFQSBHYW1lcywgRkFTLCB4ZXpvbg0KDQpPUklHSU5BTCBET1dOTE9BRCBVUkw6DQpodHRwOi8vZ2VudG9vbC5uZXQvZG93bmxvYWQvY29udHJvbGJhcnBybw0KDQpTT1VSQ0UgQ09ERSAmIEFTU0VUUzoNCmh0dHBzOi8vZ2l0aHViLmNvbS9UaGVTdXBlckhhY2tlcnMvR2VuZXJhbHNDb250cm9sQmFyDQoNCkRPTkFUSU9OIExJTks6DQpodHRwczovL3d3dy5wYXlwYWwubWUvZ2VudG9vbA0KMQ==";
 
+    private const string DirArt = "Art";
+    private const string DirData = "Data";
+    private const string DirZh = "ZH";
+    private const string DirCcg = "CCG";
     private const string Variant720p = "720p";
     private const string Variant900p = "900p";
     private const string Variant1080p = "1080p";
@@ -39,6 +43,11 @@ public class ControlBarPackageProcessor(
     public bool IsControlBarContent(string extractedDirectory, ContentManifest manifest)
     {
         if (manifest.ContentType != ContentType.Addon)
+        {
+            return false;
+        }
+
+        if (HasUnrelatedAssets(extractedDirectory))
         {
             return false;
         }
@@ -198,21 +207,71 @@ public class ControlBarPackageProcessor(
                Directory.EnumerateFiles(extractedDirectory, "*ControlBar*.wnd", SearchOption.AllDirectories).Any();
     }
 
+    private static bool HasUnrelatedAssets(string extractedDirectory)
+    {
+        if (!Directory.Exists(extractedDirectory))
+        {
+            return false;
+        }
+
+        var allowedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            DirZh, DirCcg, DirArt, DirData,
+            GameContentConstants.WindowDirectoryName,
+            GameContentConstants.GenToolDirectoryName,
+            Variant720p, Variant900p, Variant1080p, Variant1440p, Variant2160p, Variant4k,
+            "720", "900", "1080", "1440", "2160",
+        };
+
+        foreach (var dir in Directory.EnumerateDirectories(extractedDirectory))
+        {
+            var dirName = Path.GetFileName(dir);
+            if (!allowedDirs.Contains(dirName))
+            {
+                return true;
+            }
+        }
+
+        foreach (var file in Directory.EnumerateFiles(extractedDirectory, "*", SearchOption.TopDirectoryOnly))
+        {
+            var fileName = Path.GetFileName(file);
+            if (fileName.EndsWith(".big", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!fileName.Contains("controlbar", StringComparison.OrdinalIgnoreCase) &&
+                    !fileName.Contains("cbpr", StringComparison.OrdinalIgnoreCase) &&
+                    !fileName.Contains("cbpx", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            else if (fileName.EndsWith(".ini", StringComparison.OrdinalIgnoreCase) ||
+                     fileName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ||
+                     fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                     fileName.EndsWith(".str", StringComparison.OrdinalIgnoreCase) ||
+                     fileName.EndsWith(".csf", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static void CopySourceDirectoriesToPacks(string variantBigRoot, string artPackRoot, string dataPackRoot)
     {
-        var artSource = Path.Combine(variantBigRoot, "Art");
-        var dataSource = Path.Combine(variantBigRoot, "Data");
+        var artSource = Path.Combine(variantBigRoot, DirArt);
+        var dataSource = Path.Combine(variantBigRoot, DirData);
         var windowSource = Path.Combine(variantBigRoot, GameContentConstants.WindowDirectoryName);
         var genToolSource = Path.Combine(variantBigRoot, GameContentConstants.GenToolDirectoryName);
 
         if (Directory.Exists(artSource))
         {
-            CopyDirectory(artSource, Path.Combine(artPackRoot, "Art"));
+            CopyDirectory(artSource, Path.Combine(artPackRoot, DirArt));
         }
 
         if (Directory.Exists(dataSource))
         {
-            CopyDirectory(dataSource, Path.Combine(dataPackRoot, "Data"));
+            CopyDirectory(dataSource, Path.Combine(dataPackRoot, DirData));
         }
 
         if (Directory.Exists(windowSource))
@@ -629,7 +688,7 @@ public class ControlBarPackageProcessor(
 
         try
         {
-            var targetSourceDirNames = new[] { "ZH", "CCG", "Art", "Data", GameContentConstants.WindowDirectoryName, GameContentConstants.GenToolDirectoryName, Variant720p, Variant900p, Variant1080p, Variant1440p, Variant2160p, Variant4k };
+            var targetSourceDirNames = new[] { DirZh, DirCcg, DirArt, DirData, GameContentConstants.WindowDirectoryName, GameContentConstants.GenToolDirectoryName, Variant720p, Variant900p, Variant1080p, Variant1440p, Variant2160p, Variant4k };
             foreach (var dirName in targetSourceDirNames)
             {
                 var dirPath = Path.Combine(extractedDirectory, dirName);

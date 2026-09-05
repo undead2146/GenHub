@@ -41,19 +41,35 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -m|--mode)
-            MODE="${2:-}"
+            if [[ $# -lt 2 ]]; then
+                log_err "Option $1 requires a value."
+                usage || exit 1
+            fi
+            MODE="$2"
             shift 2
             ;;
         -p|--project)
-            PROJECT="${2:-}"
+            if [[ $# -lt 2 ]]; then
+                log_err "Option $1 requires a value."
+                usage || exit 1
+            fi
+            PROJECT="$2"
             shift 2
             ;;
         -t|--timeout)
-            TIMEOUT_SECONDS="${2:-120}"
+            if [[ $# -lt 2 ]]; then
+                log_err "Option $1 requires a value."
+                usage || exit 1
+            fi
+            TIMEOUT_SECONDS="$2"
             shift 2
             ;;
         -v|--verbosity)
-            VERBOSITY="${2:-quiet}"
+            if [[ $# -lt 2 ]]; then
+                log_err "Option $1 requires a value."
+                usage || exit 1
+            fi
+            VERBOSITY="$2"
             shift 2
             ;;
         -h|--help)
@@ -95,9 +111,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOLUTION_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/GenHub"
 SOLUTION_FILE="$SOLUTION_DIR/GenHub.sln"
 LOCK_FILE="$SOLUTION_DIR/build.lock"
+STATUS_FILE="$SOLUTION_DIR/build.status.json"
 LOCK_TIMEOUT="$TIMEOUT_SECONDS"
 
-trap 'rm -f "$LOCK_FILE"; exec 9>&- 2>/dev/null || true' EXIT
+trap 'rm -f "$STATUS_FILE"; exec 9>&- 2>/dev/null || true' EXIT
 
 if ! command -v dotnet >/dev/null 2>&1; then
     if [[ -x "$HOME/.dotnet/dotnet" ]]; then
@@ -149,7 +166,7 @@ fi
 
 CURRENT_TIME="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 printf '{"pid": %d, "mode": "%s", "project": "%s", "startedAt": "%s"}\n' \
-    "$$" "$MODE" "${PROJECT:-GenHub.sln}" "$CURRENT_TIME" >"$LOCK_FILE"
+    "$$" "$MODE" "${PROJECT:-GenHub.sln}" "$CURRENT_TIME" >"$STATUS_FILE"
 
 log_status "Build lock acquired."
 

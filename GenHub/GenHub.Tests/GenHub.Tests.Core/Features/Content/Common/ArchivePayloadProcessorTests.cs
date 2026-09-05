@@ -111,6 +111,31 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies that an executable archive containing an unsafe path throws an InvalidDataException rather than a generic unsupported error.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ExtractArchivesSafelyAsync_WithExeArchiveContainingUnsafePath_ThrowsInvalidDataExceptionAsync()
+    {
+        // Arrange
+        Directory.CreateDirectory(_stagingDirectory);
+        var exePath = Path.Combine(_stagingDirectory, "malicious_sfx.exe");
+        using (var archive = ZipFile.Open(exePath, ZipArchiveMode.Create))
+        {
+            var entry = archive.CreateEntry("../outside.txt");
+            using var writer = new StreamWriter(entry.Open());
+            await writer.WriteAsync("malicious content");
+        }
+
+        var processor = CreateProcessor();
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            processor.ExtractArchivesSafelyAsync(_stagingDirectory));
+        Assert.Contains("unsafe path", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Verifies that an archive exceeding the maximum allowed entry count throws an InvalidDataException.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
@@ -501,15 +526,10 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     /// Verifies that Smart Install Maker SFX executables (e.g. ShockWave) are safely extracted and normalized.
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
-    [Fact]
+    [Fact(Skip = "Requires local ShockWave installer CAS object fixture")]
     public async Task ExtractArchivesSafelyAsync_WithSmartInstallMakerExecutable_ExtractsAndNormalizesSuccessfully()
     {
         var casPath = @"A:\Steam\steamapps\common\.genhub-cas\objects\f4\f45e14d6b4a1e6e6feaa2ad737528b385586ad81ab7535bf9a330972db834c4e";
-        if (!File.Exists(casPath))
-        {
-            return;
-        }
-
         var testDir = Path.Combine(_stagingDirectory, "sim_test_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(testDir);
 

@@ -96,6 +96,16 @@ public sealed class ContentPathPolicyTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies that paths with invalid format characters return a failure result instead of throwing.
+    /// </summary>
+    [Fact]
+    public void ResolveContainedFile_PathWithInvalidCharacters_ReturnsFailure()
+    {
+        var result = ContentPathPolicy.ResolveContainedFile(_tempRoot, "invalid\0file.txt");
+        Assert.False(result.Success);
+    }
+
+    /// <summary>
     /// Verifies that IsContained accurately checks containment.
     /// </summary>
     [Fact]

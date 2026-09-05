@@ -305,4 +305,32 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
 
         Assert.Equal(variantDir, result);
     }
+
+    /// <summary>
+    /// Verifies that an addon with Control Bar metadata/file but also unrelated assets returns false from IsControlBarContent.
+    /// </summary>
+    [Fact]
+    public void IsControlBarContent_WithControlBarMetadataAndUnrelatedAssets_ReturnsFalse()
+    {
+        // Arrange
+        File.WriteAllText(Path.Combine(_testDir, "340_ControlBarPro1080ZH.big"), "cb-content");
+        File.WriteAllText(Path.Combine(_testDir, "UnrelatedMod.big"), "mod-content");
+        Directory.CreateDirectory(Path.Combine(_testDir, "Maps"));
+
+        var converter = new CompressedImageToTgaConverter(NullLogger<CompressedImageToTgaConverter>.Instance);
+        var processor = new ControlBarPackageProcessor(converter, NullLogger<ControlBarPackageProcessor>.Instance);
+
+        var manifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.103.github.addon.mixedcontent"),
+            Name = "Control Bar and Map Pack",
+            ContentType = ContentType.Addon,
+        };
+
+        // Act
+        var result = processor.IsControlBarContent(_testDir, manifest);
+
+        // Assert
+        Assert.False(result);
+    }
 }
