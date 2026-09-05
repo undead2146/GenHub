@@ -66,7 +66,7 @@ public class OctokitGitHubApiClient(
     /// <summary>
     /// Gets a value indicating whether the GitHub API rate limit is reached.
     /// </summary>
-    public bool IsRateLimited => rateLimitTracker is { IsAtLimit: true };
+    public bool IsRateLimited => rateLimitTracker is { IsAtLimit: true } && rateLimitTracker.TimeUntilReset > TimeSpan.Zero;
 
     /// <summary>
     /// Sets the GitHub token for authentication.

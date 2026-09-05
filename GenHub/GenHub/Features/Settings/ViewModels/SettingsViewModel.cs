@@ -876,7 +876,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             }
             else
             {
-                var isAuth = _gitHubApiClient != null && await _gitHubApiClient.EnsureAuthenticatedAsync().ConfigureAwait(false);
+                var isAuth = _gitHubApiClient != null && await _gitHubApiClient.EnsureAuthenticatedAsync();
                 if (isAuth)
                 {
                     PatStatusMessage = "Configured via environment variable";

@@ -447,8 +447,7 @@ public partial class GitHubTopicsDiscoverer(
             return true;
         }
 
-        if (rateLimitTracker != null && rateLimitTracker.TimeUntilReset > TimeSpan.Zero &&
-            (rateLimitTracker.IsAtLimit || rateLimitTracker.RemainingRequests <= 0))
+        if (rateLimitTracker != null && rateLimitTracker.IsAtLimit && rateLimitTracker.TimeUntilReset > TimeSpan.Zero)
         {
             return true;
         }

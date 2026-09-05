@@ -480,19 +480,6 @@ public partial class GameProfileSettingsViewModel
         var liveGameType = SelectedGameInstallation?.GameType ?? GameTypeFilter;
         var updateRequest = BuildUpdateRequest(enabledContentIds, gameSettings);
 
-        if (!wasHotswap)
-        {
-            var currentlyRunning = await CheckIsProfileRunningAsync();
-            if (currentlyRunning)
-            {
-                StatusMessage = "Game session started; non-hotswappable settings are now locked";
-                _localNotificationService.ShowWarning(
-                    "Hotswap Mode Enabled",
-                    "The game was started while editing this profile. Non-hotswappable settings have been locked. Please review your changes and save again.");
-                return;
-            }
-        }
-
         if (isProfileRunning && _profileContentLinker != null && _manifestPool != null)
         {
             var liveSyncSuccess = await PerformLiveSyncAsync(enabledContentIds, liveGameType, cancellationToken);
@@ -511,7 +498,12 @@ public partial class GameProfileSettingsViewModel
                 if (runningNow)
                 {
                     _logger?.LogInformation("Game session started during profile save for {ProfileId}; performing post-save live sync", CurrentProfileId);
-                    await PerformLiveSyncAsync(enabledContentIds, liveGameType, cancellationToken);
+                    var liveSyncSuccess = await PerformLiveSyncAsync(enabledContentIds, liveGameType, cancellationToken);
+                    if (!liveSyncSuccess)
+                    {
+                        return;
+                    }
+
                     isProfileRunning = true;
                 }
             }
