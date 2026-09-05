@@ -66,7 +66,8 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
                         EnsureValidArchivePayload(archivePath);
                         logger.LogInformation("Extracting archive safely: {ArchivePath}", archivePath);
 
-                        ExtractSingleArchive(archivePath, extractedDirectory, cancellationToken);
+                        var archiveTargetDirectory = Path.GetDirectoryName(archivePath) ?? extractedDirectory;
+                        ExtractSingleArchive(archivePath, archiveTargetDirectory, cancellationToken);
                         File.Delete(archivePath);
                         logger.LogInformation("Extracted archive and removed archive source: {ArchivePath}", archivePath);
                     }
@@ -838,12 +839,38 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
     {
         if (headerRead >= 2 && header[0] == 'B' && header[1] == 'Z')
         {
-            return DecompressBz2SmartInstallMakerRecord(stream, destinationPath, uncompressedSize, copyBuffer);
+            try
+            {
+                var written = DecompressBz2SmartInstallMakerRecord(stream, destinationPath, uncompressedSize, copyBuffer);
+                if (written == uncompressedSize)
+                {
+                    return written;
+                }
+            }
+            catch
+            {
+                // Fall back to raw copy if BZ2 decompression fails
+            }
+
+            stream.Position = filePos;
         }
 
         if (headerRead >= 2 && header[0] == 0x78 && (header[1] == 0xDA || header[1] == 0x9C || header[1] == 0x01 || header[1] == 0x5E))
         {
-            return DecompressDeflateSmartInstallMakerRecord(stream, filePos, destinationPath, uncompressedSize, copyBuffer);
+            try
+            {
+                var written = DecompressDeflateSmartInstallMakerRecord(stream, filePos, destinationPath, uncompressedSize, copyBuffer);
+                if (written == uncompressedSize)
+                {
+                    return written;
+                }
+            }
+            catch
+            {
+                // Fall back to raw copy if Deflate decompression fails
+            }
+
+            stream.Position = filePos;
         }
 
         return DecompressRawSmartInstallMakerRecord(stream, destinationPath, uncompressedSize, copyBuffer);

@@ -24,7 +24,6 @@ public class GitHubContentProviderTests
     private readonly Mock<IContentDeliverer> _delivererMock;
     private readonly Mock<IContentValidator> _validatorMock;
     private readonly Mock<ILogger<GitHubContentProvider>> _loggerMock;
-    private readonly Mock<IArchivePayloadProcessor> _archiveProcessorMock;
     private readonly GitHubContentProvider _provider;
 
     /// <summary>
@@ -37,7 +36,6 @@ public class GitHubContentProviderTests
         _delivererMock = new Mock<IContentDeliverer>();
         _validatorMock = new Mock<IContentValidator>();
         _loggerMock = new Mock<ILogger<GitHubContentProvider>>();
-        _archiveProcessorMock = new Mock<IArchivePayloadProcessor>();
 
         // Setup mocks to be correctly identified by the provider
         _discovererMock.Setup(d => d.SourceName).Returns("GitHub");
@@ -66,8 +64,7 @@ public class GitHubContentProviderTests
             [_delivererMock.Object],
             _loggerMock.Object,
             _validatorMock.Object,
-            instructionsMock.Object,
-            _archiveProcessorMock.Object);
+            instructionsMock.Object);
     }
 
     /// <summary>
@@ -144,6 +141,5 @@ public class GitHubContentProviderTests
         // The base class should orchestrate the calls
         _delivererMock.Verify(d => d.CanDeliver(It.IsAny<ContentManifest>()), Times.AtLeastOnce());
         _delivererMock.Verify(d => d.DeliverContentAsync(It.IsAny<ContentManifest>(), It.IsAny<string>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()), Times.Once());
-        _archiveProcessorMock.Verify(a => a.ProcessPayloadAsync(It.IsAny<string>(), It.IsAny<ContentType>(), It.IsAny<GameType>(), It.IsAny<CancellationToken>()), Times.Once());
     }
 }

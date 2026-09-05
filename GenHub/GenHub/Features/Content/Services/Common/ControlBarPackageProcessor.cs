@@ -39,6 +39,7 @@ public class ControlBarPackageProcessor(
         string extractedDirectory,
         ContentManifest manifest,
         string? requestedVariant = null,
+        bool cleanupSources = true,
         CancellationToken cancellationToken = default)
     {
         logger.LogInformation(
@@ -61,9 +62,20 @@ public class ControlBarPackageProcessor(
         }
 
         await EnsureMetadataBigIncludedAsync(extractedDirectory, variantId, repackedOutputs, cancellationToken);
-        CleanupSourceDirectories(extractedDirectory, repackedOutputs);
+
+        if (cleanupSources)
+        {
+            CleanupSourceDirectories(extractedDirectory, repackedOutputs);
+        }
 
         return [.. repackedOutputs];
+    }
+
+    /// <inheritdoc/>
+    public void CleanupSourceDirectories(string extractedDirectory, IEnumerable<string> repackedOutputs)
+    {
+        var outputSet = repackedOutputs as HashSet<string> ?? new HashSet<string>(repackedOutputs, StringComparer.OrdinalIgnoreCase);
+        CleanupSourceDirectories(extractedDirectory, outputSet);
     }
 
     /// <inheritdoc/>
@@ -112,14 +124,16 @@ public class ControlBarPackageProcessor(
     /// <inheritdoc/>
     public string GetControlBarVariantSuffix(string variantId)
     {
+        if (variantId.Equals("2160p", StringComparison.OrdinalIgnoreCase) ||
+            variantId.Equals("2160", StringComparison.OrdinalIgnoreCase) ||
+            variantId.Equals("4k", StringComparison.OrdinalIgnoreCase))
+        {
+            return "4K";
+        }
+
         if (variantId.EndsWith("p", StringComparison.OrdinalIgnoreCase))
         {
             return variantId[..^1];
-        }
-
-        if (variantId.Equals("4k", StringComparison.OrdinalIgnoreCase))
-        {
-            return "4K";
         }
 
         return variantId;
@@ -181,6 +195,146 @@ public class ControlBarPackageProcessor(
 
         return Directory.EnumerateFiles(extractedDirectory, "*ControlBar*.big", SearchOption.AllDirectories).Any() ||
                Directory.EnumerateFiles(extractedDirectory, "*ControlBar*.wnd", SearchOption.AllDirectories).Any();
+    }
+
+    private static void CopySourceDirectoriesToPacks(string variantBigRoot, string artPackRoot, string dataPackRoot)
+    {
+        var artSource = Path.Combine(variantBigRoot, "Art");
+        var dataSource = Path.Combine(variantBigRoot, "Data");
+        var windowSource = Path.Combine(variantBigRoot, GameContentConstants.WindowDirectoryName);
+        var genToolSource = Path.Combine(variantBigRoot, GameContentConstants.GenToolDirectoryName);
+
+        if (Directory.Exists(artSource))
+        {
+            CopyDirectory(artSource, Path.Combine(artPackRoot, "Art"));
+        }
+
+        if (Directory.Exists(dataSource))
+        {
+            CopyDirectory(dataSource, Path.Combine(dataPackRoot, "Data"));
+        }
+
+        if (Directory.Exists(windowSource))
+        {
+            CopyDirectory(windowSource, Path.Combine(dataPackRoot, GameContentConstants.WindowDirectoryName));
+        }
+
+        if (Directory.Exists(genToolSource))
+        {
+            CopyDirectory(genToolSource, Path.Combine(dataPackRoot, GameContentConstants.GenToolDirectoryName));
+        }
+    }
+
+    private static bool IsMetadataOnlyBig(string fileName)
+    {
+        return fileName.Equals(GameContentConstants.ControlBarProBaseFileName, StringComparison.OrdinalIgnoreCase) ||
+            fileName.Equals(GameContentConstants.ControlBarProLemonBaseFileName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string DetermineVariantId(string extractedDirectory, ContentManifest manifest, string? requestedVariant)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedVariant))
+        {
+            return requestedVariant;
+        }
+
+        var match = ExtractVariantToken(manifest.Id.Value) ?? ExtractVariantToken(manifest.Name);
+        if (!string.IsNullOrEmpty(match))
+        {
+            return match;
+        }
+
+        if (manifest.Metadata?.Tags != null)
+        {
+            var tagMatch = manifest.Metadata.Tags
+                .Select(ExtractVariantToken)
+                .FirstOrDefault(t => !string.IsNullOrEmpty(t));
+
+            if (!string.IsNullOrEmpty(tagMatch))
+            {
+                return tagMatch;
+            }
+        }
+
+        var existingResolution = KnownResolutionVariants.FirstOrDefault(candidate =>
+            Directory.Exists(Path.Combine(extractedDirectory, "ZH", candidate)) ||
+            Directory.Exists(Path.Combine(extractedDirectory, candidate)));
+
+        return existingResolution ?? GameContentConstants.DefaultControlBarVariant;
+    }
+
+    private static string? ExtractVariantToken(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return null;
+        }
+
+        var match = WordVariantRegex.Match(input);
+        if (match.Success)
+        {
+            var token = match.Value.ToLowerInvariant();
+            return token switch
+            {
+                "720" or "720p" => "720p",
+                "900" or "900p" => "900p",
+                "1080" or "1080p" => "1080p",
+                "1440" or "1440p" => "1440p",
+                "2160" or "2160p" or "4k" => "4k",
+                _ => token,
+            };
+        }
+
+        var inlineMatch = InlineVariantRegex.Match(input);
+        if (inlineMatch.Success)
+        {
+            var inlineVal = inlineMatch.Value.ToLowerInvariant();
+            return inlineVal switch
+            {
+                "2160p" or "2160" or "4k" => "4k",
+                _ => inlineVal,
+            };
+        }
+
+        return null;
+    }
+
+    private static void CopyDirectory(string sourceDir, string targetDir)
+    {
+        Directory.CreateDirectory(targetDir);
+
+        foreach (var file in Directory.GetFiles(sourceDir))
+        {
+            File.Copy(file, Path.Combine(targetDir, Path.GetFileName(file)), overwrite: true);
+        }
+
+        foreach (var dir in Directory.GetDirectories(sourceDir))
+        {
+            CopyDirectory(dir, Path.Combine(targetDir, Path.GetFileName(dir)));
+        }
+    }
+
+    private static async Task TryCopyFileWithRetryAsync(string source, string destination, ILogger logger, int maxRetries = 3, int delayMs = 100)
+    {
+        for (var attempt = 1; attempt <= maxRetries; attempt++)
+        {
+            try
+            {
+                File.Copy(source, destination, overwrite: true);
+                return;
+            }
+            catch (IOException ex) when (attempt < maxRetries)
+            {
+                logger.LogWarning(
+                    ex,
+                    "File copy attempt {Attempt}/{MaxRetries} failed for {Source}: {Message}. Retrying...",
+                    attempt,
+                    maxRetries,
+                    Path.GetFileName(source),
+                    ex.Message);
+                await Task.Delay(delayMs);
+            }
+        }
     }
 
     private async Task ProcessVariantBigRootAsync(
@@ -310,34 +464,6 @@ public class ControlBarPackageProcessor(
         }
     }
 
-    private static void CopySourceDirectoriesToPacks(string variantBigRoot, string artPackRoot, string dataPackRoot)
-    {
-        var artSource = Path.Combine(variantBigRoot, "Art");
-        var dataSource = Path.Combine(variantBigRoot, "Data");
-        var windowSource = Path.Combine(variantBigRoot, GameContentConstants.WindowDirectoryName);
-        var genToolSource = Path.Combine(variantBigRoot, GameContentConstants.GenToolDirectoryName);
-
-        if (Directory.Exists(artSource))
-        {
-            CopyDirectory(artSource, Path.Combine(artPackRoot, "Art"));
-        }
-
-        if (Directory.Exists(dataSource))
-        {
-            CopyDirectory(dataSource, Path.Combine(dataPackRoot, "Data"));
-        }
-
-        if (Directory.Exists(windowSource))
-        {
-            CopyDirectory(windowSource, Path.Combine(dataPackRoot, GameContentConstants.WindowDirectoryName));
-        }
-
-        if (Directory.Exists(genToolSource))
-        {
-            CopyDirectory(genToolSource, Path.Combine(dataPackRoot, GameContentConstants.GenToolDirectoryName));
-        }
-    }
-
     private void CollectFlatPrebuiltBigs(
         string extractedDirectory,
         string variantSuffix,
@@ -369,12 +495,6 @@ public class ControlBarPackageProcessor(
         {
             repackedOutputs.Add(Path.GetFileName(candidate));
         }
-    }
-
-    private static bool IsMetadataOnlyBig(string fileName)
-    {
-        return fileName.Equals(GameContentConstants.ControlBarProBaseFileName, StringComparison.OrdinalIgnoreCase) ||
-            fileName.Equals(GameContentConstants.ControlBarProLemonBaseFileName, StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task EnsureMetadataBigIncludedAsync(
@@ -452,102 +572,6 @@ public class ControlBarPackageProcessor(
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to create fallback Control Bar metadata file");
-        }
-    }
-
-    private static string DetermineVariantId(string extractedDirectory, ContentManifest manifest, string? requestedVariant)
-    {
-        if (!string.IsNullOrWhiteSpace(requestedVariant))
-        {
-            return requestedVariant;
-        }
-
-        var match = ExtractVariantToken(manifest.Id.Value) ?? ExtractVariantToken(manifest.Name);
-        if (!string.IsNullOrEmpty(match))
-        {
-            return match;
-        }
-
-        if (manifest.Metadata?.Tags != null)
-        {
-            var tagMatch = manifest.Metadata.Tags
-                .Select(ExtractVariantToken)
-                .FirstOrDefault(t => !string.IsNullOrEmpty(t));
-
-            if (!string.IsNullOrEmpty(tagMatch))
-            {
-                return tagMatch;
-            }
-        }
-
-        var existingResolution = KnownResolutionVariants.FirstOrDefault(candidate =>
-            Directory.Exists(Path.Combine(extractedDirectory, "ZH", candidate)) ||
-            Directory.Exists(Path.Combine(extractedDirectory, candidate)));
-
-        return existingResolution ?? GameContentConstants.DefaultControlBarVariant;
-    }
-
-    private static string? ExtractVariantToken(string? input)
-    {
-        if (string.IsNullOrWhiteSpace(input))
-        {
-            return null;
-        }
-
-        var match = WordVariantRegex.Match(input);
-        if (match.Success)
-        {
-            var token = match.Value.ToLowerInvariant();
-            return token switch
-            {
-                "720" => "720p",
-                "900" => "900p",
-                "1080" => "1080p",
-                "1440" => "1440p",
-                "2160" => "4k",
-                _ => token,
-            };
-        }
-
-        var inlineMatch = InlineVariantRegex.Match(input);
-        return inlineMatch.Success ? inlineMatch.Value.ToLowerInvariant() : null;
-    }
-
-    private static void CopyDirectory(string sourceDir, string targetDir)
-    {
-        Directory.CreateDirectory(targetDir);
-
-        foreach (var file in Directory.GetFiles(sourceDir))
-        {
-            File.Copy(file, Path.Combine(targetDir, Path.GetFileName(file)), overwrite: true);
-        }
-
-        foreach (var dir in Directory.GetDirectories(sourceDir))
-        {
-            CopyDirectory(dir, Path.Combine(targetDir, Path.GetFileName(dir)));
-        }
-    }
-
-    private static async Task TryCopyFileWithRetryAsync(string source, string destination, ILogger logger, int maxRetries = 3, int delayMs = 100)
-    {
-        for (var attempt = 1; attempt <= maxRetries; attempt++)
-        {
-            try
-            {
-                File.Copy(source, destination, overwrite: true);
-                return;
-            }
-            catch (IOException ex) when (attempt < maxRetries)
-            {
-                logger.LogWarning(
-                    ex,
-                    "File copy attempt {Attempt}/{MaxRetries} failed for {Source}: {Message}. Retrying...",
-                    attempt,
-                    maxRetries,
-                    Path.GetFileName(source),
-                    ex.Message);
-                await Task.Delay(delayMs);
-            }
         }
     }
 

@@ -57,6 +57,30 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies that GetControlBarVariantSuffix correctly normalizes resolution tokens, including 4K/2160p variants.
+    /// </summary>
+    /// <param name="variantId">The input variant ID.</param>
+    /// <param name="expectedSuffix">The expected normalized variant suffix.</param>
+    [Theory]
+    [InlineData("1080p", "1080")]
+    [InlineData("1440p", "1440")]
+    [InlineData("720p", "720")]
+    [InlineData("900p", "900")]
+    [InlineData("2160p", "4K")]
+    [InlineData("2160", "4K")]
+    [InlineData("4k", "4K")]
+    [InlineData("4K", "4K")]
+    public void GetControlBarVariantSuffix_ResolvesExpectedSuffix(string variantId, string expectedSuffix)
+    {
+        var converter = new CompressedImageToTgaConverter(NullLogger<CompressedImageToTgaConverter>.Instance);
+        var processor = new ControlBarPackageProcessor(converter, NullLogger<ControlBarPackageProcessor>.Instance);
+
+        var suffix = processor.GetControlBarVariantSuffix(variantId);
+
+        Assert.Equal(expectedSuffix, suffix);
+    }
+
+    /// <summary>
     /// Verifies that nested resolution folder structure (ZH/1080p/BIG/...) is repacked into SAGE BIG archives.
     /// </summary>
     /// <returns>A completed task.</returns>
@@ -101,6 +125,77 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
 
         // Verify that raw source folder was cleaned up
         Assert.False(Directory.Exists(Path.Combine(_testDir, "ZH")));
+    }
+
+    /// <summary>
+    /// Verifies that packaging multiple variants against the same directory with cleanupSources = false
+    /// preserves sources across variant passes, and CleanupSourceDirectories cleans up afterwards.
+    /// </summary>
+    /// <returns>A completed task.</returns>
+    [Fact]
+    public async Task ProcessAndRepackControlBarAsync_MultiVariant_PreservesSourcesUntilExplicitCleanupAsync()
+    {
+        // Arrange: Setup both 1080p and 1440p variant directories in ZH
+        var root1080 = Path.Combine(_testDir, "ZH", "1080p", "BIG");
+        var root1440 = Path.Combine(_testDir, "ZH", "1440p", "BIG");
+
+        Directory.CreateDirectory(Path.Combine(root1080, "Window"));
+        Directory.CreateDirectory(Path.Combine(root1080, "Art"));
+        await File.WriteAllTextAsync(Path.Combine(root1080, "Window", "ControlBarPro.wnd"), "1080 Window data");
+        await File.WriteAllTextAsync(Path.Combine(root1080, "Art", "cb1080.tga"), "1080 TGA data");
+
+        Directory.CreateDirectory(Path.Combine(root1440, "Window"));
+        Directory.CreateDirectory(Path.Combine(root1440, "Art"));
+        await File.WriteAllTextAsync(Path.Combine(root1440, "Window", "ControlBarPro.wnd"), "1440 Window data");
+        await File.WriteAllTextAsync(Path.Combine(root1440, "Art", "cb1440.tga"), "1440 TGA data");
+
+        var converter = new CompressedImageToTgaConverter(NullLogger<CompressedImageToTgaConverter>.Instance);
+        var processor = new ControlBarPackageProcessor(converter, NullLogger<ControlBarPackageProcessor>.Instance);
+
+        var manifest1080 = new ContentManifest
+        {
+            Id = ManifestId.Create("1.103.communityoutpost.addon.cb-1080p"),
+            Name = "Control Bar Pro (1080p)",
+            ContentType = ContentType.Addon,
+        };
+
+        var manifest1440 = new ContentManifest
+        {
+            Id = ManifestId.Create("1.103.communityoutpost.addon.cb-1440p"),
+            Name = "Control Bar Pro (1440p)",
+            ContentType = ContentType.Addon,
+        };
+
+        // Act 1: Pack 1080p without cleanup
+        var outputs1080 = await processor.ProcessAndRepackControlBarAsync(
+            _testDir, manifest1080, "1080p", cleanupSources: false);
+
+        // Sources must still exist for the next variant
+        Assert.True(Directory.Exists(root1440), "1440p source root should not be deleted by 1080p pass");
+
+        // Act 2: Pack 1440p without cleanup
+        var outputs1440 = await processor.ProcessAndRepackControlBarAsync(
+            _testDir, manifest1440, "1440p", cleanupSources: false);
+
+        // Both variants' BIGs should now be present
+        Assert.Contains("340_ControlBarProArt1080ZH.big", outputs1080);
+        Assert.Contains("340_ControlBarProData1080ZH.big", outputs1080);
+        Assert.Contains("340_ControlBarProArt1440ZH.big", outputs1440);
+        Assert.Contains("340_ControlBarProData1440ZH.big", outputs1440);
+
+        Assert.True(File.Exists(Path.Combine(_testDir, "340_ControlBarProArt1080ZH.big")));
+        Assert.True(File.Exists(Path.Combine(_testDir, "340_ControlBarProData1080ZH.big")));
+        Assert.True(File.Exists(Path.Combine(_testDir, "340_ControlBarProArt1440ZH.big")));
+        Assert.True(File.Exists(Path.Combine(_testDir, "340_ControlBarProData1440ZH.big")));
+
+        // Act 3: Explicitly trigger source cleanup
+        var allOutputs = outputs1080.Concat(outputs1440).Distinct();
+        processor.CleanupSourceDirectories(_testDir, allOutputs);
+
+        // Verify source folder is cleaned up and all output BIGs remain
+        Assert.False(Directory.Exists(Path.Combine(_testDir, "ZH")));
+        Assert.True(File.Exists(Path.Combine(_testDir, "340_ControlBarProArt1080ZH.big")));
+        Assert.True(File.Exists(Path.Combine(_testDir, "340_ControlBarProArt1440ZH.big")));
     }
 
     /// <summary>

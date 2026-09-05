@@ -154,4 +154,63 @@ public class CommunityOutpostManifestFactoryTests : IDisposable
         Assert.Equal("1.0.communityoutpost.addon.gent", manifests[0].Id.Value);
         Assert.Single(manifests[0].Files);
     }
+
+    /// <summary>
+    /// Verifies that multi-variant Control Bar processing calls ProcessAndRepackControlBarAsync with cleanupSources=false
+    /// across variants and invokes CleanupSourceDirectories once after all variants finish.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Fact]
+    public async Task CreateManifestsFromExtractedContentAsync_WithControlBarVariants_CleansUpSourcesAfterAllVariantsAsync()
+    {
+        // Arrange
+        var baseBig = Path.Combine(_tempDir, "340_ControlBarProZH.big");
+        File.WriteAllText(baseBig, "metadata big");
+
+        var originalManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.0.communityoutpost.addon.cbpr"),
+            Name = "Control Bar Pro",
+            ContentType = GenHub.Core.Models.Enums.ContentType.Addon,
+            Publisher = new PublisherInfo { PublisherType = "communityoutpost" },
+            Metadata = new ContentMetadata
+            {
+                Tags = ["contentCode:cbpr"],
+            },
+        };
+
+        _controlBarProcessorMock
+            .Setup(c => c.ProcessAndRepackControlBarAsync(
+                _tempDir,
+                originalManifest,
+                It.IsAny<string?>(),
+                false,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string _, ContentManifest _, string? variantId, bool _, CancellationToken _) =>
+            {
+                var suffix = variantId switch
+                {
+                    "1080p" => "1080",
+                    "1440p" => "1440",
+                    _ => variantId ?? string.Empty,
+                };
+                var artFile = $"340_ControlBarProArt{suffix}ZH.big";
+                File.WriteAllText(Path.Combine(_tempDir, artFile), "art big");
+                return new[] { artFile, "340_ControlBarProZH.big" };
+            });
+
+        // Act
+        var manifests = await _factory.CreateManifestsFromExtractedContentAsync(originalManifest, _tempDir);
+
+        // Assert: Each variant was processed with cleanupSources: false
+        Assert.NotEmpty(manifests);
+        _controlBarProcessorMock.Verify(
+            c => c.ProcessAndRepackControlBarAsync(_tempDir, originalManifest, It.IsAny<string?>(), false, It.IsAny<CancellationToken>()),
+            Times.AtLeastOnce());
+
+        // Assert: CleanupSourceDirectories was called exactly once after the variant loop
+        _controlBarProcessorMock.Verify(
+            c => c.CleanupSourceDirectories(_tempDir, It.Is<IEnumerable<string>>(outputs => outputs.Any())),
+            Times.Once());
+    }
 }

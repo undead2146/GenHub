@@ -16,15 +16,39 @@ public static class GameContentConstants
     public const int MaxWrapperNormalizationDepth = 10;
 
     /// <summary>
-    /// Supported archive file extensions.
+    /// Default variant resolution for control bar packages.
     /// </summary>
-    public static readonly IReadOnlyList<string> ArchiveExtensions =
-    [
-        ".zip",
-        ".7z",
-        ".rar",
-        ".dat",
-    ];
+    public const string DefaultControlBarVariant = "1080p";
+
+    /// <summary>
+    /// Base filename for standard Control Bar Pro BIG archive.
+    /// </summary>
+    public const string ControlBarProBaseFileName = "340_ControlBarProZH.big";
+
+    /// <summary>
+    /// Base filename for Lemon Edition Control Bar Pro BIG archive.
+    /// </summary>
+    public const string ControlBarProLemonBaseFileName = "340_ControlBarProLemonEditionZH.big";
+
+    /// <summary>
+    /// Standard subfolder name for English BIG files.
+    /// </summary>
+    public const string BigEnDirectoryName = "BIG EN";
+
+    /// <summary>
+    /// Standard subfolder name for BIG files.
+    /// </summary>
+    public const string BigDirectoryName = "BIG";
+
+    /// <summary>
+    /// GenTool directory name.
+    /// </summary>
+    public const string GenToolDirectoryName = "GenTool";
+
+    /// <summary>
+    /// Window directory name.
+    /// </summary>
+    public const string WindowDirectoryName = "Window";
 
     /// <summary>
     /// Canonical directory names used at the game workspace root.
@@ -123,41 +147,6 @@ public static class GameContentConstants
     ];
 
     /// <summary>
-    /// Default variant resolution for control bar packages.
-    /// </summary>
-    public const string DefaultControlBarVariant = "1080p";
-
-    /// <summary>
-    /// Base filename for standard Control Bar Pro BIG archive.
-    /// </summary>
-    public const string ControlBarProBaseFileName = "340_ControlBarProZH.big";
-
-    /// <summary>
-    /// Base filename for Lemon Edition Control Bar Pro BIG archive.
-    /// </summary>
-    public const string ControlBarProLemonBaseFileName = "340_ControlBarProLemonEditionZH.big";
-
-    /// <summary>
-    /// Standard subfolder name for English BIG files.
-    /// </summary>
-    public const string BigEnDirectoryName = "BIG EN";
-
-    /// <summary>
-    /// Standard subfolder name for BIG files.
-    /// </summary>
-    public const string BigDirectoryName = "BIG";
-
-    /// <summary>
-    /// GenTool directory name.
-    /// </summary>
-    public const string GenToolDirectoryName = "GenTool";
-
-    /// <summary>
-    /// Window directory name.
-    /// </summary>
-    public const string WindowDirectoryName = "Window";
-
-    /// <summary>
     /// Determines whether the specified directory name is a recognized canonical game directory.
     /// </summary>
     /// <param name="directoryName">The directory name to check.</param>
@@ -184,6 +173,11 @@ public static class GameContentConstants
         if (string.IsNullOrEmpty(ext))
         {
             ext = fileNameOrExtension;
+        }
+
+        if (!ext.StartsWith('.'))
+        {
+            ext = "." + ext;
         }
 
         return RecognizedGameFileExtensions.Contains(ext, StringComparer.OrdinalIgnoreCase);

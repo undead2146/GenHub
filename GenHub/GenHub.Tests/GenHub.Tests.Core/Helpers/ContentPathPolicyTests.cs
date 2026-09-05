@@ -10,17 +10,18 @@ namespace GenHub.Tests.Core.Helpers;
 /// </summary>
 public sealed class ContentPathPolicyTests : IDisposable
 {
-    private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "GenHubTests_PathPolicy_" + Guid.NewGuid().ToString("N"));
+    private readonly string _tempRoot;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ContentPathPolicyTests"/> class.
     /// </summary>
     public ContentPathPolicyTests()
     {
+        _tempRoot = Path.Combine(Path.GetTempPath(), "GenHub_ContentPathPolicyTests_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tempRoot);
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public void Dispose()
     {
         if (Directory.Exists(_tempRoot))
@@ -31,16 +32,28 @@ public sealed class ContentPathPolicyTests : IDisposable
             }
             catch
             {
-                // Best effort cleanup
+                // Best effort cleanup in tests.
             }
         }
     }
 
     /// <summary>
-    /// Verifies that valid contained relative paths resolve successfully.
+    /// Verifies that valid contained relative paths resolve inside root directory.
     /// </summary>
     [Fact]
-    public void ResolveContainedFile_ValidRelativePath_ResolvesCorrectly()
+    public void ResolveContainedFile_ValidRelativePath_ReturnsFullPath()
+    {
+        var result = ContentPathPolicy.ResolveContainedFile(_tempRoot, "file.txt");
+        var expected = Path.GetFullPath(Path.Combine(_tempRoot, "file.txt"));
+        Assert.True(result.Success);
+        Assert.Equal(expected, result.Data);
+    }
+
+    /// <summary>
+    /// Verifies that nested relative paths resolve inside root directory.
+    /// </summary>
+    [Fact]
+    public void ResolveContainedFile_NestedRelativePath_ReturnsFullPath()
     {
         var result = ContentPathPolicy.ResolveContainedFile(_tempRoot, "sub/file.txt");
         var expected = Path.GetFullPath(Path.Combine(_tempRoot, "sub", "file.txt"));
@@ -55,10 +68,13 @@ public sealed class ContentPathPolicyTests : IDisposable
     [Theory]
     [InlineData("../outside.txt")]
     [InlineData("sub/../../outside.txt")]
-    [InlineData("..\\outside.txt")]
+    [InlineData(@"..\outside.txt")]
     [InlineData("/etc/passwd")]
-    [InlineData("C:\\Windows\\System32\\cmd.exe")]
-    [InlineData("\\\\server\\share\\file.txt")]
+    [InlineData(@"\foo")]
+    [InlineData(@"\foo\bar.txt")]
+    [InlineData("/foo/bar.txt")]
+    [InlineData(@"C:\Windows\System32\cmd.exe")]
+    [InlineData(@"\\server\share\file.txt")]
     public void ResolveContainedFile_PathEscapesRoot_ReturnsFailure(string maliciousPath)
     {
         var result = ContentPathPolicy.ResolveContainedFile(_tempRoot, maliciousPath);
@@ -80,15 +96,17 @@ public sealed class ContentPathPolicyTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies that <see cref="ContentPathPolicy.IsContained"/> accurately detects containment.
+    /// Verifies that IsContained accurately checks containment.
     /// </summary>
     [Fact]
-    public void IsContained_ValidAndInvalidPaths_ReturnsExpectedBoolean()
+    public void IsContained_ValidatesCorrectly()
     {
-        var inside = Path.Combine(_tempRoot, "nested", "file.dll");
-        var outside = Path.Combine(Path.GetTempPath(), "other_dir", "file.dll");
+        var validChild = Path.Combine(_tempRoot, "sub", "file.txt");
+        var escapingChild = Path.Combine(_tempRoot, "..", "escaped.txt");
 
-        Assert.True(ContentPathPolicy.IsContained(_tempRoot, inside));
-        Assert.False(ContentPathPolicy.IsContained(_tempRoot, outside));
+        Assert.True(ContentPathPolicy.IsContained(_tempRoot, validChild));
+        Assert.False(ContentPathPolicy.IsContained(_tempRoot, escapingChild));
+        Assert.False(ContentPathPolicy.IsContained(null, validChild));
+        Assert.False(ContentPathPolicy.IsContained(_tempRoot, null));
     }
 }

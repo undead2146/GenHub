@@ -33,6 +33,8 @@ public static class ContentPathPolicy
         }
 
         if (Path.IsPathRooted(relativePath) ||
+            relativePath.StartsWith('/') ||
+            relativePath.StartsWith('\\') ||
             (relativePath.Length >= 2 && relativePath[1] == ':' && char.IsLetter(relativePath[0])) ||
             relativePath.StartsWith("\\\\", StringComparison.Ordinal) ||
             relativePath.StartsWith("//", StringComparison.Ordinal))
@@ -42,8 +44,7 @@ public static class ContentPathPolicy
 
         // Normalize directory separators
         var normalizedRelative = relativePath.Replace('/', Path.DirectorySeparatorChar)
-                                             .Replace('\\', Path.DirectorySeparatorChar)
-                                             .TrimStart(Path.DirectorySeparatorChar);
+                                             .Replace('\\', Path.DirectorySeparatorChar);
 
         if (string.IsNullOrWhiteSpace(normalizedRelative))
         {
@@ -148,38 +149,24 @@ public static class ContentPathPolicy
 
     private static bool TryResolveLink(string current, string originalPath, out string resolvedPath)
     {
-        resolvedPath = string.Empty;
-        var targetFullName = TryGetLinkTargetFullName(current);
-        if (string.IsNullOrEmpty(targetFullName))
+        resolvedPath = originalPath;
+        if (!Directory.Exists(current) && !File.Exists(current))
         {
             return false;
         }
 
-        var relativeSuffix = Path.GetRelativePath(current, originalPath);
-        resolvedPath = relativeSuffix == "."
-            ? targetFullName
-            : Path.GetFullPath(Path.Combine(targetFullName, relativeSuffix));
-        return true;
-    }
-
-    private static string? TryGetLinkTargetFullName(string path)
-    {
-        if (File.Exists(path))
+        var fileInfo = new FileInfo(current);
+        if (fileInfo.LinkTarget != null)
         {
-            var fileInfo = new FileInfo(path);
-            return fileInfo.LinkTarget != null
-                ? fileInfo.ResolveLinkTarget(returnFinalTarget: true)?.FullName
-                : null;
+            var target = fileInfo.ResolveLinkTarget(returnFinalTarget: true);
+            if (target != null)
+            {
+                var relativeSuffix = Path.GetRelativePath(current, originalPath);
+                resolvedPath = Path.GetFullPath(Path.Combine(target.FullName, relativeSuffix));
+                return true;
+            }
         }
 
-        if (Directory.Exists(path))
-        {
-            var dirInfo = new DirectoryInfo(path);
-            return dirInfo.LinkTarget != null
-                ? dirInfo.ResolveLinkTarget(returnFinalTarget: true)?.FullName
-                : null;
-        }
-
-        return null;
+        return false;
     }
 }
