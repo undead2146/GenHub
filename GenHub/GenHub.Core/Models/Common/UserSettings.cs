@@ -78,6 +78,12 @@ public class UserSettings
     /// <summary>Gets or sets the list of GitHub repositories for discovery.</summary>
     public List<string>? GitHubDiscoveryRepositories { get; set; }
 
+    /// <summary>Gets or sets the configured CSV catalog index.json path or URL.</summary>
+    public string? IndexFilePath { get; set; }
+
+    /// <summary>Gets or sets the fallback CSV validation catalogs.</summary>
+    public List<CsvCatalogRegistryEntry>? CsvValidationCatalogs { get; set; }
+
     /// <summary>Gets or sets the list of installed tool plugin assembly paths.</summary>
     public List<string>? InstalledToolAssemblyPaths { get; set; }
 
@@ -95,11 +101,39 @@ public class UserSettings
     /// </summary>
     public CasConfiguration CasConfiguration { get; set; } = new();
 
+    /// <summary>
+    /// Gets or sets the collection of installation step keys that have been executed on this machine.
+    /// </summary>
+    public HashSet<string> ExecutedInstallationSteps { get; set; } = [];
+
     /// <summary>Marks a property as explicitly set by the user.</summary>
     /// <param name="propertyName">The name of the property to mark as explicitly set.</param>
     public void MarkAsExplicitlySet(string propertyName)
     {
         ExplicitlySetProperties.Add(propertyName);
+    }
+
+    /// <summary>
+    /// Checks whether an installation step key has already been recorded as executed.
+    /// </summary>
+    /// <param name="stepKey">The unique installation step key.</param>
+    /// <returns><see langword="true"/> if already executed; otherwise, <see langword="false"/>.</returns>
+    public bool IsInstallationStepExecuted(string stepKey)
+    {
+        return !string.IsNullOrWhiteSpace(stepKey) && ExecutedInstallationSteps != null && ExecutedInstallationSteps.Contains(stepKey);
+    }
+
+    /// <summary>
+    /// Records that an installation step key has been executed.
+    /// </summary>
+    /// <param name="stepKey">The unique installation step key.</param>
+    public void RecordInstallationStepExecuted(string stepKey)
+    {
+        if (!string.IsNullOrWhiteSpace(stepKey))
+        {
+            ExecutedInstallationSteps ??= [];
+            ExecutedInstallationSteps.Add(stepKey);
+        }
     }
 
     /// <summary>Checks if a property was explicitly set by the user.</summary>
@@ -176,11 +210,14 @@ public class UserSettings
             DismissedUpdateVersion = DismissedUpdateVersion,
             ContentDirectories = ContentDirectories != null ? [.. ContentDirectories] : null,
             GitHubDiscoveryRepositories = GitHubDiscoveryRepositories != null ? [.. GitHubDiscoveryRepositories] : null,
+            IndexFilePath = IndexFilePath,
+            CsvValidationCatalogs = CsvValidationCatalogs != null ? [.. CsvValidationCatalogs.Select(c => c.Clone())] : null,
             InstalledToolAssemblyPaths = InstalledToolAssemblyPaths != null ? [.. InstalledToolAssemblyPaths] : null,
             PreferredStorageInstallationId = PreferredStorageInstallationId,
             UseInstallationAdjacentStorage = UseInstallationAdjacentStorage,
             ExplicitlySetProperties = [.. ExplicitlySetProperties],
             CasConfiguration = (CasConfiguration?)CasConfiguration?.Clone() ?? new CasConfiguration(),
+            ExecutedInstallationSteps = ExecutedInstallationSteps != null ? [.. ExecutedInstallationSteps] : [],
             SkippedUpdateVersions = SkippedUpdateVersions != null ? new Dictionary<string, string>(SkippedUpdateVersions) : [],
             PreferredUpdateStrategy = PreferredUpdateStrategy,
             PublisherSubscriptions = PublisherSubscriptions != null

@@ -627,7 +627,7 @@ public class ProfileLauncherFacade(
                 $"{ProfileValidationConstants.FailedToPrepareToolWorkspace}: {prepareResult.FirstError}");
         }
 
-        var toolWorkspacePath = prepareResult.Data!.WorkspacePath;
+        var toolWorkspacePath = prepareResult.Data.WorkspacePath;
         logger.LogInformation("[Launch] Tool workspace prepared at: {Path}", toolWorkspacePath);
         return ProfileOperationResult<(string, string?)>.CreateSuccess((toolWorkspacePath, actualWorkspaceId));
     }
@@ -883,7 +883,7 @@ public class ProfileLauncherFacade(
         }
         else
         {
-            if (IsGeneralsOnlineProfile(profile))
+            if (profile.IsGeneralsOnlineProfile())
             {
                 publisherType = PublisherTypeConstants.GeneralsOnline;
                 reconciler = reconcilerRegistry.GetReconciler(publisherType);
@@ -1234,36 +1234,6 @@ public class ProfileLauncherFacade(
         }
 
         return parts.Count > 0 ? $"({string.Join(" and ", parts)})" : string.Empty;
-    }
-
-    /// <summary>
-    /// Checks if a profile uses a GeneralsOnline game client.
-    /// </summary>
-    /// <param name="profile">The profile to check.</param>
-    /// <returns>True if the profile uses GeneralsOnline, false otherwise.</returns>
-    private bool IsGeneralsOnlineProfile(GameProfile profile)
-    {
-        // Check PublisherType first
-        if (profile.GameClient?.PublisherType?.Equals(
-            PublisherTypeConstants.GeneralsOnline,
-            StringComparison.OrdinalIgnoreCase) == true)
-        {
-            return true;
-        }
-
-        // Check if Name contains "GeneralsOnline" (for legacy or incomplete profiles)
-        if (profile.GameClient?.Name?.Contains("GeneralsOnline", StringComparison.OrdinalIgnoreCase) == true)
-        {
-            return true;
-        }
-
-        // Final fallback: Check enabled content for GeneralsOnline manifests
-        if (profile.EnabledContentIds?.Any(id => id.Contains("generalsonline", StringComparison.OrdinalIgnoreCase)) == true)
-        {
-            return true;
-        }
-
-        return false;
     }
 
     /// <summary>
@@ -1638,8 +1608,8 @@ public class ProfileLauncherFacade(
                 // First try to match by both game type AND installation path (most specific match)
                 var exactPathMatches = allInstallationsResult.Data
                     .Where(inst =>
-                        ((profile.GameClient?.GameType == Core.Models.Enums.GameType.Generals && inst.HasGenerals && !string.IsNullOrEmpty(inst.GeneralsPath) && inst.GeneralsPath.Equals(profile.GameClient?.WorkingDirectory, StringComparison.OrdinalIgnoreCase)) ||
-                         (profile.GameClient?.GameType == Core.Models.Enums.GameType.ZeroHour && inst.HasZeroHour && !string.IsNullOrEmpty(inst.ZeroHourPath) && inst.ZeroHourPath.Equals(profile.GameClient?.WorkingDirectory, StringComparison.OrdinalIgnoreCase))))
+                        ((profile.GameClient?.GameType == Core.Models.Enums.GameType.Generals && inst.HasGenerals && !string.IsNullOrEmpty(inst.GeneralsPath) && !string.IsNullOrEmpty(profile.GameClient?.WorkingDirectory) && PathHelper.AreSamePath(inst.GeneralsPath, profile.GameClient.WorkingDirectory)) ||
+                         (profile.GameClient?.GameType == Core.Models.Enums.GameType.ZeroHour && inst.HasZeroHour && !string.IsNullOrEmpty(inst.ZeroHourPath) && !string.IsNullOrEmpty(profile.GameClient?.WorkingDirectory) && PathHelper.AreSamePath(inst.ZeroHourPath, profile.GameClient.WorkingDirectory))))
                     .ToList();
 
                 if (exactPathMatches.Count == 1)
@@ -1845,7 +1815,7 @@ public class ProfileLauncherFacade(
             return null;
         }
 
-        foreach (var idString in profile.EnabledContentIds!)
+        foreach (var idString in profile.EnabledContentIds)
         {
             if (!ManifestId.TryCreate(idString, out var id))
             {

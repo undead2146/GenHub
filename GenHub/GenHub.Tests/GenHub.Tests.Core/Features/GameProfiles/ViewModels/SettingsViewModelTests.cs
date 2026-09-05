@@ -14,6 +14,7 @@ using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Results.CAS;
 using GenHub.Core.Models.Storage;
+using GenHub.Core.Models.Theming;
 using GenHub.Core.Models.Workspace;
 using GenHub.Features.AppUpdate.Interfaces;
 using GenHub.Features.Settings.ViewModels;
@@ -39,6 +40,7 @@ public class SettingsViewModelTests
     private readonly Mock<IGameInstallationService> _mockInstallationService;
     private readonly Mock<IStorageLocationService> _mockStorageLocationService;
     private readonly Mock<IUserDataTracker> _mockUserDataTracker;
+    private readonly Mock<IDialogService> _mockDialogService;
     private readonly UserSettings _defaultSettings;
 
     /// <summary>
@@ -58,9 +60,13 @@ public class SettingsViewModelTests
         _mockInstallationService = new Mock<IGameInstallationService>();
         _mockStorageLocationService = new Mock<IStorageLocationService>();
         _mockUserDataTracker = new Mock<IUserDataTracker>();
+        _mockDialogService = new Mock<IDialogService>();
         _defaultSettings = new UserSettings();
 
         _mockConfigService.Setup(x => x.Get()).Returns(_defaultSettings);
+        _mockUserDataTracker
+            .Setup(x => x.DeleteAllUserDataAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
     }
 
     /// <summary>
@@ -72,7 +78,7 @@ public class SettingsViewModelTests
         // Arrange
         var customSettings = new UserSettings
         {
-            Theme = "Light",
+            Theme = "Emerald",
             MaxConcurrentDownloads = 5,
             EnableDetailedLogging = true,
             WorkspacePath = "/custom/path",
@@ -93,10 +99,11 @@ public class SettingsViewModelTests
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
             _mockStorageLocationService.Object,
-            _mockUserDataTracker.Object);
+            _mockUserDataTracker.Object,
+            _mockDialogService.Object);
 
         // Assert
-        Assert.Equal("Light", viewModel.Theme);
+        Assert.Equal("Emerald", viewModel.Theme);
         Assert.Equal(5, viewModel.MaxConcurrentDownloads);
         Assert.True(viewModel.EnableDetailedLogging);
         Assert.Equal("/custom/path", viewModel.WorkspacePath);
@@ -122,11 +129,14 @@ public class SettingsViewModelTests
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
             _mockStorageLocationService.Object,
-            _mockUserDataTracker.Object)
+            _mockUserDataTracker.Object,
+            _mockDialogService.Object)
         {
-            Theme = "Light",
+            Theme = "Emerald",
             MaxConcurrentDownloads = 5,
         };
+
+        _mockConfigService.Invocations.Clear();
 
         // Act
         await Task.Run(() => viewModel.SaveSettingsCommand.Execute(null));
@@ -156,9 +166,10 @@ public class SettingsViewModelTests
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
             _mockStorageLocationService.Object,
-            _mockUserDataTracker.Object)
+            _mockUserDataTracker.Object,
+            _mockDialogService.Object)
         {
-            Theme = "Light",
+            Theme = "Emerald",
             MaxConcurrentDownloads = 10,
             EnableDetailedLogging = true,
         };
@@ -167,7 +178,7 @@ public class SettingsViewModelTests
         await Task.Run(() => viewModel.ResetToDefaultsCommand.Execute(null));
 
         // Assert
-        Assert.Equal("Dark", viewModel.Theme);
+        Assert.Equal(ThemeConstants.DefaultTheme.Id, viewModel.Theme);
         Assert.Equal(3, viewModel.MaxConcurrentDownloads);
         Assert.False(viewModel.EnableDetailedLogging);
         Assert.Equal(WorkspaceConstants.DefaultWorkspaceStrategy, viewModel.DefaultWorkspaceStrategy);
@@ -203,7 +214,8 @@ public class SettingsViewModelTests
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
             _mockStorageLocationService.Object,
-            _mockUserDataTracker.Object);
+            _mockUserDataTracker.Object,
+            _mockDialogService.Object);
 
         // Assert
         Assert.False(viewModel.AutoCheckForUpdatesPeriodically);
@@ -230,7 +242,8 @@ public class SettingsViewModelTests
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
             _mockStorageLocationService.Object,
-            _mockUserDataTracker.Object)
+            _mockUserDataTracker.Object,
+            _mockDialogService.Object)
         {
             AutoCheckForUpdatesPeriodically = false,
             PeriodicUpdateCheckIntervalMinutes = 45,
@@ -272,7 +285,8 @@ public class SettingsViewModelTests
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
             _mockStorageLocationService.Object,
-            _mockUserDataTracker.Object)
+            _mockUserDataTracker.Object,
+            _mockDialogService.Object)
         {
             // Act & Assert - Test lower bound
             MaxConcurrentDownloads = 0,
@@ -295,7 +309,7 @@ public class SettingsViewModelTests
     public void AvailableThemes_ReturnsExpectedValues()
     {
         // Arrange
-        _ = new SettingsViewModel(
+        var viewModel = new SettingsViewModel(
             _mockConfigService.Object,
             _mockLogger.Object,
             _mockCasService.Object,
@@ -307,15 +321,16 @@ public class SettingsViewModelTests
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
             _mockStorageLocationService.Object,
-            _mockUserDataTracker.Object);
+            _mockUserDataTracker.Object,
+            _mockDialogService.Object);
 
         // Act
-        var themes = SettingsViewModel.AvailableThemes.ToList();
+        var themes = viewModel.AvailableThemes.Select(t => t.Id).ToList();
 
         // Assert
-        Assert.Contains("Dark", themes);
-        Assert.Contains("Light", themes);
-        Assert.Equal(2, themes.Count);
+        Assert.Contains("Purple", themes);
+        Assert.Contains("Generals", themes);
+        Assert.True(themes.Count >= 12);
     }
 
     /// <summary>
@@ -337,7 +352,8 @@ public class SettingsViewModelTests
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
             _mockStorageLocationService.Object,
-            _mockUserDataTracker.Object);
+            _mockUserDataTracker.Object,
+            _mockDialogService.Object);
 
         // Act
         var strategies = SettingsViewModel.AvailableWorkspaceStrategies.ToList();
@@ -369,7 +385,8 @@ public class SettingsViewModelTests
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
             _mockStorageLocationService.Object,
-            _mockUserDataTracker.Object);
+            _mockUserDataTracker.Object,
+            _mockDialogService.Object);
 
         // Act
         await Task.Run(() => viewModel.SaveSettingsCommand.Execute(null));
@@ -407,7 +424,8 @@ public class SettingsViewModelTests
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
             _mockStorageLocationService.Object,
-            _mockUserDataTracker.Object);
+            _mockUserDataTracker.Object,
+            _mockDialogService.Object);
 
         // Assert - Should not throw and use defaults
         Assert.Equal("Dark", viewModel.Theme);
@@ -447,7 +465,8 @@ public class SettingsViewModelTests
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
             _mockStorageLocationService.Object,
-            _mockUserDataTracker.Object);
+            _mockUserDataTracker.Object,
+            _mockDialogService.Object);
 
         // Act
         await viewModel.DeleteCasStorageCommand.ExecuteAsync(null);
@@ -490,7 +509,8 @@ public class SettingsViewModelTests
             _mockConfigurationProvider.Object,
             _mockInstallationService.Object,
             _mockStorageLocationService.Object,
-            _mockUserDataTracker.Object);
+            _mockUserDataTracker.Object,
+            _mockDialogService.Object);
 
         // Act
         await viewModel.UninstallGenHubCommand.ExecuteAsync(null);
@@ -498,4 +518,284 @@ public class SettingsViewModelTests
         // Assert
         _mockUpdateManager.Verify(x => x.Uninstall(), Times.Once);
     }
+
+    /// <summary>
+    /// Verifies that declining the confirmation prompt leaves every piece of application data alone.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task DeleteAllDataCommand_WhenConfirmationDeclined_DeletesNothingAsync()
+    {
+        // Arrange
+        SetupDeletableData();
+        _mockDialogService
+            .Setup(x => x.ShowConfirmationAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>()))
+            .ReturnsAsync(false);
+
+        var viewModel = CreateViewModel();
+
+        // Act
+        await viewModel.DeleteAllDataCommand.ExecuteAsync(null);
+
+        // Assert
+        _mockUserDataTracker.Verify(x => x.DeleteAllUserDataAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _mockCasService.Verify(x => x.RunGarbageCollectionAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockInstallationService.Verify(x => x.InvalidateCache(), Times.Never);
+        _mockProfileManager.Verify(x => x.DeleteProfileAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockWorkspaceManager.Verify(x => x.CleanupWorkspaceAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockManifestPool.Verify(x => x.RemoveManifestAsync(It.IsAny<ManifestId>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    /// <summary>
+    /// Verifies that a confirmation prompt that fails to open — no main window, or an Avalonia
+    /// failure — is reported to the user instead of escaping the command unlogged, and that it still
+    /// deletes nothing.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task DeleteAllDataCommand_WhenConfirmationThrows_ReportsErrorAndDeletesNothingAsync()
+    {
+        // Arrange
+        SetupDeletableData();
+        _mockDialogService
+            .Setup(x => x.ShowConfirmationAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>()))
+            .ThrowsAsync(new InvalidOperationException("no main window"));
+
+        var viewModel = CreateViewModel();
+
+        // Act
+        await viewModel.DeleteAllDataCommand.ExecuteAsync(null);
+
+        // Assert
+        _mockNotificationService.Verify(
+            x => x.ShowError(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<bool>()),
+            Times.Once);
+        _mockUserDataTracker.Verify(x => x.DeleteAllUserDataAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _mockProfileManager.Verify(x => x.DeleteProfileAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockWorkspaceManager.Verify(x => x.CleanupWorkspaceAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockManifestPool.Verify(x => x.RemoveManifestAsync(It.IsAny<ManifestId>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    /// <summary>
+    /// Verifies that accepting the confirmation prompt performs the deletion.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task DeleteAllDataCommand_WhenConfirmationAccepted_DeletesAllDataAsync()
+    {
+        // Arrange
+        SetupDeletableData();
+        _mockDialogService
+            .Setup(x => x.ShowConfirmationAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>()))
+            .ReturnsAsync(true);
+
+        var viewModel = CreateViewModel();
+
+        // Act
+        await viewModel.DeleteAllDataCommand.ExecuteAsync(null);
+
+        // Assert
+        _mockUserDataTracker.Verify(x => x.DeleteAllUserDataAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _mockCasService.Verify(x => x.RunGarbageCollectionAsync(true, It.IsAny<CancellationToken>()), Times.Once);
+        _mockInstallationService.Verify(x => x.InvalidateCache(), Times.Once);
+        _mockProfileManager.Verify(x => x.DeleteProfileAsync("profile-to-delete", It.IsAny<CancellationToken>()), Times.Once);
+        _mockWorkspaceManager.Verify(x => x.CleanupWorkspaceAsync("workspace-to-delete", It.IsAny<CancellationToken>()), Times.Once);
+        _mockManifestPool.Verify(x => x.RemoveManifestAsync(It.IsAny<ManifestId>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Verifies that a user data deletion that had to keep some data is not followed by a success
+    /// message claiming that data was deleted.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task DeleteAllDataCommand_WhenUserDataPartiallyDeleted_DoesNotClaimSuccessAsync()
+    {
+        // Arrange
+        SetupDeletableData();
+        _mockDialogService
+            .Setup(x => x.ShowConfirmationAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>()))
+            .ReturnsAsync(true);
+        _mockUserDataTracker
+            .Setup(x => x.DeleteAllUserDataAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateFailure("Your originals were kept at 'backups'."));
+
+        var viewModel = CreateViewModel();
+
+        // Act
+        await viewModel.DeleteAllDataCommand.ExecuteAsync(null);
+
+        // Assert
+        _mockNotificationService.Verify(
+            x => x.ShowError("User Data Partially Deleted", It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<bool>()),
+            Times.Once);
+        _mockNotificationService.Verify(
+            x => x.ShowSuccess("Data Deleted", It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<bool>()),
+            Times.Never);
+        _mockNotificationService.Verify(
+            x => x.ShowWarning("Data Partially Deleted", It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<bool>()),
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Verifies that the confirmation prompt states the action is irreversible and that game data
+    /// backups are discarded, and that it cannot be suppressed by a "do not ask again" preference.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task DeleteAllDataCommand_WarnsThatBackupsAreDiscardedAndCannotBeSuppressedAsync()
+    {
+        // Arrange
+        string? capturedMessage = null;
+        string? capturedSessionKey = null;
+        _mockDialogService
+            .Setup(x => x.ShowConfirmationAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>()))
+            .Callback<string, string, string, string, string?>((title, message, confirmText, cancelText, sessionKey) =>
+            {
+                capturedMessage = message;
+                capturedSessionKey = sessionKey;
+            })
+            .ReturnsAsync(false);
+
+        var viewModel = CreateViewModel();
+
+        // Act
+        await viewModel.DeleteAllDataCommand.ExecuteAsync(null);
+
+        // Assert
+        Assert.Equal(AppConstants.DeleteAllDataConfirmationMessage, capturedMessage);
+        Assert.Contains("irreversible", capturedMessage!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("backups", capturedMessage!, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(capturedSessionKey);
+    }
+
+    /// <summary>
+    /// Verifies that SelectColorThemeCommand updates selected theme and saves user settings.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task SelectColorThemeCommand_UpdatesSelectedThemeAndPersistsAsync()
+    {
+        // Arrange
+        var mockThemeService = new Mock<IThemeService>();
+        mockThemeService.Setup(s => s.AvailableThemes).Returns(ThemeConstants.AllThemes);
+
+        var viewModel = new SettingsViewModel(
+            _mockConfigService.Object,
+            _mockLogger.Object,
+            _mockCasService.Object,
+            _mockProfileManager.Object,
+            _mockWorkspaceManager.Object,
+            _mockManifestPool.Object,
+            _mockUpdateManager.Object,
+            _mockNotificationService.Object,
+            _mockConfigurationProvider.Object,
+            _mockInstallationService.Object,
+            _mockStorageLocationService.Object,
+            _mockUserDataTracker.Object,
+            _mockDialogService.Object,
+            mockThemeService.Object);
+
+        // Act
+        await viewModel.SelectColorThemeCommand.ExecuteAsync(ThemeConstants.EmeraldTheme);
+
+        // Assert
+        Assert.Equal("Emerald", viewModel.Theme);
+        Assert.Equal(ThemeConstants.EmeraldTheme, viewModel.SelectedTheme);
+        mockThemeService.Verify(s => s.ApplyTheme(ThemeConstants.EmeraldTheme), Times.Once);
+        _mockConfigService.Verify(s => s.Update(It.IsAny<Action<UserSettings>>()), Times.Once);
+        _mockConfigService.Verify(s => s.SaveAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Verifies that ResetToDefaultsCommand resets the active theme to default.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task ResetToDefaultsCommand_ResetsThemeToDefaultThemeAsync()
+    {
+        // Arrange
+        var mockThemeService = new Mock<IThemeService>();
+        mockThemeService.Setup(s => s.AvailableThemes).Returns(ThemeConstants.AllThemes);
+
+        var viewModel = new SettingsViewModel(
+            _mockConfigService.Object,
+            _mockLogger.Object,
+            _mockCasService.Object,
+            _mockProfileManager.Object,
+            _mockWorkspaceManager.Object,
+            _mockManifestPool.Object,
+            _mockUpdateManager.Object,
+            _mockNotificationService.Object,
+            _mockConfigurationProvider.Object,
+            _mockInstallationService.Object,
+            _mockStorageLocationService.Object,
+            _mockUserDataTracker.Object,
+            _mockDialogService.Object,
+            mockThemeService.Object)
+        {
+            Theme = "Emerald",
+        };
+
+        // Act
+        await viewModel.ResetToDefaultsCommand.ExecuteAsync(null);
+
+        // Assert
+        Assert.Equal(ThemeConstants.DefaultTheme.Id, viewModel.Theme);
+        Assert.Equal(ThemeConstants.DefaultTheme, viewModel.SelectedTheme);
+        mockThemeService.Verify(s => s.ApplyTheme(ThemeConstants.DefaultTheme), Times.Once);
+    }
+
+    private void SetupDeletableData()
+    {
+        _mockProfileManager
+            .Setup(x => x.GetAllProfilesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<IReadOnlyList<GameProfile>>.CreateSuccess([new GameProfile { Id = "profile-to-delete" }]));
+        _mockWorkspaceManager
+            .Setup(x => x.GetAllWorkspacesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<WorkspaceInfo>>.CreateSuccess([new WorkspaceInfo { Id = "workspace-to-delete" }]));
+        _mockManifestPool
+            .Setup(x => x.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([new ContentManifest { Name = "manifest-to-delete" }]));
+    }
+
+    private SettingsViewModel CreateViewModel() => new(
+        _mockConfigService.Object,
+        _mockLogger.Object,
+        _mockCasService.Object,
+        _mockProfileManager.Object,
+        _mockWorkspaceManager.Object,
+        _mockManifestPool.Object,
+        _mockUpdateManager.Object,
+        _mockNotificationService.Object,
+        _mockConfigurationProvider.Object,
+        _mockInstallationService.Object,
+        _mockStorageLocationService.Object,
+        _mockUserDataTracker.Object,
+        _mockDialogService.Object);
 }

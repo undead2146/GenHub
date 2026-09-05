@@ -138,7 +138,7 @@ public class GameClientDetector(
         var gameClients = new List<GameClient>();
 
         // Search for all possible executable names using manual recursion to skip excluded directories
-        var allFiles = await Task.Run(() => FindGameExecutablesRecursively(path));
+        var allFiles = await Task.Run(() => FindGameExecutablesRecursively(path), cancellationToken);
 
         foreach (var exe in allFiles)
         {
@@ -980,13 +980,15 @@ public class GameClientDetector(
                 InstallationId = installation.Id,
                 WorkingDirectory = installationPath,
                 SourceType = ContentType.GameClient,
+                PublisherType = manifest.Publisher?.PublisherType ?? string.Empty,
             };
 
             gameClients.Add(gameClient);
             logger.LogDebug(
-                "Created GameClient from manifest: {ManifestId} -> {GameClientName}",
+                "Created GameClient from manifest: {ManifestId} -> {GameClientName} (Publisher: {PublisherType})",
                 manifest.Id,
-                gameClient.Name);
+                gameClient.Name,
+                gameClient.PublisherType);
         }
 
         return gameClients;

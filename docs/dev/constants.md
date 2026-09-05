@@ -32,6 +32,14 @@ URI scheme constants for handling different types of URIs and paths.
 - Upload and credential constants were removed while cloud uploads are disabled.
   `UploadThingUrlFragment` remains only for importing existing public links.
 
+### Upload Gateway & Cloud Storage
+
+- `MediaTypeZip`: Media type for ZIP archives (`"application/zip"`)
+- `DefaultUploadFileName`: Default filename fallback for generic uploads when a source filename cannot be determined (`"upload.zip"`)
+- `DefaultUploadGatewayBaseUrl`: Base URL for the community upload gateway (`"https://genhub-upload-gateway.mustafa2146.workers.dev"`)
+- `UploadEndpoint`: Endpoint path for cloud uploads (`"/api/v1/uploads"`)
+- `UploadDeleteEndpoint`: Endpoint path for deleting cloud uploads (`"/api/v1/uploads/delete"`)
+
 ### Media Types
 
 
@@ -61,6 +69,23 @@ Application-wide constants for GenHub.
 | `DefaultTheme`            | `Theme.Dark`        | Default UI theme                                 |
 | `DefaultThemeName`        | `"Dark"`            | Default theme name as string                     |
 | `TokenFileName`           | `".ghtoken"`        | Default GitHub token file name                   |
+| `DeleteAllDataConfirmationTitle`   | `"Delete All Application Data"` | Title of the confirmation prompt shown before all application data is deleted |
+| `DeleteAllDataConfirmationMessage` | string              | Body of that prompt, warning that the deletion is irreversible and that pristine game data backups are discarded |
+| `DeleteAllDataConfirmText`         | `"Delete Everything"` | Confirm button text for the delete-all-application-data prompt |
+
+---
+
+## LocalizationConstants Class
+
+Constants used by the application localization foundation.
+
+| Constant | Value | Description |
+| --- | --- | --- |
+| `DefaultCultureName` | `"en"` | Neutral culture embedded in the main application assembly |
+| `IndexerPropertyName` | `"Item"` | Avalonia change-notification name used to refresh localized indexer bindings |
+| `ResourceServiceKey` | `"LocalizationService"` | Application resource key used by the Avalonia markup extension |
+| `StringResourceBaseName` | `"GenHub.Resources.Localization.Strings"` | Fully qualified .NET resource base name |
+| `SatelliteAssemblySuffix` | `".resources.dll"` | Standard suffix used to identify satellite assemblies |
 
 ---
 
@@ -113,6 +138,24 @@ Constants related to application updates and Velopack.
 | `ReleaseUpdateNotificationFormat`             | `"A new version ({0}) is available."` | Release update notification body format string                            |
 | `BranchUpdateNotificationFormat`              | `"A new build ({0}) is available on branch '{1}'."` | Branch update notification body format string        |
 | `PrUpdateNotificationFormat`                  | `"A new build ({0}) is available for PR #{1}."` | PR update notification body format string                |
+| `DevelopmentBranch`                           | `"development"`             | Default development branch name for CI artifact fallback                          |
+| `MainBranch`                                  | `"main"`                    | Default main branch name for release updates                                      |
+| `PrMergedUpdateAvailableNotificationTitle`    | `"PR Merged — Update Available"` | Update available notification title when subscribed PR is merged or closed    |
+| `BranchStaleUpdateAvailableNotificationTitle` | `"Branch Fallback: Update Available"` | Update available notification title when subscribed branch is stale       |
+| `PrMergedUpdateNotificationFormat`            | Format string               | PR merged/closed fallback notification format string                              |
+| `PrMergedReleaseNotificationFormat`           | Format string               | PR merged/closed release fallback notification format string                      |
+| `BranchStaleUpdateNotificationFormat`         | Format string               | Branch stale fallback notification format string                                  |
+| `BranchStaleReleaseNotificationFormat`        | Format string               | Branch stale release fallback notification format string                          |
+| `PrMergedStatusMessageFormat`                 | Format string               | PR merged/closed status message format string                                     |
+| `BranchStaleStatusMessageFormat`              | Format string               | Branch stale status message format string                                         |
+| `PatRequiredForArtifactsMessage`              | Message string              | Message displayed when checking branch/PR artifacts without GitHub PAT            |
+| `PrDedupePrefix`                              | `"pr:"`                     | Deduplication key prefix for PR update notifications                              |
+| `PrFallbackDedupePrefix`                      | `"pr-fallback:"`            | Deduplication key prefix for PR fallback update notifications                     |
+| `BranchDedupePrefix`                          | `"branch:"`                 | Deduplication key prefix for branch update notifications                          |
+| `BranchFallbackDedupePrefix`                  | `"branch-fallback:"`        | Deduplication key prefix for branch fallback update notifications                 |
+| `ReleaseDedupePrefix`                         | `"release:"`                | Deduplication key prefix for release update notifications                         |
+| `GitHubFallbackDedupePrefix`                  | `"github:"`                 | Deduplication key prefix for GitHub API fallback update notifications             |
+| `NotificationAlreadyShownLogFormat`           | `"Update notification..."`  | Log format string when skipping duplicate update notifications                    |
 | `SortOptionLastUpdated`                       | `"Last Updated"`            | Sort option: sort by last updated date descending                                 |
 | `SortOptionPrNumberDesc`                      | `"PR Number (Highest)"`     | Sort option: sort by pull request number descending                               |
 | `SortOptionPrNumberAsc`                       | `"PR Number (Lowest)"`      | Sort option: sort by pull request number ascending                                |
@@ -186,6 +229,22 @@ Configuration key constants for `appsettings.json` and environment variables.
 Constants related to workspace management and configuration.
 
 - `DefaultWorkspaceStrategy`: The default workspace strategy to use when none is specified (`WorkspaceStrategy.HardLink`)
+- `ZeroCopyElevationGuidance`: Guidance message appended to errors when zero-copy hard links or symlinks cannot be created (`"To use zero-copy workspaces without copying game files, ensure GenHub has permission to create links (on Windows, enable Developer Mode or run as Administrator)."`)
+
+---
+
+## CommandLineConstants Class
+
+Constants for command line arguments and URI schemes.
+
+| Constant                    | Value                 | Description                                                |
+| --------------------------- | --------------------- | ---------------------------------------------------------- |
+| `LaunchProfileArg`          | `"--launch-profile"`  | Command-line argument used to request launching a profile  |
+| `LaunchProfileInlinePrefix` | `"--launch-profile="` | Prefix for inline profile launching                        |
+| `UriScheme`                 | `"genhub://"`         | URI scheme used for protocol handling                      |
+| `SubscribeCommand`          | `"subscribe"`         | Command for subscribing to a catalog via URI               |
+| `SubscribeUriPrefix`        | `"genhub://subscribe"`| Full prefix for subscription URI                           |
+| `SubscribeUrlParam`         | `"?url="`             | Query parameter name for the catalog URL                   |
 
 ---
 
@@ -208,14 +267,21 @@ Constants for unit conversions used throughout the application.
 
 Directory names used for organizing content storage.
 
-| Constant  | Value        | Description                   |
-| --------- | ------------ | ----------------------------- |
-| `Data`    | `"Data"`     | Directory for content data    |
-| `Cache`   | `"Cache"`    | Directory for cache files     |
-| `CasPool` | `"cas-pool"` | Directory for CAS pool        |
-| `Temp`    | `"Temp"`     | Directory for temporary files |
-| `Logs`    | `"Logs"`     | Directory for log files       |
-| `Backups` | `"Backups"`  | Directory for backup files    |
+| Constant            | Value          | Description                                                              |
+| ------------------- | -------------- | ------------------------------------------------------------------------ |
+| `Data`              | `"Data"`       | Directory for content data                                               |
+| `Cache`             | `"Cache"`      | Directory for cache files                                                |
+| `CasPool`           | `"cas-pool"`   | Directory for CAS pool                                                   |
+| `Temp`              | `"Temp"`       | Directory for temporary files                                            |
+| `Logs`              | `"Logs"`       | Directory for log files                                                  |
+| `Backups`           | `"Backups"`    | Directory for backup files                                               |
+| `Profiles`          | `"Profiles"`   | Directory for game profiles                                              |
+| `UserData`          | `"UserData"`   | Directory for tracked user data                                          |
+| `UserDataManifests` | `"manifests"`  | Manifests of tracked user data, nested in `UserData` (exact on-disk case) |
+| `UserDataBackups`   | `"backups"`    | Backups of replaced user data files, nested in `UserData` (exact on-disk case) |
+| `Workspaces`        | `"Workspaces"` | Directory for workspaces                                                 |
+| `ToolWorkspaces`    | `"ToolWorkspaces"` | Directory for tool workspaces                                        |
+| `LegacyContent`     | `"Content"`    | Sub-layout used up to v0.0.3; probed only by the upgrade migration       |
 
 ---
 
@@ -249,11 +315,14 @@ File and directory name constants to prevent typos and ensure consistency.
 
 ### JSON Files
 
-| Constant            | Value             | Description                   |
-| ------------------- | ----------------- | ----------------------------- |
-| `JsonFileExtension` | `".json"`         | File extension for JSON files |
-| `JsonFilePattern`   | `"*.json"`        | File pattern for JSON files   |
-| `SettingsFileName`  | `"settings.json"` | Default settings file name    |
+| Constant                     | Value               | Description                                                           |
+| ---------------------------- | ------------------- | --------------------------------------------------------------------- |
+| `JsonFileExtension`          | `".json"`           | File extension for JSON files                                         |
+| `JsonFilePattern`            | `"*.json"`          | File pattern for JSON files                                           |
+| `SettingsFileName`           | `"settings.json"`   | Default settings file name                                            |
+| `LegacySettingsFileName`     | `".json"`           | Settings file name written up to v0.0.3; probed only by the upgrade migration |
+| `WorkspaceMetadataFileName`  | `"workspaces.json"` | File holding the persisted workspace metadata                         |
+| `UserDataIndexFileName`      | `"index.json"`      | Index of installed user data, nested in `UserData`                    |
 
 ---
 
@@ -638,6 +707,7 @@ Constants related to game client detection and management.
 | -------------------- | ---------------- | ----------------------------- |
 | `GeneralsExecutable` | `"generals.exe"` | Generals executable filename  |
 | `ZeroHourExecutable` | `"game.exe"`     | Zero Hour executable filename |
+| `ContraExecutable`   | `"generals.ctr"` | Contra modded client executable filename |
 
 ### SuperHackers Client Detection
 
@@ -655,6 +725,15 @@ Constants related to game client detection and management.
 | `ZeroHourDirectoryNameAmpersandHyphen` | `"Command & Conquer Generals - Zero Hour"`  | Zero Hour directory name with ampersand and hyphen (Steam standard) |
 | `ZeroHourDirectoryNameColonVariant`    | `"Command & Conquer: Generals - Zero Hour"` | Zero Hour directory name with colon variant |
 | `ZeroHourDirectoryNameAbbreviated`     | `"C&C Generals Zero Hour"`                  | Zero Hour directory name abbreviated form |
+
+### Core Game Archives
+
+| Constant            | Value          | Description                              |
+| ------------------- | -------------- | ---------------------------------------- |
+| `ZeroHourIniBig`    | `"INIZH.big"`  | Primary Zero Hour INI archive filename   |
+| `ZeroHourPatchBig`  | `"PatchZH.big"`| Primary Zero Hour Patch archive filename |
+| `GeneralsIniBig`    | `"INI.big"`    | Primary Generals Vanilla INI archive     |
+| `GeneralsPatchBig`  | `"Patch.big"`  | Primary Generals Vanilla Patch archive   |
 
 ### GeneralsOnline Client Detection
 
@@ -818,6 +897,7 @@ public static string FromInstallationType(GameInstallationType installationType)
 ## IoConstants Class
 
 - `DefaultFileBufferSize`: 4096
+- `StagingFileSuffix`: ".genhub-staging"
 
 ---
 
@@ -1358,6 +1438,7 @@ Constants for content pipeline component identifiers used in dependency injectio
 - **StorageConstants**: Storage and CAS operation constants
 - **TimeIntervals**: Time spans and intervals
 - **UiConstants**: User interface sizing and behavior
+- **UserDataConstants**: Tracked user data installation constants
 - **ValidationLimits**: Input validation boundaries
 
 ### Best Practices
@@ -1502,6 +1583,13 @@ Constants for The Super Hackers content discovery and manifest creation.
 
 Constants for tool plugin metadata and configuration.
 
+### MockUrls Subclass
+
+| Constant             | Value                                 | Description                                 |
+| -------------------- | ------------------------------------- | ------------------------------------------- |
+| `MockReplayUploadUrl`| `"https://example.com/share/1234"`    | Mock upload URL for replays                 |
+| `MockMapUploadUrl`   | `"https://example.com/maps/123"`      | Mock upload URL for maps                    |
+
 ### ReplayManager Subclass
 
 Constants specific to the Replay Manager tool plugin.
@@ -1516,6 +1604,18 @@ Constants specific to the Replay Manager tool plugin.
 | `Tags`       | `["replays", "file-management", "sharing"]`| Tags associated with the Replay Manager tool     |
 | `IconPath`   | `"Assets/Icons/replay.png"`                | Icon path for the Replay Manager tool (placeholder) |
 | `IsBundled`  | `true`                                     | Whether the tool is bundled with the application |
+
+### Root Constants
+
+| Constant                               | Value         | Description                                                            |
+| -------------------------------------- | ------------- | ---------------------------------------------------------------------- |
+| `WindowsMockPathSegment`               | `"\\Mock\\"`  | Mock path separator indicator for demo environments on Windows         |
+| `UnixMockPathSegment`                  | `"/Mock/"`    | Mock path separator indicator for demo environments on Unix            |
+| `DeleteFailedTitle`                    | `"Delete Failed"` | Notification title for delete failure                              |
+| `DefaultUploadBufferSize`              | `8192` (8 KB) | Default upload buffer size in bytes                                    |
+| `UploadStageCompressionThresholdPercent` | `25`        | Upload progress stage percentage threshold for compression stage       |
+| `UploadStageCloudThresholdPercent`     | `88`          | Upload progress stage percentage threshold for cloud upload stage     |
+| `UploadStageCompletePercent`           | `100`         | Upload progress stage percentage threshold for completion stage       |
 
 ### Usage Example
 
@@ -1535,6 +1635,43 @@ var metadata = new ToolMetadata
     IsBundled = ToolConstants.ReplayManager.IsBundled,
 };
 ```
+
+---
+
+## PlatformConstants Class
+
+Platform-specific executable names and arguments used for shell operations and file reveals.
+
+| Constant                       | Value                                 | Description                                                                 |
+| ------------------------------ | ------------------------------------- | --------------------------------------------------------------------------- |
+| `WindowsExplorerExecutable`    | `"explorer.exe"`                      | Windows Explorer executable name                                            |
+| `WindowsExplorerSelectArgument`| `"/select,\"{0}\""`                   | Windows Explorer select argument format                                     |
+| `MacOSOpenExecutable`          | `"open"`                              | macOS open command executable name (resolved via PATH)                      |
+| `LinuxXdgOpenExecutable`       | `"xdg-open"`                          | Linux xdg-open command executable name (resolved via PATH)                  |
+| `WindowsExplorerPath`          | Dynamic property                      | Resolves absolute path to Windows Explorer via Windows directory with fallback |
+
+---
+
+## ReplayManagerConstants Class
+
+Constants specifically for the Replay Manager feature.
+
+| Constant                       | Value                                 | Description                                                                 |
+| ------------------------------ | ------------------------------------- | --------------------------------------------------------------------------- |
+| `MaxReplaySizeBytes`           | `1048576` (1MB)                       | Maximum size for a single replay file                                       |
+| `MaxZipEntries`                | `100`                                 | Maximum allowed entries in a replay ZIP archive                             |
+| `MaxAggregateUncompressedBytes`| `52428800` (50MB)                     | Maximum aggregate uncompressed bytes for replay ZIP archives                |
+| `MaxCompressionRatio`          | `50.0`                                | Maximum compression ratio allowed for replay ZIP archives                   |
+| `MaxUploadBytesPerPeriod`      | `10485760` (10MB)                     | Maximum upload bytes per period                                             |
+| `TempImportFilePrefix`         | `"genhub_import_"`                    | Prefix for temporary import files                                           |
+| `TempShareFilePrefix`          | `"genhub_share_"`                     | Prefix for temporary share files                                            |
+| `DefaultImportedReplayFileName`| `"imported_replay.rep"`               | Default file name for imported replays                                      |
+| `ZipFilePattern`               | `"*.zip"`                             | File pattern for replay ZIP archives                                        |
+| `DefaultZipName`               | `"replays"`                           | Default name for exported replay ZIP files                                  |
+| `DeleteFailedTitle`            | `"Delete Failed"`                     | Notification title for delete failure                                       |
+| `UploadCategory`               | `"replays"`                           | Category identifier for replay uploads                                      |
+| `WindowsMockPathSegment`       | `"\\Mock\\"`                          | Mock path separator indicator for demo environments on Windows              |
+| `UnixMockPathSegment`          | `"/Mock/"`                            | Mock path separator indicator for demo environments on Unix                 |
 
 ---
 
@@ -1560,6 +1697,17 @@ Constants specifically for the Map Manager feature.
 | `ToolId`                       | `"map-manager"`                            | Unique identifier for Map Manager                                                     |
 | `ToolName`                     | `"Map Manager"`                            | Display name for Map Manager                                                          |
 | `ToolDescription`              | `"Manage, import, and share custom maps. Create MapPacks for easy profile switching."` | Description of the tool |
+
+---
+
+## UserDataConstants Class
+
+Constants for tracked user data installations — content GenHub deploys into the user's game data
+folder under `Documents`.
+
+| Constant             | Value              | Description                                                                                                       |
+| -------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `UserModifiedSuffix` | `".user-modified"` | Suffix appended to a deployed file that no longer matches its recorded hash when it is moved aside so the pristine backup can be restored over it |
 
 ---
 

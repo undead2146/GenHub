@@ -60,6 +60,7 @@ public static class ContentPipelineModule
         AddCNCLabsPipeline(services);
         AddModDBPipeline(services);
         AddLocalFileSystemPipeline(services);
+        AddCsvPipeline(services);
         AddSharedComponents(services);
 
         return services;
@@ -357,6 +358,24 @@ public static class ContentPipelineModule
     }
 
     /// <summary>
+    /// Registers CSV content pipeline services.
+    /// </summary>
+    private static void AddCsvPipeline(IServiceCollection services)
+    {
+        // Register CSV content provider
+        services.AddTransient<CsvContentProvider>();
+        services.AddTransient<IContentProvider>(sp => sp.GetRequiredService<CsvContentProvider>());
+
+        // Register CSV discoverer (concrete and interface)
+        services.AddTransient<CsvDiscoverer>();
+        services.AddTransient<IContentDiscoverer, CsvDiscoverer>();
+
+        // Register CSV resolver (concrete and interface)
+        services.AddTransient<CsvResolver>();
+        services.AddTransient<IContentResolver, CsvResolver>();
+    }
+
+    /// <summary>
     /// Registers shared components used across multiple pipelines.
     /// </summary>
     private static void AddSharedComponents(IServiceCollection services)
@@ -373,5 +392,11 @@ public static class ContentPipelineModule
 
         // Register content orchestrator and validator
         services.AddSingleton<IContentValidator, ContentValidator>();
+
+        // Register installation step preconditions
+        services.AddSingleton<IInstallationStepPrecondition, EasyAntiCheatPrecondition>();
+
+        // Register installation instructions execution service
+        services.AddSingleton<IInstallationInstructionsService, InstallationInstructionsService>();
     }
 }

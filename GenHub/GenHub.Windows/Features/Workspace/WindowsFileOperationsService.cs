@@ -34,6 +34,10 @@ public partial class WindowsFileOperationsService(
         => baseService.VerifyFileHashAsync(filePath, expectedHash, cancellationToken);
 
     /// <inheritdoc/>
+    public Task<FileHashVerification> CheckFileHashAsync(string filePath, string expectedHash, CancellationToken cancellationToken = default)
+        => baseService.CheckFileHashAsync(filePath, expectedHash, cancellationToken);
+
+    /// <inheritdoc/>
     public Task DownloadFileAsync(Uri url, string destinationPath, IProgress<DownloadProgress>? progress = null, CancellationToken cancellationToken = default)
         => baseService.DownloadFileAsync(url, destinationPath, progress, cancellationToken);
 
@@ -146,7 +150,7 @@ public partial class WindowsFileOperationsService(
             }
             else
             {
-                await CreateSymlinkAsync(destinationPath, casSourcePath, allowFallback: true, cancellationToken).ConfigureAwait(false);
+                await CreateSymlinkAsync(destinationPath, casSourcePath, allowFallback: false, cancellationToken).ConfigureAwait(false);
             }
 
             logger.LogDebug("Created {LinkType} from CAS hash {Hash} to {DestinationPath}", useHardLink ? "hard link" : "symlink", hash, destinationPath);

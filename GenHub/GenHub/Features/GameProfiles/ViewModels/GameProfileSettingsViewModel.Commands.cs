@@ -85,7 +85,13 @@ public partial class GameProfileSettingsViewModel
                 });
             }
 
-            var coreItems = await _profileContentLoader!.LoadAvailableContentAsync(
+            if (_profileContentLoader == null)
+            {
+                StatusMessage = "Content loader unavailable";
+                return;
+            }
+
+            var coreItems = await _profileContentLoader.LoadAvailableContentAsync(
                 SelectedContentType,
                 new ObservableCollection<Core.Models.Content.ContentDisplayItem>(coreAvailableInstallations),
                 enabledContentIds);
@@ -418,8 +424,6 @@ public partial class GameProfileSettingsViewModel
 
                     StatusMessage = "Profile created successfully";
                     _logger?.LogInformation("Created new profile {ProfileName} with {ContentCount} enabled content items", Name, enabledContentIds.Count);
-
-                    WeakReferenceMessenger.Default.Send(new ProfileCreatedMessage(result.Data));
 
                     ExecuteCancel();
                 }

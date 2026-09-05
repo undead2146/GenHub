@@ -68,15 +68,40 @@ public class AppUpdateConstantsTests
         Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.UpdateAvailableNotificationTitle));
         Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.BranchUpdateAvailableNotificationTitle));
         Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.PrUpdateAvailableNotificationTitle));
+        Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.PrMergedUpdateAvailableNotificationTitle));
+        Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.BranchStaleUpdateAvailableNotificationTitle));
         Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.UpdatingAppNotificationTitle));
         Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.UpdateFailedNotificationTitle));
         Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.UpdateAction));
         Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.ViewUpdatesAction));
+        Assert.Equal("development", AppUpdateConstants.DevelopmentBranch);
+        Assert.Equal("main", AppUpdateConstants.MainBranch);
         Assert.Contains("{0}", AppUpdateConstants.ReleaseUpdateNotificationFormat);
         Assert.Contains("{0}", AppUpdateConstants.BranchUpdateNotificationFormat);
         Assert.Contains("{1}", AppUpdateConstants.BranchUpdateNotificationFormat);
         Assert.Contains("{0}", AppUpdateConstants.PrUpdateNotificationFormat);
         Assert.Contains("{1}", AppUpdateConstants.PrUpdateNotificationFormat);
+        Assert.Contains("{0}", AppUpdateConstants.PrMergedUpdateNotificationFormat);
+        Assert.Contains("{1}", AppUpdateConstants.PrMergedUpdateNotificationFormat);
+        Assert.Contains("{0}", AppUpdateConstants.PrMergedReleaseNotificationFormat);
+        Assert.Contains("{1}", AppUpdateConstants.PrMergedReleaseNotificationFormat);
+        Assert.Contains("{0}", AppUpdateConstants.BranchStaleUpdateNotificationFormat);
+        Assert.Contains("{1}", AppUpdateConstants.BranchStaleUpdateNotificationFormat);
+        Assert.Contains("{0}", AppUpdateConstants.BranchStaleReleaseNotificationFormat);
+        Assert.Contains("{1}", AppUpdateConstants.BranchStaleReleaseNotificationFormat);
+        Assert.Contains("{0}", AppUpdateConstants.PrMergedStatusMessageFormat);
+        Assert.Contains("{0}", AppUpdateConstants.BranchStaleStatusMessageFormat);
+        Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.PatRequiredForArtifactsMessage));
+        Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.PrDedupePrefix));
+        Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.PrFallbackDedupePrefix));
+        Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.BranchDedupePrefix));
+        Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.BranchFallbackDedupePrefix));
+        Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.ReleaseDedupePrefix));
+        Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.GitHubFallbackDedupePrefix));
+        Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.NotificationAlreadyShownLogFormat));
+        Assert.Contains("{Identity}", AppUpdateConstants.NotificationAlreadyShownLogFormat);
+        Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.LoadingMessage));
+        Assert.Equal("Loading...", AppUpdateConstants.LoadingMessage);
         Assert.Contains("{0}", AppUpdateConstants.UpdateFailedNotificationFormat);
     }
 
@@ -91,5 +116,19 @@ public class AppUpdateConstantsTests
         Assert.False(string.IsNullOrWhiteSpace(AppUpdateConstants.SortOptionPrNumberAsc));
         Assert.NotEqual(AppUpdateConstants.SortOptionLastUpdated, AppUpdateConstants.SortOptionPrNumberDesc);
         Assert.NotEqual(AppUpdateConstants.SortOptionPrNumberDesc, AppUpdateConstants.SortOptionPrNumberAsc);
+    }
+
+    /// <summary>
+    /// Tests that parallel download constants have valid positive values.
+    /// </summary>
+    [Fact]
+    public void ParallelDownload_Constants_ShouldHaveExpectedValues()
+    {
+        Assert.Equal(131072, AppUpdateConstants.DefaultStreamBufferSize);
+        Assert.Equal(2 * 1024 * 1024, AppUpdateConstants.DownloadChunkSizeBytes);
+        Assert.Equal(8, AppUpdateConstants.ParallelDownloadConcurrency);
+        Assert.Equal(4 * 1024 * 1024, AppUpdateConstants.ParallelDownloadThresholdBytes);
+        Assert.True(AppUpdateConstants.ParallelDownloadConcurrency > 0);
+        Assert.True(AppUpdateConstants.DownloadChunkSizeBytes > 0);
     }
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -77,6 +78,7 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     private readonly List<PullRequestInfo> _allPullRequests = [];
     private CancellationTokenSource? _loadArtifactsCts;
     private UpdateInfo? _currentUpdateInfo;
+    private bool _disposed;
 
     /// <summary>
     /// Gets or sets the status message.
@@ -90,6 +92,10 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsCheckButtonEnabled))]
     [NotifyPropertyChangedFor(nameof(DisplayLatestVersion))]
+    [NotifyPropertyChangedFor(nameof(CanDownloadUpdate))]
+    [NotifyPropertyChangedFor(nameof(InstallButtonText))]
+    [NotifyPropertyChangedFor(nameof(IsLoadingOrInstalling))]
+    [NotifyCanExecuteChangedFor(nameof(InstallUpdateCommand))]
     private bool _isChecking;
 
     /// <summary>
@@ -110,6 +116,7 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(InstallUpdateCommand))]
     [NotifyPropertyChangedFor(nameof(DisplayLatestVersion))]
+    [NotifyPropertyChangedFor(nameof(CanDownloadUpdate))]
     private bool _isUpdateAvailable;
 
     /// <summary>
@@ -130,6 +137,8 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(InstallButtonText))]
+    [NotifyPropertyChangedFor(nameof(CanDownloadUpdate))]
+    [NotifyPropertyChangedFor(nameof(IsLoadingOrInstalling))]
     [NotifyCanExecuteChangedFor(nameof(InstallUpdateCommand))]
     private bool _isInstalling;
 
@@ -243,6 +252,10 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(VersionPlaceholderText))]
+    [NotifyPropertyChangedFor(nameof(CanDownloadUpdate))]
+    [NotifyPropertyChangedFor(nameof(InstallButtonText))]
+    [NotifyPropertyChangedFor(nameof(IsLoadingOrInstalling))]
+    [NotifyCanExecuteChangedFor(nameof(InstallUpdateCommand))]
     private bool _isLoadingVersions;
 
     /// <summary>
@@ -347,10 +360,12 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
 
     private async Task LoadArtifactsForSubscribedItemAsync()
     {
-        // cancel any previous in-flight load
-        _loadArtifactsCts?.Cancel();
-        _loadArtifactsCts?.Dispose();
-        _loadArtifactsCts = null;
+        await CancelPreviousArtifactLoadAsync();
+
+        if (_disposed || _cancellationTokenSource.IsCancellationRequested)
+        {
+            return;
+        }
 
         var targetPr = SubscribedPr;
         var targetPrNumber = targetPr?.Number ?? _velopackUpdateManager.SubscribedPrNumber;
@@ -374,48 +389,13 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
 
         try
         {
-            IReadOnlyList<ArtifactUpdateInfo> artifacts = [];
-
-            if (targetPrNumber.HasValue)
-            {
-                _logger.LogInformation("Loading artifacts for PR #{PrNumber}", targetPrNumber.Value);
-                artifacts = await _velopackUpdateManager.GetArtifactsForPullRequestAsync(targetPrNumber.Value, token);
-            }
-            else if (!string.IsNullOrEmpty(targetBranch))
-            {
-                _logger.LogInformation("Loading artifacts for branch '{Branch}'", targetBranch);
-                artifacts = await _velopackUpdateManager.GetArtifactsForBranchAsync(targetBranch, token);
-            }
-
+            var artifacts = await FetchSubscribedArtifactsAsync(targetPrNumber, targetBranch, token);
             if (token.IsCancellationRequested)
             {
                 return;
             }
 
-            _logger.LogInformation("Received {Count} platform-compatible artifacts from update manager", artifacts.Count);
-
-            // use hashset to prevent duplicates based on artifact id
-            var addedArtifactIds = new HashSet<long>();
-            foreach (var artifact in artifacts)
-            {
-                if (addedArtifactIds.Add(artifact.ArtifactId))
-                {
-                    AvailableVersions.Add(artifact);
-                    _logger.LogDebug("Added artifact: {Version} ({Hash}) - ID: {Id}", artifact.DisplayVersion, artifact.GitHash, artifact.ArtifactId);
-                }
-                else
-                {
-                    _logger.LogWarning("Duplicate artifact detected in ViewModel: {Version} ({Hash}) - ID: {Id}", artifact.DisplayVersion, artifact.GitHash, artifact.ArtifactId);
-                }
-            }
-
-            _logger.LogInformation("Loaded {Count} artifacts into AvailableVersions", AvailableVersions.Count);
-
-            // auto-select latest version for improved user experience
-            if (AvailableVersions.Count > 0)
-            {
-                SelectedVersion = AvailableVersions[0];
-            }
+            PopulateAvailableVersions(artifacts);
         }
         catch (OperationCanceledException)
         {
@@ -437,6 +417,62 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
         }
     }
 
+    private async Task CancelPreviousArtifactLoadAsync()
+    {
+        var oldCts = Interlocked.Exchange(ref _loadArtifactsCts, null);
+        if (oldCts != null)
+        {
+            await oldCts.CancelAsync();
+            oldCts.Dispose();
+        }
+    }
+
+    private async Task<IReadOnlyList<ArtifactUpdateInfo>> FetchSubscribedArtifactsAsync(
+        int? targetPrNumber,
+        string? targetBranch,
+        CancellationToken token)
+    {
+        if (targetPrNumber.HasValue)
+        {
+            _logger.LogInformation("Loading artifacts for PR #{PrNumber}", targetPrNumber.Value);
+            return await _velopackUpdateManager.GetArtifactsForPullRequestAsync(targetPrNumber.Value, token);
+        }
+
+        if (!string.IsNullOrEmpty(targetBranch))
+        {
+            _logger.LogInformation("Loading artifacts for branch '{Branch}'", targetBranch);
+            return await _velopackUpdateManager.GetArtifactsForBranchAsync(targetBranch, token);
+        }
+
+        return [];
+    }
+
+    private void PopulateAvailableVersions(IReadOnlyList<ArtifactUpdateInfo> artifacts)
+    {
+        _logger.LogInformation("Received {Count} platform-compatible artifacts from update manager", artifacts.Count);
+
+        var addedArtifactIds = new HashSet<long>();
+        foreach (var artifact in artifacts)
+        {
+            if (addedArtifactIds.Add(artifact.ArtifactId))
+            {
+                AvailableVersions.Add(artifact);
+                _logger.LogDebug("Added artifact: {Version} ({Hash}) - ID: {Id}", artifact.DisplayVersion, artifact.GitHash, artifact.ArtifactId);
+            }
+            else
+            {
+                _logger.LogWarning("Duplicate artifact detected in ViewModel: {Version} ({Hash}) - ID: {Id}", artifact.DisplayVersion, artifact.GitHash, artifact.ArtifactId);
+            }
+        }
+
+        _logger.LogInformation("Loaded {Count} artifacts into AvailableVersions", AvailableVersions.Count);
+
+        if (AvailableVersions.Count > 0)
+        {
+            SelectedVersion = AvailableVersions[0];
+        }
+    }
+
     /// <summary>
     /// Initializes the view model by checking for updates and loading PRs.
     /// </summary>
@@ -446,8 +482,17 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
         var settings = _userSettingsService.Get();
         if (settings.SubscribedPrNumber.HasValue)
         {
-            _velopackUpdateManager.SubscribedPrNumber = settings.SubscribedPrNumber;
-            _logger.LogInformation("Loaded subscribed PR #{PrNumber} from settings", settings.SubscribedPrNumber);
+            var prNumber = settings.SubscribedPrNumber.Value;
+            _velopackUpdateManager.SubscribedPrNumber = prNumber;
+            SubscribedPr = new PullRequestInfo
+            {
+                Number = prNumber,
+                Title = $"PR #{prNumber}",
+                BranchName = "unknown",
+                Author = "unknown",
+                State = "open",
+            };
+            _logger.LogInformation("Loaded subscribed PR #{PrNumber} from settings", prNumber);
         }
 
         if (!string.IsNullOrEmpty(settings.SubscribedBranch))
@@ -487,7 +532,8 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Gets a value indicating whether an update is available and can be downloaded.
     /// </summary>
-    public bool CanDownloadUpdate => (IsUpdateAvailable || SelectedVersion != null) && !IsInstalling;
+    [SuppressMessage("Major Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "ViewModel property bound to UI elements")]
+    public bool CanDownloadUpdate => (IsUpdateAvailable || SelectedVersion != null) && !IsInstalling && !IsChecking && !IsLoadingVersions;
 
     /// <summary>
     /// Gets a value indicating whether the check button should be enabled.
@@ -495,9 +541,32 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     public bool IsCheckButtonEnabled => !IsChecking;
 
     /// <summary>
+    /// Gets a value indicating whether an operation is currently loading versions, checking updates, or installing.
+    /// </summary>
+    [SuppressMessage("Major Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "ViewModel property bound to UI elements")]
+    public bool IsLoadingOrInstalling => IsLoadingVersions || IsChecking || IsInstalling;
+
+    /// <summary>
     /// Gets the text for the install button.
     /// </summary>
-    public string InstallButtonText => IsInstalling ? "Installing..." : "Install Update";
+    [SuppressMessage("Major Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "ViewModel property bound to UI elements")]
+    public string InstallButtonText
+    {
+        get
+        {
+            if (IsInstalling)
+            {
+                return AppUpdateConstants.InstallingMessage;
+            }
+
+            if (IsChecking || IsLoadingVersions)
+            {
+                return AppUpdateConstants.LoadingMessage;
+            }
+
+            return AppUpdateConstants.InstallUpdateAction;
+        }
+    }
 
     /// <summary>
     /// Gets the latest version string, ensuring it has a 'v' prefix for display.
@@ -542,6 +611,12 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     /// </summary>
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
         _loadArtifactsCts?.Cancel();
         _loadArtifactsCts?.Dispose();
         _loadArtifactsCts = null;
@@ -691,12 +766,21 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
             ErrorMessage = string.Empty;
             StatusMessage = "Checking for updates...";
             IsUpdateAvailable = false;
+            ShowPrMergedWarning = false;
 
             _logger.LogInformation("Starting Velopack update check");
 
             // check if subscribed to a pr
             if (SubscribedPr != null)
             {
+                if (!HasPat)
+                {
+                    _logger.LogInformation("Subscribed to PR #{PrNumber} but GitHub PAT is not configured", SubscribedPr.Number);
+                    StatusMessage = AppUpdateConstants.PatRequiredForArtifactsMessage;
+                    IsUpdateAvailable = false;
+                    return;
+                }
+
                 if (SubscribedPr.LatestArtifact != null)
                 {
                     ProcessPrArtifactUpdate(SubscribedPr.LatestArtifact, SubscribedPr.Number);
@@ -712,6 +796,15 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
                     return;
                 }
 
+                if (_velopackUpdateManager.IsPrMergedOrClosed)
+                {
+                    ShowPrMergedWarning = true;
+                    StatusMessage = string.Format(AppUpdateConstants.PrMergedStatusMessageFormat, SubscribedPr.Number);
+                    IsUpdateAvailable = false;
+                    _logger.LogInformation("Subscribed PR #{PrNumber} is merged or closed", SubscribedPr.Number);
+                    return;
+                }
+
                 // if subscribed to pr but no artifact found, do not fall through to main release
                 _logger.LogInformation("Subscribed to PR #{PrNumber} but no artifact available yet", SubscribedPr.Number);
                 StatusMessage = $"Waiting for PR #{SubscribedPr.Number} build...";
@@ -722,20 +815,48 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
             // check branch updates if subscribed
             if (!string.IsNullOrEmpty(SubscribedBranch))
             {
-                _logger.LogInformation("Checking for artifact updates on branch: {Branch}", SubscribedBranch);
-                var branchArtifact = await _velopackUpdateManager.CheckForArtifactUpdatesAsync(_cancellationTokenSource.Token);
-
-                if (branchArtifact != null)
+                if (string.Equals(SubscribedBranch, AppUpdateConstants.MainBranch, StringComparison.OrdinalIgnoreCase))
                 {
-                    ProcessBranchArtifactUpdate(branchArtifact, SubscribedBranch);
+                    if (HasPat)
+                    {
+                        _logger.LogInformation("Checking for artifact updates on main branch");
+                        var mainArtifact = await _velopackUpdateManager.CheckForArtifactUpdatesAsync(_cancellationTokenSource.Token);
+                        if (mainArtifact != null)
+                        {
+                            ProcessBranchArtifactUpdate(mainArtifact, SubscribedBranch);
+                            return;
+                        }
+                    }
+
+                    _logger.LogInformation("Subscribed to main branch; proceeding to release check");
+                }
+                else
+                {
+                    if (!HasPat)
+                    {
+                        _logger.LogInformation("Subscribed to branch '{Branch}' but GitHub PAT is not configured", SubscribedBranch);
+                        StatusMessage = AppUpdateConstants.PatRequiredForArtifactsMessage;
+                        IsUpdateAvailable = false;
+                        return;
+                    }
+
+                    _logger.LogInformation("Checking for artifact updates on branch: {Branch}", SubscribedBranch);
+                    var branchArtifact = await _velopackUpdateManager.CheckForArtifactUpdatesAsync(_cancellationTokenSource.Token);
+
+                    if (branchArtifact != null)
+                    {
+                        ProcessBranchArtifactUpdate(branchArtifact, SubscribedBranch);
+                        return;
+                    }
+
+                    // if subscribed to branch but no artifact found, do not fall through to main release
+                    _logger.LogInformation("Subscribed to branch '{Branch}' but no artifact available yet", SubscribedBranch);
+                    StatusMessage = string.Equals(SubscribedBranch, AppUpdateConstants.DevelopmentBranch, StringComparison.OrdinalIgnoreCase)
+                        ? $"Waiting for {SubscribedBranch} build..."
+                        : string.Format(AppUpdateConstants.BranchStaleStatusMessageFormat, SubscribedBranch);
+                    IsUpdateAvailable = false;
                     return;
                 }
-
-                // if subscribed to branch but no artifact found, do not fall through to main release
-                _logger.LogInformation("Subscribed to branch '{Branch}' but no artifact available yet", SubscribedBranch);
-                StatusMessage = $"Waiting for {SubscribedBranch} build...";
-                IsUpdateAvailable = false;
-                return;
             }
 
             // check main branch releases
@@ -810,7 +931,7 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
         if (!string.IsNullOrEmpty(settings.DismissedUpdateVersion))
         {
             _userSettingsService.Update(s => s.DismissedUpdateVersion = string.Empty);
-            await _userSettingsService.SaveAsync();
+            await _userSettingsService.SaveAsync(CancellationToken.None);
         }
 
         // clear manager cache
@@ -1203,7 +1324,7 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
         if (!string.IsNullOrEmpty(LatestVersion))
         {
             _userSettingsService.Update(s => s.DismissedUpdateVersion = LatestVersion);
-            _ = _userSettingsService.SaveAsync();
+            _ = _userSettingsService.SaveAsync(CancellationToken.None);
             _logger.LogInformation("Dismissed update version {Version}", LatestVersion);
         }
 
@@ -1218,6 +1339,26 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
     partial void OnIsCheckingChanged(bool value)
     {
         OnPropertyChanged(nameof(IsCheckButtonEnabled));
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            UpdateCommandStates();
+        }
+        else
+        {
+            Dispatcher.UIThread.InvokeAsync(UpdateCommandStates);
+        }
+    }
+
+    partial void OnIsLoadingVersionsChanged(bool value)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            UpdateCommandStates();
+        }
+        else
+        {
+            Dispatcher.UIThread.InvokeAsync(UpdateCommandStates);
+        }
     }
 
     partial void OnIsUpdateAvailableChanged(bool value)
@@ -1251,6 +1392,7 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanInstallBranchArtifact));
         OnPropertyChanged(nameof(DisplayLatestVersion));
         OnPropertyChanged(nameof(InstallButtonText));
+        OnPropertyChanged(nameof(IsLoadingOrInstalling));
         InstallUpdateCommand.NotifyCanExecuteChanged();
         InstallPrArtifactCommand.NotifyCanExecuteChanged();
         InstallBranchArtifactCommand.NotifyCanExecuteChanged();
@@ -1279,7 +1421,7 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
             if (_velopackUpdateManager.IsPrMergedOrClosed && _velopackUpdateManager.SubscribedPrNumber.HasValue)
             {
                 ShowPrMergedWarning = true;
-                StatusMessage = $"PR #{_velopackUpdateManager.SubscribedPrNumber} has been merged. Select a new PR or switch to MAIN.";
+                StatusMessage = string.Format(AppUpdateConstants.PrMergedStatusMessageFormat, _velopackUpdateManager.SubscribedPrNumber.Value);
                 _logger.LogInformation("Subscribed PR has been merged/closed, showing warning");
             }
 
@@ -1368,6 +1510,13 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
         _velopackUpdateManager.SubscribedPrNumber = prNumber;
         _velopackUpdateManager.SubscribedBranch = null;
         SubscribedBranch = null;
+        ShowPrMergedWarning = false;
+        IsUpdateAvailable = false;
+        SelectedVersion = null;
+        LatestVersion = string.Empty;
+        ReleaseNotesUrl = string.Empty;
+        _currentUpdateInfo = null;
+
         SubscribedPr = AvailablePullRequests.FirstOrDefault(p => p.Number == prNumber) ?? new PullRequestInfo
         {
             Number = prNumber,
@@ -1376,7 +1525,6 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
             Author = "unknown",
             State = "open",
         };
-        ShowPrMergedWarning = false;
 
         // clear artifact cache to force fresh check
         _velopackUpdateManager.ClearCache();
@@ -1386,7 +1534,7 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
             settings.SubscribedPrNumber = prNumber;
             settings.SubscribedBranch = null;
         });
-        _ = _userSettingsService.SaveAsync();
+        _ = _userSettingsService.SaveAsync(CancellationToken.None);
 
         StatusMessage = $"Subscribed to PR #{prNumber}: {SubscribedPr.Title}";
         _logger.LogInformation("Subscribed to PR #{PrNumber}", prNumber);
@@ -1400,8 +1548,14 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
         _velopackUpdateManager.SubscribedPrNumber = null;
         _velopackUpdateManager.SubscribedBranch = branchName;
         SubscribedPr = null;
-        SubscribedBranch = branchName;
         ShowPrMergedWarning = false;
+        IsUpdateAvailable = false;
+        SelectedVersion = null;
+        LatestVersion = string.Empty;
+        ReleaseNotesUrl = string.Empty;
+        _currentUpdateInfo = null;
+
+        SubscribedBranch = branchName;
 
         // clear artifact cache to force fresh check
         _velopackUpdateManager.ClearCache();
@@ -1411,7 +1565,7 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
             settings.SubscribedBranch = branchName;
             settings.SubscribedPrNumber = null;
         });
-        _ = _userSettingsService.SaveAsync();
+        _ = _userSettingsService.SaveAsync(CancellationToken.None);
 
         StatusMessage = $"Subscribed to branch: {branchName}";
         _logger.LogInformation("Subscribed to branch '{Branch}'", branchName);
@@ -1455,7 +1609,7 @@ public partial class UpdateNotificationViewModel : ObservableObject, IDisposable
             settings.SubscribedPrNumber = null;
             settings.SubscribedBranch = null;
         });
-        _ = _userSettingsService.SaveAsync();
+        _ = _userSettingsService.SaveAsync(CancellationToken.None);
 
         _logger.LogInformation("Unsubscribed from dev builds, switched to MAIN");
         _ = CheckForUpdatesAsync();
