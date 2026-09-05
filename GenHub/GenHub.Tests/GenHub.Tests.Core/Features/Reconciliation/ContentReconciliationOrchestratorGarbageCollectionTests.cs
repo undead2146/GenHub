@@ -125,6 +125,51 @@ public class ContentReconciliationOrchestratorGarbageCollectionTests
             Times.Never);
     }
 
+    /// <summary>
+    /// Verifies that when bulk replacement fails or partially fails for profiles, untracking, removal, and GC are skipped.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ExecuteContentReplacementAsync_WhenReconciliationFails_DoesNotUntrackBlockedManifestAsync()
+    {
+        var reconciliationService = new Mock<IContentReconciliationService>();
+        reconciliationService
+            .Setup(r => r.OrchestrateBulkUpdateAsync(
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                false,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ReconciliationResult>.CreateSuccess(
+                new ReconciliationResult(0, 0, 1))); // 1 profile failed to update
+
+        var lifecycleManager = new Mock<ICasLifecycleManager>();
+        var orchestrator = CreateOrchestrator(reconciliationService, lifecycleManager);
+
+        var request = new ContentReplacementRequest
+        {
+            ManifestMapping = new Dictionary<string, string>
+            {
+                ["old-manifest-id"] = "new-manifest-id",
+            },
+            RemoveOldManifests = true,
+            RunGarbageCollection = true,
+        };
+
+        var result = await orchestrator.ExecuteContentReplacementAsync(request);
+
+        Assert.False(result.Success);
+        lifecycleManager.Verify(
+            manager => manager.UntrackManifestsAsync(
+                It.IsAny<IEnumerable<string>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        lifecycleManager.Verify(
+            manager => manager.RunGarbageCollectionAsync(
+                It.IsAny<bool>(),
+                It.IsAny<TimeSpan?>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static Mock<ICasLifecycleManager> CreateDisabledLifecycleManager()
     {
         var lifecycleManager = new Mock<ICasLifecycleManager>();

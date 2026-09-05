@@ -513,7 +513,9 @@ public class GameProfileManager(
         profile.Description = request.Description ?? profile.Description;
         profile.EnabledContentIds = request.EnabledContentIds ?? profile.EnabledContentIds ?? [];
         profile.GameClient = request.GameClient ?? profile.GameClient;
-        profile.WorkspaceStrategy = request.WorkspaceStrategy ?? profile.WorkspaceStrategy;
+        profile.WorkspaceStrategy = request.ClearWorkspaceStrategy
+            ? null
+            : request.WorkspaceStrategy ?? profile.WorkspaceStrategy;
         profile.LaunchOptions = request.LaunchArguments ?? profile.LaunchOptions ?? [];
         profile.CustomExecutablePath = request.CustomExecutablePath ?? profile.CustomExecutablePath;
         profile.WorkingDirectory = request.WorkingDirectory ?? profile.WorkingDirectory;

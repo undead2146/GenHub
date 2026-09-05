@@ -248,7 +248,7 @@ public partial class GameProfileSettingsViewModel
         var defaultCoverPath = _profileResourceService?.GetDefaultCoverPath(profile.GameClient?.GameType.ToString() ?? "ZeroHour") ?? string.Empty;
         CoverPath = NormalizeResourcePath(profile.CoverPath, defaultCoverPath);
         SelectedWorkspaceStrategy = profile.WorkspaceStrategy ?? GetDefaultWorkspaceStrategy();
-        OriginalWorkspaceStrategy = profile.WorkspaceStrategy ?? GetDefaultWorkspaceStrategy();
+        OriginalWorkspaceStrategy = profile.WorkspaceStrategy;
         _originalEnabledContentIds.Clear();
         if (profile.EnabledContentIds != null)
         {

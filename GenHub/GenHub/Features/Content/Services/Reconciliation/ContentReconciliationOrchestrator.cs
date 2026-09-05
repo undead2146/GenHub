@@ -55,30 +55,42 @@ public class ContentReconciliationOrchestrator(
         try
         {
             // STEP 1: Update all profiles with new manifest references
-            var (profilesUpdated, workspacesInvalidated) = await ExecuteStep1UpdateProfilesAsync(
+            var (profilesUpdated, workspacesInvalidated, step1Failed) = await ExecuteStep1UpdateProfilesAsync(
                 request.ManifestMapping,
                 operationId,
                 warnings,
-                () => criticalFailureOccurred = true,
                 cancellationToken);
+
+            if (step1Failed)
+            {
+                criticalFailureOccurred = true;
+            }
 
             // STEP 2: Untrack old manifests (MUST happen before GC)
-            await ExecuteStep2UntrackManifestsAsync(
+            bool step2Failed = await ExecuteStep2UntrackManifestsAsync(
                 request,
                 operationId,
                 criticalFailureOccurred,
                 warnings,
-                () => criticalFailureOccurred = true,
                 cancellationToken);
 
+            if (step2Failed)
+            {
+                criticalFailureOccurred = true;
+            }
+
             // STEP 3: Remove old manifest files from pool
-            int manifestsRemoved = await ExecuteStep3RemoveManifestsAsync(
+            var (manifestsRemoved, step3Failed) = await ExecuteStep3RemoveManifestsAsync(
                 request,
                 operationId,
                 criticalFailureOccurred,
                 warnings,
-                () => criticalFailureOccurred = true,
                 cancellationToken);
+
+            if (step3Failed)
+            {
+                criticalFailureOccurred = true;
+            }
 
             // STEP 4: Run GC (now safe - .refs files are gone)
             var (casObjectsCollected, bytesFreed) = await ExecuteStep4GarbageCollectionAsync(
@@ -571,11 +583,10 @@ public class ContentReconciliationOrchestrator(
         }
     }
 
-    private async Task<(int ProfilesUpdated, int WorkspacesInvalidated)> ExecuteStep1UpdateProfilesAsync(
+    private async Task<(int ProfilesUpdated, int WorkspacesInvalidated, bool Failed)> ExecuteStep1UpdateProfilesAsync(
         IReadOnlyDictionary<string, string> manifestMapping,
         string operationId,
         List<string> warnings,
-        Action onCriticalFailure,
         CancellationToken cancellationToken)
     {
         logger.LogDebug("[Orchestrator:{OpId}] Step 1: Updating profiles", operationId);
@@ -586,39 +597,39 @@ public class ContentReconciliationOrchestrator(
 
         int profilesUpdated = profileResult.Data?.ProfilesUpdated ?? 0;
         int workspacesInvalidated = profileResult.Data?.WorkspacesInvalidated ?? 0;
+        bool failed = false;
 
         if (!profileResult.Success)
         {
             warnings.Add($"Profile update failure: {profileResult.FirstError}");
-            onCriticalFailure();
+            failed = true;
         }
         else if (profileResult.Data?.FailedProfilesCount > 0)
         {
             warnings.Add($"Partial failure: {profileResult.Data.FailedProfilesCount} profiles failed to update");
-            onCriticalFailure();
+            failed = true;
         }
 
-        return (profilesUpdated, workspacesInvalidated);
+        return (profilesUpdated, workspacesInvalidated, failed);
     }
 
-    private async Task ExecuteStep2UntrackManifestsAsync(
+    private async Task<bool> ExecuteStep2UntrackManifestsAsync(
         ContentReplacementRequest request,
         string operationId,
         bool criticalFailureOccurred,
         List<string> warnings,
-        Action onCriticalFailure,
         CancellationToken cancellationToken)
     {
         if (!request.RemoveOldManifests)
         {
-            return;
+            return false;
         }
 
         if (criticalFailureOccurred)
         {
             logger.LogWarning("[Orchestrator:{OpId}] Skipping manifest untracking step due to previous errors in profile update", operationId);
             warnings.Add("Manifest untracking skipped due to previous errors in profile update.");
-            return;
+            return false;
         }
 
         logger.LogDebug("[Orchestrator:{OpId}] Step 2: Untracking old manifests", operationId);
@@ -627,27 +638,28 @@ public class ContentReconciliationOrchestrator(
         if (!untrackResult.Success)
         {
             warnings.Add($"Manifest untracking failed: {untrackResult.FirstError}");
-            onCriticalFailure();
+            return true;
         }
 
         foreach (var oldId in request.ManifestMapping.Keys)
         {
             WeakReferenceMessenger.Default.Send(new ContentRemovingEvent(oldId, null, "Replacement"));
         }
+
+        return false;
     }
 
-    private async Task<int> ExecuteStep3RemoveManifestsAsync(
+    private async Task<(int ManifestsRemoved, bool Failed)> ExecuteStep3RemoveManifestsAsync(
         ContentReplacementRequest request,
         string operationId,
         bool criticalFailureOccurred,
         List<string> warnings,
-        Action onCriticalFailure,
         CancellationToken cancellationToken)
     {
         int manifestsRemoved = 0;
         if (!request.RemoveOldManifests)
         {
-            return manifestsRemoved;
+            return (manifestsRemoved, false);
         }
 
         logger.LogDebug("[Orchestrator:{OpId}] Step 3: Removing old manifests from pool", operationId);
@@ -655,9 +667,10 @@ public class ContentReconciliationOrchestrator(
         {
             logger.LogWarning("[Orchestrator:{OpId}] Skipping manifest removal step due to previous errors", operationId);
             warnings.Add("Manifest removal step skipped due to previous errors in profile update or untracking.");
-            return manifestsRemoved;
+            return (manifestsRemoved, false);
         }
 
+        bool failed = false;
         foreach (var oldId in request.ManifestMapping.Keys)
         {
             try
@@ -670,17 +683,17 @@ public class ContentReconciliationOrchestrator(
                 else
                 {
                     warnings.Add(removeResult.FirstError ?? "Manifest removal failed with unknown error");
-                    onCriticalFailure();
+                    failed = true;
                 }
             }
             catch (Exception ex)
             {
                 warnings.Add($"Error removing manifest {oldId}: {ex.Message}");
-                onCriticalFailure();
+                failed = true;
             }
         }
 
-        return manifestsRemoved;
+        return (manifestsRemoved, failed);
     }
 
     private async Task<(int CasObjectsCollected, long BytesFreed)> ExecuteStep4GarbageCollectionAsync(

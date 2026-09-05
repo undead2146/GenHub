@@ -555,6 +555,7 @@ public partial class GameProfileSettingsViewModel
             ThemeColor = originalProfile.ThemeColor,
             GameInstallationId = originalProfile.GameInstallationId,
             WorkspaceStrategy = originalProfile.WorkspaceStrategy,
+            ClearWorkspaceStrategy = !originalProfile.WorkspaceStrategy.HasValue,
             EnabledContentIds = originalEnabledContentIds,
             CommandLineArguments = originalProfile.CommandLineArguments,
             IconPath = originalProfile.IconPath,

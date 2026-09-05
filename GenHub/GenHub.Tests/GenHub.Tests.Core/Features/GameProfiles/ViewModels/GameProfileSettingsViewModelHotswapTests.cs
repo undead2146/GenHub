@@ -940,6 +940,7 @@ public class GameProfileSettingsViewModelHotswapTests
 
         _viewModel.Name = "New Edited Name";
         _viewModel.Description = "New Edited Description";
+        _viewModel.SelectedWorkspaceStrategy = GenHub.Core.Models.Enums.WorkspaceStrategy.SymlinkOnly;
         _viewModel.GameSettingsViewModel.ResolutionWidth = 1920;
         _viewModel.GameSettingsViewModel.ResolutionHeight = 1080;
         _viewModel.GameSettingsViewModel.SoundVolume = 95;
@@ -963,6 +964,8 @@ public class GameProfileSettingsViewModelHotswapTests
                     r.Name == "PostSave Profile" &&
                     r.EnabledContentIds != null &&
                     r.EnabledContentIds.Contains(originalMapId) &&
+                    r.ClearWorkspaceStrategy == true &&
+                    r.WorkspaceStrategy == null &&
                     r.VideoResolutionWidth == 800 &&
                     r.VideoResolutionHeight == 600 &&
                     r.AudioSoundVolume == 50),
