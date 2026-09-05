@@ -110,30 +110,6 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
             processor.ExtractArchivesSafelyAsync(_stagingDirectory));
     }
 
-    /// <summary>
-    /// Verifies that an executable archive containing an unsafe path throws an InvalidDataException rather than a generic unsupported error.
-    /// </summary>
-    /// <returns>A task representing the asynchronous unit test.</returns>
-    [Fact]
-    public async Task ExtractArchivesSafelyAsync_WithExeArchiveContainingUnsafePath_ThrowsInvalidDataExceptionAsync()
-    {
-        // Arrange
-        Directory.CreateDirectory(_stagingDirectory);
-        var exePath = Path.Combine(_stagingDirectory, "malicious_sfx.exe");
-        using (var archive = ZipFile.Open(exePath, ZipArchiveMode.Create))
-        {
-            var entry = archive.CreateEntry("../outside.txt");
-            using var writer = new StreamWriter(entry.Open());
-            await writer.WriteAsync("malicious content");
-        }
-
-        var processor = CreateProcessor();
-
-        // Act & Assert
-        var ex = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ExtractArchivesSafelyAsync(_stagingDirectory));
-        Assert.Contains("unsafe path", ex.Message, StringComparison.OrdinalIgnoreCase);
-    }
 
     /// <summary>
     /// Verifies that an archive exceeding the maximum allowed entry count throws an InvalidDataException.

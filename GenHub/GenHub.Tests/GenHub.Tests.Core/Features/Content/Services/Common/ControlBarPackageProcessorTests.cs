@@ -313,6 +313,7 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
     public void IsControlBarContent_WithControlBarMetadataAndUnrelatedAssets_ReturnsFalse()
     {
         // Arrange
+        Directory.CreateDirectory(_testDir);
         File.WriteAllText(Path.Combine(_testDir, "340_ControlBarPro1080ZH.big"), "cb-content");
         File.WriteAllText(Path.Combine(_testDir, "UnrelatedMod.big"), "mod-content");
         Directory.CreateDirectory(Path.Combine(_testDir, "Maps"));
