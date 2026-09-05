@@ -387,4 +387,41 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
         Assert.Null(result720);
         Assert.Null(result1440);
     }
+
+    /// <summary>
+    /// Verifies that unrelated files under allowed directories (e.g. unknown .dat, unrelated .wnd, nested .json) return false from IsControlBarContent.
+    /// </summary>
+    [Theory]
+    [InlineData("GenTool/telemetry.dat")]
+    [InlineData("Window/MainMenu.wnd")]
+    [InlineData("Art/notes.txt")]
+    [InlineData("Window/layout.json")]
+    public void IsControlBarContent_WithUnrelatedFileBeneathAllowedDirectory_ReturnsFalse(string relativeFilePath)
+    {
+        // Arrange
+        var fullPath = Path.Combine(_testDir, relativeFilePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        File.WriteAllText(fullPath, "dummy-data");
+
+        // Also add a valid control bar marker
+        var validWnd = Path.Combine(_testDir, "Window", "ControlBarPro.wnd");
+        Directory.CreateDirectory(Path.GetDirectoryName(validWnd)!);
+        File.WriteAllText(validWnd, "ValidWindow");
+
+        var converter = new CompressedImageToTgaConverter(NullLogger<CompressedImageToTgaConverter>.Instance);
+        var processor = new ControlBarPackageProcessor(converter, NullLogger<ControlBarPackageProcessor>.Instance);
+
+        var manifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.103.github.addon.mixedmarkeraddon"),
+            Name = "Control Bar With Extra Assets",
+            ContentType = ContentType.Addon,
+        };
+
+        // Act
+        var result = processor.IsControlBarContent(_testDir, manifest);
+
+        // Assert
+        Assert.False(result);
+    }
 }
