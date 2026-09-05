@@ -19,8 +19,8 @@ public static class ModDBCategoryMapper
             // Releases (Mods)
             "2" => ContentType.Mod,  // Full Version
             "3" => ContentType.Mod,  // Demo
-            "4" => ContentType.Mod,  // Patch (mod release/update)
-            "28" => ContentType.Mod, // Script (mod script/release)
+            "4" => ContentType.Patch, // Patch
+            "28" => ContentType.Patch, // Script
             "29" => ContentType.Addon, // Trainer
 
             // Media
@@ -60,11 +60,11 @@ public static class ModDBCategoryMapper
             "131" => ContentType.Addon, // Model Pack
 
             // Addons - Skins
-            "112" => ContentType.Addon, // Player Skin
-            "133" => ContentType.Addon, // Prop Skin
-            "113" => ContentType.Addon, // Vehicle Skin
-            "114" => ContentType.Addon, // Weapon Skin
-            "134" => ContentType.Addon, // Skin Pack
+            "112" => ContentType.Skin, // Player Skin
+            "133" => ContentType.Skin, // Prop Skin
+            "113" => ContentType.Skin, // Vehicle Skin
+            "114" => ContentType.Skin, // Weapon Skin
+            "134" => ContentType.Skin, // Skin Pack
 
             // Addons - Audio
             "117" => ContentType.Addon, // Music
@@ -75,8 +75,8 @@ public static class ModDBCategoryMapper
             // Addons - Graphics
             "124" => ContentType.Addon, // Decal
             "136" => ContentType.Addon, // Effects GFX
-            "125" => ContentType.Addon, // GUI
-            "126" => ContentType.Addon, // HUD
+            "125" => ContentType.Skin, // GUI
+            "126" => ContentType.Skin, // HUD
             "128" => ContentType.Addon, // Sprite
             "129" => ContentType.Addon, // Texture
 
@@ -103,8 +103,8 @@ public static class ModDBCategoryMapper
         {
             var s when s.Contains("full version") => ContentType.Mod,
             var s when s.Contains("demo") => ContentType.Mod,
-            var s when s.Contains("patch") => ContentType.Mod,
-            var s when s.Contains("script") => ContentType.Mod,
+            var s when s.Contains("patch") => ContentType.Patch,
+            var s when s.Contains("script") => ContentType.Patch,
             var s when s.Contains("trainer") => ContentType.Addon,
 
             var s when s.Contains("tool") => ContentType.ModdingTool,
@@ -121,9 +121,9 @@ public static class ModDBCategoryMapper
             var s when s.Contains("map") => ContentType.Map,
             var s when s.Contains("prefab") => ContentType.Map,
 
-            var s when s.Contains("skin") => ContentType.Addon,
-            var s when s.Contains("gui") => ContentType.Addon,
-            var s when s.Contains("hud") => ContentType.Addon,
+            var s when s.Contains("skin") => ContentType.Skin,
+            var s when s.Contains("gui") => ContentType.Skin,
+            var s when s.Contains("hud") => ContentType.Skin,
 
             var s when s.Contains("language") => ContentType.LanguagePack,
 

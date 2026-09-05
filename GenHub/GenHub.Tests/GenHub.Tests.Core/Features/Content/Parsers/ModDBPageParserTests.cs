@@ -1671,6 +1671,202 @@ public sealed class ModDBPageParserTests
         Assert.Equal(expected, result);
     }
 
+    /// <summary>
+    /// Verifies that IsDirectDownloadUrl fails closed, only returning true for valid ModDB start/mirror
+    /// endpoints or trusted ModDB CDN domains, and false for listing pages, external domains, or attacker origins.
+    /// </summary>
+    /// <param name="url">The URL to test.</param>
+    /// <param name="expected">The expected validation result.</param>
+    [Theory]
+    [InlineData("https://www.moddb.com/downloads/start/310120", true)]
+    [InlineData("https://www.moddb.com/addons/start/302328", true)]
+    [InlineData("https://www.moddb.com/downloads/mirror/310120", true)]
+    [InlineData("https://www.moddb.com/addons/mirror/302328", true)]
+    [InlineData("/downloads/start/310120", true)]
+    [InlineData("/addons/start/302328", true)]
+    [InlineData("https://media.moddb.com/images/downloads/1/1/file.zip", true)]
+    [InlineData("https://files.moddb.com/downloads/1/1/file.zip", true)]
+    [InlineData("https://downloads.moddb.com/files/file.zip", true)]
+    [InlineData("https://www.moddb.com/mods/cool-mod/downloads/cool-file", false)]
+    [InlineData("https://www.moddb.com/mods/cool-mod", false)]
+    [InlineData("https://www.moddb.com/games/cc-generals-zero-hour/downloads", false)]
+    [InlineData("https://moddb.com.attacker.example/downloads/start/310120", false)]
+    [InlineData("https://external-site.com/downloads/start/310120", false)]
+    [InlineData("javascript:alert(1)", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void IsDirectDownloadUrl_ValidatesEndpointsAndHosts(string? url, bool expected)
+    {
+        // Act
+        var result = ModDBPageParser.IsDirectDownloadUrl(url);
+
+        // Assert
+        Assert.Equal(expected, result);
+    }
+
+    /// <summary>
+    /// Verifies that ParseAsync throws ArgumentException when given an unsupported or attacker origin.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ParseAsync_UnsupportedUrlOrigin_ThrowsArgumentExceptionAsync()
+    {
+        // Arrange
+        var playwright = new Mock<IPlaywrightService>();
+        var parser = new ModDBPageParser(playwright.Object, new Mock<ILogger<ModDBPageParser>>().Object);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(() => parser.ParseAsync("https://evil.example.com/mods/fake"));
+    }
+
+    /// <summary>
+    /// Verifies that ParseFileDetailAsync throws ArgumentException when given an unsupported or attacker origin.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ParseFileDetailAsync_UnsupportedUrlOrigin_ThrowsArgumentExceptionAsync()
+    {
+        // Arrange
+        var playwright = new Mock<IPlaywrightService>();
+        var parser = new ModDBPageParser(playwright.Object, new Mock<ILogger<ModDBPageParser>>().Object);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(() => parser.ParseFileDetailAsync("https://evil.example.com/downloads/start/1"));
+    }
+
+    /// <summary>
+    /// Verifies that ParseFileDetailsManyAsync throws ArgumentException when any URL has an unsupported origin.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ParseFileDetailsManyAsync_UnsupportedUrlOrigin_ThrowsArgumentExceptionAsync()
+    {
+        // Arrange
+        var playwright = new Mock<IPlaywrightService>();
+        var parser = new ModDBPageParser(playwright.Object, new Mock<ILogger<ModDBPageParser>>().Object);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(() => parser.ParseFileDetailsManyAsync(
+            ["https://www.moddb.com/downloads/1", "https://attacker.example/downloads/2"]));
+    }
+
+    /// <summary>
+    /// Verifies that ParseAsync(url, html) throws ArgumentException when given an unsupported origin.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ParseAsync_WithHtml_UnsupportedUrlOrigin_ThrowsArgumentExceptionAsync()
+    {
+        // Arrange
+        var playwright = new Mock<IPlaywrightService>();
+        var parser = new ModDBPageParser(playwright.Object, new Mock<ILogger<ModDBPageParser>>().Object);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(() => parser.ParseAsync("https://evil.example.com/mods/fake", "<html></html>"));
+    }
+
+    /// <summary>
+    /// Verifies that ParseFileDetailsManyAsync treats missing or failed URLs in the Playwright response
+    /// as soft failures, returning successful documents without throwing an exception.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ParseFileDetailsManyAsync_WithMissingOrFailedDocument_OmitsFailedUrlAndReturnsSuccessfulOnesAsync()
+    {
+        // Arrange
+        const string goodUrl = "https://www.moddb.com/games/cc-generals-zero-hour/downloads/good-file";
+        const string failedUrl = "https://www.moddb.com/games/cc-generals-zero-hour/downloads/failed-file";
+
+        var goodDoc = await CreateDocumentAsync("""
+            <html><body>
+              <div id="downloadsinfo">
+                <div class="row clear"><h5>Filename</h5><span class="summary">good.zip</span></div>
+                <div class="row clear"><a class="button buttonlarge" href="/downloads/start/101">Download</a></div>
+              </div>
+            </body></html>
+            """);
+
+        var playwright = CreatePlaywrightMock();
+        playwright
+            .Setup(service => service.FetchAndParsePersistentManyAsync(
+                ModDBConstants.BrowserProfileName,
+                It.Is<IReadOnlyList<string>>(urls => urls.Contains(goodUrl) && urls.Contains(failedUrl)),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, IDocument>(StringComparer.OrdinalIgnoreCase)
+            {
+                // failedUrl is intentionally missing from the returned fetched dictionary
+                [goodUrl] = goodDoc,
+            });
+
+        var parser = new ModDBPageParser(playwright.Object, new Mock<ILogger<ModDBPageParser>>().Object);
+
+        // Act
+        var results = await parser.ParseFileDetailsManyAsync([goodUrl, failedUrl]);
+
+        // Assert
+        Assert.Single(results);
+        Assert.True(results.ContainsKey(goodUrl));
+        Assert.False(results.ContainsKey(failedUrl));
+        var file = Assert.Single(results[goodUrl].Sections.OfType<DownloadableFile>());
+        Assert.Equal("good.zip", file.Name);
+    }
+
+    /// <summary>
+    /// Verifies that ParseAsync uses a single canonical base URL (stripping query parameters and fragments)
+    /// so section URLs requested and fetched match consistently.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ParseAsync_CanonicalBaseUrl_StripsQueryParamsAndFragmentsForSectionSweepsAsync()
+    {
+        // Arrange
+        const string pageUrl = "https://www.moddb.com/mods/example-mod?filter=t&sort=date-desc#main";
+        const string canonicalBase = "https://www.moddb.com/mods/example-mod";
+
+        var documents = new Dictionary<string, IDocument>(StringComparer.OrdinalIgnoreCase)
+        {
+            [pageUrl] = await CreateDocumentAsync("<html><body><h1>Example Mod</h1></body></html>"),
+            [canonicalBase + "/downloads"] = await CreateDocumentAsync("""
+                <div class="row file"><h4>Example File</h4><span class="size">5 MB</span><a href="/downloads/start/123">Download</a></div>
+                """),
+            [canonicalBase + "/addons"] = await CreateDocumentAsync("<html><body></body></html>"),
+            [canonicalBase + "/videos"] = await CreateDocumentAsync("<html><body></body></html>"),
+            [canonicalBase + "/images"] = await CreateDocumentAsync("<html><body></body></html>"),
+            [canonicalBase + "/reviews"] = await CreateDocumentAsync("<html><body></body></html>"),
+            [canonicalBase + "/articles"] = await CreateDocumentAsync("<html><body></body></html>"),
+        };
+
+        var playwright = CreatePlaywrightMock();
+        playwright
+            .Setup(service => service.FetchAndParsePersistentManyAsync(
+                ModDBConstants.BrowserProfileName,
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((string _, IReadOnlyList<string> urls, CancellationToken _) =>
+            {
+                var result = new Dictionary<string, IDocument>(StringComparer.OrdinalIgnoreCase);
+                foreach (var url in urls)
+                {
+                    if (documents.TryGetValue(url, out var doc))
+                    {
+                        result[url] = doc;
+                    }
+                }
+
+                return Task.FromResult<IReadOnlyDictionary<string, IDocument>>(result);
+            });
+
+        var parser = new ModDBPageParser(playwright.Object, new Mock<ILogger<ModDBPageParser>>().Object);
+
+        // Act
+        var parsed = await parser.ParseAsync(pageUrl);
+
+        // Assert
+        var file = Assert.Single(parsed.Sections.OfType<DownloadableFile>());
+        Assert.Equal("Example File", file.Name);
+        Assert.Equal("https://www.moddb.com/downloads/start/123", file.DownloadUrl);
+    }
+
     private static async Task<IDocument> CreateDocumentAsync(string html)
     {
         var browsingContext = BrowsingContext.New(Configuration.Default);

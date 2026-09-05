@@ -263,6 +263,30 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         return IsJunkDeveloperName(uploader) ? null : uploader;
     }
 
+    private static bool IsModDbFileUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return false;
+        }
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        var isModDb = uri.Host.Equals("moddb.com", StringComparison.OrdinalIgnoreCase) ||
+                      uri.Host.EndsWith(".moddb.com", StringComparison.OrdinalIgnoreCase);
+        if (!isModDb)
+        {
+            return false;
+        }
+
+        var path = uri.AbsolutePath;
+        return path.Contains("/downloads/", StringComparison.OrdinalIgnoreCase) ||
+               path.Contains("/addons/", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static (string? DownloadUrl, string? DetailsUrl) ExtractRowUrls(IElement row, IElement? nameEl)
     {
         string? downloadUrl = null;
@@ -274,13 +298,13 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         if (!string.IsNullOrEmpty(titleHref))
         {
             titleHref = ToAbsoluteUrl(titleHref);
-            if (!IsDirectDownloadUrl(titleHref))
-            {
-                detailsUrl = titleHref;
-            }
-            else
+            if (IsDirectDownloadUrl(titleHref))
             {
                 downloadUrl = titleHref;
+            }
+            else if (IsModDbFileUrl(titleHref))
+            {
+                detailsUrl = titleHref;
             }
         }
 
@@ -288,16 +312,13 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         var buttonHref = linkEl?.GetAttribute("href");
         if (!string.IsNullOrEmpty(buttonHref))
         {
-            if (!buttonHref.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-            {
-                buttonHref = ModDBConstants.BaseUrl.TrimEnd('/') + "/" + buttonHref.TrimStart('/');
-            }
+            buttonHref = ToAbsoluteUrl(buttonHref);
 
             if (IsDirectDownloadUrl(buttonHref))
             {
                 downloadUrl = buttonHref;
             }
-            else if (string.IsNullOrEmpty(detailsUrl))
+            else if (string.IsNullOrEmpty(detailsUrl) && IsModDbFileUrl(buttonHref))
             {
                 detailsUrl = buttonHref;
             }
@@ -1229,9 +1250,9 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
 
             var linkEl = row.QuerySelector(ModDBParserConstants.ArticleLinkSelector);
             var url = linkEl?.GetAttribute("href");
-            if (!string.IsNullOrEmpty(url) && !url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(url))
             {
-                url = "https:" + url;
+                url = ToAbsoluteUrl(url);
             }
 
             articles.Add(new Article(
@@ -2238,6 +2259,11 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
     /// <inheritdoc />
     public async Task<ParsedWebPage> ParseAsync(string url, CancellationToken cancellationToken = default)
     {
+        if (!CanParse(url))
+        {
+            throw new ArgumentException($"URL is not supported by {ParserId}: {url}", nameof(url));
+        }
+
         logger.LogInformation("Parsing ModDB page: {Url}", url);
 
         return await playwrightService.ExecuteInPersistentContextAsync(
@@ -2356,6 +2382,11 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
     /// <returns>A parsed page containing the single file and the FileDetail page's context.</returns>
     public async Task<ParsedWebPage> ParseFileDetailAsync(string url, CancellationToken cancellationToken = default)
     {
+        if (!CanParse(url))
+        {
+            throw new ArgumentException($"URL is not supported by {ParserId}: {url}", nameof(url));
+        }
+
         logger.LogInformation("Parsing ModDB file detail (acquisition path): {Url}", url);
 
         var document = await playwrightService.FetchAndParsePersistentAsync(
@@ -2387,9 +2418,19 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         IReadOnlyList<string> urls,
         CancellationToken cancellationToken = default)
     {
-        if (urls == null || urls.Count == 0)
+        ArgumentNullException.ThrowIfNull(urls);
+
+        if (urls.Count == 0)
         {
             return new Dictionary<string, ParsedWebPage>();
+        }
+
+        foreach (var url in urls)
+        {
+            if (!CanParse(url))
+            {
+                throw new ArgumentException($"URL is not supported by {ParserId}: {url}", nameof(urls));
+            }
         }
 
         logger.LogInformation("Parsing ModDB file details in parallel batch ({Count} URLs)", urls.Count);
@@ -2400,8 +2441,14 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             cancellationToken);
 
         var results = new Dictionary<string, ParsedWebPage>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (url, document) in fetched)
+        foreach (var url in urls)
         {
+            if (!fetched.TryGetValue(url, out var document))
+            {
+                logger.LogWarning("ModDB file detail page was not fetched or failed to load: {Url}", url);
+                continue;
+            }
+
             try
             {
                 var sections = new List<ContentSection>();
@@ -2418,7 +2465,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
                     Sections: sections,
                     PageType: PageType.FileDetail);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogWarning(ex, "Failed to parse file detail for {Url}", url);
             }
@@ -2428,16 +2475,21 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
     }
 
     /// <inheritdoc />
-    public Task<ParsedWebPage> ParseAsync(string url, string html, CancellationToken cancellationToken = default)
+    public async Task<ParsedWebPage> ParseAsync(string url, string html, CancellationToken cancellationToken = default)
     {
+        if (!CanParse(url))
+        {
+            throw new ArgumentException($"URL is not supported by {ParserId}: {url}", nameof(url));
+        }
+
         var browsingContext = BrowsingContext.New(Configuration.Default);
-        var document = browsingContext.OpenAsync(req => req.Content(html), cancellationToken).GetAwaiter().GetResult();
-        return Task.FromResult(ParseInternal(url, document));
+        var document = await browsingContext.OpenAsync(req => req.Content(html), cancellationToken).ConfigureAwait(false);
+        return ParseInternal(url, document);
     }
 
     /// <summary>
     /// Determines whether a ModDB URL points directly to an acquisition endpoint (/start/ or /mirror/)
-    /// rather than an HTML content or detail listing page.
+    /// or a trusted ModDB file CDN/media domain rather than an HTML content or detail listing page.
     /// </summary>
     /// <param name="url">The URL to test.</param>
     /// <returns><see langword="true"/> if the URL is a direct download link; otherwise <see langword="false"/>.</returns>
@@ -2448,20 +2500,67 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             return false;
         }
 
-        if (url.Contains("/downloads/start/", StringComparison.OrdinalIgnoreCase) ||
-            url.Contains("/addons/start/", StringComparison.OrdinalIgnoreCase) ||
-            url.Contains("/downloads/mirror/", StringComparison.OrdinalIgnoreCase))
+        Uri? uri;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out uri))
         {
-            return true;
+            if (url.StartsWith('/'))
+            {
+                if (!Uri.TryCreate(new Uri(ModDBConstants.BaseUrl), url, out uri))
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
         }
 
-        if ((url.Contains("/mods/", StringComparison.OrdinalIgnoreCase) || url.Contains("/games/", StringComparison.OrdinalIgnoreCase)) &&
-            (url.Contains("/downloads/", StringComparison.OrdinalIgnoreCase) || url.Contains("/addons/", StringComparison.OrdinalIgnoreCase)))
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
         {
             return false;
         }
 
-        return true;
+        var host = uri.Host;
+        var isModDbHost = host.Equals("moddb.com", StringComparison.OrdinalIgnoreCase) ||
+                          host.EndsWith(".moddb.com", StringComparison.OrdinalIgnoreCase);
+
+        if (!isModDbHost)
+        {
+            return false;
+        }
+
+        var path = uri.AbsolutePath;
+
+        if (path.Contains("/downloads/start/", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("/downloads/mirror/", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("/addons/start/", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("/addons/mirror/", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (host.Equals("media.moddb.com", StringComparison.OrdinalIgnoreCase) ||
+            host.Equals("files.moddb.com", StringComparison.OrdinalIgnoreCase) ||
+            host.Equals("downloads.moddb.com", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Returns the canonical base URL without query parameters, fragments, or trailing slashes.
+    /// </summary>
+    private static string GetCanonicalBaseUrl(string url)
+    {
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return $"{uri.Scheme}://{uri.Authority}{uri.AbsolutePath.TrimEnd('/')}";
+        }
+
+        return url.Split('?')[0].Split('#')[0].TrimEnd('/');
     }
 
     /// <summary>
@@ -2472,9 +2571,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
     {
         if (IsModDetailPage(url))
         {
-            var baseUrl = Uri.TryCreate(url, UriKind.Absolute, out var uri)
-                ? $"{uri.Scheme}://{uri.Authority}{uri.AbsolutePath.TrimEnd('/')}"
-                : url.Split('?')[0].Split('#')[0].TrimEnd('/');
+            var baseUrl = GetCanonicalBaseUrl(url);
 
             return
             [
@@ -2491,9 +2588,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         var parentModUrl = ExtractParentModUrl(url);
         if (!string.IsNullOrEmpty(parentModUrl))
         {
-            var baseUrl = Uri.TryCreate(parentModUrl, UriKind.Absolute, out var parentUri)
-                ? $"{parentUri.Scheme}://{parentUri.Authority}{parentUri.AbsolutePath.TrimEnd('/')}"
-                : parentModUrl.Split('?')[0].Split('#')[0].TrimEnd('/');
+            var baseUrl = GetCanonicalBaseUrl(parentModUrl);
 
             return
             [
@@ -2721,7 +2816,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             sections.AddRange(ExtractReviews(document));
             sections.AddRange(ExtractComments(document));
 
-            var baseUrl = url.TrimEnd('/');
+            var baseUrl = GetCanonicalBaseUrl(url);
             AppendFetchedSections(sections, baseUrl, fetched);
         }
         else if (pageType == PageType.FileDetail)
@@ -2756,7 +2851,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
                 sections.AddRange(ExtractReviews(parentDoc));
                 sections.AddRange(ExtractComments(parentDoc));
 
-                var baseUrl = parentModUrl.TrimEnd('/');
+                var baseUrl = GetCanonicalBaseUrl(parentModUrl);
                 AppendFetchedSections(sections, baseUrl, fetched);
             }
         }
@@ -2845,10 +2940,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         var iconUrl = iconEl?.GetAttribute("src");
         if (!string.IsNullOrEmpty(iconUrl))
         {
-            if (!iconUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-            {
-                iconUrl = "https:" + iconUrl;
-            }
+            iconUrl = ToAbsoluteUrl(iconUrl);
 
             if (iconUrl.Contains("error_50x50", StringComparison.OrdinalIgnoreCase) ||
                 iconUrl.Contains("default/error", StringComparison.OrdinalIgnoreCase) ||
