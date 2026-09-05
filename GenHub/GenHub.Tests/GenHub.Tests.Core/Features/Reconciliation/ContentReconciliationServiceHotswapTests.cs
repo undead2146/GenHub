@@ -51,11 +51,11 @@ public class ContentReconciliationServiceHotswapTests
     }
 
     /// <summary>
-    /// Verifies that ReconcileBulkManifestReplacementAsync skips replacing manifests in running profiles and preserves workspace.
+    /// Verifies that ReconcileBulkManifestReplacementAsync updates manifest references in running profiles and preserves active workspace.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ReconcileBulkManifestReplacementAsync_WhenProfileRunning_SkipsReplacementAndPreservesWorkspaceAsync()
+    public async Task ReconcileBulkManifestReplacementAsync_WhenProfileRunning_UpdatesProfileAndPreservesWorkspaceAsync()
     {
         // Arrange
         const string runningProfileId = "running-profile-1";
@@ -78,6 +78,8 @@ public class ContentReconciliationServiceHotswapTests
 
         _profileManagerMock.Setup(p => p.GetAllProfilesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(ProfileOperationResult<IReadOnlyList<GameProfile>>.CreateSuccess([runningProfile]));
+        _profileManagerMock.Setup(p => p.UpdateProfileAsync(runningProfileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(runningProfile));
 
         _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
             .ReturnsAsync([CreateActiveLaunch(runningProfileId)]);
@@ -96,15 +98,15 @@ public class ContentReconciliationServiceHotswapTests
         // Assert
         Assert.True(result.Success);
         Assert.NotNull(result.Data);
-        Assert.Equal(0, result.Data.ProfilesUpdated);
-        Assert.Equal(1, result.Data.FailedProfilesCount);
+        Assert.Equal(1, result.Data.ProfilesUpdated);
+        Assert.Equal(0, result.Data.FailedProfilesCount);
         _workspaceManagerMock.Verify(w => w.CleanupWorkspaceAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         _profileManagerMock.Verify(
             p => p.UpdateProfileAsync(
-                It.IsAny<string>(),
-                It.IsAny<UpdateProfileRequest>(),
+                runningProfileId,
+                It.Is<UpdateProfileRequest>(r => r.ActiveWorkspaceId == null && r.EnabledContentIds != null && r.EnabledContentIds.Contains(newManifestId)),
                 It.IsAny<CancellationToken>()),
-            Times.Never);
+            Times.Once);
     }
 
     /// <summary>

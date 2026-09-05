@@ -547,17 +547,11 @@ public class ContentReconciliationService(
                     };
                 }
 
-                if (runningProfileIds.Contains(profile.Id))
-                {
-                    logger.LogWarning("Cannot replace manifests in profile '{ProfileName}' because it is actively running", profile.Name);
-                    failedProfiles.Add(profile.Name);
-                    continue;
-                }
-
+                bool isRunning = runningProfileIds.Contains(profile.Id);
                 bool workspaceInvalidated = false;
 
-                // Clear workspace to force launch-time sync
-                if (!string.IsNullOrEmpty(profile.ActiveWorkspaceId))
+                // Clear workspace to force launch-time sync for non-running profiles
+                if (!isRunning && !string.IsNullOrEmpty(profile.ActiveWorkspaceId))
                 {
                     logger.LogDebug("Cleaning up workspace '{WorkspaceId}' for stale profile '{ProfileName}'", profile.ActiveWorkspaceId, profile.Name);
                     var cleanupResult = await workspaceManager.CleanupWorkspaceAsync(profile.ActiveWorkspaceId, cancellationToken);
@@ -573,14 +567,25 @@ public class ContentReconciliationService(
                 {
                     EnabledContentIds = newContentIds,
                     GameClient = newGameClient,
-                    ActiveWorkspaceId = string.Empty,
+                    ActiveWorkspaceId = isRunning ? null : string.Empty,
                 };
 
                 var updateResult = await profileManager.UpdateProfileAsync(profile.Id, updateRequest, cancellationToken);
                 if (updateResult.Success)
                 {
                     updatedProfilesCount++;
-                    if (workspaceInvalidated) invalidatedWorkspacesCount++;
+                    if (workspaceInvalidated)
+                    {
+                        invalidatedWorkspacesCount++;
+                    }
+
+                    if (isRunning)
+                    {
+                        logger.LogInformation(
+                            "Updated manifest references for running profile '{ProfileName}'; workspace preserved until next launch",
+                            profile.Name);
+                    }
+
                     await NotifyProfileUpdatedAsync(profile.Id, cancellationToken);
                 }
                 else
