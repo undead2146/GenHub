@@ -1,6 +1,7 @@
 using System;
 using System.Net;
 using System.Text.RegularExpressions;
+using GenHub.Core.Constants;
 
 namespace GenHub.Core.Helpers;
 
@@ -12,9 +13,11 @@ public static partial class HtmlTextHelper
 {
     /// <summary>
     /// Converts an HTML snippet or formatted description into clean, normalized plain text:
+    /// - Strips script and style blocks (including unclosed tags).
     /// - Replaces &lt;br&gt; and block element closures (&lt;/p&gt;, &lt;/div&gt;, etc.) with line breaks.
     /// - Strips all remaining HTML tags.
     /// - Decodes HTML entities (e.g., &amp;amp;, &amp;quot;, &amp;gt;, &amp;nbsp;).
+    /// - Strips dangerous active tags (script, style, iframe, etc.) that may have been encoded as entities to prevent downstream injection.
     /// - Normalizes whitespace and excessive blank lines.
     /// - Uses the platform newline format.
     /// </summary>
@@ -27,7 +30,12 @@ public static partial class HtmlTextHelper
             return string.Empty;
         }
 
-        // 0. Remove script and style elements along with their contents
+        if (html.Length > UiConstants.MaxHtmlInputLength)
+        {
+            html = html[..UiConstants.MaxHtmlInputLength];
+        }
+
+        // 0. Remove script and style elements along with their contents (including unclosed tags)
         var text = ScriptTagRegex().Replace(html, string.Empty);
         text = StyleTagRegex().Replace(text, string.Empty);
 
@@ -46,16 +54,21 @@ public static partial class HtmlTextHelper
         // 5. Decode HTML entities (&nbsp;, &gt;, &quot;, &#39;, numeric entities, etc.)
         text = WebUtility.HtmlDecode(text);
 
-        // 6. Normalize non-breaking spaces and line endings
+        // 6. Security pass: Strip dangerous active script/style/iframe tags that may have been formed by decoded entities
+        text = ScriptTagRegex().Replace(text, string.Empty);
+        text = StyleTagRegex().Replace(text, string.Empty);
+        text = DangerousTagRegex().Replace(text, string.Empty);
+
+        // 7. Normalize non-breaking spaces and line endings
         text = text.Replace('\u00A0', ' ')
                    .Replace("\r\n", "\n")
                    .Replace('\r', '\n');
 
-        // 7. Clean trailing whitespace on lines and collapse excess blank lines
+        // 8. Clean trailing whitespace on lines and collapse excess blank lines
         text = TrailingWhitespaceBeforeNewlineRegex().Replace(text, "\n");
         text = ExcessBlankLinesRegex().Replace(text, "\n\n");
 
-        // 8. Trim and unify with environment newline
+        // 9. Trim and unify with environment newline
         text = text.Trim();
         text = text.Replace("\n", Environment.NewLine);
 
@@ -121,6 +134,9 @@ public static partial class HtmlTextHelper
 
     [GeneratedRegex(@"<style\b[^>]*>(?:[\s\S]*?</style\s*>|[\s\S]*$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex StyleTagRegex();
+
+    [GeneratedRegex(@"</?(?:script|style|iframe|object|embed|applet)\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex DangerousTagRegex();
 
     [GeneratedRegex(@"<br\s*/?>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex BrTagRegex();

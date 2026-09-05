@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Media;
 using Avalonia.Threading;
 using GenHub.Infrastructure.Services;
 
@@ -16,6 +17,12 @@ public static class ImageLoader
     /// </summary>
     public static readonly AttachedProperty<string?> SourceProperty =
         AvaloniaProperty.RegisterAttached<Image, string?>("Source", typeof(ImageLoader));
+
+    /// <summary>
+    /// Identifies the Placeholder attached property.
+    /// </summary>
+    public static readonly AttachedProperty<IImage?> PlaceholderProperty =
+        AvaloniaProperty.RegisterAttached<Image, IImage?>("Placeholder", typeof(ImageLoader));
 
     static ImageLoader()
     {
@@ -36,14 +43,32 @@ public static class ImageLoader
     /// <param name="value">The string image URL or path.</param>
     public static void SetSource(Image element, string? value) => element.SetValue(SourceProperty, value);
 
+    /// <summary>
+    /// Gets the Placeholder property value.
+    /// </summary>
+    /// <param name="element">The Image control.</param>
+    /// <returns>The placeholder image, or <see langword="null"/>.</returns>
+    public static IImage? GetPlaceholder(Image element) => element.GetValue(PlaceholderProperty);
+
+    /// <summary>
+    /// Sets the Placeholder property value.
+    /// </summary>
+    /// <param name="element">The Image control.</param>
+    /// <param name="value">The placeholder image.</param>
+    public static void SetPlaceholder(Image element, IImage? value) => element.SetValue(PlaceholderProperty, value);
+
     private static void OnSourceChanged(Image image, AvaloniaPropertyChangedEventArgs e)
     {
         image.AttachedToVisualTree -= OnAttachedToVisualTree;
 
+        // Clear previous source immediately to avoid displaying stale thumbnails during virtual scrolling or loading
+        var placeholder = GetPlaceholder(image);
+        image.Source = placeholder;
+        InvalidateImage(image);
+
         var url = e.NewValue as string;
         if (string.IsNullOrWhiteSpace(url))
         {
-            image.Source = null;
             return;
         }
 
@@ -64,7 +89,8 @@ public static class ImageLoader
             return;
         }
 
-        if (image.Source != null)
+        var placeholder = GetPlaceholder(image);
+        if (image.Source != null && !ReferenceEquals(image.Source, placeholder))
         {
             InvalidateImage(image);
             return;
@@ -78,27 +104,24 @@ public static class ImageLoader
         var bitmap = ImageCacheService.Instance.GetBitmapFromMemory(url)
             ?? await ImageCacheService.Instance.GetBitmapAsync(url);
 
-        if (bitmap == null || GetSource(image) != url)
+        void UpdateSource()
         {
-            return;
-        }
-
-        void SetBitmap()
-        {
-            if (GetSource(image) == url)
+            if (GetSource(image) != url)
             {
-                image.Source = bitmap;
-                InvalidateImage(image);
+                return;
             }
+
+            image.Source = bitmap ?? GetPlaceholder(image);
+            InvalidateImage(image);
         }
 
         if (Dispatcher.UIThread.CheckAccess())
         {
-            SetBitmap();
+            UpdateSource();
         }
         else
         {
-            await Dispatcher.UIThread.InvokeAsync(SetBitmap);
+            await Dispatcher.UIThread.InvokeAsync(UpdateSource);
         }
     }
 

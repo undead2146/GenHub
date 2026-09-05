@@ -75,6 +75,35 @@ public sealed class HtmlTextHelperTests
     }
 
     /// <summary>
+    /// Verifies that NormalizeHtml prevents entity-encoded script tags from creating dangerous tags.
+    /// </summary>
+    [Fact]
+    public void NormalizeHtml_EncodedScriptTags_StripsDangerousTagsCleanly()
+    {
+        var html = "Description text &lt;script&gt;alert('xss')&lt;/script&gt; with details";
+        var result = HtmlTextHelper.NormalizeHtml(html);
+
+        Assert.DoesNotContain("<script>", result, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("</script>", result, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("alert('xss')", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Verifies that NormalizeHtml strips unclosed script and style blocks cleanly.
+    /// </summary>
+    [Fact]
+    public void NormalizeHtml_UnclosedScriptOrStyle_StripsCleanly()
+    {
+        var htmlScript = "Prefix <script type=\"text/javascript\">badCode(); doSomething();";
+        var resultScript = HtmlTextHelper.NormalizeHtml(htmlScript);
+        Assert.Equal("Prefix", resultScript);
+
+        var htmlStyle = "Header <style>body { display: none; }";
+        var resultStyle = HtmlTextHelper.NormalizeHtml(htmlStyle);
+        Assert.Equal("Header", resultStyle);
+    }
+
+    /// <summary>
     /// Verifies that NormalizeHtml strips paragraph tags from CNC Labs description snippets.
     /// </summary>
     [Fact]
