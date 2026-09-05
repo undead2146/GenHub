@@ -1183,7 +1183,7 @@ public sealed class PlaywrightService(
             var runtime = GetOrCreateManagedChromiumRuntime();
             runtime.ConfigureEnvironment();
             _playwright ??= await Playwright.CreateAsync();
-            await runtime.EnsureInstalledAsync(cancellationToken);
+            await runtime.EnsureInstalledAsync(_playwright.Chromium, cancellationToken);
         }
         finally
         {

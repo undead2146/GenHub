@@ -45,51 +45,47 @@ internal sealed class ManagedChromiumRuntime(
     /// Installs Chromium exactly once when the app-owned executable is unavailable,
     /// after the user confirms the download via the standard confirmation dialog.
     /// </summary>
-    /// <param name="cancellationToken">Cancellation token for aborting the install.</param>
-    /// <returns>True when the runtime is ready to launch; false if cancelled, refused, or failed.</returns>
-    public async Task<bool> EnsureInstalledAsync(CancellationToken cancellationToken)
+    /// <param name="chromium">The Playwright Chromium browser type.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task representing the asynchronous provisioning operation.</returns>
+    /// <exception cref="OperationCanceledException">Thrown when the user declines installation.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when Chromium could not be provisioned.</exception>
+    public async Task EnsureInstalledAsync(IBrowserType chromium, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(chromium);
         ConfigureEnvironment();
 
-        if (IsChromiumInstalled())
+        if (File.Exists(chromium.ExecutablePath))
         {
-            return true;
+            return;
         }
 
-        logger.LogDebug("Playwright Chromium runtime not found in {Dir}; requesting install consent", runtimeDirectory);
+        logger.LogInformation(
+            "Managed Chromium is missing. Requesting user consent before installing under {RuntimeDirectory}",
+            runtimeDirectory);
 
-        var consent = await requestInstallConsentAsync(
-            "GenHub uses an application-owned browser engine (Chromium, ~150 MB) to access protected mod repositories like ModDB.\n\nWould you like to install it now?");
-
-        if (!consent)
-        {
-            logger.LogWarning("User declined Chromium runtime installation");
-            return false;
-        }
-
-        logger.LogInformation("Installing Playwright Chromium into {Dir}...", runtimeDirectory);
+        var consented = await requestInstallConsentAsync(runtimeDirectory);
         cancellationToken.ThrowIfCancellationRequested();
 
+        if (!consented)
+        {
+            logger.LogInformation("User declined managed Chromium installation under {RuntimeDirectory}", runtimeDirectory);
+            throw new OperationCanceledException(
+                "ModDB requires GenHub's managed Chromium runtime. Installation was cancelled.");
+        }
+
+        logger.LogInformation("Managed Chromium install consented. Installing under {RuntimeDirectory}", runtimeDirectory);
+
+        int exitCode = 0;
         try
         {
-            var exitCode = await Task.Run(() => installer(["install", "chromium"]), cancellationToken);
-            if (exitCode != 0)
-            {
-                logger.LogError("Playwright CLI installer returned exit code {Code}", exitCode);
-                return false;
-            }
-
-            var verified = IsChromiumInstalled();
-            if (verified)
-            {
-                logger.LogInformation("Playwright Chromium runtime verified at {Dir}", runtimeDirectory);
-            }
-            else
-            {
-                logger.LogError("Playwright installer succeeded but Chromium executable was not found in {Dir}", runtimeDirectory);
-            }
-
-            return verified;
+            exitCode = await Task.Run(
+                () =>
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return installer(["install", "chromium"]);
+                },
+                cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -97,45 +93,19 @@ internal sealed class ManagedChromiumRuntime(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to run Playwright CLI installer");
-            return false;
+            throw new InvalidOperationException(
+                "GenHub could not install its managed Chromium runtime. Check the network connection and try the ModDB action again.",
+                ex);
         }
-    }
 
-    /// <summary>
-    /// Scans the managed directory for a Chromium executable (platform-appropriate name).
-    /// </summary>
-    /// <returns>True if at least one installed revision is present.</returns>
-    public bool IsChromiumInstalled()
-    {
-        if (!Directory.Exists(runtimeDirectory))
+        cancellationToken.ThrowIfCancellationRequested();
+        if (exitCode != 0 || !File.Exists(chromium.ExecutablePath))
         {
-            return false;
+            throw new InvalidOperationException(
+                "GenHub could not install its managed Chromium runtime. Check the network connection and try the ModDB action again.");
         }
 
-        var exeName = OperatingSystem.IsWindows()
-            ? "chrome.exe"
-            : OperatingSystem.IsMacOS()
-                ? "Chromium"
-                : "chrome";
-
-        try
-        {
-            foreach (var dir in Directory.EnumerateDirectories(runtimeDirectory, "chromium-*"))
-            {
-                var matches = Directory.GetFiles(dir, exeName, SearchOption.AllDirectories);
-                if (matches.Length > 0)
-                {
-                    return true;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to enumerate Chromium directories in {Dir}", runtimeDirectory);
-        }
-
-        return false;
+        logger.LogInformation("Managed Chromium installation completed in {RuntimeDirectory}", runtimeDirectory);
     }
 
     private static string GetPlatformFolder()
