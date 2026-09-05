@@ -866,19 +866,17 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     /// </summary>
     private async Task LoadPatStatusAsync()
     {
-        if (_gitHubTokenStorage == null)
-        {
-            HasGitHubPat = false;
-            PatStatusMessage = "Token storage not available";
-            return;
-        }
-
         try
         {
-            HasGitHubPat = _gitHubTokenStorage.HasToken();
+            HasGitHubPat = _gitHubTokenStorage?.HasToken() == true;
             if (HasGitHubPat)
             {
                 PatStatusMessage = "GitHub PAT configured ✓";
+                IsPatValid = true;
+            }
+            else if (_gitHubApiClient?.IsAuthenticated == true)
+            {
+                PatStatusMessage = "Configured via environment variable";
                 IsPatValid = true;
             }
             else
@@ -1060,18 +1058,23 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task DeletePatAsync()
     {
-        if (_gitHubTokenStorage == null)
-        {
-            return;
-        }
-
         try
         {
-            await _gitHubTokenStorage.DeleteTokenAsync();
+            if (_gitHubTokenStorage != null)
+            {
+                await _gitHubTokenStorage.DeleteTokenAsync();
+            }
+
             _gitHubApiClient?.ClearAuthenticationToken();
             HasGitHubPat = false;
             IsPatValid = false;
-            PatStatusMessage = "GitHub PAT removed";
+
+            var hasEnvToken = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(GitHubConstants.GenHubTokenEnvVar))
+                || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(GitHubConstants.GitHubTokenEnvVar));
+
+            PatStatusMessage = hasEnvToken
+                ? "GitHub PAT removed (env var deactivated for this session)"
+                : "GitHub PAT removed";
         }
         catch (Exception ex)
         {

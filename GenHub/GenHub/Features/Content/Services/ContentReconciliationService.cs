@@ -266,34 +266,15 @@ public class ContentReconciliationService(
 
             foreach (var manifestId in manifestIds)
             {
-                // 1. Reconcile Profiles (Remove manifest references)
-                var reconcileResult = await ReconcileManifestRemovalInternalAsync(manifestId, cancellationToken);
-                if (reconcileResult.Success && reconcileResult.Data is { FailedProfilesCount: 0 } removalData)
+                var (success, result, failedId) = await ProcessSingleManifestRemovalAsync(manifestId, cancellationToken);
+                if (result != null)
                 {
-                    totalResult += removalData;
-
-                    // 2. Untrack CAS references
-                    logger.LogInformation("Untracking CAS references for removed manifest '{ManifestId}'", manifestId.Value);
-                    var untrackResult = await referenceTracker.UntrackManifestAsync(manifestId.Value, cancellationToken);
-                    if (!untrackResult.Success)
-                    {
-                        logger.LogWarning("Failed to untrack manifest '{ManifestId}': {Error}. Skipping pool removal to preserve CAS integrity.", manifestId.Value, untrackResult.FirstError);
-                        failedManifests.Add(manifestId.Value);
-                        continue;
-                    }
-
-                    // 3. Remove from manifest pool
-                    await manifestPool.RemoveManifestAsync(manifestId, skipUntrack: true, cancellationToken: cancellationToken);
+                    totalResult += result;
                 }
-                else
-                {
-                    logger.LogWarning("Skipping removal of manifest '{ManifestId}' because profile reconciliation had failures or active profile references: {Error}", manifestId.Value, reconcileResult.FirstError);
-                    if (reconcileResult.Success && reconcileResult.Data != null)
-                    {
-                        totalResult += reconcileResult.Data;
-                    }
 
-                    failedManifests.Add(manifestId.Value);
+                if (!success && failedId != null)
+                {
+                    failedManifests.Add(failedId);
                 }
             }
 
@@ -363,6 +344,39 @@ public class ContentReconciliationService(
     {
         _reconciliationLock.Dispose();
         GC.SuppressFinalize(this);
+    }
+
+    private async Task<(bool Success, ReconciliationResult? Result, string? FailedManifestId)> ProcessSingleManifestRemovalAsync(
+        ManifestId manifestId,
+        CancellationToken cancellationToken)
+    {
+        // 1. Reconcile Profiles (Remove manifest references)
+        var reconcileResult = await ReconcileManifestRemovalInternalAsync(manifestId, cancellationToken);
+        if (!reconcileResult.Success || reconcileResult.Data is not { FailedProfilesCount: 0 } removalData)
+        {
+            logger.LogWarning(
+                "Skipping removal of manifest '{ManifestId}' because profile reconciliation had failures or active profile references: {Error}",
+                manifestId.Value,
+                reconcileResult.FirstError);
+
+            return (false, reconcileResult.Data, manifestId.Value);
+        }
+
+        // 2. Untrack CAS references
+        logger.LogInformation("Untracking CAS references for removed manifest '{ManifestId}'", manifestId.Value);
+        var untrackResult = await referenceTracker.UntrackManifestAsync(manifestId.Value, cancellationToken);
+        if (!untrackResult.Success)
+        {
+            logger.LogWarning(
+                "Failed to untrack manifest '{ManifestId}': {Error}. Skipping pool removal to preserve CAS integrity.",
+                manifestId.Value,
+                untrackResult.FirstError);
+            return (false, removalData, manifestId.Value);
+        }
+
+        // 3. Remove from manifest pool
+        await manifestPool.RemoveManifestAsync(manifestId, skipUntrack: true, cancellationToken: cancellationToken);
+        return (true, removalData, null);
     }
 
     private async Task<(OperationResult<bool> OpResult, int ProfilesUpdated, int WorkspacesInvalidated, int FailedProfilesCount)> ReconcileLocalUpdateContentAsync(

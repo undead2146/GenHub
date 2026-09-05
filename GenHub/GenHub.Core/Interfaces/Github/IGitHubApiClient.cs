@@ -14,6 +14,13 @@ public interface IGitHubApiClient
     bool IsAuthenticated { get; }
 
     /// <summary>
+    /// Ensures credentials are loaded asynchronously and returns whether the client is authenticated.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if authenticated; otherwise false.</returns>
+    Task<bool> EnsureAuthenticatedAsync(CancellationToken cancellationToken = default) => Task.FromResult(IsAuthenticated);
+
+    /// <summary>
     /// Gets a value indicating whether the GitHub API rate limit is reached.
     /// </summary>
     bool IsRateLimited { get; }
