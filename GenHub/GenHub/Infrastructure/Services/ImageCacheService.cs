@@ -29,7 +29,7 @@ public sealed class ImageCacheService : IImageCacheService
     private static IImageCacheService? instance;
 
     private readonly LruMemoryCache memoryCache = new(ImageCacheConstants.MaxMemoryCacheEntries);
-    private readonly ConcurrentDictionary<string, Lazy<Task<Bitmap?>>> pendingDownloads = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, Lazy<CoalescedDownloadOperation>> pendingDownloads = new(StringComparer.OrdinalIgnoreCase);
     private readonly HttpClient httpClient;
     private readonly string cacheDirectory;
     private readonly ILogger<ImageCacheService>? logger;
@@ -394,7 +394,7 @@ public sealed class ImageCacheService : IImageCacheService
             : new Uri(targetUri, redirectLocation).ToString();
     }
 
-    private static async Task<byte[]?> ReadValidatedImageBytesAsync(HttpResponseMessage response)
+    private static async Task<byte[]?> ReadValidatedImageBytesAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         var mediaType = response.Content.Headers.ContentType?.MediaType;
         if (!string.IsNullOrEmpty(mediaType) &&
@@ -409,13 +409,13 @@ public sealed class ImageCacheService : IImageCacheService
             return null;
         }
 
-        using var responseStream = await response.Content.ReadAsStreamAsync();
+        using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var ms = new MemoryStream();
         var buffer = new byte[81920];
         long totalRead = 0;
         int read;
 
-        while ((read = await responseStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+        while ((read = await responseStream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)) > 0)
         {
             totalRead += read;
             if (totalRead > ImageCacheConstants.MaxImageDownloadSizeBytes)
@@ -423,7 +423,7 @@ public sealed class ImageCacheService : IImageCacheService
                 return null;
             }
 
-            await ms.WriteAsync(buffer.AsMemory(0, read));
+            await ms.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
         }
 
         return ms.Length > 0 ? ms.ToArray() : null;
@@ -585,41 +585,66 @@ public sealed class ImageCacheService : IImageCacheService
 
     private async Task<Bitmap?> CoalesceDownloadAsync(string url, string diskPath, CancellationToken cancellationToken)
     {
-        var lazyDownload = pendingDownloads.GetOrAdd(
-            url,
-            u => new Lazy<Task<Bitmap?>>(
-                () => DownloadAndCacheAsync(u, diskPath),
-                LazyThreadSafetyMode.ExecutionAndPublication));
+        Lazy<CoalescedDownloadOperation> lazyOperation;
 
-        try
+        while (true)
         {
-            return await lazyDownload.Value.WaitAsync(cancellationToken);
+            if (pendingDownloads.TryGetValue(url, out var existing))
+            {
+                if (!existing.Value.Task.IsCompleted)
+                {
+                    lazyOperation = existing;
+                    break;
+                }
+
+                pendingDownloads.TryRemove(KeyValuePair.Create(url, existing));
+            }
+
+            Lazy<CoalescedDownloadOperation>? created = null;
+            created = new Lazy<CoalescedDownloadOperation>(
+                () => new CoalescedDownloadOperation(token => DownloadAndCacheAsync(url, diskPath, created!, token)),
+                LazyThreadSafetyMode.ExecutionAndPublication);
+
+            if (pendingDownloads.TryAdd(url, created))
+            {
+                lazyOperation = created;
+                break;
+            }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+
+        var operation = lazyOperation.Value;
+        using (operation.AddWaiter(cancellationToken))
         {
-            throw;
-        }
-        catch
-        {
-            return null;
-        }
-        finally
-        {
-            pendingDownloads.TryRemove(url, out _);
+            try
+            {
+                return await operation.Task.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 
-    private async Task<Bitmap?> DownloadAndCacheAsync(string initialUrl, string diskPath)
+    private async Task<Bitmap?> DownloadAndCacheAsync(
+        string initialUrl,
+        string diskPath,
+        Lazy<CoalescedDownloadOperation> lazyOperation,
+        CancellationToken cancellationToken)
     {
         try
         {
-            using var response = await ExecuteRequestWithRedirectsAsync(initialUrl);
+            using var response = await ExecuteRequestWithRedirectsAsync(initialUrl, cancellationToken);
             if (response == null || !response.IsSuccessStatusCode)
             {
                 return null;
             }
 
-            var imageBytes = await ReadValidatedImageBytesAsync(response);
+            var imageBytes = await ReadValidatedImageBytesAsync(response, cancellationToken);
             if (imageBytes == null)
             {
                 return null;
@@ -634,6 +659,10 @@ public sealed class ImageCacheService : IImageCacheService
 
             return bitmap;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
         catch (Exception ex)
         {
             logger?.LogWarning(ex, "Error downloading or decoding image '{Url}'", initialUrl);
@@ -641,11 +670,11 @@ public sealed class ImageCacheService : IImageCacheService
         }
         finally
         {
-            pendingDownloads.TryRemove(initialUrl, out _);
+            pendingDownloads.TryRemove(KeyValuePair.Create(initialUrl, lazyOperation));
         }
     }
 
-    private async Task<HttpResponseMessage?> ExecuteRequestWithRedirectsAsync(string initialUrl)
+    private async Task<HttpResponseMessage?> ExecuteRequestWithRedirectsAsync(string initialUrl, CancellationToken cancellationToken)
     {
         var currentUrl = initialUrl;
 
@@ -657,7 +686,7 @@ public sealed class ImageCacheService : IImageCacheService
             }
 
             var request = CreateImageHttpRequest(currentUrl);
-            var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
             if ((int)response.StatusCode is >= 300 and <= 399)
             {
@@ -829,5 +858,85 @@ public sealed class ImageCacheService : IImageCacheService
         }
 
         private readonly record struct CacheItem(string Key, Bitmap Bitmap);
+    }
+
+    /// <summary>
+    /// Represents an in-flight coalesced image download with waiter count tracking and linked cancellation.
+    /// </summary>
+    private sealed class CoalescedDownloadOperation
+    {
+        private readonly object syncLock = new();
+        private readonly CancellationTokenSource cancellationTokenSource = new();
+        private int waiterCount;
+
+        public CoalescedDownloadOperation(Func<CancellationToken, Task<Bitmap?>> downloadFactory)
+        {
+            Task = downloadFactory(cancellationTokenSource.Token);
+        }
+
+        public Task<Bitmap?> Task { get; }
+
+        public IDisposable AddWaiter(CancellationToken callerToken)
+        {
+            lock (syncLock)
+            {
+                waiterCount++;
+            }
+
+            return new WaiterRegistration(this, callerToken);
+        }
+
+        private void RemoveWaiter()
+        {
+            lock (syncLock)
+            {
+                waiterCount--;
+                if (waiterCount <= 0 && !Task.IsCompleted)
+                {
+                    try
+                    {
+                        cancellationTokenSource.Cancel();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                    }
+                }
+            }
+        }
+
+        private sealed class WaiterRegistration : IDisposable
+        {
+            private readonly CoalescedDownloadOperation operation;
+            private readonly CancellationTokenRegistration registration;
+            private int removed;
+
+            public WaiterRegistration(CoalescedDownloadOperation operation, CancellationToken callerToken)
+            {
+                this.operation = operation;
+                if (callerToken.CanBeCanceled)
+                {
+                    registration = callerToken.Register(OnCancelled);
+                }
+            }
+
+            public void Dispose()
+            {
+                registration.Dispose();
+                DecrementOnce();
+            }
+
+            private void OnCancelled()
+            {
+                DecrementOnce();
+            }
+
+            private void DecrementOnce()
+            {
+                if (Interlocked.Exchange(ref removed, 1) == 0)
+                {
+                    operation.RemoveWaiter();
+                }
+            }
+        }
     }
 }

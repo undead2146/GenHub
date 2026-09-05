@@ -62,10 +62,7 @@ public class ApplicationDataPathConventionTests
 
         foreach (var root in searchRoots)
         {
-            if (!Directory.Exists(root))
-            {
-                continue;
-            }
+            Assert.True(Directory.Exists(root), $"Search root not found: {root}");
 
             var csFiles = Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories)
                 .Where(f => !f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar) &&
@@ -101,9 +98,7 @@ public class ApplicationDataPathConventionTests
         var current = AppContext.BaseDirectory;
         while (!string.IsNullOrEmpty(current))
         {
-            if (Directory.Exists(Path.Combine(current, ".git")) ||
-                File.Exists(Path.Combine(current, "GenHub.sln")) ||
-                Directory.Exists(Path.Combine(current, "GenHub")))
+            if (Directory.Exists(Path.Combine(current, "GenHub", "GenHub.Core")))
             {
                 return current;
             }
