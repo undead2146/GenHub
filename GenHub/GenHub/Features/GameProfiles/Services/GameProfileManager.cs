@@ -197,7 +197,7 @@ public class GameProfileManager(
             var isRunning = await CheckIsProfileRunningAsync(profileId);
             if (isRunning)
             {
-                var validationResult = await ValidateRunningProfileUpdateAsync(profile, request, previousEnabledContentIds, cancellationToken);
+                var validationResult = await ValidateRunningProfileUpdateAsync(profileId, profile, request, previousEnabledContentIds, cancellationToken);
                 if (validationResult != null)
                 {
                     return validationResult;
@@ -452,6 +452,7 @@ public class GameProfileManager(
     }
 
     private async Task<ProfileOperationResult<GameProfile>?> ValidateRunningProfileUpdateAsync(
+        string profileId,
         GameProfile profile,
         UpdateProfileRequest request,
         List<string> previousEnabledContentIds,
@@ -461,7 +462,7 @@ public class GameProfileManager(
         {
             logger.LogInformation(
                 "UpdateProfileAsync for running profile {ProfileId} is flagged as rollback; bypassing running profile immutability validation to restore snapshot.",
-                profile.Id);
+                profileId);
             return null;
         }
 
