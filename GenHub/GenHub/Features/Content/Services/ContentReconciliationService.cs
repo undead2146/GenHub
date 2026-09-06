@@ -528,14 +528,28 @@ public class ContentReconciliationService(
         {
             try
             {
-                var newContentIds = profile.EnabledContentIds
-                    .Select(id => replacements.TryGetValue(id, out var newManifest) ? newManifest.Id.Value : id)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList();
+                var candidateAdoptedKeys = new List<string>();
+
+                var newContentIds = new List<string>();
+                foreach (var id in profile.EnabledContentIds)
+                {
+                    if (replacements.TryGetValue(id, out var newManifest))
+                    {
+                        newContentIds.Add(newManifest.Id.Value);
+                        candidateAdoptedKeys.Add(id);
+                    }
+                    else
+                    {
+                        newContentIds.Add(id);
+                    }
+                }
+
+                newContentIds = newContentIds.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
                 GameClient? newGameClient = profile.GameClient;
                 if (profile.GameClient != null && replacements.TryGetValue(profile.GameClient.Id, out var m))
                 {
+                    candidateAdoptedKeys.Add(profile.GameClient.Id);
                     newGameClient = new GameClient
                     {
                         Id = m.Id.Value,
@@ -587,17 +601,9 @@ public class ContentReconciliationService(
                         invalidatedWorkspacesCount++;
                     }
 
-                    foreach (var id in profile.EnabledContentIds)
+                    foreach (var key in candidateAdoptedKeys)
                     {
-                        if (replacements.ContainsKey(id))
-                        {
-                            adoptedReplacementKeys.Add(id);
-                        }
-                    }
-
-                    if (profile.GameClient != null && replacements.ContainsKey(profile.GameClient.Id))
-                    {
-                        adoptedReplacementKeys.Add(profile.GameClient.Id);
+                        adoptedReplacementKeys.Add(key);
                     }
 
                     await NotifyProfileUpdatedAsync(profile.Id, cancellationToken);
