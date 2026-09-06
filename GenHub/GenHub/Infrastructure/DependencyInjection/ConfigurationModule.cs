@@ -65,9 +65,7 @@ public static class ConfigurationModule
         {
             var config = provider.GetRequiredService<IConfigurationProviderService>();
             var logger = provider.GetService<ILogger<ImageCacheService>>();
-            var service = new ImageCacheService(config, null, logger);
-            ImageCacheService.Instance = service;
-            return service;
+            return new ImageCacheService(config, null, logger);
         });
 
         return services;

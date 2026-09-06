@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -28,8 +28,8 @@ public sealed class ImageCacheService : IImageCacheService
     private static readonly Uri ModDbReferrerUri = new(ImageCacheConstants.ModDbReferrerUrl);
     private static volatile IImageCacheService? instance;
 
-    private readonly LruMemoryCache memoryCache = new(ImageCacheConstants.MaxMemoryCacheEntries);
-    private readonly ConcurrentDictionary<string, Lazy<CoalescedDownloadOperation>> pendingDownloads = new(StringComparer.OrdinalIgnoreCase);
+    private readonly LruMemoryCache memoryCache = new(ImageCacheConstants.MaxMemoryCacheEntries, ImageCacheConstants.MaxMemoryCacheSizeBytes);
+    private readonly ConcurrentDictionary<string, Lazy<CoalescedDownloadOperation>> pendingDownloads = new(StringComparer.Ordinal);
     private readonly HttpClient httpClient;
     private readonly string cacheDirectory;
     private readonly ILogger<ImageCacheService>? logger;
@@ -68,150 +68,72 @@ public sealed class ImageCacheService : IImageCacheService
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ImageCacheService"/> class with default settings,
-    /// resolving optional dependencies from <see cref="AppLocator"/> if available.
+    /// Initializes a new instance of the <see cref="ImageCacheService"/> class using the configured application-data directory.
     /// </summary>
     public ImageCacheService()
-        : this(AppLocator.GetServiceOrDefault<IConfigurationProviderService>(), null, AppLocator.GetServiceOrDefault<ILogger<ImageCacheService>>())
+        : this(AppLocator.GetServiceOrDefault<IConfigurationProviderService>(), null, null)
     {
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ImageCacheService"/> class using the specified configuration provider,
-    /// HTTP client, and logger.
+    /// Initializes a new instance of the <see cref="ImageCacheService"/> class with an explicit configuration provider.
     /// </summary>
-    /// <param name="configProvider">Configuration provider to resolve the application data directory.</param>
-    /// <param name="httpClient">Optional custom <see cref="HttpClient"/>.</param>
-    /// <param name="logger">Optional logger for diagnostics.</param>
+    /// <param name="configurationProvider">Optional configuration provider to supply the root cache directory.</param>
+    public ImageCacheService(IConfigurationProviderService? configurationProvider)
+        : this(configurationProvider, null, null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ImageCacheService"/> class with an explicit configuration provider and HTTP client.
+    /// </summary>
+    /// <param name="configurationProvider">Optional configuration provider to supply the root cache directory.</param>
+    /// <param name="httpClient">Optional custom <see cref="HttpClient"/> instance.</param>
+    public ImageCacheService(IConfigurationProviderService? configurationProvider, HttpClient? httpClient)
+        : this(configurationProvider, httpClient, null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ImageCacheService"/> class with configuration, HTTP client, and logger.
+    /// </summary>
+    /// <param name="configurationProvider">Optional configuration provider to supply the root cache directory.</param>
+    /// <param name="httpClient">Optional custom <see cref="HttpClient"/> instance.</param>
+    /// <param name="logger">Optional logger for recording diagnostic and error events.</param>
     public ImageCacheService(
-        IConfigurationProviderService? configProvider,
-        HttpClient? httpClient = null,
-        ILogger<ImageCacheService>? logger = null)
+        IConfigurationProviderService? configurationProvider,
+        HttpClient? httpClient,
+        ILogger<ImageCacheService>? logger)
     {
         this.logger = logger;
         this.httpClient = httpClient ?? CreateDefaultHttpClient();
 
         try
         {
-            var appData = configProvider != null
-                ? configProvider.GetApplicationDataPath()
-                : Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var appDataPath = configurationProvider?.GetApplicationDataPath();
+            if (string.IsNullOrWhiteSpace(appDataPath))
+            {
+                appDataPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "GenHub");
+            }
 
-            cacheDirectory = Path.Combine(appData, "GenHub", DirectoryNames.Cache, "Images");
+            cacheDirectory = Path.Combine(appDataPath, "Images");
             Directory.CreateDirectory(cacheDirectory);
         }
         catch (Exception ex)
         {
-            this.logger?.LogError(ex, "Failed to initialize image cache directory");
+            this.logger?.LogWarning(ex, "Failed to initialize image disk cache directory. Operating in memory-only mode.");
             cacheDirectory = string.Empty;
         }
     }
 
     /// <summary>
-    /// Validates whether an IP address is a safe public IP address (not loopback, private, link-local, carrier-grade NAT, or reserved).
+    /// Synchronously retrieves a bitmap from the in-memory LRU cache, returning null if not cached.
     /// </summary>
-    /// <param name="ip">The IP address to evaluate.</param>
-    /// <returns><see langword="true"/> if the IP address is safe; otherwise, <see langword="false"/>.</returns>
-    public static bool IsSafeIpAddress(IPAddress ip)
-    {
-        if (IPAddress.IsLoopback(ip) || ip.IsIPv6LinkLocal || ip.IsIPv6SiteLocal)
-        {
-            return false;
-        }
-
-        var normalizedIp = ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip;
-        var bytes = normalizedIp.GetAddressBytes();
-
-        return bytes.Length switch
-        {
-            4 => IsSafeIPv4(bytes),
-            16 => IsSafeIPv6(normalizedIp, bytes),
-            _ => false,
-        };
-    }
-
-    /// <summary>
-    /// Asynchronously validates that a host does not resolve to private or loopback IP addresses.
-    /// </summary>
-    /// <param name="host">The host name or IP string to evaluate.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns><see langword="true"/> if all resolved IP addresses are safe; otherwise, <see langword="false"/>.</returns>
-    public static async Task<bool> IsSafeHostAsync(string host, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(host) || string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (IPAddress.TryParse(host, out var ip))
-        {
-            return IsSafeIpAddress(ip);
-        }
-
-        try
-        {
-            var addresses = await Dns.GetHostAddressesAsync(host, cancellationToken);
-            return addresses.Length > 0 && addresses.All(IsSafeIpAddress);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Validates whether a remote URL is a safe public HTTP or HTTPS endpoint.
-    /// Rejects local paths, UNC shares, loopback addresses, link-local addresses, and private networks.
-    /// </summary>
-    /// <param name="url">The URL string to evaluate.</param>
-    /// <param name="uri">When valid, receives the parsed <see cref="Uri"/>.</param>
-    /// <returns><see langword="true"/> if the URL meets the security criteria; otherwise, <see langword="false"/>.</returns>
-    public static bool IsSafeRemoteUrl(string? url, out Uri? uri)
-    {
-        uri = null;
-        if (string.IsNullOrWhiteSpace(url))
-        {
-            return false;
-        }
-
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var parsedUri))
-        {
-            return false;
-        }
-
-        if (parsedUri.Scheme != Uri.UriSchemeHttp && parsedUri.Scheme != Uri.UriSchemeHttps)
-        {
-            return false;
-        }
-
-        if (parsedUri.IsFile || parsedUri.IsUnc)
-        {
-            return false;
-        }
-
-        var host = parsedUri.Host;
-        if (string.IsNullOrWhiteSpace(host) ||
-            parsedUri.IsLoopback ||
-            string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (IPAddress.TryParse(host, out var ip) && !IsSafeIpAddress(ip))
-        {
-            return false;
-        }
-
-        uri = parsedUri;
-        return true;
-    }
-
-    /// <summary>
-    /// Synchronously checks if a bitmap is already cached in memory.
-    /// </summary>
-    /// <param name="url">The image URL or local file path.</param>
-    /// <returns>The cached <see cref="Bitmap"/> if present; otherwise, <see langword="null"/>.</returns>
-    public Bitmap? GetBitmapFromMemory(string url)
+    /// <param name="url">The image URI or file path.</param>
+    /// <returns>The cached <see cref="Bitmap"/>, or null if not found in memory.</returns>
+    public Bitmap? GetBitmapFromMemory(string? url)
     {
         if (string.IsNullOrWhiteSpace(url))
         {
@@ -222,12 +144,13 @@ public sealed class ImageCacheService : IImageCacheService
     }
 
     /// <summary>
-    /// Asynchronously gets a bitmap from memory, disk cache, local file, or web.
+    /// Asynchronously retrieves an image as a <see cref="Bitmap"/>, checking the memory cache,
+    /// local disk cache, and finally downloading from the network if necessary.
     /// </summary>
-    /// <param name="url">The image URL or local file path.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The loaded <see cref="Bitmap"/>, or <see langword="null"/> if loading failed.</returns>
-    public async Task<Bitmap?> GetBitmapAsync(string url, CancellationToken cancellationToken = default)
+    /// <param name="url">The image URI (http/https, avares, or file path).</param>
+    /// <param name="cancellationToken">Optional token to cancel the asynchronous operation.</param>
+    /// <returns>A task returning the loaded <see cref="Bitmap"/>, or null if loading/download fails.</returns>
+    public async Task<Bitmap?> GetBitmapAsync(string? url, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(url))
         {
@@ -240,18 +163,19 @@ public sealed class ImageCacheService : IImageCacheService
             return cached;
         }
 
-        if (IsAssetPath(url))
+        if (url.StartsWith("avares://", StringComparison.OrdinalIgnoreCase))
         {
-            return TryLoadAssetImage(url);
+            return await LoadBitmapFromAvaloniaAssetAsync(url);
         }
 
-        if (IsLocalFilePath(url))
+        if (url.StartsWith("file://", StringComparison.OrdinalIgnoreCase) || Path.IsPathRooted(url))
         {
             return await TryLoadLocalFileImageAsync(url, cancellationToken);
         }
 
         if (!IsSafeRemoteUrl(url, out _))
         {
+            logger?.LogWarning("Refusing to download image from disallowed or unsafe URL: {Url}", url);
             return null;
         }
 
@@ -263,6 +187,40 @@ public sealed class ImageCacheService : IImageCacheService
     /// </summary>
     public void ClearMemoryCache() => memoryCache.Clear();
 
+    /// <summary>
+    /// Validates whether a given URL string is a safe remote HTTP or HTTPS URI.
+    /// </summary>
+    /// <param name="url">The URL string to evaluate.</param>
+    /// <param name="uri">When this method returns, contains the parsed URI if valid; otherwise, null.</param>
+    /// <returns><c>true</c> if the URL is a safe remote address; otherwise, <c>false</c>.</returns>
+    internal static bool IsSafeRemoteUrl(string url, out Uri? uri)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out uri))
+        {
+            return false;
+        }
+
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+        {
+            return false;
+        }
+
+        if (uri.IsLoopback ||
+            uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+            uri.Host.EndsWith(".local", StringComparison.OrdinalIgnoreCase) ||
+            uri.Host.EndsWith(".internal", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (IPAddress.TryParse(uri.Host, out var ip))
+        {
+            return IsSafeIpAddress(ip);
+        }
+
+        return true;
+    }
+
     private static HttpClient CreateDefaultHttpClient()
     {
         var handler = new SocketsHttpHandler
@@ -272,13 +230,13 @@ public sealed class ImageCacheService : IImageCacheService
             ConnectTimeout = TimeSpan.FromSeconds(10),
             ConnectCallback = async (context, cancellationToken) =>
             {
-                var entry = await Dns.GetHostEntryAsync(context.DnsEndPoint.Host, cancellationToken);
-                if (entry.AddressList.Length == 0 || !entry.AddressList.All(IsSafeIpAddress))
+                var addresses = await Dns.GetHostAddressesAsync(context.DnsEndPoint.Host, cancellationToken);
+                if (addresses.Length == 0 || !addresses.All(IsSafeIpAddress))
                 {
                     throw new HttpRequestException($"Host '{context.DnsEndPoint.Host}' resolved to an unsafe or invalid IP address.");
                 }
 
-                var safeIp = entry.AddressList[0];
+                var safeIp = addresses[0];
                 var socket = new System.Net.Sockets.Socket(safeIp.AddressFamily, System.Net.Sockets.SocketType.Stream, System.Net.Sockets.ProtocolType.Tcp);
                 try
                 {
@@ -310,133 +268,119 @@ public sealed class ImageCacheService : IImageCacheService
             return false;
         }
 
-        // 100.64.0.0/10 (Carrier-grade NAT)
-        if (b[0] == 100 && b[1] is >= 64 and <= 127)
+        // 100.64.0.0/10 Carrier-grade NAT
+        if (b[0] == 100 && b[1] >= 64 && b[1] <= 127)
         {
             return false;
         }
 
-        // 169.254.0.0/16 (Link-local)
+        // 169.254.0.0/16 Link-local / Cloud metadata (AWS/Azure/GCP)
         if (b[0] == 169 && b[1] == 254)
         {
             return false;
         }
 
-        // 172.16.0.0/12 (Private network)
-        if (b[0] == 172 && b[1] is >= 16 and <= 31)
+        // 172.16.0.0/12 Private-use networks
+        if (b[0] == 172 && b[1] >= 16 && b[1] <= 31)
         {
             return false;
         }
 
-        return !IsBlocked192Or198Or203(b);
-    }
+        // 192.168.0.0/16 Private-use networks
+        if (b[0] == 192 && b[1] == 168)
+        {
+            return false;
+        }
 
-    private static bool IsBlocked192Or198Or203(byte[] b)
-    {
-        // 192.168.0.0/16 (Private network)
-        if (b[0] == 192 && b[1] == 168) return true;
+        // 198.18.0.0/15 Benchmarking
+        if (b[0] == 198 && (b[1] == 18 || b[1] == 19))
+        {
+            return false;
+        }
 
-        // 192.0.0.0/24 (IETF Protocol Assignments) & 192.0.2.0/24 (TEST-NET-1)
-        if (b[0] == 192 && b[1] == 0 && b[2] is 0 or 2) return true;
-
-        // 198.18.0.0/15 (Benchmark testing)
-        if (b[0] == 198 && b[1] is 18 or 19) return true;
+        // 192.0.0.0/24 (IETF Protocol Assignments) and 192.0.2.0/24 (TEST-NET-1)
+        if (b[0] == 192 && b[1] == 0)
+        {
+            return false;
+        }
 
         // 198.51.100.0/24 (TEST-NET-2)
-        if (b[0] == 198 && b[1] == 51 && b[2] == 100) return true;
+        if (b[0] == 198 && b[1] == 51 && b[2] == 100)
+        {
+            return false;
+        }
 
         // 203.0.113.0/24 (TEST-NET-3)
-        if (b[0] == 203 && b[1] == 0 && b[2] == 113) return true;
+        if (b[0] == 203 && b[1] == 0 && b[2] == 113)
+        {
+            return false;
+        }
 
-        return false;
-    }
-
-    private static bool IsSafeIPv6(IPAddress ip, byte[] b)
-    {
-        if (ip.Equals(IPAddress.IPv6None) || ip.Equals(IPAddress.IPv6Any)) return false;
-        if (b[0] == 0xff) return false; // Multicast (ff00::/8)
-        if ((b[0] & 0xfe) == 0xfc) return false; // Unique local address (fc00::/7)
-        if (b[0] == 0xfe && (b[1] & 0xc0) == 0x80) return false; // Link-local address (fe80::/10)
         return true;
     }
 
-    private static bool IsAssetPath(string url) =>
-        url.StartsWith("avares://", StringComparison.OrdinalIgnoreCase) ||
-        url.StartsWith("/Assets/", StringComparison.OrdinalIgnoreCase) ||
-        url.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsLocalFilePath(string url) =>
-        url.StartsWith("file://", StringComparison.OrdinalIgnoreCase) ||
-        (Path.IsPathRooted(url) && !url.StartsWith(@"\\", StringComparison.Ordinal) && !url.StartsWith("//", StringComparison.Ordinal));
-
-    [SuppressMessage("Minor Code Smell", "S1075:URIs should not be hardcoded", Justification = "ModDB requires its own fixed referrer to serve images and prevent hotlink blocking.")]
-    private static HttpRequestMessage CreateImageHttpRequest(string url)
+    private static bool IsSafeIPv6(byte[] b)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
-        if (url.Contains("moddb.com", StringComparison.OrdinalIgnoreCase))
+        // ::1 Loopback
+        if (b.Take(15).All(x => x == 0) && b[15] == 1)
         {
-            request.Headers.Referrer = ModDbReferrerUri;
+            return false;
         }
 
-        return request;
+        // :: Unspecified
+        if (b.All(x => x == 0))
+        {
+            return false;
+        }
+
+        // fc00::/7 Unique local addresses
+        if ((b[0] & 0xfe) == 0xfc)
+        {
+            return false;
+        }
+
+        // fe80::/10 Link-local unicast
+        if (b[0] == 0xfe && (b[1] & 0xc0) == 0x80)
+        {
+            return false;
+        }
+
+        // ff00::/8 Multicast
+        if (b[0] == 0xff)
+        {
+            return false;
+        }
+
+        // ::ffff:0:0/96 IPv4-mapped IPv6
+        if (b.Take(10).All(x => x == 0) && b[10] == 0xff && b[11] == 0xff)
+        {
+            return IsSafeIPv4(b.Skip(12).ToArray());
+        }
+
+        return true;
     }
 
-    private static string? ResolveRedirectUrl(Uri? redirectLocation, Uri targetUri)
+    private static bool IsSafeIpAddress(IPAddress address)
     {
-        if (redirectLocation == null)
+        var bytes = address.GetAddressBytes();
+        return bytes.Length switch
         {
-            return null;
-        }
-
-        return redirectLocation.IsAbsoluteUri
-            ? redirectLocation.ToString()
-            : new Uri(targetUri, redirectLocation).ToString();
-    }
-
-    private static async Task<byte[]?> ReadValidatedImageBytesAsync(HttpResponseMessage response, CancellationToken cancellationToken)
-    {
-        var mediaType = response.Content.Headers.ContentType?.MediaType;
-        if (!string.IsNullOrEmpty(mediaType) &&
-            !mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) &&
-            !mediaType.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        if (response.Content.Headers.ContentLength is long len && len > ImageCacheConstants.MaxImageDownloadSizeBytes)
-        {
-            return null;
-        }
-
-        using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var ms = new MemoryStream();
-        var buffer = new byte[81920];
-        long totalRead = 0;
-        int read;
-
-        while ((read = await responseStream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)) > 0)
-        {
-            totalRead += read;
-            if (totalRead > ImageCacheConstants.MaxImageDownloadSizeBytes)
-            {
-                return null;
-            }
-
-            await ms.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-        }
-
-        return ms.Length > 0 ? ms.ToArray() : null;
+            4 => IsSafeIPv4(bytes),
+            16 => IsSafeIPv6(bytes),
+            _ => false,
+        };
     }
 
     private static List<FileInfo> DeleteExpiredCacheFiles(FileInfo[] files)
     {
         var cutoff = DateTime.UtcNow.AddDays(-ImageCacheConstants.DiskCacheTtlDays);
+        var tmpCutoff = DateTime.UtcNow.AddHours(-1);
         var activeFiles = new List<FileInfo>(files.Length);
 
         foreach (var file in files)
         {
-            if (file.LastWriteTimeUtc < cutoff)
+            var isTmp = file.Extension.Equals(".tmp", StringComparison.OrdinalIgnoreCase);
+            if (file.LastWriteTimeUtc < (isTmp ? tmpCutoff : cutoff))
             {
                 TryDeleteFile(file.FullName);
             }
@@ -467,41 +411,86 @@ public sealed class ImageCacheService : IImageCacheService
                 break;
             }
 
-            var fileLen = file.Length;
-            if (TryDeleteFile(file.FullName))
+            try
             {
-                totalSize -= fileLen;
+                var len = file.Length;
+                file.Delete();
+                totalSize -= len;
+            }
+            catch
+            {
+                // File may be locked by concurrent read; continue with next
             }
         }
     }
 
-    private static bool TryDeleteFile(string path)
+    private static void TryDeleteFile(string path)
     {
         try
         {
-            File.Delete(path);
-            return true;
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
         }
         catch
         {
-            return false;
+            // Best effort deletion
         }
     }
 
-    private Bitmap? TryLoadAssetImage(string url)
+    private static long CalculateBitmapBytes(Bitmap bitmap)
+    {
+        var width = (long)bitmap.PixelSize.Width;
+        var height = (long)bitmap.PixelSize.Height;
+        if (width <= 0 || height <= 0)
+        {
+            return 0;
+        }
+
+        return width * height * 4;
+    }
+
+    private Bitmap? CreateAndValidateBitmap(Stream stream)
     {
         try
         {
-            var uri = url.StartsWith("avares://", StringComparison.OrdinalIgnoreCase)
-                ? new Uri(url)
-                : new Uri($"avares://GenHub/{url.TrimStart('/')}");
+            var bitmap = new Bitmap(stream);
+            var byteCost = CalculateBitmapBytes(bitmap);
+            if (byteCost > ImageCacheConstants.MaxDecodedImageSizeBytes)
+            {
+                logger?.LogWarning(
+                    "Decoded image exceeds maximum size limit ({Size} bytes > {Max} bytes)",
+                    byteCost,
+                    ImageCacheConstants.MaxDecodedImageSizeBytes);
+                bitmap.Dispose();
+                return null;
+            }
 
+            return bitmap;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to decode image");
+            return null;
+        }
+    }
+
+    private Task<Bitmap?> LoadBitmapFromAvaloniaAssetAsync(string url)
+    {
+        try
+        {
+            var uri = new Uri(url);
             if (AssetLoader.Exists(uri))
             {
                 using var stream = AssetLoader.Open(uri);
-                var bitmap = new Bitmap(stream);
-                memoryCache.AddOrUpdate(url, bitmap);
-                return bitmap;
+                var bitmap = CreateAndValidateBitmap(stream);
+                if (bitmap != null)
+                {
+                    memoryCache.AddOrUpdate(url, bitmap);
+                }
+
+                return Task.FromResult<Bitmap?>(bitmap);
             }
         }
         catch (Exception ex)
@@ -509,7 +498,7 @@ public sealed class ImageCacheService : IImageCacheService
             logger?.LogWarning(ex, "Failed to load asset image '{Uri}'", url);
         }
 
-        return null;
+        return Task.FromResult<Bitmap?>(null);
     }
 
     private async Task<Bitmap?> TryLoadLocalFileImageAsync(string url, CancellationToken cancellationToken)
@@ -529,8 +518,12 @@ public sealed class ImageCacheService : IImageCacheService
             using var ms = new MemoryStream();
             await fs.CopyToAsync(ms, cancellationToken);
             ms.Position = 0;
-            var localBitmap = new Bitmap(ms);
-            memoryCache.AddOrUpdate(url, localBitmap);
+            var localBitmap = CreateAndValidateBitmap(ms);
+            if (localBitmap != null)
+            {
+                memoryCache.AddOrUpdate(url, localBitmap);
+            }
+
             return localBitmap;
         }
         catch (Exception ex)
@@ -574,7 +567,7 @@ public sealed class ImageCacheService : IImageCacheService
             using var ms = new MemoryStream();
             await fs.CopyToAsync(ms, cancellationToken);
             ms.Position = 0;
-            return new Bitmap(ms);
+            return CreateAndValidateBitmap(ms);
         }
         catch (Exception ex)
         {
@@ -585,11 +578,13 @@ public sealed class ImageCacheService : IImageCacheService
 
     private async Task<Bitmap?> CoalesceDownloadAsync(string url, string diskPath, CancellationToken cancellationToken)
     {
-        IDisposable? waiterRegistration;
-        CoalescedDownloadOperation? operation;
+        cancellationToken.ThrowIfCancellationRequested();
+        IDisposable? waiterRegistration = null;
+        CoalescedDownloadOperation? operation = null;
 
         while (true)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (pendingDownloads.TryGetValue(url, out var existing))
             {
                 if (!existing.Value.Task.IsCompleted &&
@@ -657,7 +652,11 @@ public sealed class ImageCacheService : IImageCacheService
             }
 
             using var decodeStream = new MemoryStream(imageBytes);
-            var bitmap = new Bitmap(decodeStream);
+            var bitmap = CreateAndValidateBitmap(decodeStream);
+            if (bitmap == null)
+            {
+                return null;
+            }
 
             memoryCache.AddOrUpdate(initialUrl, bitmap);
             SaveImageBytesToDiskAtomic(diskPath, imageBytes);
@@ -683,34 +682,77 @@ public sealed class ImageCacheService : IImageCacheService
     private async Task<HttpResponseMessage?> ExecuteRequestWithRedirectsAsync(string initialUrl, CancellationToken cancellationToken)
     {
         var currentUrl = initialUrl;
-
         for (var redirectCount = 0; redirectCount <= ImageCacheConstants.MaxRedirects; redirectCount++)
         {
-            if (!IsSafeRemoteUrl(currentUrl, out var targetUri) || targetUri == null)
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!IsSafeRemoteUrl(currentUrl, out var uri) || uri == null)
             {
+                logger?.LogWarning("Redirect blocked to unsafe or invalid URL '{Url}'", currentUrl);
                 return null;
             }
 
-            var request = CreateImageHttpRequest(currentUrl);
-            var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-
-            if ((int)response.StatusCode is >= 300 and <= 399)
+            using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+            if (uri.Host.Contains("moddb.com", StringComparison.OrdinalIgnoreCase))
             {
-                var nextUrl = ResolveRedirectUrl(response.Headers.Location, targetUri);
-                response.Dispose();
-                if (nextUrl == null)
-                {
-                    return null;
-                }
+                request.Headers.Referrer = ModDbReferrerUri;
+            }
 
-                currentUrl = nextUrl;
+            var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if ((int)response.StatusCode is >= 300 and <= 399 && response.Headers.Location != null)
+            {
+                var nextUri = response.Headers.Location.IsAbsoluteUri
+                    ? response.Headers.Location
+                    : new Uri(uri, response.Headers.Location);
+
+                response.Dispose();
+                currentUrl = nextUri.AbsoluteUri;
                 continue;
             }
 
             return response;
         }
 
+        logger?.LogWarning("Too many redirects for image '{Url}'", initialUrl);
         return null;
+    }
+
+    private async Task<byte[]?> ReadValidatedImageBytesAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        var contentLength = response.Content.Headers.ContentLength;
+        if (contentLength.HasValue && contentLength.Value > ImageCacheConstants.MaxImageDownloadSizeBytes)
+        {
+            logger?.LogWarning("Image at '{Url}' exceeds maximum allowed size ({Size} bytes)", response.RequestMessage?.RequestUri, contentLength.Value);
+            return null;
+        }
+
+        var contentType = response.Content.Headers.ContentType?.MediaType;
+        if (contentType != null && !contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) &&
+            !contentType.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase))
+        {
+            logger?.LogWarning("Response at '{Url}' is not an image (Content-Type: '{Type}')", response.RequestMessage?.RequestUri, contentType);
+            return null;
+        }
+
+        using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var ms = new MemoryStream();
+        var buffer = new byte[81920];
+        long totalBytesRead = 0;
+        int read;
+
+        while ((read = await responseStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken)) > 0)
+        {
+            totalBytesRead += read;
+            if (totalBytesRead > ImageCacheConstants.MaxImageDownloadSizeBytes)
+            {
+                logger?.LogWarning("Image download aborted: payload exceeded maximum limit of {Max} bytes", ImageCacheConstants.MaxImageDownloadSizeBytes);
+                return null;
+            }
+
+            await ms.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+        }
+
+        return ms.ToArray();
     }
 
     private void SaveImageBytesToDiskAtomic(string diskPath, byte[] imageBytes)
@@ -798,7 +840,10 @@ public sealed class ImageCacheService : IImageCacheService
                 }
 
                 var di = new DirectoryInfo(cacheDirectory);
-                var activeFiles = DeleteExpiredCacheFiles(di.GetFiles("*.img"));
+                var cacheFiles = di.GetFiles("*.img")
+                    .Concat(di.GetFiles("*.tmp"))
+                    .ToArray();
+                var activeFiles = DeleteExpiredCacheFiles(cacheFiles);
                 EnforceMaxDiskCacheSize(activeFiles);
             }
             catch (Exception ex)
@@ -814,11 +859,12 @@ public sealed class ImageCacheService : IImageCacheService
     /// so any views or view models currently holding a reference to the Bitmap can continue safely.
     /// Avalonia's native bitmap memory is released by GC finalization when no longer referenced.
     /// </summary>
-    private sealed class LruMemoryCache(int maxCapacity)
+    private sealed class LruMemoryCache(int maxCapacity, long maxBytes = ImageCacheConstants.MaxMemoryCacheSizeBytes)
     {
-        private readonly Dictionary<string, LinkedListNode<CacheItem>> cache = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, LinkedListNode<CacheItem>> cache = new(StringComparer.Ordinal);
         private readonly LinkedList<CacheItem> lruList = new();
         private readonly object syncLock = new();
+        private long currentBytes;
 
         public Bitmap? TryGet(string key)
         {
@@ -837,32 +883,40 @@ public sealed class ImageCacheService : IImageCacheService
 
         public void AddOrUpdate(string key, Bitmap bitmap)
         {
+            var byteCost = CalculateBitmapBytes(bitmap);
+            if (byteCost > maxBytes)
+            {
+                return;
+            }
+
             lock (syncLock)
             {
                 if (cache.TryGetValue(key, out var existingNode))
                 {
                     lruList.Remove(existingNode);
-                    existingNode.Value = new CacheItem(key, bitmap);
-                    lruList.AddFirst(existingNode);
+                    cache.Remove(key);
+                    currentBytes -= existingNode.Value.ByteCost;
                 }
-                else
-                {
-                    if (cache.Count >= maxCapacity)
-                    {
-                        var last = lruList.Last;
-                        if (last != null)
-                        {
-                            lruList.RemoveLast();
-                            cache.Remove(last.Value.Key);
 
-                            // Do NOT dispose bitmap. Active controls may still render it.
-                        }
+                while ((cache.Count >= maxCapacity || currentBytes + byteCost > maxBytes) && lruList.Count > 0)
+                {
+                    var last = lruList.Last;
+                    if (last == null)
+                    {
+                        break;
                     }
 
-                    var node = new LinkedListNode<CacheItem>(new CacheItem(key, bitmap));
-                    lruList.AddFirst(node);
-                    cache[key] = node;
+                    lruList.RemoveLast();
+                    cache.Remove(last.Value.Key);
+                    currentBytes -= last.Value.ByteCost;
+
+                    // Do NOT dispose bitmap. Active controls may still render it.
                 }
+
+                var node = new LinkedListNode<CacheItem>(new CacheItem(key, bitmap, byteCost));
+                lruList.AddFirst(node);
+                cache[key] = node;
+                currentBytes += byteCost;
             }
         }
 
@@ -873,10 +927,11 @@ public sealed class ImageCacheService : IImageCacheService
                 // Do NOT dispose bitmaps. Active controls may still render them.
                 cache.Clear();
                 lruList.Clear();
+                currentBytes = 0;
             }
         }
 
-        private readonly record struct CacheItem(string Key, Bitmap Bitmap);
+        private readonly record struct CacheItem(string Key, Bitmap Bitmap, long ByteCost);
     }
 
     /// <summary>
@@ -908,9 +963,15 @@ public sealed class ImageCacheService : IImageCacheService
 
         public bool TryAddWaiter(CancellationToken callerToken, out IDisposable? registration)
         {
+            if (callerToken.IsCancellationRequested)
+            {
+                registration = null;
+                return false;
+            }
+
             lock (syncLock)
             {
-                if (cancelQueued)
+                if (cancelQueued || callerToken.IsCancellationRequested)
                 {
                     registration = null;
                     return false;
@@ -965,21 +1026,16 @@ public sealed class ImageCacheService : IImageCacheService
 
             public void Dispose()
             {
-                registration.Dispose();
-                DecrementOnce();
+                if (Interlocked.Exchange(ref removed, 1) == 0)
+                {
+                    registration.Dispose();
+                    operation.RemoveWaiter();
+                }
             }
 
             private void OnCancelled()
             {
-                DecrementOnce();
-            }
-
-            private void DecrementOnce()
-            {
-                if (Interlocked.Exchange(ref removed, 1) == 0)
-                {
-                    operation.RemoveWaiter();
-                }
+                Dispose();
             }
         }
     }

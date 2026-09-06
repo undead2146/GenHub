@@ -130,7 +130,13 @@ public static partial class HtmlTextHelper
 
         if (maxLength <= 3)
         {
-            return text[..maxLength];
+            var len = maxLength;
+            if (char.IsHighSurrogate(text[len - 1]))
+            {
+                len--;
+            }
+
+            return text[..len];
         }
 
         var prefixLength = maxLength - 3;
@@ -142,36 +148,36 @@ public static partial class HtmlTextHelper
         return string.Concat(text.AsSpan(0, prefixLength), "...");
     }
 
-    [GeneratedRegex(@"<script\b[^>]*>(?:[\s\S]*?</script\s*>|[\s\S]*$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"<script\b[^>]*>(?:[\s\S]*?</script\s*>|[\s\S]*$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
     private static partial Regex ScriptTagRegex();
 
-    [GeneratedRegex(@"<style\b[^>]*>(?:[\s\S]*?</style\s*>|[\s\S]*$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"<style\b[^>]*>(?:[\s\S]*?</style\s*>|[\s\S]*$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
     private static partial Regex StyleTagRegex();
 
-    [GeneratedRegex(@"<!--[\s\S]*?(?:-->|$)|<!DOCTYPE[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"<!--[\s\S]*?(?:-->|$)|<!DOCTYPE[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
     private static partial Regex HtmlCommentAndDocTypeRegex();
 
-    [GeneratedRegex(@"</?(?:script|style|iframe|object|embed|applet)\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"</?(?:script|style|iframe|object|embed|applet)\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
     private static partial Regex DangerousTagRegex();
 
-    [GeneratedRegex(@"<br\s*/?>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"<br\s*/?>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
     private static partial Regex BrTagRegex();
 
-    [GeneratedRegex(@"</p\s*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"</p\s*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
     private static partial Regex ParagraphCloseTagRegex();
 
-    [GeneratedRegex(@"</?(?:div|li|h[1-6]|tr|section|article|blockquote|header|footer|hr)\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"</?(?:div|li|h[1-6]|tr|section|article|blockquote|header|footer|hr)\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
     private static partial Regex BlockCloseTagRegex();
 
-    [GeneratedRegex(@"</?[A-Za-z][^>]*>", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"</?[A-Za-z][^>]*>", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
     private static partial Regex HtmlTagRegex();
 
-    [GeneratedRegex(@"[ \t]+\n", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"[ \t]+\n", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
     private static partial Regex TrailingWhitespaceBeforeNewlineRegex();
 
-    [GeneratedRegex(@"(?:\n){3,}", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?:\n){3,}", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
     private static partial Regex ExcessBlankLinesRegex();
 
-    [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
     private static partial Regex MultiWhitespaceRegex();
 }

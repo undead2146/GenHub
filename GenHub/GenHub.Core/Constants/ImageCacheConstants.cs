@@ -18,6 +18,16 @@ public static class ImageCacheConstants
     public const int MaxMemoryCacheEntries = 200;
 
     /// <summary>
+    /// Maximum total memory cache budget for decoded bitmaps in bytes (128 MB).
+    /// </summary>
+    public const long MaxMemoryCacheSizeBytes = 128L * 1024 * 1024;
+
+    /// <summary>
+    /// Maximum decoded size in bytes for a single cached image (32 MB).
+    /// </summary>
+    public const long MaxDecodedImageSizeBytes = 32L * 1024 * 1024;
+
+    /// <summary>
     /// Maximum disk cache size in bytes (250 MB).
     /// </summary>
     public const long MaxDiskCacheSizeBytes = 250L * 1024 * 1024;

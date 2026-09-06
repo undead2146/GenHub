@@ -27,22 +27,23 @@ public class ApplicationDataPathConventionTests
 
     /// <summary>
     /// Files permitted to read the OS application-data folder directly, with the reason.
+    /// Uses repository-relative paths with forward slashes.
     /// </summary>
     private static readonly Dictionary<string, string> Allowed = new(StringComparer.OrdinalIgnoreCase)
     {
         // The implementation of the convention itself has to start somewhere.
-        ["ConfigurationProviderService.cs"] = "Defines the canonical path.",
-        ["AppConfiguration.cs"] = "Resolves the legacy roaming root the upgrade migration reads from.",
-        ["UserSettingsService.cs"] = "Loads the settings file that stores the override; cannot depend on it.",
+        ["GenHub/GenHub/Common/Services/ConfigurationProviderService.cs"] = "Defines the canonical path.",
+        ["GenHub/GenHub/Common/Services/AppConfiguration.cs"] = "Resolves the legacy roaming root the upgrade migration reads from.",
+        ["GenHub/GenHub/Common/Services/UserSettingsService.cs"] = "Loads the settings file that stores the override; cannot depend on it.",
 
         // Displays the built-in default next to the user's override in the UI.
-        ["SettingsViewModel.cs"] = "Computes the factory-default path to show on reset.",
+        ["GenHub/GenHub/Features/Settings/ViewModels/SettingsViewModel.cs"] = "Computes the factory-default path to show on reset.",
 
         // Core-layer fallback, overridden at the composition root by ContentPipelineModule.
-        ["ProviderDefinitionLoader.cs"] = "Default only; the DI registration supplies an override.",
+        ["GenHub/GenHub.Core/Services/Providers/ProviderDefinitionLoader.cs"] = "Default only; the DI registration supplies an override.",
 
         // UI image cache service fallback when used outside DI.
-        ["ImageCacheService.cs"] = "Fallback default path when used outside DI; DI registration injects IConfigurationProviderService.",
+        ["GenHub/GenHub/Infrastructure/Services/ImageCacheService.cs"] = "Fallback default path when used outside DI; DI registration injects IConfigurationProviderService.",
     };
 
     /// <summary>
@@ -70,8 +71,8 @@ public class ApplicationDataPathConventionTests
 
             foreach (var file in csFiles)
             {
-                var fileName = Path.GetFileName(file);
-                if (Allowed.ContainsKey(fileName))
+                var relativePath = Path.GetRelativePath(repoRoot, file).Replace('\\', '/');
+                if (Allowed.ContainsKey(relativePath))
                 {
                     continue;
                 }
@@ -79,7 +80,7 @@ public class ApplicationDataPathConventionTests
                 var content = File.ReadAllText(file);
                 if (content.Contains(ForbiddenPattern, StringComparison.Ordinal))
                 {
-                    violations.Add(Path.GetRelativePath(repoRoot, file));
+                    violations.Add(relativePath);
                 }
             }
         }

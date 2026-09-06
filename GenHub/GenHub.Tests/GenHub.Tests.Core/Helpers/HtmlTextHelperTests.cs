@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using GenHub.Core.Helpers;
 using Xunit;
 
@@ -104,6 +105,32 @@ public sealed class HtmlTextHelperTests
     }
 
     /// <summary>
+    /// Verifies that NormalizeHtml strips comments and doctype declarations cleanly.
+    /// </summary>
+    [Fact]
+    public void NormalizeHtml_CommentsAndDocType_StripsCleanly()
+    {
+        var html = "<!DOCTYPE html><!-- comment -->Hello <b>World</b>";
+        var result = HtmlTextHelper.NormalizeHtml(html);
+        Assert.Equal("Hello World", result);
+    }
+
+    /// <summary>
+    /// Verifies that NormalizeHtml handles repeated unterminated tags linearly without catastrophic backtracking.
+    /// </summary>
+    [Fact]
+    public void NormalizeHtml_RepeatedUnterminatedTags_ExecutesBoundedInLinearTime()
+    {
+        var repeated = string.Concat(System.Linq.Enumerable.Repeat("<a ", 500)) + "content";
+        var sw = Stopwatch.StartNew();
+        var result = HtmlTextHelper.NormalizeHtml(repeated);
+        sw.Stop();
+
+        Assert.True(sw.ElapsedMilliseconds < 2000, $"Expected fast execution, took {sw.ElapsedMilliseconds}ms");
+        Assert.NotNull(result);
+    }
+
+    /// <summary>
     /// Verifies that NormalizeHtml strips paragraph tags from CNC Labs description snippets.
     /// </summary>
     [Fact]
@@ -168,6 +195,11 @@ public sealed class HtmlTextHelperTests
     [InlineData("A very long string exceeding limit", 10, "A very ...")]
     [InlineData("Abcdef", 3, "Abc")]
     [InlineData("Abcdef", 2, "Ab")]
+    [InlineData("😀hello", 1, "")]
+    [InlineData("😀hello", 2, "😀")]
+    [InlineData("a😀hello", 2, "a")]
+    [InlineData("a😀hello", 3, "a😀")]
+    [InlineData("ab😀hello", 3, "ab")]
     public void TruncateWithEllipsis_VariousInputs_BehavesCorrectly(string? input, int maxLength, string expected)
     {
         var result = HtmlTextHelper.TruncateWithEllipsis(input, maxLength);
