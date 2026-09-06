@@ -391,6 +391,7 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
     /// <summary>
     /// Verifies that unrelated files under allowed directories (e.g. unknown .dat, unrelated .wnd, nested .json) return false from IsControlBarContent.
     /// </summary>
+    /// <param name="relativeFilePath">The relative file path to test.</param>
     [Theory]
     [InlineData("GenTool/telemetry.dat")]
     [InlineData("Window/MainMenu.wnd")]

@@ -218,10 +218,14 @@ public class CommunityOutpostManifestFactoryTests : IDisposable
     /// Verifies that when a Control Bar variant produces no outputs (assets not present in package),
     /// no manifest is emitted for that missing variant.
     /// </summary>
+    /// <returns>A completed task.</returns>
     [Fact]
     public async Task CreateManifestsFromExtractedContentAsync_ControlBarVariantWithNoMatchingAssets_SkipsMissingVariant()
     {
         // Arrange
+        var baseBig = Path.Combine(_tempDir, "340_ControlBarProZH.big");
+        File.WriteAllText(baseBig, "metadata big");
+
         var originalManifest = new ContentManifest
         {
             Id = ManifestId.Create("1.103.communityoutpost.addon.cbpr"),
