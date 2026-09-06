@@ -1215,7 +1215,7 @@ public sealed class ModDBPageParserTests
         // Preview image from file detail page should be extracted into Images
         var image = Assert.Single(images);
         Assert.Equal("Final Preview", image.Title);
-        Assert.Equal("https://media.moddb.com/images/downloads/1/314/313875/Final.jpg", image.ThumbnailUrl);
+        Assert.Equal("https://media.moddb.com/cache/images/downloads/1/314/313875/Final.jpg", image.ThumbnailUrl);
         Assert.Equal("https://media.moddb.com/images/downloads/1/314/313875/Final.jpg", image.FullSizeUrl);
 
         // Error placeholder icon must be ignored
@@ -1595,7 +1595,7 @@ public sealed class ModDBPageParserTests
         // Assert
         var image = Assert.Single(parsed.Sections.OfType<Image>());
         Assert.Equal("Screenshot One", image.Title);
-        Assert.Equal("https://media.moddb.com/images/mods/1/73/72174/ScreenshotOne.png", image.ThumbnailUrl);
+        Assert.Equal("https://media.moddb.com/cache/images/mods/1/73/72174/crop_120x90/ScreenshotOne.png", image.ThumbnailUrl);
         Assert.Equal("https://media.moddb.com/images/mods/1/73/72174/ScreenshotOne.png", image.FullSizeUrl);
         Assert.DoesNotContain("www.moddb.com//", image.ThumbnailUrl);
     }

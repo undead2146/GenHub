@@ -161,6 +161,9 @@ public sealed class ManagedChromiumRuntimeTests : IDisposable
     /// <summary>
     /// Verifies IsDownloadNavigationException recognizes direct download triggers from Playwright navigation errors.
     /// </summary>
+    /// <param name="message">The exception message.</param>
+    /// <param name="isDownloadCompleted">Whether the download TCS has completed.</param>
+    /// <param name="expected">The expected classification result.</param>
     [Theory]
     [InlineData("Download is starting", false, true)]
     [InlineData("net::ERR_ABORTED at https://media.moddb.com/file.zip", true, true)]
