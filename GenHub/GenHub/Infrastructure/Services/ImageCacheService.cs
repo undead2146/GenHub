@@ -16,6 +16,7 @@ using GenHub;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using Microsoft.Extensions.Logging;
+using SixLabors.ImageSharp;
 
 namespace GenHub.Infrastructure.Services;
 
@@ -165,12 +166,12 @@ public sealed class ImageCacheService : IImageCacheService
 
         if (url.StartsWith("avares://", StringComparison.OrdinalIgnoreCase))
         {
-            return await LoadBitmapFromAvaloniaAssetAsync(url);
+            return await LoadBitmapFromAvaloniaAssetAsync(url).ConfigureAwait(false);
         }
 
         if (url.StartsWith("file://", StringComparison.OrdinalIgnoreCase) || Path.IsPathRooted(url))
         {
-            return await TryLoadLocalFileImageAsync(url, cancellationToken);
+            return await TryLoadLocalFileImageAsync(url, cancellationToken).ConfigureAwait(false);
         }
 
         if (!IsSafeRemoteUrl(url, out _))
@@ -179,7 +180,7 @@ public sealed class ImageCacheService : IImageCacheService
             return null;
         }
 
-        return await GetOrDownloadRemoteImageAsync(url, cancellationToken);
+        return await GetOrDownloadRemoteImageAsync(url, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -201,6 +202,13 @@ public sealed class ImageCacheService : IImageCacheService
         }
 
         if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+        {
+            return false;
+        }
+
+        if (uri.HostNameType != UriHostNameType.Dns &&
+            uri.HostNameType != UriHostNameType.IPv4 &&
+            uri.HostNameType != UriHostNameType.IPv6)
         {
             return false;
         }
@@ -230,7 +238,12 @@ public sealed class ImageCacheService : IImageCacheService
             ConnectTimeout = TimeSpan.FromSeconds(10),
             ConnectCallback = async (context, cancellationToken) =>
             {
-                var addresses = await Dns.GetHostAddressesAsync(context.DnsEndPoint.Host, cancellationToken);
+                if (Uri.CheckHostName(context.DnsEndPoint.Host) == UriHostNameType.Unknown)
+                {
+                    throw new HttpRequestException($"Invalid host name: '{context.DnsEndPoint.Host}'.");
+                }
+
+                var addresses = await Dns.GetHostAddressesAsync(context.DnsEndPoint.Host, cancellationToken).ConfigureAwait(false);
                 if (addresses.Length == 0 || !addresses.All(IsSafeIpAddress))
                 {
                     throw new HttpRequestException($"Host '{context.DnsEndPoint.Host}' resolved to an unsafe or invalid IP address.");
@@ -240,7 +253,7 @@ public sealed class ImageCacheService : IImageCacheService
                 var socket = new System.Net.Sockets.Socket(safeIp.AddressFamily, System.Net.Sockets.SocketType.Stream, System.Net.Sockets.ProtocolType.Tcp);
                 try
                 {
-                    await socket.ConnectAsync(new IPEndPoint(safeIp, context.DnsEndPoint.Port), cancellationToken);
+                    await socket.ConnectAsync(new IPEndPoint(safeIp, context.DnsEndPoint.Port), cancellationToken).ConfigureAwait(false);
                     return new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
                 }
                 catch
@@ -286,6 +299,18 @@ public sealed class ImageCacheService : IImageCacheService
             return false;
         }
 
+        // 192.0.0.0/24 IETF Protocol Assignments
+        if (b[0] == 192 && b[1] == 0 && b[2] == 0)
+        {
+            return false;
+        }
+
+        // 192.0.2.0/24 TEST-NET-1
+        if (b[0] == 192 && b[1] == 0 && b[2] == 2)
+        {
+            return false;
+        }
+
         // 192.168.0.0/16 Private-use networks
         if (b[0] == 192 && b[1] == 168)
         {
@@ -298,19 +323,13 @@ public sealed class ImageCacheService : IImageCacheService
             return false;
         }
 
-        // 192.0.0.0/24 (IETF Protocol Assignments) and 192.0.2.0/24 (TEST-NET-1)
-        if (b[0] == 192 && b[1] == 0)
-        {
-            return false;
-        }
-
-        // 198.51.100.0/24 (TEST-NET-2)
+        // 198.51.100.0/24 TEST-NET-2
         if (b[0] == 198 && b[1] == 51 && b[2] == 100)
         {
             return false;
         }
 
-        // 203.0.113.0/24 (TEST-NET-3)
+        // 203.0.113.0/24 TEST-NET-3
         if (b[0] == 203 && b[1] == 0 && b[2] == 113)
         {
             return false;
@@ -424,8 +443,13 @@ public sealed class ImageCacheService : IImageCacheService
         }
     }
 
-    private static void TryDeleteFile(string path)
+    private static void TryDeleteFile(string? path)
     {
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+
         try
         {
             if (File.Exists(path))
@@ -455,6 +479,37 @@ public sealed class ImageCacheService : IImageCacheService
     {
         try
         {
+            if (stream.CanSeek)
+            {
+                var initialPosition = stream.Position;
+                try
+                {
+                    var imageInfo = Image.Identify(stream);
+                    if (imageInfo != null)
+                    {
+                        var estimatedBytes = (long)imageInfo.Width * imageInfo.Height * 4;
+                        if (estimatedBytes > ImageCacheConstants.MaxDecodedImageSizeBytes)
+                        {
+                            logger?.LogWarning(
+                                "Image dimensions ({Width}x{Height}) exceed maximum decoded size limit ({EstimatedBytes} bytes > {Max} bytes)",
+                                imageInfo.Width,
+                                imageInfo.Height,
+                                estimatedBytes,
+                                ImageCacheConstants.MaxDecodedImageSizeBytes);
+                            return null;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Fall back to Avalonia decode if ImageSharp cannot identify the image format.
+                }
+                finally
+                {
+                    stream.Position = initialPosition;
+                }
+            }
+
             var bitmap = new Bitmap(stream);
             var byteCost = CalculateBitmapBytes(bitmap);
             if (byteCost > ImageCacheConstants.MaxDecodedImageSizeBytes)
@@ -512,11 +567,18 @@ public sealed class ImageCacheService : IImageCacheService
             return null;
         }
 
+        var fileInfo = new FileInfo(localPath);
+        if (fileInfo.Length > ImageCacheConstants.MaxImageDownloadSizeBytes)
+        {
+            logger?.LogWarning("Local image file '{Path}' exceeds maximum allowed size ({Size} bytes)", localPath, fileInfo.Length);
+            return null;
+        }
+
         try
         {
             using var fs = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             using var ms = new MemoryStream();
-            await fs.CopyToAsync(ms, cancellationToken);
+            await fs.CopyToAsync(ms, cancellationToken).ConfigureAwait(false);
             ms.Position = 0;
             var localBitmap = CreateAndValidateBitmap(ms);
             if (localBitmap != null)
@@ -536,14 +598,14 @@ public sealed class ImageCacheService : IImageCacheService
     private async Task<Bitmap?> GetOrDownloadRemoteImageAsync(string url, CancellationToken cancellationToken)
     {
         var diskPath = GetDiskCachePath(url);
-        var diskBitmap = await TryLoadFromDiskCacheAsync(diskPath, cancellationToken);
+        var diskBitmap = await TryLoadFromDiskCacheAsync(diskPath, cancellationToken).ConfigureAwait(false);
         if (diskBitmap != null)
         {
             memoryCache.AddOrUpdate(url, diskBitmap);
             return diskBitmap;
         }
 
-        return await CoalesceDownloadAsync(url, diskPath, cancellationToken);
+        return await CoalesceDownloadAsync(url, diskPath, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<Bitmap?> TryLoadFromDiskCacheAsync(string diskPath, CancellationToken cancellationToken)
@@ -554,6 +616,13 @@ public sealed class ImageCacheService : IImageCacheService
         }
 
         var fileInfo = new FileInfo(diskPath);
+        if (fileInfo.Length > ImageCacheConstants.MaxImageDownloadSizeBytes)
+        {
+            logger?.LogWarning("Cached disk image '{Path}' exceeds maximum allowed size ({Size} bytes)", diskPath, fileInfo.Length);
+            TryDeleteFile(diskPath);
+            return null;
+        }
+
         var cutoff = DateTime.UtcNow.AddDays(-ImageCacheConstants.DiskCacheTtlDays);
         if (fileInfo.LastWriteTimeUtc < cutoff)
         {
@@ -563,9 +632,18 @@ public sealed class ImageCacheService : IImageCacheService
 
         try
         {
+            fileInfo.LastWriteTimeUtc = DateTime.UtcNow;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger?.LogWarning(ex, "Failed to update disk cache timestamp for '{Path}'", diskPath);
+        }
+
+        try
+        {
             using var fs = new FileStream(diskPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             using var ms = new MemoryStream();
-            await fs.CopyToAsync(ms, cancellationToken);
+            await fs.CopyToAsync(ms, cancellationToken).ConfigureAwait(false);
             ms.Position = 0;
             return CreateAndValidateBitmap(ms);
         }
@@ -618,7 +696,7 @@ public sealed class ImageCacheService : IImageCacheService
         {
             try
             {
-                return await operation.Task.WaitAsync(cancellationToken);
+                return await operation.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -639,13 +717,13 @@ public sealed class ImageCacheService : IImageCacheService
     {
         try
         {
-            using var response = await ExecuteRequestWithRedirectsAsync(initialUrl, cancellationToken);
+            using var response = await ExecuteRequestWithRedirectsAsync(initialUrl, cancellationToken).ConfigureAwait(false);
             if (response == null || !response.IsSuccessStatusCode)
             {
                 return null;
             }
 
-            var imageBytes = await ReadValidatedImageBytesAsync(response, cancellationToken);
+            var imageBytes = await ReadValidatedImageBytesAsync(response, cancellationToken).ConfigureAwait(false);
             if (imageBytes == null)
             {
                 return null;
@@ -659,7 +737,7 @@ public sealed class ImageCacheService : IImageCacheService
             }
 
             memoryCache.AddOrUpdate(initialUrl, bitmap);
-            SaveImageBytesToDiskAtomic(diskPath, imageBytes);
+            await SaveImageBytesToDiskAtomicAsync(diskPath, imageBytes, cancellationToken).ConfigureAwait(false);
             TriggerDiskCleanupIfNeeded();
 
             return bitmap;
@@ -698,7 +776,7 @@ public sealed class ImageCacheService : IImageCacheService
                 request.Headers.Referrer = ModDbReferrerUri;
             }
 
-            var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
             if ((int)response.StatusCode is >= 300 and <= 399 && response.Headers.Location != null)
             {
                 var nextUri = response.Headers.Location.IsAbsoluteUri
@@ -734,13 +812,13 @@ public sealed class ImageCacheService : IImageCacheService
             return null;
         }
 
-        using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         using var ms = new MemoryStream();
         var buffer = new byte[81920];
         long totalBytesRead = 0;
         int read;
 
-        while ((read = await responseStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken)) > 0)
+        while ((read = await responseStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
         {
             totalBytesRead += read;
             if (totalBytesRead > ImageCacheConstants.MaxImageDownloadSizeBytes)
@@ -749,13 +827,13 @@ public sealed class ImageCacheService : IImageCacheService
                 return null;
             }
 
-            await ms.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            await ms.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
         }
 
         return ms.ToArray();
     }
 
-    private void SaveImageBytesToDiskAtomic(string diskPath, byte[] imageBytes)
+    private async Task SaveImageBytesToDiskAtomicAsync(string diskPath, byte[] imageBytes, CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(diskPath))
         {
@@ -773,23 +851,17 @@ public sealed class ImageCacheService : IImageCacheService
         {
             Directory.CreateDirectory(dir);
             tempPath = Path.Combine(dir, $"{Guid.NewGuid():N}.tmp");
-            File.WriteAllBytes(tempPath, imageBytes);
+            await File.WriteAllBytesAsync(tempPath, imageBytes, cancellationToken).ConfigureAwait(false);
             File.Move(tempPath, diskPath, overwrite: true);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            TryDeleteFile(tempPath);
+            throw;
         }
         catch (Exception ex)
         {
-            if (tempPath != null && File.Exists(tempPath))
-            {
-                try
-                {
-                    File.Delete(tempPath);
-                }
-                catch
-                {
-                    // Ignore deletion failure of temp file
-                }
-            }
-
+            TryDeleteFile(tempPath);
             logger?.LogWarning(ex, "Failed to write disk cache file '{Path}'", diskPath);
         }
     }
