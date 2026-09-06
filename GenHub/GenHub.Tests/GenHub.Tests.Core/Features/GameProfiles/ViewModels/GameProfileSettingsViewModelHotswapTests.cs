@@ -930,12 +930,15 @@ public class GameProfileSettingsViewModelHotswapTests
         _manifestPoolMock.Setup(m => m.GetManifestAsync(It.IsAny<ManifestId>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(OperationResult<ContentManifest?>.CreateSuccess(new ContentManifest { Id = ManifestId.Create(installId) }));
 
+        var syncCallCount = 0;
         _profileContentLinkerMock.Setup(p => p.UpdateProfileUserDataAsync(
             profileId,
             It.IsAny<IEnumerable<ContentManifest>>(),
             It.IsAny<GameType>(),
             It.IsAny<CancellationToken>()))
-            .ReturnsAsync(OperationResult<bool>.CreateFailure("Cannot sync locked files"));
+            .ReturnsAsync(() => ++syncCallCount == 1
+                ? OperationResult<bool>.CreateFailure("Cannot sync locked files")
+                : OperationResult<bool>.CreateSuccess(true));
 
         await _viewModel.InitializeForProfileAsync(profileId);
         _gameProfileManagerMock.Invocations.Clear();

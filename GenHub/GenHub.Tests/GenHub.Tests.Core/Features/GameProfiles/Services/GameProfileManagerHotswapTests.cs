@@ -430,6 +430,105 @@ public class GameProfileManagerHotswapTests
         Assert.Empty(existingProfile.ActiveWorkspaceId);
     }
 
+    /// <summary>
+    /// Verifies that ClearWorkspaceStrategy fails on a running profile when a strategy exists, but succeeds when strategy is null.
+    /// </summary>
+    /// <returns>A task representing the test operation.</returns>
+    [Fact]
+    public async Task UpdateProfileAsync_WhenProfileRunning_WithClearWorkspaceStrategy_FailsWhenStrategyExistsAndSucceedsWhenNullAsync()
+    {
+        // Arrange
+        const string profileWithStrategyId = "profile-strategy-set";
+        var profileWithStrategy = new GameProfile
+        {
+            Id = profileWithStrategyId,
+            Name = "Profile With Strategy",
+            WorkspaceStrategy = WorkspaceStrategy.SymlinkOnly,
+            ActiveWorkspaceId = "workspace-live-1",
+        };
+
+        const string profileWithoutStrategyId = "profile-strategy-null";
+        var profileWithoutStrategy = new GameProfile
+        {
+            Id = profileWithoutStrategyId,
+            Name = "Profile Without Strategy",
+            WorkspaceStrategy = null,
+            ActiveWorkspaceId = "workspace-live-2",
+        };
+
+        _profileRepositoryMock.Setup(r => r.LoadProfileAsync(profileWithStrategyId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profileWithStrategy));
+        _profileRepositoryMock.Setup(r => r.LoadProfileAsync(profileWithoutStrategyId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profileWithoutStrategy));
+        _profileRepositoryMock.Setup(r => r.SaveProfileAsync(It.IsAny<GameProfile>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GameProfile p, CancellationToken _) => ProfileOperationResult<GameProfile>.CreateSuccess(p));
+
+        _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
+            .ReturnsAsync([CreateActiveLaunch(profileWithStrategyId), CreateActiveLaunch(profileWithoutStrategyId)]);
+
+        var request = new UpdateProfileRequest
+        {
+            ClearWorkspaceStrategy = true,
+        };
+
+        // Act & Assert 1: Profile with existing strategy must fail
+        var failResult = await _profileManager.UpdateProfileAsync(profileWithStrategyId, request);
+        Assert.False(failResult.Success);
+        Assert.Contains("workspace strategy", failResult.FirstError, StringComparison.OrdinalIgnoreCase);
+
+        // Act & Assert 2: Profile with null strategy must succeed (no-op clear)
+        var successResult = await _profileManager.UpdateProfileAsync(profileWithoutStrategyId, request);
+        Assert.True(successResult.Success);
+    }
+
+    /// <summary>
+    /// Verifies that IsRollback allows rolling back immutable settings on a running profile without validation failure.
+    /// </summary>
+    /// <returns>A task representing the test operation.</returns>
+    [Fact]
+    public async Task UpdateProfileAsync_WhenProfileRunning_WithIsRollback_BypassesRunningProfileValidationAsync()
+    {
+        // Arrange
+        const string profileId = "profile-running-rollback";
+        var existingProfile = new GameProfile
+        {
+            Id = profileId,
+            Name = "Running Profile",
+            CommandLineArguments = "-oldargs",
+            ActiveWorkspaceId = "workspace-live-123",
+        };
+
+        _profileRepositoryMock.Setup(r => r.LoadProfileAsync(profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(existingProfile));
+        _profileRepositoryMock.Setup(r => r.SaveProfileAsync(It.IsAny<GameProfile>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GameProfile p, CancellationToken _) => ProfileOperationResult<GameProfile>.CreateSuccess(p));
+
+        _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
+            .ReturnsAsync([CreateActiveLaunch(profileId)]);
+
+        var normalRequest = new UpdateProfileRequest
+        {
+            CommandLineArguments = "-newargs",
+            IsRollback = false,
+        };
+
+        var rollbackRequest = new UpdateProfileRequest
+        {
+            CommandLineArguments = "-restoredargs",
+            IsRollback = true,
+        };
+
+        // Act 1: Standard update fails immutable settings validation
+        var normalResult = await _profileManager.UpdateProfileAsync(profileId, normalRequest);
+        Assert.False(normalResult.Success);
+        Assert.Contains("command line arguments", normalResult.FirstError, StringComparison.OrdinalIgnoreCase);
+
+        // Act 2: Rollback update bypasses validation and succeeds
+        var rollbackResult = await _profileManager.UpdateProfileAsync(profileId, rollbackRequest);
+        Assert.True(rollbackResult.Success);
+        Assert.Equal("-restoredargs", rollbackResult.Data?.CommandLineArguments);
+    }
+
     private static GameLaunchInfo CreateActiveLaunch(string profileId, string launchId = "launch-1", string workspaceId = "ws-1") => new()
     {
         LaunchId = launchId,

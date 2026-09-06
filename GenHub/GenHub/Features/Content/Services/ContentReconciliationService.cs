@@ -604,9 +604,12 @@ public class ContentReconciliationService(
         // Return success even with partial failures to allow cleanup of old manifests.
         // Callers can check ProfilesUpdated count vs expected count to detect partial failures.
         // Failed profiles are logged for visibility.
-        foreach (var replacement in replacements)
+        if (updatedProfilesCount > 0)
         {
-            WeakReferenceMessenger.Default.Send(new ManifestReplacedMessage(replacement.Key, replacement.Value.Id.Value));
+            foreach (var replacement in replacements)
+            {
+                WeakReferenceMessenger.Default.Send(new ManifestReplacedMessage(replacement.Key, replacement.Value.Id.Value));
+            }
         }
 
         logger.LogInformation("Bulk reconciliation complete. Updated {Count} profiles. {FailedCount} failures.", updatedProfilesCount, failedProfiles.Count);

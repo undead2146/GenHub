@@ -276,24 +276,6 @@ public class ProfileContentLinkerService(
     private static SemaphoreSlim GetGameLock(GameType gameType) =>
         _gameSyncLocks.GetOrAdd(gameType, static _ => new SemaphoreSlim(1, 1));
 
-    private static bool HasProfileUserData(ContentManifest manifest)
-    {
-        return GetUserDataFiles(manifest).Count > 0;
-    }
-
-    private static IReadOnlyList<ManifestFile> GetUserDataFiles(ContentManifest manifest)
-    {
-        return ManifestVariantResolver.ResolveFiles(manifest)
-            .Where(file => file.InstallTarget != ContentInstallTarget.System &&
-                           (file.InstallTarget != ContentInstallTarget.Workspace ||
-                            manifest.ContentType is ContentType.Map or ContentType.MapPack))
-            .Select(file => (manifest.ContentType is ContentType.Map or ContentType.MapPack) &&
-                            file.InstallTarget == ContentInstallTarget.Workspace
-                ? CreateUserMapsFile(file)
-                : file)
-            .ToList();
-    }
-
     private static ManifestFile CreateUserMapsFile(ManifestFile file)
     {
         return new ManifestFile
@@ -311,6 +293,33 @@ public class ProfileContentLinkerService(
             PatchSourceFile = file.PatchSourceFile,
             PackageInfo = file.PackageInfo,
         };
+    }
+
+    private bool HasProfileUserData(ContentManifest manifest)
+    {
+        return GetUserDataFiles(manifest).Count > 0;
+    }
+
+    private IReadOnlyList<ManifestFile> GetUserDataFiles(ContentManifest manifest)
+    {
+        var resolved = ManifestVariantResolver.ResolveFiles(manifest);
+        if (manifest.Variants.Count > 0 && resolved.Count == 0)
+        {
+            logger.LogDebug(
+                "Manifest {ManifestId} defines {VariantCount} variants, but none matched the current host runtime",
+                manifest.Id,
+                manifest.Variants.Count);
+        }
+
+        return resolved
+            .Where(file => file.InstallTarget != ContentInstallTarget.System &&
+                           (file.InstallTarget != ContentInstallTarget.Workspace ||
+                            manifest.ContentType is ContentType.Map or ContentType.MapPack))
+            .Select(file => (manifest.ContentType is ContentType.Map or ContentType.MapPack) &&
+                            file.InstallTarget == ContentInstallTarget.Workspace
+                ? CreateUserMapsFile(file)
+                : file)
+            .ToList();
     }
 
     private sealed record UserDataSyncContext(

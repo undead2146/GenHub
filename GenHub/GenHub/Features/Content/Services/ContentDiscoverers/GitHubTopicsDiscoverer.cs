@@ -206,7 +206,7 @@ public partial class GitHubTopicsDiscoverer(
 
                             cancellationToken.ThrowIfCancellationRequested();
                         }
-                        catch (OperationCanceledException)
+                        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                         {
                             throw;
                         }

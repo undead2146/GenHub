@@ -501,53 +501,7 @@ public partial class GameProfileSettingsViewModel
                     var liveSyncSuccess = await PerformLiveSyncAsync(enabledContentIds, liveGameType, cancellationToken);
                     if (!liveSyncSuccess)
                     {
-                        _logger?.LogWarning("Live sync failed after profile update for {ProfileId}; rolling back persisted profile", CurrentProfileId);
-                        if (_originalProfile == null)
-                        {
-                            _logger?.LogError("Cannot roll back profile {ProfileId} after live sync failure: original profile snapshot is null", CurrentProfileId);
-                            StatusMessage = "Live synchronization failed and profile snapshot was missing for rollback";
-                            _localNotificationService.ShowError(
-                                "Live Sync Failed",
-                                "A game session was started during save, and live synchronization failed. Profile snapshot was missing so rollback could not be performed.");
-                            return;
-                        }
-
-                        var rollbackRequest = BuildRollbackRequest(_originalProfile, _originalEnabledContentIds.ToList(), _originalGameSettings);
-                        var rollbackResult = await _gameProfileManager.UpdateProfileAsync(CurrentProfileId, rollbackRequest, cancellationToken);
-                        if (rollbackResult.Success)
-                        {
-                            ApplyLoadedProfileProperties(_originalProfile);
-                            await GameSettingsViewModel.InitializeForProfileAsync(CurrentProfileId, _originalProfile);
-                            await LoadEnabledContentForProfileAsync(_originalProfile);
-
-                            var (originalManifests, missingOriginalIds) = await ResolveOriginalManifestsForRollbackAsync(cancellationToken);
-                            if (missingOriginalIds.Count == 0)
-                            {
-                                await _profileContentLinker.UpdateProfileUserDataAsync(
-                                    CurrentProfileId,
-                                    originalManifests,
-                                    liveGameType,
-                                    cancellationToken);
-                            }
-                            else
-                            {
-                                _logger?.LogWarning("Live user data rollback for {ProfileId} skipped due to missing manifests: {Ids}", CurrentProfileId, string.Join(", ", missingOriginalIds));
-                            }
-
-                            StatusMessage = "Live synchronization failed; profile changes were rolled back";
-                            _localNotificationService.ShowWarning(
-                                "Live Sync Failed",
-                                "A game session was started during save, but live synchronization failed. Profile changes were rolled back to match the running game.");
-                        }
-                        else
-                        {
-                            _logger?.LogError("Failed to roll back profile {ProfileId} after live sync failure: {Error}", CurrentProfileId, rollbackResult.FirstError);
-                            StatusMessage = "Live synchronization failed and profile rollback could not be persisted";
-                            _localNotificationService.ShowError(
-                                "Live Sync & Rollback Failed",
-                                $"A game session was started during save, and live synchronization failed. Furthermore, rolling back persisted profile changes failed: {rollbackResult.FirstError}. Profile and running game may be out of sync.");
-                        }
-
+                        await HandlePostSaveLiveSyncFailureAsync(liveGameType, cancellationToken);
                         return;
                     }
 
@@ -560,6 +514,79 @@ public partial class GameProfileSettingsViewModel
         else
         {
             await HandleProfileUpdateFailureAsync(isProfileRunning, liveGameType, result, cancellationToken);
+        }
+    }
+
+    private async Task HandlePostSaveLiveSyncFailureAsync(GameType liveGameType, CancellationToken cancellationToken)
+    {
+        _logger?.LogWarning("Live sync failed after profile update for {ProfileId}; rolling back persisted profile", CurrentProfileId);
+        if (_originalProfile == null || string.IsNullOrEmpty(CurrentProfileId) || _gameProfileManager == null)
+        {
+            _logger?.LogError("Cannot roll back profile {ProfileId} after live sync failure: original profile snapshot or required manager is null", CurrentProfileId);
+            StatusMessage = "Live synchronization failed and profile snapshot was missing for rollback";
+            _localNotificationService.ShowError(
+                "Live Sync Failed",
+                "A game session was started during save, and live synchronization failed. Profile snapshot was missing so rollback could not be performed.");
+            return;
+        }
+
+        var rollbackRequest = BuildRollbackRequest(_originalProfile, _originalEnabledContentIds.ToList(), _originalGameSettings);
+        var rollbackResult = await _gameProfileManager.UpdateProfileAsync(CurrentProfileId, rollbackRequest, cancellationToken);
+        if (rollbackResult.Success)
+        {
+            ApplyLoadedProfileProperties(_originalProfile);
+            await GameSettingsViewModel.InitializeForProfileAsync(CurrentProfileId, _originalProfile);
+            await LoadEnabledContentForProfileAsync(_originalProfile);
+            await LoadAvailableContentAsync();
+            SelectInitialGameInstallation(_originalProfile);
+            UpdateAllItemsHotswapState();
+
+            var userDataRollbackSuccess = true;
+            if (_profileContentLinker != null)
+            {
+                var (originalManifests, missingOriginalIds) = await ResolveOriginalManifestsForRollbackAsync(cancellationToken);
+                if (missingOriginalIds.Count == 0)
+                {
+                    var userDataResult = await _profileContentLinker.UpdateProfileUserDataAsync(
+                        CurrentProfileId,
+                        originalManifests,
+                        liveGameType,
+                        cancellationToken);
+                    if (!userDataResult.Success)
+                    {
+                        userDataRollbackSuccess = false;
+                        _logger?.LogWarning("Live user data rollback for {ProfileId} failed: {Error}", CurrentProfileId, userDataResult.FirstError);
+                    }
+                }
+                else
+                {
+                    userDataRollbackSuccess = false;
+                    _logger?.LogWarning("Live user data rollback for {ProfileId} skipped due to missing manifests: {Ids}", CurrentProfileId, string.Join(", ", missingOriginalIds));
+                }
+            }
+
+            if (userDataRollbackSuccess)
+            {
+                StatusMessage = "Live synchronization failed; profile changes were rolled back";
+                _localNotificationService.ShowWarning(
+                    "Live Sync Failed",
+                    "A game session was started during save, but live synchronization failed. Profile changes were rolled back to match the running game.");
+            }
+            else
+            {
+                StatusMessage = "Live synchronization failed; profile was rolled back but live user data could not be restored";
+                _localNotificationService.ShowWarning(
+                    "Live Sync Failed",
+                    "A game session was started during save, and live synchronization failed. Profile changes were rolled back, but live user data could not be fully restored to match the running game.");
+            }
+        }
+        else
+        {
+            _logger?.LogError("Failed to roll back profile {ProfileId} after live sync failure: {Error}", CurrentProfileId, rollbackResult.FirstError);
+            StatusMessage = "Live synchronization failed and profile rollback could not be persisted";
+            _localNotificationService.ShowError(
+                "Live Sync & Rollback Failed",
+                $"A game session was started during save, and live synchronization failed. Furthermore, rolling back persisted profile changes failed: {rollbackResult.FirstError}. Profile and running game may be out of sync.");
         }
     }
 
@@ -576,6 +603,7 @@ public partial class GameProfileSettingsViewModel
             GameInstallationId = originalProfile.GameInstallationId,
             WorkspaceStrategy = originalProfile.WorkspaceStrategy,
             ClearWorkspaceStrategy = !originalProfile.WorkspaceStrategy.HasValue,
+            ActiveWorkspaceId = originalProfile.ActiveWorkspaceId,
             EnabledContentIds = originalEnabledContentIds,
             CommandLineArguments = originalProfile.CommandLineArguments,
             IconPath = originalProfile.IconPath,

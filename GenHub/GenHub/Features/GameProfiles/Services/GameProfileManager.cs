@@ -201,12 +201,21 @@ public class GameProfileManager(
                 isRunning = activeLaunches.Any(l => string.Equals(l.ProfileId, profileId, StringComparison.OrdinalIgnoreCase) && !l.TerminatedAt.HasValue);
             }
 
-            if (isRunning && !request.IsRollback)
+            if (isRunning)
             {
-                var validationResult = await ValidateRunningProfileUpdateRequestAsync(profile, request, previousEnabledContentIds, cancellationToken);
-                if (validationResult != null)
+                if (request.IsRollback)
                 {
-                    return validationResult;
+                    logger.LogInformation(
+                        "UpdateProfileAsync for running profile {ProfileId} is flagged as rollback; bypassing running profile immutability validation to restore snapshot.",
+                        profileId);
+                }
+                else
+                {
+                    var validationResult = await ValidateRunningProfileUpdateRequestAsync(profile, request, previousEnabledContentIds, cancellationToken);
+                    if (validationResult != null)
+                    {
+                        return validationResult;
+                    }
                 }
             }
 
