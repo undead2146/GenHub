@@ -170,9 +170,12 @@ if command -v python3 >/dev/null 2>&1; then
     JSON_PROJECT="$(python3 -c 'import json, sys; sys.stdout.write(json.dumps(sys.argv[1]))' "$RAW_PROJECT")"
 elif command -v jq >/dev/null 2>&1; then
     JSON_PROJECT="$(jq -Rn --arg p "$RAW_PROJECT" '$p')"
+elif command -v awk >/dev/null 2>&1; then
+    ESCAPED_PROJECT="$(printf '%s' "$RAW_PROJECT" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | awk 'BEGIN{RS="";ORS=""} {gsub(/\r/,"\\r"); gsub(/\n/,"\\n"); gsub(/\t/,"\\t"); print}')"
+    JSON_PROJECT="\"$ESCAPED_PROJECT\""
 else
-    ESCAPED_PROJECT="$(printf '%s' "$RAW_PROJECT" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"
-    JSON_PROJECT=""$ESCAPED_PROJECT""
+    ESCAPED_PROJECT="$(printf '%s' "$RAW_PROJECT" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\r\n\t' '   ')"
+    JSON_PROJECT="\"$ESCAPED_PROJECT\""
 fi
 printf '{"pid": %d, "mode": "%s", "project": %s, "startedAt": "%s"}\n' \
     "$$" "$MODE" "$JSON_PROJECT" "$CURRENT_TIME" >"$STATUS_FILE"

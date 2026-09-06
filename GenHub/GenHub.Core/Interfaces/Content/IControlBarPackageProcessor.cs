@@ -64,4 +64,11 @@ public interface IControlBarPackageProcessor
     /// <param name="variantSuffix">The variant suffix.</param>
     /// <returns>True if the file is allowed.</returns>
     bool IsAllowedControlBarBig(string fileName, string variantSuffix);
+
+    /// <summary>
+    /// Checks if a file name corresponds to a metadata-only Control Bar .big archive.
+    /// </summary>
+    /// <param name="fileName">The file name.</param>
+    /// <returns>True if the file is a metadata-only .big archive.</returns>
+    bool IsMetadataOnlyBig(string fileName);
 }

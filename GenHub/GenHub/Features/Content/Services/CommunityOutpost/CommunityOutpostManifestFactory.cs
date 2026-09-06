@@ -364,8 +364,7 @@ public class CommunityOutpostManifestFactory(
                     cancellationToken);
                 controlBarRepackedOutputs = new HashSet<string>(outputs, StringComparer.OrdinalIgnoreCase);
                 if (controlBarRepackedOutputs.Count == 0 ||
-                    controlBarRepackedOutputs.All(output => output.Equals(GameContentConstants.ControlBarProBaseFileName, StringComparison.OrdinalIgnoreCase) ||
-                                                           output.Equals(GameContentConstants.ControlBarProLemonBaseFileName, StringComparison.OrdinalIgnoreCase)))
+                    controlBarRepackedOutputs.All(controlBarProcessor.IsMetadataOnlyBig))
                 {
                     logger.LogInformation(
                         "Skipping Control Bar variant {VariantId} because no matching variant assets were found in {Directory}",

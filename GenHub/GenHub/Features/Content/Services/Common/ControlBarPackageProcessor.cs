@@ -49,7 +49,7 @@ public class ControlBarPackageProcessor(
     private static readonly string[] KnownResolutionVariants = [Variant720p, Variant900p, Variant1080p, Variant1440p, Variant4k, Variant2160p];
     private static readonly TimeSpan RegexMatchTimeout = TimeSpan.FromSeconds(1);
     private static readonly Regex WordVariantRegex = new(@"\b(720p?|900p?|1080p?|1440p?|2160p?|4k)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexMatchTimeout);
-    private static readonly Regex InlineVariantRegex = new(@"(720p?|900p?|1080p?|1440p?|2160p?|4k)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexMatchTimeout);
+    private static readonly Regex InlineVariantRegex = new(@"(?<!\d)(720p?|900p?|1080p?|1440p?|2160p?|4k)(?!\d)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexMatchTimeout);
     private static readonly Regex ControlBarImageStemRegex = new(@"^cb([-_]?(720p?|900p?|1080p?|1440p?|2160p?|4k))?$", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexMatchTimeout);
 
     /// <inheritdoc/>
@@ -533,7 +533,8 @@ public class ControlBarPackageProcessor(
         }
     }
 
-    private static bool IsMetadataOnlyBig(string fileName)
+    /// <inheritdoc/>
+    public bool IsMetadataOnlyBig(string fileName)
     {
         return fileName.Equals(GameContentConstants.ControlBarProBaseFileName, StringComparison.OrdinalIgnoreCase) ||
             fileName.Equals(GameContentConstants.ControlBarProLemonBaseFileName, StringComparison.OrdinalIgnoreCase);
