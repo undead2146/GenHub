@@ -397,6 +397,17 @@ public class GameProfileManager(
         return true;
     }
 
+    private static ProfileOperationResult<GameProfile>? ValidateAndApplyProfileName(GameProfile profile, string name)
+    {
+        if (!TryValidateProfileName(name, out var nameValidationError))
+        {
+            return ProfileOperationResult<GameProfile>.CreateFailure(nameValidationError!);
+        }
+
+        profile.Name = name;
+        return null;
+    }
+
     /// <summary>
     /// Loads existing Options.ini settings and populates the profile with them.
     /// This ensures new profiles inherit existing game settings.
@@ -455,17 +466,6 @@ public class GameProfileManager(
         }
 
         return await ValidateRunningProfileUpdateRequestAsync(profile, request, previousEnabledContentIds, cancellationToken);
-    }
-
-    private ProfileOperationResult<GameProfile>? ValidateAndApplyProfileName(GameProfile profile, string name)
-    {
-        if (!TryValidateProfileName(name, out var nameValidationError))
-        {
-            return ProfileOperationResult<GameProfile>.CreateFailure(nameValidationError!);
-        }
-
-        profile.Name = name;
-        return null;
     }
 
     private async Task<ProfileOperationResult<GameProfile>> SaveAndNotifyProfileUpdatedAsync(GameProfile profile, CancellationToken cancellationToken)
