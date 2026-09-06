@@ -190,6 +190,13 @@ public class ControlBarPackageProcessor(
             || fileName.Equals("400_ControlBarHDBaseZH.big", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <inheritdoc/>
+    public bool IsMetadataOnlyBig(string fileName)
+    {
+        return fileName.Equals(GameContentConstants.ControlBarProBaseFileName, StringComparison.OrdinalIgnoreCase) ||
+            fileName.Equals(GameContentConstants.ControlBarProLemonBaseFileName, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string BuildCandidatePath(string baseDir, string prefix, string token, string subDir)
     {
         var path = string.IsNullOrEmpty(prefix)
@@ -531,13 +538,6 @@ public class ControlBarPackageProcessor(
         {
             CopyDirectory(genToolSource, Path.Combine(dataPackRoot, GameContentConstants.GenToolDirectoryName));
         }
-    }
-
-    /// <inheritdoc/>
-    public bool IsMetadataOnlyBig(string fileName)
-    {
-        return fileName.Equals(GameContentConstants.ControlBarProBaseFileName, StringComparison.OrdinalIgnoreCase) ||
-            fileName.Equals(GameContentConstants.ControlBarProLemonBaseFileName, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string DetermineVariantId(string extractedDirectory, ContentManifest manifest, string? requestedVariant)

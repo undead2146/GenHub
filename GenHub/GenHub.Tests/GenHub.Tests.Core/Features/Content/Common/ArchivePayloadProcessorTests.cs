@@ -110,7 +110,6 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
             processor.ExtractArchivesSafelyAsync(_stagingDirectory));
     }
 
-
     /// <summary>
     /// Verifies that an archive exceeding the maximum allowed entry count throws an InvalidDataException.
     /// </summary>
