@@ -98,27 +98,37 @@ public partial class GitHubResolver(
 
             var isLatest = string.IsNullOrEmpty(tag) || tag.Equals("latest", StringComparison.OrdinalIgnoreCase);
 
-            var release = isLatest
-                ? await gitHubApiClient.GetLatestReleaseAsync(
-                    owner,
-                    repo,
-                    cancellationToken)
-                : await gitHubApiClient.GetReleaseByTagAsync(
-                    owner,
-                    repo,
-                    tag,
-                    cancellationToken);
-
-            // Fallback for repositories that only have pre-releases (GetLatestReleaseAsync returns null on GitHub if no stable release)
-            if (release == null && isLatest)
+            var release = discoveredItem.GetData<GitHubRelease>();
+            if (release == null)
             {
-                logger.LogInformation("Latest stable release not found for {Owner}/{Repo}. Falling back to most recent release (including pre-releases).", owner, repo);
-                var allReleases = await gitHubApiClient.GetReleasesAsync(owner, repo, cancellationToken);
-                release = allReleases?.OrderByDescending(r => r.PublishedAt ?? r.CreatedAt).FirstOrDefault();
+                release = isLatest
+                    ? await gitHubApiClient.GetLatestReleaseAsync(
+                        owner,
+                        repo,
+                        cancellationToken)
+                    : await gitHubApiClient.GetReleaseByTagAsync(
+                        owner,
+                        repo,
+                        tag,
+                        cancellationToken);
+
+                // Fallback for repositories that only have pre-releases (GetLatestReleaseAsync returns null on GitHub if no stable release)
+                if (release == null && isLatest)
+                {
+                    logger.LogInformation("Latest stable release not found for {Owner}/{Repo}. Falling back to most recent release (including pre-releases).", owner, repo);
+                    var allReleases = await gitHubApiClient.GetReleasesAsync(owner, repo, cancellationToken);
+                    release = allReleases?.OrderByDescending(r => r.PublishedAt ?? r.CreatedAt).FirstOrDefault();
+                }
             }
 
             if (release == null)
             {
+                if (gitHubApiClient.IsRateLimited)
+                {
+                    return OperationResult<ContentManifest>.CreateFailure(
+                        $"GitHub API rate limit exceeded while resolving {owner}/{repo}. Please configure a GitHub Personal Access Token in Settings or try again later.");
+                }
+
                 var errorTag = isLatest ? "latest stable" : $"tag '{tag}'";
                 return OperationResult<ContentManifest>.CreateFailure($"Release not found for {owner}/{repo} with {errorTag}");
             }
@@ -186,6 +196,11 @@ public partial class GitHubResolver(
             }
 
             var builtManifest = manifest.Build();
+            if (!string.IsNullOrEmpty(release.TagName))
+            {
+                builtManifest.Version = release.TagName;
+            }
+
             logger.LogInformation("GitHubResolver: Built manifest with ID: {ManifestId}", builtManifest.Id);
             return OperationResult<ContentManifest>.CreateSuccess(builtManifest);
         }
@@ -373,6 +388,11 @@ public partial class GitHubResolver(
             logger.LogInformation("Successfully resolved single release asset: {AssetName}", asset.Name);
 
             var builtManifest = manifest.Build();
+            if (!string.IsNullOrEmpty(tag))
+            {
+                builtManifest.Version = tag;
+            }
+
             logger.LogInformation("GitHubResolver (Single Asset): Built manifest with ID: {ManifestId}", builtManifest.Id);
             return OperationResult<ContentManifest>.CreateSuccess(builtManifest);
         }

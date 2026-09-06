@@ -793,7 +793,14 @@ public class GameLauncher(
             }
 
             progress?.Report(new LaunchProgress { Phase = LaunchPhase.PreparingUserData, PercentComplete = 82 });
-            TriggerBackgroundUserDataSwitch(profile, manifests, skipUserDataCleanup);
+            var userDataPrepResult = await PrepareUserDataAsync(profile, manifests, skipUserDataCleanup, cancellationToken);
+            if (!userDataPrepResult.Success)
+            {
+                steamInstallationLock?.Dispose();
+                steamInstallationLock = null;
+                await launchRegistry.UnregisterLaunchAsync(launchId);
+                return LaunchOperationResult<GameLaunchInfo>.CreateFailure(userDataPrepResult.FirstError ?? "User data preparation failed", launchId, profile.Id);
+            }
 
             progress?.Report(new LaunchProgress { Phase = LaunchPhase.Starting, PercentComplete = 90 });
             var executableResult = ResolveAndValidateExecutablePath(profile, workspaceInfo);
@@ -971,7 +978,8 @@ public class GameLauncher(
 
         var launchConfig = BuildGameLaunchConfiguration(finalExecutablePath, workspaceInfo, arguments, profile, installation);
 
-        var archiveRootError = ValidateRetailArchiveRoots(launchConfig.EnvironmentVariables, installation, profile.GameClient!.GameType);
+        var targetGame = profile.GameClient?.GameType ?? GameType.Generals;
+        var archiveRootError = ValidateRetailArchiveRoots(launchConfig.EnvironmentVariables, installation, targetGame);
         if (archiveRootError is not null)
         {
             logger.LogError("[GameLauncher] Retail archive root validation failed: {Error}", archiveRootError);
@@ -1042,43 +1050,45 @@ public class GameLauncher(
         return OperationResult<WorkspaceInfo>.CreateSuccess(workspaceInfo);
     }
 
-    private void TriggerBackgroundUserDataSwitch(
+    private async Task<OperationResult<bool>> PrepareUserDataAsync(
         GameProfile profile,
         List<ContentManifest> manifests,
-        bool skipUserDataCleanup)
+        bool skipUserDataCleanup,
+        CancellationToken cancellationToken)
     {
-        var previousActiveProfileId = profileContentLinker.GetActiveProfileId();
-        _ = Task.Run(
-            async () =>
+        var gameType = profile.GameClient?.GameType ?? GameType.ZeroHour;
+        var previousActiveProfileId = profileContentLinker.GetActiveProfileId(gameType);
+        try
+        {
+            logger.LogDebug(
+                "[GameLauncher] Switching user data from profile {OldProfile} to {NewProfile}",
+                previousActiveProfileId ?? "(none)",
+                profile.Id);
+            var userDataResult = await profileContentLinker.SwitchProfileUserDataAsync(
+                previousActiveProfileId,
+                profile.Id,
+                manifests,
+                gameType,
+                skipUserDataCleanup,
+                cancellationToken);
+            if (!userDataResult.Success)
             {
-                try
-                {
-                    logger.LogDebug(
-                        "[GameLauncher] Background: Switching user data from profile {OldProfile} to {NewProfile}",
-                        previousActiveProfileId ?? "(none)",
-                        profile.Id);
-                    var userDataResult = await profileContentLinker.SwitchProfileUserDataAsync(
-                        previousActiveProfileId,
-                        profile.Id,
-                        manifests,
-                        profile.GameClient?.GameType ?? GameType.ZeroHour,
-                        skipUserDataCleanup,
-                        CancellationToken.None);
-                    if (!userDataResult.Success)
-                    {
-                        logger.LogWarning("[GameLauncher] Background user data preparation had issues: {Error}", userDataResult.FirstError);
-                    }
-                    else
-                    {
-                        logger.LogInformation("[GameLauncher] Background user data content prepared for profile {ProfileId}", profile.Id);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "[GameLauncher] Unexpected error in background user data linkage for profile {ProfileId}", profile.Id);
-                }
-            },
-            CancellationToken.None);
+                logger.LogError("[GameLauncher] User data preparation failed: {Error}", userDataResult.FirstError);
+                return OperationResult<bool>.CreateFailure(userDataResult.FirstError ?? "User data preparation failed");
+            }
+
+            logger.LogInformation("[GameLauncher] User data content prepared for profile {ProfileId}", profile.Id);
+            return OperationResult<bool>.CreateSuccess(true);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[GameLauncher] Unexpected error in user data linkage for profile {ProfileId}", profile.Id);
+            return OperationResult<bool>.CreateFailure($"Failed to prepare user data: {ex.Message}");
+        }
     }
 
     private OperationResult<string> ResolveAndValidateExecutablePath(
@@ -1218,12 +1228,23 @@ public class GameLauncher(
         GameProfile profile,
         CancellationToken cancellationToken)
     {
-        var enabledIds = profile.EnabledContentIds ?? Enumerable.Empty<string>();
-        logger.LogDebug("[GameLauncher] Resolving {Count} enabled content manifests with dependencies", profile.EnabledContentIds?.Count ?? 0);
+        var enabledIds = profile.EnabledContentIds ?? [];
+        logger.LogInformation(
+            "[GameLauncher] Resolving {Count} enabled content IDs for profile '{ProfileName}' (ID: {ProfileId}): [{ContentIds}]",
+            enabledIds.Count,
+            profile.Name,
+            profile.Id,
+            string.Join(", ", enabledIds));
+
         var resolutionResult = await dependencyResolver.ResolveDependenciesWithManifestsAsync(enabledIds, cancellationToken);
         if (!resolutionResult.Success)
         {
-            logger.LogError("[GameLauncher] Failed to resolve content dependencies: {Error}", resolutionResult.FirstError);
+            logger.LogError(
+                "[GameLauncher] Failed to resolve content dependencies for profile '{ProfileName}' (ID: {ProfileId}): {Error}. Requested IDs: [{RequestedIds}]",
+                profile.Name,
+                profile.Id,
+                resolutionResult.FirstError,
+                string.Join(", ", enabledIds));
             return OperationResult<List<ContentManifest>>.CreateFailure($"Failed to resolve content dependencies: {resolutionResult.FirstError}");
         }
 
@@ -1231,15 +1252,18 @@ public class GameLauncher(
         {
             foreach (var warning in resolutionResult.Warnings)
             {
-                logger.LogWarning("[GameLauncher] Dependency resolution warning: {Warning}", warning);
+                logger.LogWarning("[GameLauncher] Dependency resolution warning for profile '{ProfileName}': {Warning}", profile.Name, warning);
             }
         }
 
         var manifests = resolutionResult.ResolvedManifests.ToList();
         logger.LogInformation(
-            "[GameLauncher] Resolved {Count} manifests (from {EnabledCount} enabled IDs, including dependencies)",
+            "[GameLauncher] Successfully resolved {Count} manifests for profile '{ProfileName}' (from {EnabledCount} enabled IDs): [{ManifestSummaries}]",
             manifests.Count,
-            enabledIds.Count());
+            profile.Name,
+            enabledIds.Count,
+            string.Join(", ", manifests.Select(m => $"{m.Id.Value} ('{m.Name}')")));
+
         foreach (var manifest in manifests)
         {
             logger.LogDebug(
@@ -1606,11 +1630,16 @@ public class GameLauncher(
     /// <summary>
     /// Applies GeneralsOnline-specific settings to the settings.json file.
     /// </summary>
+    /// <remarks>
+    /// settings.json is a single global file owned by the GeneralsOnline client, not a
+    /// per-profile one. Only a GeneralsOnline profile may rewrite it: a retail, TheSuperHackers
+    /// or CommunityOutpost Zero Hour profile has nothing to say about that client's settings,
+    /// and writing anyway replaced whatever the user had configured inside the client itself.
+    /// </remarks>
     /// <param name="profile">The game profile containing the settings.</param>
     private async Task ApplyGeneralsOnlineSettingsAsync(GameProfile profile)
     {
-        // Only apply if it's Zero Hour (as GO settings only apply there currently)
-        if (profile.GameClient?.GameType != GameType.ZeroHour)
+        if (profile.GameClient?.GameType != GameType.ZeroHour || !profile.IsGeneralsOnlineProfile())
         {
             return;
         }
@@ -1619,10 +1648,22 @@ public class GameLauncher(
         {
             logger.LogInformation("[GameLauncher] Applying GeneralsOnline settings to settings.json for profile {ProfileId}", profile.Id);
 
-            // Clean Launch Strategy: Create fresh settings object to ensure isolation and prevent pollution
-            var settings = new GeneralsOnlineSettings();
+            // Loaded first so the settings the client owns and the profile says nothing about
+            // survive the rewrite; the mapper then overwrites only what the profile declares.
+            var loadResult = await gameSettingsService.LoadGeneralsOnlineSettingsAsync();
+            if (loadResult?.Success != true || loadResult.Data == null)
+            {
+                // A missing settings.json loads as defaults and reports success, so a failure here
+                // means the client's own file exists and could not be read. Rewriting it from
+                // defaults would discard every key the client owns.
+                logger.LogWarning(
+                    "[GameLauncher] Not writing GeneralsOnline settings because settings.json could not be read: {Error}",
+                    loadResult?.FirstError ?? "LoadGeneralsOnlineSettings result was null");
+                return;
+            }
 
-            // Map GO settings from profile using the centralized mapper
+            var settings = loadResult.Data;
+
             GameSettingsMapper.ApplyToGeneralsOnlineSettings(profile, settings);
 
             var saveResult = await gameSettingsService.SaveGeneralsOnlineSettingsAsync(settings);
@@ -1658,7 +1699,7 @@ public class GameLauncher(
                 foreach (var file in manifest.Files.Where(f => f.SourceType == ContentSourceType.ContentAddressable && !string.IsNullOrEmpty(f.Hash)))
                 {
                     var existsResult = await casService.ExistsAsync(file.Hash, manifest.ContentType, cancellationToken);
-                    if (!existsResult.Success || !existsResult.Data)
+                    if (existsResult is not { Success: true, Data: true })
                     {
                         missingHashes.Add(file.Hash);
                     }

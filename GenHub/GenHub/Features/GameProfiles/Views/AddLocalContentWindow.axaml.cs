@@ -66,7 +66,16 @@ public partial class AddLocalContentWindow : Window
                 {
                     Title = "Select Files",
                     AllowMultiple = true,
-                    FileTypeFilter = [FilePickerFileTypes.All, new("Zip Archives") { Patterns = ["*.zip"] }],
+                    FileTypeFilter =
+                    [
+                        new("Supported Content Files (*.zip, *.7z, *.rar, *.tar, *.gz, *.big)")
+                        {
+                            Patterns = ["*.zip", "*.7z", "*.rar", "*.tar", "*.gz", "*.big"],
+                        },
+                        new("Zip Archives (*.zip)") { Patterns = ["*.zip"] },
+                        new("BIG Files (*.big)") { Patterns = ["*.big"] },
+                        FilePickerFileTypes.All,
+                    ],
                 });
                 return result.Count > 0 ? result.Select(f => f.Path.LocalPath).ToList() : null;
             };
@@ -123,6 +132,20 @@ public partial class AddLocalContentWindow : Window
                     await vm.ImportContentAsync(path);
                 }
             }
+        }
+    }
+
+    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            if (e.ClickCount == 2 && CanResize)
+            {
+                WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+                return;
+            }
+
+            BeginMoveDrag(e);
         }
     }
 }

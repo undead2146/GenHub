@@ -52,7 +52,7 @@ public class Program
         // Extract profile ID from args if present (for IPC forwarding)
         var profileId = CommandLineParser.ExtractProfileId(args);
 
-        // Extract subscription URL from args if present (for IPC forwarding)
+        // Extract genhub://subscribe?url=... target (catalog JSON today; definition URL later)
         var subscriptionUrl = CommandLineParser.ExtractSubscriptionUrl(args);
 
         // Check for multi-instance mode (useful for debugging with multiple instances)
@@ -74,7 +74,7 @@ public class Program
                     SingleInstanceManager.SendCommandToPrimaryInstance($"{IpcCommands.LaunchProfilePrefix}{profileId}");
                 }
 
-                // Forward subscribe command to primary instance if we have a subscription URL
+                // Forward subscribe so the running UI can show the confirmation dialog
                 if (!string.IsNullOrEmpty(subscriptionUrl))
                 {
                     bootstrapLogger.LogInformation("Forwarding subscribe command to primary instance: {Url}", subscriptionUrl);
@@ -93,6 +93,10 @@ public class Program
         {
             bootstrapLogger.LogInformation("Multi-instance mode enabled - skipping single-instance check");
         }
+
+        // Register the genhub:// URI scheme with Windows so clicked links open this executable.
+        // Registered for primary instance only; idempotent and per-user (HKCU).
+        Features.Shortcuts.UriSchemeRegistrar.Register(bootstrapLogger);
 
         try
         {

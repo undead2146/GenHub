@@ -31,9 +31,21 @@ public class UpdateProfileRequest
 
     /// <summary>
     /// Gets or sets the workspace strategy for this profile.
-    /// Null preserves the existing value.
+    /// Null preserves the existing value unless <see cref="ClearWorkspaceStrategy"/> is true.
     /// </summary>
     public WorkspaceStrategy? WorkspaceStrategy { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to clear the workspace strategy.
+    /// </summary>
+    public bool ClearWorkspaceStrategy { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this update is a rollback operation
+    /// restoring the profile to its previous state after a post-save live sync failure.
+    /// When true, running profile mutation guards are bypassed so pre-save values can be restored.
+    /// </summary>
+    public bool IsRollback { get; set; }
 
     /// <summary>
     /// Gets or sets the launch arguments.
@@ -288,6 +300,9 @@ public class UpdateProfileRequest
 
     /// <summary>Gets or sets the font size for system time display (TSH, 0 to disable).</summary>
     public int? TshSystemTimeFontSize { get; set; }
+
+    /// <summary>Gets or sets the game window transition speed multiplier (TSH, 1.0 to 4.0).</summary>
+    public float? TshGameWindowTransitionSpeedMultiplier { get; set; }
 
     // ===== GeneralsOnline Client Settings =====
 
