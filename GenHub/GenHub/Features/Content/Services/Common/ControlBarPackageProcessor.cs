@@ -42,6 +42,11 @@ public class ControlBarPackageProcessor(
     private const string WindowFileExtension = ".wnd";
     private const string ControlBarToken = "controlbar";
     private const string DirTextures = "Textures";
+    private const string TokenCbpr = "cbpr";
+    private const string TokenCbpx = "cbpx";
+    private const string TokenCbpro = "cbpro";
+    private const string TokenPrefixCb = "cb";
+    private const string TokenPrefixWnd = "wnd";
 
     private static readonly string[] KnownResolutionVariants = [Variant720p, Variant900p, Variant1080p, Variant1440p, Variant4k, Variant2160p];
     private static readonly TimeSpan RegexMatchTimeout = TimeSpan.FromSeconds(1);
@@ -349,8 +354,8 @@ public class ControlBarPackageProcessor(
         if (extension.Equals(BigFileExtension, StringComparison.OrdinalIgnoreCase))
         {
             return !fileName.Contains(ControlBarToken, StringComparison.OrdinalIgnoreCase) &&
-                   !fileName.Contains("cbpr", StringComparison.OrdinalIgnoreCase) &&
-                   !fileName.Contains("cbpx", StringComparison.OrdinalIgnoreCase);
+                   !fileName.Contains(TokenCbpr, StringComparison.OrdinalIgnoreCase) &&
+                   !fileName.Contains(TokenCbpx, StringComparison.OrdinalIgnoreCase);
         }
 
         if (extension.Equals(".dat", StringComparison.OrdinalIgnoreCase))
@@ -412,19 +417,29 @@ public class ControlBarPackageProcessor(
         }
 
         var parent = segments[^2];
-        if (parent.Equals(GameContentConstants.WindowDirectoryName, StringComparison.OrdinalIgnoreCase) ||
-            parent.Equals(DirArt, StringComparison.OrdinalIgnoreCase))
+        var inWindow = parent.Equals(GameContentConstants.WindowDirectoryName, StringComparison.OrdinalIgnoreCase);
+        var inArt = parent.Equals(DirArt, StringComparison.OrdinalIgnoreCase);
+        var inArtTextures = parent.Equals(DirTextures, StringComparison.OrdinalIgnoreCase) &&
+                            segments.Length >= 3 &&
+                            segments[^3].Equals(DirArt, StringComparison.OrdinalIgnoreCase);
+
+        if (!inWindow && !inArt && !inArtTextures)
         {
-            return true;
+            return false;
         }
 
-        if (parent.Equals(DirTextures, StringComparison.OrdinalIgnoreCase) && segments.Length >= 3)
-        {
-            var grandParent = segments[^3];
-            return grandParent.Equals(DirArt, StringComparison.OrdinalIgnoreCase);
-        }
+        var fileName = Path.GetFileName(file);
+        return IsRecognizedControlBarImageName(fileName);
+    }
 
-        return false;
+    private static bool IsRecognizedControlBarImageName(string fileName)
+    {
+        return fileName.Contains(ControlBarToken, StringComparison.OrdinalIgnoreCase) ||
+               fileName.Contains(TokenCbpr, StringComparison.OrdinalIgnoreCase) ||
+               fileName.Contains(TokenCbpx, StringComparison.OrdinalIgnoreCase) ||
+               fileName.Contains(TokenCbpro, StringComparison.OrdinalIgnoreCase) ||
+               fileName.StartsWith(TokenPrefixCb, StringComparison.OrdinalIgnoreCase) ||
+               fileName.StartsWith(TokenPrefixWnd, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string DetectFlatLayoutVariant(string extractedDirectory)
