@@ -464,57 +464,88 @@ public partial class GameProfileSettingsViewModel
             return;
         }
 
-        var gameSettings = GameSettingsViewModel.GetProfileSettings();
-
         var wasHotswap = IsHotswapMode;
         bool isProfileRunning = await CheckIsProfileRunningAsync();
         if (!wasHotswap && isProfileRunning)
         {
-            StatusMessage = "Game session started; non-hotswappable settings are now locked";
-            _localNotificationService.ShowWarning(
-                "Hotswap Mode Enabled",
-                "The game was started while editing this profile. Non-hotswappable settings have been locked. Please review your changes and save again.");
+            NotifyHotswapLockedSession();
             return;
         }
 
         var liveGameType = SelectedGameInstallation?.GameType ?? GameTypeFilter;
-        var updateRequest = BuildUpdateRequest(enabledContentIds, gameSettings);
-
-        if (isProfileRunning && _profileContentLinker != null && _manifestPool != null)
+        if (!await TryExecutePreSaveLiveSyncAsync(enabledContentIds, liveGameType, isProfileRunning, cancellationToken))
         {
-            var liveSyncSuccess = await PerformLiveSyncAsync(enabledContentIds, liveGameType, cancellationToken);
-            if (!liveSyncSuccess)
+            return;
+        }
+
+        var gameSettings = GameSettingsViewModel.GetProfileSettings();
+        var updateRequest = BuildUpdateRequest(enabledContentIds, gameSettings);
+        var result = await _gameProfileManager.UpdateProfileAsync(CurrentProfileId, updateRequest, cancellationToken);
+
+        if (result.Success && result.Data != null)
+        {
+            var (postSyncSuccess, updatedRunningState) = await TryExecutePostSaveLiveSyncAsync(enabledContentIds, liveGameType, isProfileRunning, cancellationToken);
+            if (!postSyncSuccess)
             {
                 return;
             }
-        }
 
-        var result = await _gameProfileManager.UpdateProfileAsync(CurrentProfileId, updateRequest, cancellationToken);
-        if (result.Success && result.Data != null)
-        {
-            if (!isProfileRunning && _profileContentLinker != null && _manifestPool != null)
-            {
-                var runningNow = await CheckIsProfileRunningAsync();
-                if (runningNow)
-                {
-                    _logger?.LogInformation("Game session started during profile save for {ProfileId}; performing post-save live sync", CurrentProfileId);
-                    var liveSyncSuccess = await PerformLiveSyncAsync(enabledContentIds, liveGameType, cancellationToken);
-                    if (!liveSyncSuccess)
-                    {
-                        await HandlePostSaveLiveSyncFailureAsync(liveGameType, cancellationToken);
-                        return;
-                    }
-
-                    isProfileRunning = true;
-                }
-            }
-
-            await HandleProfileUpdateSuccessAsync(result, enabledContentIds, isProfileRunning);
+            await HandleProfileUpdateSuccessAsync(result, enabledContentIds, updatedRunningState);
         }
         else
         {
             await HandleProfileUpdateFailureAsync(isProfileRunning, liveGameType, result, cancellationToken);
         }
+    }
+
+    private void NotifyHotswapLockedSession()
+    {
+        StatusMessage = "Game session started; non-hotswappable settings are now locked";
+        _localNotificationService.ShowWarning(
+            "Hotswap Mode Enabled",
+            "The game was started while editing this profile. Non-hotswappable settings have been locked. Please review your changes and save again.");
+    }
+
+    private async Task<bool> TryExecutePreSaveLiveSyncAsync(
+        List<string> enabledContentIds,
+        GameType liveGameType,
+        bool isProfileRunning,
+        CancellationToken cancellationToken)
+    {
+        if (!isProfileRunning || _profileContentLinker == null || _manifestPool == null)
+        {
+            return true;
+        }
+
+        return await PerformLiveSyncAsync(enabledContentIds, liveGameType, cancellationToken);
+    }
+
+    private async Task<(bool Success, bool IsRunning)> TryExecutePostSaveLiveSyncAsync(
+        List<string> enabledContentIds,
+        GameType liveGameType,
+        bool isProfileRunning,
+        CancellationToken cancellationToken)
+    {
+        if (isProfileRunning || _profileContentLinker == null || _manifestPool == null)
+        {
+            return (true, isProfileRunning);
+        }
+
+        var runningNow = await CheckIsProfileRunningAsync();
+        if (!runningNow)
+        {
+            return (true, false);
+        }
+
+        _logger?.LogInformation("Game session started during profile save for {ProfileId}; performing post-save live sync", CurrentProfileId);
+        var liveSyncSuccess = await PerformLiveSyncAsync(enabledContentIds, liveGameType, cancellationToken);
+        if (!liveSyncSuccess)
+        {
+            await HandlePostSaveLiveSyncFailureAsync(liveGameType, cancellationToken);
+            return (false, true);
+        }
+
+        return (true, true);
     }
 
     private async Task HandlePostSaveLiveSyncFailureAsync(GameType liveGameType, CancellationToken cancellationToken)
@@ -534,51 +565,9 @@ public partial class GameProfileSettingsViewModel
         var rollbackResult = await _gameProfileManager.UpdateProfileAsync(CurrentProfileId, rollbackRequest, cancellationToken);
         if (rollbackResult.Success)
         {
-            ApplyLoadedProfileProperties(_originalProfile);
-            await GameSettingsViewModel.InitializeForProfileAsync(CurrentProfileId, _originalProfile);
-            await LoadEnabledContentForProfileAsync(_originalProfile);
-            await LoadAvailableContentAsync();
-            SelectInitialGameInstallation(_originalProfile);
-            UpdateAllItemsHotswapState();
-
-            var userDataRollbackSuccess = true;
-            if (_profileContentLinker != null)
-            {
-                var (originalManifests, missingOriginalIds) = await ResolveOriginalManifestsForRollbackAsync(cancellationToken);
-                if (missingOriginalIds.Count == 0)
-                {
-                    var userDataResult = await _profileContentLinker.UpdateProfileUserDataAsync(
-                        CurrentProfileId,
-                        originalManifests,
-                        liveGameType,
-                        cancellationToken);
-                    if (!userDataResult.Success)
-                    {
-                        userDataRollbackSuccess = false;
-                        _logger?.LogWarning("Live user data rollback for {ProfileId} failed: {Error}", CurrentProfileId, userDataResult.FirstError);
-                    }
-                }
-                else
-                {
-                    userDataRollbackSuccess = false;
-                    _logger?.LogWarning("Live user data rollback for {ProfileId} skipped due to missing manifests: {Ids}", CurrentProfileId, string.Join(", ", missingOriginalIds));
-                }
-            }
-
-            if (userDataRollbackSuccess)
-            {
-                StatusMessage = "Live synchronization failed; profile changes were rolled back";
-                _localNotificationService.ShowWarning(
-                    "Live Sync Failed",
-                    "A game session was started during save, but live synchronization failed. Profile changes were rolled back to match the running game.");
-            }
-            else
-            {
-                StatusMessage = "Live synchronization failed; profile was rolled back but live user data could not be restored";
-                _localNotificationService.ShowWarning(
-                    "Live Sync Failed",
-                    "A game session was started during save, and live synchronization failed. Profile changes were rolled back, but live user data could not be fully restored to match the running game.");
-            }
+            await RestoreOriginalProfileStateAsync(_originalProfile);
+            var userDataRollbackSuccess = await RollbackLiveUserDataAsync(liveGameType, cancellationToken);
+            NotifyRollbackCompletion(userDataRollbackSuccess);
         }
         else
         {
@@ -587,6 +576,63 @@ public partial class GameProfileSettingsViewModel
             _localNotificationService.ShowError(
                 "Live Sync & Rollback Failed",
                 $"A game session was started during save, and live synchronization failed. Furthermore, rolling back persisted profile changes failed: {rollbackResult.FirstError}. Profile and running game may be out of sync.");
+        }
+    }
+
+    private async Task RestoreOriginalProfileStateAsync(GameProfile originalProfile)
+    {
+        ApplyLoadedProfileProperties(originalProfile);
+        await GameSettingsViewModel.InitializeForProfileAsync(CurrentProfileId!, originalProfile);
+        await LoadEnabledContentForProfileAsync(originalProfile);
+        await LoadAvailableContentAsync();
+        SelectInitialGameInstallation(originalProfile);
+        UpdateAllItemsHotswapState();
+    }
+
+    private async Task<bool> RollbackLiveUserDataAsync(GameType liveGameType, CancellationToken cancellationToken)
+    {
+        if (_profileContentLinker == null)
+        {
+            return true;
+        }
+
+        var (originalManifests, missingOriginalIds) = await ResolveOriginalManifestsForRollbackAsync(cancellationToken);
+        if (missingOriginalIds.Count > 0)
+        {
+            _logger?.LogWarning("Live user data rollback for {ProfileId} skipped due to missing manifests: {Ids}", CurrentProfileId, string.Join(", ", missingOriginalIds));
+            return false;
+        }
+
+        var userDataResult = await _profileContentLinker.UpdateProfileUserDataAsync(
+            CurrentProfileId!,
+            originalManifests,
+            liveGameType,
+            cancellationToken);
+
+        if (!userDataResult.Success)
+        {
+            _logger?.LogWarning("Live user data rollback for {ProfileId} failed: {Error}", CurrentProfileId, userDataResult.FirstError);
+            return false;
+        }
+
+        return true;
+    }
+
+    private void NotifyRollbackCompletion(bool userDataRollbackSuccess)
+    {
+        if (userDataRollbackSuccess)
+        {
+            StatusMessage = "Live synchronization failed; profile changes were rolled back";
+            _localNotificationService.ShowWarning(
+                "Live Sync Failed",
+                "A game session was started during save, but live synchronization failed. Profile changes were rolled back to match the running game.");
+        }
+        else
+        {
+            StatusMessage = "Live synchronization failed; profile was rolled back but live user data could not be restored";
+            _localNotificationService.ShowWarning(
+                "Live Sync Failed",
+                "A game session was started during save, and live synchronization failed. Profile changes were rolled back, but live user data could not be fully restored to match the running game.");
         }
     }
 

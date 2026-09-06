@@ -194,60 +194,30 @@ public class GameProfileManager(
             var previousGameClientId = profile.GameClient?.Id;
 
             // Check if profile is currently running
-            var isRunning = false;
-            if (launchRegistry != null)
-            {
-                var activeLaunches = await launchRegistry.GetAllActiveLaunchesAsync();
-                isRunning = activeLaunches.Any(l => string.Equals(l.ProfileId, profileId, StringComparison.OrdinalIgnoreCase) && !l.TerminatedAt.HasValue);
-            }
-
+            var isRunning = await CheckIsProfileRunningAsync(profileId);
             if (isRunning)
             {
-                if (request.IsRollback)
+                var validationResult = await ValidateRunningProfileUpdateAsync(profile, request, previousEnabledContentIds, cancellationToken);
+                if (validationResult != null)
                 {
-                    logger.LogInformation(
-                        "UpdateProfileAsync for running profile {ProfileId} is flagged as rollback; bypassing running profile immutability validation to restore snapshot.",
-                        profileId);
-                }
-                else
-                {
-                    var validationResult = await ValidateRunningProfileUpdateRequestAsync(profile, request, previousEnabledContentIds, cancellationToken);
-                    if (validationResult != null)
-                    {
-                        return validationResult;
-                    }
+                    return validationResult;
                 }
             }
 
             if (request.Name != null)
             {
-                if (!TryValidateProfileName(request.Name, out var nameValidationError))
+                var nameValidationResult = ValidateAndApplyProfileName(profile, request.Name);
+                if (nameValidationResult != null)
                 {
-                    return ProfileOperationResult<GameProfile>.CreateFailure(nameValidationError!);
+                    return nameValidationResult;
                 }
-
-                profile.Name = request.Name;
             }
 
             CheckAndHandleContentChanges(profile, request, previousEnabledContentIds, previousGameClientId, isRunning);
             ApplyUpdateRequestToProfile(profile, request);
             GameSettingsMapper.UpdateFromRequest(profile, request);
 
-            var saveResult = await profileRepository.SaveProfileAsync(profile, cancellationToken);
-            if (saveResult.Success)
-            {
-                logger.LogInformation("Successfully updated game profile: {ProfileName}", profile.Name);
-
-                // Send notification after successful update so UI can refresh
-                // This is critical for GameProfileLauncherViewModel.RefreshSingleProfileAsync to work
-                WeakReferenceMessenger.Default.Send(new ProfileUpdatedMessage(profile));
-            }
-            else
-            {
-                logger.LogError("Failed to update game profile: {ProfileName}", profile.Name);
-            }
-
-            return saveResult;
+            return await SaveAndNotifyProfileUpdatedAsync(profile, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -457,6 +427,64 @@ public class GameProfileManager(
             // Don't fail profile creation if settings loading fails
             logger.LogWarning(ex, "Failed to load existing Options.ini for profile {ProfileName}, using defaults", profile.Name);
         }
+    }
+
+    private async Task<bool> CheckIsProfileRunningAsync(string profileId)
+    {
+        if (launchRegistry == null)
+        {
+            return false;
+        }
+
+        var activeLaunches = await launchRegistry.GetAllActiveLaunchesAsync();
+        return activeLaunches.Any(l => string.Equals(l.ProfileId, profileId, StringComparison.OrdinalIgnoreCase) && !l.TerminatedAt.HasValue);
+    }
+
+    private async Task<ProfileOperationResult<GameProfile>?> ValidateRunningProfileUpdateAsync(
+        GameProfile profile,
+        UpdateProfileRequest request,
+        List<string> previousEnabledContentIds,
+        CancellationToken cancellationToken)
+    {
+        if (request.IsRollback)
+        {
+            logger.LogInformation(
+                "UpdateProfileAsync for running profile {ProfileId} is flagged as rollback; bypassing running profile immutability validation to restore snapshot.",
+                profile.Id);
+            return null;
+        }
+
+        return await ValidateRunningProfileUpdateRequestAsync(profile, request, previousEnabledContentIds, cancellationToken);
+    }
+
+    private ProfileOperationResult<GameProfile>? ValidateAndApplyProfileName(GameProfile profile, string name)
+    {
+        if (!TryValidateProfileName(name, out var nameValidationError))
+        {
+            return ProfileOperationResult<GameProfile>.CreateFailure(nameValidationError!);
+        }
+
+        profile.Name = name;
+        return null;
+    }
+
+    private async Task<ProfileOperationResult<GameProfile>> SaveAndNotifyProfileUpdatedAsync(GameProfile profile, CancellationToken cancellationToken)
+    {
+        var saveResult = await profileRepository.SaveProfileAsync(profile, cancellationToken);
+        if (saveResult.Success)
+        {
+            logger.LogInformation("Successfully updated game profile: {ProfileName}", profile.Name);
+
+            // Send notification after successful update so UI can refresh
+            // This is critical for GameProfileLauncherViewModel.RefreshSingleProfileAsync to work
+            WeakReferenceMessenger.Default.Send(new ProfileUpdatedMessage(profile));
+        }
+        else
+        {
+            logger.LogError("Failed to update game profile: {ProfileName}", profile.Name);
+        }
+
+        return saveResult;
     }
 
     private async Task<ProfileOperationResult<GameProfile>?> ValidateRunningProfileUpdateRequestAsync(
