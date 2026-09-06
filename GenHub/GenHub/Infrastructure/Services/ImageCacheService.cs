@@ -185,7 +185,7 @@ public sealed class ImageCacheService : IImageCacheService
         if (url.StartsWith("/Assets/", StringComparison.OrdinalIgnoreCase) ||
             url.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
         {
-            var cleanPath = "Assets/" + url.TrimStart('/')[7..];
+            var cleanPath = "Assets/" + url.TrimStart('/')["Assets/".Length..];
             return await LoadBitmapFromAvaloniaAssetAsync(
                 $"avares://{typeof(ImageCacheService).Assembly.GetName().Name}/{cleanPath}",
                 url).ConfigureAwait(false);
