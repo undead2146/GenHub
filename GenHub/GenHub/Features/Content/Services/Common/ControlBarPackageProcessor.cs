@@ -39,6 +39,7 @@ public class ControlBarPackageProcessor(
     private const string Resolution1440 = "1440";
     private const string Resolution2160 = "2160";
     private const string BigFileExtension = ".big";
+    private const string WindowFileExtension = ".wnd";
     private const string ControlBarToken = "controlbar";
 
     private static readonly string[] KnownResolutionVariants = [Variant720p, Variant900p, Variant1080p, Variant1440p, Variant4k, Variant2160p];
@@ -259,7 +260,7 @@ public class ControlBarPackageProcessor(
 
         var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            ".wnd", ".tga", ".dds", ".avif", ".png", ".jpg", ".jpeg", ".dat", ".txt", ".md", ".json", BigFileExtension,
+            WindowFileExtension, ".tga", ".dds", ".avif", ".png", ".jpg", ".jpeg", ".dat", ".txt", ".md", ".json", BigFileExtension,
         };
 
         foreach (var file in Directory.EnumerateFiles(extractedDirectory, "*", SearchOption.AllDirectories))
@@ -288,7 +289,7 @@ public class ControlBarPackageProcessor(
                     return true;
                 }
             }
-            else if (extension.Equals(".wnd", StringComparison.OrdinalIgnoreCase))
+            else if (extension.Equals(WindowFileExtension, StringComparison.OrdinalIgnoreCase))
             {
                 if (!fileName.Contains(ControlBarToken, StringComparison.OrdinalIgnoreCase))
                 {
@@ -351,7 +352,40 @@ public class ControlBarPackageProcessor(
 
     private static string DetectFlatLayoutVariant(string extractedDirectory)
     {
-        foreach (var file in Directory.EnumerateFiles(extractedDirectory, "*", SearchOption.AllDirectories))
+        var files = Directory.EnumerateFiles(extractedDirectory, "*", SearchOption.AllDirectories)
+            .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // Prioritize Control Bar BIG files
+        foreach (var file in files)
+        {
+            var fileName = Path.GetFileName(file);
+            if (fileName.EndsWith(BigFileExtension, StringComparison.OrdinalIgnoreCase))
+            {
+                var token = ExtractVariantToken(fileName);
+                if (!string.IsNullOrEmpty(token))
+                {
+                    return token;
+                }
+            }
+        }
+
+        // Prioritize Control Bar window files (.wnd)
+        foreach (var file in files)
+        {
+            var fileName = Path.GetFileName(file);
+            if (fileName.EndsWith(WindowFileExtension, StringComparison.OrdinalIgnoreCase))
+            {
+                var token = ExtractVariantToken(fileName);
+                if (!string.IsNullOrEmpty(token))
+                {
+                    return token;
+                }
+            }
+        }
+
+        // Fall back to remaining files in deterministic order
+        foreach (var file in files)
         {
             var fileName = Path.GetFileName(file);
             var token = ExtractVariantToken(fileName);
@@ -566,10 +600,12 @@ public class ControlBarPackageProcessor(
             variantId.Equals(Variant2160p, StringComparison.OrdinalIgnoreCase) ||
             variantId.Equals(Resolution2160, StringComparison.OrdinalIgnoreCase))
         {
-            return [variantId, rawSuffix, Variant2160p, Resolution2160, Variant4k, "4K"];
+            return [Variant4k, rawSuffix, Variant2160p, Resolution2160];
         }
 
-        return [variantId, rawSuffix];
+        return string.Equals(variantId, rawSuffix, StringComparison.Ordinal)
+            ? [variantId]
+            : [variantId, rawSuffix];
     }
 
     private async Task ProcessVariantBigRootAsync(

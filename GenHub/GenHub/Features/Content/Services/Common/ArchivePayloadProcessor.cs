@@ -816,7 +816,9 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         var headerRead = stream.Read(header, 0, 2);
         stream.Position = filePos;
 
-        var isStored = rec.CompressedSize == rec.UncompressedSize;
+        var isStored = rec.CompressedSize == rec.UncompressedSize &&
+            !(headerRead >= 2 && header[0] == 'B' && header[1] == 'Z') &&
+            !(headerRead >= 2 && header[0] == 0x78 && (header[1] == 0xDA || header[1] == 0x9C || header[1] == 0x01 || header[1] == 0x5E));
         var written = isStored
             ? DecompressRawSmartInstallMakerRecord(stream, destinationPath, rec.CompressedSize, copyBuffer)
             : TryDecompressSmartInstallMakerRecord(stream, filePos, header, headerRead, destinationPath, rec.UncompressedSize, copyBuffer);

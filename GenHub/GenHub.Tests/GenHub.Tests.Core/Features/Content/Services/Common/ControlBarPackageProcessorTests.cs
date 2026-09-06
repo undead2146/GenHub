@@ -424,4 +424,28 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
         // Assert
         Assert.False(result);
     }
+
+    /// <summary>
+    /// Verifies that flat layout variant detection prioritizes Control Bar BIG files over documentation files.
+    /// </summary>
+    [Fact]
+    public void FindControlBarVariantBigRoot_WithConflictingFileTokens_PrioritizesBigOverDocFiles()
+    {
+        // Arrange
+        Directory.CreateDirectory(Path.Combine(_testDir, "Window"));
+        File.WriteAllText(Path.Combine(_testDir, "Window", "ControlBar.wnd"), "WindowData");
+        File.WriteAllText(Path.Combine(_testDir, "readme-720p.txt"), "Readme mentions 720p");
+        File.WriteAllText(Path.Combine(_testDir, "340_ControlBarPro1080ZH.big"), "1080 BIG");
+
+        var converter = new CompressedImageToTgaConverter(NullLogger<CompressedImageToTgaConverter>.Instance);
+        var processor = new ControlBarPackageProcessor(converter, NullLogger<ControlBarPackageProcessor>.Instance);
+
+        // Act
+        var result1080 = processor.FindControlBarVariantBigRoot(_testDir, "1080p");
+        var result720 = processor.FindControlBarVariantBigRoot(_testDir, "720p");
+
+        // Assert: 1080p should match because the BIG file has 1080p, even though readme-720p sorts first alphabetically
+        Assert.Equal(_testDir, result1080);
+        Assert.Null(result720);
+    }
 }
