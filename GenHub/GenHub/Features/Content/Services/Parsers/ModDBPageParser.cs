@@ -722,14 +722,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
 
     private static (Video? Video, bool IsVideo) ExtractVideoFromGalleryLink(IElement linkEl, string absoluteHref)
     {
-        if (absoluteHref.Contains("/widget", StringComparison.OrdinalIgnoreCase) ||
-            absoluteHref.Contains("/downloads/", StringComparison.OrdinalIgnoreCase) ||
-            absoluteHref.Contains(AddonsSlashPath, StringComparison.OrdinalIgnoreCase))
-        {
-            return (null, false);
-        }
-
-        if (IsNavigationOrPaginationLink(absoluteHref, linkEl))
+        if (IsIgnoredGalleryLink(linkEl, absoluteHref))
         {
             return (null, false);
         }
@@ -740,14 +733,52 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             ?? container.QuerySelector("img");
 
         var rawThumb = img?.GetAttribute("src") ?? img?.GetAttribute(DataSrcAttr);
-        string? thumbnailUrl = null;
-        if (!string.IsNullOrWhiteSpace(rawThumb))
+        var initialThumb = !string.IsNullOrWhiteSpace(rawThumb) ? ToAbsoluteUrl(rawThumb) : null;
+
+        var (platform, embedUrl, thumbnailUrl) = ResolveVideoPlatformAndUrls(absoluteHref, initialThumb);
+
+        var title = ResolveGalleryVideoTitle(linkEl, container, img, absoluteHref);
+        if (!IsUsableVideoTitle(title))
         {
-            thumbnailUrl = ToAbsoluteUrl(rawThumb);
+            if (string.IsNullOrWhiteSpace(thumbnailUrl) && platform == ModDbPlatform)
+            {
+                return (null, false);
+            }
+
+            title = string.Equals(platform, UnknownValue, StringComparison.OrdinalIgnoreCase)
+                ? VideoSectionName
+                : $"{platform} Video";
         }
 
+        if (string.IsNullOrWhiteSpace(thumbnailUrl) && platform == ModDbPlatform)
+        {
+            return (null, false);
+        }
+
+        return (new Video(
+            Title: title,
+            ThumbnailUrl: thumbnailUrl,
+            EmbedUrl: embedUrl,
+            Platform: platform), true);
+    }
+
+    private static bool IsIgnoredGalleryLink(IElement linkEl, string absoluteHref)
+    {
+        if (absoluteHref.Contains("/widget", StringComparison.OrdinalIgnoreCase) ||
+            absoluteHref.Contains("/downloads/", StringComparison.OrdinalIgnoreCase) ||
+            absoluteHref.Contains(AddonsSlashPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return IsNavigationOrPaginationLink(absoluteHref, linkEl);
+    }
+
+    private static (string Platform, string EmbedUrl, string? ThumbnailUrl) ResolveVideoPlatformAndUrls(string absoluteHref, string? initialThumbnailUrl)
+    {
         var platform = ModDbPlatform;
         var embedUrl = absoluteHref;
+        var thumbnailUrl = initialThumbnailUrl;
 
         var ytMatch = YouTubeVideoIdRegex().Match(absoluteHref);
         if (!ytMatch.Success && thumbnailUrl != null)
@@ -773,29 +804,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             }
         }
 
-        var title = ResolveGalleryVideoTitle(linkEl, container, img, absoluteHref);
-        if (!IsUsableVideoTitle(title))
-        {
-            if (string.IsNullOrWhiteSpace(thumbnailUrl) && platform == ModDbPlatform)
-            {
-                return (null, false);
-            }
-
-            title = string.Equals(platform, UnknownValue, StringComparison.OrdinalIgnoreCase)
-                ? VideoSectionName
-                : $"{platform} Video";
-        }
-
-        if (string.IsNullOrWhiteSpace(thumbnailUrl) && platform == ModDbPlatform)
-        {
-            return (null, false);
-        }
-
-        return (new Video(
-            Title: title,
-            ThumbnailUrl: thumbnailUrl,
-            EmbedUrl: embedUrl,
-            Platform: platform), true);
+        return (platform, embedUrl, thumbnailUrl);
     }
 
     private static string ResolveGalleryVideoTitle(IElement linkEl, IElement container, IElement? img, string absoluteHref)

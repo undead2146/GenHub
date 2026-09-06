@@ -144,7 +144,7 @@ public sealed class PlaywrightService(
             return;
         }
 
-        await _persistentLock.WaitAsync();
+        await _persistentLock.WaitAsync(CancellationToken.None);
         try
         {
             UntrackPersistentPage(page);
@@ -368,7 +368,7 @@ public sealed class PlaywrightService(
             return;
         }
 
-        Task.Run(() => DisposeCoreAsync()).GetAwaiter().GetResult();
+        Task.Run(() => DisposeCoreAsync(), CancellationToken.None).GetAwaiter().GetResult();
         GC.SuppressFinalize(this);
     }
 
@@ -625,7 +625,7 @@ public sealed class PlaywrightService(
     {
         try
         {
-            _cleanupCts.Cancel();
+            await _cleanupCts.CancelAsync().ConfigureAwait(false);
             _cleanupCts.Dispose();
         }
         catch (Exception ex)
@@ -633,7 +633,7 @@ public sealed class PlaywrightService(
             logger.LogDebug(ex, "Failed to cancel or dispose cleanup token source.");
         }
 
-        await _persistentLock.WaitAsync().ConfigureAwait(false);
+        await _persistentLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
             if (_persistentContext != null)
@@ -657,7 +657,7 @@ public sealed class PlaywrightService(
             _persistentLock.Release();
         }
 
-        await _browserLock.WaitAsync().ConfigureAwait(false);
+        await _browserLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
             if (_browser != null)
@@ -681,7 +681,7 @@ public sealed class PlaywrightService(
             _browserLock.Release();
         }
 
-        await _playwrightLock.WaitAsync().ConfigureAwait(false);
+        await _playwrightLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
             if (_playwright != null)
@@ -711,7 +711,7 @@ public sealed class PlaywrightService(
     /// </summary>
     private async Task InvalidatePersistentContextAsync()
     {
-        await _persistentLock.WaitAsync();
+        await _persistentLock.WaitAsync(CancellationToken.None);
         try
         {
             ResetPersistentContextState();
@@ -744,27 +744,29 @@ public sealed class PlaywrightService(
 
     private void OnPersistentPageClosed(object? sender, IPage page)
     {
-        _ = Task.Run(async () =>
-        {
-            await _persistentLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
-            try
+        _ = Task.Run(
+            async () =>
             {
-                UntrackPersistentPage(page);
-
-                if (Volatile.Read(ref _activePersistentSessions) == 0 && _inUsePersistentPages.Count == 0)
+                await _persistentLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+                try
                 {
-                    await ClosePersistentContextCoreUnderLockAsync().ConfigureAwait(false);
+                    UntrackPersistentPage(page);
+
+                    if (Volatile.Read(ref _activePersistentSessions) == 0 && _inUsePersistentPages.Count == 0)
+                    {
+                        await ClosePersistentContextCoreUnderLockAsync().ConfigureAwait(false);
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                logger.LogDebug(ex, "Error handling persistent page close event.");
-            }
-            finally
-            {
-                _persistentLock.Release();
-            }
-        });
+                catch (Exception ex)
+                {
+                    logger.LogDebug(ex, "Error handling persistent page close event.");
+                }
+                finally
+                {
+                    _persistentLock.Release();
+                }
+            },
+            CancellationToken.None);
     }
 
     private void ScheduleKeptOpenPageCleanup(IPage page)
@@ -781,29 +783,31 @@ public sealed class PlaywrightService(
             return;
         }
 
-        _ = Task.Run(async () =>
-        {
-            try
+        _ = Task.Run(
+            async () =>
             {
-                await Task.Delay(KeptOpenChallengePageTimeout, pageCts.Token);
-                await ClosePersistentPageAsync(page, keepOpen: false);
-            }
-            catch (OperationCanceledException)
-            {
-                // Disposed or manually closed earlier
-            }
-            catch (Exception ex)
-            {
-                logger.LogDebug(ex, "Failed to automatically clean up kept-open persistent page.");
-            }
-            finally
-            {
-                if (_keptOpenCleanupTokens.TryRemove(page, out var cts))
+                try
                 {
-                    cts.Dispose();
+                    await Task.Delay(KeptOpenChallengePageTimeout, pageCts.Token);
+                    await ClosePersistentPageAsync(page, keepOpen: false);
                 }
-            }
-        });
+                catch (OperationCanceledException)
+                {
+                    // Disposed or manually closed earlier
+                }
+                catch (Exception ex)
+                {
+                    logger.LogDebug(ex, "Failed to automatically clean up kept-open persistent page.");
+                }
+                finally
+                {
+                    if (_keptOpenCleanupTokens.TryRemove(page, out var cts))
+                    {
+                        cts.Dispose();
+                    }
+                }
+            },
+            CancellationToken.None);
     }
 
     /// <summary>
@@ -869,7 +873,7 @@ public sealed class PlaywrightService(
     /// </summary>
     private async Task ClosePersistentContextCoreAsync()
     {
-        await _persistentLock.WaitAsync();
+        await _persistentLock.WaitAsync(CancellationToken.None);
         try
         {
             if (Volatile.Read(ref _activePersistentSessions) == 0 && _inUsePersistentPages.Count == 0)
