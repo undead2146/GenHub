@@ -740,11 +740,6 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         var title = ResolveGalleryVideoTitle(linkEl, container, img, absoluteHref);
         if (!IsUsableVideoTitle(title))
         {
-            if (string.IsNullOrWhiteSpace(thumbnailUrl) && platform == ModDbPlatform)
-            {
-                return (null, false);
-            }
-
             title = string.Equals(platform, UnknownValue, StringComparison.OrdinalIgnoreCase)
                 ? VideoSectionName
                 : $"{platform} Video";

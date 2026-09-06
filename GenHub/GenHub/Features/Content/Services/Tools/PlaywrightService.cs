@@ -1674,9 +1674,13 @@ public sealed class PlaywrightService(
         }
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        if (configuration.Timeout > TimeSpan.Zero && configuration.Timeout != Timeout.InfiniteTimeSpan)
+        var saveTimeout = configuration.Timeout > TimeSpan.Zero && configuration.Timeout != Timeout.InfiniteTimeSpan
+            ? TimeSpan.FromMilliseconds(Math.Max(60000, configuration.Timeout.TotalMilliseconds))
+            : Timeout.InfiniteTimeSpan;
+
+        if (saveTimeout != Timeout.InfiniteTimeSpan)
         {
-            linkedCts.CancelAfter(configuration.Timeout);
+            linkedCts.CancelAfter(saveTimeout);
         }
 
         var cancelTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -1698,7 +1702,7 @@ public sealed class PlaywrightService(
 
             CleanPartialOutputFile(configuration.DestinationPath);
             cancellationToken.ThrowIfCancellationRequested();
-            throw new TimeoutException($"Download timed out after {configuration.Timeout.TotalSeconds} seconds.");
+            throw new TimeoutException($"Download timed out after {saveTimeout.TotalSeconds} seconds.");
         }
 
         try
