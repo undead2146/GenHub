@@ -47,6 +47,7 @@ public class ControlBarPackageProcessor(
     private const string TokenCbpro = "cbpro";
 
     private static readonly string[] KnownResolutionVariants = [Variant720p, Variant900p, Variant1080p, Variant1440p, Variant4k, Variant2160p];
+    private static readonly char[] DirectorySeparators = [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar];
     private static readonly TimeSpan RegexMatchTimeout = TimeSpan.FromSeconds(1);
     private static readonly Regex WordVariantRegex = new(@"\b(720p?|900p?|1080p?|1440p?|2160p?|4k)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexMatchTimeout);
     private static readonly Regex InlineVariantRegex = new(@"(?<!\d)(720p?|900p?|1080p?|1440p?|2160p?|4k)(?!\d)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexMatchTimeout);
@@ -301,16 +302,9 @@ public class ControlBarPackageProcessor(
             return true;
         }
 
-        foreach (var gamePrefix in new[] { DirZh, DirCcg })
-        {
-            if (HasInvalidArtSubdirectories(Path.Combine(extractedDirectory, gamePrefix, DirArt)) ||
-                HasInvalidDataSubdirectories(Path.Combine(extractedDirectory, gamePrefix, DirData)))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return new[] { DirZh, DirCcg }.Any(gamePrefix =>
+            HasInvalidArtSubdirectories(Path.Combine(extractedDirectory, gamePrefix, DirArt)) ||
+            HasInvalidDataSubdirectories(Path.Combine(extractedDirectory, gamePrefix, DirData)));
     }
 
     private static bool HasInvalidArtSubdirectories(string artDir)
@@ -320,17 +314,12 @@ public class ControlBarPackageProcessor(
             return false;
         }
 
-        foreach (var dir in Directory.EnumerateDirectories(artDir))
+        return Directory.EnumerateDirectories(artDir).Any(dir =>
         {
             var dirName = Path.GetFileName(dir);
-            if (!dirName.Equals(DirTextures, StringComparison.OrdinalIgnoreCase) ||
-                Directory.EnumerateDirectories(dir).Any())
-            {
-                return true;
-            }
-        }
-
-        return false;
+            return !dirName.Equals(DirTextures, StringComparison.OrdinalIgnoreCase) ||
+                Directory.EnumerateDirectories(dir).Any();
+        });
     }
 
     private static bool HasInvalidDataSubdirectories(string dataDir)
@@ -340,16 +329,8 @@ public class ControlBarPackageProcessor(
             return false;
         }
 
-        foreach (var dir in Directory.EnumerateDirectories(dataDir))
-        {
-            var dirName = Path.GetFileName(dir);
-            if (!dirName.Equals(GameContentConstants.WindowDirectoryName, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return Directory.EnumerateDirectories(dataDir).Any(dir =>
+            !Path.GetFileName(dir).Equals(GameContentConstants.WindowDirectoryName, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsUnrelatedFile(string file, string extractedDirectory)
@@ -416,7 +397,7 @@ public class ControlBarPackageProcessor(
     private static bool IsRecognizedControlBarImage(string file, string extractedDirectory)
     {
         var relPath = Path.GetRelativePath(extractedDirectory, file);
-        var segments = relPath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var segments = relPath.Split(DirectorySeparators, StringSplitOptions.RemoveEmptyEntries);
         if (segments.Length < 2)
         {
             return false;
@@ -588,34 +569,25 @@ public class ControlBarPackageProcessor(
         var match = WordVariantRegex.Match(input);
         if (match.Success)
         {
-            var token = match.Value.ToLowerInvariant();
-            return token switch
-            {
-                Resolution720 or Variant720p => Variant720p,
-                Resolution900 or Variant900p => Variant900p,
-                Resolution1080 or Variant1080p => Variant1080p,
-                Resolution1440 or Variant1440p => Variant1440p,
-                Resolution2160 or Variant2160p or Variant4k => Variant4k,
-                _ => token,
-            };
+            return NormalizeResolutionToken(match.Value);
         }
 
         var inlineMatch = InlineVariantRegex.Match(input);
-        if (inlineMatch.Success)
-        {
-            var inlineVal = inlineMatch.Value.ToLowerInvariant();
-            return inlineVal switch
-            {
-                Resolution720 or Variant720p => Variant720p,
-                Resolution900 or Variant900p => Variant900p,
-                Resolution1080 or Variant1080p => Variant1080p,
-                Resolution1440 or Variant1440p => Variant1440p,
-                Resolution2160 or Variant2160p or Variant4k => Variant4k,
-                _ => inlineVal,
-            };
-        }
+        return inlineMatch.Success ? NormalizeResolutionToken(inlineMatch.Value) : null;
+    }
 
-        return null;
+    private static string NormalizeResolutionToken(string token)
+    {
+        var lower = token.ToLowerInvariant();
+        return lower switch
+        {
+            Resolution720 or Variant720p => Variant720p,
+            Resolution900 or Variant900p => Variant900p,
+            Resolution1080 or Variant1080p => Variant1080p,
+            Resolution1440 or Variant1440p => Variant1440p,
+            Resolution2160 or Variant2160p or Variant4k => Variant4k,
+            _ => lower,
+        };
     }
 
     private static void CopyDirectory(string sourceDir, string targetDir)
@@ -656,18 +628,8 @@ public class ControlBarPackageProcessor(
         }
     }
 
-    private bool HasAnyVariantCandidate(string extractedDirectory)
-    {
-        foreach (var variant in KnownResolutionVariants)
-        {
-            if (FindVariantBigRootCandidate(extractedDirectory, variant) != null)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+    private bool HasAnyVariantCandidate(string extractedDirectory) =>
+        KnownResolutionVariants.Any(variant => FindVariantBigRootCandidate(extractedDirectory, variant) != null);
 
     private string? FindVariantBigRootCandidate(string extractedDirectory, string variantId)
     {
