@@ -46,6 +46,8 @@ public sealed class PlaywrightService(
         "Upgrade",
     };
 
+    private static readonly TimeSpan KeptOpenChallengePageTimeout = TimeSpan.FromMinutes(5);
+
     private readonly SemaphoreSlim _browserLock = new(1, 1);
     private readonly SemaphoreSlim _persistentLock = new(1, 1);
     private readonly SemaphoreSlim _playwrightLock = new(1, 1);
@@ -57,7 +59,6 @@ public sealed class PlaywrightService(
     private readonly SemaphoreSlim _persistentFetchLock = new(1, 1);
     private readonly AsyncLocal<bool> _isInPersistentSession = new();
     private readonly HashSet<IPage> _inUsePersistentPages = [];
-    private static readonly TimeSpan KeptOpenChallengePageTimeout = TimeSpan.FromMinutes(5);
     private readonly ConcurrentDictionary<IPage, CancellationTokenSource> _keptOpenCleanupTokens = new();
     private readonly CancellationTokenSource _cleanupCts = new();
 
@@ -70,90 +71,6 @@ public sealed class PlaywrightService(
     private ManagedChromiumRuntime? managedChromiumRuntime;
 
     private int _disposeState;
-
-    private void TrackPersistentPage(IPage page)
-    {
-        if (_inUsePersistentPages.Add(page))
-        {
-            page.Close += OnPersistentPageClosed;
-        }
-    }
-
-    private void UntrackPersistentPage(IPage page)
-    {
-        page.Close -= OnPersistentPageClosed;
-        _inUsePersistentPages.Remove(page);
-
-        if (_keptOpenCleanupTokens.TryRemove(page, out var cts))
-        {
-            cts.Cancel();
-            cts.Dispose();
-        }
-    }
-
-    private void OnPersistentPageClosed(object? sender, IPage page)
-    {
-        _ = Task.Run(async () =>
-        {
-            await _persistentLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
-            try
-            {
-                UntrackPersistentPage(page);
-
-                if (Volatile.Read(ref _activePersistentSessions) == 0 && _inUsePersistentPages.Count == 0)
-                {
-                    await ClosePersistentContextCoreUnderLockAsync().ConfigureAwait(false);
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogDebug(ex, "Error handling persistent page close event.");
-            }
-            finally
-            {
-                _persistentLock.Release();
-            }
-        });
-    }
-
-    private void ScheduleKeptOpenPageCleanup(IPage page)
-    {
-        if (_disposeState != 0)
-        {
-            return;
-        }
-
-        var pageCts = CancellationTokenSource.CreateLinkedTokenSource(_cleanupCts.Token);
-        if (!_keptOpenCleanupTokens.TryAdd(page, pageCts))
-        {
-            pageCts.Dispose();
-            return;
-        }
-
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await Task.Delay(KeptOpenChallengePageTimeout, pageCts.Token);
-                await ClosePersistentPageAsync(page, keepOpen: false);
-            }
-            catch (OperationCanceledException)
-            {
-                // Disposed or manually closed earlier
-            }
-            catch (Exception ex)
-            {
-                logger.LogDebug(ex, "Failed to automatically clean up kept-open persistent page.");
-            }
-            finally
-            {
-                if (_keptOpenCleanupTokens.TryRemove(page, out var cts))
-                {
-                    cts.Dispose();
-                }
-            }
-        });
-    }
 
     /// <inheritdoc />
     public async Task<IPage> CreatePageAsync(BrowserNewContextOptions? options = null, CancellationToken cancellationToken = default)
@@ -563,6 +480,28 @@ public sealed class PlaywrightService(
         ex.Message.Contains("Target frame was detached", StringComparison.OrdinalIgnoreCase) ||
         ex.Message.Contains("Target.createTarget", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Determines whether a navigation exception from Playwright indicates that navigation was aborted
+    /// because a direct file download started.
+    /// </summary>
+    /// <param name="ex">The navigation exception to classify.</param>
+    /// <param name="downloadTcs">The task completion source tracking whether a download event has fired.</param>
+    /// <returns><see langword="true"/> if the exception was caused by download initiation; otherwise <see langword="false"/>.</returns>
+    internal static bool IsDownloadNavigationException(PlaywrightException ex, TaskCompletionSource<IDownload> downloadTcs)
+    {
+        if (ex.Message.Contains("Download is starting", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (downloadTcs.Task.IsCompleted && ex.Message.Contains("net::ERR_ABORTED", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
     private static bool IsBlankStartupUrl(string url) =>
         string.IsNullOrWhiteSpace(url) ||
         url.Equals("about:blank", StringComparison.OrdinalIgnoreCase) ||
@@ -783,6 +722,90 @@ public sealed class PlaywrightService(
         }
     }
 
+    private void TrackPersistentPage(IPage page)
+    {
+        if (_inUsePersistentPages.Add(page))
+        {
+            page.Close += OnPersistentPageClosed;
+        }
+    }
+
+    private void UntrackPersistentPage(IPage page)
+    {
+        page.Close -= OnPersistentPageClosed;
+        _inUsePersistentPages.Remove(page);
+
+        if (_keptOpenCleanupTokens.TryRemove(page, out var cts))
+        {
+            cts.Cancel();
+            cts.Dispose();
+        }
+    }
+
+    private void OnPersistentPageClosed(object? sender, IPage page)
+    {
+        _ = Task.Run(async () =>
+        {
+            await _persistentLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            try
+            {
+                UntrackPersistentPage(page);
+
+                if (Volatile.Read(ref _activePersistentSessions) == 0 && _inUsePersistentPages.Count == 0)
+                {
+                    await ClosePersistentContextCoreUnderLockAsync().ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Error handling persistent page close event.");
+            }
+            finally
+            {
+                _persistentLock.Release();
+            }
+        });
+    }
+
+    private void ScheduleKeptOpenPageCleanup(IPage page)
+    {
+        if (_disposeState != 0)
+        {
+            return;
+        }
+
+        var pageCts = CancellationTokenSource.CreateLinkedTokenSource(_cleanupCts.Token);
+        if (!_keptOpenCleanupTokens.TryAdd(page, pageCts))
+        {
+            pageCts.Dispose();
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(KeptOpenChallengePageTimeout, pageCts.Token);
+                await ClosePersistentPageAsync(page, keepOpen: false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Disposed or manually closed earlier
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Failed to automatically clean up kept-open persistent page.");
+            }
+            finally
+            {
+                if (_keptOpenCleanupTokens.TryRemove(page, out var cts))
+                {
+                    cts.Dispose();
+                }
+            }
+        });
+    }
+
     /// <summary>
     /// Resets tracked persistent pages, unhooks page close events, cancels pending cleanup timers,
     /// and resets cached context state.
@@ -983,21 +1006,6 @@ public sealed class PlaywrightService(
         {
             logger.LogWarning(ex, "Failed to click fallback link.");
         }
-    }
-
-    internal static bool IsDownloadNavigationException(PlaywrightException ex, TaskCompletionSource<IDownload> downloadTcs)
-    {
-        if (ex.Message.Contains("Download is starting", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (downloadTcs.Task.IsCompleted && ex.Message.Contains("net::ERR_ABORTED", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return false;
     }
 
     private async Task CheckStartPageFallbackAsync(IPage page, TaskCompletionSource<IDownload> downloadTcs, CancellationToken cancellationToken)

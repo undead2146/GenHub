@@ -2456,11 +2456,11 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             }
             catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException or FormatException or AngleSharp.Dom.DomException)
             {
-                logger.LogWarning(ex, "Failed to parse file detail for {Url}", url);
+                logger.LogWarning(ex, "Failed to parse file detail for {Url}", originalUrl);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                logger.LogError(ex, "Unexpected error parsing file detail for {Url}", url);
+                logger.LogError(ex, "Unexpected error parsing file detail for {Url}", originalUrl);
             }
         }
 
