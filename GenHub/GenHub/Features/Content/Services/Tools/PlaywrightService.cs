@@ -1602,13 +1602,6 @@ public sealed class PlaywrightService(
         }
     }
 
-    private void ResetPersistentContextState()
-    {
-        _inUsePersistentPages.Clear();
-        _persistentContext = null;
-        _persistentProfileName = null;
-    }
-
     private async Task FetchSinglePersistentDocumentAsync(
         string profileName,
         string url,
