@@ -152,6 +152,9 @@ public partial class GameProfileSettingsViewModel
 
             GameSettingsViewModel.ColorValue = ColorValue;
             await GameSettingsViewModel.InitializeForProfileAsync(profileId, profile);
+
+            // Snapshot initial game settings for change tracking and rollback.
+            // Note: This snapshot materializes VM defaults over fields originally unset on the profile.
             _originalGameSettings = GameSettingsViewModel.GetProfileSettings();
 
             IsHotswapMode = await DetermineHotswapModeAsync(profileId);
@@ -248,7 +251,7 @@ public partial class GameProfileSettingsViewModel
         var defaultCoverPath = _profileResourceService?.GetDefaultCoverPath(profile.GameClient?.GameType.ToString() ?? "ZeroHour") ?? string.Empty;
         CoverPath = NormalizeResourcePath(profile.CoverPath, defaultCoverPath);
         SelectedWorkspaceStrategy = profile.WorkspaceStrategy ?? GetDefaultWorkspaceStrategy();
-        OriginalWorkspaceStrategy = profile.WorkspaceStrategy;
+        OriginalWorkspaceStrategy = profile.WorkspaceStrategy ?? GetDefaultWorkspaceStrategy();
         _originalEnabledContentIds.Clear();
         if (profile.EnabledContentIds != null)
         {

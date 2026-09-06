@@ -283,7 +283,7 @@ public class ProfileContentLinkerService(
 
     private static IReadOnlyList<ManifestFile> GetUserDataFiles(ContentManifest manifest)
     {
-        return manifest.Files
+        return ManifestVariantResolver.ResolveFiles(manifest)
             .Where(file => file.InstallTarget != ContentInstallTarget.System &&
                            (file.InstallTarget != ContentInstallTarget.Workspace ||
                             manifest.ContentType is ContentType.Map or ContentType.MapPack))

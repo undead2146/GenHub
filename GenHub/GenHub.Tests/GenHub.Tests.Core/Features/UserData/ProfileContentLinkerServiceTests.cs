@@ -637,4 +637,61 @@ public sealed class ProfileContentLinkerServiceTests : IDisposable
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
+
+    /// <summary>
+    /// Verifies that variant-only maps (with empty root Files but files in Variants) are resolved and installed during user data sync.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task UpdateProfileUserDataAsync_WhenVariantOnlyMapExists_ResolvesAndInstallsVariantFilesAsync()
+    {
+        // Arrange
+        const string profileId = "profile-variant-map";
+        const GameType gameType = GameType.ZeroHour;
+        const string variantMapId = "1.0.0.map.variantmap";
+
+        _userDataTrackerMock.Setup(t => t.GetProfileUserDataAsync(profileId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IReadOnlyList<UserDataManifest>>.CreateSuccess([]));
+
+        var variantMapManifest = new ContentManifest
+        {
+            Id = ManifestId.Create(variantMapId),
+            Name = "Variant Map",
+            ContentType = ContentType.Map,
+            Files = [],
+            Variants =
+            [
+                new ArtifactVariant
+                {
+                    Files = [new ManifestFile { RelativePath = "Maps\\variant.map", InstallTarget = ContentInstallTarget.UserMapsDirectory, Hash = "hash-variant" }],
+                },
+            ],
+        };
+
+        _userDataTrackerMock.Setup(t => t.InstallUserDataAsync(
+            variantMapId,
+            profileId,
+            gameType,
+            It.IsAny<IEnumerable<ManifestFile>>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<UserDataManifest>.CreateSuccess(new UserDataManifest { ManifestId = variantMapId, ProfileId = profileId }));
+
+        // Act
+        var result = await _linkerService.UpdateProfileUserDataAsync(profileId, [variantMapManifest], gameType);
+
+        // Assert
+        Assert.True(result.Success);
+        _userDataTrackerMock.Verify(
+            t => t.InstallUserDataAsync(
+                variantMapId,
+                profileId,
+                gameType,
+                It.Is<IEnumerable<ManifestFile>>(files => files.Any(f => f.Hash == "hash-variant")),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
 }

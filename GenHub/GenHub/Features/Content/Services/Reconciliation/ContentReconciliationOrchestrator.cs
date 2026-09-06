@@ -261,10 +261,12 @@ public class ContentReconciliationOrchestrator(
                     warnings.Add($"Manifest untracking failed: {untrackResult.FirstError}");
                     criticalFailureOccurred = true;
                 }
-
-                foreach (var manifestId in successfulReconciledIds)
+                else
                 {
-                    WeakReferenceMessenger.Default.Send(new ContentRemovingEvent(manifestId, null, "Removal"));
+                    foreach (var manifestId in successfulReconciledIds)
+                    {
+                        WeakReferenceMessenger.Default.Send(new ContentRemovingEvent(manifestId, null, "Removal"));
+                    }
                 }
             }
 

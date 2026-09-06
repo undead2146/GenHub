@@ -41,6 +41,13 @@ public class UpdateProfileRequest
     public bool ClearWorkspaceStrategy { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether this update is a rollback operation
+    /// restoring the profile to its previous state after a post-save live sync failure.
+    /// When true, running profile mutation guards are bypassed so pre-save values can be restored.
+    /// </summary>
+    public bool IsRollback { get; set; }
+
+    /// <summary>
     /// Gets or sets the launch arguments.
     /// </summary>
     public Dictionary<string, string>? LaunchArguments { get; set; }

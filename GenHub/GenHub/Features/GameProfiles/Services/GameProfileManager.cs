@@ -201,7 +201,7 @@ public class GameProfileManager(
                 isRunning = activeLaunches.Any(l => string.Equals(l.ProfileId, profileId, StringComparison.OrdinalIgnoreCase) && !l.TerminatedAt.HasValue);
             }
 
-            if (isRunning)
+            if (isRunning && !request.IsRollback)
             {
                 var validationResult = await ValidateRunningProfileUpdateRequestAsync(profile, request, previousEnabledContentIds, cancellationToken);
                 if (validationResult != null)
@@ -338,7 +338,8 @@ public class GameProfileManager(
 
     private static ProfileOperationResult<GameProfile>? ValidateRunningProfileImmutableSettings(GameProfile profile, UpdateProfileRequest request)
     {
-        if (request.WorkspaceStrategy.HasValue && request.WorkspaceStrategy.Value != profile.WorkspaceStrategy)
+        if ((request.WorkspaceStrategy.HasValue && request.WorkspaceStrategy.Value != profile.WorkspaceStrategy) ||
+            (request.ClearWorkspaceStrategy && profile.WorkspaceStrategy.HasValue))
         {
             return ProfileOperationResult<GameProfile>.CreateFailure("Cannot change workspace strategy while profile is running.");
         }

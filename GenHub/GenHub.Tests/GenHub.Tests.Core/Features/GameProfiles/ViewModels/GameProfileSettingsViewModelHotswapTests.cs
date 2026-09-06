@@ -851,7 +851,7 @@ public class GameProfileSettingsViewModelHotswapTests
         Assert.Equal(installId, _viewModel.SelectedGameInstallation?.ManifestId.Value);
     }
 
-/// <summary>
+    /// <summary>
     /// Verifies that when a game session starts during save, live sync fails, and profile rollback succeeds,
     /// SaveAsync sets the appropriate rollback status message.
     /// </summary>
@@ -883,18 +883,20 @@ public class GameProfileSettingsViewModelHotswapTests
         _gameProfileManagerMock.Setup(m => m.GetProfileAsync(profileId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
 
+        bool profileUpdated = false;
         _gameProfileManagerMock.Setup(m => m.UpdateProfileAsync(profileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
-
-        int launchCheckCount = 0;
-        _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
-            .ReturnsAsync(() =>
+            .ReturnsAsync((string _, UpdateProfileRequest req, CancellationToken _) =>
             {
-                launchCheckCount++;
-                return launchCheckCount > 3
-                    ? [CreateActiveLaunch(profileId)]
-                    : [];
+                if (!req.IsRollback)
+                {
+                    profileUpdated = true;
+                }
+
+                return ProfileOperationResult<GameProfile>.CreateSuccess(profile);
             });
+
+        _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
+            .ReturnsAsync(() => profileUpdated ? [CreateActiveLaunch(profileId)] : []);
 
         var enabledItems = new ObservableCollection<CoreContentDisplayItem>
         {
@@ -1007,15 +1009,9 @@ public class GameProfileSettingsViewModelHotswapTests
         _gameProfileManagerMock.Setup(m => m.UpdateProfileAsync(profileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(profile));
 
-        int launchCheckCount = 0;
+        bool profileUpdated = false;
         _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
-            .ReturnsAsync(() =>
-            {
-                launchCheckCount++;
-                return launchCheckCount > 3
-                    ? [CreateActiveLaunch(profileId)]
-                    : [];
-            });
+            .ReturnsAsync(() => profileUpdated ? [CreateActiveLaunch(profileId)] : []);
 
         var enabledItems = new ObservableCollection<CoreContentDisplayItem>
         {
@@ -1064,9 +1060,13 @@ public class GameProfileSettingsViewModelHotswapTests
             .ReturnsAsync(() =>
             {
                 updateCount++;
-                return updateCount == 1
-                    ? ProfileOperationResult<GameProfile>.CreateSuccess(profile)
-                    : ProfileOperationResult<GameProfile>.CreateFailure("Failed to persist rollback");
+                if (updateCount == 1)
+                {
+                    profileUpdated = true;
+                    return ProfileOperationResult<GameProfile>.CreateSuccess(profile);
+                }
+
+                return ProfileOperationResult<GameProfile>.CreateFailure("Failed to persist rollback");
             });
 
         // Act

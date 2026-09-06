@@ -179,17 +179,36 @@ public partial class GitHubTopicsDiscoverer(
                             await _rateLimitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
                             try
                             {
-                                latestRelease = await gitHubApiClient.GetLatestReleaseAsync(
-                                    repo.Owner.Login,
-                                    repo.Name,
-                                    cancellationToken).ConfigureAwait(false);
+                                try
+                                {
+                                    latestRelease = await gitHubApiClient.GetLatestReleaseAsync(
+                                        repo.Owner.Login,
+                                        repo.Name,
+                                        cancellationToken).ConfigureAwait(false);
+                                }
+                                finally
+                                {
+                                    // Add delay before releasing semaphore to maintain rate limit
+                                    try
+                                    {
+                                        await Task.Delay(RateLimitDelay, cancellationToken).ConfigureAwait(false);
+                                    }
+                                    catch (OperationCanceledException)
+                                    {
+                                        // Ignore cancellation during the delay so semaphore release executes cleanly
+                                    }
+                                }
                             }
                             finally
                             {
-                                // Add delay before releasing semaphore to maintain rate limit
-                                await Task.Delay(RateLimitDelay, cancellationToken).ConfigureAwait(false);
                                 _rateLimitSemaphore.Release();
                             }
+
+                            cancellationToken.ThrowIfCancellationRequested();
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            throw;
                         }
                         catch (Exception ex)
                         {
@@ -421,7 +440,7 @@ public partial class GitHubTopicsDiscoverer(
             { "portuguese", "Portuguese" },
         };
 
-        // Check if filename contains a resolution (e.g., 1920x1080)
+        // Check if filename contains a resolution (e.g., 1920x1080).
         // Note: Resolution matching is already handled by VariantPatterns.ResolutionPattern() above.
         foreach (var (pattern, displayName) in languagePatterns)
         {
