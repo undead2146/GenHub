@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -81,7 +80,6 @@ public class ContentReconciliationServiceTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    [SuppressMessage("DeepSource", "CS-R1136", Justification = "Expression tree lambdas in Moq do not support null propagation")]
     public async Task OrchestrateLocalUpdateAsync_WhenIdChanges_ShouldAddManifestToPool_AndUpdateProfilesAsync()
     {
         // Arrange
@@ -128,7 +126,7 @@ public class ContentReconciliationServiceTests
         _profileManagerMock.Verify(
             x => x.UpdateProfileAsync(
                 "profile-1",
-                It.Is<UpdateProfileRequest>(r => r.GameClient != null && r.GameClient.Id == newId),
+                It.Is<UpdateProfileRequest>(r => MatchesGameClientId(r, newId)),
                 It.IsAny<CancellationToken>()),
             Times.Once,
             "Should update profile with new manifest ID");
@@ -282,4 +280,7 @@ public class ContentReconciliationServiceTests
         result.FirstError.Should().Be(
             GenHub.Core.Constants.CasDefaults.GarbageCollectionDisabledMessage);
     }
+
+    private static bool MatchesGameClientId(UpdateProfileRequest request, string expectedId) =>
+        request.GameClient?.Id == expectedId;
 }

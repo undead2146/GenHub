@@ -7,15 +7,16 @@ using GenHub.Core.Models.Enums;
 namespace GenHub.Core.Serialization;
 
 /// <summary>
-/// Custom JSON converter for WorkspaceStrategy that supports both string and integer formats.
-/// Provides backward compatibility for integer-based strategy values.
+/// Custom JSON converter for WorkspaceStrategy that writes the member name and reads both string
+/// and integer formats, so metadata written by releases up to v0.0.3 still deserializes.
 /// </summary>
 public class JsonWorkspaceStrategyConverter : JsonConverter<WorkspaceStrategy>
 {
     /// <inheritdoc />
     [SuppressMessage("Maintainability", "CS-R1138:Inappropriate ordering of parameters", Justification = "Signature is defined by System.Text.Json.Serialization.JsonConverter<T>.Read")]
     [SuppressMessage("DeepSource", "CS-R1138", Justification = "Signature is defined by System.Text.Json.Serialization.JsonConverter<T>.Read")]
-    public override WorkspaceStrategy Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    [SuppressMessage("csharp", "CS-R1138", Justification = "Signature is defined by System.Text.Json.Serialization.JsonConverter<T>.Read")]
+    public override WorkspaceStrategy Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) // skipcq: CS-R1138
     {
         if (reader.TokenType == JsonTokenType.Number)
         {
@@ -52,6 +53,6 @@ public class JsonWorkspaceStrategyConverter : JsonConverter<WorkspaceStrategy>
     /// <inheritdoc />
     public override void Write(Utf8JsonWriter writer, WorkspaceStrategy value, JsonSerializerOptions options)
     {
-        writer.WriteNumberValue((int)value);
+        writer.WriteStringValue(value.ToString());
     }
 }

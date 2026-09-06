@@ -61,56 +61,62 @@ public class GameSettingsMapperTests
     }
 
     /// <summary>
-    /// Verifies that a profile with no TheSuperHackers font sizes set falls back to the declared defaults.
+    /// Verifies that font sizes the profile leaves unset keep the values already in settings.json,
+    /// which is where the values a user configured inside the client itself live.
     /// </summary>
     [Fact]
-    public void ApplyToGeneralsOnlineSettings_UnsetFontSizes_UsesDeclaredDefaults()
+    public void ApplyToGeneralsOnlineSettings_UnsetFontSizes_PreservesExistingValues()
     {
-        // Arrange - seed with values the mapper must overwrite, so a missing assignment fails
+        // Arrange - seed with values no GenHub default would produce
         var profile = new GameProfile();
         var settings = new GeneralsOnlineSettings
         {
             SystemTimeFontSize = 99,
-            NetworkLatencyFontSize = 99,
-            RenderFpsFontSize = 99,
-            ResolutionFontAdjustment = 99,
+            NetworkLatencyFontSize = 98,
+            RenderFpsFontSize = 97,
+            ResolutionFontAdjustment = 96,
         };
 
         // Act
         GameSettingsMapper.ApplyToGeneralsOnlineSettings(profile, settings);
 
         // Assert
-        Assert.Equal(GameSettingsTheSuperHackersConstants.DefaultSystemTimeFontSize, settings.SystemTimeFontSize);
-        Assert.Equal(GameSettingsTheSuperHackersConstants.DefaultNetworkLatencyFontSize, settings.NetworkLatencyFontSize);
-        Assert.Equal(GameSettingsTheSuperHackersConstants.DefaultRenderFpsFontSize, settings.RenderFpsFontSize);
-        Assert.Equal(GameSettingsTheSuperHackersConstants.DefaultResolutionFontAdjustment, settings.ResolutionFontAdjustment);
+        Assert.Equal(99, settings.SystemTimeFontSize);
+        Assert.Equal(98, settings.NetworkLatencyFontSize);
+        Assert.Equal(97, settings.RenderFpsFontSize);
+        Assert.Equal(96, settings.ResolutionFontAdjustment);
     }
 
     /// <summary>
-    /// Verifies that the fallback defaults match the values declared on the settings model itself.
+    /// Verifies that GeneralsOnline options the profile leaves unset keep the values already in
+    /// settings.json rather than being reset to GenHub's defaults.
     /// </summary>
     [Fact]
-    public void ApplyToGeneralsOnlineSettings_UnsetFontSizes_MatchesModelDefaults()
+    public void ApplyToGeneralsOnlineSettings_UnsetGeneralsOnlineOptions_PreservesExistingValues()
     {
-        // Arrange - seed with values the mapper must overwrite, so a missing assignment fails
-        var profile = new GameProfile();
-        var expected = new GeneralsOnlineSettings();
+        // Arrange - the profile declares one option; everything else is the client's own
+        var profile = new GameProfile { GoShowFps = true };
         var settings = new GeneralsOnlineSettings
         {
-            SystemTimeFontSize = 99,
-            NetworkLatencyFontSize = 99,
-            RenderFpsFontSize = 99,
-            ResolutionFontAdjustment = 99,
+            ShowPing = false,
+            RememberUsername = false,
+            ChatFontSize = 24,
         };
+        settings.Camera.MinHeight = 42.0f;
+        settings.Render.FpsLimit = 60;
+        settings.Social.NotificationFriendComesOnlineMenus = false;
 
         // Act
         GameSettingsMapper.ApplyToGeneralsOnlineSettings(profile, settings);
 
         // Assert
-        Assert.Equal(expected.SystemTimeFontSize, settings.SystemTimeFontSize);
-        Assert.Equal(expected.NetworkLatencyFontSize, settings.NetworkLatencyFontSize);
-        Assert.Equal(expected.RenderFpsFontSize, settings.RenderFpsFontSize);
-        Assert.Equal(expected.ResolutionFontAdjustment, settings.ResolutionFontAdjustment);
+        Assert.True(settings.ShowFps);
+        Assert.False(settings.ShowPing);
+        Assert.False(settings.RememberUsername);
+        Assert.Equal(24, settings.ChatFontSize);
+        Assert.Equal(42.0f, settings.Camera.MinHeight);
+        Assert.Equal(60, settings.Render.FpsLimit);
+        Assert.False(settings.Social.NotificationFriendComesOnlineMenus);
     }
 
     /// <summary>
@@ -140,47 +146,33 @@ public class GameSettingsMapperTests
     }
 
     /// <summary>
-    /// Verifies that a profile with no cursor capture, edge scroll or observer toggles set
-    /// falls back to the declared defaults.
+    /// Verifies that a fresh settings.json keeps money transaction audio audible, so that the
+    /// model default and the settings screen agree on what an unconfigured profile writes.
     /// </summary>
     [Fact]
-    public void ApplyToGeneralsOnlineSettings_UnsetToggles_UsesDeclaredDefaults()
+    public void ApplyToGeneralsOnlineSettings_UnsetMoneyTransactionVolume_StaysAudible()
     {
-        // Arrange - seed each toggle inverted, so a missing assignment fails
+        // Arrange
         var profile = new GameProfile();
-        var settings = new GeneralsOnlineSettings
-        {
-            PlayerObserverEnabled = false,
-            CursorCaptureEnabledInFullscreenGame = false,
-            CursorCaptureEnabledInFullscreenMenu = false,
-            CursorCaptureEnabledInWindowedGame = false,
-            CursorCaptureEnabledInWindowedMenu = true,
-            ScreenEdgeScrollEnabledInFullscreenApp = false,
-            ScreenEdgeScrollEnabledInWindowedApp = true,
-        };
+        var settings = new GeneralsOnlineSettings();
 
         // Act
         GameSettingsMapper.ApplyToGeneralsOnlineSettings(profile, settings);
 
         // Assert
-        Assert.Equal(GameSettingsTheSuperHackersConstants.DefaultPlayerObserverEnabled, settings.PlayerObserverEnabled);
-        Assert.Equal(GameSettingsTheSuperHackersConstants.DefaultCursorCaptureEnabledInFullscreenGame, settings.CursorCaptureEnabledInFullscreenGame);
-        Assert.Equal(GameSettingsTheSuperHackersConstants.DefaultCursorCaptureEnabledInFullscreenMenu, settings.CursorCaptureEnabledInFullscreenMenu);
-        Assert.Equal(GameSettingsTheSuperHackersConstants.DefaultCursorCaptureEnabledInWindowedGame, settings.CursorCaptureEnabledInWindowedGame);
-        Assert.Equal(GameSettingsTheSuperHackersConstants.DefaultCursorCaptureEnabledInWindowedMenu, settings.CursorCaptureEnabledInWindowedMenu);
-        Assert.Equal(GameSettingsTheSuperHackersConstants.DefaultScreenEdgeScrollEnabledInFullscreenApp, settings.ScreenEdgeScrollEnabledInFullscreenApp);
-        Assert.Equal(GameSettingsTheSuperHackersConstants.DefaultScreenEdgeScrollEnabledInWindowedApp, settings.ScreenEdgeScrollEnabledInWindowedApp);
+        Assert.Equal(GameSettingsTheSuperHackersConstants.DefaultMoneyTransactionVolume, settings.MoneyTransactionVolume);
+        Assert.NotEqual(0, settings.MoneyTransactionVolume);
     }
 
     /// <summary>
-    /// Verifies that the toggle fallbacks match the values declared on the settings model itself.
+    /// Verifies that cursor capture, edge scroll and observer toggles the profile leaves unset
+    /// keep the values already in settings.json.
     /// </summary>
     [Fact]
-    public void ApplyToGeneralsOnlineSettings_UnsetToggles_MatchesModelDefaults()
+    public void ApplyToGeneralsOnlineSettings_UnsetToggles_PreservesExistingValues()
     {
-        // Arrange - seed each toggle inverted, so a missing assignment fails
+        // Arrange - seed each toggle inverted relative to its GenHub default
         var profile = new GameProfile();
-        var expected = new GeneralsOnlineSettings();
         var settings = new GeneralsOnlineSettings
         {
             PlayerObserverEnabled = false,
@@ -196,13 +188,13 @@ public class GameSettingsMapperTests
         GameSettingsMapper.ApplyToGeneralsOnlineSettings(profile, settings);
 
         // Assert
-        Assert.Equal(expected.PlayerObserverEnabled, settings.PlayerObserverEnabled);
-        Assert.Equal(expected.CursorCaptureEnabledInFullscreenGame, settings.CursorCaptureEnabledInFullscreenGame);
-        Assert.Equal(expected.CursorCaptureEnabledInFullscreenMenu, settings.CursorCaptureEnabledInFullscreenMenu);
-        Assert.Equal(expected.CursorCaptureEnabledInWindowedGame, settings.CursorCaptureEnabledInWindowedGame);
-        Assert.Equal(expected.CursorCaptureEnabledInWindowedMenu, settings.CursorCaptureEnabledInWindowedMenu);
-        Assert.Equal(expected.ScreenEdgeScrollEnabledInFullscreenApp, settings.ScreenEdgeScrollEnabledInFullscreenApp);
-        Assert.Equal(expected.ScreenEdgeScrollEnabledInWindowedApp, settings.ScreenEdgeScrollEnabledInWindowedApp);
+        Assert.False(settings.PlayerObserverEnabled);
+        Assert.False(settings.CursorCaptureEnabledInFullscreenGame);
+        Assert.False(settings.CursorCaptureEnabledInFullscreenMenu);
+        Assert.False(settings.CursorCaptureEnabledInWindowedGame);
+        Assert.True(settings.CursorCaptureEnabledInWindowedMenu);
+        Assert.False(settings.ScreenEdgeScrollEnabledInFullscreenApp);
+        Assert.True(settings.ScreenEdgeScrollEnabledInWindowedApp);
     }
 
     /// <summary>
@@ -235,5 +227,207 @@ public class GameSettingsMapperTests
         Assert.True(settings.CursorCaptureEnabledInWindowedMenu);
         Assert.False(settings.ScreenEdgeScrollEnabledInFullscreenApp);
         Assert.True(settings.ScreenEdgeScrollEnabledInWindowedApp);
+    }
+
+    /// <summary>
+    /// Verifies that TshGameWindowTransitionSpeedMultiplier is correctly mapped to TheSuperHackers section.
+    /// </summary>
+    [Fact]
+    public void ApplyToOptions_TshGameWindowTransitionSpeedMultiplier_MapsToTheSuperHackersSection()
+    {
+        // Arrange
+        var profile = new GameProfile
+        {
+            TshGameWindowTransitionSpeedMultiplier = 2.5f,
+        };
+        var options = new IniOptions();
+
+        // Act
+        GameSettingsMapper.ApplyToOptions(profile, options);
+
+        // Assert
+        Assert.True(options.AdditionalSections.TryGetValue("TheSuperHackers", out var tsh));
+        Assert.True(tsh.TryGetValue("GameWindowTransitionSpeedMultiplier", out var speed));
+        Assert.Equal("2.5", speed);
+    }
+
+    /// <summary>
+    /// Verifies that GameWindowTransitionSpeedMultiplier is loaded from hierarchical options.
+    /// </summary>
+    [Fact]
+    public void ApplyFromOptions_HierarchicalSection_MapsGameWindowTransitionSpeedMultiplier()
+    {
+        // Arrange
+        var options = new IniOptions();
+        options.AdditionalSections["TheSuperHackers"] = new Dictionary<string, string>
+        {
+            ["GameWindowTransitionSpeedMultiplier"] = "3.75",
+        };
+        var profile = new GameProfile();
+
+        // Act
+        GameSettingsMapper.ApplyFromOptions(options, profile);
+
+        // Assert
+        Assert.Equal(3.75f, profile.TshGameWindowTransitionSpeedMultiplier);
+    }
+
+    /// <summary>
+    /// Verifies that GameWindowTransitionSpeedMultiplier is loaded from flat root video properties.
+    /// </summary>
+    [Fact]
+    public void ApplyFromOptions_FlatProperties_MapsGameWindowTransitionSpeedMultiplier()
+    {
+        // Arrange
+        var options = new IniOptions();
+        options.Video.AdditionalProperties["GameWindowTransitionSpeedMultiplier"] = "3.0";
+        var profile = new GameProfile();
+
+        // Act
+        GameSettingsMapper.ApplyFromOptions(options, profile);
+
+        // Assert
+        Assert.Equal(3.0f, profile.TshGameWindowTransitionSpeedMultiplier);
+    }
+
+    /// <summary>
+    /// Verifies that ApplyToGeneralsOnlineSettings and ApplyFromGeneralsOnlineSettings preserve GameWindowTransitionSpeedMultiplier.
+    /// </summary>
+    [Fact]
+    public void ApplyToAndFromGeneralsOnlineSettings_GameWindowTransitionSpeedMultiplier_RoundTrips()
+    {
+        // Arrange
+        var profile = new GameProfile
+        {
+            TshGameWindowTransitionSpeedMultiplier = 4.0f,
+        };
+        var settings = new GeneralsOnlineSettings();
+
+        // Act
+        GameSettingsMapper.ApplyToGeneralsOnlineSettings(profile, settings);
+
+        // Assert
+        Assert.Equal(4.0f, settings.GameWindowTransitionSpeedMultiplier);
+
+        // Act back
+        var targetProfile = new GameProfile();
+        GameSettingsMapper.ApplyFromGeneralsOnlineSettings(settings, targetProfile);
+
+        // Assert back
+        Assert.Equal(4.0f, targetProfile.TshGameWindowTransitionSpeedMultiplier);
+    }
+
+    /// <summary>
+    /// Verifies that PopulateGameProfile and UpdateFromRequest preserve GameWindowTransitionSpeedMultiplier.
+    /// </summary>
+    [Fact]
+    public void PopulateAndUpdate_PreservesGameWindowTransitionSpeedMultiplier()
+    {
+        // Arrange
+        var createRequest = new CreateProfileRequest
+        {
+            Name = "TestProfile",
+            TshGameWindowTransitionSpeedMultiplier = 2.2f,
+        };
+        var profile = new GameProfile();
+
+        // Act
+        GameSettingsMapper.PopulateGameProfile(profile, createRequest);
+
+        // Assert
+        Assert.Equal(2.2f, profile.TshGameWindowTransitionSpeedMultiplier);
+
+        // Update
+        var updateRequest = new UpdateProfileRequest
+        {
+            TshGameWindowTransitionSpeedMultiplier = 3.4f,
+        };
+        GameSettingsMapper.UpdateFromRequest(profile, updateRequest);
+        Assert.Equal(3.4f, profile.TshGameWindowTransitionSpeedMultiplier);
+    }
+
+    /// <summary>
+    /// Verifies that out-of-range values are clamped to Min/Max and NaN/Infinity values are ignored.
+    /// </summary>
+    /// <param name="input">The raw string input value from Options.ini.</param>
+    /// <param name="expected">The expected clamped float multiplier value.</param>
+    [Theory]
+    [InlineData("0.2", 1.0f)]
+    [InlineData("5000.0", 4.0f)]
+    [InlineData("-10.0", 1.0f)]
+    public void ApplyFromOptions_ClampsOutOfRangeTransitionSpeedMultiplier(string input, float expected)
+    {
+        // Arrange
+        var options = new IniOptions();
+        options.AdditionalSections["TheSuperHackers"] = new Dictionary<string, string>
+        {
+            ["GameWindowTransitionSpeedMultiplier"] = input,
+        };
+        var profile = new GameProfile();
+
+        // Act
+        GameSettingsMapper.ApplyFromOptions(options, profile);
+
+        // Assert
+        Assert.Equal(expected, profile.TshGameWindowTransitionSpeedMultiplier);
+    }
+
+    /// <summary>
+    /// Verifies that non-finite values (NaN, Infinity) are ignored and do not corrupt profile settings.
+    /// </summary>
+    /// <param name="input">The raw non-finite or invalid string input value.</param>
+    [Theory]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("-Infinity")]
+    [InlineData("invalid_float")]
+    public void ApplyFromOptions_IgnoresNonFiniteTransitionSpeedMultiplier(string input)
+    {
+        // Arrange
+        var options = new IniOptions();
+        options.AdditionalSections["TheSuperHackers"] = new Dictionary<string, string>
+        {
+            ["GameWindowTransitionSpeedMultiplier"] = input,
+        };
+        var profile = new GameProfile();
+
+        // Act
+        GameSettingsMapper.ApplyFromOptions(options, profile);
+
+        // Assert
+        Assert.Null(profile.TshGameWindowTransitionSpeedMultiplier);
+    }
+
+    /// <summary>
+    /// Verifies that NormalizeTransitionSpeedMultiplier clamps out-of-range values and rejects non-finite values.
+    /// </summary>
+    [Fact]
+    public void NormalizeTransitionSpeedMultiplier_ShouldClampAndFilterCorrectly()
+    {
+        Assert.Null(GameSettingsMapper.NormalizeTransitionSpeedMultiplier(null));
+        Assert.Null(GameSettingsMapper.NormalizeTransitionSpeedMultiplier(float.NaN));
+        Assert.Null(GameSettingsMapper.NormalizeTransitionSpeedMultiplier(float.PositiveInfinity));
+        Assert.Null(GameSettingsMapper.NormalizeTransitionSpeedMultiplier(float.NegativeInfinity));
+        Assert.Equal(1.0f, GameSettingsMapper.NormalizeTransitionSpeedMultiplier(0.5f));
+        Assert.Equal(4.0f, GameSettingsMapper.NormalizeTransitionSpeedMultiplier(50.0f));
+        Assert.Equal(1.05f, GameSettingsMapper.NormalizeTransitionSpeedMultiplier(1.05f));
+    }
+
+    /// <summary>
+    /// Verifies that ApplyToOptions clamps out-of-range transition speed multiplier before writing to dictionary.
+    /// </summary>
+    [Fact]
+    public void ApplyToOptions_ShouldClampTransitionSpeedMultiplier()
+    {
+        var profile = new GameProfile
+        {
+            TshGameWindowTransitionSpeedMultiplier = 99.0f,
+        };
+        var options = new IniOptions();
+
+        GameSettingsMapper.ApplyToOptions(profile, options);
+
+        Assert.True(options.AdditionalSections.TryGetValue("TheSuperHackers", out var tshDict));
+        Assert.Equal("4", tshDict["GameWindowTransitionSpeedMultiplier"]);
     }
 }
