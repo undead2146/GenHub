@@ -141,7 +141,7 @@ public class ImageCacheServiceTests
                 {
                     Directory.Delete(tempRoot, true);
                 }
-                catch
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     // ignore cleanup failure
                 }
@@ -181,7 +181,7 @@ public class ImageCacheServiceTests
                 {
                     File.Delete(tempFile);
                 }
-                catch
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     // ignore cleanup failure
                 }
@@ -246,8 +246,9 @@ public class ImageCacheServiceTests
                 {
                     Directory.Delete(tempDir, true);
                 }
-                catch
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
+                    // Ignore cleanup failure in test teardown
                 }
             }
         }

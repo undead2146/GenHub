@@ -133,7 +133,13 @@ public static partial class HtmlTextHelper
             return text[..maxLength];
         }
 
-        return string.Concat(text.AsSpan(0, maxLength - 3), "...");
+        var prefixLength = maxLength - 3;
+        if (char.IsHighSurrogate(text[prefixLength - 1]))
+        {
+            prefixLength--;
+        }
+
+        return string.Concat(text.AsSpan(0, prefixLength), "...");
     }
 
     [GeneratedRegex(@"<script\b[^>]*>(?:[\s\S]*?</script\s*>|[\s\S]*$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
@@ -142,7 +148,7 @@ public static partial class HtmlTextHelper
     [GeneratedRegex(@"<style\b[^>]*>(?:[\s\S]*?</style\s*>|[\s\S]*$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex StyleTagRegex();
 
-    [GeneratedRegex(@"<!--[\s\S]*?-->|<!DOCTYPE[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"<!--[\s\S]*?(?:-->|$)|<!DOCTYPE[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex HtmlCommentAndDocTypeRegex();
 
     [GeneratedRegex(@"</?(?:script|style|iframe|object|embed|applet)\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]

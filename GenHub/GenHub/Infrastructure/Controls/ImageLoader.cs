@@ -3,14 +3,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using GenHub.Infrastructure.Services;
 
 namespace GenHub.Infrastructure.Controls;
 
 /// <summary>
-/// Attached property for asynchronously loading and caching image URLs onto Avalonia Image controls.
+/// Provides attached properties for loading remote and local images asynchronously into an <see cref="Image"/> control.
 /// </summary>
 public static class ImageLoader
 {
@@ -23,8 +23,8 @@ public static class ImageLoader
     /// <summary>
     /// Identifies the Placeholder attached property.
     /// </summary>
-    public static readonly AttachedProperty<IImage?> PlaceholderProperty =
-        AvaloniaProperty.RegisterAttached<Image, IImage?>("Placeholder", typeof(ImageLoader));
+    public static readonly AttachedProperty<Bitmap?> PlaceholderProperty =
+        AvaloniaProperty.RegisterAttached<Image, Bitmap?>("Placeholder", typeof(ImageLoader));
 
     private static readonly AttachedProperty<CancellationTokenSource?> CurrentCtsProperty =
         AvaloniaProperty.RegisterAttached<Image, CancellationTokenSource?>("CurrentCts", typeof(ImageLoader));
@@ -35,32 +35,48 @@ public static class ImageLoader
     }
 
     /// <summary>
-    /// Gets the Source property value.
+    /// Gets the image source URL or file path.
     /// </summary>
-    /// <param name="element">The Image control.</param>
-    /// <returns>The string image URL or path.</returns>
-    public static string? GetSource(Image element) => element.GetValue(SourceProperty);
+    /// <param name="element">The target image element.</param>
+    /// <returns>The source string.</returns>
+    public static string? GetSource(Image element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        return element.GetValue(SourceProperty);
+    }
 
     /// <summary>
-    /// Sets the Source property value.
+    /// Sets the image source URL or file path.
     /// </summary>
-    /// <param name="element">The Image control.</param>
-    /// <param name="value">The string image URL or path.</param>
-    public static void SetSource(Image element, string? value) => element.SetValue(SourceProperty, value);
+    /// <param name="element">The target image element.</param>
+    /// <param name="value">The source string to load.</param>
+    public static void SetSource(Image element, string? value)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        element.SetValue(SourceProperty, value);
+    }
 
     /// <summary>
-    /// Gets the Placeholder property value.
+    /// Gets the placeholder bitmap displayed while loading.
     /// </summary>
-    /// <param name="element">The Image control.</param>
-    /// <returns>The placeholder image, or <see langword="null"/>.</returns>
-    public static IImage? GetPlaceholder(Image element) => element.GetValue(PlaceholderProperty);
+    /// <param name="element">The target image element.</param>
+    /// <returns>The placeholder bitmap.</returns>
+    public static Bitmap? GetPlaceholder(Image element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        return element.GetValue(PlaceholderProperty);
+    }
 
     /// <summary>
-    /// Sets the Placeholder property value.
+    /// Sets the placeholder bitmap displayed while loading.
     /// </summary>
-    /// <param name="element">The Image control.</param>
-    /// <param name="value">The placeholder image.</param>
-    public static void SetPlaceholder(Image element, IImage? value) => element.SetValue(PlaceholderProperty, value);
+    /// <param name="element">The target image element.</param>
+    /// <param name="value">The placeholder bitmap.</param>
+    public static void SetPlaceholder(Image element, Bitmap? value)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        element.SetValue(PlaceholderProperty, value);
+    }
 
     private static void OnSourceChanged(Image image, AvaloniaPropertyChangedEventArgs e)
     {
@@ -172,9 +188,43 @@ public static class ImageLoader
         {
             // Expected when the load is cancelled by a subsequent Source change or detachment.
         }
-        catch
+        catch (Exception ex)
         {
             // Suppress unexpected background load failures to prevent unhandled task exceptions.
+            System.Diagnostics.Debug.WriteLine($"[ImageLoader] Failed to load image from {url}: {ex}");
+        }
+        finally
+        {
+            void ClearCts()
+            {
+                var currentCts = image.GetValue(CurrentCtsProperty);
+                if (currentCts == null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    if (currentCts.Token == cancellationToken)
+                    {
+                        image.ClearValue(CurrentCtsProperty);
+                        currentCts.Dispose();
+                    }
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Ignore if already disposed concurrently.
+                }
+            }
+
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                ClearCts();
+            }
+            else
+            {
+                await Dispatcher.UIThread.InvokeAsync(ClearCts);
+            }
         }
     }
 

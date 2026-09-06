@@ -585,15 +585,17 @@ public sealed class ImageCacheService : IImageCacheService
 
     private async Task<Bitmap?> CoalesceDownloadAsync(string url, string diskPath, CancellationToken cancellationToken)
     {
-        Lazy<CoalescedDownloadOperation> lazyOperation;
+        IDisposable? waiterRegistration;
+        CoalescedDownloadOperation? operation;
 
         while (true)
         {
             if (pendingDownloads.TryGetValue(url, out var existing))
             {
-                if (!existing.Value.Task.IsCompleted)
+                if (!existing.Value.Task.IsCompleted &&
+                    existing.Value.TryAddWaiter(cancellationToken, out waiterRegistration))
                 {
-                    lazyOperation = existing;
+                    operation = existing.Value;
                     break;
                 }
 
@@ -607,13 +609,17 @@ public sealed class ImageCacheService : IImageCacheService
 
             if (pendingDownloads.TryAdd(url, created))
             {
-                lazyOperation = created;
-                break;
+                if (created.Value.TryAddWaiter(cancellationToken, out waiterRegistration))
+                {
+                    operation = created.Value;
+                    break;
+                }
+
+                pendingDownloads.TryRemove(KeyValuePair.Create(url, created));
             }
         }
 
-        var operation = lazyOperation.Value;
-        using (operation.AddWaiter(cancellationToken))
+        using (waiterRegistration)
         {
             try
             {
@@ -881,6 +887,7 @@ public sealed class ImageCacheService : IImageCacheService
         private readonly object syncLock = new();
         private readonly CancellationTokenSource cancellationTokenSource = new();
         private int waiterCount;
+        private bool cancelQueued;
 
         public CoalescedDownloadOperation(Func<CancellationToken, Task<Bitmap?>> downloadFactory)
         {
@@ -899,14 +906,20 @@ public sealed class ImageCacheService : IImageCacheService
             cancellationTokenSource.Dispose();
         }
 
-        public IDisposable AddWaiter(CancellationToken callerToken)
+        public bool TryAddWaiter(CancellationToken callerToken, out IDisposable? registration)
         {
             lock (syncLock)
             {
-                waiterCount++;
-            }
+                if (cancelQueued || Task.IsCompleted)
+                {
+                    registration = null;
+                    return false;
+                }
 
-            return new WaiterRegistration(this, callerToken);
+                waiterCount++;
+                registration = new WaiterRegistration(this, callerToken);
+                return true;
+            }
         }
 
         private void RemoveWaiter()
@@ -917,6 +930,7 @@ public sealed class ImageCacheService : IImageCacheService
                 waiterCount--;
                 if (waiterCount <= 0 && !Task.IsCompleted)
                 {
+                    cancelQueued = true;
                     shouldCancel = true;
                 }
             }
