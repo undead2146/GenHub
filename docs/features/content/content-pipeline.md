@@ -213,7 +213,7 @@ Factories create proper `ContentManifest` objects after downloading, handling pu
 
 | Factory | Publisher | Features |
 |---------|-----------|----------|
-| `ModDBManifestFactory` | ModDB | ID format: `1.YYYYMMDD.moddb.{type}.{name}` |
+| `ModDBManifestFactory` | ModDB | ID format: `1.YYYYMMDD.moddb-{author}.{type}.{name}` |
 | `CNCLabsManifestFactory` | CNC Labs | Map-specific metadata |
 | `AODMapsManifestFactory` | AOD Maps | Referer header handling |
 | `GitHubManifestFactory` | GitHub | Release asset handling |

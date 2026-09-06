@@ -279,7 +279,7 @@ public class ModDBResolver(
         CancellationToken cancellationToken = default)
     {
         // Parse the web page
-        var parsedPage = await _webPageParser.ParseAsync(
+        var parsedPage = await webPageParser.ParseAsync(
             discoveredItem.SourceUrl,
             cancellationToken);
 
@@ -293,7 +293,7 @@ public class ModDBResolver(
         var mapDetails = ConvertToMapDetails(parsedPage, discoveredItem, primaryDownloadUrl);
 
         // Create manifest
-        var manifest = await _manifestFactory.CreateManifestAsync(
+        var manifest = await manifestFactory.CreateManifestAsync(
             mapDetails,
             discoveredItem.SourceUrl);
 
@@ -371,19 +371,18 @@ To create a parser for a new provider (e.g., AODMaps):
 2. **Implement IWebPageParser**:
 
    ```csharp
-   public class AODMapsPageParser : IWebPageParser
+   public class AODMapsPageParser(
+       IPlaywrightService playwrightService,
+       ILogger<AODMapsPageParser> logger) : IWebPageParser
    {
        public string ParserId => "AODMaps";
-
-       private readonly IPlaywrightService _playwrightService;
-       private readonly ILogger<AODMapsPageParser> _logger;
 
        public bool CanParse(string url) =>
            url.Contains("aodmaps.com", StringComparison.OrdinalIgnoreCase);
 
        public async Task<ParsedWebPage> ParseAsync(string url, CancellationToken cancellationToken = default)
        {
-           var document = await _playwrightService.FetchAndParseAsync(url, cancellationToken);
+           var document = await playwrightService.FetchAndParseAsync(url, cancellationToken);
            // Parse and return ParsedWebPage
        }
    }
