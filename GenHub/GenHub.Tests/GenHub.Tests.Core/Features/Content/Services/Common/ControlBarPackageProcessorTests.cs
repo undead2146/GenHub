@@ -459,6 +459,7 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
     public void CleanupSourceDirectories_WithUnselectedVariantBig_DeletesUnselectedVariantBig()
     {
         // Arrange
+        Directory.CreateDirectory(_testDir);
         var selectedBig = "340_ControlBarProArt1080ZH.big";
         var unselectedBig = "340_ControlBarProArt1440ZH.big";
         var metadataBig = "340_ControlBarProZH.big";
