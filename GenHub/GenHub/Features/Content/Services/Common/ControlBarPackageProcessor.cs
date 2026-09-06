@@ -41,6 +41,7 @@ public class ControlBarPackageProcessor(
     private const string BigFileExtension = ".big";
     private const string WindowFileExtension = ".wnd";
     private const string ControlBarToken = "controlbar";
+    private const string DirTextures = "Textures";
 
     private static readonly string[] KnownResolutionVariants = [Variant720p, Variant900p, Variant1080p, Variant1440p, Variant4k, Variant2160p];
     private static readonly TimeSpan RegexMatchTimeout = TimeSpan.FromSeconds(1);
@@ -88,6 +89,15 @@ public class ControlBarPackageProcessor(
         else
         {
             CollectFlatPrebuiltBigs(extractedDirectory, variantSuffix, repackedOutputs);
+        }
+
+        if (repackedOutputs.Count == 0)
+        {
+            logger.LogInformation(
+                "No Control Bar variant assets found for variant {VariantId} in {Directory}",
+                variantId,
+                extractedDirectory);
+            return [];
         }
 
         await EnsureMetadataBigIncludedAsync(extractedDirectory, variantId, repackedOutputs, cancellationToken);
@@ -274,7 +284,7 @@ public class ControlBarPackageProcessor(
 
     private static bool HasDisallowedSubdirectories(string extractedDirectory)
     {
-        if (DirectoryHasAnySubdirectories(Path.Combine(extractedDirectory, DirArt)) ||
+        if (HasInvalidArtSubdirectories(Path.Combine(extractedDirectory, DirArt)) ||
             HasInvalidDataSubdirectories(Path.Combine(extractedDirectory, DirData)))
         {
             return true;
@@ -282,7 +292,7 @@ public class ControlBarPackageProcessor(
 
         foreach (var gamePrefix in new[] { DirZh, DirCcg })
         {
-            if (DirectoryHasAnySubdirectories(Path.Combine(extractedDirectory, gamePrefix, DirArt)) ||
+            if (HasInvalidArtSubdirectories(Path.Combine(extractedDirectory, gamePrefix, DirArt)) ||
                 HasInvalidDataSubdirectories(Path.Combine(extractedDirectory, gamePrefix, DirData)))
             {
                 return true;
@@ -292,9 +302,24 @@ public class ControlBarPackageProcessor(
         return false;
     }
 
-    private static bool DirectoryHasAnySubdirectories(string directoryPath)
+    private static bool HasInvalidArtSubdirectories(string artDir)
     {
-        return Directory.Exists(directoryPath) && Directory.EnumerateDirectories(directoryPath).Any();
+        if (!Directory.Exists(artDir))
+        {
+            return false;
+        }
+
+        foreach (var dir in Directory.EnumerateDirectories(artDir))
+        {
+            var dirName = Path.GetFileName(dir);
+            if (!dirName.Equals(DirTextures, StringComparison.OrdinalIgnoreCase) ||
+                Directory.EnumerateDirectories(dir).Any())
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool HasInvalidDataSubdirectories(string dataDir)
@@ -387,14 +412,16 @@ public class ControlBarPackageProcessor(
         }
 
         var parent = segments[^2];
-        if (parent.Equals(GameContentConstants.WindowDirectoryName, StringComparison.OrdinalIgnoreCase))
+        if (parent.Equals(GameContentConstants.WindowDirectoryName, StringComparison.OrdinalIgnoreCase) ||
+            parent.Equals(DirArt, StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
-        if (parent.Equals(DirArt, StringComparison.OrdinalIgnoreCase))
+        if (parent.Equals(DirTextures, StringComparison.OrdinalIgnoreCase) && segments.Length >= 3)
         {
-            return segments.Length <= 3;
+            var grandParent = segments[^3];
+            return grandParent.Equals(DirArt, StringComparison.OrdinalIgnoreCase);
         }
 
         return false;

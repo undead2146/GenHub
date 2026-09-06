@@ -397,8 +397,8 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
     [InlineData("Window/MainMenu.wnd")]
     [InlineData("Art/notes.txt")]
     [InlineData("Window/layout.json")]
-    [InlineData("Art/Textures/other-mod.dds")]
-    [InlineData("Art/Textures/unit.tga")]
+    [InlineData("Art/W3D/other-mod.w3d")]
+    [InlineData("Art/Models/unit.dds")]
     [InlineData("other-mod.dds")]
     public void IsControlBarContent_WithUnrelatedFileBeneathAllowedDirectory_ReturnsFalse(string relativeFilePath)
     {
@@ -479,5 +479,70 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
         Assert.True(File.Exists(Path.Combine(_testDir, selectedBig)));
         Assert.True(File.Exists(Path.Combine(_testDir, metadataBig)));
         Assert.False(File.Exists(Path.Combine(_testDir, unselectedBig)));
+    }
+
+    /// <summary>
+    /// Verifies that supported Art/Textures and nested ZH/1080p/BIG/Art/Textures layouts pass IsControlBarContent.
+    /// </summary>
+    /// <param name="relativeFilePath">The relative file path to test.</param>
+    [Theory]
+    [InlineData("Art/Textures/cb.tga")]
+    [InlineData("ZH/1080p/BIG/Art/Textures/cb.tga")]
+    [InlineData("Window/cb.tga")]
+    public void IsControlBarContent_WithValidControlBarTextures_ReturnsTrue(string relativeFilePath)
+    {
+        // Arrange
+        var fullPath = Path.Combine(_testDir, relativeFilePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        File.WriteAllText(fullPath, "dummy-image-data");
+
+        var validWnd = Path.Combine(_testDir, "Window", "ControlBarPro.wnd");
+        Directory.CreateDirectory(Path.GetDirectoryName(validWnd)!);
+        File.WriteAllText(validWnd, "ValidWindow");
+
+        var converter = new CompressedImageToTgaConverter(NullLogger<CompressedImageToTgaConverter>.Instance);
+        var processor = new ControlBarPackageProcessor(converter, NullLogger<ControlBarPackageProcessor>.Instance);
+
+        var manifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.103.github.addon.cbpro"),
+            Name = "Control Bar Pro",
+            ContentType = ContentType.Addon,
+        };
+
+        // Act
+        var result = processor.IsControlBarContent(_testDir, manifest);
+
+        // Assert
+        Assert.True(result);
+    }
+
+    /// <summary>
+    /// Verifies that ProcessAndRepackControlBarAsync returns empty outputs when requested variant assets do not exist.
+    /// </summary>
+    /// <returns>A completed task.</returns>
+    [Fact]
+    public async Task ProcessAndRepackControlBarAsync_MissingVariantAssets_ReturnsEmptyOutputsWithoutMetadataBig()
+    {
+        // Arrange: Only 1080p exists in extracted directory
+        var variant1080Dir = Path.Combine(_testDir, "ZH", "1080p", "BIG", "Window");
+        Directory.CreateDirectory(variant1080Dir);
+        File.WriteAllText(Path.Combine(variant1080Dir, "ControlBarPro.wnd"), "wnd");
+
+        var converter = new CompressedImageToTgaConverter(NullLogger<CompressedImageToTgaConverter>.Instance);
+        var processor = new ControlBarPackageProcessor(converter, NullLogger<ControlBarPackageProcessor>.Instance);
+
+        var manifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.103.communityoutpost.addon.cbpr"),
+            Name = "Control Bar Pro",
+            ContentType = ContentType.Addon,
+        };
+
+        // Act: Request 1440p which does not exist
+        var outputs = await processor.ProcessAndRepackControlBarAsync(_testDir, manifest, "1440p", cleanupSources: false);
+
+        // Assert: Returns empty, metadata BIG is not included
+        Assert.Empty(outputs);
     }
 }
