@@ -522,6 +522,7 @@ public class ContentReconciliationService(
         int updatedProfilesCount = 0;
         int invalidatedWorkspacesCount = 0;
         var failedProfiles = new List<string>();
+        var adoptedReplacementKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var profile in affectedProfiles)
         {
@@ -586,6 +587,19 @@ public class ContentReconciliationService(
                         invalidatedWorkspacesCount++;
                     }
 
+                    foreach (var id in profile.EnabledContentIds)
+                    {
+                        if (replacements.ContainsKey(id))
+                        {
+                            adoptedReplacementKeys.Add(id);
+                        }
+                    }
+
+                    if (profile.GameClient != null && replacements.ContainsKey(profile.GameClient.Id))
+                    {
+                        adoptedReplacementKeys.Add(profile.GameClient.Id);
+                    }
+
                     await NotifyProfileUpdatedAsync(profile.Id, cancellationToken);
                 }
                 else
@@ -603,12 +617,13 @@ public class ContentReconciliationService(
 
         // Return success even with partial failures to allow cleanup of old manifests.
         // Callers can check ProfilesUpdated count vs expected count to detect partial failures.
-        // Failed profiles are logged for visibility.
-        if (updatedProfilesCount > 0)
+        // Only broadcast replacements that were actually adopted by updated profiles to prevent
+        // desynchronizing open settings for running or failed profiles.
+        foreach (var key in adoptedReplacementKeys)
         {
-            foreach (var replacement in replacements)
+            if (replacements.TryGetValue(key, out var replacement))
             {
-                WeakReferenceMessenger.Default.Send(new ManifestReplacedMessage(replacement.Key, replacement.Value.Id.Value));
+                WeakReferenceMessenger.Default.Send(new ManifestReplacedMessage(key, replacement.Id.Value));
             }
         }
 

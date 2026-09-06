@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CommunityToolkit.Mvvm.Messaging;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Interfaces.GameProfiles;
@@ -348,6 +349,77 @@ public class ContentReconciliationServiceHotswapTests
         Assert.Equal(0, result.Data.FailedProfilesCount);
 
         _workspaceManagerMock.Verify(w => w.CleanupWorkspaceAsync("workspace-null-reg", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Verifies that ReconcileBulkManifestReplacementAsync only broadcasts replacement messages for manifests adopted by updated profiles, skipping manifests unique to running profiles.
+    /// </summary>
+    /// <returns>A task representing the test operation.</returns>
+    [Fact]
+    public async Task ReconcileBulkManifestReplacementAsync_WhenPartialFailure_OnlyBroadcastsAdoptedReplacementsAsync()
+    {
+        // Arrange
+        const string runningProfileId = "profile-running";
+        const string idleProfileId = "profile-idle";
+        const string runningOldId = "1.0.0.mod.running-old";
+        const string runningNewId = "1.0.0.mod.running-new";
+        const string idleOldId = "1.0.0.mod.idle-old";
+        const string idleNewId = "1.0.0.mod.idle-new";
+
+        var runningProfile = new GameProfile
+        {
+            Id = runningProfileId,
+            Name = "Running Profile",
+            ActiveWorkspaceId = "workspace-running",
+            EnabledContentIds = [runningOldId],
+        };
+
+        var idleProfile = new GameProfile
+        {
+            Id = idleProfileId,
+            Name = "Idle Profile",
+            ActiveWorkspaceId = "workspace-idle",
+            EnabledContentIds = [idleOldId],
+        };
+
+        _profileManagerMock.Setup(p => p.GetAllProfilesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<IReadOnlyList<GameProfile>>.CreateSuccess([runningProfile, idleProfile]));
+        _profileManagerMock.Setup(p => p.UpdateProfileAsync(idleProfileId, It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(idleProfile));
+
+        _launchRegistryMock.Setup(l => l.GetAllActiveLaunchesAsync())
+            .ReturnsAsync([CreateActiveLaunch(runningProfileId)]);
+
+        _workspaceManagerMock.Setup(w => w.CleanupWorkspaceAsync("workspace-idle", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+
+        var replacements = new Dictionary<string, ContentManifest>
+        {
+            { runningOldId, new ContentManifest { Id = ManifestId.Create(runningNewId) } },
+            { idleOldId, new ContentManifest { Id = ManifestId.Create(idleNewId) } },
+        };
+
+        var receivedMessages = new List<ManifestReplacedMessage>();
+        WeakReferenceMessenger.Default.Register<ManifestReplacedMessage>(this, (_, msg) => receivedMessages.Add(msg));
+
+        try
+        {
+            // Act
+            var result = await _reconciliationService.ReconcileBulkManifestReplacementAsync(replacements);
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.Equal(1, result.Data?.ProfilesUpdated);
+            Assert.Equal(1, result.Data?.FailedProfilesCount);
+
+            // Only idle profile's replacement should have been broadcast
+            Assert.Contains(receivedMessages, m => m.OldId == idleOldId && m.NewId == idleNewId);
+            Assert.DoesNotContain(receivedMessages, m => m.OldId == runningOldId);
+        }
+        finally
+        {
+            WeakReferenceMessenger.Default.Unregister<ManifestReplacedMessage>(this);
+        }
     }
 
     private static GameLaunchInfo CreateActiveLaunch(string profileId, string launchId = "launch-1", string workspaceId = "ws-1") => new()
