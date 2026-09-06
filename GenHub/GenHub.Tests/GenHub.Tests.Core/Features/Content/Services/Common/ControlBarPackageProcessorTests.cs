@@ -443,6 +443,7 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
     public void IsControlBarContent_WithTopLevelJsonMetadata_ReturnsTrue(string relativeFilePath)
     {
         // Arrange
+        Directory.CreateDirectory(_testDir);
         var fullPath = Path.Combine(_testDir, relativeFilePath);
         File.WriteAllText(fullPath, "{}");
 
