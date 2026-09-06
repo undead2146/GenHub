@@ -242,7 +242,7 @@ schemaVersion.userVersion.publisher.contentType.contentName
 
 **Examples:**
 
-- `1.20240315.moddb.mod.contra` (ModDB content with date versioning)
+- `1.20240315.moddb-contra-team.mod.contra` (ModDB content with date versioning)
 - `1.0.themodders.gameclient.generals` (Publisher content with semantic versioning)
 - `1.108.ea.gameinstallation.zerohour` (Game installation)
 
@@ -275,6 +275,6 @@ The Downloads UI integrates with the game profile system:
 
 - [ ] Steam Workshop integration
 - [ ] Automatic content updates
-- [ ] Content dependency resolution
+- [x] Content dependency resolution
 - [ ] Multi-language support
 - [ ] Content rating/review system

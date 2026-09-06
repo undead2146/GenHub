@@ -239,17 +239,17 @@ if (clientResult.Success)
 }
 
 // Generate ID for ModDB content with date-based version
-var moddbResult = _manifestIdService.GeneratePublisherContentId("moddb", ContentType.Addon, "supercolors-newcolors", 20250120);
+var moddbResult = _manifestIdService.GeneratePublisherContentId("moddb-westwood", ContentType.Addon, "supercolors-newcolors", 20250120);
 if (moddbResult.Success)
 {
-    ManifestId id = moddbResult.Data; // 1.20250120.moddb.addon.supercolors-newcolors
+    ManifestId id = moddbResult.Data; // 1.20250120.moddb-westwood.addon.supercolors-newcolors
 }
 
 // Generate ID for ModDB modpack with date version
-var moddbModResult = _manifestIdService.GeneratePublisherContentId("moddb", ContentType.Mod, "contra-007", 20241215);
+var moddbModResult = _manifestIdService.GeneratePublisherContentId("moddb-contra-team", ContentType.Mod, "contra-007", 20241215);
 if (moddbModResult.Success)
 {
-    ManifestId id = moddbModResult.Data; // 1.20241215.moddb.mod.contra-007
+    ManifestId id = moddbModResult.Data; // 1.20241215.moddb-contra-team.mod.contra-007
 }
 ```
 
@@ -366,8 +366,8 @@ The system uses prefix matching to detect updates for content with date-based ve
 
 ```csharp
 // Example: Detecting updates for ModDB content
-// Installed: 1.20250110.moddb.addon.supercolors-newcolors
-// Available:  1.20250120.moddb.addon.supercolors-newcolors
+// Installed: 1.20250110.moddb-westwood.addon.supercolors-newcolors
+// Available:  1.20250120.moddb-westwood.addon.supercolors-newcolors
 
 // The system compares:
 // - Schema version (1) - must match
@@ -385,7 +385,7 @@ The system uses prefix matching to detect updates for content with date-based ve
 The manifest ID comparison for update detection follows this logic:
 
 1. **Extract base ID**: Remove the version component to get the content signature
-   - From `1.20250110.moddb.addon.supercolors-newcolors`
+   - From `1.20250110.moddb-westwood.addon.supercolors-newcolors`
    - Base: `moddb.addon.supercolors-newcolors`
 
 2. **Compare signatures**: Check if installed and available content have the same base
@@ -403,7 +403,7 @@ The manifest ID comparison for update detection follows this logic:
 // Scenario: ModDB content update detection
 
 // 1. User installs "Super Colors" addon on January 10, 2025
-var installedId = "1.20250110.moddb.addon.supercolors-newcolors";
+var installedId = "1.20250110.moddb-westwood.addon.supercolors-newcolors";
 var manifest = new ContentManifest
 {
     Id = installedId,
@@ -412,7 +412,7 @@ var manifest = new ContentManifest
 };
 
 // 2. System discovers updated version released on January 20, 2025
-var availableId = "1.20250120.moddb.addon.supercolors-newcolors";
+var availableId = "1.20250120.moddb-westwood.addon.supercolors-newcolors";
 var discoveredManifest = new ContentManifest
 {
     Id = availableId,

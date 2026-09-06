@@ -349,15 +349,15 @@ Manifest IDs are generated using the `ManifestIdGenerator`:
 
 ```csharp
 // Format: {schemaVersion}.{userVersion}.{publisher}.{contentType}.{contentName}
-// Example: 1.20240115.moddb.mod.shockwave
+// Example: 1.20240115.moddb-shockwave-team.mod.shockwave
 
 var manifestId = ManifestIdGenerator.GeneratePublisherContentId(
-    publisherId: "moddb",
+    publisherId: "moddb-shockwave-team",
     contentType: ContentType.Mod,
     contentName: "Shockwave",
     userVersion: 20240115
 );
-// Result: "1.20240115.moddb.mod.shockwave"
+// Result: "1.20240115.moddb-shockwave-team.mod.shockwave"
 ```
 
 The `userVersion` segment (second component) is the release date in `yyyyMMdd` format, enabling:
@@ -779,10 +779,10 @@ In `GenHub/Infrastructure/DependencyInjection/ContentPipelineModule.cs`:
 
 ```csharp
 // Register discoverer
-services.AddSingleton<IContentDiscoverer, YourPublisherDiscoverer>();
+services.AddTransient<IContentDiscoverer, YourPublisherDiscoverer>();
 
 // Register resolver
-services.AddSingleton<IContentResolver, YourPublisherResolver>();
+services.AddTransient<IContentResolver, YourPublisherResolver>();
 ```
 
 ### Creator Catalogs (Subscribed Publishers)
