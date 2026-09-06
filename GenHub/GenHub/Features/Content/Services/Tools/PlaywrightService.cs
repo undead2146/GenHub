@@ -950,7 +950,7 @@ public sealed class PlaywrightService(
 
             // Wait for the download to START (not finish) with a generous timeout. ModDB's
             // redirect chain plus Cloudflare can take a while before the binary begins streaming.
-            var waitTimeout = TimeSpan.FromMilliseconds(Math.Max(60000, configuration.Timeout.TotalMilliseconds));
+            var waitTimeout = TimeSpan.FromMilliseconds(Math.Max(ValidationLimits.MinDownloadSaveTimeoutMs, configuration.Timeout.TotalMilliseconds));
             var download = await downloadTcs.Task.WaitAsync(waitTimeout, cancellationToken);
 
             if (download == null)
@@ -1675,7 +1675,7 @@ public sealed class PlaywrightService(
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var saveTimeout = configuration.Timeout > TimeSpan.Zero && configuration.Timeout != Timeout.InfiniteTimeSpan
-            ? TimeSpan.FromMilliseconds(Math.Max(60000, configuration.Timeout.TotalMilliseconds))
+            ? TimeSpan.FromMilliseconds(Math.Max(ValidationLimits.MinDownloadSaveTimeoutMs, configuration.Timeout.TotalMilliseconds))
             : Timeout.InfiniteTimeSpan;
 
         if (saveTimeout != Timeout.InfiniteTimeSpan)
