@@ -1,3 +1,13 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
+using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 using AngleSharp;
 using AngleSharp.Dom;
 using GenHub.Core.Constants;
@@ -7,21 +17,13 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Results.Content;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace GenHub.Features.Content.Services.ContentDiscoverers;
 
 /// <summary>
 /// Discovers maps from AODMaps (Age of Defense Maps) website.
 /// </summary>
+[SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Domain acronym")]
 public partial class AODMapsDiscoverer(
     IHttpClientFactory httpClientFactory,
     ILogger<AODMapsDiscoverer> logger) : IContentDiscoverer
@@ -261,7 +263,6 @@ public partial class AODMapsDiscoverer(
     private static string BuildDiscoveryUrl(ContentSearchQuery query)
     {
         var page = query.Page ?? 1;
-        var pageStr = page > 1 ? page.ToString() : string.Empty; // Some URLs use "2", "3". "1" is often empty or omitted.
 
         // Special case: Page 1 often has no suffix. Page 2 has '2'.
         // Format {0} in patterns usually denotes the number suffix.
@@ -270,7 +271,7 @@ public partial class AODMapsDiscoverer(
         // 1. Check for specific map makers in query or tags
         // If we want to browse a map maker
         // Not implemented in basic browsing yet unless we parse "tags" containing "author:xxx"
-        if (query.CNCLabsMapTags != null && query.CNCLabsMapTags.Any(t => t.StartsWith("author:")))
+        if (query.CNCLabsMapTags?.Any(t => t.StartsWith("author:")) == true)
         {
             var authorTag = query.CNCLabsMapTags.First(t => t.StartsWith("author:"));
             var authorName = authorTag.Replace("author:", string.Empty);
@@ -289,7 +290,7 @@ public partial class AODMapsDiscoverer(
         // 3. Check Categories (Compstomp, Air, Race, etc - passed as Tags or specialized logic?)
         // Assuming user might pass these as Tags or we map ContentType?
         // Simplification: If "Compstomp" tag is present
-        if (query.CNCLabsMapTags != null && query.CNCLabsMapTags.Contains("Compstomp", StringComparer.OrdinalIgnoreCase))
+        if (query.CNCLabsMapTags?.Contains("Compstomp", StringComparer.OrdinalIgnoreCase) == true)
         {
             return string.Format(AODMapsConstants.CompstompPagePattern, suffix);
         }

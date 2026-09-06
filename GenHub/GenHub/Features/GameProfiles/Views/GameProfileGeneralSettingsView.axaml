@@ -130,12 +130,17 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Width="50" Height="50" Margin="0,0,8,8" CornerRadius="8" Background="#15FFFFFF" BorderBrush="#30FFFFFF" BorderThickness="1" ToolTip.Tip="{Binding DisplayName}"
+                                        <Border Width="50" Height="50" Margin="0,0,8,8" CornerRadius="8" Classes="selectable-tile" ToolTip.Tip="{Binding DisplayName}"
                                                 Classes.selected="{Binding Path, Converter={StaticResource EqualityConverter}, ConverterParameter={Binding $parent[ItemsControl].((vm:GameProfileSettingsViewModel)DataContext).IconPath}}">
                                             <Border.Styles>
-                                                <Style Selector="Border.selected">
-                                                    <Setter Property="Background" Value="#405E35B1" />
-                                                    <Setter Property="BorderBrush" Value="#5E35B1" />
+                                                <Style Selector="Border.selectable-tile">
+                                                    <Setter Property="Background" Value="#15FFFFFF" />
+                                                    <Setter Property="BorderBrush" Value="#30FFFFFF" />
+                                                    <Setter Property="BorderThickness" Value="1" />
+                                                </Style>
+                                                <Style Selector="Border.selectable-tile.selected">
+                                                    <Setter Property="Background" Value="{DynamicResource AccentBadgeBackgroundBrush}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                                     <Setter Property="BorderThickness" Value="2" />
                                                 </Style>
                                             </Border.Styles>
@@ -164,12 +169,17 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Width="140" Height="80" Margin="0,0,12,8" CornerRadius="8" Background="#15FFFFFF" BorderBrush="#30FFFFFF" BorderThickness="1" ToolTip.Tip="{Binding DisplayName}"
+                                        <Border Width="140" Height="80" Margin="0,0,12,8" CornerRadius="8" Classes="selectable-tile" ToolTip.Tip="{Binding DisplayName}"
                                                 Classes.selected="{Binding Path, Converter={StaticResource EqualityConverter}, ConverterParameter={Binding $parent[ItemsControl].((vm:GameProfileSettingsViewModel)DataContext).CoverPath}}">
                                             <Border.Styles>
-                                                <Style Selector="Border.selected">
-                                                    <Setter Property="Background" Value="#405E35B1" />
-                                                    <Setter Property="BorderBrush" Value="#5E35B1" />
+                                                <Style Selector="Border.selectable-tile">
+                                                    <Setter Property="Background" Value="#15FFFFFF" />
+                                                    <Setter Property="BorderBrush" Value="#30FFFFFF" />
+                                                    <Setter Property="BorderThickness" Value="1" />
+                                                </Style>
+                                                <Style Selector="Border.selectable-tile.selected">
+                                                    <Setter Property="Background" Value="{DynamicResource AccentBadgeBackgroundBrush}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                                     <Setter Property="BorderThickness" Value="2" />
                                                 </Style>
                                             </Border.Styles>
@@ -191,12 +201,12 @@
                         <TextBlock Classes="section-header" Text="Launch Configuration" />
                         <StackPanel Spacing="8">
                             <TextBlock Classes="form-label" Text="Workspace Strategy" />
-                            <ComboBox ItemsSource="{x:Static vm:GameProfileSettingsViewModel.AvailableWorkspaceStrategies}" SelectedItem="{Binding SelectedWorkspaceStrategy}" HorizontalAlignment="Stretch" />
+                            <ComboBox ItemsSource="{x:Static vm:GameProfileSettingsViewModel.AvailableWorkspaceStrategies}" SelectedItem="{Binding SelectedWorkspaceStrategy}" IsEnabled="{Binding CanEditImmutableMetadata}" HorizontalAlignment="Stretch" />
                             <TextBlock Text="Determines how content files are mapped into the game folder." FontSize="11" Opacity="0.5" />
                         </StackPanel>
                         <StackPanel Spacing="8">
                             <TextBlock Classes="form-label" Text="Command Line Arguments" />
-                            <TextBox Text="{Binding CommandLineArguments, Mode=TwoWay}" Watermark="-win -quickstart -mod GenEvo" />
+                            <TextBox Text="{Binding CommandLineArguments, Mode=TwoWay}" IsEnabled="{Binding CanEditImmutableMetadata}" Watermark="-win -quickstart -mod GenEvo" />
                         </StackPanel>
                     </StackPanel>
                 </Border>

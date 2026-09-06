@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Storage;
@@ -47,7 +48,7 @@ public class ContentStorageService : IContentStorageService
                 try
                 {
                     var fullPath = Path.GetFullPath(Path.Combine(baseDirectory, file.RelativePath));
-                    if (!fullPath.StartsWith(normalizedBase, StringComparison.OrdinalIgnoreCase))
+                    if (!PathHelper.IsPathWithinDirectory(normalizedBase, fullPath))
                     {
                         return OperationResult<bool>.CreateFailure($"File {file.RelativePath} attempts path traversal outside base directory");
                     }
@@ -68,17 +69,11 @@ public class ContentStorageService : IContentStorageService
                     {
                         // If SourcePath is absolute, we strictly enforce it must be within baseDirectory
                         // If it is relative, we combine and check traversal
-                        string fullSource;
-                        if (Path.IsPathRooted(file.SourcePath))
-                        {
-                            fullSource = Path.GetFullPath(file.SourcePath);
-                        }
-                        else
-                        {
-                            fullSource = Path.GetFullPath(Path.Combine(baseDirectory, file.SourcePath));
-                        }
+                        var fullSource = Path.IsPathRooted(file.SourcePath)
+                            ? Path.GetFullPath(file.SourcePath)
+                            : Path.GetFullPath(Path.Combine(baseDirectory, file.SourcePath));
 
-                        if (!fullSource.StartsWith(normalizedBase, StringComparison.OrdinalIgnoreCase))
+                        if (!PathHelper.IsPathWithinDirectory(normalizedBase, fullSource))
                         {
                             return OperationResult<bool>.CreateFailure($"File {file.RelativePath} specifies SourcePath {file.SourcePath} which traverses outside base directory");
                         }
@@ -288,6 +283,20 @@ public class ContentStorageService : IContentStorageService
             var manifestJson = JsonSerializer.Serialize(updatedManifest, JsonOptions);
             await File.WriteAllTextAsync(manifestPath, manifestJson, cancellationToken);
 
+            // Create source.path marker for CAS-stored content
+            // This prevents "Could not resolve source path" warnings when GetContentDirectoryAsync is called
+            try
+            {
+                var contentDir = Path.Combine(_storageRoot, DirectoryNames.Data, updatedManifest.Id.Value);
+                Directory.CreateDirectory(contentDir);
+                var sourcePathFile = Path.Combine(contentDir, FileTypes.SourcePathFileName);
+                await File.WriteAllTextAsync(sourcePathFile, FileTypes.CasOnlySourceMarker, cancellationToken);
+            }
+            catch (Exception markerEx)
+            {
+                _logger.LogWarning(markerEx, "Stored manifest {ManifestId} but failed to write CAS source-path marker", updatedManifest.Id);
+            }
+
             _logger.LogInformation("Successfully stored content for manifest {ManifestId}", manifest.Id);
             return OperationResult<ContentManifest>.CreateSuccess(updatedManifest);
         }
@@ -408,7 +417,7 @@ public class ContentStorageService : IContentStorageService
 
             // Remove source.path mapping file if it exists
             var contentDir = Path.Combine(_storageRoot, DirectoryNames.Data, manifestId.Value);
-            var sourcePathFile = Path.Combine(contentDir, "source.path");
+            var sourcePathFile = Path.Combine(contentDir, FileTypes.SourcePathFileName);
             FileOperationsService.DeleteFileIfExists(sourcePathFile);
 
             // Clean up the data directory if empty
@@ -473,6 +482,11 @@ public class ContentStorageService : IContentStorageService
     {
         var manifestPath = GetManifestStoragePath(manifest.Id);
 
+        // Declare cleanup tracking variables outside try block so they're accessible in catch
+        bool contentDirCreatedByThisCall = false;
+        bool sourcePathWrittenByThisCall = false;
+        string? previousSourcePathContent = null;
+
         try
         {
             // Validate manifest for security issues
@@ -498,10 +512,18 @@ public class ContentStorageService : IContentStorageService
             if (!string.IsNullOrWhiteSpace(sourceDirectory) && Directory.Exists(sourceDirectory))
             {
                 var contentDir = Path.Combine(_storageRoot, DirectoryNames.Data, manifest.Id.Value);
+                bool dirAlreadyExisted = Directory.Exists(contentDir);
                 Directory.CreateDirectory(contentDir);
+                contentDirCreatedByThisCall = !dirAlreadyExisted;
 
-                var sourcePathFile = Path.Combine(contentDir, "source.path");
+                var sourcePathFile = Path.Combine(contentDir, FileTypes.SourcePathFileName);
+
+                // Backup existing source.path content before overwriting
+                if (File.Exists(sourcePathFile))
+                    previousSourcePathContent = await File.ReadAllTextAsync(sourcePathFile, cancellationToken);
+
                 await File.WriteAllTextAsync(sourcePathFile, sourceDirectory, cancellationToken);
+                sourcePathWrittenByThisCall = true;
 
                 _logger.LogInformation(
                     "Created source path mapping for {ManifestId}: {SourcePath}",
@@ -533,6 +555,30 @@ public class ContentStorageService : IContentStorageService
             try
             {
                 FileOperationsService.DeleteFileIfExists(manifestPath);
+
+                // Clean up the content dir created for source.path mapping
+                var contentDir = Path.Combine(_storageRoot, DirectoryNames.Data, manifest.Id.Value);
+                if (contentDirCreatedByThisCall)
+                {
+                    // We created this directory in the current call — safe to remove entirely.
+                    if (Directory.Exists(contentDir))
+                        Directory.Delete(contentDir, recursive: true);
+                }
+                else if (sourcePathWrittenByThisCall && Directory.Exists(contentDir))
+                {
+                    // We overwrote an existing source.path file - restore it or delete if it was new
+                    var sourcePathFile = Path.Combine(contentDir, FileTypes.SourcePathFileName);
+                    if (previousSourcePathContent != null)
+                    {
+                        // Restore the previous content
+                        await File.WriteAllTextAsync(sourcePathFile, previousSourcePathContent, CancellationToken.None);
+                    }
+                    else
+                    {
+                        // We created a new file, safe to delete
+                        FileOperationsService.DeleteFileIfExists(sourcePathFile);
+                    }
+                }
 
                 // Untrack manifest if we failed to save its metadata but had already tracked/refreshed references.
                 await _referenceTracker.UntrackManifestAsync(manifest.Id, CancellationToken.None);
@@ -704,8 +750,8 @@ public class ContentStorageService : IContentStorageService
                 });
 
                 // Store file based on its SourceType
-                string hash;
-                long fileSize;
+                string hash = string.Empty;
+                long fileSize = 0;
 
                 if (manifestFile.SourceType == ContentSourceType.ContentAddressable)
                 {

@@ -1,19 +1,23 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Linq;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Common.ViewModels.Dialogs;
+using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Messages;
 using GenHub.Core.Models.Dialogs;
 using GenHub.Core.Models.Enums;
-using GenHub.Core.Models.Notifications;
 using GenHub.Features.AppUpdate.Interfaces;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GameProfiles.ViewModels;
@@ -35,12 +39,13 @@ namespace GenHub.Common.ViewModels;
 /// <param name="notificationManager">Notification manager view model.</param>
 /// <param name="configurationProvider">Configuration provider service.</param>
 /// <param name="userSettingsService">User settings service for persistence operations.</param>
-/// <param name="velopackUpdateManager">The Velopack update manager for checking updates.</param>
+/// <param name="backgroundUpdateCoordinator">Coordinator for background update checking and scheduling.</param>
 /// <param name="notificationService">Service for showing notifications.</param>
 /// <param name="dialogService">Dialog service for showing message boxes.</param>
 /// <param name="notificationFeedViewModel">Notification feed view model.</param>
 /// <param name="infoViewModel">Info view model.</param>
 /// <param name="logger">Logger instance.</param>
+[SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "MainViewModel is the top-level composition ViewModel for tabs and services injected via dependency injection.")]
 public partial class MainViewModel(
     GameProfileLauncherViewModel gameProfilesViewModel,
     DownloadsViewModel downloadsViewModel,
@@ -49,7 +54,7 @@ public partial class MainViewModel(
     NotificationManagerViewModel notificationManager,
     IConfigurationProviderService configurationProvider,
     IUserSettingsService userSettingsService,
-    IVelopackUpdateManager velopackUpdateManager,
+    IBackgroundUpdateCoordinator backgroundUpdateCoordinator,
     INotificationService notificationService,
     IDialogService dialogService,
     NotificationFeedViewModel notificationFeedViewModel,
@@ -57,15 +62,18 @@ public partial class MainViewModel(
     ILogger<MainViewModel> logger) : ObservableObject, IDisposable, IRecipient<NavigationMessage>
 {
     private readonly CancellationTokenSource _initializationCts = new();
+    private bool _disposed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainViewModel"/> class for design-time support.
     /// </summary>
+#pragma warning disable CS8625
     [Obsolete("Use DI constructor for runtime. This is only for XAML tools.")]
     public MainViewModel()
-        : this(null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!)
+        : this(null, null, null, null, null, null, null, null, null, null, null, null, null)
     {
     }
+#pragma warning restore CS8625
 
     /// <summary>
     /// Gets the info view model.
@@ -110,7 +118,7 @@ public partial class MainViewModel(
     /// <summary>
     /// Gets the available navigation tabs.
     /// </summary>
-    public NavigationTab[] AvailableTabs { get; } =
+    public IReadOnlyList<NavigationTab> AvailableTabs { get; } =
     [
         NavigationTab.GameProfiles,
         NavigationTab.Downloads,
@@ -153,7 +161,14 @@ public partial class MainViewModel(
     /// <inheritdoc/>
     public void Receive(NavigationMessage message)
     {
-        Dispatcher.UIThread.Post(() => SelectTab(message.Tab));
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            SelectTab(message.Tab);
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(() => SelectTab(message.Tab));
+        }
     }
 
     /// <summary>
@@ -179,8 +194,7 @@ public partial class MainViewModel(
         await InfoViewModel.InitializeAsync();
         logger?.LogInformation("MainViewModel initialized");
 
-        // Start background check with cancellation support
-        _ = CheckForUpdatesInBackgroundAsync(_initializationCts.Token);
+        await backgroundUpdateCoordinator.InitializeAsync(_initializationCts.Token);
 
         CheckForQuickStart();
     }
@@ -190,8 +204,24 @@ public partial class MainViewModel(
     /// </summary>
     public void Dispose()
     {
-        _initializationCts?.Cancel();
-        _initializationCts?.Dispose();
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
+        try
+        {
+            _initializationCts.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Ignore if already disposed
+        }
+
+        _initializationCts.Dispose();
+        WeakReferenceMessenger.Default.UnregisterAll(this);
         GC.SuppressFinalize(this);
     }
 
@@ -215,106 +245,11 @@ public partial class MainViewModel(
         }
     }
 
-    // Register for messages
     private void RegisterMessages()
     {
-        WeakReferenceMessenger.Default.Register(this);
-    }
-
-    /// <summary>
-    /// Checks for available updates using Velopack.
-    /// </summary>
-    private async Task CheckForUpdatesAsync(CancellationToken cancellationToken = default)
-    {
-        logger?.LogDebug("Starting background update check");
-
-        try
+        if (!WeakReferenceMessenger.Default.IsRegistered<NavigationMessage>(this))
         {
-            var settings = userSettingsService.Get();
-
-            // Push settings to update manager (important context for other components)
-            if (settings.SubscribedPrNumber.HasValue)
-            {
-                velopackUpdateManager.SubscribedPrNumber = settings.SubscribedPrNumber;
-            }
-
-            // 1. Check for standard GitHub releases (Default)
-            if (string.IsNullOrEmpty(settings.SubscribedBranch))
-            {
-                var updateInfo = await velopackUpdateManager.CheckForUpdatesAsync(cancellationToken);
-                if (updateInfo != null)
-                {
-                    logger?.LogInformation("GitHub release update available: {Version}", updateInfo.TargetFullRelease.Version);
-                    await Dispatcher.UIThread.InvokeAsync(() =>
-                    {
-                        notificationService.Show(new NotificationMessage(
-                            NotificationType.Info,
-                            "Update Available",
-                            $"A new version ({updateInfo.TargetFullRelease.Version}) is available.",
-                            null, // Persistent
-                            actions:
-                            [
-                                new NotificationAction(
-                                    "View Updates",
-                                    () => { SettingsViewModel.OpenUpdateWindowCommand.Execute(null); },
-                                    NotificationActionStyle.Primary,
-                                    dismissOnExecute: true),
-                            ]));
-                    });
-                    return;
-                }
-            }
-            else
-            {
-                // 2. Check for Subscribed Branch Artifacts
-                logger?.LogDebug("User subscribed to branch '{Branch}', checking for artifact updates", settings.SubscribedBranch);
-                velopackUpdateManager.SubscribedBranch = settings.SubscribedBranch;
-                velopackUpdateManager.SubscribedPrNumber = null; // Clear PR to avoid ambiguity
-
-                var artifactUpdate = await velopackUpdateManager.CheckForArtifactUpdatesAsync(cancellationToken);
-
-                if (artifactUpdate != null)
-                {
-                    var newVersionBase = artifactUpdate.Version.Split('+')[0];
-
-                    await Dispatcher.UIThread.InvokeAsync(() =>
-                    {
-                        notificationService.Show(new NotificationMessage(
-                            NotificationType.Info,
-                            "Branch Update Available",
-                            $"A new build ({newVersionBase}) is available on branch '{settings.SubscribedBranch}'.",
-                            null, // Persistent
-                            actions:
-                            [
-                                new NotificationAction(
-                                    "View Updates",
-                                    () => { SettingsViewModel.OpenUpdateWindowCommand.Execute(null); },
-                                    NotificationActionStyle.Primary,
-                                    dismissOnExecute: true),
-                            ]));
-                    });
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            logger?.LogError(ex, "Exception in CheckForUpdatesAsync");
-        }
-    }
-
-    private async Task CheckForUpdatesInBackgroundAsync(CancellationToken ct)
-    {
-        try
-        {
-            await CheckForUpdatesAsync(ct);
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected on cancellation
-        }
-        catch (Exception ex)
-        {
-            logger?.LogError(ex, "Unhandled exception in background update check");
+            WeakReferenceMessenger.Default.RegisterAll(this);
         }
     }
 
@@ -330,13 +265,11 @@ public partial class MainViewModel(
                     new DialogAction
                     {
                         Text = "Open Quickstart",
-                        Style = NotificationActionStyle.Primary, // Switched to Primary (Purple)
+                        Style = NotificationActionStyle.Primary,
                         Action = () =>
                         {
-                             SelectTab(NavigationTab.Info);
-
-                             // Programmatic navigation to the quickstart section
-                             InfoViewModel.OpenSection("quickstart");
+                            SelectTab(NavigationTab.Info);
+                            InfoViewModel.OpenSection("quickstart");
                         },
                     },
                     new DialogAction
@@ -365,7 +298,7 @@ public partial class MainViewModel(
                 if (result.DoNotAskAgain)
                 {
                     userSettingsService.Update(s => s.HasSeenQuickStart = true);
-                    _ = userSettingsService.SaveAsync();
+                    _ = userSettingsService.SaveAsync(_initializationCts.Token);
                 }
             });
         }
@@ -380,7 +313,7 @@ public partial class MainViewModel(
                 settings.LastSelectedTab = selectedTab;
             });
 
-            _ = userSettingsService.SaveAsync();
+            _ = userSettingsService.SaveAsync(CancellationToken.None);
             logger?.LogDebug("Updated last selected tab to: {Tab}", selectedTab);
         }
         catch (Exception ex)
@@ -393,10 +326,8 @@ public partial class MainViewModel(
     {
         OnPropertyChanged(nameof(CurrentTabViewModel));
 
-        // Notify SettingsViewModel when it becomes visible/invisible
         SettingsViewModel.IsViewVisible = value == NavigationTab.Settings;
 
-        // Refresh Tabs when they become visible
         if (value == NavigationTab.GameProfiles)
         {
             GameProfilesViewModel.OnTabActivated();
@@ -415,5 +346,34 @@ public partial class MainViewModel(
         }
 
         SaveSelectedTab(value);
+    }
+
+    /// <summary>
+    /// Copies the application version to the clipboard.
+    /// </summary>
+    [RelayCommand]
+    private async Task CopyVersionToClipboard()
+    {
+        try
+        {
+            var lifetime = Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
+            var mainWindow = lifetime?.MainWindow;
+            var topLevel = mainWindow is not null ? TopLevel.GetTopLevel(mainWindow) : null;
+
+            if (topLevel?.Clipboard is { } clipboard)
+            {
+                await clipboard.SetTextAsync(AppConstants.FullDisplayVersion);
+                notificationService.ShowSuccess("Copied", "Version copied to clipboard.", 3000);
+            }
+            else
+            {
+                notificationService.ShowError("Error", "Clipboard not available.", 3000);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Failed to copy version to clipboard");
+            notificationService.ShowError("Error", "Failed to copy version to clipboard.", 3000);
+        }
     }
 }

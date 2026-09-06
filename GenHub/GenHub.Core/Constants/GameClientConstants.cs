@@ -21,6 +21,9 @@ public static class GameClientConstants
     /// <summary>Steam game.dat executable (primary for Steam installations, avoids launcher stubs).</summary>
     public const string SteamGameDatExecutable = "game.dat";
 
+    /// <summary>Contra modded client executable filename.</summary>
+    public const string ContraExecutable = "generals.ctr";
+
     // ===== SuperHackers Client Detection =====
 
     /// <summary>SuperHackers Generals executable filename.</summary>
@@ -61,6 +64,20 @@ public static class GameClientConstants
     /// <summary>Standard retail Zero Hour directory name.</summary>
     public const string ZeroHourRetailDirectoryName = "Command & Conquer Generals Zero Hour";
 
+    // ===== Core Game Archives =====
+
+    /// <summary>Primary Zero Hour INI archive filename.</summary>
+    public const string ZeroHourIniBig = "INIZH.big";
+
+    /// <summary>Primary Zero Hour Patch archive filename.</summary>
+    public const string ZeroHourPatchBig = "PatchZH.big";
+
+    /// <summary>Primary Generals Vanilla INI archive filename.</summary>
+    public const string GeneralsIniBig = "INI.big";
+
+    /// <summary>Primary Generals Vanilla Patch archive filename.</summary>
+    public const string GeneralsPatchBig = "Patch.big";
+
     // ===== GeneralsOnline Client Detection =====
 
     /// <summary>GeneralsOnline 60Hz client executable name.</summary>
@@ -68,6 +85,15 @@ public static class GameClientConstants
 
     /// <summary>GeneralsOnline default client executable name.</summary>
     public const string GeneralsOnlineDefaultExecutable = "generalsonlinezh.exe";
+
+    /// <summary>
+    /// Easy Anti-Cheat bootstrapper shipped since GeneralsOnline 060526_QFE1. It launches the
+    /// binary named by <c>EasyAntiCheat/Settings.json</c> and is the supported launch target.
+    /// </summary>
+    public const string GeneralsOnlineEacLauncherExecutable = "EAC_LaunchGeneralsOnline.exe";
+
+    /// <summary>Epic Online Services Easy Anti-Cheat installer shipped in the GeneralsOnline portable.</summary>
+    public const string GeneralsOnlineEacSetupExecutable = "EasyAntiCheat_EOS_Setup.exe";
 
     /// <summary>Display name for GeneralsOnline 60Hz variant.</summary>
     public const string GeneralsOnline60HzDisplayName = "GeneralsOnline 60Hz";
@@ -120,6 +146,18 @@ public static class GameClientConstants
     /// Canonical short display name for Command &amp; Conquer: Generals Zero Hour.
     /// </summary>
     public const string ZeroHourShortName = "Zero Hour";
+
+    /// <summary>BrowserEngine.dll filename.</summary>
+    public const string BrowserEngineDll = "BrowserEngine.dll";
+
+    /// <summary>BrowserEngine.dll backup filename.</summary>
+    public const string BrowserEngineDllBak = "BrowserEngine.dll.bak";
+
+    /// <summary>dbghelp.dll filename.</summary>
+    public const string DbgHelpDll = "dbghelp.dll";
+
+    /// <summary>dbghelp.dll backup filename.</summary>
+    public const string DbgHelpDllBak = "dbghelp.dll.bak";
 
     /// <summary>
     /// DLLs required for standard game installations.
@@ -180,12 +218,19 @@ public static class GameClientConstants
     ];
 
     /// <summary>
-    /// List of GeneralsOnline executable names to detect.
-    /// Only includes 30Hz and 60Hz variants as these are the primary clients.
-    /// GeneralsOnline provides auto-updated clients for Command &amp; Conquer Generals and Zero Hour.
+    /// The GeneralsOnline executable names that are supported launch entry points.
+    /// Since 060526_QFE1 the Easy Anti-Cheat bootstrapper starts the binary named by
+    /// <c>EasyAntiCheat/Settings.json</c>; older packages launch the 60Hz binary directly.
+    /// <c>GeneralsOnlineZH.exe</c> ships alongside both but is not wrapped, so it is workspace
+    /// content rather than an entry point.
     /// </summary>
+    /// <remarks>
+    /// Membership only. When both are present the bootstrapper wins, but that precedence is
+    /// expressed in the resolving code rather than by the order of this list.
+    /// </remarks>
     public static readonly IReadOnlyList<string> GeneralsOnlineExecutableNames =
     [
+        GeneralsOnlineEacLauncherExecutable,
         GeneralsOnline60HzExecutable,
     ];
 

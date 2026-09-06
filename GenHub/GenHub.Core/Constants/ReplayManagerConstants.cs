@@ -11,6 +11,21 @@ public static class ReplayManagerConstants
     public const long MaxReplaySizeBytes = 1024 * 1024;
 
     /// <summary>
+    /// Maximum allowed entries in a replay ZIP archive.
+    /// </summary>
+    public const int MaxZipEntries = 100;
+
+    /// <summary>
+    /// Maximum aggregate uncompressed bytes for a replay ZIP archive (50 MB).
+    /// </summary>
+    public const long MaxAggregateUncompressedBytes = 50 * 1024 * 1024;
+
+    /// <summary>
+    /// Maximum compression ratio allowed for replay ZIP archives.
+    /// </summary>
+    public const double MaxCompressionRatio = 50.0;
+
+    /// <summary>
     /// Maximum upload bytes per period (10 MB).
     /// </summary>
     public const long MaxUploadBytesPerPeriod = 10 * 1024 * 1024;
@@ -29,4 +44,34 @@ public static class ReplayManagerConstants
     /// Default file name for imported replays.
     /// </summary>
     public const string DefaultImportedReplayFileName = "imported_replay.rep";
+
+    /// <summary>
+    /// File pattern for replay ZIP archives.
+    /// </summary>
+    public const string ZipFilePattern = "*.zip";
+
+    /// <summary>
+    /// Default name for exported replay ZIP files.
+    /// </summary>
+    public const string DefaultZipName = "replays";
+
+    /// <summary>
+    /// Notification title for delete failure.
+    /// </summary>
+    public const string DeleteFailedTitle = ToolConstants.DeleteFailedTitle;
+
+    /// <summary>
+    /// Category identifier for replay uploads.
+    /// </summary>
+    public const string UploadCategory = "replays";
+
+    /// <summary>
+    /// Mock path separator indicator for demo environments on Windows.
+    /// </summary>
+    public const string WindowsMockPathSegment = ToolConstants.WindowsMockPathSegment;
+
+    /// <summary>
+    /// Mock path separator indicator for demo environments on Unix.
+    /// </summary>
+    public const string UnixMockPathSegment = ToolConstants.UnixMockPathSegment;
 }

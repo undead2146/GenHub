@@ -74,7 +74,7 @@ public class SetupWizardService(
 
             // 2. Look for an up-to-date managed client
             var upToDateManaged = managedClients
-                .FirstOrDefault(x => x.Client != null && string.Equals((string)x.Client.Version, latestVersion, StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(x => x.Client != null && string.Equals(CleanVersionString((string)x.Client.Version), latestVersion, StringComparison.OrdinalIgnoreCase));
 
             if (upToDateManaged != null)
             {
@@ -86,11 +86,9 @@ public class SetupWizardService(
                     // Everything is perfect. Skip wizard, no action.
                     return (true, GameClientConstants.WizardActionTypes.Decline);
                 }
-                else
-                {
-                    // Content is there, just needs a profile. Skip wizard, auto-accept.
-                    return (true, GameClientConstants.WizardActionTypes.CreateProfile);
-                }
+
+                // Content is there, just needs a profile. Skip wizard, auto-accept.
+                return (true, GameClientConstants.WizardActionTypes.CreateProfile);
             }
 
             // If we reach here, we don't have a managed up-to-date client.
@@ -104,7 +102,6 @@ public class SetupWizardService(
                 }
             }
 
-            var detectedVersion = componentGlobal.Select(x => x.Client?.Version).FirstOrDefault() ?? GameClientConstants.UnknownVersion;
             var isDetected = componentGlobal.Count > 0;
 
             // Construct Wizard Item
@@ -121,7 +118,7 @@ public class SetupWizardService(
             {
                 // Profile exists but it is not the latest managed version
                 item.Status = "Installed";
-                item.Description = $"Update existing {title} profiles to v{latestVersion}.";
+                item.Description = $"Update existing {title} profiles to {latestVersion}.";
                 item.ActionLabel = "Update / Reinstall";
                 item.ActionType = GameClientConstants.WizardActionTypes.Update;
             }
@@ -129,8 +126,8 @@ public class SetupWizardService(
             {
                 // Unmanaged files detected but no profile
                 item.Status = "Detected";
-                item.Description = $"Detected installed {title}. Install managed v{latestVersion} and create profiles?";
-                item.ActionLabel = "Create Profile";
+                item.Description = $"Detected installed {title}. Install managed {latestVersion} and create profiles?";
+                item.ActionLabel = "Download & Install";
                 item.ActionType = GameClientConstants.WizardActionTypes.CreateProfile;
             }
             else
@@ -147,28 +144,32 @@ public class SetupWizardService(
             return (false, item.ActionType);
         }
 
+        var cpCleanVersion = CleanVersionString(cpLatestVersion);
+        var goCleanVersion = CleanVersionString(goLatestVersion);
+        var shCleanVersion = CleanVersionString(shLatestVersion);
+
         // Process all components
         var cpRes = await ProcessComponentAsync(
             cpGlobal,
-            cpLatestVersion,
+            cpCleanVersion,
             "Community Patch",
-            $"Download and install Community Patch v{cpLatestVersion} (Highly Recommended). Includes fixes, maps, and GenTool.",
+            $"Download and install Community Patch {cpCleanVersion}.",
             CommunityOutpostConstants.LogoSource,
             CommunityOutpostConstants.PublisherType);
         result.CommunityPatchAction = cpRes.FinalAction;
 
         var goRes = await ProcessComponentAsync(
             goGlobal,
-            goLatestVersion,
+            goCleanVersion,
             "Generals Online",
-            $"Download and install Generals Online v{goLatestVersion} for multiplayer support.",
+            $"Download and install Generals Online {goCleanVersion} for multiplayer support.",
             UriConstants.GeneralsOnlineLogoUri,
             PublisherTypeConstants.GeneralsOnline);
         result.GeneralsOnlineAction = goRes.FinalAction;
 
         var shRes = await ProcessComponentAsync(
             shGlobal,
-            shLatestVersion,
+            shCleanVersion,
             "The Super Hackers",
             "Install The Super Hackers for advanced modding and features.",
             UriConstants.SuperHackersLogoUri,
@@ -230,6 +231,22 @@ public class SetupWizardService(
         }
 
         return null;
+    }
+
+    private static string CleanVersionString(string? version)
+    {
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = version.Trim();
+        if (trimmed.StartsWith('v') || trimmed.StartsWith('V'))
+        {
+            return trimmed[1..];
+        }
+
+        return trimmed;
     }
 
     private async Task<string> GetLatestVersionAsync(string publisher)

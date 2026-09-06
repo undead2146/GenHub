@@ -106,8 +106,6 @@ public class ProfileContentLoader(
                 return result;
             }
 
-            var includedManifestIds = new HashSet<string>();
-
             await AddCasStoredGameClientsAsync(result, []);
 
             logger.LogInformation("Loaded {Count} game client options", result.Count);
@@ -418,7 +416,8 @@ public class ProfileContentLoader(
     private ContentDisplayItem CreateInstallationDisplayItem(
         GameInstallation installation,
         GameClient baseClient,
-        GameType gameType)
+        GameType gameType,
+        bool isEnabled = false)
     {
         var (versionForManifestId, versionForDisplay) = GetVersionStrings(baseClient.Version);
         var manifestId = ManifestIdGenerator.GenerateGameInstallationId(
@@ -440,6 +439,7 @@ public class ProfileContentLoader(
             GameType = gameType,
             InstallationType = installation.InstallationType,
             Publisher = publisher,
+            IsEnabled = isEnabled,
             IsEditable = false,
         };
     }
@@ -703,7 +703,7 @@ public class ProfileContentLoader(
             var baseClient = GetBaseGameClient(gameInstallation, manifest.TargetGame);
             if (baseClient is not null)
             {
-                return CreateInstallationDisplayItem(gameInstallation, baseClient, manifest.TargetGame);
+                return CreateInstallationDisplayItem(gameInstallation, baseClient, manifest.TargetGame, isEnabled: true);
             }
         }
 
