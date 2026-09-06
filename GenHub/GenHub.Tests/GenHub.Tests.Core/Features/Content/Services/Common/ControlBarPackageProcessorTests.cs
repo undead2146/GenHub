@@ -403,6 +403,8 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
     [InlineData("Art/Textures/cb_othermod.dds")]
     [InlineData("Window/other-mod.dds")]
     [InlineData("Window/wnd_border.tga")]
+    [InlineData("config.json")]
+    [InlineData("modinfo.json")]
     [InlineData("other-mod.dds")]
     public void IsControlBarContent_WithUnrelatedFileBeneathAllowedDirectory_ReturnsFalse(string relativeFilePath)
     {
@@ -472,6 +474,7 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
         File.WriteAllText(Path.Combine(_testDir, selectedBig), "1080 data");
         File.WriteAllText(Path.Combine(_testDir, unselectedBig), "1440 data");
         File.WriteAllText(Path.Combine(_testDir, metadataBig), "meta data");
+        File.WriteAllText(Path.Combine(_testDir, "config.json"), "{}");
 
         var converter = new CompressedImageToTgaConverter(NullLogger<CompressedImageToTgaConverter>.Instance);
         var processor = new ControlBarPackageProcessor(converter, NullLogger<ControlBarPackageProcessor>.Instance);
@@ -482,6 +485,7 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
         // Assert
         Assert.True(File.Exists(Path.Combine(_testDir, selectedBig)));
         Assert.True(File.Exists(Path.Combine(_testDir, metadataBig)));
+        Assert.True(File.Exists(Path.Combine(_testDir, "config.json")));
         Assert.False(File.Exists(Path.Combine(_testDir, unselectedBig)));
     }
 

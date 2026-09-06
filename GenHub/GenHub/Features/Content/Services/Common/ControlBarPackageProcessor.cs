@@ -367,12 +367,6 @@ public class ControlBarPackageProcessor(
             return !fileName.Contains(ControlBarToken, StringComparison.OrdinalIgnoreCase);
         }
 
-        if (extension.Equals(".json", StringComparison.OrdinalIgnoreCase))
-        {
-            var relPath = Path.GetRelativePath(extractedDirectory, file);
-            return relPath.Contains(Path.DirectorySeparatorChar) || relPath.Contains(Path.AltDirectorySeparatorChar);
-        }
-
         if (extension.Equals(".txt", StringComparison.OrdinalIgnoreCase) ||
             extension.Equals(".md", StringComparison.OrdinalIgnoreCase))
         {
@@ -975,7 +969,16 @@ public class ControlBarPackageProcessor(
             foreach (var file in looseFiles)
             {
                 var fileName = Path.GetFileName(file);
-                if (!repackedOutputs.Contains(fileName) && !IsMetadataOnlyBig(fileName))
+                if (repackedOutputs.Contains(fileName) || IsMetadataOnlyBig(fileName))
+                {
+                    continue;
+                }
+
+                var ext = Path.GetExtension(file);
+                if (ext.Equals(BigFileExtension, StringComparison.OrdinalIgnoreCase) ||
+                    ext.Equals(WindowFileExtension, StringComparison.OrdinalIgnoreCase) ||
+                    ext.Equals(".dat", StringComparison.OrdinalIgnoreCase) ||
+                    IsImageExtension(ext))
                 {
                     File.Delete(file);
                 }
