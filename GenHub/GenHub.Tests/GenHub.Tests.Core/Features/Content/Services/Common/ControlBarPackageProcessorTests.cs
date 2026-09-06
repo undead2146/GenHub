@@ -403,8 +403,6 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
     [InlineData("Art/Textures/cb_othermod.dds")]
     [InlineData("Window/other-mod.dds")]
     [InlineData("Window/wnd_border.tga")]
-    [InlineData("config.json")]
-    [InlineData("modinfo.json")]
     [InlineData("other-mod.dds")]
     public void IsControlBarContent_WithUnrelatedFileBeneathAllowedDirectory_ReturnsFalse(string relativeFilePath)
     {
@@ -433,6 +431,40 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
 
         // Assert
         Assert.False(result);
+    }
+
+    /// <summary>
+    /// Verifies that top-level JSON metadata does not block Control Bar detection.
+    /// </summary>
+    /// <param name="relativeFilePath">The top-level JSON file path.</param>
+    [Theory]
+    [InlineData("config.json")]
+    [InlineData("modinfo.json")]
+    public void IsControlBarContent_WithTopLevelJsonMetadata_ReturnsTrue(string relativeFilePath)
+    {
+        // Arrange
+        var fullPath = Path.Combine(_testDir, relativeFilePath);
+        File.WriteAllText(fullPath, "{}");
+
+        var validWnd = Path.Combine(_testDir, "Window", "ControlBarPro.wnd");
+        Directory.CreateDirectory(Path.GetDirectoryName(validWnd)!);
+        File.WriteAllText(validWnd, "ValidWindow");
+
+        var converter = new CompressedImageToTgaConverter(NullLogger<CompressedImageToTgaConverter>.Instance);
+        var processor = new ControlBarPackageProcessor(converter, NullLogger<ControlBarPackageProcessor>.Instance);
+
+        var manifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.103.github.addon.cbpr"),
+            Name = "Control Bar Pro",
+            ContentType = ContentType.Addon,
+        };
+
+        // Act
+        var result = processor.IsControlBarContent(_testDir, manifest);
+
+        // Assert
+        Assert.True(result);
     }
 
     /// <summary>

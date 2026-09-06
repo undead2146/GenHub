@@ -374,6 +374,12 @@ public class ControlBarPackageProcessor(
             return !fileName.Contains(ControlBarToken, StringComparison.OrdinalIgnoreCase);
         }
 
+        if (extension.Equals(".json", StringComparison.OrdinalIgnoreCase))
+        {
+            var relPath = Path.GetRelativePath(extractedDirectory, file);
+            return relPath.Contains(Path.DirectorySeparatorChar) || relPath.Contains(Path.AltDirectorySeparatorChar);
+        }
+
         if (extension.Equals(".txt", StringComparison.OrdinalIgnoreCase) ||
             extension.Equals(".md", StringComparison.OrdinalIgnoreCase))
         {
