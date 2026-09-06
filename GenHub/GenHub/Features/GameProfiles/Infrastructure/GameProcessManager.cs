@@ -84,11 +84,16 @@ public class GameProcessManager(
             process = startResult.Data;
             logger.LogDebug("[Process] Process {ProcessId} started successfully", process.Id);
 
+            // Read while the launcher is still alive: a Unix process that has exited can no longer
+            // report its start time, and that time is the only thing separating the child this
+            // launch spawned from an instance of the same game the user already had running.
+            var launcherStartTime = ReadStartTime(process);
+
             var capturedErrors = SetupErrorRedirection(process);
 
             if (!string.IsNullOrWhiteSpace(configuration.ExpectedChildProcessName))
             {
-                return await AdoptExpectedChildProcessAsync(process, configuration, workingDirectory, capturedErrors, cancellationToken);
+                return await AdoptExpectedChildProcessAsync(process, configuration, workingDirectory, launcherStartTime, capturedErrors, cancellationToken);
             }
 
             if (!isBatchFile)
@@ -97,7 +102,7 @@ public class GameProcessManager(
 
                 if (process.HasExited)
                 {
-                    return await HandleImmediateProcessExitAsync(process, configuration, capturedErrors);
+                    return await HandleImmediateProcessExitAsync(process, configuration, launcherStartTime, capturedErrors, cancellationToken);
                 }
             }
 
@@ -210,7 +215,7 @@ public class GameProcessManager(
             catch (InvalidOperationException ex)
             {
                 // Process already exited
-                logger.LogInformation("[Terminate] Process {ProcessId} already exited: {Message}", processId, ex.Message);
+                logger.LogInformation(ex, "[Terminate] Process {ProcessId} already exited", processId);
             }
             catch (System.ComponentModel.Win32Exception ex)
             {
@@ -568,6 +573,24 @@ public class GameProcessManager(
         }
     }
 
+    /// <summary>
+    /// Reads a process's start time in UTC, or reports that it could not be read.
+    /// </summary>
+    /// <param name="process">The process to inspect.</param>
+    /// <returns>The start time, or <see langword="null"/> when the platform will not report it.</returns>
+    private DateTime? ReadStartTime(Process process)
+    {
+        try
+        {
+            return process.StartTime.ToUniversalTime();
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "[Process] Unable to inspect start time for process {ProcessId}", process.Id);
+            return null;
+        }
+    }
+
     private OperationResult<bool> ValidateLaunchConfiguration(GameLaunchConfiguration? configuration)
     {
         if (configuration == null)
@@ -770,11 +793,15 @@ public class GameProcessManager(
     private async Task<OperationResult<GameProcessInfo>> HandleImmediateProcessExitAsync(
         Process process,
         GameLaunchConfiguration configuration,
-        BoundedErrorBuffer capturedErrors)
+        DateTime? launcherStartTime,
+        BoundedErrorBuffer capturedErrors,
+        CancellationToken cancellationToken)
     {
-        var exitCode = process.ExitCode;
-
-        if (exitCode == 0 && OperatingSystem.IsWindows())
+        // Adoption is not gated on Windows: a Wine or Proton wrapper forks and exits the same way,
+        // and adoption only accepts a candidate that carries the name, started at or after this
+        // launcher, is inside the recency window, and runs from the workspace directory. If the
+        // engine really did exit, nothing satisfies that and the launch still fails loudly.
+        if (process.ExitCode == ProcessConstants.ExitCodeSuccess)
         {
             logger.LogInformation(
                 "[Process] Launcher process {ProcessId} exited with code 0 - attempting to find spawned game process",
@@ -784,56 +811,113 @@ public class GameProcessManager(
                 ? configuration.ExpectedChildProcessName
                 : Path.GetFileNameWithoutExtension(configuration.ExecutablePath);
 
-            DateTime? launcherStartTime = null;
-            try
-            {
-                launcherStartTime = process.StartTime.ToUniversalTime();
-            }
-            catch (Exception ex)
-            {
-                logger.LogDebug(ex, "[Process] Unable to inspect start time for exiting launcher {ProcessId}", process.Id);
-            }
-
-            var spawnedProcess = FindSpawnedGameProcess(
-                executableName,
-                configuration.WorkingDirectory ?? Path.GetDirectoryName(configuration.ExecutablePath)!,
-                launcherStartTime);
-
+            var spawnedProcess = await PollForSpawnedGameProcessAsync(configuration, executableName, launcherStartTime, cancellationToken);
             if (spawnedProcess != null)
             {
-                logger.LogInformation(
-                    "[Process] Found spawned game process {ProcessId} for executable {ExecutableName}",
-                    spawnedProcess.Id,
-                    executableName);
-
-                process.Dispose();
-
-                _managedProcesses[spawnedProcess.Id] = spawnedProcess;
-
-                try
-                {
-                    spawnedProcess.EnableRaisingEvents = true;
-                    spawnedProcess.Exited += OnProcessExited;
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "Failed to enable raising events for spawned process {ProcessId}", spawnedProcess.Id);
-                }
-
-                var spawnedProcessInfo = BuildProcessInfo(spawnedProcess, configuration.ExecutablePath);
-
-                logger.LogInformation("Started game process {ProcessId} for executable {ExecutablePath}", spawnedProcess.Id, configuration.ExecutablePath);
+                var spawnedProcessInfo = AdoptSpawnedProcess(process, spawnedProcess, configuration, executableName);
                 return OperationResult<GameProcessInfo>.CreateSuccess(spawnedProcessInfo);
             }
         }
 
+        return HandleFailedProcessExit(process, capturedErrors);
+    }
+
+    private async Task<Process?> PollForSpawnedGameProcessAsync(
+        GameLaunchConfiguration configuration,
+        string executableName,
+        DateTime? launcherStartTime,
+        CancellationToken cancellationToken)
+    {
+        var workingDir = configuration.WorkingDirectory ?? Path.GetDirectoryName(configuration.ExecutablePath) ?? string.Empty;
+        var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(ProcessConstants.LauncherExitGracePeriodMs);
+
+        Process? spawnedProcess = null;
+        while (!cancellationToken.IsCancellationRequested && DateTime.UtcNow < deadline)
+        {
+            spawnedProcess = FindAdoptableGameProcess(executableName, workingDir, launcherStartTime);
+            if (spawnedProcess != null)
+            {
+                break;
+            }
+
+            await Task.Delay(ProcessConstants.SpawnedChildPollIntervalMs, cancellationToken);
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            if (spawnedProcess != null)
+            {
+                CleanupSpawnedProcessUponCancellation(spawnedProcess);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        return spawnedProcess;
+    }
+
+    private void CleanupSpawnedProcessUponCancellation(Process spawnedProcess)
+    {
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                if (!spawnedProcess.HasExited)
+                {
+                    spawnedProcess.Kill(entireProcessTree: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "[Process] Ignored exception while terminating adopted process upon cancellation");
+            }
+            finally
+            {
+                spawnedProcess.Dispose();
+            }
+        });
+    }
+
+    private GameProcessInfo AdoptSpawnedProcess(
+        Process launcherProcess,
+        Process spawnedProcess,
+        GameLaunchConfiguration configuration,
+        string executableName)
+    {
+        logger.LogInformation(
+            "[Process] Found spawned game process {ProcessId} for executable {ExecutableName}",
+            spawnedProcess.Id,
+            executableName);
+
+        launcherProcess.Dispose();
+        _managedProcesses[spawnedProcess.Id] = spawnedProcess;
+
+        try
+        {
+            spawnedProcess.EnableRaisingEvents = true;
+            spawnedProcess.Exited += OnProcessExited;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to enable raising events for spawned process {ProcessId}", spawnedProcess.Id);
+        }
+
+        var spawnedProcessInfo = BuildProcessInfo(spawnedProcess, configuration.ExecutablePath);
+        logger.LogInformation("Started game process {ProcessId} for executable {ExecutablePath}", spawnedProcess.Id, configuration.ExecutablePath);
+        return spawnedProcessInfo;
+    }
+
+    private OperationResult<GameProcessInfo> HandleFailedProcessExit(
+        Process process,
+        BoundedErrorBuffer capturedErrors)
+    {
+        var exitCode = process.ExitCode;
         logger.LogWarning("Process {ProcessId} exited immediately with code {ExitCode}", process.Id, exitCode);
 
         DrainStandardError(process, capturedErrors);
         process.Dispose();
 
         var stderrTail = capturedErrors.ToString();
-
         if (exitCode != 0)
         {
             var detail = string.IsNullOrWhiteSpace(stderrTail)
@@ -850,7 +934,6 @@ public class GameProcessManager(
         }
 
         var suffix = string.IsNullOrWhiteSpace(stderrTail) ? string.Empty : $" {stderrTail}";
-
         logger.LogError(
             "[Process] Process exited immediately with code 0 and no spawned process was found. Output: {Output}",
             string.IsNullOrWhiteSpace(stderrTail) ? "No output was captured." : stderrTail);
@@ -899,6 +982,7 @@ public class GameProcessManager(
     /// <param name="launcher">The process that was started.</param>
     /// <param name="configuration">The launch configuration.</param>
     /// <param name="workingDirectory">The directory the game must run from.</param>
+    /// <param name="launcherStartTime">The launcher's start time, read while it was still running.</param>
     /// <param name="capturedErrors">
     /// The launcher's captured stderr, quoted in the failure messages so a bootstrapper
     /// that refuses to start the game can say why.
@@ -909,37 +993,48 @@ public class GameProcessManager(
         Process launcher,
         GameLaunchConfiguration configuration,
         string workingDirectory,
+        DateTime? launcherStartTime,
         BoundedErrorBuffer capturedErrors,
         CancellationToken cancellationToken)
     {
-        var expectedName = configuration.ExpectedChildProcessName!;
+        var expectedName = configuration.ExpectedChildProcessName;
         var timeout = configuration.ExpectedChildDiscoveryTimeout
             ?? TimeSpan.FromMilliseconds(ProcessConstants.SpawnedChildDiscoveryTimeoutMs);
         var deadline = DateTime.UtcNow + timeout;
         var gracePeriod = TimeSpan.FromMilliseconds(ProcessConstants.LauncherExitGracePeriodMs);
         DateTime? launcherExitedAt = null;
 
-        logger.LogInformation(
-            "[Process] Waiting up to {TimeoutMs}ms for launcher {LauncherId} to start {ExpectedName}",
-            (int)timeout.TotalMilliseconds,
-            launcher.Id,
-            expectedName);
-
-        DateTime? launcherStartTime = null;
         try
         {
-            launcherStartTime = launcher.StartTime.ToUniversalTime();
-        }
-        catch (Exception ex)
-        {
-            logger.LogDebug(ex, "[Process] Unable to inspect start time for launcher {ProcessId}", launcher.Id);
-        }
+            // Adoption requires the launcher's start time to rule out an instance of the game the
+            // user already had running, so without it no candidate can ever qualify. Polling that
+            // out would repeat the refusal once per interval and then report a discovery timeout,
+            // which describes a launcher that was never given the chance to fail.
+            if (!launcherStartTime.HasValue)
+            {
+                logger.LogError(
+                    "[Process] Not waiting for {ExpectedName}: the launcher's start time is unknown, so a process that predates this launch cannot be ruled out",
+                    expectedName);
 
-        try
-        {
+                await TerminateAbandonedLauncherAsync(launcher);
+
+                // Terminated first, so the launcher has exited and its stderr drains in full.
+                return OperationResult<GameProcessInfo>.CreateFailure(
+                    AppendLauncherErrors(
+                        $"Launcher exited without starting {expectedName}: the launcher's start time could not be read.",
+                        launcher,
+                        capturedErrors));
+            }
+
+            logger.LogInformation(
+                "[Process] Waiting up to {TimeoutMs}ms for launcher {LauncherId} to start {ExpectedName}",
+                (int)timeout.TotalMilliseconds,
+                launcher.Id,
+                expectedName);
+
             while (true)
             {
-                var child = FindSpawnedGameProcess(expectedName, workingDirectory, launcherStartTime);
+                var child = FindAdoptableGameProcess(expectedName, workingDirectory, launcherStartTime);
                 if (child != null)
                 {
                     _managedProcesses[child.Id] = child;
@@ -1122,19 +1217,54 @@ public class GameProcessManager(
     }
 
     /// <summary>
-    /// Finds a spawned game process by executable name and working directory.
-    /// Used when a launcher executable spawns the actual game and exits.
+    /// Finds a game process by executable name and working directory, without a launcher to bound
+    /// the search. Used when discovering a game a storefront started on our behalf.
+    /// </summary>
+    /// <param name="executableName">The base executable name without extension.</param>
+    /// <param name="workingDirectory">The expected working directory.</param>
+    /// <returns>The discovered process if found, null otherwise.</returns>
+    private Process? FindSpawnedGameProcess(string executableName, string workingDirectory) =>
+        FindGameProcess(
+            executableName,
+            candidates => GameProcessSelector.SelectSpawnedGameProcess(
+                candidates, executableName, workingDirectory, DateTime.UtcNow));
+
+    /// <summary>
+    /// Finds the process a launcher spawned, to be tracked and terminated in the launcher's place.
     /// </summary>
     /// <param name="executableName">The base executable name without extension.</param>
     /// <param name="workingDirectory">The expected working directory.</param>
     /// <param name="launcherStartTime">The start time of the launcher process, if known.</param>
-    /// <returns>The spawned process if found, null otherwise.</returns>
-    private Process? FindSpawnedGameProcess(string executableName, string workingDirectory, DateTime? launcherStartTime = null)
+    /// <returns>The process to adopt if one qualifies, null otherwise.</returns>
+    private Process? FindAdoptableGameProcess(string executableName, string workingDirectory, DateTime? launcherStartTime)
+    {
+        if (!launcherStartTime.HasValue)
+        {
+            logger.LogWarning(
+                "[Process] Not adopting a running {ExecutableName}: the launcher's start time is unknown, so a process that predates this launch cannot be ruled out",
+                executableName);
+            return null;
+        }
+
+        return FindGameProcess(
+            executableName,
+            candidates => GameProcessSelector.SelectAdoptableGameProcess(
+                candidates, executableName, workingDirectory, launcherStartTime.Value.ToUniversalTime()));
+    }
+
+    /// <summary>
+    /// Enumerates the processes that could carry <paramref name="executableName"/> and hands them
+    /// to a selection policy.
+    /// </summary>
+    /// <param name="executableName">The base executable name without extension.</param>
+    /// <param name="select">The policy deciding which candidate, if any, is ours.</param>
+    /// <returns>The selected process if found, null otherwise.</returns>
+    private Process? FindGameProcess(string executableName, Func<List<GameProcessCandidate>, GameProcessCandidate?> select)
     {
         Process[] processes = [];
         try
         {
-            processes = Process.GetProcessesByName(executableName);
+            processes = Process.GetProcessesByName(GameProcessSelector.GetDiscoveryName(executableName));
         }
         catch (Exception ex)
         {
@@ -1163,8 +1293,7 @@ public class GameProcessManager(
                 }
             }
 
-            var selected = GameProcessSelector.SelectSpawnedGameProcess(
-                candidates, executableName, workingDirectory, DateTime.UtcNow, launcherStartTime?.ToUniversalTime());
+            var selected = select(candidates);
 
             if (selected == null)
             {
@@ -1216,6 +1345,7 @@ public class GameProcessManager(
     {
         try
         {
+            launcher.Refresh();
             if (!launcher.HasExited)
             {
                 return (false, null);

@@ -4,12 +4,15 @@ using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Manifest;
+using GenHub.Core.Interfaces.Parsers;
 using GenHub.Core.Interfaces.Providers;
 using GenHub.Core.Interfaces.Storage;
+using GenHub.Core.Interfaces.Tools;
 using GenHub.Core.Services.Content;
 using GenHub.Core.Services.Providers;
 using GenHub.Core.Services.Providers.VersionSchemes;
 using GenHub.Features.Content.Services;
+using GenHub.Features.Content.Services.Common;
 using GenHub.Features.Content.Services.CommunityOutpost;
 using GenHub.Features.Content.Services.ContentDeliverers;
 using GenHub.Features.Content.Services.ContentDiscoverers;
@@ -18,9 +21,11 @@ using GenHub.Features.Content.Services.ContentResolvers;
 using GenHub.Features.Content.Services.GeneralsOnline;
 using GenHub.Features.Content.Services.GitHub;
 using GenHub.Features.Content.Services.LocalContent;
+using GenHub.Features.Content.Services.Parsers;
 using GenHub.Features.Content.Services.Publishers;
 using GenHub.Features.Content.Services.Reconciliation;
 using GenHub.Features.Content.Services.SuperHackers;
+using GenHub.Features.Content.Services.Tools;
 using GenHub.Features.Downloads.ViewModels;
 using GenHub.Features.GitHub.Services;
 using GenHub.Features.Manifest;
@@ -56,6 +61,7 @@ public static class ContentPipelineModule
         AddCNCLabsPipeline(services);
         AddModDBPipeline(services);
         AddLocalFileSystemPipeline(services);
+        AddCsvPipeline(services);
         AddSharedComponents(services);
 
         return services;
@@ -308,6 +314,13 @@ public static class ContentPipelineModule
             httpClient.DefaultRequestHeaders.Add("User-Agent", ApiConstants.DefaultUserAgent);
         });
 
+        // Register Playwright service for web page parsing (singleton for shared browser instance)
+        services.AddSingleton<IPlaywrightService, PlaywrightService>();
+
+        // Register ModDB page parser (concrete and interface)
+        services.AddSingleton<ModDBPageParser>();
+        services.AddSingleton<IWebPageParser>(sp => sp.GetRequiredService<ModDBPageParser>());
+
         // Register ModDB discoverer (concrete and interface) with named HttpClient
         services.AddTransient<ModDBDiscoverer>(sp =>
         {
@@ -345,6 +358,26 @@ public static class ContentPipelineModule
     }
 
     /// <summary>
+    /// Registers CSV content pipeline services.
+    /// </summary>
+    private static void AddCsvPipeline(IServiceCollection services)
+    {
+        services.AddSingleton<CsvCatalogCache>();
+
+        // Register CSV content provider
+        services.AddTransient<CsvContentProvider>();
+        services.AddTransient<IContentProvider>(sp => sp.GetRequiredService<CsvContentProvider>());
+
+        // Register CSV discoverer (concrete and interface). Remote content is cached on disk.
+        services.AddTransient<CsvDiscoverer>();
+        services.AddTransient<IContentDiscoverer>(sp => sp.GetRequiredService<CsvDiscoverer>());
+
+        // Register CSV resolver (concrete and interface)
+        services.AddTransient<CsvResolver>();
+        services.AddTransient<IContentResolver, CsvResolver>();
+    }
+
+    /// <summary>
     /// Registers shared components used across multiple pipelines.
     /// </summary>
     private static void AddSharedComponents(IServiceCollection services)
@@ -361,5 +394,19 @@ public static class ContentPipelineModule
 
         // Register content orchestrator and validator
         services.AddSingleton<IContentValidator, ContentValidator>();
+
+        // Register installation step preconditions
+        services.AddSingleton<IInstallationStepPrecondition, EasyAntiCheatPrecondition>();
+
+        // Register installation instructions execution service
+        services.AddSingleton<IInstallationInstructionsService, InstallationInstructionsService>();
+
+        // Register archive payload processor
+        services.AddSingleton<ArchivePayloadProcessor>();
+        services.AddSingleton<IArchivePayloadProcessor>(sp => sp.GetRequiredService<ArchivePayloadProcessor>());
+
+        // Register control bar packaging processor
+        services.AddSingleton<ControlBarPackageProcessor>();
+        services.AddSingleton<IControlBarPackageProcessor>(sp => sp.GetRequiredService<ControlBarPackageProcessor>());
     }
 }

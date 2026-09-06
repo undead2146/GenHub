@@ -87,7 +87,7 @@
             <Setter Property="Background" Value="#15FFFFFF" />
             <Setter Property="BorderBrush" Value="#40FFFFFF" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Foreground" Value="#9575CD" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentLightBrush}" />
             <Setter Property="CornerRadius" Value="6" />
             <Setter Property="Padding" Value="14,6" />
             <Setter Property="FontSize" Value="12" />
@@ -95,8 +95,8 @@
             <Setter Property="Cursor" Value="Hand" />
         </Style>
         <Style Selector="Button.btn-add:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="#9575CD" />
-            <Setter Property="BorderBrush" Value="#9575CD" />
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="Foreground" Value="White" />
         </Style>
 
@@ -209,73 +209,50 @@
 
         <!-- Tab icon button style -->
         <Style Selector="Button.tab-icon-btn">
-            <Setter Property="Width" Value="64" />
-            <Setter Property="Height" Value="64" />
+            <Setter Property="Width" Value="56" />
+            <Setter Property="Height" Value="56" />
             <Setter Property="Background" Value="#15FFFFFF" />
-            <Setter Property="BorderBrush" Value="#60FFFFFF" />
-            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="BorderBrush" Value="#40FFFFFF" />
+            <Setter Property="BorderThickness" Value="1.5" />
             <Setter Property="CornerRadius" Value="12" />
-            <Setter Property="Padding" Value="12" />
+            <Setter Property="Padding" Value="10" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Opacity" Value="1" />
-            <Setter Property="Foreground" Value="White" />
-        </Style>
-        <Style Selector="Button.tab-icon-btn PathIcon">
-             <Setter Property="Foreground" Value="White" />
-        </Style>
-        <Style Selector="Button.tab-icon-btn Panel > Border">
-             <Setter Property="Background" Value="White" />
-        </Style>
-        <Style Selector="Button.tab-icon-btn:pointerover /template/ ContentPresenter" x:CompileBindings="False">
-            <Setter Property="Background" Value="{Binding ColorValue, Converter={StaticResource ColorToBrushConverter}}" />
-            <Setter Property="Opacity" Value="0.2" />
-        </Style>
-        <Style Selector="Button.tab-icon-btn:pointerover">
-            <Setter Property="Background" Value="#50000000" />
-            <Setter Property="BorderBrush" Value="White" />
-            <Setter Property="BorderThickness" Value="2" />
-            <Setter Property="RenderTransform" Value="translateY(-4px)" />
-        </Style>
-        <Style Selector="Button.tab-icon-btn.selected /template/ ContentPresenter" x:CompileBindings="False">
-            <Setter Property="Background" Value="{Binding ColorValue, Converter={StaticResource ColorToBrushConverter}}" />
-        </Style>
-        <Style Selector="Button.tab-icon-btn.selected">
-            <Setter Property="BorderBrush" Value="White" />
-            <Setter Property="BorderThickness" Value="3" />
-            <Setter Property="RenderTransform" Value="scale(1.1)" />
-            <Setter Property="ZIndex" Value="5" />
-            <Setter Property="Effect">
-                <DropShadowEffect BlurRadius="12" Color="Black" Opacity="0.5" OffsetX="0" OffsetY="4" />
+            <Setter Property="Foreground" Value="#CCCCCC" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Transitions">
+                <Setter.Value>
+                    <Transitions>
+                        <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.18" />
+                    </Transitions>
+                </Setter.Value>
             </Setter>
         </Style>
+        <Style Selector="Button.tab-icon-btn PathIcon">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Opacity" Value="0.75" />
+        </Style>
+        <Style Selector="Button.tab-icon-btn Panel > Border">
+            <Setter Property="Background" Value="White" />
+        </Style>
+        <Style Selector="Button.tab-icon-btn:pointerover">
+            <Setter Property="Background" Value="#30FFFFFF" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderBrush" Value="White" />
+            <Setter Property="RenderTransform" Value="translateY(-2px)" />
+        </Style>
+        <Style Selector="Button.tab-icon-btn:pointerover PathIcon">
+            <Setter Property="Opacity" Value="1.0" />
+        </Style>
+        <Style Selector="Button.tab-icon-btn.selected" x:CompileBindings="False">
+            <Setter Property="Background" Value="{Binding ColorValue, Converter={StaticResource ColorToBrushConverter}}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderBrush" Value="White" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="RenderTransform" Value="translateY(-2px)" />
+        </Style>
         <Style Selector="Button.tab-icon-btn.selected PathIcon">
-             <Setter Property="Foreground" Value="White" />
-        </Style>
-        <Style Selector="Button.tab-icon-btn.selected Panel > Border">
-             <Setter Property="Background" Value="White" />
-        </Style>
-
-        <!-- Scrollbar theming -->
-        <Style Selector="ScrollBar">
-            <Setter Property="Background" Value="#0F0F0F" />
-        </Style>
-        <Style Selector="ScrollBar /template/ Thumb">
-            <Setter Property="Background" Value="#5E35B1" />
-            <Setter Property="Opacity" Value="0.7" />
-        </Style>
-        <Style Selector="ScrollBar /template/ Thumb:pointerover">
-            <Setter Property="Opacity" Value="0.9" />
-        </Style>
-        <Style Selector="ScrollBar /template/ Thumb:pressed">
-            <Setter Property="Opacity" Value="1" />
-        </Style>
-        <Style Selector="ScrollBar.vertical /template/ Thumb">
-            <Setter Property="MinWidth" Value="6" />
-            <Setter Property="CornerRadius" Value="3" />
-        </Style>
-        <Style Selector="ScrollBar.horizontal /template/ Thumb">
-            <Setter Property="MinHeight" Value="6" />
-            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Opacity" Value="1.0" />
         </Style>
 
         <!-- New Content Card Styles -->
@@ -389,7 +366,7 @@
                     <Button Content="💾 Save"
                             Command="{Binding SaveCommand}"
                             Background="White"
-                            Foreground="#5E35B1"
+                            Foreground="{DynamicResource AccentBrush}"
                             Width="100" Height="38"
                             CornerRadius="19"
                             FontWeight="Bold"
@@ -542,15 +519,18 @@
                                                         Margin="0,0,8,8"
                                                         Padding="4"
                                                         CornerRadius="8"
-                                                        Background="#15FFFFFF"
-                                                        BorderBrush="#30FFFFFF"
-                                                        BorderThickness="1"
+                                                        Classes="selectable-tile"
                                                         ToolTip.Tip="{Binding DisplayName}"
                                                         Tag="{Binding Path, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={Binding $parent[ItemsControl].((vm:GameProfileSettingsViewModel)DataContext).IconPath}}">
                                                     <Border.Styles>
-                                                        <Style Selector="Border[Tag=True]">
-                                                            <Setter Property="Background" Value="#405E35B1" />
-                                                            <Setter Property="BorderBrush" Value="#5E35B1" />
+                                                        <Style Selector="Border.selectable-tile">
+                                                            <Setter Property="Background" Value="#15FFFFFF" />
+                                                            <Setter Property="BorderBrush" Value="#30FFFFFF" />
+                                                            <Setter Property="BorderThickness" Value="1" />
+                                                        </Style>
+                                                        <Style Selector="Border.selectable-tile[Tag=True]">
+                                                            <Setter Property="Background" Value="{DynamicResource AccentBadgeBackgroundBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                                             <Setter Property="BorderThickness" Value="2" />
                                                         </Style>
                                                     </Border.Styles>
@@ -595,15 +575,18 @@
                                                         Margin="0,0,12,8"
                                                         Padding="4"
                                                         CornerRadius="8"
-                                                        Background="#15FFFFFF"
-                                                        BorderBrush="#30FFFFFF"
-                                                        BorderThickness="1"
+                                                        Classes="selectable-tile"
                                                         ToolTip.Tip="{Binding DisplayName}"
                                                         Tag="{Binding Path, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={Binding $parent[ItemsControl].((vm:GameProfileSettingsViewModel)DataContext).CoverPath}}">
                                                     <Border.Styles>
-                                                        <Style Selector="Border[Tag=True]">
-                                                            <Setter Property="Background" Value="#405E35B1" />
-                                                            <Setter Property="BorderBrush" Value="#5E35B1" />
+                                                        <Style Selector="Border.selectable-tile">
+                                                            <Setter Property="Background" Value="#15FFFFFF" />
+                                                            <Setter Property="BorderBrush" Value="#30FFFFFF" />
+                                                            <Setter Property="BorderThickness" Value="1" />
+                                                        </Style>
+                                                        <Style Selector="Border.selectable-tile[Tag=True]">
+                                                            <Setter Property="Background" Value="{DynamicResource AccentBadgeBackgroundBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                                             <Setter Property="BorderThickness" Value="2" />
                                                         </Style>
                                                     </Border.Styles>

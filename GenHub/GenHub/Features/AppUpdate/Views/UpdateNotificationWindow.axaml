@@ -8,7 +8,7 @@
         Title="GenHub Updates"
         Icon="/Assets/Icons/generalshub-icon.png"
         WindowStartupLocation="CenterScreen"
-        SystemDecorations="BorderOnly"
+        SystemDecorations="Full"
         TransparencyLevelHint="AcrylicBlur"
         Background="Transparent"
         ExtendClientAreaToDecorationsHint="True"
@@ -28,15 +28,10 @@
         <!-- Background with corner radius -->
         <Border CornerRadius="12"
                 BorderThickness="1"
+                BorderBrush="{DynamicResource PrimaryGradientBrush}"
                 BoxShadow="0 8 32 0 #60000000">
-            <Border.BorderBrush>
-                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                    <GradientStop Color="#7C4DFF" Offset="0" />
-                    <GradientStop Color="#E040FB" Offset="1" />
-                </LinearGradientBrush>
-            </Border.BorderBrush>
             <Border.Background>
-                <SolidColorBrush Color="#101010" Opacity="0.85" />
+                <SolidColorBrush Color="{StaticResource SurfaceBackgroundDark}" Opacity="0.95" />
             </Border.Background>
         </Border>
 
@@ -61,34 +56,63 @@
                 </StackPanel>
 
                 <!-- Window Controls-->
-                <Button Grid.Column="2"
-                        VerticalAlignment="Center"
-                        HorizontalAlignment="Center"
-                        Background="Transparent"
-                        Foreground="#CCCCCC"
-                        BorderThickness="0"
-                        Width="32" Height="32"
-                        AutomationProperties.Name="Close"
-                        AutomationProperties.AccessKey="Alt+F4"
-                        ToolTip.Tip="Close window"
-                        Click="CloseButton_Click">
-                    <Viewbox Width="12" Height="12"
-                             HorizontalAlignment="Center"
-                             VerticalAlignment="Center">
-                        <Path Data="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
-                              Fill="{Binding $parent[Button].Foreground}"
-                              Stretch="Uniform" />
-                    </Viewbox>
-                    <Button.Styles>
-                        <Style Selector="Button:pointerover">
-                            <Setter Property="Background" Value="#40FF0000"/>
-                            <Setter Property="Foreground" Value="White"/>
-                        </Style>
-                        <Style Selector="Button:pressed">
-                            <Setter Property="Background" Value="#60FF0000"/>
-                        </Style>
-                    </Button.Styles>
-                </Button>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                    <!-- Maximize/Restore Button -->
+                    <Button VerticalAlignment="Center"
+                            HorizontalAlignment="Center"
+                            Background="Transparent"
+                            Foreground="#CCCCCC"
+                            BorderThickness="0"
+                            Width="32" Height="32"
+                            ToolTip.Tip="Maximize / Restore"
+                            Click="MaximizeButton_Click">
+                        <Viewbox Width="12" Height="12"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center">
+                            <Path Data="M4,4H20V20H4V4M6,8V18H18V8H6Z"
+                                  Fill="{Binding $parent[Button].Foreground}"
+                                  Stretch="Uniform" />
+                        </Viewbox>
+                        <Button.Styles>
+                            <Style Selector="Button:pointerover">
+                                <Setter Property="Background" Value="#2A2A2A"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Style>
+                            <Style Selector="Button:pressed">
+                                <Setter Property="Background" Value="#404040"/>
+                            </Style>
+                        </Button.Styles>
+                    </Button>
+
+                    <!-- Close Button -->
+                    <Button VerticalAlignment="Center"
+                            HorizontalAlignment="Center"
+                            Background="Transparent"
+                            Foreground="#CCCCCC"
+                            BorderThickness="0"
+                            Width="32" Height="32"
+                            AutomationProperties.Name="Close"
+                            AutomationProperties.AccessKey="Alt+F4"
+                            ToolTip.Tip="Close window"
+                            Click="CloseButton_Click">
+                        <Viewbox Width="12" Height="12"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center">
+                            <Path Data="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
+                                  Fill="{Binding $parent[Button].Foreground}"
+                                  Stretch="Uniform" />
+                        </Viewbox>
+                        <Button.Styles>
+                            <Style Selector="Button:pointerover">
+                                <Setter Property="Background" Value="#C42B1C"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Style>
+                            <Style Selector="Button:pressed">
+                                <Setter Property="Background" Value="#60FF0000"/>
+                            </Style>
+                        </Button.Styles>
+                    </Button>
+                </StackPanel>
             </Grid>
 
             <!-- Main content area -->

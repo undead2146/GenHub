@@ -1,6 +1,7 @@
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Models.Content;
+using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Providers;
 using GenHub.Core.Models.Results;
@@ -9,6 +10,7 @@ using GenHub.Core.Models.Validation;
 using GenHub.Features.Content.Services.GitHub;
 using Microsoft.Extensions.Logging;
 using Moq;
+using ContentType = GenHub.Core.Models.Enums.ContentType;
 
 namespace GenHub.Tests.Core.Features.Content;
 
@@ -46,12 +48,23 @@ public class GitHubContentProviderTests
         _validatorMock.Setup(v => v.ValidateAllAsync(It.IsAny<string>(), It.IsAny<ContentManifest>(), It.IsAny<IProgress<ValidationProgress>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ValidationResult("test", []));
 
+        var instructionsMock = new Mock<IInstallationInstructionsService>();
+        instructionsMock.Setup(i => i.ExecutePostInstallStepsAsync(
+                It.IsAny<ContentManifest>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<bool>(),
+                It.IsAny<IProgress<ContentAcquisitionProgress>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult.CreateSuccess());
+
         _provider = new GitHubContentProvider(
             [_discovererMock.Object],
             [_resolverMock.Object],
             [_delivererMock.Object],
             _loggerMock.Object,
-            _validatorMock.Object);
+            _validatorMock.Object,
+            instructionsMock.Object);
     }
 
     /// <summary>
