@@ -1215,7 +1215,7 @@ public sealed class ModDBPageParserTests
         // Preview image from file detail page should be extracted into Images
         var image = Assert.Single(images);
         Assert.Equal("Final Preview", image.Title);
-        Assert.Equal("https://media.moddb.com/cache/images/downloads/1/314/313875/Final.jpg", image.ThumbnailUrl);
+        Assert.Equal("https://media.moddb.com/cache/images/downloads/1/314/313875/crop_120x90/Final.jpg", image.ThumbnailUrl);
         Assert.Equal("https://media.moddb.com/images/downloads/1/314/313875/Final.jpg", image.FullSizeUrl);
 
         // Error placeholder icon must be ignored
