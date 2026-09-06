@@ -159,6 +159,31 @@ public sealed class ManagedChromiumRuntimeTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies IsDownloadNavigationException recognizes direct download triggers from Playwright navigation errors.
+    /// </summary>
+    [Theory]
+    [InlineData("Download is starting", false, true)]
+    [InlineData("net::ERR_ABORTED at https://media.moddb.com/file.zip", true, true)]
+    [InlineData("net::ERR_ABORTED at https://media.moddb.com/file.zip", false, false)]
+    [InlineData("net::ERR_CONNECTION_REFUSED", true, false)]
+    public void IsDownloadNavigationException_RecognizesDownloadTriggerErrors(string message, bool isDownloadCompleted, bool expected)
+    {
+        // Arrange
+        var ex = new PlaywrightException(message);
+        var downloadTcs = new TaskCompletionSource<IDownload>();
+        if (isDownloadCompleted)
+        {
+            downloadTcs.SetResult(new Mock<IDownload>().Object);
+        }
+
+        // Act
+        var result = PlaywrightService.IsDownloadNavigationException(ex, downloadTcs);
+
+        // Assert
+        Assert.Equal(expected, result);
+    }
+
+    /// <summary>
     /// Deletes the temporary runtime directory and restores the process environment.
     /// </summary>
     public void Dispose()

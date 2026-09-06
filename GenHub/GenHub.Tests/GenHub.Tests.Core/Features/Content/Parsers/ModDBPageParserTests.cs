@@ -593,8 +593,10 @@ public sealed class ModDBPageParserTests
         Assert.Contains(images, image => image.Title.Contains("Spectre", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(images, image => image.Title.Contains("Share", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(images, image => image.ThumbnailUrl?.StartsWith("data:", StringComparison.OrdinalIgnoreCase) == true);
-        Assert.All(images, image => Assert.DoesNotContain("crop_", image.ThumbnailUrl ?? string.Empty));
-        Assert.All(images, image => Assert.DoesNotContain("/cache/", image.ThumbnailUrl ?? string.Empty));
+        Assert.All(images, image => Assert.Contains("crop_", image.ThumbnailUrl ?? string.Empty));
+        Assert.All(images, image => Assert.Contains("/cache/", image.ThumbnailUrl ?? string.Empty));
+        Assert.All(images, image => Assert.DoesNotContain("crop_", image.FullSizeUrl ?? string.Empty));
+        Assert.All(images, image => Assert.DoesNotContain("/cache/", image.FullSizeUrl ?? string.Empty));
     }
 
     /// <summary>
@@ -632,7 +634,7 @@ public sealed class ModDBPageParserTests
         Assert.Equal(2, images.Count);
         Assert.Equal("Life Of BRRRRTTT", images[0].Title);
         Assert.Equal("BASSBASSBASSASS", images[1].Title);
-        Assert.Equal("https://media.moddb.com/images/mods/1/73/72174/LifeOfBRRRRTTT.png", images[0].ThumbnailUrl);
+        Assert.Equal("https://media.moddb.com/cache/images/mods/1/73/72174/crop_120x90/LifeOfBRRRRTTT.png", images[0].ThumbnailUrl);
         Assert.Equal("https://media.moddb.com/images/mods/1/73/72174/LifeOfBRRRRTTT.png", images[0].FullSizeUrl);
     }
 
@@ -900,6 +902,61 @@ public sealed class ModDBPageParserTests
         Assert.Equal("YouTube", teaser.Platform);
         Assert.Equal("https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg", teaser.ThumbnailUrl);
         Assert.Equal("https://www.youtube.com/embed/dQw4w9WgXcQ", teaser.EmbedUrl);
+    }
+
+    /// <summary>
+    /// Verifies that untitled iframe embeds (YouTube, Vimeo) and HTML5 video elements without titles
+    /// are not discarded, but are extracted with platform-derived fallback titles.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ParseAsync_WithUntitledVideoEmbeds_ExtractsWithPlatformFallbackTitleAsync()
+    {
+        // Arrange
+        const string pageUrl = "https://www.moddb.com/mods/test-mod";
+        var playwright = CreatePlaywrightMock();
+        var doc = await CreateDocumentAsync("""
+            <html><body>
+              <div class="media">
+                <iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ"></iframe>
+              </div>
+              <div class="media">
+                <iframe src="https://player.vimeo.com/video/123456789"></iframe>
+              </div>
+              <div class="media">
+                <video src="https://media.moddb.com/videos/custom-clip.mp4" poster="https://media.moddb.com/videos/poster.jpg"></video>
+              </div>
+            </body></html>
+            """);
+
+        playwright
+            .Setup(service => service.FetchAndParsePersistentManyAsync(
+                ModDBConstants.BrowserProfileName,
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, IDocument>(StringComparer.OrdinalIgnoreCase) { [pageUrl] = doc });
+
+        var parser = new ModDBPageParser(playwright.Object, new Mock<ILogger<ModDBPageParser>>().Object);
+
+        // Act
+        var parsed = await parser.ParseAsync(pageUrl);
+
+        // Assert
+        var videos = parsed.Sections.OfType<Video>().ToList();
+        Assert.Equal(3, videos.Count);
+
+        var yt = Assert.Single(videos, v => v.Platform == "YouTube");
+        Assert.Equal("YouTube Video", yt.Title);
+        Assert.Equal("https://www.youtube.com/embed/dQw4w9WgXcQ", yt.EmbedUrl);
+
+        var vimeo = Assert.Single(videos, v => v.Platform == "Vimeo");
+        Assert.Equal("Vimeo Video", vimeo.Title);
+        Assert.Equal("https://player.vimeo.com/video/123456789", vimeo.EmbedUrl);
+
+        var html5 = Assert.Single(videos, v => v.Platform == "ModDB");
+        Assert.Equal("ModDB Video", html5.Title);
+        Assert.Equal("https://media.moddb.com/videos/custom-clip.mp4", html5.EmbedUrl);
+        Assert.Equal("https://media.moddb.com/videos/poster.jpg", html5.ThumbnailUrl);
     }
 
     /// <summary>
@@ -1457,6 +1514,50 @@ public sealed class ModDBPageParserTests
         var file2 = Assert.Single(page2!.Sections.OfType<DownloadableFile>());
         Assert.Equal("release1.zip", file2.Name);
         Assert.Equal("https://www.moddb.com/downloads/start/202", file2.DownloadUrl);
+    }
+
+    /// <summary>
+    /// Verifies that ParseFileDetailsManyAsync upgrades HTTP URLs to HTTPS before requesting them via
+    /// FetchAndParsePersistentManyAsync and preserves the original requested HTTP URLs as keys in the result dictionary.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ParseFileDetailsManyAsync_WithHttpUrls_UpgradesToHttpsAndPreservesOriginalKeysAsync()
+    {
+        // Arrange
+        const string httpUrl = "http://www.moddb.com/games/cc-generals-zero-hour/downloads/release-http";
+        const string httpsUrl = "https://www.moddb.com/games/cc-generals-zero-hour/downloads/release-http";
+
+        var doc = await CreateDocumentAsync("""
+            <html><body>
+              <div id="downloadsinfo">
+                <div class="row clear"><h5>Filename</h5><span class="summary">release.zip</span></div>
+                <div class="row clear"><a class="button buttonlarge" href="/downloads/start/500">Download</a></div>
+              </div>
+            </body></html>
+            """);
+
+        var playwright = CreatePlaywrightMock();
+        playwright
+            .Setup(service => service.FetchAndParsePersistentManyAsync(
+                ModDBConstants.BrowserProfileName,
+                It.Is<IReadOnlyList<string>>(urls => urls.Contains(httpsUrl) && !urls.Contains(httpUrl)),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, IDocument>(StringComparer.OrdinalIgnoreCase)
+            {
+                [httpsUrl] = doc,
+            });
+
+        var parser = new ModDBPageParser(playwright.Object, new Mock<ILogger<ModDBPageParser>>().Object);
+
+        // Act
+        var results = await parser.ParseFileDetailsManyAsync([httpUrl]);
+
+        // Assert
+        Assert.Single(results);
+        Assert.True(results.TryGetValue(httpUrl, out var parsedPage));
+        var file = Assert.Single(parsedPage!.Sections.OfType<DownloadableFile>());
+        Assert.Equal("release.zip", file.Name);
     }
 
     /// <summary>

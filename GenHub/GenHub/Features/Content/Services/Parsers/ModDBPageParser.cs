@@ -457,12 +457,14 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             }
 
             var title = ResolveIFrameVideoTitle(videoEl);
+            var (platform, thumbnailUrl, embedUrl) = ResolveVideoPlatformDetails(src, videoEl);
+
             if (!IsUsableVideoTitle(title))
             {
-                continue;
+                title = string.Equals(platform, UnknownValue, StringComparison.OrdinalIgnoreCase)
+                    ? VideoSectionName
+                    : $"{platform} Video";
             }
-
-            var (platform, thumbnailUrl, embedUrl) = ResolveVideoPlatformDetails(src, videoEl);
 
             if (!embedUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
             {
@@ -545,7 +547,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
             var title = ResolveIFrameVideoTitle(videoEl);
             if (!IsUsableVideoTitle(title))
             {
-                continue;
+                title = $"{ModDbPlatform} Video";
             }
 
             videos.Add(new Video(
@@ -774,7 +776,14 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
         var title = ResolveGalleryVideoTitle(linkEl, container, img, absoluteHref);
         if (!IsUsableVideoTitle(title))
         {
-            return (null, false);
+            if (string.IsNullOrWhiteSpace(thumbnailUrl) && platform == ModDbPlatform)
+            {
+                return (null, false);
+            }
+
+            title = string.Equals(platform, UnknownValue, StringComparison.OrdinalIgnoreCase)
+                ? VideoSectionName
+                : $"{platform} Video";
         }
 
         if (string.IsNullOrWhiteSpace(thumbnailUrl) && platform == ModDbPlatform)
@@ -918,7 +927,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
 
             images.Add(new Image(
                 Title: title,
-                ThumbnailUrl: fullSizeUrl,
+                ThumbnailUrl: thumbnailUrl,
                 FullSizeUrl: fullSizeUrl,
                 Description: title));
         }
@@ -1160,7 +1169,7 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
 
         return new Image(
             Title: title,
-            ThumbnailUrl: fullSizeUrl,
+            ThumbnailUrl: absUrl,
             FullSizeUrl: fullSizeUrl,
             Description: alt);
     }
@@ -2406,32 +2415,41 @@ public partial class ModDBPageParser(IPlaywrightService playwrightService, ILogg
 
         logger.LogInformation("Parsing ModDB file details in parallel batch ({Count} URLs)", urls.Count);
 
+        var normalizedMap = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var url in urls)
+        {
+            normalizedMap[url] = NormalizeToHttps(url);
+        }
+
+        var normalizedUrls = normalizedMap.Values.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
         var fetched = await playwrightService.FetchAndParsePersistentManyAsync(
             ModDBConstants.BrowserProfileName,
-            urls,
+            normalizedUrls,
             cancellationToken);
 
         var results = new Dictionary<string, ParsedWebPage>(StringComparer.OrdinalIgnoreCase);
-        foreach (var url in urls)
+        foreach (var originalUrl in urls)
         {
-            if (!fetched.TryGetValue(url, out var document))
+            var normalizedUrl = normalizedMap[originalUrl];
+            if (!fetched.TryGetValue(normalizedUrl, out var document))
             {
-                logger.LogWarning("ModDB file detail page was not fetched or failed to load: {Url}", url);
+                logger.LogWarning("ModDB file detail page was not fetched or failed to load: {Url}", originalUrl);
                 continue;
             }
 
             try
             {
                 var sections = new List<ContentSection>();
-                var file = ExtractDetailedFile(document, url);
+                var file = ExtractDetailedFile(document, normalizedUrl);
                 if (file != null)
                 {
                     sections.Add(file);
                 }
 
                 var context = ExtractGlobalContext(document);
-                results[url] = new ParsedWebPage(
-                    Url: new Uri(url),
+                results[originalUrl] = new ParsedWebPage(
+                    Url: new Uri(normalizedUrl),
                     Context: context,
                     Sections: sections,
                     PageType: PageType.FileDetail);
