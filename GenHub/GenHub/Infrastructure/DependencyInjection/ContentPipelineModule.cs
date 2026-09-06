@@ -350,13 +350,15 @@ public static class ContentPipelineModule
     /// </summary>
     private static void AddCsvPipeline(IServiceCollection services)
     {
+        services.AddSingleton<CsvCatalogCache>();
+
         // Register CSV content provider
         services.AddTransient<CsvContentProvider>();
         services.AddTransient<IContentProvider>(sp => sp.GetRequiredService<CsvContentProvider>());
 
-        // Register CSV discoverer (concrete and interface)
+        // Register CSV discoverer (concrete and interface). Remote content is cached on disk.
         services.AddTransient<CsvDiscoverer>();
-        services.AddTransient<IContentDiscoverer, CsvDiscoverer>();
+        services.AddTransient<IContentDiscoverer>(sp => sp.GetRequiredService<CsvDiscoverer>());
 
         // Register CSV resolver (concrete and interface)
         services.AddTransient<CsvResolver>();
