@@ -45,7 +45,7 @@ public class ControlBarPackageProcessor(
     private static readonly string[] KnownResolutionVariants = [Variant720p, Variant900p, Variant1080p, Variant1440p, Variant4k, Variant2160p];
     private static readonly TimeSpan RegexMatchTimeout = TimeSpan.FromSeconds(1);
     private static readonly Regex WordVariantRegex = new(@"\b(720p?|900p?|1080p?|1440p?|2160p?|4k)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexMatchTimeout);
-    private static readonly Regex InlineVariantRegex = new(@"(720p|900p|1080p|1440p|2160p|4k)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexMatchTimeout);
+    private static readonly Regex InlineVariantRegex = new(@"(720p?|900p?|1080p?|1440p?|2160p?|4k)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexMatchTimeout);
 
     /// <inheritdoc/>
     public bool IsControlBarContent(string extractedDirectory, ContentManifest manifest)
@@ -495,10 +495,10 @@ public class ControlBarPackageProcessor(
             var token = match.Value.ToLowerInvariant();
             return token switch
             {
-                "720" or Variant720p => Variant720p,
-                "900" or Variant900p => Variant900p,
-                "1080" or Variant1080p => Variant1080p,
-                "1440" or Variant1440p => Variant1440p,
+                Resolution720 or Variant720p => Variant720p,
+                Resolution900 or Variant900p => Variant900p,
+                Resolution1080 or Variant1080p => Variant1080p,
+                Resolution1440 or Variant1440p => Variant1440p,
                 Resolution2160 or Variant2160p or Variant4k => Variant4k,
                 _ => token,
             };
@@ -510,7 +510,11 @@ public class ControlBarPackageProcessor(
             var inlineVal = inlineMatch.Value.ToLowerInvariant();
             return inlineVal switch
             {
-                Variant2160p or Variant4k => Variant4k,
+                Resolution720 or Variant720p => Variant720p,
+                Resolution900 or Variant900p => Variant900p,
+                Resolution1080 or Variant1080p => Variant1080p,
+                Resolution1440 or Variant1440p => Variant1440p,
+                Resolution2160 or Variant2160p or Variant4k => Variant4k,
                 _ => inlineVal,
             };
         }
