@@ -34,7 +34,8 @@ public class CommunityOutpostManifestFactory(
         var normalized = pattern.ToLowerInvariant();
         return RegexCache.GetOrAdd(normalized, p => new Regex(
             "^" + Regex.Escape(p).Replace("\\*", ".*") + "$",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled));
+            RegexOptions.IgnoreCase | RegexOptions.Compiled,
+            TimeSpan.FromSeconds(1)));
     }
 
     /// <inheritdoc />
@@ -346,6 +347,33 @@ public class CommunityOutpostManifestFactory(
         }
     }
 
+    private static HashSet<string> CollectDependencyBigFiles(GenPatcherContentMetadata contentMetadata, GameType targetGame)
+    {
+        var dependencyBigFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var dependency in contentMetadata.GetDependencies()
+                     .Where(d => d.InstallBehavior == DependencyInstallBehavior.AutoInstall))
+        {
+            var depId = dependency.Id.Value;
+            var lastDot = depId.LastIndexOf('.');
+            if (lastDot > -1 && lastDot < depId.Length - 1)
+            {
+                var depCode = depId[(lastDot + 1)..];
+                var depMetadata = GenPatcherContentRegistry.GetMetadata(depCode);
+                if (depMetadata.TargetGame != GameType.Unknown && depMetadata.TargetGame != targetGame)
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrEmpty(depMetadata.OutputFilename))
+                {
+                    dependencyBigFiles.Add(depMetadata.OutputFilename);
+                }
+            }
+        }
+
+        return dependencyBigFiles;
+    }
+
     /// <summary>
     /// Builds a manifest with all files from the extracted directory.
     /// If variant is provided, filters files based on variant's IncludePatterns and ExcludePatterns.
@@ -371,7 +399,10 @@ public class CommunityOutpostManifestFactory(
             logger.LogDebug("Found {FileCount} files in extracted directory", allFiles.Length);
 
             var fileEntries = new List<ManifestFile>();
-            var dependencyBigFiles = CollectDependencyBigFiles(contentMetadata);
+            var targetGame = (variant != null && variant.TargetGame.HasValue)
+                ? variant.TargetGame.Value
+                : originalManifest.TargetGame;
+            var dependencyBigFiles = CollectDependencyBigFiles(contentMetadata, targetGame);
 
             var alwaysIncludeFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (contentMetadata.Category == GenPatcherContentCategory.ControlBar)
@@ -540,28 +571,6 @@ public class CommunityOutpostManifestFactory(
             logger.LogError(ex, "Failed to build manifest for {Name}", originalManifest.Name);
             return null;
         }
-    }
-
-    private HashSet<string> CollectDependencyBigFiles(GenPatcherContentMetadata contentMetadata)
-    {
-        var dependencyBigFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var dependency in contentMetadata.GetDependencies()
-                     .Where(d => d.InstallBehavior == DependencyInstallBehavior.AutoInstall))
-        {
-            var depId = dependency.Id.Value;
-            var lastDot = depId.LastIndexOf('.');
-            if (lastDot > -1 && lastDot < depId.Length - 1)
-            {
-                var depCode = depId[(lastDot + 1)..];
-                var depMetadata = GenPatcherContentRegistry.GetMetadata(depCode);
-                if (!string.IsNullOrEmpty(depMetadata.OutputFilename))
-                {
-                    dependencyBigFiles.Add(depMetadata.OutputFilename);
-                }
-            }
-        }
-
-        return dependencyBigFiles;
     }
 
     private async Task<HashSet<string>> PrepareControlBarVariantAsync(
@@ -765,7 +774,7 @@ public class CommunityOutpostManifestFactory(
             try
             {
                 var metadataBytes = Convert.FromBase64String(ControlBarMetadataBigBase64);
-                File.WriteAllBytes(metadataTargetPath, metadataBytes);
+                await File.WriteAllBytesAsync(metadataTargetPath, metadataBytes, cancellationToken);
                 controlBarRepackedOutputs.Add(metadataFileName);
                 logger.LogInformation("Created Control Bar metadata file {FileName} from embedded fallback", metadataFileName);
             }

@@ -64,6 +64,18 @@ client.Timeout = TimeIntervals.DownloadTimeout;
 
 ---
 
+### Window Styling & OS Animations
+
+GeneralsHub defines a mandatory [Window styling and OS animation standard](./window-styling.md) to ensure all windows achieve smooth, native Desktop Window Manager (DWM) animations, proper client area extension, and reliable title bar drag/maximize handling.
+
+---
+
+### UI Styling & Design System
+
+GeneralsHub defines mandatory [UI styling and design system standards](./ui-styling.md) covering semantic theme tokens in `ThemeResources.axaml`, reusable layout controls like `SidebarLayout`, standard button classes, and anti-patterns.
+
+---
+
 ## Architecture
 
 ### Dependency Injection
@@ -106,6 +118,12 @@ public class ConfigurationProviderService : IConfigurationProviderService
     }
 }
 ```
+
+---
+
+### Localization
+
+GenHub uses a shared [resource-based localization system](./localization.md) with English fallback, automatic satellite-language discovery, and live Avalonia binding updates.
 
 ---
 
