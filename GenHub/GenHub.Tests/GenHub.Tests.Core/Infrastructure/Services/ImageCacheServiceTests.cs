@@ -452,7 +452,8 @@ public class ImageCacheServiceTests
                 }
             }
         }
-    
+    }
+
     /// <summary>
     /// Verifies that <see cref="ImageCacheService.GetBitmapAsync"/> blocks redirect downgrade from HTTPS to HTTP.
     /// </summary>
@@ -489,6 +490,12 @@ public class ImageCacheServiceTests
 
             var bitmap = await service.GetBitmapAsync(redirectUrl);
             Assert.Null(bitmap);
+
+            handlerMock.Protected().Verify(
+                "SendAsync",
+                Times.Never(),
+                ItExpr.Is<HttpRequestMessage>(r => r.RequestUri!.ToString() == destUrl),
+                ItExpr.IsAny<CancellationToken>());
         }
         finally
         {
@@ -517,10 +524,30 @@ public class ImageCacheServiceTests
     [InlineData("file:////attacker/share/image.png")]
     public async Task GetBitmapAsync_RejectsUncPathsAsync(string uncPath)
     {
-        var configMock = new Mock<IConfigurationProviderService>();
-        var service = new ImageCacheService(configMock.Object);
+        var tempDir = Path.Combine(Path.GetTempPath(), $"genhub_unc_test_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var configMock = new Mock<IConfigurationProviderService>();
+            configMock.Setup(c => c.GetApplicationDataPath()).Returns(tempDir);
+            var service = new ImageCacheService(configMock.Object);
 
-        var bitmap = await service.GetBitmapAsync(uncPath);
-        Assert.Null(bitmap);
+            var bitmap = await service.GetBitmapAsync(uncPath);
+            Assert.Null(bitmap);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try
+                {
+                    Directory.Delete(tempDir, true);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // ignore cleanup failure
+                }
+            }
+        }
     }
 }

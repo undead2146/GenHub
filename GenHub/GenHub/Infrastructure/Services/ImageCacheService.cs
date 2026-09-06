@@ -185,8 +185,10 @@ public sealed class ImageCacheService : IImageCacheService
         if (url.StartsWith("/Assets/", StringComparison.OrdinalIgnoreCase) ||
             url.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
         {
-            var cleanPath = url.TrimStart('/');
-            return await LoadBitmapFromAvaloniaAssetAsync($"avares://GenHub/{cleanPath}", url).ConfigureAwait(false);
+            var cleanPath = "Assets/" + url.TrimStart('/')[7..];
+            return await LoadBitmapFromAvaloniaAssetAsync(
+                $"avares://{typeof(ImageCacheService).Assembly.GetName().Name}/{cleanPath}",
+                url).ConfigureAwait(false);
         }
 
         if (TryResolveSafeLocalFilePath(url, out var localPath))
@@ -214,7 +216,7 @@ public sealed class ImageCacheService : IImageCacheService
     /// <param name="url">The URL string to evaluate.</param>
     /// <param name="uri">When this method returns, contains the parsed URI if valid; otherwise, null.</param>
     /// <returns><c>true</c> if the URL is a safe remote address; otherwise, <c>false</c>.</returns>
-    internal static bool IsSafeRemoteUrl(string url, out Uri? uri)
+    internal static bool IsSafeRemoteUrl(string url, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Uri? uri)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out uri))
         {
@@ -296,66 +298,29 @@ public sealed class ImageCacheService : IImageCacheService
     private static bool IsSafeIPv4(byte[] b)
     {
         // 0.0.0.0/8, 10.0.0.0/8, 127.0.0.0/8, Multicast (224-239), Reserved (240+)
-        if (b[0] is 0 or 10 or 127 || b[0] >= 224)
-        {
-            return false;
-        }
-
         // 100.64.0.0/10 Carrier-grade NAT
-        if (b[0] == 100 && b[1] >= 64 && b[1] <= 127)
-        {
-            return false;
-        }
-
         // 169.254.0.0/16 Link-local / Cloud metadata (AWS/Azure/GCP)
-        if (b[0] == 169 && b[1] == 254)
-        {
-            return false;
-        }
-
         // 172.16.0.0/12 Private-use networks
-        if (b[0] == 172 && b[1] >= 16 && b[1] <= 31)
-        {
-            return false;
-        }
-
         // 192.0.0.0/24 IETF Protocol Assignments
-        if (b[0] == 192 && b[1] == 0 && b[2] == 0)
-        {
-            return false;
-        }
-
         // 192.0.2.0/24 TEST-NET-1
-        if (b[0] == 192 && b[1] == 0 && b[2] == 2)
-        {
-            return false;
-        }
-
         // 192.168.0.0/16 Private-use networks
-        if (b[0] == 192 && b[1] == 168)
-        {
-            return false;
-        }
-
         // 198.18.0.0/15 Benchmarking
-        if (b[0] == 198 && (b[1] == 18 || b[1] == 19))
-        {
-            return false;
-        }
-
         // 198.51.100.0/24 TEST-NET-2
-        if (b[0] == 198 && b[1] == 51 && b[2] == 100)
-        {
-            return false;
-        }
-
         // 203.0.113.0/24 TEST-NET-3
-        if (b[0] == 203 && b[1] == 0 && b[2] == 113)
+        return (b[0], b[1], b[2]) switch
         {
-            return false;
-        }
-
-        return true;
+            (0 or 10 or 127, _, _) => false,
+            (>= 224, _, _) => false,
+            (100, >= 64 and <= 127, _) => false,
+            (169, 254, _) => false,
+            (172, >= 16 and <= 31, _) => false,
+            (192, 0, 0 or 2) => false,
+            (192, 168, _) => false,
+            (198, 18 or 19, _) => false,
+            (198, 51, 100) => false,
+            (203, 0, 113) => false,
+            _ => true,
+        };
     }
 
     private static bool IsSafeIPv6(byte[] b)
@@ -495,6 +460,40 @@ public sealed class ImageCacheService : IImageCacheService
         return width * height * 4;
     }
 
+    private static bool TryResolveSafeLocalFilePath(string path, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? localPath)
+    {
+        localPath = null;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        // Explicitly reject UNC paths and network shares (e.g. \attacker\share or //attacker/share)
+        if (path.StartsWith(@"\\", StringComparison.Ordinal) || path.StartsWith("//", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (path.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Uri.TryCreate(path, UriKind.Absolute, out var fileUri) && fileUri.IsFile && !fileUri.IsUnc)
+            {
+                localPath = fileUri.LocalPath;
+                return !localPath.StartsWith(@"\\", StringComparison.Ordinal) && !localPath.StartsWith("//", StringComparison.Ordinal);
+            }
+
+            return false;
+        }
+
+        if (Path.IsPathRooted(path))
+        {
+            localPath = path;
+            return true;
+        }
+
+        return false;
+    }
+
     private Bitmap? CreateAndValidateBitmap(Stream stream)
     {
         try
@@ -574,40 +573,6 @@ public sealed class ImageCacheService : IImageCacheService
         }
 
         return Task.FromResult<Bitmap?>(null);
-    }
-
-    private static bool TryResolveSafeLocalFilePath(string path, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? localPath)
-    {
-        localPath = null;
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return false;
-        }
-
-        // Explicitly reject UNC paths and network shares (e.g. \attacker\share or //attacker/share)
-        if (path.StartsWith(@"\\", StringComparison.Ordinal) || path.StartsWith("//", StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        if (path.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
-        {
-            if (Uri.TryCreate(path, UriKind.Absolute, out var fileUri) && fileUri.IsFile && !fileUri.IsUnc)
-            {
-                localPath = fileUri.LocalPath;
-                return !localPath.StartsWith(@"\\", StringComparison.Ordinal) && !localPath.StartsWith("//", StringComparison.Ordinal);
-            }
-
-            return false;
-        }
-
-        if (Path.IsPathRooted(path))
-        {
-            localPath = path;
-            return true;
-        }
-
-        return false;
     }
 
     private async Task<Bitmap?> TryLoadLocalFileImageAsync(string cacheKey, string localPath, CancellationToken cancellationToken)
@@ -819,7 +784,7 @@ public sealed class ImageCacheService : IImageCacheService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (!IsSafeRemoteUrl(currentUrl, out var uri) || uri == null)
+            if (!IsSafeRemoteUrl(currentUrl, out var uri))
             {
                 logger?.LogWarning("Redirect blocked to unsafe or invalid URL '{Url}'", currentUrl);
                 return null;
@@ -832,23 +797,17 @@ public sealed class ImageCacheService : IImageCacheService
             }
 
             var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-            if ((int)response.StatusCode is >= 300 and <= 399 && response.Headers.Location != null)
+            if (TryGetRedirectTarget(response, uri, out var nextUrl, out var isBlocked))
             {
-                var nextUri = response.Headers.Location.IsAbsoluteUri
-                    ? response.Headers.Location
-                    : new Uri(uri, response.Headers.Location);
-
-                // Prevent HTTPS to HTTP redirect downgrade
-                if (uri.Scheme == Uri.UriSchemeHttps && nextUri.Scheme == Uri.UriSchemeHttp)
-                {
-                    logger?.LogWarning("Redirect from HTTPS to HTTP blocked: '{Url}' -> '{NextUrl}'", currentUrl, nextUri);
-                    response.Dispose();
-                    return null;
-                }
-
                 response.Dispose();
-                currentUrl = nextUri.AbsoluteUri;
+                currentUrl = nextUrl;
                 continue;
+            }
+
+            if (isBlocked)
+            {
+                response.Dispose();
+                return null;
             }
 
             return response;
@@ -856,6 +815,35 @@ public sealed class ImageCacheService : IImageCacheService
 
         logger?.LogWarning("Too many redirects for image '{Url}'", initialUrl);
         return null;
+    }
+
+    private bool TryGetRedirectTarget(
+        HttpResponseMessage response,
+        Uri currentUri,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? nextUrl,
+        out bool isBlocked)
+    {
+        nextUrl = null;
+        isBlocked = false;
+
+        if ((int)response.StatusCode is not (>= 300 and <= 399) || response.Headers.Location == null)
+        {
+            return false;
+        }
+
+        var nextUri = response.Headers.Location.IsAbsoluteUri
+            ? response.Headers.Location
+            : new Uri(currentUri, response.Headers.Location);
+
+        if (currentUri.Scheme == Uri.UriSchemeHttps && nextUri.Scheme == Uri.UriSchemeHttp)
+        {
+            logger?.LogWarning("Redirect from HTTPS to HTTP blocked: '{Url}' -> '{NextUrl}'", currentUri, nextUri);
+            isBlocked = true;
+            return false;
+        }
+
+        nextUrl = nextUri.AbsoluteUri;
+        return true;
     }
 
     private async Task<byte[]?> ReadValidatedImageBytesAsync(HttpResponseMessage response, CancellationToken cancellationToken)
