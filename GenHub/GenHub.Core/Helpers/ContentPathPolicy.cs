@@ -56,7 +56,8 @@ public static class ContentPathPolicy
             var fullRoot = Path.GetFullPath(normalizedRoot);
             var fullCandidate = Path.GetFullPath(Path.Combine(fullRoot, normalizedRelative));
 
-            if (!IsContainedInternal(fullRoot, fullCandidate))
+            if (fullCandidate.Equals(fullRoot, PathHelper.PathComparison) ||
+                !IsContainedInternal(fullRoot, fullCandidate))
             {
                 return OperationResult<string>.CreateFailure(
                     $"Path '{relativePath}' escapes target root directory '{rootDirectory}'.");

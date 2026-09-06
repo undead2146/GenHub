@@ -396,6 +396,9 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
     [InlineData("Window/MainMenu.wnd")]
     [InlineData("Art/notes.txt")]
     [InlineData("Window/layout.json")]
+    [InlineData("Art/Textures/other-mod.dds")]
+    [InlineData("Art/Textures/unit.tga")]
+    [InlineData("other-mod.dds")]
     public void IsControlBarContent_WithUnrelatedFileBeneathAllowedDirectory_ReturnsFalse(string relativeFilePath)
     {
         // Arrange
@@ -447,5 +450,32 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
         // Assert: 1080p should match because the BIG file has 1080p, even though readme-720p sorts first alphabetically
         Assert.Equal(_testDir, result1080);
         Assert.Null(result720);
+    }
+
+    /// <summary>
+    /// Verifies that source cleanup deletes unselected variant BIG files while preserving selected outputs and metadata BIG.
+    /// </summary>
+    [Fact]
+    public void CleanupSourceDirectories_WithUnselectedVariantBig_DeletesUnselectedVariantBig()
+    {
+        // Arrange
+        var selectedBig = "340_ControlBarProArt1080ZH.big";
+        var unselectedBig = "340_ControlBarProArt1440ZH.big";
+        var metadataBig = "340_ControlBarProZH.big";
+
+        File.WriteAllText(Path.Combine(_testDir, selectedBig), "1080 data");
+        File.WriteAllText(Path.Combine(_testDir, unselectedBig), "1440 data");
+        File.WriteAllText(Path.Combine(_testDir, metadataBig), "meta data");
+
+        var converter = new CompressedImageToTgaConverter(NullLogger<CompressedImageToTgaConverter>.Instance);
+        var processor = new ControlBarPackageProcessor(converter, NullLogger<ControlBarPackageProcessor>.Instance);
+
+        // Act
+        processor.CleanupSourceDirectories(_testDir, [selectedBig]);
+
+        // Assert
+        Assert.True(File.Exists(Path.Combine(_testDir, selectedBig)));
+        Assert.True(File.Exists(Path.Combine(_testDir, metadataBig)));
+        Assert.False(File.Exists(Path.Combine(_testDir, unselectedBig)));
     }
 }

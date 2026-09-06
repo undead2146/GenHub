@@ -66,6 +66,8 @@ public sealed class ContentPathPolicyTests : IDisposable
     /// </summary>
     /// <param name="maliciousPath">The traversal path to test.</param>
     [Theory]
+    [InlineData(".")]
+    [InlineData("sub/..")]
     [InlineData("../outside.txt")]
     [InlineData("sub/../../outside.txt")]
     [InlineData(@"..\outside.txt")]

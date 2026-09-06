@@ -240,6 +240,17 @@ public class ControlBarPackageProcessor(
             return false;
         }
 
+        if (HasDisallowedTopLevelDirectories(extractedDirectory) || HasDisallowedSubdirectories(extractedDirectory))
+        {
+            return true;
+        }
+
+        return Directory.EnumerateFiles(extractedDirectory, "*", SearchOption.AllDirectories)
+            .Any(file => IsUnrelatedFile(file, extractedDirectory));
+    }
+
+    private static bool HasDisallowedTopLevelDirectories(string extractedDirectory)
+    {
         var allowedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             DirZh, DirCcg, DirArt, DirData,
@@ -258,93 +269,132 @@ public class ControlBarPackageProcessor(
             }
         }
 
-        var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        return false;
+    }
+
+    private static bool HasDisallowedSubdirectories(string extractedDirectory)
+    {
+        if (DirectoryHasAnySubdirectories(Path.Combine(extractedDirectory, DirArt)) ||
+            HasInvalidDataSubdirectories(Path.Combine(extractedDirectory, DirData)))
         {
-            WindowFileExtension, ".tga", ".dds", ".avif", ".png", ".jpg", ".jpeg", ".dat", ".txt", ".md", ".json", BigFileExtension,
-        };
-
-        foreach (var file in Directory.EnumerateFiles(extractedDirectory, "*", SearchOption.AllDirectories))
-        {
-            var fileName = Path.GetFileName(file);
-            var extension = Path.GetExtension(file);
-
-            if (!allowedExtensions.Contains(extension))
-            {
-                return true;
-            }
-
-            if (extension.Equals(BigFileExtension, StringComparison.OrdinalIgnoreCase))
-            {
-                if (!fileName.Contains(ControlBarToken, StringComparison.OrdinalIgnoreCase) &&
-                    !fileName.Contains("cbpr", StringComparison.OrdinalIgnoreCase) &&
-                    !fileName.Contains("cbpx", StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-            else if (extension.Equals(".dat", StringComparison.OrdinalIgnoreCase))
-            {
-                if (!fileName.Equals("fullviewport.dat", StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-            else if (extension.Equals(WindowFileExtension, StringComparison.OrdinalIgnoreCase))
-            {
-                if (!fileName.Contains(ControlBarToken, StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-            else if (extension.Equals(".json", StringComparison.OrdinalIgnoreCase))
-            {
-                var relPath = Path.GetRelativePath(extractedDirectory, file);
-                if (relPath.Contains(Path.DirectorySeparatorChar) || relPath.Contains(Path.AltDirectorySeparatorChar))
-                {
-                    return true;
-                }
-            }
-            else if (extension.Equals(".txt", StringComparison.OrdinalIgnoreCase) ||
-                     extension.Equals(".md", StringComparison.OrdinalIgnoreCase))
-            {
-                if (!fileName.StartsWith("readme", StringComparison.OrdinalIgnoreCase) &&
-                    !fileName.StartsWith("license", StringComparison.OrdinalIgnoreCase) &&
-                    !fileName.Equals("$ControlBarPro.txt", StringComparison.OrdinalIgnoreCase) &&
-                    !fileName.Contains("changelog", StringComparison.OrdinalIgnoreCase) &&
-                    !fileName.Contains(ControlBarToken, StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-        }
-
-        var dataDir = Path.Combine(extractedDirectory, DirData);
-        if (Directory.Exists(dataDir))
-        {
-            foreach (var dir in Directory.EnumerateDirectories(dataDir))
-            {
-                var dirName = Path.GetFileName(dir);
-                if (!dirName.Equals(GameContentConstants.WindowDirectoryName, StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
+            return true;
         }
 
         foreach (var gamePrefix in new[] { DirZh, DirCcg })
         {
-            var nestedData = Path.Combine(extractedDirectory, gamePrefix, DirData);
-            if (Directory.Exists(nestedData))
+            if (DirectoryHasAnySubdirectories(Path.Combine(extractedDirectory, gamePrefix, DirArt)) ||
+                HasInvalidDataSubdirectories(Path.Combine(extractedDirectory, gamePrefix, DirData)))
             {
-                foreach (var dir in Directory.EnumerateDirectories(nestedData))
-                {
-                    var dirName = Path.GetFileName(dir);
-                    if (!dirName.Equals(GameContentConstants.WindowDirectoryName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return true;
-                    }
-                }
+                return true;
             }
+        }
+
+        return false;
+    }
+
+    private static bool DirectoryHasAnySubdirectories(string directoryPath)
+    {
+        return Directory.Exists(directoryPath) && Directory.EnumerateDirectories(directoryPath).Any();
+    }
+
+    private static bool HasInvalidDataSubdirectories(string dataDir)
+    {
+        if (!Directory.Exists(dataDir))
+        {
+            return false;
+        }
+
+        foreach (var dir in Directory.EnumerateDirectories(dataDir))
+        {
+            var dirName = Path.GetFileName(dir);
+            if (!dirName.Equals(GameContentConstants.WindowDirectoryName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsUnrelatedFile(string file, string extractedDirectory)
+    {
+        var fileName = Path.GetFileName(file);
+        var extension = Path.GetExtension(file);
+
+        if (extension.Equals(BigFileExtension, StringComparison.OrdinalIgnoreCase))
+        {
+            return !fileName.Contains(ControlBarToken, StringComparison.OrdinalIgnoreCase) &&
+                   !fileName.Contains("cbpr", StringComparison.OrdinalIgnoreCase) &&
+                   !fileName.Contains("cbpx", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (extension.Equals(".dat", StringComparison.OrdinalIgnoreCase))
+        {
+            return !fileName.Equals("fullviewport.dat", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (extension.Equals(WindowFileExtension, StringComparison.OrdinalIgnoreCase))
+        {
+            return !fileName.Contains(ControlBarToken, StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (extension.Equals(".json", StringComparison.OrdinalIgnoreCase))
+        {
+            var relPath = Path.GetRelativePath(extractedDirectory, file);
+            return relPath.Contains(Path.DirectorySeparatorChar) || relPath.Contains(Path.AltDirectorySeparatorChar);
+        }
+
+        if (extension.Equals(".txt", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".md", StringComparison.OrdinalIgnoreCase))
+        {
+            return !IsAllowedDocFile(fileName);
+        }
+
+        if (IsImageExtension(extension))
+        {
+            return !IsRecognizedControlBarImage(file, extractedDirectory);
+        }
+
+        return true;
+    }
+
+    private static bool IsImageExtension(string extension)
+    {
+        return extension.Equals(".tga", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".dds", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".avif", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsAllowedDocFile(string fileName)
+    {
+        return fileName.StartsWith("readme", StringComparison.OrdinalIgnoreCase) ||
+               fileName.StartsWith("license", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("$ControlBarPro.txt", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Contains("changelog", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Contains(ControlBarToken, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsRecognizedControlBarImage(string file, string extractedDirectory)
+    {
+        var relPath = Path.GetRelativePath(extractedDirectory, file);
+        var segments = relPath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (segments.Length < 2)
+        {
+            return false;
+        }
+
+        var parent = segments[^2];
+        if (parent.Equals(GameContentConstants.WindowDirectoryName, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (parent.Equals(DirArt, StringComparison.OrdinalIgnoreCase))
+        {
+            return segments.Length <= 3;
         }
 
         return false;
@@ -880,7 +930,7 @@ public class ControlBarPackageProcessor(
             foreach (var file in looseFiles)
             {
                 var fileName = Path.GetFileName(file);
-                if (!repackedOutputs.Contains(fileName) && !fileName.EndsWith(".big", StringComparison.OrdinalIgnoreCase))
+                if (!repackedOutputs.Contains(fileName) && !IsMetadataOnlyBig(fileName))
                 {
                     File.Delete(file);
                 }

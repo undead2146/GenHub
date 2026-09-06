@@ -165,8 +165,17 @@ if ! flock -w "$LOCK_TIMEOUT" 9; then
 fi
 
 CURRENT_TIME="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-printf '{"pid": %d, "mode": "%s", "project": "%s", "startedAt": "%s"}\n' \
-    "$$" "$MODE" "${PROJECT:-GenHub.sln}" "$CURRENT_TIME" >"$STATUS_FILE"
+RAW_PROJECT="${PROJECT:-GenHub.sln}"
+if command -v python3 >/dev/null 2>&1; then
+    JSON_PROJECT="$(python3 -c 'import json, sys; sys.stdout.write(json.dumps(sys.argv[1]))' "$RAW_PROJECT")"
+elif command -v jq >/dev/null 2>&1; then
+    JSON_PROJECT="$(jq -Rn --arg p "$RAW_PROJECT" '$p')"
+else
+    ESCAPED_PROJECT="$(printf '%s' "$RAW_PROJECT" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"
+    JSON_PROJECT=""$ESCAPED_PROJECT""
+fi
+printf '{"pid": %d, "mode": "%s", "project": %s, "startedAt": "%s"}\n' \
+    "$$" "$MODE" "$JSON_PROJECT" "$CURRENT_TIME" >"$STATUS_FILE"
 
 log_status "Build lock acquired."
 

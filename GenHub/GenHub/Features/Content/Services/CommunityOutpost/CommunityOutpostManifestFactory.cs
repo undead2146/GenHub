@@ -363,6 +363,15 @@ public class CommunityOutpostManifestFactory(
                     cleanupSources: false,
                     cancellationToken);
                 controlBarRepackedOutputs = new HashSet<string>(outputs, StringComparer.OrdinalIgnoreCase);
+                if (controlBarRepackedOutputs.Count == 0)
+                {
+                    logger.LogInformation(
+                        "Skipping Control Bar variant {VariantId} because no matching variant assets were found in {Directory}",
+                        variant?.Id,
+                        extractedDirectory);
+                    return null;
+                }
+
                 if (allControlBarOutputs != null)
                 {
                     foreach (var output in outputs)

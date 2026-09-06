@@ -213,4 +213,56 @@ public class CommunityOutpostManifestFactoryTests : IDisposable
             c => c.CleanupSourceDirectories(_tempDir, It.Is<IEnumerable<string>>(outputs => outputs.Any())),
             Times.Once());
     }
+
+    /// <summary>
+    /// Verifies that when a Control Bar variant produces no outputs (assets not present in package),
+    /// no manifest is emitted for that missing variant.
+    /// </summary>
+    [Fact]
+    public async Task CreateManifestsFromExtractedContentAsync_ControlBarVariantWithNoMatchingAssets_SkipsMissingVariant()
+    {
+        // Arrange
+        var originalManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.103.communityoutpost.addon.cbpr"),
+            Name = "Control Bar Pro (Xezon)",
+            ContentType = ContentType.Addon,
+            Publisher = new PublisherInfo { PublisherType = "communityoutpost" },
+            Metadata = new ContentMetadata
+            {
+                Tags = ["contentCode:cbpr"],
+            },
+        };
+
+        // Only 1080p produces outputs; 1440p and others produce empty outputs
+        _controlBarProcessorMock
+            .Setup(c => c.ProcessAndRepackControlBarAsync(
+                _tempDir,
+                originalManifest,
+                "1080p",
+                false,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            {
+                var artFile = "340_ControlBarProArt1080ZH.big";
+                File.WriteAllText(Path.Combine(_tempDir, artFile), "art big");
+                return new[] { artFile, "340_ControlBarProZH.big" };
+            });
+
+        _controlBarProcessorMock
+            .Setup(c => c.ProcessAndRepackControlBarAsync(
+                _tempDir,
+                originalManifest,
+                It.Is<string?>(v => v != "1080p"),
+                false,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<string>());
+
+        // Act
+        var manifests = await _factory.CreateManifestsFromExtractedContentAsync(originalManifest, _tempDir);
+
+        // Assert: Only 1080p manifest is created; other variants with no assets are skipped
+        Assert.Single(manifests);
+        Assert.Contains("1080p", manifests[0].Id.Value);
+    }
 }
