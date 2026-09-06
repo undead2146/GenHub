@@ -45,13 +45,12 @@ public class ControlBarPackageProcessor(
     private const string TokenCbpr = "cbpr";
     private const string TokenCbpx = "cbpx";
     private const string TokenCbpro = "cbpro";
-    private const string TokenPrefixCb = "cb";
-    private const string TokenPrefixWnd = "wnd";
 
     private static readonly string[] KnownResolutionVariants = [Variant720p, Variant900p, Variant1080p, Variant1440p, Variant4k, Variant2160p];
     private static readonly TimeSpan RegexMatchTimeout = TimeSpan.FromSeconds(1);
     private static readonly Regex WordVariantRegex = new(@"\b(720p?|900p?|1080p?|1440p?|2160p?|4k)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexMatchTimeout);
     private static readonly Regex InlineVariantRegex = new(@"(720p?|900p?|1080p?|1440p?|2160p?|4k)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexMatchTimeout);
+    private static readonly Regex ControlBarImageStemRegex = new(@"^cb([-_]?(720p?|900p?|1080p?|1440p?|2160p?|4k))?$", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexMatchTimeout);
 
     /// <inheritdoc/>
     public bool IsControlBarContent(string extractedDirectory, ContentManifest manifest)
@@ -434,12 +433,16 @@ public class ControlBarPackageProcessor(
 
     private static bool IsRecognizedControlBarImageName(string fileName)
     {
-        return fileName.Contains(ControlBarToken, StringComparison.OrdinalIgnoreCase) ||
-               fileName.Contains(TokenCbpr, StringComparison.OrdinalIgnoreCase) ||
-               fileName.Contains(TokenCbpx, StringComparison.OrdinalIgnoreCase) ||
-               fileName.Contains(TokenCbpro, StringComparison.OrdinalIgnoreCase) ||
-               fileName.StartsWith(TokenPrefixCb, StringComparison.OrdinalIgnoreCase) ||
-               fileName.StartsWith(TokenPrefixWnd, StringComparison.OrdinalIgnoreCase);
+        if (fileName.Contains(ControlBarToken, StringComparison.OrdinalIgnoreCase) ||
+            fileName.Contains(TokenCbpr, StringComparison.OrdinalIgnoreCase) ||
+            fileName.Contains(TokenCbpx, StringComparison.OrdinalIgnoreCase) ||
+            fileName.Contains(TokenCbpro, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var stem = Path.GetFileNameWithoutExtension(fileName);
+        return ControlBarImageStemRegex.IsMatch(stem);
     }
 
     private static string DetectFlatLayoutVariant(string extractedDirectory)

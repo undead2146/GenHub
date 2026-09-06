@@ -400,7 +400,9 @@ public sealed class ControlBarPackageProcessorTests : IDisposable
     [InlineData("Art/W3D/other-mod.w3d")]
     [InlineData("Art/Models/unit.dds")]
     [InlineData("Art/Textures/other-mod.dds")]
+    [InlineData("Art/Textures/cb_othermod.dds")]
     [InlineData("Window/other-mod.dds")]
+    [InlineData("Window/wnd_border.tga")]
     [InlineData("other-mod.dds")]
     public void IsControlBarContent_WithUnrelatedFileBeneathAllowedDirectory_ReturnsFalse(string relativeFilePath)
     {
