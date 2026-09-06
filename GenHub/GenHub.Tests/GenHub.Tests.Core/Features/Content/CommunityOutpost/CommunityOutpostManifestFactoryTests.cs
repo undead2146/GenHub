@@ -226,7 +226,7 @@ public class CommunityOutpostManifestFactoryTests : IDisposable
         {
             Id = ManifestId.Create("1.103.communityoutpost.addon.cbpr"),
             Name = "Control Bar Pro (Xezon)",
-            ContentType = ContentType.Addon,
+            ContentType = GenHub.Core.Models.Enums.ContentType.Addon,
             Publisher = new PublisherInfo { PublisherType = "communityoutpost" },
             Metadata = new ContentMetadata
             {
