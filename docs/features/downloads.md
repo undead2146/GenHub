@@ -796,7 +796,7 @@ The primary extensibility mechanism for GenHub content creators is data-driven p
 3. **Generic Dispatch**: `DownloadsBrowserViewModel` creates an instance of `GenericCatalogDiscoverer` configured with the subscription record (`PublisherSubscription`).
 4. **Unified Discovery & Resolution**: `GenericCatalogDiscoverer` fetches and parses the catalog, outputting search results with `ResolverId => CatalogConstants.GenericCatalogResolverId`. Downloads flow seamlessly through `GenericCatalogResolver` and the existing CAS storage pipeline.
 
-For detailed schema definitions and guide on hosting creator catalogs, see [Creator Publishing Documentation](./content/creator-publishing.md).
+For detailed schema definitions and guide on hosting creator catalogs, see [Hosting Model Documentation](./content/hosting-model.md).
 
 ### Extending Filter Queries
 
@@ -1148,7 +1148,7 @@ The Downloads browser follows accessibility best practices:
 - [Content System](./content/index.md) - Content pipeline architecture
 - [Content Pipeline](./content/content-pipeline.md) - Three-tier pipeline details
 - [Downloads Flow](../FlowCharts/Downloads-Flow.md) - User flow diagrams
-- [Publisher Manifest Factories](./content/publisher-manifest-factories.md) - Extensible publisher handling
+- [Publisher Infrastructure](./content/publisher-infrastructure.md) - Extensible publisher handling
 - [Content Dependencies](./content/content-dependencies.md) - Dependency system
 
 ## Future Enhancements

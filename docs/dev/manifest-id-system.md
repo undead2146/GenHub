@@ -70,20 +70,28 @@ This normalization ensures the manifest ID schema remains valid (dots separate s
 
 ### ModDB Format
 
-**Format**: `{schemaVersion}.{dateVersion}.{publisher}.{contentType}.{contentName}`
+**Format**: `{schemaVersion}.{dateVersion}.moddb-{author}.{contentType}.{contentName}`
+
+**Components**:
+
+- **schemaVersion**: Always `1`
+- **dateVersion**: Release date in `YYYYMMDD` format (extracted from ModDB's "Added" field)
+- **publisher**: Uses `moddb-{author}` as the publisher segment (e.g., `moddb-westwood`)
+- **contentType**: Content type (mod, addon, map, etc.)
+- **contentName**: Normalized content name
 
 **Examples**:
 
-- ModDB Addon (release date 2025-01-20): `1.20250120.moddb.addon.supercolors-newcolors`
-- ModDB Mod (release date 2024-12-15): `1.20241215.moddb.mod.contra-007`
-- ModDB Map Pack (release date 2025-01-10): `1.20250110.moddb.mappack.desert-storm-collection`
+- ModDB Addon (release date 2025-01-20, author `westwood`): `1.20250120.moddb-westwood.addon.supercolors-newcolors`
+- ModDB Mod (release date 2024-12-15, author `contra-team`): `1.20241215.moddb-contra-team.mod.contra-007`
+- ModDB Map Pack (release date 2025-01-10, author `mappackers`): `1.20250110.moddb-mappackers.mappack.desert-storm-collection`
 
 **Key Points**:
 
 - **Date-based versioning**: Uses the release date (YYYYMMDD format) as the version component
 - **No semantic version parsing**: ModDB content titles are not parsed for semantic versions (v1.0, etc.)
 - **Deterministic**: Same content + same release date = same manifest ID
-- **Publisher identifier**: Always uses "moddb" as the publisher
+- **Publisher identifier**: Uses `moddb-{author}` as the publisher segment
 - **Date source**: Extracted from the ModDB page's release date metadata during content discovery
 
 **Version Fallback Priority**:
@@ -96,36 +104,6 @@ When generating manifest IDs for content, the version is determined by the follo
 4. **Discovery date** (fallback when no other date information is available)
 
 This fallback hierarchy ensures that content always has a valid version component for the manifest ID, with preference given to publisher-provided semantic versions when available.
-
-## ModDB Manifest IDs
-
-ModDB content uses a deterministic ID format based on release dates.
-
-### Format
-
-```text
-{schemaVersion}.{dateVersion}.{publisher}.{contentType}.{contentName}
-```
-
-### Example
-
-```text
-1.20250120.moddb.addon.supercolors-newcolors
-```
-
-### Components
-
-- **schemaVersion**: Always `1`
-- **dateVersion**: Release date in `YYYYMMDD` format
-- **publisher**: Always `moddb`
-- **contentType**: Content type (mod, addon, map, etc.)
-- **contentName**: Normalized content name
-
-### Key Points
-
-- Release date is extracted from ModDB's "Added" field
-- No semantic version parsing from titles (conservative approach)
-- Deterministic: same content + same date = same ID
 
 ## API Reference
 

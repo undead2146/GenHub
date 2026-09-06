@@ -97,7 +97,7 @@ Comprehensive manifest for content distribution in GenHub ecosystem.
 ```csharp
 public class ContentManifest
 {
-    public string SchemaVersion { get; set; }
+    public string ManifestVersion { get; set; }
     public ManifestId Id { get; set; }
     public string Name { get; set; }
     public string Version { get; set; }
