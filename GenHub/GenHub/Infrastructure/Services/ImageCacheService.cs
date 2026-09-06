@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -86,22 +85,36 @@ public sealed class ImageCacheService : IImageCacheService
     }
 
     /// <summary>
+    /// Initializes a new instance of the <see cref="ImageCacheService"/> class with configuration and logger.
+    /// </summary>
+    /// <param name="configurationProvider">Optional configuration provider to supply the root cache directory.</param>
+    /// <param name="logger">Optional logger for recording diagnostic and error events.</param>
+    public ImageCacheService(
+        IConfigurationProviderService? configurationProvider,
+        ILogger<ImageCacheService>? logger)
+        : this(configurationProvider, null, logger)
+    {
+    }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="ImageCacheService"/> class with an explicit configuration provider and HTTP client.
+    /// Internal constructor for test isolation. Public callers are prevented from providing an unprotected client override.
     /// </summary>
     /// <param name="configurationProvider">Optional configuration provider to supply the root cache directory.</param>
     /// <param name="httpClient">Optional custom <see cref="HttpClient"/> instance.</param>
-    public ImageCacheService(IConfigurationProviderService? configurationProvider, HttpClient? httpClient)
+    internal ImageCacheService(IConfigurationProviderService? configurationProvider, HttpClient? httpClient)
         : this(configurationProvider, httpClient, null)
     {
     }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ImageCacheService"/> class with configuration, HTTP client, and logger.
+    /// Internal constructor for test isolation. Public callers are prevented from providing an unprotected client override.
     /// </summary>
     /// <param name="configurationProvider">Optional configuration provider to supply the root cache directory.</param>
     /// <param name="httpClient">Optional custom <see cref="HttpClient"/> instance.</param>
     /// <param name="logger">Optional logger for recording diagnostic and error events.</param>
-    public ImageCacheService(
+    internal ImageCacheService(
         IConfigurationProviderService? configurationProvider,
         HttpClient? httpClient,
         ILogger<ImageCacheService>? logger)
@@ -169,9 +182,16 @@ public sealed class ImageCacheService : IImageCacheService
             return await LoadBitmapFromAvaloniaAssetAsync(url).ConfigureAwait(false);
         }
 
-        if (url.StartsWith("file://", StringComparison.OrdinalIgnoreCase) || Path.IsPathRooted(url))
+        if (url.StartsWith("/Assets/", StringComparison.OrdinalIgnoreCase) ||
+            url.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
         {
-            return await TryLoadLocalFileImageAsync(url, cancellationToken).ConfigureAwait(false);
+            var cleanPath = url.TrimStart('/');
+            return await LoadBitmapFromAvaloniaAssetAsync($"avares://GenHub/{cleanPath}", url).ConfigureAwait(false);
+        }
+
+        if (TryResolveSafeLocalFilePath(url, out var localPath))
+        {
+            return await TryLoadLocalFileImageAsync(url, localPath, cancellationToken).ConfigureAwait(false);
         }
 
         if (!IsSafeRemoteUrl(url, out _))
@@ -221,7 +241,7 @@ public sealed class ImageCacheService : IImageCacheService
             return false;
         }
 
-        if (IPAddress.TryParse(uri.Host, out var ip))
+        if (IPAddress.TryParse(uri.DnsSafeHost, out var ip) || IPAddress.TryParse(uri.Host, out ip))
         {
             return IsSafeIpAddress(ip);
         }
@@ -531,7 +551,7 @@ public sealed class ImageCacheService : IImageCacheService
         }
     }
 
-    private Task<Bitmap?> LoadBitmapFromAvaloniaAssetAsync(string url)
+    private Task<Bitmap?> LoadBitmapFromAvaloniaAssetAsync(string url, string? cacheKey = null)
     {
         try
         {
@@ -542,7 +562,7 @@ public sealed class ImageCacheService : IImageCacheService
                 var bitmap = CreateAndValidateBitmap(stream);
                 if (bitmap != null)
                 {
-                    memoryCache.AddOrUpdate(url, bitmap);
+                    memoryCache.AddOrUpdate(cacheKey ?? url, bitmap);
                 }
 
                 return Task.FromResult<Bitmap?>(bitmap);
@@ -556,11 +576,46 @@ public sealed class ImageCacheService : IImageCacheService
         return Task.FromResult<Bitmap?>(null);
     }
 
-    private async Task<Bitmap?> TryLoadLocalFileImageAsync(string url, CancellationToken cancellationToken)
+    private static bool TryResolveSafeLocalFilePath(string path, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? localPath)
     {
-        var localPath = url.StartsWith("file://", StringComparison.OrdinalIgnoreCase) && Uri.TryCreate(url, UriKind.Absolute, out var fileUri)
-            ? fileUri.LocalPath
-            : url;
+        localPath = null;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        // Explicitly reject UNC paths and network shares (e.g. \attacker\share or //attacker/share)
+        if (path.StartsWith(@"\\", StringComparison.Ordinal) || path.StartsWith("//", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (path.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Uri.TryCreate(path, UriKind.Absolute, out var fileUri) && fileUri.IsFile && !fileUri.IsUnc)
+            {
+                localPath = fileUri.LocalPath;
+                return !localPath.StartsWith(@"\\", StringComparison.Ordinal) && !localPath.StartsWith("//", StringComparison.Ordinal);
+            }
+
+            return false;
+        }
+
+        if (Path.IsPathRooted(path))
+        {
+            localPath = path;
+            return true;
+        }
+
+        return false;
+    }
+
+    private async Task<Bitmap?> TryLoadLocalFileImageAsync(string cacheKey, string localPath, CancellationToken cancellationToken)
+    {
+        if (localPath.StartsWith(@"\\", StringComparison.Ordinal) || localPath.StartsWith("//", StringComparison.Ordinal))
+        {
+            return null;
+        }
 
         if (!File.Exists(localPath))
         {
@@ -583,7 +638,7 @@ public sealed class ImageCacheService : IImageCacheService
             var localBitmap = CreateAndValidateBitmap(ms);
             if (localBitmap != null)
             {
-                memoryCache.AddOrUpdate(url, localBitmap);
+                memoryCache.AddOrUpdate(cacheKey, localBitmap);
             }
 
             return localBitmap;
@@ -782,6 +837,14 @@ public sealed class ImageCacheService : IImageCacheService
                 var nextUri = response.Headers.Location.IsAbsoluteUri
                     ? response.Headers.Location
                     : new Uri(uri, response.Headers.Location);
+
+                // Prevent HTTPS to HTTP redirect downgrade
+                if (uri.Scheme == Uri.UriSchemeHttps && nextUri.Scheme == Uri.UriSchemeHttp)
+                {
+                    logger?.LogWarning("Redirect from HTTPS to HTTP blocked: '{Url}' -> '{NextUrl}'", currentUrl, nextUri);
+                    response.Dispose();
+                    return null;
+                }
 
                 response.Dispose();
                 currentUrl = nextUri.AbsoluteUri;

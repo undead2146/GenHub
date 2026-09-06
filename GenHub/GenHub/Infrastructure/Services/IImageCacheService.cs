@@ -14,7 +14,7 @@ public interface IImageCacheService
     /// </summary>
     /// <param name="url">The image URL or local file path.</param>
     /// <returns>The cached <see cref="Bitmap"/> if present; otherwise, <see langword="null"/>.</returns>
-    Bitmap? GetBitmapFromMemory(string url);
+    Bitmap? GetBitmapFromMemory(string? url);
 
     /// <summary>
     /// Asynchronously gets a bitmap from memory, disk cache, local file, or web.
@@ -22,7 +22,7 @@ public interface IImageCacheService
     /// <param name="url">The image URL or local file path.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The loaded <see cref="Bitmap"/>, or <see langword="null"/> if loading failed.</returns>
-    Task<Bitmap?> GetBitmapAsync(string url, CancellationToken cancellationToken = default);
+    Task<Bitmap?> GetBitmapAsync(string? url, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Clears the in-memory cache without disposing bitmaps that may still be in use by UI controls.

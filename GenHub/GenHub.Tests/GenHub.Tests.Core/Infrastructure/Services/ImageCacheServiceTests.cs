@@ -25,9 +25,9 @@ public class ImageCacheServiceTests
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
 
     /// <summary>
-    /// Verifies that private, loopback, multicast, and reserved IPv4/IPv6 addresses are rejected as unsafe.
+    /// Verifies that private, loopback, multicast, and link-local IPv4 addresses are rejected.
     /// </summary>
-    /// <param name="ipString">The IP string to test.</param>
+    /// <param name="ipString">The IPv4 string to test.</param>
     [Theory]
     [InlineData("127.0.0.1")]
     [InlineData("10.0.0.1")]
@@ -48,6 +48,18 @@ public class ImageCacheServiceTests
     [InlineData("239.255.255.255")]
     [InlineData("240.0.0.1")]
     [InlineData("255.255.255.255")]
+    public void IsSafeRemoteUrl_UnsafeIPv4_ReturnsFalse(string ipString)
+    {
+        var url = $"http://{ipString}/image.png";
+        Assert.False(ImageCacheService.IsSafeRemoteUrl(url, out _));
+    }
+
+    /// <summary>
+    /// Verifies that private, loopback, multicast, unique-local, and IPv4-mapped IPv6 addresses are rejected.
+    /// Bracketed syntax is required for IPv6 host formatting in URIs.
+    /// </summary>
+    /// <param name="ipString">The IPv6 string to test.</param>
+    [Theory]
     [InlineData("::1")]
     [InlineData("::")]
     [InlineData("fc00::1")]
@@ -57,9 +69,9 @@ public class ImageCacheServiceTests
     [InlineData("::ffff:127.0.0.1")]
     [InlineData("::ffff:10.0.0.1")]
     [InlineData("::ffff:192.168.0.1")]
-    public void IsSafeRemoteUrl_UnsafeIps_ReturnsFalse(string ipString)
+    public void IsSafeRemoteUrl_UnsafeIPv6_ReturnsFalse(string ipString)
     {
-        var url = $"http://{ipString}/image.png";
+        var url = $"http://[{ipString}]/image.png";
         Assert.False(ImageCacheService.IsSafeRemoteUrl(url, out _));
     }
 
@@ -440,5 +452,75 @@ public class ImageCacheServiceTests
                 }
             }
         }
+    
+    /// <summary>
+    /// Verifies that <see cref="ImageCacheService.GetBitmapAsync"/> blocks redirect downgrade from HTTPS to HTTP.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [AvaloniaFact]
+    public async Task GetBitmapAsync_BlocksHttpsToHttpRedirectDowngradeAsync()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"genhub_redirect_downgrade_test_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var configMock = new Mock<IConfigurationProviderService>();
+            configMock.Setup(c => c.GetApplicationDataPath()).Returns(tempDir);
+
+            var redirectKey = Guid.NewGuid().ToString("N");
+            var redirectUrl = $"https://example.com/secure_{redirectKey}.png";
+            var destUrl = $"http://example.com/insecure_{redirectKey}.png";
+
+            var handlerMock = new Mock<HttpMessageHandler>();
+            handlerMock.Protected()
+                .Setup<Task<HttpResponseMessage>>(
+                    "SendAsync",
+                    ItExpr.Is<HttpRequestMessage>(r => r.RequestUri!.ToString() == redirectUrl),
+                    ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(() =>
+                {
+                    var redirect = new HttpResponseMessage(HttpStatusCode.Redirect);
+                    redirect.Headers.Location = new Uri(destUrl);
+                    return redirect;
+                });
+
+            var httpClient = new HttpClient(handlerMock.Object);
+            var service = new ImageCacheService(configMock.Object, httpClient);
+
+            var bitmap = await service.GetBitmapAsync(redirectUrl);
+            Assert.Null(bitmap);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try
+                {
+                    Directory.Delete(tempDir, true);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // ignore cleanup failure
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Verifies that UNC network share paths are rejected by <see cref="ImageCacheService.GetBitmapAsync"/>.
+    /// </summary>
+    /// <param name="uncPath">The UNC path to test.</param>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Theory]
+    [InlineData(@"\\attacker\share\image.png")]
+    [InlineData("//attacker/share/image.png")]
+    [InlineData("file:////attacker/share/image.png")]
+    public async Task GetBitmapAsync_RejectsUncPathsAsync(string uncPath)
+    {
+        var configMock = new Mock<IConfigurationProviderService>();
+        var service = new ImageCacheService(configMock.Object);
+
+        var bitmap = await service.GetBitmapAsync(uncPath);
+        Assert.Null(bitmap);
     }
 }
