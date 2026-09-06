@@ -910,7 +910,7 @@ public sealed class ImageCacheService : IImageCacheService
         {
             lock (syncLock)
             {
-                if (cancelQueued || Task.IsCompleted)
+                if (cancelQueued)
                 {
                     registration = null;
                     return false;
