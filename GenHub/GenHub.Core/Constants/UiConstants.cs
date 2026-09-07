@@ -44,6 +44,7 @@ public static class UiConstants
     /// Progressive item render delay in milliseconds for streaming cards into the download browser grid.
     /// </summary>
     public const int ProgressiveItemRenderDelayMs = 20;
+
     // Status colors
 
     /// <summary>
@@ -56,7 +57,6 @@ public static class UiConstants
     /// </summary>
     public const string StatusErrorColor = "#F44336";
 
-    /// <summary>
     /// <summary>
     /// Color used for downloaded status indicator.
     /// </summary>

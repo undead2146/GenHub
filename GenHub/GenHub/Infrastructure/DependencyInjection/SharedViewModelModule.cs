@@ -56,7 +56,7 @@ public static class SharedViewModelModule
             sp.GetRequiredService<IUserDataTracker>(),
             sp.GetRequiredService<IDialogService>(),
             sp.GetService<IThemeService>(),
-            // Optional dependencies that can be null if GitHub integration is not configured
+            /* Optional dependencies that can be null if GitHub integration is not configured */
             sp.GetService<IGitHubTokenStorage>(),
             sp.GetService<IGitHubApiClient>()));
         services.AddSingleton<GameProfileSettingsViewModel>();
