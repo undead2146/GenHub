@@ -80,6 +80,18 @@ public partial class GitHubTopicsDiscoverer(
         public static partial System.Text.RegularExpressions.Regex NumericOrVersionPattern();
 
         /// <summary>
+        /// Regex to match 2K/4K/5K/8K resolution tokens with word boundaries.
+        /// </summary>
+        [System.Text.RegularExpressions.GeneratedRegex(@"\b([2458])K\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase, matchTimeoutMilliseconds: 1000)]
+        public static partial System.Text.RegularExpressions.Regex KResolutionPattern();
+
+        /// <summary>
+        /// Regex to match trailing parentheses in content names.
+        /// </summary>
+        [System.Text.RegularExpressions.GeneratedRegex(@"\(([^)]+)\)$", System.Text.RegularExpressions.RegexOptions.None, matchTimeoutMilliseconds: 1000)]
+        public static partial System.Text.RegularExpressions.Regex TrailingParenthesesPattern();
+
+        /// <summary>
         /// Common resolution display names for user-friendly output.
         /// </summary>
         public static readonly Dictionary<string, string> ResolutionDisplayNames = new(StringComparer.OrdinalIgnoreCase)
@@ -515,12 +527,6 @@ public partial class GitHubTopicsDiscoverer(
                     j++;
                 }
 
-                while (j < parts.Length)
-                {
-                    segments.Add(parts[j]);
-                    j++;
-                }
-
                 versionToken = string.Join(".", segments);
                 return true;
             }
@@ -594,10 +600,18 @@ public partial class GitHubTopicsDiscoverer(
 
     private static int GetResolutionRank(ContentVariantInfo v)
     {
-        if (v.Name.Contains("8K", StringComparison.OrdinalIgnoreCase)) return 4320;
-        if (v.Name.Contains("5K", StringComparison.OrdinalIgnoreCase)) return 2880;
-        if (v.Name.Contains("4K", StringComparison.OrdinalIgnoreCase)) return 2160;
-        if (v.Name.Contains("2K", StringComparison.OrdinalIgnoreCase)) return 1440;
+        var kMatch = VariantPatterns.KResolutionPattern().Match(v.Name);
+        if (kMatch.Success)
+        {
+            return kMatch.Groups[1].Value.ToUpperInvariant() switch
+            {
+                "8" => 4320,
+                "5" => 2880,
+                "4" => 2160,
+                "2" => 1440,
+                _ => 0,
+            };
+        }
 
         var match = VariantPatterns.ResolutionHeightPattern().Match(v.Name);
         if (match.Success && int.TryParse(match.Groups[1].Value, out var height))
@@ -633,7 +647,7 @@ public partial class GitHubTopicsDiscoverer(
 
         if (string.IsNullOrEmpty(target))
         {
-            var match = System.Text.RegularExpressions.Regex.Match(result.Name ?? string.Empty, @"\(([^)]+)\)$", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1));
+            var match = VariantPatterns.TrailingParenthesesPattern().Match(result.Name ?? string.Empty);
             target = match.Success ? match.Groups[1].Value : (result.Name ?? string.Empty);
         }
 

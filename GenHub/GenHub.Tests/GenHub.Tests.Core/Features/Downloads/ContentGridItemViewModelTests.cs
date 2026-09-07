@@ -273,6 +273,30 @@ public sealed class ContentGridItemViewModelTests
         Assert.DoesNotContain("\n", viewModel.ShortDescription, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Verifies that ShowAddToProfileButton is true for both Downloaded and UpdateAvailable states on standard content items.
+    /// </summary>
+    /// <param name="state">The content state.</param>
+    /// <param name="expectedShow">Whether Add to Profile button is expected to show.</param>
+    [Theory]
+    [InlineData(ContentState.Downloaded, true)]
+    [InlineData(ContentState.UpdateAvailable, true)]
+    [InlineData(ContentState.NotDownloaded, false)]
+    public void ShowAddToProfileButton_ReflectsAcquisitionState(ContentState state, bool expectedShow)
+    {
+        var searchResult = new ContentSearchResult
+        {
+            Id = "state-test-item",
+            Name = "State Test Item",
+            Version = "1.0",
+        };
+
+        var viewModel = CreateViewModel(searchResult);
+        viewModel.CurrentState = state;
+
+        Assert.Equal(expectedShow, viewModel.ShowAddToProfileButton);
+    }
+
     private static void MarkAllSelectedDownloaded(ContentGridItemViewModel viewModel)
     {
         foreach (var component in viewModel.BundleComponents)

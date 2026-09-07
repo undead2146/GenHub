@@ -861,7 +861,13 @@ public sealed partial class DownloadsBrowserViewModel(
                 {
                     oldInFlight.Cts.Cancel();
                     oldInFlight.Cts.Dispose();
-                    foreach (var item in oldInFlight.ResolvedItems)
+                    List<ContentGridItemViewModel> oldSnapshot;
+                    lock (oldInFlight.SyncRoot)
+                    {
+                        oldSnapshot = oldInFlight.ResolvedItems.ToList();
+                    }
+
+                    foreach (var item in oldSnapshot)
                     {
                         item.Dispose();
                     }
@@ -870,7 +876,13 @@ public sealed partial class DownloadsBrowserViewModel(
                 var retainedItems = new HashSet<ContentGridItemViewModel>(_browseCache.Values.SelectMany(s => s.Items));
                 foreach (var inFlight in _inFlightOperations.Values)
                 {
-                    retainedItems.UnionWith(inFlight.ResolvedItems);
+                    List<ContentGridItemViewModel> inFlightSnapshot;
+                    lock (inFlight.SyncRoot)
+                    {
+                        inFlightSnapshot = inFlight.ResolvedItems.ToList();
+                    }
+
+                    retainedItems.UnionWith(inFlightSnapshot);
                 }
 
                 foreach (var item in ContentItems)
@@ -1464,7 +1476,13 @@ public sealed partial class DownloadsBrowserViewModel(
                     if (_inFlightOperations.Remove(item.PublisherId, out var inFlight))
                     {
                         inFlight.Cts.Cancel();
-                        foreach (var vm in inFlight.ResolvedItems)
+                        List<ContentGridItemViewModel> inFlightSnapshot;
+                        lock (inFlight.SyncRoot)
+                        {
+                            inFlightSnapshot = inFlight.ResolvedItems.ToList();
+                        }
+
+                        foreach (var vm in inFlightSnapshot)
                         {
                             vm.Dispose();
                         }
