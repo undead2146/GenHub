@@ -38,6 +38,17 @@ public class HttpContentDeliverer(IDownloadService downloadService, ILogger<Http
     /// <inheritdoc />
     public bool CanDeliver(ContentManifest manifest)
     {
+        if (manifest?.Files == null)
+        {
+            return false;
+        }
+
+        // Dependency-only packages (e.g. ContentBundle) have no remote files to fetch.
+        if (manifest.Files.Count == 0)
+        {
+            return true;
+        }
+
         // Can deliver if files have HTTP download URLs
         return manifest.Files.Any(f =>
             !string.IsNullOrEmpty(f.DownloadUrl) &&

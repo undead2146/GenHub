@@ -12,6 +12,7 @@ using GenHub.Core.Services.Content;
 using GenHub.Core.Services.Providers;
 using GenHub.Core.Services.Providers.VersionSchemes;
 using GenHub.Features.Content.Services;
+using GenHub.Features.Content.Services.Catalog;
 using GenHub.Features.Content.Services.Common;
 using GenHub.Features.Content.Services.CommunityOutpost;
 using GenHub.Features.Content.Services.ContentDeliverers;
@@ -177,6 +178,27 @@ public static class ContentPipelineModule
             var logger = sp.GetRequiredService<ILogger<FileBasedReconciliationAuditLog>>();
             return new FileBasedReconciliationAuditLog(appConfig.GetConfiguredDataPath(), logger);
         });
+
+        // User-followed GenHub catalogs (catalog-direct now; definition URLs via Publisher Studio later)
+        services.AddSingleton<IPublisherSubscriptionStore, PublisherSubscriptionStore>();
+
+        // Register catalog parser and version selector
+        services.AddSingleton<IPublisherCatalogParser, JsonPublisherCatalogParser>();
+        services.AddSingleton<IVersionSelector, VersionSelector>();
+        services.AddSingleton<IPublisherCatalogRefreshService, PublisherCatalogRefreshService>();
+
+        // Generic catalog pipeline: one transient discoverer instance per subscription (Configure)
+        services.AddTransient<GenericCatalogDiscoverer>();
+        services.AddTransient<GenericCatalogResolver>();
+        services.AddTransient<IContentResolver>(sp => sp.GetRequiredService<GenericCatalogResolver>());
+
+        // Register generic catalog manifest factory
+        services.AddTransient<GenericCatalogManifestFactory>();
+        services.AddTransient<IPublisherManifestFactory>(sp => sp.GetRequiredService<GenericCatalogManifestFactory>());
+
+        // Register tab provider registry and providers
+        services.AddSingleton<ITabProviderRegistry, TabProviderRegistry>();
+        services.AddSingleton<ITabProvider, CatalogTabProvider>();
     }
 
     /// <summary>

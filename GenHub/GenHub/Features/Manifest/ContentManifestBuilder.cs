@@ -306,19 +306,22 @@ public partial class ContentManifestBuilder(
         return this;
     }
 
-    /// <summary>
-    /// Adds a dependency to the manifest.
-    /// </summary>
-    /// <param name="id">Dependency ID.</param>
-    /// <param name="name">Dependency name.</param>
-    /// <param name="dependencyType">Dependency type.</param>
-    /// <param name="installBehavior">Install behavior (single source of truth for required/optional).</param>
-    /// <param name="minVersion">Minimum version.</param>
-    /// <param name="maxVersion">Maximum version.</param>
-    /// <param name="compatibleVersions">List of compatible versions.</param>
-    /// <param name="isExclusive">Is exclusive.</param>
-    /// <param name="conflictsWith">Conflicting dependency IDs.</param>
-    /// <returns>The builder instance.</returns>
+    /// <inheritdoc />
+    public IContentManifestBuilder AddDependency(
+        ManifestId id,
+        string name,
+        ContentType dependencyType,
+        DependencyInstallBehavior installBehavior,
+        string minVersion,
+        string maxVersion,
+        List<string>? compatibleVersions,
+        bool isExclusive,
+        List<ManifestId>? conflictsWith)
+    {
+        return AddDependency(id, name, dependencyType, installBehavior, minVersion, maxVersion, compatibleVersions, isExclusive, conflictsWith, null);
+    }
+
+    /// <inheritdoc />
     public IContentManifestBuilder AddDependency(
         ManifestId id,
         string name,
@@ -328,7 +331,8 @@ public partial class ContentManifestBuilder(
         string maxVersion = "",
         List<string>? compatibleVersions = null,
         bool isExclusive = false,
-        List<ManifestId>? conflictsWith = null)
+        List<ManifestId>? conflictsWith = null,
+        List<GameType>? compatibleGameTypes = null)
     {
         var dependency = new ContentDependency
         {
@@ -341,6 +345,7 @@ public partial class ContentManifestBuilder(
             IsExclusive = isExclusive,
             ConflictsWith = conflictsWith ?? [],
             InstallBehavior = installBehavior,
+            CompatibleGameTypes = compatibleGameTypes ?? [],
         };
         _manifest.Dependencies.Add(dependency);
         logger.LogDebug("Added dependency: {DependencyId} (InstallBehavior: {InstallBehavior}, Exclusive: {IsExclusive})", id, installBehavior, isExclusive);
@@ -742,6 +747,33 @@ public partial class ContentManifestBuilder(
 
         _manifest.Files.Add(manifestFile);
         logger.LogDebug("Added patch for {TargetFile} with source {PatchFile}", targetRelativePath, patchSourceFile);
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IContentManifestBuilder WithEntryPoint(string entryPoint)
+    {
+        _manifest.EntryPoint = entryPoint;
+        logger.LogDebug("Set manifest entry point to {EntryPoint}", entryPoint);
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IContentManifestBuilder WithId(ManifestId id)
+    {
+        _manifest.Id = id;
+        _publisherId = null;
+        _contentName = null;
+        _manifestVersion = null;
+        logger.LogDebug("Explicitly set manifest ID: {ManifestId}", id);
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IContentManifestBuilder WithName(string name)
+    {
+        _manifest.Name = name;
+        logger.LogDebug("Set manifest display name: {Name}", name);
         return this;
     }
 
