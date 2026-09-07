@@ -1025,8 +1025,8 @@ public partial class ContentDetailViewModel(
         {
             var match = Releases.FirstOrDefault(r =>
                 string.Equals(r.DownloadedManifestId, value.ManifestId, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(r.Name, value.Name, StringComparison.OrdinalIgnoreCase) ||
-                (!string.IsNullOrEmpty(value.Name) && r.Name != null && r.Name.Contains(value.Name, StringComparison.OrdinalIgnoreCase)));
+                string.Equals(r.Name, value.Name, StringComparison.OrdinalIgnoreCase))
+                ?? Releases.FirstOrDefault(r => !string.IsNullOrEmpty(value.Name) && r.Name != null && r.Name.Contains(value.Name, StringComparison.OrdinalIgnoreCase));
             if (match != null && !ReferenceEquals(SelectedDownloadableItem, match))
             {
                 SelectDownloadableItem(match);
