@@ -23,7 +23,7 @@ public static partial class GameVersionHelper
         }
 
         // Try extracting an 8-digit date pattern first (e.g., "2025-11-07", "weekly-2025-11-21", "1.20260116")
-        var dateMatch = Regex.Match(version, @"\b(\d{4})[-_.]?(\\d{2})[-_.]?(\\d{2})\b", RegexOptions.None, TimeSpan.FromSeconds(1));
+        var dateMatch = EightDigitDateRegex().Match(version);
         if (dateMatch.Success && int.TryParse($"{dateMatch.Groups[1].Value}{dateMatch.Groups[2].Value}{dateMatch.Groups[3].Value}", NumberStyles.Integer, CultureInfo.InvariantCulture, out var dateVal))
         {
             return dateVal;
@@ -228,6 +228,32 @@ public static partial class GameVersionHelper
 
         return result;
     }
+
+    /// <summary>
+    /// Strips a leading 'v' or 'V' character from a version or tag string if present.
+    /// </summary>
+    /// <param name="tag">The version or tag string.</param>
+    /// <returns>The string without the leading version prefix.</returns>
+    public static string StripVersionPrefix(string? tag)
+    {
+        if (string.IsNullOrWhiteSpace(tag))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = tag.Trim();
+        if ((trimmed.StartsWith('v') || trimmed.StartsWith('V')) &&
+            trimmed.Length > 1 &&
+            char.IsDigit(trimmed[1]))
+        {
+            return trimmed[1..];
+        }
+
+        return trimmed;
+    }
+
+    [GeneratedRegex(@"\b(\d{4})[-_.]?(\d{2})[-_.]?(\d{2})\b", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex EightDigitDateRegex();
 
     [GeneratedRegex(@"\D")]
     private static partial Regex NonDigitRegex();

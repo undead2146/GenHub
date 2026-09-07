@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Providers;
@@ -159,7 +160,7 @@ public class SuperHackersProvider(
                                     Description = string.IsNullOrEmpty(latestRelease.Body)
                                         ? $"{gName} game client from TheSuperHackers."
                                         : latestRelease.Body,
-                                    Version = tag.TrimStart('v', 'V'),
+                                    Version = GameVersionHelper.StripVersionPrefix(tag),
                                     AuthorName = !string.IsNullOrWhiteSpace(latestRelease.Author) ? latestRelease.Author : SuperHackersConstants.PublisherName,
                                     ContentType = ContentType.GameClient,
                                     TargetGame = gType,

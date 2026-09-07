@@ -787,6 +787,42 @@ public class DownloadsBrowserViewModelTests
         Assert.True(unrenderedItem.IsDisposed, "Orphan items not in ContentItems or cache MUST be disposed.");
     }
 
+    /// <summary>
+    /// Verifies that when a custom query is superseded or cancelled mid-creation,
+    /// orphan card VMs created during the fetch are disposed by CleanupInFlight.
+    /// </summary>
+    [Fact]
+    public void CleanupInFlight_DisposesOrphanVmsWhenCustomQueryIsSuperseded()
+    {
+        // Arrange
+        using var viewModel = CreateViewModel();
+
+        var orphanItem1 = new ContentGridItemViewModel(
+            new ContentSearchResult { Id = "orphan1", Name = "Orphan Mod 1" },
+            new Mock<IContentStateService>().Object,
+            new Mock<ILogger<ContentGridItemViewModel>>().Object);
+
+        var orphanItem2 = new ContentGridItemViewModel(
+            new ContentSearchResult { Id = "orphan2", Name = "Orphan Mod 2" },
+            new Mock<IContentStateService>().Object,
+            new Mock<ILogger<ContentGridItemViewModel>>().Object);
+
+        using var cts = new CancellationTokenSource();
+        var customQueryOp = new DownloadsBrowserViewModel.PublisherInFlightOperation(
+            "custom-search-publisher",
+            new ContentSearchQuery { SearchTerm = "test search" },
+            cts);
+        customQueryOp.ResolvedItems.Add(orphanItem1);
+        customQueryOp.ResolvedItems.Add(orphanItem2);
+
+        // Act: search cancelled or superseded, items never made it to ContentItems
+        viewModel.CleanupInFlight("custom-search-publisher", customQueryOp);
+
+        // Assert
+        Assert.True(orphanItem1.IsDisposed, "Orphan VMs from superseded custom query must be disposed.");
+        Assert.True(orphanItem2.IsDisposed, "Orphan VMs from superseded custom query must be disposed.");
+    }
+
     private static DownloadsBrowserViewModel CreateViewModel()
     {
         var subscriptionStore = new Mock<IPublisherSubscriptionStore>();

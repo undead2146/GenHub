@@ -25,7 +25,10 @@ public sealed class ContentDownloadCoordinator(
 {
     private sealed class InFlightDownload
     {
-        public Task<OperationResult<ContentManifest>> Task { get; set; } = null!;
+        public TaskCompletionSource<OperationResult<ContentManifest>> Tcs { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<OperationResult<ContentManifest>> Task => Tcs.Task;
 
         public Action<ContentAcquisitionProgress>? ProgressCallbacks { get; set; }
 
@@ -81,7 +84,7 @@ public sealed class ContentDownloadCoordinator(
                 callbacks?.Invoke(p);
             });
 
-            inFlight.Task = ExecuteDownloadAsync(searchResult, key, multiplexedProgress, cancellationToken);
+            _ = StartDownloadTaskAsync(inFlight, searchResult, key, multiplexedProgress, cancellationToken);
         }
 
         try
@@ -97,6 +100,28 @@ public sealed class ContentDownloadCoordinator(
                     inFlight.ProgressCallbacks -= callback;
                 }
             }
+        }
+    }
+
+    private async Task StartDownloadTaskAsync(
+        InFlightDownload inFlight,
+        ContentSearchResult searchResult,
+        string key,
+        IProgress<ContentAcquisitionProgress> progress,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await ExecuteDownloadAsync(searchResult, key, progress, cancellationToken);
+            inFlight.Tcs.TrySetResult(result);
+        }
+        catch (OperationCanceledException oce)
+        {
+            inFlight.Tcs.TrySetCanceled(oce.CancellationToken);
+        }
+        catch (Exception ex)
+        {
+            inFlight.Tcs.TrySetException(ex);
         }
     }
 

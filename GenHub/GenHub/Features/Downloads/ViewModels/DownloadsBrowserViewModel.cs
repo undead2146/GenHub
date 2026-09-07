@@ -884,6 +884,12 @@ public sealed partial class DownloadsBrowserViewModel(
                     return false;
                 }
 
+                if (_activeRequestId != requestId || SelectedPublisher?.PublisherId != publisherId)
+                {
+                    CleanupInFlight(publisherId, inFlightOp);
+                    return false;
+                }
+
                 CommitBrowseResultsToCache(publisherId, query, result.Data.HasMoreItems, isCustomQuery, append, inFlightOp, newVms);
 
                 RunOnUi(() =>
@@ -997,6 +1003,7 @@ public sealed partial class DownloadsBrowserViewModel(
             _searchCts?.Cancel();
             _searchCts = CancellationTokenSource.CreateLinkedTokenSource(_vmCts.Token);
             opCts = _searchCts;
+            inFlightOp = new PublisherInFlightOperation(publisherId, query, opCts);
         }
 
         return (opCts, inFlightOp);
@@ -1090,6 +1097,12 @@ public sealed partial class DownloadsBrowserViewModel(
         PublisherInFlightOperation? inFlightOp,
         List<ContentGridItemViewModel> newVms)
     {
+        if (inFlightOp != null)
+        {
+            inFlightOp.IsCompleted = true;
+            inFlightOp.HasMoreItems = hasMoreItems;
+        }
+
         if (isCustomQuery)
         {
             return;
@@ -1114,12 +1127,7 @@ public sealed partial class DownloadsBrowserViewModel(
                 };
             }
 
-            if (inFlightOp != null)
-            {
-                inFlightOp.IsCompleted = true;
-                inFlightOp.HasMoreItems = hasMoreItems;
-                _inFlightOperations.Remove(publisherId);
-            }
+            _inFlightOperations.Remove(publisherId);
         }
     }
 

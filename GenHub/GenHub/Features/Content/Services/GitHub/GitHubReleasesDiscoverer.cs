@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GitHub;
@@ -116,23 +117,7 @@ public partial class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILo
             });
     }
 
-    private static string StripVersionPrefix(string? tag)
-    {
-        if (string.IsNullOrWhiteSpace(tag))
-        {
-            return string.Empty;
-        }
-
-        var trimmed = tag.Trim();
-        if ((trimmed.StartsWith('v') || trimmed.StartsWith('V')) &&
-            trimmed.Length > 1 &&
-            char.IsDigit(trimmed[1]))
-        {
-            return trimmed[1..];
-        }
-
-        return trimmed;
-    }
+    private static string StripVersionPrefix(string? tag) => GameVersionHelper.StripVersionPrefix(tag);
 
     private static bool IsPureVersionString(string? text, string? tagName)
     {
@@ -256,7 +241,7 @@ public partial class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILo
     /// </summary>
     /// <param name="request">Variant card request parameters.</param>
     /// <returns>A content search result for one variant.</returns>
-    private ContentSearchResult BuildSuperHackersVariantCard(SuperHackersCardRequest request)
+    private static ContentSearchResult BuildSuperHackersVariantCard(SuperHackersCardRequest request)
     {
         var suffix = request.GameType == GameType.Generals
             ? SuperHackersConstants.GeneralsSuffix
@@ -334,6 +319,75 @@ public partial class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILo
         return result;
     }
 
+    private static bool MatchesSearchTerm(
+        string term,
+        GitHubRelease release,
+        string repo,
+        string cardName,
+        bool isSuperHackersGameClient)
+    {
+        if (release.Name?.Contains(term, StringComparison.OrdinalIgnoreCase) == true)
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(release.TagName) && release.TagName.Contains(term, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (repo.Contains(term, StringComparison.OrdinalIgnoreCase) || cardName.Contains(term, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return isSuperHackersGameClient && (
+            SuperHackersConstants.GeneralsDisplayName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+            SuperHackersConstants.ZeroHourDisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string ResolveIconUrl(bool isSuperHackers, GitHubRelease release, string owner)
+    {
+        if (isSuperHackers)
+        {
+            return PublisherInfoConstants.TheSuperHackers.LogoSource;
+        }
+
+        var author = !string.IsNullOrWhiteSpace(release.Author) ? release.Author : owner;
+        return $"https://github.com/{author}.png";
+    }
+
+    private static ContentSearchResult BuildStandardSearchResult(StandardSearchResultRequest request)
+    {
+        return new ContentSearchResult
+        {
+            Id = $"github.{request.Owner}.{request.Repo}.{request.Release.TagName}",
+            Name = request.BaseName,
+            Description = string.IsNullOrEmpty(request.Release.Body)
+                ? "GitHub release - full details available after resolution"
+                : ReleaseDescriptionHelper.ToFormattedText(request.Release.Body),
+            Version = StripVersionPrefix(request.Release.TagName),
+            AuthorName = request.Release.Author,
+            ContentType = request.ContentType,
+            TargetGame = request.GameType,
+            IsInferred = request.IsTypeInferred || request.IsGameInferred,
+            ProviderName = request.ProviderName,
+            RequiresResolution = true,
+            ResolverId = ContentSourceNames.GitHubResolverId,
+            SourceUrl = request.Release.HtmlUrl,
+            IconUrl = request.IconUrl,
+            LastUpdated = request.Release.PublishedAt?.DateTime ?? request.Release.CreatedAt.DateTime,
+            DownloadSize = request.TotalSize,
+            ResolverMetadata =
+            {
+                [GitHubConstants.OwnerMetadataKey] = request.Owner,
+                [GitHubConstants.RepoMetadataKey] = request.Repo,
+                [GitHubConstants.TagMetadataKey] = request.Release.TagName,
+                ["VariantCount"] = request.VariantCount.ToString(),
+            },
+        };
+    }
+
     private async Task<IEnumerable<GitHubRelease>> FetchReleasesForRepoAsync(
         string owner,
         string repo,
@@ -403,74 +457,5 @@ public partial class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILo
 
             results.Add(BuildStandardSearchResult(new StandardSearchResultRequest(release, owner, repo, cardName, contentType, gameType, isTypeInferred, isGameInferred, totalSize, variantCount, providerName, iconUrl)));
         }
-    }
-
-    private static bool MatchesSearchTerm(
-        string term,
-        GitHubRelease release,
-        string repo,
-        string cardName,
-        bool isSuperHackersGameClient)
-    {
-        if (release.Name?.Contains(term, StringComparison.OrdinalIgnoreCase) == true)
-        {
-            return true;
-        }
-
-        if (!string.IsNullOrWhiteSpace(release.TagName) && release.TagName.Contains(term, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (repo.Contains(term, StringComparison.OrdinalIgnoreCase) || cardName.Contains(term, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return isSuperHackersGameClient && (
-            SuperHackersConstants.GeneralsDisplayName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-            SuperHackersConstants.ZeroHourDisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static string ResolveIconUrl(bool isSuperHackers, GitHubRelease release, string owner)
-    {
-        if (isSuperHackers)
-        {
-            return PublisherInfoConstants.TheSuperHackers.LogoSource;
-        }
-
-        var author = !string.IsNullOrWhiteSpace(release.Author) ? release.Author : owner;
-        return $"https://github.com/{author}.png";
-    }
-
-    private ContentSearchResult BuildStandardSearchResult(StandardSearchResultRequest request)
-    {
-        return new ContentSearchResult
-        {
-            Id = $"github.{request.Owner}.{request.Repo}.{request.Release.TagName}",
-            Name = request.BaseName,
-            Description = string.IsNullOrEmpty(request.Release.Body)
-                ? "GitHub release - full details available after resolution"
-                : ReleaseDescriptionHelper.ToFormattedText(request.Release.Body),
-            Version = StripVersionPrefix(request.Release.TagName),
-            AuthorName = request.Release.Author,
-            ContentType = request.ContentType,
-            TargetGame = request.GameType,
-            IsInferred = request.IsTypeInferred || request.IsGameInferred,
-            ProviderName = request.ProviderName,
-            RequiresResolution = true,
-            ResolverId = ContentSourceNames.GitHubResolverId,
-            SourceUrl = request.Release.HtmlUrl,
-            IconUrl = request.IconUrl,
-            LastUpdated = request.Release.PublishedAt?.DateTime ?? request.Release.CreatedAt.DateTime,
-            DownloadSize = request.TotalSize,
-            ResolverMetadata =
-            {
-                [GitHubConstants.OwnerMetadataKey] = request.Owner,
-                [GitHubConstants.RepoMetadataKey] = request.Repo,
-                [GitHubConstants.TagMetadataKey] = request.Release.TagName,
-                ["VariantCount"] = request.VariantCount.ToString(),
-            },
-        };
     }
 }

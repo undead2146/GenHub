@@ -77,4 +77,35 @@ public class GameVersionHelperTests
     {
         Assert.Equal(expected, GameVersionHelper.GetGeneralsOnlineManifestIdComponent(version));
     }
+
+    /// <summary>
+    /// Verifies that 8-digit date patterns (e.g. 2025-11-07, weekly-2025-11-21, 1.20260116) are correctly parsed.
+    /// </summary>
+    /// <param name="version">The version string.</param>
+    /// <param name="expected">The expected integer date representation.</param>
+    [Theory]
+    [InlineData("2025-11-07", 20251107)]
+    [InlineData("weekly-2025-11-21", 20251121)]
+    [InlineData("1.20260116", 20260116)]
+    public void ExtractVersionFromVersionString_ParsesEightDigitDate(string version, int expected)
+    {
+        Assert.Equal(expected, GameVersionHelper.ExtractVersionFromVersionString(version));
+    }
+
+    /// <summary>
+    /// Verifies that StripVersionPrefix removes a single leading 'v' or 'V' character without altering the remainder.
+    /// </summary>
+    /// <param name="tag">The version or tag string.</param>
+    /// <param name="expected">The expected stripped string.</param>
+    [Theory]
+    [InlineData("v1.0.0", "1.0.0")]
+    [InlineData("V2.1", "2.1")]
+    [InlineData("1.0.0", "1.0.0")]
+    [InlineData("vv1.0", "v1.0")]
+    [InlineData("", "")]
+    [InlineData(null, "")]
+    public void StripVersionPrefix_RemovesLeadingVPrefix(string? tag, string expected)
+    {
+        Assert.Equal(expected, GameVersionHelper.StripVersionPrefix(tag));
+    }
 }
