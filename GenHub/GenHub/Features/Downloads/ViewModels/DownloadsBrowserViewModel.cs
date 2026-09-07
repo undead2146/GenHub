@@ -884,13 +884,13 @@ public sealed partial class DownloadsBrowserViewModel(
                     return false;
                 }
 
-                if (_activeRequestId != requestId || SelectedPublisher?.PublisherId != publisherId)
+                CommitBrowseResultsToCache(publisherId, query, result.Data.HasMoreItems, isCustomQuery, append, inFlightOp, newVms);
+
+                if (isCustomQuery && _activeRequestId != requestId)
                 {
                     CleanupInFlight(publisherId, inFlightOp);
                     return false;
                 }
-
-                CommitBrowseResultsToCache(publisherId, query, result.Data.HasMoreItems, isCustomQuery, append, inFlightOp, newVms);
 
                 RunOnUi(() =>
                 {
