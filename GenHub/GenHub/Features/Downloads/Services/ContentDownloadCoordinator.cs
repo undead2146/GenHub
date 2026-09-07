@@ -32,7 +32,7 @@ public sealed class ContentDownloadCoordinator(
 
         public CancellationTokenSource InternalCts { get; } = new();
 
-        public int WaiterCount;
+        public int WaiterCount { get; set; }
 
         public Action<ContentAcquisitionProgress>? ProgressCallbacks { get; set; }
 

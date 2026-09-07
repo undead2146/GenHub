@@ -1477,6 +1477,7 @@ public sealed partial class DownloadsBrowserViewModel(
                     {
                         await _searchCts.CancelAsync();
                     }
+
                     foreach (var contentItem in ContentItems)
                     {
                         contentItem.Dispose();

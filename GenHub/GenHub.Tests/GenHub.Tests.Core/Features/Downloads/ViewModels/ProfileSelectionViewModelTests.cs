@@ -9,7 +9,6 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
-using GenHub.Core.Models.Results.ProfileContent;
 using GenHub.Features.Downloads.ViewModels;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -91,7 +90,7 @@ public sealed class ProfileSelectionViewModelTests
 
         profileContentMock
             .Setup(x => x.AddContentToProfileAsync("zh-profile-1", "1.0.test.manifest", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(ProfileContentResult.SuccessResult());
+            .ReturnsAsync(AddToProfileResult.CreateSuccess("1.0.test.manifest", "Test Content"));
 
         var vm = new ProfileSelectionViewModel(
             NullLogger<ProfileSelectionViewModel>.Instance,
@@ -141,7 +140,7 @@ public sealed class ProfileSelectionViewModelTests
 
         profileContentMock
             .Setup(x => x.AddContentToProfileAsync("zh-profile-1", It.Is<IReadOnlyList<string>>(l => l.Count == 2), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(ProfileContentResult.SuccessResult());
+            .ReturnsAsync(AddToProfileResult.CreateSuccess("1.0.test.manifest", "Test Content"));
 
         var vm = new ProfileSelectionViewModel(
             NullLogger<ProfileSelectionViewModel>.Instance,
@@ -188,7 +187,7 @@ public sealed class ProfileSelectionViewModelTests
 
         profileContentMock
             .Setup(x => x.AddContentToProfileAsync("zh-profile-1", "1.0.test.manifest", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(ProfileContentResult.FailureResult("Incompatible version conflict"));
+            .ReturnsAsync(AddToProfileResult.CreateFailure("Incompatible version conflict"));
 
         var vm = new ProfileSelectionViewModel(
             NullLogger<ProfileSelectionViewModel>.Instance,

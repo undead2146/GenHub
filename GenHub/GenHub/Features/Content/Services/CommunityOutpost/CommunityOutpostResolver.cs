@@ -530,7 +530,12 @@ public class CommunityOutpostResolver(
         var dashIndex = contentName.LastIndexOf('-');
         if (dashIndex > 0 && dashIndex < contentName.Length - 1)
         {
-            return contentName[(dashIndex + 1)..];
+            var candidate = contentName[(dashIndex + 1)..];
+            if (metadata.Variants is { Count: > 0 } &&
+                metadata.Variants.Any(v => string.Equals(v.Id, candidate, StringComparison.OrdinalIgnoreCase)))
+            {
+                return candidate;
+            }
         }
 
         return null;

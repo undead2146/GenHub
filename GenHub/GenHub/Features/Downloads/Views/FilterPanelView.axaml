@@ -200,11 +200,11 @@
                         <Button Content="Apply Filters"
                                 Command="{Binding ApplyFiltersActionCommand}"
                                 MinWidth="120"
-                                Classes="primary" />
+                                Classes="action-primary" />
                         <Button Content="Clear Filters"
                                 Command="{Binding ClearFiltersActionCommand}"
                                 MinWidth="120"
-                                Classes="secondary" />
+                                Classes="action-secondary" />
                     </StackPanel>
                 </StackPanel>
             </DataTemplate>
