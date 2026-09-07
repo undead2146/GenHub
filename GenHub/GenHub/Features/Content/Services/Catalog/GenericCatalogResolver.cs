@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using System.Threading;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Content;
@@ -407,7 +407,7 @@ public partial class GenericCatalogResolver(
             return (string.Empty, string.Empty, true, true, null);
         }
 
-        var trimmed = OperatorWhitespaceRegex().Replace(constraint.Trim(), "");
+        var trimmed = OperatorWhitespaceRegex().Replace(constraint.Trim(), "$1");
         if (trimmed.Equals("latest", StringComparison.OrdinalIgnoreCase))
         {
             return (string.Empty, string.Empty, true, true, null);

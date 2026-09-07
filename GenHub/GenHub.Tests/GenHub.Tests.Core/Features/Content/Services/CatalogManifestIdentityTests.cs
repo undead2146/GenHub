@@ -228,6 +228,9 @@ public sealed class CatalogManifestIdentityTests
     /// Tests that lone constraint tokens are only accepted as exact versions if parsable and valid.
     /// Prefixes like 'v' are stripped and normalized, while operators or arbitrary text are rejected.
     /// </summary>
+    /// <param name="token">The token to evaluate.</param>
+    /// <param name="expectedSuccess">Expected parse success flag.</param>
+    /// <param name="expectedVersion">Expected clean version output.</param>
     [Theory]
     [InlineData("1.04", true, "1.04")]
     [InlineData("=1.04", true, "1.04")]
@@ -255,6 +258,9 @@ public sealed class CatalogManifestIdentityTests
     /// <summary>
     /// Tests that CompareVersions compares semantic and numeric versions correctly.
     /// </summary>
+    /// <param name="v1">The first version string.</param>
+    /// <param name="v2">The second version string.</param>
+    /// <param name="expectedSign">Expected comparison sign (-1, 0, or 1).</param>
     [Theory]
     [InlineData("1.10", "1.9", 1)]
     [InlineData("1.9", "1.10", -1)]
