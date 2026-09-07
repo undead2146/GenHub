@@ -51,7 +51,7 @@ public sealed class ProfileSelectionViewModelTests
 
         manifestPoolMock
             .Setup(x => x.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(OperationResult<IReadOnlyList<IContentManifest>>.CreateSuccess([]));
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([]));
 
         var vm = new ProfileSelectionViewModel(
             NullLogger<ProfileSelectionViewModel>.Instance,
@@ -95,7 +95,7 @@ public sealed class ProfileSelectionViewModelTests
 
         manifestPoolMock
             .Setup(x => x.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(OperationResult<IReadOnlyList<IContentManifest>>.CreateSuccess([]));
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([]));
 
         profileContentMock
             .Setup(x => x.AddContentToProfileAsync("zh-profile-1", "1.0.test.manifest", It.IsAny<CancellationToken>()))
@@ -147,7 +147,7 @@ public sealed class ProfileSelectionViewModelTests
 
         manifestPoolMock
             .Setup(x => x.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(OperationResult<IReadOnlyList<IContentManifest>>.CreateSuccess([]));
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([]));
 
         var bundleIds = new List<string> { "bundle.part.1", "bundle.part.2" };
 
@@ -200,7 +200,7 @@ public sealed class ProfileSelectionViewModelTests
 
         manifestPoolMock
             .Setup(x => x.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(OperationResult<IReadOnlyList<IContentManifest>>.CreateSuccess([]));
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([]));
 
         profileContentMock
             .Setup(x => x.AddContentToProfileAsync("zh-profile-1", "1.0.test.manifest", It.IsAny<CancellationToken>()))
