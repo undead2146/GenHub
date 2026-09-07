@@ -413,8 +413,10 @@ sequenceDiagram
     VM->>VM: Set IsDownloading=true
     VM->>DBVM: DownloadContentCommand
 
-    DBVM->>Resolver: ResolveAsync(SearchResult)
-    Resolver-->>DBVM: ContentManifest
+    DBVM->>CO: ResolveManifestAsync(SearchResult)
+    CO->>Resolver: ResolveAsync(SearchResult)
+    Resolver-->>CO: ContentManifest
+    CO-->>DBVM: ContentManifest
 
     DBVM->>DBVM: Create temp directory
     DBVM->>DBVM: Download files to temp
@@ -436,12 +438,13 @@ sequenceDiagram
 #### 1. Resolution Stage
 
 ```csharp
-// Get the appropriate resolver for the publisher
-var resolver = resolvers.FirstOrDefault(r =>
-    r.ResolverId.Equals(item.ProviderName, StringComparison.OrdinalIgnoreCase));
+// Resolve the search result into a full manifest via ContentOrchestrator
+var manifestResult = await orchestrator.ResolveManifestAsync(item.SearchResult, cancellationToken);
 
-// Resolve the search result into a full manifest
-var manifestResult = await resolver.ResolveAsync(item.SearchResult, cancellationToken);
+// Or query the pipeline resolver directly
+var resolver = resolvers.FirstOrDefault(r =>
+    r.CanResolve(item.SearchResult) ||
+    string.Equals(r.ResolverId, item.SearchResult.ResolverId, StringComparison.OrdinalIgnoreCase));
 ```
 
 #### 2. Download Stage
@@ -455,6 +458,7 @@ var remoteFiles = manifest.Files
 // Download each file with progress reporting
 foreach (var file in remoteFiles)
 {
+    var targetPath = Path.Combine(tempDirectory, file.RelativePath);
     var downloadResult = await downloadService.DownloadFileAsync(
         new Uri(file.SourcePath),
         targetPath,
@@ -781,8 +785,8 @@ _filterViewModels[PublisherTypeConstants.YourPublisher] =
     new YourPublisherFilterViewModel();
 
 // In GetDiscovererForPublisher()
-case PublisherTypeConstants.YourPublisher =>
-    contentDiscoverers.OfType<YourPublisherDiscoverer>().FirstOrDefault(),
+case PublisherTypeConstants.YourPublisher:
+    return contentDiscoverers.OfType<YourPublisherDiscoverer>().FirstOrDefault();
 ```
 
 #### 6. Register Services
@@ -1064,9 +1068,10 @@ var result = await discoverer.DiscoverAsync(query, cancellationToken);
 ### Content Resolution
 
 ```csharp
-// Resolve search result into manifest
+// Resolve search result into manifest via orchestrator or matching resolver
 var resolver = resolvers.FirstOrDefault(r =>
-    r.ResolverId.Equals(item.ProviderName, StringComparison.OrdinalIgnoreCase));
+    r.CanResolve(item.SearchResult) ||
+    string.Equals(r.ResolverId, item.SearchResult.ResolverId, StringComparison.OrdinalIgnoreCase));
 
 var manifestResult = await resolver.ResolveAsync(item.SearchResult, cancellationToken);
 

@@ -269,6 +269,7 @@ sequenceDiagram
     participant UI as ContentCardView
     participant VM as ContentGridItemViewModel
     participant BVM as DownloadsBrowserViewModel
+    participant CO as ContentOrchestrator
     participant CSS as ContentStateService
     participant R as Resolver
     participant MIG as ManifestIdGenerator
@@ -283,8 +284,9 @@ sequenceDiagram
     UI->>VM: DownloadCommand / UpdateCommand
     VM->>BVM: DownloadContentAsync(item)
 
-    Note over BVM: Get resolver for publisher
-    BVM->>R: ResolveAsync(searchResult)
+    Note over BVM: Resolve manifest via Orchestrator
+    BVM->>CO: ResolveManifestAsync(searchResult)
+    CO->>R: ResolveAsync(searchResult)
 
     alt ModDB Content
         R->>R: Parse page (Playwright + AngleSharp)
@@ -296,22 +298,17 @@ sequenceDiagram
     MIG-->>R: Manifest ID
 
     R->>MF: CreateManifestAsync(details)
-    MF-->>BVM: ContentManifest
+    MF-->>R: ContentManifest
+    R-->>CO: ContentManifest
+    CO-->>BVM: ContentManifest
 
     Note over BVM: Download files to temp
     BVM->>DS: DownloadFileAsync(url, tempPath)
 
-    alt Archive File
-        BVM->>BVM: Extract all files
-        loop Each file
-            BVM->>CAS: StoreContentAsync(file, hash)
-        end
-    else Single File
-        BVM->>CAS: StoreContentAsync(file, hash)
-    end
-
-    Note over BVM: Store manifest in pool
+    Note over BVM: Store manifest in pool (pool delegates to CAS)
     BVM->>Pool: AddManifestAsync(manifest, tempDir)
+    Pool->>CAS: StoreContentAsync for each file (via ContentStorageService)
+    CAS-->>Pool: ContentAddress references
     Pool-->>BVM: Success
 
     Note over BVM: Update item state

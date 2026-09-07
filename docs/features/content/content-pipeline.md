@@ -42,10 +42,10 @@ flowchart TB
     BP --> D
     D --> P
     P --> R
-    R --> DEL
-    DEL --> MF
-    MF --> CAS
-    MF --> MP
+    R --> MF
+    MF --> DEL
+    DEL --> CAS
+    DEL --> MP
 ```
 
 ## Tier 1: ContentOrchestrator

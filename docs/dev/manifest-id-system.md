@@ -359,9 +359,9 @@ The Manifest ID system is deeply integrated with the ContentState tracking syste
 
 ContentState uses manifest IDs as the primary key for tracking content across different publishers. The system supports:
 
-- **Installed state**: Content that has been downloaded and installed
-- **UpdateAvailable state**: A newer version of existing content is available
-- **Available state**: Content that can be installed but is not currently installed
+- **Downloaded state** (`ContentState.Downloaded`): Content that has been acquired and stored in the manifest pool
+- **UpdateAvailable state** (`ContentState.UpdateAvailable`): A newer version of existing content is available
+- **NotDownloaded state** (`ContentState.NotDownloaded`): Content that is discovered or available in a publisher catalog but not currently downloaded
 
 ### Prefix Matching for Update Detection
 
@@ -369,8 +369,8 @@ The system uses prefix matching to detect updates for content with date-based ve
 
 ```csharp
 // Example: Detecting updates for ModDB content
-// Installed: 1.20250110.moddbwestwood.addon.supercolorsnewcolors
-// Available:  1.20250120.moddbwestwood.addon.supercolorsnewcolors
+// Downloaded (current): 1.20250110.moddbwestwood.addon.supercolorsnewcolors
+// Discovered (newer):   1.20250120.moddbwestwood.addon.supercolorsnewcolors
 
 // The system compares:
 // - Schema version (1) - must match

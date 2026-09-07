@@ -384,10 +384,17 @@ To create a parser for a new provider (e.g., AODMaps):
        public string ParserId => "AODMaps";
 
        public bool CanParse(string url) =>
-           url.Contains("aodmaps.com", StringComparison.OrdinalIgnoreCase);
+           Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+           uri.Scheme == Uri.UriSchemeHttps &&
+           string.Equals(uri.Host, "aodmaps.com", StringComparison.OrdinalIgnoreCase);
 
        public async Task<ParsedWebPage> ParseAsync(string url, CancellationToken cancellationToken = default)
        {
+           if (!CanParse(url))
+           {
+               throw new ArgumentException("Invalid or untrusted AODMaps URL", nameof(url));
+           }
+
            var document = await playwrightService.FetchAndParseAsync(url, cancellationToken);
            // Parse and return ParsedWebPage
        }
