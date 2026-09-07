@@ -1337,7 +1337,9 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
             }
             else
             {
-                // Raw uncompressed copy
+                // Raw uncompressed copy. Modern SIM headers do not provide per-entry uncompressed lengths,
+                // so stored (uncompressed) entries copy to EOF under the format invariant that any stored payload
+                // is the final or sole file in the archive.
                 var rRaw = 0;
                 while ((rRaw = stream.Read(copyBuffer, 0, copyBuffer.Length)) > 0)
                 {

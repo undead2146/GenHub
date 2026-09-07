@@ -32,7 +32,6 @@ public sealed partial class ContentStateService(
     ILogger<ContentStateService> logger) : IContentStateService
 {
     private const string GitHubPublisher = "github";
-    private const string GitHubTopicsPublisher = "githubtopics";
     private const string GitHubTopicsNormalized = "githubtopic";
     private const string UnknownSegment = "unknown";
     private const string FileSchemePrefix = "file:";
@@ -243,10 +242,8 @@ public sealed partial class ContentStateService(
         // Allow cross-alias between "github" and "githubtopics" (normalized to "githubtopic" due to trailing 's' stripping)
         var isGitHub1 = string.Equals(p1, GitHubPublisher, StringComparison.OrdinalIgnoreCase);
         var isGitHub2 = string.Equals(p2, GitHubPublisher, StringComparison.OrdinalIgnoreCase);
-        var isGitHubTopics1 = string.Equals(p1, GitHubTopicsNormalized, StringComparison.OrdinalIgnoreCase) ||
-                              string.Equals(p1Clean, GitHubTopicsPublisher, StringComparison.OrdinalIgnoreCase);
-        var isGitHubTopics2 = string.Equals(p2, GitHubTopicsNormalized, StringComparison.OrdinalIgnoreCase) ||
-                              string.Equals(p2Clean, GitHubTopicsPublisher, StringComparison.OrdinalIgnoreCase);
+        var isGitHubTopics1 = string.Equals(p1, GitHubTopicsNormalized, StringComparison.OrdinalIgnoreCase);
+        var isGitHubTopics2 = string.Equals(p2, GitHubTopicsNormalized, StringComparison.OrdinalIgnoreCase);
 
         if ((isGitHub1 && isGitHubTopics2) || (isGitHubTopics1 && isGitHub2))
         {
