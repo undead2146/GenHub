@@ -18,19 +18,25 @@ using Microsoft.Extensions.Logging;
 namespace GenHub.Features.Content.Services.Catalog;
 
 /// <summary>
-/// Resolves GenHub-schema catalog items into <see cref="ContentManifest"/>s for install.
+/// Resolves a ContentSearchResult (from GenericCatalogDiscoverer) into a full ContentManifest.
 /// </summary>
-/// <remarks>
-/// Paired with <see cref="GenericCatalogDiscoverer"/> for any subscribed catalog — the modular
-/// path that avoids per-publisher resolvers. Uses <see cref="IContentManifestBuilder"/> for
-/// download, archive extraction, and CAS registration.
-/// </remarks>
 public class GenericCatalogResolver(
     ILogger<GenericCatalogResolver> logger,
     Func<IContentManifestBuilder> manifestBuilderFactory) : IContentResolver
 {
     /// <inheritdoc />
     public string ResolverId => CatalogConstants.GenericCatalogResolverId;
+
+    /// <summary>
+    /// Returns true if this resolver can resolve the given search result.
+    /// </summary>
+    /// <param name="searchResult">The content search result to check.</param>
+    /// <returns>True if the resolver can resolve the item; otherwise, false.</returns>
+    public bool CanResolve(ContentSearchResult searchResult)
+    {
+        ArgumentNullException.ThrowIfNull(searchResult);
+        return string.Equals(searchResult.ResolverId, ResolverId, StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <inheritdoc />
     public async Task<OperationResult<ContentManifest>> ResolveAsync(
@@ -41,7 +47,7 @@ public class GenericCatalogResolver(
 
         try
         {
-            // Extract catalog metadata from search result (stored as JSON strings)
+            // Extract catalog item and release metadata
             if (!discoveredItem.ResolverMetadata.TryGetValue(CatalogConstants.ReleaseJsonMetadataKey, out var releaseJson))
             {
                 return OperationResult<ContentManifest>.CreateFailure("Missing release metadata");
@@ -144,7 +150,8 @@ public class GenericCatalogResolver(
                 primaryArtifact,
                 declaredPublisherId,
                 resolvedName,
-                discoveredItem.Id);
+                discoveredItem.Id,
+                resolvedTargetGame);
 
             logger.LogInformation(
                 "Successfully resolved manifest for '{ContentName}' with {FileCount} files",
@@ -197,7 +204,8 @@ public class GenericCatalogResolver(
                 return GameType.ZeroHour;
             }
         }
-        else if (searchResult.TargetGame != GameType.Unknown)
+
+        if (searchResult.TargetGame != GameType.Unknown)
         {
             return searchResult.TargetGame;
         }
@@ -251,21 +259,27 @@ public class GenericCatalogResolver(
                     ? BaseDependencyBuilder.CreateGenerals108Dependency()
                     : BaseDependencyBuilder.CreateZeroHour104Dependency();
 
+                var baseMinVersion = !string.IsNullOrWhiteSpace(dependency.VersionConstraint)
+                    ? CatalogManifestIdentity.StripVersionConstraint(dependency.VersionConstraint)
+                    : foundation.MinVersion ?? string.Empty;
+
                 builder.AddDependency(
                     id: foundation.Id,
                     name: foundation.Name,
                     dependencyType: ContentType.GameInstallation,
                     installBehavior: DependencyInstallBehavior.RequireExisting,
-                    minVersion: dependency.VersionConstraint ?? foundation.MinVersion ?? string.Empty,
+                    minVersion: baseMinVersion,
                     compatibleGameTypes: foundation.CompatibleGameTypes);
                 continue;
             }
+
+            var cleanConstraint = CatalogManifestIdentity.StripVersionConstraint(dependency.VersionConstraint);
 
             var dependencyId = CatalogManifestIdentity.CreateContentId(
                 dependency.PublisherId,
                 dependencyType,
                 dependency.ContentId,
-                dependency.VersionConstraint);
+                cleanConstraint);
 
             var installBehavior = DependencyInstallBehavior.RequireExisting;
             if (dependency.IsOptional)
@@ -282,7 +296,7 @@ public class GenericCatalogResolver(
                 name: dependency.ContentId,
                 dependencyType: dependencyType,
                 installBehavior: installBehavior,
-                minVersion: dependency.VersionConstraint ?? string.Empty);
+                minVersion: cleanConstraint);
         }
     }
 
@@ -292,7 +306,8 @@ public class GenericCatalogResolver(
         ReleaseArtifact? primaryArtifact,
         string declaredPublisherId,
         string resolvedName,
-        string? searchResultId)
+        string? searchResultId,
+        GameType resolvedTargetGame)
     {
         if (primaryArtifact != null && !string.IsNullOrWhiteSpace(primaryArtifact.Sha256))
         {
@@ -317,7 +332,7 @@ public class GenericCatalogResolver(
         {
             if (dep.DependencyType == ContentType.GameInstallation && dep.CompatibleGameTypes.Count == 0)
             {
-                dep.CompatibleGameTypes.Add(contentItem.TargetGame);
+                dep.CompatibleGameTypes.Add(resolvedTargetGame);
             }
         }
 
@@ -348,7 +363,6 @@ public class GenericCatalogResolver(
 
         var invalidChars = Path.GetInvalidFileNameChars();
         var sanitized = string.Join("_", fileName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
-
         return string.IsNullOrWhiteSpace(sanitized) ? "download.zip" : sanitized;
     }
 }

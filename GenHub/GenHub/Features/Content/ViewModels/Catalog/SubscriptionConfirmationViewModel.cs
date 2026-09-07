@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Mail;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -101,9 +102,11 @@ public partial class SubscriptionConfirmationViewModel(
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowInitialError))]
     [NotifyPropertyChangedFor(nameof(ShowDetails))]
+    [NotifyPropertyChangedFor(nameof(ShowActionError))]
     private bool _isCatalogLoaded;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowActionError))]
     private string? _errorMessage;
 
     [ObservableProperty]
@@ -132,6 +135,11 @@ public partial class SubscriptionConfirmationViewModel(
     public bool ShowDetails => !IsLoading && IsCatalogLoaded;
 
     /// <summary>
+    /// Gets a value indicating whether an inline action error (like confirm failure) should be shown when catalog is loaded.
+    /// </summary>
+    public bool ShowActionError => IsCatalogLoaded && !string.IsNullOrEmpty(ErrorMessage);
+
+    /// <summary>
     /// Gets the single-letter initial for fallback publisher avatar display.
     /// </summary>
     public string PublisherInitial => !string.IsNullOrWhiteSpace(PublisherName) && !string.Equals(PublisherName, DefaultPublisherName, StringComparison.Ordinal)
@@ -158,7 +166,8 @@ public partial class SubscriptionConfirmationViewModel(
 
             // catalog-direct path: treat the shared URL as PublisherCatalog JSON.
             // future: sniff Provider Definition and branch before this parse.
-            logger.LogInformation("Fetching catalog from {Url}", catalogUrl);
+            logger.LogInformation("Fetching catalog subscription");
+            logger.LogDebug("Fetching catalog from {Url}", catalogUrl);
             var response = await CatalogDocumentReader.ReadAsync(httpClient, catalogUrl, CatalogConstants.MaxCatalogSizeBytes, cancellationToken);
 
             var result = await catalogParser.ParseCatalogAsync(response, cancellationToken);
@@ -261,13 +270,21 @@ public partial class SubscriptionConfirmationViewModel(
             }
             else if (url.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase))
             {
-                Process.Start(new ProcessStartInfo
+                var rawAddress = url["mailto:".Length..].Split('?')[0];
+                if (MailAddress.TryCreate(rawAddress, out _))
                 {
-                    FileName = url,
-                    UseShellExecute = true,
-                });
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = url,
+                        UseShellExecute = true,
+                    });
+                }
+                else
+                {
+                    logger.LogWarning("Rejected invalid mailto address: {Url}", url);
+                }
             }
-            else if (url.Contains('@', StringComparison.Ordinal) && !url.Contains("://", StringComparison.Ordinal))
+            else if (MailAddress.TryCreate(url, out _))
             {
                 Process.Start(new ProcessStartInfo
                 {
@@ -296,7 +313,7 @@ public partial class SubscriptionConfirmationViewModel(
     }
 
     [RelayCommand]
-    private async Task ConfirmAsync()
+    private async Task ConfirmAsync(CancellationToken cancellationToken = default)
     {
         if (_parsedCatalog == null) return;
 
@@ -305,13 +322,8 @@ public partial class SubscriptionConfirmationViewModel(
             ErrorMessage = null;
             logger.LogInformation("Confirming subscription for {Publisher}", _parsedCatalog.Publisher.Id);
 
-            var existingTask = subscriptionStore.GetSubscriptionAsync(_parsedCatalog.Publisher.Id);
-            PublisherSubscription? existingSub = null;
-            if (existingTask != null)
-            {
-                var existingResult = await existingTask;
-                existingSub = existingResult is { Success: true } ? existingResult.Data : null;
-            }
+            var existingResult = await subscriptionStore.GetSubscriptionAsync(_parsedCatalog.Publisher.Id, cancellationToken);
+            var existingSub = existingResult is { Success: true } ? existingResult.Data : null;
 
             var subscription = new PublisherSubscription
             {
@@ -322,11 +334,15 @@ public partial class SubscriptionConfirmationViewModel(
                 Added = existingSub?.Added ?? DateTime.UtcNow,
                 TrustLevel = existingSub?.TrustLevel ?? TrustLevel.Untrusted, // community sources start untrusted
                 AvatarUrl = _parsedCatalog.Publisher.AvatarUrl,
+                AutoUpdate = existingSub?.AutoUpdate ?? false,
+                NotifyNewReleases = existingSub?.NotifyNewReleases ?? true,
+                CachedCatalogHash = existingSub?.CachedCatalogHash,
+                LastFetched = existingSub?.LastFetched,
             };
 
             var result = (IsAlreadySubscribed || existingSub != null)
-                ? await subscriptionStore.UpdateSubscriptionAsync(subscription)
-                : await subscriptionStore.AddSubscriptionAsync(subscription);
+                ? await subscriptionStore.UpdateSubscriptionAsync(subscription, cancellationToken)
+                : await subscriptionStore.AddSubscriptionAsync(subscription, cancellationToken);
 
             if (result.Success)
             {
@@ -338,6 +354,10 @@ public partial class SubscriptionConfirmationViewModel(
                 ErrorTitle = IsAlreadySubscribed ? "Failed to Update Subscription" : "Failed to Subscribe";
                 ErrorMessage = string.Join(Environment.NewLine, result.Errors);
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {

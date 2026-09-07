@@ -91,7 +91,7 @@ public static class CatalogBundleComponentBuilder
                 Variant = a.Variant,
                 IsDefaultVariant = a.IsDefaultVariant,
             }).ToList() ?? [],
-            Dependencies = [.. release.Dependencies.Select(dependency => new CatalogDependency
+            Dependencies = [.. (release.Dependencies ?? []).Select(dependency => new CatalogDependency
             {
                 PublisherId = dependency.PublisherId,
                 ContentId = dependency.ContentId,
@@ -268,15 +268,10 @@ public static class CatalogBundleComponentBuilder
         if (!string.IsNullOrWhiteSpace(versionConstraint))
         {
             var constraint = new VersionConstraint { ConstraintExpression = versionConstraint };
-            var matching = item.Releases
+            return item.Releases
                 .OrderByDescending(r => r.IsLatest)
                 .ThenByDescending(r => r.ReleaseDate)
                 .FirstOrDefault(r => constraint.IsSatisfiedBy(r.Version));
-
-            if (matching != null)
-            {
-                return matching;
-            }
         }
 
         return item.Releases.FirstOrDefault(r => r.IsLatest) ?? item.Releases[0];

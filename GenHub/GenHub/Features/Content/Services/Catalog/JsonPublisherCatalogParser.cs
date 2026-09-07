@@ -295,7 +295,7 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
             ValidateDependencies(content, release, itemsById, hostPublisherId, errors);
         }
 
-        var isDynamicRelease = release.Version.Equals("latest", StringComparison.OrdinalIgnoreCase) ||
+        var isDynamicRelease = release.Version?.Equals("latest", StringComparison.OrdinalIgnoreCase) == true ||
             content.PublisherType?.Equals(PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase) == true;
 
         if (!hasArtifacts && !hasDependencies && !isDynamicRelease)

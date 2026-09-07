@@ -13,8 +13,6 @@ namespace GenHub.Features.Content.Services.Catalog;
 /// </summary>
 public class VersionSelector(ILogger<VersionSelector> logger) : IVersionSelector
 {
-    private readonly ILogger<VersionSelector> _logger = logger;
-
     /// <inheritdoc />
     public IEnumerable<ContentRelease> SelectReleases(
         IEnumerable<ContentRelease> releases,
@@ -42,13 +40,12 @@ public class VersionSelector(ILogger<VersionSelector> logger) : IVersionSelector
     {
         ArgumentNullException.ThrowIfNull(releases);
 
-        return releases
+        var stable = releases
             .Where(r => !r.IsPrerelease)
             .OrderByDescending(r => r.ReleaseDate)
-            .FirstOrDefault(r => r.IsLatest) ?? releases
-            .Where(r => !r.IsPrerelease)
-            .OrderByDescending(r => r.ReleaseDate)
-            .FirstOrDefault();
+            .ToList();
+
+        return stable.FirstOrDefault(r => r.IsLatest) ?? stable.FirstOrDefault();
     }
 
     /// <inheritdoc />
@@ -66,11 +63,11 @@ public class VersionSelector(ILogger<VersionSelector> logger) : IVersionSelector
         var latest = GetLatestStable(releases);
         if (latest != null)
         {
-            _logger.LogDebug("Selected latest stable release: {Version}", latest.Version);
+            logger.LogDebug("Selected latest stable release: {Version}", latest.Version);
             return [latest];
         }
 
-        _logger.LogWarning("No stable releases found");
+        logger.LogWarning("No stable releases found");
         return [];
     }
 
@@ -79,7 +76,7 @@ public class VersionSelector(ILogger<VersionSelector> logger) : IVersionSelector
         var latest = GetLatest(releases);
         if (latest != null)
         {
-            _logger.LogDebug("Selected latest release (including prereleases): {Version}", latest.Version);
+            logger.LogDebug("Selected latest release (including prereleases): {Version}", latest.Version);
             return [latest];
         }
 

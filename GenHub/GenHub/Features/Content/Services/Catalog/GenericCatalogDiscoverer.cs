@@ -82,7 +82,7 @@ public class GenericCatalogDiscoverer(
             var targetGame = query.TargetGame.Value;
             var hasGameVariant = release?.Artifacts?.Any(a =>
                 string.Equals(a.VariantAxis, GameTypeVariantAxis, StringComparison.OrdinalIgnoreCase) &&
-                (string.Equals(a.Variant, GeneralsGameSegment, StringComparison.OrdinalIgnoreCase) ? GameType.Generals : GameType.ZeroHour) == targetGame) == true;
+                ResolveSiblingTargetGame(GameType.Unknown, a.VariantAxis ?? string.Empty, a.Variant ?? string.Empty) == targetGame) == true;
 
             if (content.TargetGame != targetGame && !hasGameVariant)
             {
@@ -613,7 +613,7 @@ public class GenericCatalogDiscoverer(
 
             if (!string.IsNullOrWhiteSpace(_subscription.DefinitionUrl))
             {
-                throw new NotSupportedException("Definition-resolved catalogs (Publisher Studio) are not yet supported. Only direct CatalogUrl subscriptions are supported.");
+                return OperationResult<PublisherCatalog>.CreateFailure("Definition-resolved catalogs (Publisher Studio) are not yet supported. Only direct CatalogUrl subscriptions are supported.");
             }
 
             logger.LogDebug("Fetching catalog from: {CatalogUrl}", _subscription.CatalogUrl);

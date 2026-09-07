@@ -63,6 +63,8 @@ public class CatalogTabProvider(
 
             // Download raw publisher catalog json manifest over http
             var httpClient = httpClientFactory.CreateClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(30);
+
             var catalogJson = await CatalogDocumentReader.ReadAsync(
                 httpClient,
                 subscription.CatalogUrl,
@@ -80,8 +82,8 @@ public class CatalogTabProvider(
             // Convert parsed catalog tab definitions into runtime tab definitions for the downloads detail view
             var tabs = new List<CustomTabDefinition>();
             searchResult.ResolverMetadata.TryGetValue(CatalogConstants.CatalogContentIdMetadataKey, out var catalogContentId);
-            var contentId = !string.IsNullOrWhiteSpace(catalogContentId) ? catalogContentId : searchResult.Id ?? string.Empty;
-            var resultId = searchResult.Id ?? string.Empty;
+            var contentId = !string.IsNullOrWhiteSpace(catalogContentId) ? catalogContentId : searchResult.Id;
+            var resultId = searchResult.Id;
 
             foreach (var catalogTab in catalogResult.Data.CustomTabs)
             {
@@ -94,6 +96,10 @@ public class CatalogTabProvider(
             }
 
             return tabs;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -119,7 +125,7 @@ public class CatalogTabProvider(
 
     private static bool TabAppliesToContent(CatalogTabDefinition catalogTab, string contentId, string resultId)
     {
-        if (catalogTab.AppliesTo is not { Count: > 0 })
+        if (catalogTab.AppliesTo is not { Count: > 0 } || catalogTab.AppliesTo.Count == 0)
         {
             return true;
         }

@@ -67,7 +67,6 @@ public sealed class GenericCatalogResolverTests
             },
         };
 
-        var builderMock = new Mock<IContentManifestBuilder>();
         var builtManifest = new ContentManifest
         {
             Id = ManifestId.Create("1.0.testpub.contentbundle.bundlea"),
@@ -79,33 +78,7 @@ public sealed class GenericCatalogResolverTests
             Publisher = new PublisherInfo { PublisherType = CatalogConstants.GenericCatalogResolverId },
         };
 
-        builderMock.Setup(b => b.WithBasicInfo(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>()))
-            .Returns(builderMock.Object);
-        builderMock.Setup(b => b.WithContentType(It.IsAny<ContentType>(), It.IsAny<GameType>()))
-            .Returns(builderMock.Object);
-        builderMock.Setup(b => b.WithName(It.IsAny<string>()))
-            .Returns(builderMock.Object);
-        builderMock.Setup(b => b.WithId(It.IsAny<ManifestId>()))
-            .Returns(builderMock.Object);
-        builderMock.Setup(b => b.WithPublisher(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
-            .Returns(builderMock.Object);
-        builderMock.Setup(b => b.WithMetadata(
-                It.IsAny<string>(), It.IsAny<List<string>?>(), It.IsAny<string>(), It.IsAny<List<string>?>(), It.IsAny<string>()))
-            .Returns(builderMock.Object);
-        builderMock.Setup(b => b.AddDependency(
-                It.IsAny<ManifestId>(),
-                It.IsAny<string>(),
-                It.IsAny<ContentType>(),
-                It.IsAny<DependencyInstallBehavior>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<List<string>?>(),
-                It.IsAny<bool>(),
-                It.IsAny<List<ManifestId>?>(),
-                It.IsAny<List<GameType>?>()))
-            .Returns(builderMock.Object);
-        builderMock.Setup(b => b.Build()).Returns(builtManifest);
+        var builderMock = CreateBuilderMock(builtManifest);
 
         var resolver = new GenericCatalogResolver(
             NullLogger<GenericCatalogResolver>.Instance,
@@ -213,7 +186,6 @@ public sealed class GenericCatalogResolverTests
             },
         };
 
-        var builderMock = new Mock<IContentManifestBuilder>();
         var builtManifest = new ContentManifest
         {
             Id = ManifestId.Create("1.0.genhubtestpublishers.gameclient.thesuperhackerszerohourgamecode"),
@@ -225,36 +197,7 @@ public sealed class GenericCatalogResolverTests
             Publisher = new PublisherInfo { PublisherType = CatalogConstants.GenericCatalogResolverId },
         };
 
-        builderMock.Setup(b => b.WithBasicInfo(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>()))
-            .Returns(builderMock.Object);
-        builderMock.Setup(b => b.WithContentType(It.IsAny<ContentType>(), It.IsAny<GameType>()))
-            .Returns(builderMock.Object);
-        builderMock.Setup(b => b.WithName(It.IsAny<string>()))
-            .Returns(builderMock.Object);
-        builderMock.Setup(b => b.WithId(It.IsAny<ManifestId>()))
-            .Returns(builderMock.Object);
-        builderMock.Setup(b => b.WithPublisher(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
-            .Returns(builderMock.Object);
-        builderMock.Setup(b => b.WithMetadata(
-                It.IsAny<string>(), It.IsAny<List<string>?>(), It.IsAny<string>(), It.IsAny<List<string>?>(), It.IsAny<string>()))
-            .Returns(builderMock.Object);
-        builderMock.Setup(b => b.AddRemoteFileAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<ContentSourceType>(), It.IsAny<bool>(), It.IsAny<FilePermissions?>()))
-            .ReturnsAsync(builderMock.Object);
-        builderMock.Setup(b => b.AddDependency(
-                It.IsAny<ManifestId>(),
-                It.IsAny<string>(),
-                It.IsAny<ContentType>(),
-                It.IsAny<DependencyInstallBehavior>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<List<string>?>(),
-                It.IsAny<bool>(),
-                It.IsAny<List<ManifestId>?>(),
-                It.IsAny<List<GameType>?>()))
-            .Returns(builderMock.Object);
-        builderMock.Setup(b => b.Build()).Returns(builtManifest);
+        var builderMock = CreateBuilderMock(builtManifest);
 
         var resolver = new GenericCatalogResolver(
             NullLogger<GenericCatalogResolver>.Instance,

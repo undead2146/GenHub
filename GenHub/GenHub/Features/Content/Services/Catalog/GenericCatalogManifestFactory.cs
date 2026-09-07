@@ -109,12 +109,27 @@ public class GenericCatalogManifestFactory(
         logger.LogDebug("Found {Count} files in extracted directory", extractedFiles.Length);
 
         // Create updated file entries with computed hashes
-        var updatedFiles = new List<ManifestFile>();
+        var updatedFiles = new List<ManifestFile>(extractedFiles.Length);
+        var totalFiles = extractedFiles.Length;
+        var processedFiles = 0;
+
         foreach (var filePath in extractedFiles)
         {
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var relativePath = Path.GetRelativePath(extractedDirectory, filePath);
+
+                progress?.Report(new GenHub.Core.Models.Content.ContentAcquisitionProgress
+                {
+                    Phase = GenHub.Core.Models.Content.ContentAcquisitionPhase.ValidatingFiles,
+                    ProgressPercentage = totalFiles > 0 ? (double)processedFiles / totalFiles * 100 : 100,
+                    CurrentOperation = $"Hashing {relativePath}",
+                    CurrentFile = relativePath,
+                    FilesProcessed = processedFiles,
+                    TotalFiles = totalFiles,
+                });
+
                 var fileInfo = new FileInfo(filePath);
                 var hash = await hashProvider.ComputeFileHashAsync(filePath, cancellationToken);
 
@@ -128,6 +143,8 @@ public class GenericCatalogManifestFactory(
                 };
 
                 updatedFiles.Add(manifestFile);
+                processedFiles++;
+
                 logger.LogDebug(
                     "Computed hash for file {RelativePath}: {Hash}, Size: {Size}",
                     relativePath,
@@ -140,6 +157,15 @@ public class GenericCatalogManifestFactory(
                 throw new InvalidOperationException($"Failed to compute hash for file: {filePath}", ex);
             }
         }
+
+        progress?.Report(new GenHub.Core.Models.Content.ContentAcquisitionProgress
+        {
+            Phase = GenHub.Core.Models.Content.ContentAcquisitionPhase.ValidatingFiles,
+            ProgressPercentage = 100,
+            CurrentOperation = "Finished hashing files",
+            FilesProcessed = totalFiles,
+            TotalFiles = totalFiles,
+        });
 
         // Create updated manifest with computed hashes
         var updatedManifest = new ContentManifest
