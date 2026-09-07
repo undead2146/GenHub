@@ -502,6 +502,48 @@ public class ContentStateServiceTests
     }
 
     /// <summary>
+    /// Verifies that distinct GitHub content sharing an initial hyphen-delimited token does not false-match as downloaded.
+    /// </summary>
+    /// <returns>A completed task.</returns>
+    [Fact]
+    public async Task GetStateAsync_DistinctGitHubContentSharingFirstToken_StaysNotDownloadedAndReturnsNoManifestIdAsync()
+    {
+        var installedManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.0.github.mod.generalsgameplay"),
+            Name = "generals-gameplay",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            Publisher = new PublisherInfo
+            {
+                PublisherType = "github",
+            },
+        };
+
+        var distinctCard = new ContentSearchResult
+        {
+            Id = "1.0.github.mod.generalstools",
+            Name = "generals-tools",
+            ProviderName = "github",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+        };
+
+        var pool = new Mock<IContentManifestPool>();
+        pool.Setup(p => p.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<System.Collections.Generic.IEnumerable<ContentManifest>>.CreateSuccess([installedManifest]));
+        pool.Setup(p => p.IsManifestAcquiredAsync(installedManifest.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+        pool.Setup(p => p.IsManifestAcquiredAsync(It.Is<ManifestId>(m => m.Value != installedManifest.Id.Value), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(false));
+
+        var service = new ContentStateService(pool.Object, NullLogger<ContentStateService>.Instance);
+
+        Assert.Equal(ContentState.NotDownloaded, await service.GetStateAsync(distinctCard));
+        Assert.Null(await service.GetLocalManifestIdAsync(distinctCard));
+    }
+
+    /// <summary>
     /// Verifies that discovering a newer release date for an installed ModDB mod reports update available.
     /// </summary>
     /// <returns>A completed task.</returns>

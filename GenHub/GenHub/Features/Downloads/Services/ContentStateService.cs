@@ -711,14 +711,29 @@ public sealed partial class ContentStateService(
     }
 
     /// <summary>
-    /// Strips a trailing <c>-suffix</c> variant from a content-name segment (e.g.
-    /// <c>cbpx-720p</c> → <c>cbpx</c>), mirroring how <c>ManifestIdGenerator</c> derives the
-    /// variant's content-name segment from the base content code.
+    /// Strips a trailing recognized variant suffix (such as -720p, -1080p, -4k) from a content-name segment,
+    /// ensuring that hyphenated content names without recognized variant tokens (e.g. generals-gameplay vs generals-tools)
+    /// are not truncated and do not false-match.
     /// </summary>
     private static string StripVariantSuffix(string segment)
     {
-        var dashIndex = segment.IndexOf('-');
-        return dashIndex > 0 ? segment[..dashIndex] : segment;
+        var variantToken = ExtractVariantToken(segment);
+        if (string.IsNullOrEmpty(variantToken))
+        {
+            return segment;
+        }
+
+        var lastDash = segment.LastIndexOf('-');
+        if (lastDash > 0 && lastDash < segment.Length - 1)
+        {
+            var trailing = segment[(lastDash + 1)..];
+            if (string.Equals(ExtractVariantToken(trailing), variantToken, StringComparison.OrdinalIgnoreCase))
+            {
+                return segment[..lastDash];
+            }
+        }
+
+        return segment;
     }
 
     /// <summary>

@@ -80,4 +80,26 @@ public sealed class ContentStateServiceCatalogIdentityTests
 
         Assert.False(matches);
     }
+
+    /// <summary>
+    /// Tests that ContentNameMatches returns false for distinct content names sharing an initial hyphen-delimited token.
+    /// </summary>
+    [Fact]
+    public void ContentNameMatches_DistinctContentsSharingFirstToken_ReturnsFalse()
+    {
+        var manifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.0.github.mod.generalsgameplay"),
+            TargetGame = GameType.ZeroHour,
+        };
+
+        var matches = ContentStateService.ContentNameMatches(
+            manifest,
+            "github",
+            "mod",
+            GameType.ZeroHour,
+            "generals-tools");
+
+        Assert.False(matches);
+    }
 }
