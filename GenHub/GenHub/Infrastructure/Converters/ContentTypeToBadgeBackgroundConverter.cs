@@ -20,15 +20,15 @@ public class ContentTypeToBadgeBackgroundConverter : IValueConverter
 
     private const byte BadgeAlpha = 0x25;
 
-    private static readonly IBrush GameClientBrush = CreateTintBrush(UiConstants.ContentTypeGameClientColor);
-    private static readonly IBrush ModBrush = CreateTintBrush(UiConstants.ContentTypeModColor);
-    private static readonly IBrush PatchBrush = CreateTintBrush(UiConstants.ContentTypePatchColor);
-    private static readonly IBrush MapBrush = CreateTintBrush(UiConstants.ContentTypeMapColor);
-    private static readonly IBrush AddonBrush = CreateTintBrush(UiConstants.ContentTypeAddonColor);
-    private static readonly IBrush ToolBrush = CreateTintBrush(UiConstants.ContentTypeToolColor);
-    private static readonly IBrush BundleBrush = CreateTintBrush(UiConstants.ContentTypeBundleColor);
-    private static readonly IBrush MissionBrush = CreateTintBrush(UiConstants.ContentTypeMissionColor);
-    private static readonly IBrush SkinBrush = CreateTintBrush(UiConstants.ContentTypeSkinColor);
+    private static readonly SolidColorBrush GameClientBrush = CreateTintBrush(UiConstants.ContentTypeGameClientColor);
+    private static readonly SolidColorBrush ModBrush = CreateTintBrush(UiConstants.ContentTypeModColor);
+    private static readonly SolidColorBrush PatchBrush = CreateTintBrush(UiConstants.ContentTypePatchColor);
+    private static readonly SolidColorBrush MapBrush = CreateTintBrush(UiConstants.ContentTypeMapColor);
+    private static readonly SolidColorBrush AddonBrush = CreateTintBrush(UiConstants.ContentTypeAddonColor);
+    private static readonly SolidColorBrush ToolBrush = CreateTintBrush(UiConstants.ContentTypeToolColor);
+    private static readonly SolidColorBrush BundleBrush = CreateTintBrush(UiConstants.ContentTypeBundleColor);
+    private static readonly SolidColorBrush MissionBrush = CreateTintBrush(UiConstants.ContentTypeMissionColor);
+    private static readonly SolidColorBrush SkinBrush = CreateTintBrush(UiConstants.ContentTypeSkinColor);
 
     /// <summary>
     /// Converts a ContentType to a translucent SolidColorBrush.
@@ -73,9 +73,9 @@ public class ContentTypeToBadgeBackgroundConverter : IValueConverter
         return AvaloniaProperty.UnsetValue;
     }
 
-    private static IBrush CreateTintBrush(string hex)
+    private static SolidColorBrush CreateTintBrush(string hex)
     {
         var baseColor = Color.Parse(hex);
-        return new SolidColorBrush(Color.FromArgb(BadgeAlpha, baseColor.R, baseColor.G, baseColor.B)).ToImmutable();
+        return new SolidColorBrush(Color.FromArgb(BadgeAlpha, baseColor.R, baseColor.G, baseColor.B));
     }
 }
