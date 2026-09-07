@@ -468,7 +468,7 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     /// Verifies that Smart Install Maker SFX executables (e.g. ShockWave) are safely extracted and normalized.
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
-    [Fact]
+    [Fact(Skip = "Requires local SmartInstallMaker SFX payload fixture from CAS store")]
     public async Task ExtractArchivesSafelyAsync_WithSmartInstallMakerExecutable_ExtractsAndNormalizesSuccessfully()
     {
         var casPath = @"A:\Steam\steamapps\common\.genhub-cas\objects\f4\f45e14d6b4a1e6e6feaa2ad737528b385586ad81ab7535bf9a330972db834c4e";

@@ -26,7 +26,7 @@
 
         <!-- Filter toggle button -->
         <Style Selector="ToggleButton.filter-toggle">
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
@@ -44,9 +44,9 @@
         </Style>
 
         <Style Selector="ToggleButton.filter-toggle:checked">
-            <Setter Property="Background" Value="{DynamicResource PrimaryBrush}" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
 
@@ -76,7 +76,37 @@
         </Style>
 
         <Style Selector="Button.filter-clear:pointerover">
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+        </Style>
+
+        <!-- Primary and secondary button styles for actions -->
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <Style Selector="Button.primary:pointerover">
+            <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+        </Style>
+
+        <Style Selector="Button.secondary">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <Style Selector="Button.secondary:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
         </Style>
     </UserControl.Styles>
@@ -173,7 +203,8 @@
                                 Classes="primary" />
                         <Button Content="Clear Filters"
                                 Command="{Binding ClearFiltersActionCommand}"
-                                MinWidth="120" />
+                                MinWidth="120"
+                                Classes="secondary" />
                     </StackPanel>
                 </StackPanel>
             </DataTemplate>

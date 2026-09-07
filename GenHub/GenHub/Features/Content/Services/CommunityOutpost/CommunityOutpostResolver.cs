@@ -286,7 +286,7 @@ public class CommunityOutpostResolver(
         GenPatcherContentMetadata contentMetadata)
     {
         var idParts = discoveredItem.Id?.Split('.') ?? [];
-        if (idParts.Length >= 5 && int.TryParse(idParts[1], out _))
+        if (idParts.Length >= 5 && int.TryParse(idParts[1], out var parsedVer) && parsedVer > 0)
         {
             return idParts[1];
         }
@@ -511,11 +511,6 @@ public class CommunityOutpostResolver(
 
         var parts = id.Split('.');
         var contentName = parts.Length >= 5 ? parts[4] : id;
-        var dashIndex = contentName.IndexOf('-');
-        if (dashIndex > 0 && dashIndex < contentName.Length - 1)
-        {
-            return contentName[(dashIndex + 1)..];
-        }
 
         if (metadata.Variants is { Count: > 0 })
         {
@@ -526,6 +521,12 @@ public class CommunityOutpostResolver(
             {
                 return matchingVariant.Id;
             }
+        }
+
+        var dashIndex = contentName.LastIndexOf('-');
+        if (dashIndex > 0 && dashIndex < contentName.Length - 1)
+        {
+            return contentName[(dashIndex + 1)..];
         }
 
         return null;

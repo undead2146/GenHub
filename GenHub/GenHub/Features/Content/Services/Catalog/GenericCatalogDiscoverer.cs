@@ -82,7 +82,7 @@ public class GenericCatalogDiscoverer(
             var targetGame = query.TargetGame.Value;
             var hasGameVariant = release?.Artifacts?.Any(a =>
                 string.Equals(a.VariantAxis, GameTypeVariantAxis, StringComparison.OrdinalIgnoreCase) &&
-                (string.Equals(a.Variant, GeneralsGameSegment, StringComparison.OrdinalIgnoreCase) ? GameType.Generals : GameType.ZeroHour) == targetGame) == true;
+                ResolveVariantGameType(a.Variant) == targetGame) == true;
 
             if (content.TargetGame != targetGame && !hasGameVariant)
             {
@@ -230,6 +230,29 @@ public class GenericCatalogDiscoverer(
         }
 
         return names;
+    }
+
+    private static GameType? ResolveVariantGameType(string? variant)
+    {
+        if (string.IsNullOrWhiteSpace(variant))
+        {
+            return null;
+        }
+
+        if (string.Equals(variant, GeneralsGameSegment, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(variant, "Generals", StringComparison.OrdinalIgnoreCase))
+        {
+            return GameType.Generals;
+        }
+
+        if (string.Equals(variant, ZeroHourGameSegment, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(variant, "Zero Hour", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(variant, "ZeroHour", StringComparison.OrdinalIgnoreCase))
+        {
+            return GameType.ZeroHour;
+        }
+
+        return null;
     }
 
     private static GameType ResolveSiblingTargetGame(GameType defaultTargetGame, string axis, string variantLabel)

@@ -19,8 +19,10 @@ namespace GenHub.Features.Downloads.ViewModels;
 /// Generic base view model for downloadable rows (releases, addons, custom publisher content) with expandable details.
 /// </summary>
 [SuppressMessage("Major Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Properties access CommunityToolkit MVVM generated instance properties.")]
-public abstract partial class DownloadableItemViewModel : ObservableObject, IDownloadableRowViewModel
+public abstract partial class DownloadableItemViewModel : ObservableObject, IDownloadableRowViewModel, IDisposable
 {
+    private CancellationTokenSource? _fetchCts;
+
     /// <summary>
     /// Gets the unique identifier for the downloadable item.
     /// </summary>
@@ -403,15 +405,24 @@ public abstract partial class DownloadableItemViewModel : ObservableObject, IDow
 
         if (IsExpanded && !IsDetailsLoaded && FetchDetailsAsync != null)
         {
+            _fetchCts?.Cancel();
+            _fetchCts?.Dispose();
+            _fetchCts = new CancellationTokenSource();
+            var ct = _fetchCts.Token;
+
             try
             {
                 IsLoadingDetails = true;
                 HasDetailsError = false;
                 DetailsErrorMessage = null;
 
-                await FetchDetailsAsync(this, CancellationToken.None);
+                await FetchDetailsAsync(this, ct);
 
                 IsDetailsLoaded = true;
+            }
+            catch (OperationCanceledException)
+            {
+                // Operation cancelled on collapse or disposal
             }
             catch (Exception ex)
             {
@@ -422,6 +433,10 @@ public abstract partial class DownloadableItemViewModel : ObservableObject, IDow
             {
                 IsLoadingDetails = false;
             }
+        }
+        else if (!IsExpanded)
+        {
+            _fetchCts?.Cancel();
         }
     }
 
@@ -506,5 +521,26 @@ public abstract partial class DownloadableItemViewModel : ObservableObject, IDow
         }
 
         return $"{bytes} B";
+    }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Releases unmanaged and managed resources.
+    /// </summary>
+    /// <param name="disposing">True if disposing managed resources.</param>
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _fetchCts?.Cancel();
+            _fetchCts?.Dispose();
+            _fetchCts = null;
+        }
     }
 }

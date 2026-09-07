@@ -598,6 +598,18 @@ public sealed partial class DownloadsBrowserViewModel(
                 outgoingState.CanLoadMore = CanLoadMore;
                 if (_hasCustomQuery)
                 {
+                    if (outgoingState.Items.Count > 0)
+                    {
+                        var activeItemSet = new HashSet<ContentCardViewModel>(ContentItems);
+                        foreach (var oldItem in outgoingState.Items)
+                        {
+                            if (!activeItemSet.Contains(oldItem))
+                            {
+                                oldItem.Dispose();
+                            }
+                        }
+                    }
+
                     outgoingState.Items = [.. ContentItems];
                 }
             }
@@ -643,6 +655,7 @@ public sealed partial class DownloadsBrowserViewModel(
     {
         // Clearing filters re-runs a default query, which re-populates the cache.
         _hasCustomQuery = !string.IsNullOrWhiteSpace(SearchTerm);
+        CurrentPage = 1;
         Interlocked.Increment(ref _activeRequestId);
         _ = RefreshContentAsync();
     }
@@ -1105,30 +1118,45 @@ public sealed partial class DownloadsBrowserViewModel(
 
         var defaultVariant = ResolveDefaultVariant(groupItems, primaryItem);
         var variantVm = CreateBaseGridItemViewModel(defaultVariant);
-
-        if (groupItems.Count == 1 && primaryItem.Variants is { Count: > 0 } singleVariants)
+        try
         {
-            PopulateSynthesizedVariants(variantVm, primaryItem, singleVariants);
+            if (groupItems.Count == 1 && primaryItem.Variants is { Count: > 0 } singleVariants)
+            {
+                PopulateSynthesizedVariants(variantVm, primaryItem, singleVariants);
+            }
+            else
+            {
+                PopulateSiblingVariants(variantVm, groupItems, defaultVariant);
+            }
+
+            SelectDefaultVariant(variantVm, groupItems, primaryItem, defaultVariant);
+
+            await variantVm.RefreshVariantStatesAsync();
+            variantVm.CurrentState = await contentStateService.GetStateAsync(defaultVariant, ct);
+
+            return variantVm;
         }
-        else
+        catch
         {
-            PopulateSiblingVariants(variantVm, groupItems, defaultVariant);
+            variantVm.Dispose();
+            throw;
         }
-
-        SelectDefaultVariant(variantVm, groupItems, primaryItem, defaultVariant);
-
-        await variantVm.RefreshVariantStatesAsync();
-        variantVm.CurrentState = await contentStateService.GetStateAsync(defaultVariant, ct);
-
-        return variantVm;
     }
 
     private async Task<ContentGridItemViewModel> CreateSingletonItemViewModelAsync(ContentSearchResult primaryItem, CancellationToken ct)
     {
         var vm = CreateBaseGridItemViewModel(primaryItem);
-        var singletonState = await contentStateService.GetStateAsync(primaryItem, ct);
-        vm.CurrentState = singletonState;
-        return vm;
+        try
+        {
+            var singletonState = await contentStateService.GetStateAsync(primaryItem, ct);
+            vm.CurrentState = singletonState;
+            return vm;
+        }
+        catch
+        {
+            vm.Dispose();
+            throw;
+        }
     }
 
     private ContentGridItemViewModel CreateBaseGridItemViewModel(ContentSearchResult item)
@@ -1347,11 +1375,15 @@ public sealed partial class DownloadsBrowserViewModel(
 
                 if (_browseCache.Remove(subscription.PublisherId, out var oldState))
                 {
-                    oldState.ActiveDetailViewModel?.Dispose();
-                    oldState.ActiveDetailViewModel = null;
-                    foreach (var oldVm in oldState.Items)
+                    var isCurrentlySelected = string.Equals(SelectedPublisher?.Id, subscription.PublisherId, StringComparison.OrdinalIgnoreCase);
+                    if (!isCurrentlySelected)
                     {
-                        oldVm.Dispose();
+                        oldState.ActiveDetailViewModel?.Dispose();
+                        oldState.ActiveDetailViewModel = null;
+                        foreach (var oldVm in oldState.Items)
+                        {
+                            oldVm.Dispose();
+                        }
                     }
                 }
             }

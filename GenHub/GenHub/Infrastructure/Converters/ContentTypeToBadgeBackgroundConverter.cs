@@ -3,6 +3,7 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
+using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
 
 namespace GenHub.Infrastructure.Converters;
@@ -12,10 +13,22 @@ namespace GenHub.Infrastructure.Converters;
 /// </summary>
 public class ContentTypeToBadgeBackgroundConverter : IValueConverter
 {
+    private const byte BadgeAlpha = 0x25;
+
     /// <summary>
     /// Gets the singleton instance of the converter.
     /// </summary>
     public static readonly ContentTypeToBadgeBackgroundConverter Instance = new();
+
+    private static readonly IBrush GameClientBrush = CreateTintBrush(UiConstants.ContentTypeGameClientColor);
+    private static readonly IBrush ModBrush = CreateTintBrush(UiConstants.ContentTypeModColor);
+    private static readonly IBrush PatchBrush = CreateTintBrush(UiConstants.ContentTypePatchColor);
+    private static readonly IBrush MapBrush = CreateTintBrush(UiConstants.ContentTypeMapColor);
+    private static readonly IBrush AddonBrush = CreateTintBrush(UiConstants.ContentTypeAddonColor);
+    private static readonly IBrush ToolBrush = CreateTintBrush(UiConstants.ContentTypeToolColor);
+    private static readonly IBrush BundleBrush = CreateTintBrush(UiConstants.ContentTypeBundleColor);
+    private static readonly IBrush MissionBrush = CreateTintBrush(UiConstants.ContentTypeMissionColor);
+    private static readonly IBrush SkinBrush = CreateTintBrush(UiConstants.ContentTypeSkinColor);
 
     /// <summary>
     /// Converts a ContentType to a translucent SolidColorBrush.
@@ -31,20 +44,20 @@ public class ContentTypeToBadgeBackgroundConverter : IValueConverter
         {
             return contentType switch
             {
-                ContentType.GameClient => new SolidColorBrush(Color.Parse("#2506B6D4")),
-                ContentType.Mod => new SolidColorBrush(Color.Parse("#25A855F7")),
-                ContentType.Patch => new SolidColorBrush(Color.Parse("#25F59E0B")),
-                ContentType.Map or ContentType.MapPack => new SolidColorBrush(Color.Parse("#2510B981")),
-                ContentType.Addon => new SolidColorBrush(Color.Parse("#25EC4899")),
-                ContentType.ModdingTool or ContentType.Executable => new SolidColorBrush(Color.Parse("#2538BDF8")),
-                ContentType.ContentBundle => new SolidColorBrush(Color.Parse("#256366F1")),
-                ContentType.Mission => new SolidColorBrush(Color.Parse("#25F97316")),
-                ContentType.Skin or ContentType.LanguagePack => new SolidColorBrush(Color.Parse("#258B5CF6")),
-                _ => new SolidColorBrush(Color.Parse("#25A855F7")),
+                ContentType.GameClient => GameClientBrush,
+                ContentType.Mod => ModBrush,
+                ContentType.Patch => PatchBrush,
+                ContentType.Map or ContentType.MapPack => MapBrush,
+                ContentType.Addon => AddonBrush,
+                ContentType.ModdingTool or ContentType.Executable => ToolBrush,
+                ContentType.ContentBundle => BundleBrush,
+                ContentType.Mission => MissionBrush,
+                ContentType.Skin or ContentType.LanguagePack => SkinBrush,
+                _ => ModBrush,
             };
         }
 
-        return new SolidColorBrush(Color.Parse("#25A855F7"));
+        return ModBrush;
     }
 
     /// <summary>
@@ -58,5 +71,11 @@ public class ContentTypeToBadgeBackgroundConverter : IValueConverter
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         return AvaloniaProperty.UnsetValue;
+    }
+
+    private static IBrush CreateTintBrush(string hex)
+    {
+        var baseColor = Color.Parse(hex);
+        return new SolidColorBrush(Color.FromArgb(BadgeAlpha, baseColor.R, baseColor.G, baseColor.B)).ToImmutable();
     }
 }

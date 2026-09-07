@@ -119,10 +119,10 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
             return true;
         }
 
-        logger.LogInformation(
-            "Signature present in catalog for publisher '{PublisherId}'; cryptographic verification skipped (unconfigured)",
+        logger.LogWarning(
+            "Signature present in catalog for publisher '{PublisherId}', but signature verification is unconfigured; rejecting catalog",
             catalog.Publisher?.Id);
-        return true;
+        return false;
     }
 
     private static void ValidateDependencies(
@@ -182,6 +182,11 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
         catalog.Content ??= [];
         foreach (var content in catalog.Content)
         {
+            if (content == null)
+            {
+                continue;
+            }
+
             content.Tags ??= [];
             if (content.Metadata != null)
             {
@@ -191,6 +196,11 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
             content.Releases ??= [];
             foreach (var release in content.Releases)
             {
+                if (release == null)
+                {
+                    continue;
+                }
+
                 release.Artifacts ??= [];
                 release.Dependencies ??= [];
             }
@@ -285,6 +295,7 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
         if (string.IsNullOrWhiteSpace(release.Version))
         {
             errors.Add($"Content '{content.Id}' has release with missing version");
+            return;
         }
 
         var hasArtifacts = release.Artifacts is { Count: > 0 };

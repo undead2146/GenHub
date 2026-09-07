@@ -1202,6 +1202,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         }
 
         var copyBuffer = new byte[65536];
+        long totalBytesWritten = 0;
         var totalFiles = fileNames.Count;
         for (var fileIdx = 0; fileIdx < totalFiles && stream.Position < stream.Length - 4; fileIdx++)
         {
@@ -1259,6 +1260,12 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
                 var rZ = 0;
                 while ((rZ = z.Read(copyBuffer, 0, copyBuffer.Length)) > 0)
                 {
+                    totalBytesWritten += rZ;
+                    if (totalBytesWritten > CatalogConstants.MaxZipUncompressedSizeBytes)
+                    {
+                        throw new InvalidDataException($"Archive exceeds maximum uncompressed size of {CatalogConstants.MaxZipUncompressedSizeBytes} bytes");
+                    }
+
                     outStream.Write(copyBuffer, 0, rZ);
                 }
 
@@ -1276,6 +1283,12 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
                 var rBz = 0;
                 while ((rBz = bz.Read(copyBuffer, 0, copyBuffer.Length)) > 0)
                 {
+                    totalBytesWritten += rBz;
+                    if (totalBytesWritten > CatalogConstants.MaxZipUncompressedSizeBytes)
+                    {
+                        throw new InvalidDataException($"Archive exceeds maximum uncompressed size of {CatalogConstants.MaxZipUncompressedSizeBytes} bytes");
+                    }
+
                     outStream.Write(copyBuffer, 0, rBz);
                 }
             }
@@ -1292,6 +1305,12 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
                 var rBz = 0;
                 while ((rBz = bz.Read(copyBuffer, 0, copyBuffer.Length)) > 0)
                 {
+                    totalBytesWritten += rBz;
+                    if (totalBytesWritten > CatalogConstants.MaxZipUncompressedSizeBytes)
+                    {
+                        throw new InvalidDataException($"Archive exceeds maximum uncompressed size of {CatalogConstants.MaxZipUncompressedSizeBytes} bytes");
+                    }
+
                     outStream.Write(copyBuffer, 0, rBz);
                 }
             }
@@ -1305,6 +1324,12 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
                 var rZ = 0;
                 while ((rZ = z.Read(copyBuffer, 0, copyBuffer.Length)) > 0)
                 {
+                    totalBytesWritten += rZ;
+                    if (totalBytesWritten > CatalogConstants.MaxZipUncompressedSizeBytes)
+                    {
+                        throw new InvalidDataException($"Archive exceeds maximum uncompressed size of {CatalogConstants.MaxZipUncompressedSizeBytes} bytes");
+                    }
+
                     outStream.Write(copyBuffer, 0, rZ);
                 }
 
@@ -1314,7 +1339,16 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
             {
                 // Raw uncompressed copy
                 var rRaw = stream.Read(copyBuffer, 0, copyBuffer.Length);
-                outStream.Write(copyBuffer, 0, rRaw);
+                if (rRaw > 0)
+                {
+                    totalBytesWritten += rRaw;
+                    if (totalBytesWritten > CatalogConstants.MaxZipUncompressedSizeBytes)
+                    {
+                        throw new InvalidDataException($"Archive exceeds maximum uncompressed size of {CatalogConstants.MaxZipUncompressedSizeBytes} bytes");
+                    }
+
+                    outStream.Write(copyBuffer, 0, rRaw);
+                }
             }
 
             outStream.Flush();

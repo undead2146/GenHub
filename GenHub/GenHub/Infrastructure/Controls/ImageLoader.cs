@@ -47,6 +47,7 @@ public static class ImageLoader
             return;
         }
 
+        image.Source = null;
         image.AttachedToVisualTree += OnAttachedToVisualTree;
         _ = ApplySourceAsync(image, url);
     }

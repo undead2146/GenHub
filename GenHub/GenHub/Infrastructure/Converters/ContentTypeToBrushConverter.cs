@@ -3,6 +3,7 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
+using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
 
 namespace GenHub.Infrastructure.Converters;
@@ -16,6 +17,16 @@ public class ContentTypeToBrushConverter : IValueConverter
     /// Gets the singleton instance of the converter.
     /// </summary>
     public static readonly ContentTypeToBrushConverter Instance = new();
+
+    private static readonly IBrush GameClientBrush = new SolidColorBrush(Color.Parse(UiConstants.ContentTypeGameClientColor)).ToImmutable();
+    private static readonly IBrush ModBrush = new SolidColorBrush(Color.Parse(UiConstants.ContentTypeModColor)).ToImmutable();
+    private static readonly IBrush PatchBrush = new SolidColorBrush(Color.Parse(UiConstants.ContentTypePatchColor)).ToImmutable();
+    private static readonly IBrush MapBrush = new SolidColorBrush(Color.Parse(UiConstants.ContentTypeMapColor)).ToImmutable();
+    private static readonly IBrush AddonBrush = new SolidColorBrush(Color.Parse(UiConstants.ContentTypeAddonColor)).ToImmutable();
+    private static readonly IBrush ToolBrush = new SolidColorBrush(Color.Parse(UiConstants.ContentTypeToolColor)).ToImmutable();
+    private static readonly IBrush BundleBrush = new SolidColorBrush(Color.Parse(UiConstants.ContentTypeBundleColor)).ToImmutable();
+    private static readonly IBrush MissionBrush = new SolidColorBrush(Color.Parse(UiConstants.ContentTypeMissionColor)).ToImmutable();
+    private static readonly IBrush SkinBrush = new SolidColorBrush(Color.Parse(UiConstants.ContentTypeSkinColor)).ToImmutable();
 
     /// <summary>
     /// Converts a ContentType to a SolidColorBrush.
@@ -31,20 +42,20 @@ public class ContentTypeToBrushConverter : IValueConverter
         {
             return contentType switch
             {
-                ContentType.GameClient => new SolidColorBrush(Color.Parse("#06B6D4")),
-                ContentType.Mod => new SolidColorBrush(Color.Parse("#A855F7")),
-                ContentType.Patch => new SolidColorBrush(Color.Parse("#F59E0B")),
-                ContentType.Map or ContentType.MapPack => new SolidColorBrush(Color.Parse("#10B981")),
-                ContentType.Addon => new SolidColorBrush(Color.Parse("#EC4899")),
-                ContentType.ModdingTool or ContentType.Executable => new SolidColorBrush(Color.Parse("#38BDF8")),
-                ContentType.ContentBundle => new SolidColorBrush(Color.Parse("#6366F1")),
-                ContentType.Mission => new SolidColorBrush(Color.Parse("#F97316")),
-                ContentType.Skin or ContentType.LanguagePack => new SolidColorBrush(Color.Parse("#8B5CF6")),
-                _ => new SolidColorBrush(Color.Parse("#A855F7")),
+                ContentType.GameClient => GameClientBrush,
+                ContentType.Mod => ModBrush,
+                ContentType.Patch => PatchBrush,
+                ContentType.Map or ContentType.MapPack => MapBrush,
+                ContentType.Addon => AddonBrush,
+                ContentType.ModdingTool or ContentType.Executable => ToolBrush,
+                ContentType.ContentBundle => BundleBrush,
+                ContentType.Mission => MissionBrush,
+                ContentType.Skin or ContentType.LanguagePack => SkinBrush,
+                _ => ModBrush,
             };
         }
 
-        return new SolidColorBrush(Color.Parse("#A855F7"));
+        return ModBrush;
     }
 
     /// <summary>

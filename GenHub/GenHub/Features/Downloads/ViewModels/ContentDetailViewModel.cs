@@ -578,7 +578,7 @@ public partial class ContentDetailViewModel(
         if (providerName.Equals(PublisherInfoConstants.TheSuperHackers.Name, StringComparison.OrdinalIgnoreCase) ||
             providerName.Equals(PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase))
         {
-            return (PublisherInfoConstants.TheSuperHackers.Name, "https://github.com/thesuperhackers", "https://github.com/thesuperhackers/GeneralsGameCode/issues");
+            return (PublisherInfoConstants.TheSuperHackers.Name, PublisherInfoConstants.TheSuperHackers.Website, PublisherInfoConstants.TheSuperHackers.SupportUrl);
         }
 
         if (providerName.Equals(PublisherInfoConstants.GeneralsOnline.Name, StringComparison.OrdinalIgnoreCase) ||
@@ -590,7 +590,7 @@ public partial class ContentDetailViewModel(
         if (providerName.Equals(PublisherInfoConstants.CommunityOutpost.Name, StringComparison.OrdinalIgnoreCase) ||
             providerName.Equals("community-outpost", StringComparison.OrdinalIgnoreCase))
         {
-            return (PublisherInfoConstants.CommunityOutpost.Name, "https://legi.cc", "https://legi.cc/patch");
+            return (PublisherInfoConstants.CommunityOutpost.Name, PublisherInfoConstants.CommunityOutpost.Website, PublisherInfoConstants.CommunityOutpost.SupportUrl);
         }
 
         if (providerName.Equals(PublisherInfoConstants.ModDB.Name, StringComparison.OrdinalIgnoreCase))
@@ -1049,7 +1049,7 @@ public partial class ContentDetailViewModel(
 
             if (selectedMatched)
             {
-                IsDownloaded = e.NewState is ContentState.Downloaded;
+                IsDownloaded = e.NewState is ContentState.Downloaded or ContentState.UpdateAvailable;
                 IsUpdateAvailable = e.NewState == ContentState.UpdateAvailable;
                 OnPropertyChanged(nameof(ShowDownloadButton));
                 OnPropertyChanged(nameof(ShowAddToProfileButton));

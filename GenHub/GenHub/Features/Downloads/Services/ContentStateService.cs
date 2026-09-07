@@ -237,7 +237,9 @@ public sealed partial class ContentStateService(
             return true;
         }
 
-        if (p1.StartsWith(GitHubPublisher, StringComparison.OrdinalIgnoreCase) && p2.StartsWith(GitHubPublisher, StringComparison.OrdinalIgnoreCase))
+        // Only allow the specific cross-alias between "github" and "githubtopics"
+        if ((string.Equals(p1, "github", StringComparison.OrdinalIgnoreCase) && string.Equals(p2, "githubtopics", StringComparison.OrdinalIgnoreCase)) ||
+            (string.Equals(p1, "githubtopics", StringComparison.OrdinalIgnoreCase) && string.Equals(p2, "github", StringComparison.OrdinalIgnoreCase)))
         {
             return true;
         }
@@ -299,8 +301,8 @@ public sealed partial class ContentStateService(
             return false;
         }
 
-        var manifestBase = StripVariantSuffix(NormalizeSegment(segments[4]));
-        var cardBase = StripVariantSuffix(NormalizeSegment(expectedName));
+        var manifestBase = NormalizeSegment(StripVariantSuffix(segments[4]));
+        var cardBase = NormalizeSegment(StripVariantSuffix(expectedName));
 
         if (string.Equals(manifestBase, cardBase, StringComparison.OrdinalIgnoreCase))
         {
@@ -466,8 +468,8 @@ public sealed partial class ContentStateService(
             return false;
         }
 
-        var digits = new string([.. tag.Where(char.IsDigit).Take(9)]);
-        expectedVersion = int.TryParse(digits, out var version) ? version.ToString() : "0";
+        var version = ManifestIdGenerator.ExtractVersionFromTag(tag);
+        expectedVersion = version.ToString();
         return true;
     }
 
@@ -852,8 +854,8 @@ public sealed partial class ContentStateService(
             return false;
         }
 
-        var manifestBase = StripVariantSuffix(normManifestName);
-        var prospectiveBase = StripVariantSuffix(normProspectiveName);
+        var manifestBase = NormalizeSegment(StripVariantSuffix(manifestSegments[4]));
+        var prospectiveBase = NormalizeSegment(StripVariantSuffix(contentName));
         var rawManifestName = manifestSegments[4];
 
         return manifestBase.Equals(prospectiveBase, StringComparison.OrdinalIgnoreCase) ||
@@ -881,18 +883,39 @@ public sealed partial class ContentStateService(
         bool hasRealDate = item.LastUpdated.HasValue && item.LastUpdated.Value > DateTime.MinValue;
         var releaseDate = item.LastUpdated ?? DateTime.MinValue;
 
-        var providerName = string.IsNullOrWhiteSpace(item.ProviderName) ? "unknown" : item.ProviderName;
-        var contentName = item.Name;
-        if (string.IsNullOrWhiteSpace(contentName))
+        var providerName = SanitizeSegmentForManifest(item.ProviderName, "unknown");
+        var contentName = SanitizeSegmentForManifest(item.Name, null)
+            ?? SanitizeSegmentForManifest(item.Id, "unknown");
+
+        string prospectiveId;
+        try
         {
-            contentName = string.IsNullOrWhiteSpace(item.Id) ? "unknown" : item.Id;
+            prospectiveId = hasRealDate
+                ? ManifestIdGenerator.GeneratePublisherContentId(providerName, item.ContentType, contentName, releaseDate)
+                : ManifestIdGenerator.GeneratePublisherContentId(providerName, item.ContentType, contentName, userVersion: 0);
+        }
+        catch (ArgumentException)
+        {
+            prospectiveId = $"1.0.{providerName}.{item.ContentType.ToString().ToLowerInvariant()}.{contentName}";
         }
 
-        var prospectiveId = hasRealDate
-            ? ManifestIdGenerator.GeneratePublisherContentId(providerName, item.ContentType, contentName, releaseDate)
-            : ManifestIdGenerator.GeneratePublisherContentId(providerName, item.ContentType, contentName, userVersion: 0);
-
         return (prospectiveId, releaseDate, hasRealDate);
+    }
+
+    private static string SanitizeSegmentForManifest(string? input, string? fallback)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return fallback ?? "unknown";
+        }
+
+        var hasAlphaNumeric = input.Any(char.IsLetterOrDigit);
+        if (!hasAlphaNumeric)
+        {
+            return fallback ?? "unknown";
+        }
+
+        return input;
     }
 
     private static ContentManifest? FindDirectFileMatch(IReadOnlyList<ContentManifest> manifests, ContentSearchResult item)

@@ -23,7 +23,7 @@ public sealed class ContentDownloadCoordinator(
     INotificationService notificationService,
     ILogger<ContentDownloadCoordinator> logger) : IContentDownloadCoordinator
 {
-    private readonly ConcurrentDictionary<string, Task<OperationResult<ContentManifest>>> _inFlightDownloads = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, Lazy<Task<OperationResult<ContentManifest>>>> _inFlightDownloads = new(StringComparer.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public Task<OperationResult<ContentManifest>> DownloadContentAsync(
@@ -37,7 +37,13 @@ public sealed class ContentDownloadCoordinator(
             ? $"{searchResult.ProviderName}::{searchResult.Id}"
             : $"{searchResult.ProviderName}::{searchResult.Name}";
 
-        return _inFlightDownloads.GetOrAdd(key, k => ExecuteDownloadAsync(searchResult, k, progress, cancellationToken));
+        var lazyTask = _inFlightDownloads.GetOrAdd(
+            key,
+            k => new Lazy<Task<OperationResult<ContentManifest>>>(
+                () => ExecuteDownloadAsync(searchResult, k, progress, cancellationToken),
+                LazyThreadSafetyMode.ExecutionAndPublication));
+
+        return lazyTask.Value;
     }
 
     private async Task<OperationResult<ContentManifest>> ExecuteDownloadAsync(

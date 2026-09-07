@@ -26,6 +26,8 @@ public sealed class ContentStateServiceCatalogIdentityTests
     [InlineData("github", "githubtopics", true)]
     [InlineData("githubtopics", "github", true)]
     [InlineData("github", "github", true)]
+    [InlineData("github-authorA", "github-authorB", false)]
+    [InlineData("github-modder", "github-team", false)]
     public void IsCompatiblePublisherAlias_EnforcesExactAndNormalizedOnly(
         string manifestPublisher,
         string expectedPublisher,
