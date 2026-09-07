@@ -520,19 +520,25 @@ public sealed class GenericCatalogResolverTests
     /// <param name="expectedMin">Expected minimum version.</param>
     /// <param name="expectedMax">Expected maximum version.</param>
     /// <param name="expectedCompatibleCsv">Expected comma-separated compatible versions.</param>
+    /// <param name="expectedMinInclusive">Expected min inclusive flag.</param>
+    /// <param name="expectedMaxInclusive">Expected max inclusive flag.</param>
     /// <returns>A task representing the asynchronous test.</returns>
     [Theory]
-    [InlineData(">=1.0.0 <2.0.0", "1.0.0", "2.0.0", null)]
-    [InlineData("^1.2.3", "1.2.3", "2.0.0", null)]
-    [InlineData("~1.2.3", "1.2.3", "1.3.0", null)]
-    [InlineData("1.0.0 | 2.0.0", "", "", "1.0.0,2.0.0")]
-    [InlineData("latest", "", "", null)]
-    [InlineData("1.5.0", "1.5.0", "1.5.0", "1.5.0")]
+    [InlineData(">=1.0.0 <2.0.0", "1.0.0", "2.0.0", null, true, false)]
+    [InlineData("^1.2.3", "1.2.3", "2.0.0", null, true, false)]
+    [InlineData("~1.2.3", "1.2.3", "1.3.0", null, true, false)]
+    [InlineData("1.0.0 | 2.0.0", "", "", "1.0.0,2.0.0", true, true)]
+    [InlineData("latest", "", "", null, true, true)]
+    [InlineData("1.5.0", "1.5.0", "1.5.0", "1.5.0", true, true)]
+    [InlineData("v1.5", "1.5", "1.5", "1.5", true, true)]
+    [InlineData("invalid-token", "", "", null, true, true)]
     public async Task ResolveAsync_ParsesVersionConstraintsCorrectly(
         string constraint,
         string expectedMin,
         string expectedMax,
-        string? expectedCompatibleCsv)
+        string? expectedCompatibleCsv,
+        bool expectedMinInclusive,
+        bool expectedMaxInclusive)
     {
         var contentItem = new CatalogContentItem
         {
@@ -606,6 +612,15 @@ public sealed class GenericCatalogResolverTests
                     capturedMin = min;
                     capturedMax = max;
                     capturedCompatible = comp;
+                    builtManifest.Dependencies.Add(new ContentDependency
+                    {
+                        Id = id,
+                        Name = name,
+                        DependencyType = type,
+                        MinVersion = min,
+                        MaxVersion = max,
+                        CompatibleVersions = comp ?? [],
+                    });
                 })
             .Returns(builderMock.Object);
 
@@ -628,6 +643,10 @@ public sealed class GenericCatalogResolverTests
             Assert.NotNull(capturedCompatible);
             Assert.Equal(expectedCompatibleCsv.Split(','), capturedCompatible);
         }
+
+        Assert.Single(builtManifest.Dependencies);
+        Assert.Equal(expectedMinInclusive, builtManifest.Dependencies[0].MinInclusive);
+        Assert.Equal(expectedMaxInclusive, builtManifest.Dependencies[0].MaxInclusive);
     }
 
     private static Mock<IContentManifestBuilder> CreateBuilderMock(ContentManifest builtManifest)

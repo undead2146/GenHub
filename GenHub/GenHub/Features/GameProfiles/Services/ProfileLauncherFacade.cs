@@ -1197,14 +1197,22 @@ public class ProfileLauncherFacade(
 
         // Simple string comparison for min/max versions (semantic versioning would be better in production)
         // For now, we use string comparison which works for versions like "1.04", "1.08", etc.
-        if (!string.IsNullOrEmpty(dependency.MinVersion) && string.Compare(version, dependency.MinVersion, StringComparison.OrdinalIgnoreCase) < 0)
+        if (!string.IsNullOrEmpty(dependency.MinVersion))
         {
-            return false;
+            var comparison = string.Compare(version, dependency.MinVersion, StringComparison.OrdinalIgnoreCase);
+            if (dependency.MinInclusive ? comparison < 0 : comparison <= 0)
+            {
+                return false;
+            }
         }
 
-        if (!string.IsNullOrEmpty(dependency.MaxVersion) && string.Compare(version, dependency.MaxVersion, StringComparison.OrdinalIgnoreCase) > 0)
+        if (!string.IsNullOrEmpty(dependency.MaxVersion))
         {
-            return false;
+            var comparison = string.Compare(version, dependency.MaxVersion, StringComparison.OrdinalIgnoreCase);
+            if (dependency.MaxInclusive ? comparison > 0 : comparison >= 0)
+            {
+                return false;
+            }
         }
 
         return true;
@@ -1225,12 +1233,14 @@ public class ProfileLauncherFacade(
         var parts = new List<string>();
         if (!string.IsNullOrEmpty(dependency.MinVersion))
         {
-            parts.Add($"version >= {dependency.MinVersion}");
+            var op = dependency.MinInclusive ? ">=" : ">";
+            parts.Add($"version {op} {dependency.MinVersion}");
         }
 
         if (!string.IsNullOrEmpty(dependency.MaxVersion))
         {
-            parts.Add($"version <= {dependency.MaxVersion}");
+            var op = dependency.MaxInclusive ? "<=" : "<";
+            parts.Add($"version {op} {dependency.MaxVersion}");
         }
 
         return parts.Count > 0 ? $"({string.Join(" and ", parts)})" : string.Empty;

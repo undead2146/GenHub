@@ -158,7 +158,9 @@ public class ManifestDiscoveryService(
             if (!IsVersionCompatible(
                 dependencyManifest.Version,
                 dependency.MinVersion ?? string.Empty,
-                dependency.MaxVersion ?? string.Empty))
+                dependency.MaxVersion ?? string.Empty,
+                dependency.MinInclusive,
+                dependency.MaxInclusive))
             {
                 logger.LogWarning(
                     "Dependency {DependencyId} version {Version} is not compatible with required range {MinVersion}-{MaxVersion}",
@@ -178,16 +180,29 @@ public class ManifestDiscoveryService(
         return exception is UnauthorizedAccessException or IOException;
     }
 
-    private static bool IsVersionCompatible(string actualVersion, string minVersion, string maxVersion)
+    private static bool IsVersionCompatible(
+        string actualVersion,
+        string minVersion,
+        string maxVersion,
+        bool minInclusive = true,
+        bool maxInclusive = true)
     {
-        if (!string.IsNullOrEmpty(minVersion) && string.Compare(actualVersion, minVersion, StringComparison.OrdinalIgnoreCase) < 0)
+        if (!string.IsNullOrEmpty(minVersion))
         {
-            return false;
+            var comparison = string.Compare(actualVersion, minVersion, StringComparison.OrdinalIgnoreCase);
+            if (minInclusive ? comparison < 0 : comparison <= 0)
+            {
+                return false;
+            }
         }
 
-        if (!string.IsNullOrEmpty(maxVersion) && string.Compare(actualVersion, maxVersion, StringComparison.OrdinalIgnoreCase) > 0)
+        if (!string.IsNullOrEmpty(maxVersion))
         {
-            return false;
+            var comparison = string.Compare(actualVersion, maxVersion, StringComparison.OrdinalIgnoreCase);
+            if (maxInclusive ? comparison > 0 : comparison >= 0)
+            {
+                return false;
+            }
         }
 
         return true;

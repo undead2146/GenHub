@@ -223,4 +223,29 @@ public sealed class CatalogManifestIdentityTests
         var humanized = CatalogManifestIdentity.HumanizeContentId("superhackers-zerohour-gamecode");
         Assert.Equal("Superhackers Zerohour Gamecode", humanized);
     }
+
+    /// <summary>
+    /// Tests that lone constraint tokens are only accepted as exact versions if parsable and valid.
+    /// Prefixes like 'v' are stripped and normalized, while operators or arbitrary text are rejected.
+    /// </summary>
+    [Theory]
+    [InlineData("1.04", true, "1.04")]
+    [InlineData("=1.04", true, "1.04")]
+    [InlineData("1.0.0", true, "1.0.0")]
+    [InlineData("v1.5", true, "1.5")]
+    [InlineData("V2.0.0", true, "2.0.0")]
+    [InlineData(">=1.0.0", false, "")]
+    [InlineData("<2.0.0", false, "")]
+    [InlineData("^1.2.3", false, "")]
+    [InlineData("~1.2.3", false, "")]
+    [InlineData("latest", false, "")]
+    [InlineData("invalid-version", false, "")]
+    [InlineData("", false, "")]
+    [InlineData(null, false, "")]
+    public void TryParseExactVersion_ValidatesAndNormalizesCorrectly(string? token, bool expectedSuccess, string expectedVersion)
+    {
+        var success = CatalogManifestIdentity.TryParseExactVersion(token, out var cleanVersion);
+        Assert.Equal(expectedSuccess, success);
+        Assert.Equal(expectedVersion, cleanVersion);
+    }
 }

@@ -134,6 +134,8 @@ public class GenericCatalogResolver(
 
             var manifest = builder.Build();
 
+            ApplyDependencyConstraints(manifest, release);
+
             ApplyManifestPostProcessing(
                 manifest,
                 contentItem,
@@ -256,7 +258,7 @@ public class GenericCatalogResolver(
                 continue;
             }
 
-            AddCatalogDependency(builder, dependency, contentItem, bundleComponents);
+            AddCatalogDependency(builder, dependency, dependencyType, contentItem, bundleComponents);
         }
     }
 
@@ -311,10 +313,11 @@ public class GenericCatalogResolver(
     private static void AddCatalogDependency(
         IContentManifestBuilder builder,
         CatalogDependency dependency,
+        ContentType initialDependencyType,
         CatalogContentItem contentItem,
         List<CatalogBundleComponentDescriptor>? bundleComponents)
     {
-        var (depPublisherId, depVersion, dependencyType) = ResolveDependencyIdentity(dependency, contentItem, bundleComponents);
+        var (depPublisherId, depVersion, dependencyType) = ResolveDependencyIdentity(dependency, initialDependencyType, bundleComponents);
 
         var dependencyId = CatalogManifestIdentity.CreateContentId(
             depPublisherId,
@@ -322,7 +325,7 @@ public class GenericCatalogResolver(
             dependency.ContentId,
             depVersion);
 
-        var (minVersion, maxVersion, compatibleVersions) = ParseVersionConstraint(dependency.VersionConstraint);
+        var (minVersion, maxVersion, _, _, compatibleVersions) = ParseVersionConstraint(dependency.VersionConstraint);
 
         var installBehavior = DependencyInstallBehavior.RequireExisting;
         if (dependency.IsOptional)
@@ -346,13 +349,13 @@ public class GenericCatalogResolver(
 
     private static (string PublisherId, string Version, ContentType DependencyType) ResolveDependencyIdentity(
         CatalogDependency dependency,
-        CatalogContentItem contentItem,
+        ContentType initialDependencyType,
         List<CatalogBundleComponentDescriptor>? bundleComponents)
     {
         var cleanConstraint = CatalogManifestIdentity.StripVersionConstraint(dependency.VersionConstraint);
         var depPublisherId = dependency.PublisherId;
         var depVersion = cleanConstraint;
-        var dependencyType = CatalogManifestIdentity.ResolveDependencyContentType(dependency, contentItem);
+        var dependencyType = initialDependencyType;
 
         if (bundleComponents?.FirstOrDefault(c => string.Equals(c.ContentId, dependency.ContentId, StringComparison.OrdinalIgnoreCase)) is { } matched)
         {
@@ -376,17 +379,17 @@ public class GenericCatalogResolver(
         return (depPublisherId, depVersion, dependencyType);
     }
 
-    private static (string MinVersion, string MaxVersion, List<string>? CompatibleVersions) ParseVersionConstraint(string? constraint)
+    private static (string MinVersion, string MaxVersion, bool MinInclusive, bool MaxInclusive, List<string>? CompatibleVersions) ParseVersionConstraint(string? constraint)
     {
         if (string.IsNullOrWhiteSpace(constraint))
         {
-            return (string.Empty, string.Empty, null);
+            return (string.Empty, string.Empty, true, true, null);
         }
 
         var trimmed = constraint.Trim();
         if (trimmed.Equals("latest", StringComparison.OrdinalIgnoreCase))
         {
-            return (string.Empty, string.Empty, null);
+            return (string.Empty, string.Empty, true, true, null);
         }
 
         if (trimmed.Contains(',') || trimmed.Contains('|'))
@@ -397,75 +400,105 @@ public class GenericCatalogResolver(
         return ParseRangedTokens(trimmed);
     }
 
-    private static (string MinVersion, string MaxVersion, List<string>? CompatibleVersions) ParseListConstraint(string trimmed)
+    private static (string MinVersion, string MaxVersion, bool MinInclusive, bool MaxInclusive, List<string>? CompatibleVersions) ParseListConstraint(string trimmed)
     {
         var parts = trimmed.Split([',', '|'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(CatalogManifestIdentity.StripVersionConstraint)
             .Where(v => !string.IsNullOrWhiteSpace(v))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        return (string.Empty, string.Empty, parts.Count > 0 ? parts : null);
+        return (string.Empty, string.Empty, true, true, parts.Count > 0 ? parts : null);
     }
 
-    private static (string MinVersion, string MaxVersion, List<string>? CompatibleVersions) ParseRangedTokens(string trimmed)
+    private static (string MinVersion, string MaxVersion, bool MinInclusive, bool MaxInclusive, List<string>? CompatibleVersions) ParseRangedTokens(string trimmed)
     {
         var tokens = trimmed.Split([' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (tokens.Length == 1 && IsExactVersion(tokens[0]))
+        if (tokens.Length == 1 && CatalogManifestIdentity.TryParseExactVersion(tokens[0], out var exactVersion))
         {
-            var stripped = CatalogManifestIdentity.StripVersionConstraint(tokens[0]);
-            if (!string.IsNullOrWhiteSpace(stripped))
-            {
-                return (stripped, stripped, [stripped]);
-            }
+            return (exactVersion, exactVersion, true, true, [exactVersion]);
         }
 
         string minVersion = string.Empty;
         string maxVersion = string.Empty;
+        var minInclusive = true;
+        var maxInclusive = true;
 
         foreach (var token in tokens)
         {
-            ApplyTokenBound(token, ref minVersion, ref maxVersion);
+            ApplyTokenBound(token, ref minVersion, ref maxVersion, ref minInclusive, ref maxInclusive);
         }
 
-        return (minVersion, maxVersion, null);
+        return (minVersion, maxVersion, minInclusive, maxInclusive, null);
     }
 
-    private static bool IsExactVersion(string token)
+    private static void ApplyTokenBound(
+        string token,
+        ref string minVersion,
+        ref string maxVersion,
+        ref bool minInclusive,
+        ref bool maxInclusive)
     {
-        return !token.StartsWith('>') &&
-               !token.StartsWith('<') &&
-               !token.StartsWith('^') &&
-               !token.StartsWith('~');
-    }
-
-    private static void ApplyTokenBound(string token, ref string minVersion, ref string maxVersion)
-    {
-        if (token.StartsWith(">=", StringComparison.Ordinal) || token.StartsWith('>'))
+        if (token.StartsWith(">=", StringComparison.Ordinal))
         {
             minVersion = CatalogManifestIdentity.StripVersionConstraint(token);
+            minInclusive = true;
         }
-        else if (token.StartsWith("<=", StringComparison.Ordinal) || token.StartsWith('<'))
+        else if (token.StartsWith('>'))
+        {
+            minVersion = CatalogManifestIdentity.StripVersionConstraint(token);
+            minInclusive = false;
+        }
+        else if (token.StartsWith("<=", StringComparison.Ordinal))
         {
             maxVersion = CatalogManifestIdentity.StripVersionConstraint(token);
+            maxInclusive = true;
+        }
+        else if (token.StartsWith('<'))
+        {
+            maxVersion = CatalogManifestIdentity.StripVersionConstraint(token);
+            maxInclusive = false;
         }
         else if (token.StartsWith('^'))
         {
             var target = CatalogManifestIdentity.StripVersionConstraint(token);
             minVersion = target;
+            minInclusive = true;
             var parts = target.Split('.');
             if (parts.Length > 0 && int.TryParse(parts[0], out var major))
             {
                 maxVersion = $"{major + 1}.0.0";
+                maxInclusive = false;
             }
         }
         else if (token.StartsWith('~'))
         {
             var target = CatalogManifestIdentity.StripVersionConstraint(token);
             minVersion = target;
+            minInclusive = true;
             var parts = target.Split('.');
             if (parts.Length >= 2 && int.TryParse(parts[0], out var major) && int.TryParse(parts[1], out var minor))
             {
                 maxVersion = $"{major}.{minor + 1}.0";
+                maxInclusive = false;
+            }
+        }
+    }
+
+    private static void ApplyDependencyConstraints(ContentManifest manifest, ContentRelease release)
+    {
+        if (manifest.Dependencies.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var releaseDep in release.Dependencies)
+        {
+            var (_, _, minInclusive, maxInclusive, _) = ParseVersionConstraint(releaseDep.VersionConstraint);
+            var manifestDep = manifest.Dependencies.FirstOrDefault(d => string.Equals(d.Name, releaseDep.ContentId, StringComparison.OrdinalIgnoreCase));
+            if (manifestDep != null)
+            {
+                manifestDep.MinInclusive = minInclusive;
+                manifestDep.MaxInclusive = maxInclusive;
             }
         }
     }

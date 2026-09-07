@@ -130,6 +130,88 @@ public static class CatalogManifestIdentity
     }
 
     /// <summary>
+    /// Attempts to parse and normalize an exact version constraint token (e.g. "1.04", "=1.04", "v1.5").
+    /// Rejects range operators, non-version keywords, or malformed strings.
+    /// </summary>
+    /// <param name="token">The token to evaluate.</param>
+    /// <param name="cleanVersion">The normalized version string if successful.</param>
+    /// <returns><see langword="true"/> if the token represents a valid exact version; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseExactVersion(string? token, out string cleanVersion)
+    {
+        cleanVersion = string.Empty;
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return false;
+        }
+
+        var trimmed = token.Trim();
+        if (trimmed.StartsWith('>') || trimmed.StartsWith('<') || trimmed.StartsWith('^') || trimmed.StartsWith('~'))
+        {
+            return false;
+        }
+
+        var stripped = StripVersionConstraint(trimmed);
+        if (string.IsNullOrWhiteSpace(stripped) || stripped == "0")
+        {
+            return false;
+        }
+
+        var candidate = stripped;
+        if ((candidate.StartsWith('v') || candidate.StartsWith('V')) && candidate.Length > 1 && char.IsDigit(candidate[1]))
+        {
+            candidate = candidate[1..].Trim();
+        }
+
+        if (IsValidVersion(candidate))
+        {
+            cleanVersion = candidate;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Checks whether a normalized string represents a valid semantic, date, weekly, or QFE version format.
+    /// </summary>
+    /// <param name="candidate">The candidate version string.</param>
+    /// <returns><see langword="true"/> if the candidate is a recognized valid version format; otherwise <see langword="false"/>.</returns>
+    public static bool IsValidVersion(string? candidate)
+    {
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return false;
+        }
+
+        var normalized = candidate.Trim();
+        normalized = normalized.StartsWith("weekly-", StringComparison.OrdinalIgnoreCase)
+            ? normalized["weekly-".Length..].Trim()
+            : normalized.TrimStart('v', 'V').Trim();
+
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return false;
+        }
+
+        if (TryParseDelimitedVersion(normalized, out _))
+        {
+            return true;
+        }
+
+        if (normalized.Contains('_') && GameVersionHelper.GetGeneralsOnlineManifestIdComponent(normalized) > 0)
+        {
+            return true;
+        }
+
+        if (int.TryParse(normalized, out var intVer) && intVer >= 0)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Converts a version or constraint into the integer segment used by manifest IDs.
     /// Handles semantic versions (1.04 -> 104, 1.3 -> 103), date-based versions (2026.07.31 -> 20260731,
     /// 2026-08-02 -> 20260802), weekly tags (weekly-2026-07-31 -> 20260731), and direct integers.
