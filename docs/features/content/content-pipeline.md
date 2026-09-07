@@ -312,7 +312,7 @@ IDs follow a deterministic format:
 
 **Examples**:
 
-- `1.20190826.moddb-han.mod.hanpatchv32` - ModDB mod
+- `1.20190826.moddbhan.mod.hanpatchv32` - ModDB mod
 - `1.104.ea.gameinstallation.zerohour` - Base game
 
 ---

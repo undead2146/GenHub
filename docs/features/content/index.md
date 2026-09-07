@@ -245,7 +245,7 @@ schemaVersion.userVersion.publisher.contentType.contentName
 
 **Examples:**
 
-- `1.20240315.moddb-contrateam.mod.contra` (ModDB content with date versioning)
+- `1.20240315.moddbcontrateam.mod.contra` (ModDB content with date versioning)
 - `1.0.themodders.gameclient.generals` (Publisher content with semantic versioning)
 - `1.104.ea.gameinstallation.zerohour` (Zero Hour game installation)
 - `1.108.ea.gameinstallation.generals` (Generals game installation)

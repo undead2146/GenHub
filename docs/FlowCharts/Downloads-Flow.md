@@ -135,7 +135,7 @@ The service uses the 5-segment manifest ID format to detect content versions:
 
 ```text
 Format: schemaVersion.userVersion.publisher.contentType.contentName
-Example: 1.20240315.moddb-author.mod.releasename
+Example: 1.20240315.moddbauthor.mod.releasename
 ```
 
 **Detection Logic**:
@@ -187,7 +187,7 @@ sequenceDiagram
 
     VM->>CSS: GetStateAsync(searchResult)
     CSS->>MIG: GeneratePublisherContentId(publisher, type, name, date)
-    MIG-->>CSS: "1.20240315.moddb-author.mod.mycontent"
+    MIG-->>CSS: "1.20240315.moddbauthor.mod.mycontent"
     CSS->>Pool: IsManifestAcquiredAsync(prospectiveId)
 
     alt Exact Match Found
