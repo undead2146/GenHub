@@ -218,7 +218,9 @@ public sealed class GenericCatalogResolverTests
                 It.IsAny<List<string>?>(),
                 It.IsAny<bool>(),
                 It.IsAny<List<ManifestId>?>(),
-                It.IsAny<List<GameType>?>()),
+                It.IsAny<List<GameType>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>()),
             Times.Once);
 
         // The literal "1.104.ea.mod.zerohour" ID that previously caused the failure must never be emitted.
@@ -233,7 +235,9 @@ public sealed class GenericCatalogResolverTests
                 It.IsAny<List<string>?>(),
                 It.IsAny<bool>(),
                 It.IsAny<List<ManifestId>?>(),
-                It.IsAny<List<GameType>?>()),
+                It.IsAny<List<GameType>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>()),
             Times.Never);
     }
 
@@ -647,7 +651,9 @@ public sealed class GenericCatalogResolverTests
                 It.IsAny<List<string>?>(),
                 It.IsAny<bool>(),
                 It.IsAny<List<ManifestId>?>(),
-                It.IsAny<List<GameType>?>()),
+                It.IsAny<List<GameType>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>()),
             Times.Once);
 
         builderMock.Verify(
@@ -661,7 +667,9 @@ public sealed class GenericCatalogResolverTests
                 It.IsAny<List<string>?>(),
                 It.IsAny<bool>(),
                 It.IsAny<List<ManifestId>?>(),
-                It.IsAny<List<GameType>?>()),
+                It.IsAny<List<GameType>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>()),
             Times.Once);
 
         builderMock.Verify(
@@ -675,7 +683,9 @@ public sealed class GenericCatalogResolverTests
                 It.IsAny<List<string>?>(),
                 It.IsAny<bool>(),
                 It.IsAny<List<ManifestId>?>(),
-                It.IsAny<List<GameType>?>()),
+                It.IsAny<List<GameType>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>()),
             Times.Never);
     }
 
@@ -988,6 +998,18 @@ public sealed class GenericCatalogResolverTests
         builderMock.Setup(b => b.AddRemoteFileAsync(
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<ContentSourceType>(), It.IsAny<bool>(), It.IsAny<FilePermissions?>()))
             .ReturnsAsync(builderMock.Object);
+        builderMock.Setup(b => b.AddDependency(
+                It.IsAny<ManifestId>(),
+                It.IsAny<string>(),
+                It.IsAny<ContentType>(),
+                It.IsAny<DependencyInstallBehavior>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<List<string>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<List<ManifestId>?>(),
+                It.IsAny<List<GameType>?>()))
+            .Returns(builderMock.Object);
         builderMock.Setup(b => b.AddDependency(
                 It.IsAny<ManifestId>(),
                 It.IsAny<string>(),

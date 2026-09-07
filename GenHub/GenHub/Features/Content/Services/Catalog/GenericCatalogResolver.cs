@@ -349,6 +349,8 @@ public partial class GenericCatalogResolver(
             minVersion: effectiveMinVersion,
             maxVersion: maxVersion,
             compatibleVersions: compatibleVersions,
+            isExclusive: false,
+            conflictsWith: null,
             compatibleGameTypes: foundation.CompatibleGameTypes,
             minInclusive: effectiveMinInclusive,
             maxInclusive: maxInclusive);
@@ -392,6 +394,9 @@ public partial class GenericCatalogResolver(
             minVersion: minVersion,
             maxVersion: maxVersion,
             compatibleVersions: compatibleVersions,
+            isExclusive: false,
+            conflictsWith: null,
+            compatibleGameTypes: null,
             minInclusive: minInclusive,
             maxInclusive: maxInclusive);
     }

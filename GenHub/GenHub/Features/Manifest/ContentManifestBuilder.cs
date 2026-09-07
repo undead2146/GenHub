@@ -334,9 +334,38 @@ public partial class ContentManifestBuilder(
         List<string>? compatibleVersions = null,
         bool isExclusive = false,
         List<ManifestId>? conflictsWith = null,
-        List<GameType>? compatibleGameTypes = null,
-        bool minInclusive = true,
-        bool maxInclusive = true)
+        List<GameType>? compatibleGameTypes = null)
+    {
+        return AddDependency(
+            id,
+            name,
+            dependencyType,
+            installBehavior,
+            minVersion,
+            maxVersion,
+            compatibleVersions,
+            isExclusive,
+            conflictsWith,
+            compatibleGameTypes,
+            true,
+            true);
+    }
+
+    /// <inheritdoc />
+    [SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "Manifest builder fluent API preserves overload parity with existing AddDependency methods.")]
+    public IContentManifestBuilder AddDependency(
+        ManifestId id,
+        string name,
+        ContentType dependencyType,
+        DependencyInstallBehavior installBehavior,
+        string minVersion,
+        string maxVersion,
+        List<string>? compatibleVersions,
+        bool isExclusive,
+        List<ManifestId>? conflictsWith,
+        List<GameType>? compatibleGameTypes,
+        bool minInclusive,
+        bool maxInclusive)
     {
         var dependency = new ContentDependency
         {
