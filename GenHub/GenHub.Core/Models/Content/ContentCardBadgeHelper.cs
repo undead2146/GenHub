@@ -208,7 +208,7 @@ public static partial class ContentCardBadgeHelper
 
         if (IsGeneralsOnline(result))
         {
-            return "avares://GenHub/Assets/Covers/usa-cover.png";
+            return PublisherInfoConstants.GeneralsOnline.LogoSource;
         }
 
         if (IsCommunityOutpost(result))

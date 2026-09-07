@@ -30,8 +30,11 @@ public class GeneralsOnlineDiscoverer(
     IProviderDefinitionLoader providerLoader,
     ICatalogParserFactory catalogParserFactory,
     IHttpClientFactory httpClientFactory,
-    IGeneralsOnlinePatchNotesService? patchNotesService = null) : IContentDiscoverer
+    IGeneralsOnlinePatchNotesService? patchNotesService) : IContentDiscoverer
 {
+    private const string BaseUrl = GeneralsOnlineConstants.WebsiteUrl;
+    private const string DefaultPatchNotesUrl = GeneralsOnlineConstants.PatchNotesUrl;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="GeneralsOnlineDiscoverer"/> class without patch notes service.
     /// </summary>
@@ -47,9 +50,6 @@ public class GeneralsOnlineDiscoverer(
         : this(logger, providerLoader, catalogParserFactory, httpClientFactory, null)
     {
     }
-
-    private const string BaseUrl = GeneralsOnlineConstants.WebsiteUrl;
-    private const string DefaultPatchNotesUrl = GeneralsOnlineConstants.PatchNotesUrl;
 
     /// <inheritdoc />
     public string SourceName => GeneralsOnlineConstants.PublisherType;
@@ -225,7 +225,7 @@ public class GeneralsOnlineDiscoverer(
                 }
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogDebug(ex, "Could not enrich release with patch notes");
         }
@@ -252,7 +252,7 @@ public class GeneralsOnlineDiscoverer(
 
             using var httpClient = httpClientFactory.CreateClient(GeneralsOnlineConstants.PublisherType);
             httpClient.Timeout = TimeSpan.FromSeconds(15);
-            httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(ApiConstants.BrowserUserAgent);
             httpClient.DefaultRequestHeaders.Accept.ParseAdd("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8");
             httpClient.DefaultRequestHeaders.Add("Referer", BaseUrl);
 
@@ -260,49 +260,9 @@ public class GeneralsOnlineDiscoverer(
             var context = BrowsingContext.New(Configuration.Default);
             var document = await context.OpenAsync(req => req.Content(html), cancellationToken);
 
-            var postText = document.QuerySelector(".blog-read .post-text");
-            var dateElement = document.QuerySelector("#subheader .subtitle") ?? document.QuerySelector(".d-date");
-            var titleElement = document.QuerySelector("#subheader h2") ?? document.QuerySelector("h4");
-
-            var title = titleElement?.TextContent.Trim();
-            if (string.IsNullOrWhiteSpace(title))
-            {
-                title = $"Update {datePart}";
-            }
-
-            var date = dateElement?.TextContent.Trim();
-            var header = !string.IsNullOrEmpty(date) ? $"{title} ({date})" : title;
-
-            var changes = new List<string>();
-            if (postText != null)
-            {
-                var listItems = postText.QuerySelectorAll("ul li");
-                foreach (var li in listItems)
-                {
-                    var decoded = WebUtility.HtmlDecode(li.TextContent.Trim());
-                    if (!string.IsNullOrEmpty(decoded))
-                    {
-                        changes.Add(decoded);
-                    }
-                }
-            }
-
-            if (changes.Count == 0)
-            {
-                return null;
-            }
-
-            var sb = new StringBuilder();
-            sb.AppendLine(header);
-            sb.AppendLine();
-            foreach (var change in changes)
-            {
-                sb.AppendLine($"• {change}");
-            }
-
-            return sb.ToString().TrimEnd();
+            return GeneralsOnlinePatchNotesService.FormatPatchNotesDocument(document, datePart);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogDebug(ex, "Failed direct patch notes fetch for version {Version}", version);
             return null;

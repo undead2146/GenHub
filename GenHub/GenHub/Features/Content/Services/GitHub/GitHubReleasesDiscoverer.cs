@@ -12,6 +12,7 @@ using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GitHub;
+using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Results.Content;
 using GenHub.Features.Content.Services.Helpers;
@@ -292,6 +293,7 @@ public partial class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILo
 
         // Declare the variant group so the downloads browser collapses both game-type
         // cards into a single card with a variant picker.
+        var userVersion = SuperHackersConstants.ExtractVersionFromReleaseTag(request.Release.TagName);
         result.VariantGroupId = request.VariantGroupId;
         result.VariantFamilyName = request.BaseName;
         result.Variants =
@@ -300,7 +302,11 @@ public partial class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILo
             {
                 Id = $"github.{request.Owner}.{request.Repo}.{request.Release.TagName}.{SuperHackersConstants.ZeroHourSuffix}",
                 Name = $"{request.BaseName} — {SuperHackersConstants.ZeroHourDisplayName}",
-                ManifestId = $"github.{request.Owner}.{request.Repo}.{request.Release.TagName}.{SuperHackersConstants.ZeroHourSuffix}",
+                ManifestId = ManifestIdGenerator.GeneratePublisherContentId(
+                    PublisherTypeConstants.TheSuperHackers,
+                    ContentType.GameClient,
+                    SuperHackersConstants.ZeroHourSuffix,
+                    userVersion),
                 VariantType = "game-type",
                 IsDefault = true,
                 TargetGame = GameType.ZeroHour,
@@ -309,7 +315,11 @@ public partial class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILo
             {
                 Id = $"github.{request.Owner}.{request.Repo}.{request.Release.TagName}.{SuperHackersConstants.GeneralsSuffix}",
                 Name = $"{request.BaseName} — {SuperHackersConstants.GeneralsDisplayName}",
-                ManifestId = $"github.{request.Owner}.{request.Repo}.{request.Release.TagName}.{SuperHackersConstants.GeneralsSuffix}",
+                ManifestId = ManifestIdGenerator.GeneratePublisherContentId(
+                    PublisherTypeConstants.TheSuperHackers,
+                    ContentType.GameClient,
+                    SuperHackersConstants.GeneralsSuffix,
+                    userVersion),
                 VariantType = "game-type",
                 IsDefault = false,
                 TargetGame = GameType.Generals,
@@ -443,7 +453,7 @@ public partial class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILo
                 ? release.Name
                 : cardName;
             var tag = release.TagName ?? "latest";
-            var variantGroupId = $"github.{owner.ToLowerInvariant()}.{repo.ToLowerInvariant()}.gameclient.{tag.ToLowerInvariant()}";
+            var variantGroupId = SuperHackersConstants.GetGameClientVariantGroupId(tag);
             results.Add(BuildSuperHackersVariantCard(new SuperHackersCardRequest(owner, repo, release, baseName, totalSize, variantCount, GameType.Generals, SuperHackersConstants.GeneralsDisplayName, variantGroupId)));
             results.Add(BuildSuperHackersVariantCard(new SuperHackersCardRequest(owner, repo, release, baseName, totalSize, variantCount, GameType.ZeroHour, SuperHackersConstants.ZeroHourDisplayName, variantGroupId)));
         }

@@ -78,7 +78,7 @@ public class GeneralsOnlineJsonCatalogParser(
 
                     if (apiResponse != null && (!string.IsNullOrWhiteSpace(apiResponse.Version) || !string.IsNullOrWhiteSpace(apiResponse.DownloadUrl)))
                     {
-                        release = CreateReleaseFromApiResponse(apiResponse);
+                        release = CreateReleaseFromApiResponse(apiResponse, logger);
                         logger.LogInformation(
                             "Parsed release from manifest.json: {Version}",
                             release.Version);
@@ -143,21 +143,28 @@ public class GeneralsOnlineJsonCatalogParser(
     /// </summary>
     /// <param name="apiVersion">The version string from the API JSON response.</param>
     /// <param name="downloadUrl">The download URL for the portable package.</param>
+    /// <param name="logger">Optional logger for diagnostic warnings.</param>
     /// <returns>The resolved canonical version string.</returns>
-    internal static string ResolveReleaseVersion(string? apiVersion, string? downloadUrl)
+    internal static string ResolveReleaseVersion(string? apiVersion, string? downloadUrl, ILogger? logger = null)
     {
         var urlVersion = ExtractVersionFromUrl(downloadUrl);
-        var hasUrl = !string.IsNullOrWhiteSpace(urlVersion);
-        var hasApi = !string.IsNullOrWhiteSpace(apiVersion);
 
-        if (!hasUrl)
+        if (string.IsNullOrWhiteSpace(urlVersion))
         {
-            return hasApi ? apiVersion! : GeneralsOnlineConstants.UnknownVersion;
+            return !string.IsNullOrWhiteSpace(apiVersion) ? apiVersion : GeneralsOnlineConstants.UnknownVersion;
         }
 
-        if (!hasApi)
+        if (string.IsNullOrWhiteSpace(apiVersion))
         {
-            return urlVersion!;
+            return urlVersion;
+        }
+
+        if (!string.Equals(urlVersion, apiVersion, StringComparison.OrdinalIgnoreCase))
+        {
+            logger?.LogWarning(
+                "Generals Online URL package version '{UrlVersion}' diverges from API manifest version '{ApiVersion}'",
+                urlVersion,
+                apiVersion);
         }
 
         var urlHasQfe = urlVersion.Contains(GeneralsOnlineConstants.QfeMarkerPrefix, StringComparison.OrdinalIgnoreCase);
@@ -238,10 +245,10 @@ public class GeneralsOnlineJsonCatalogParser(
     /// <summary>
     /// Creates a GeneralsOnlineRelease from a full API response (manifest.json).
     /// </summary>
-    private static GeneralsOnlineRelease CreateReleaseFromApiResponse(GeneralsOnlineApiResponse apiResponse)
+    private static GeneralsOnlineRelease CreateReleaseFromApiResponse(GeneralsOnlineApiResponse apiResponse, ILogger? logger = null)
     {
-        var version = ResolveReleaseVersion(apiResponse.Version, apiResponse.DownloadUrl);
-        var versionDate = ParseVersionDate(version) ?? DateTime.UtcNow;
+        var version = ResolveReleaseVersion(apiResponse.Version, apiResponse.DownloadUrl, logger);
+        var versionDate = ParseVersionDate(version) ?? DateTime.UnixEpoch;
         var changelog = apiResponse.ReleaseNotes;
         if (string.IsNullOrWhiteSpace(changelog) ||
             string.Equals(changelog.Trim(), "www.playgenerals.online", StringComparison.OrdinalIgnoreCase) ||
