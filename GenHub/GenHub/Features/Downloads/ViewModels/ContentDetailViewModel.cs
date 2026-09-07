@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
@@ -1307,11 +1307,9 @@ public partial class ContentDetailViewModel(
 
     private async Task LoadIconAsync()
     {
-        var targetUrl = !string.IsNullOrWhiteSpace(IconUrl)
-            ? IconUrl
-            : (!string.IsNullOrWhiteSpace(ThumbnailUrl) ? ThumbnailUrl : null);
+        var targetUrl = !string.IsNullOrWhiteSpace(IconUrl) ? IconUrl : ThumbnailUrl;
 
-        if (string.IsNullOrEmpty(targetUrl))
+        if (string.IsNullOrWhiteSpace(targetUrl))
         {
             logger.LogDebug("No icon or thumbnail URL available for content: {Name}", Name);
             return;

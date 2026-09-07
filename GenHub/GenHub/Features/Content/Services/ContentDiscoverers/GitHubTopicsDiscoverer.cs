@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -777,7 +777,6 @@ public partial class GitHubTopicsDiscoverer(
         result.ResolverMetadata[GitHubTopicsConstants.SourceTopicMetadataKey] = sourceTopic;
         result.ResolverMetadata[GitHubTopicsConstants.StarCountMetadataKey] = repo.StargazersCount.ToString();
         result.ResolverMetadata[GitHubTopicsConstants.ForkCountMetadataKey] = repo.ForksCount.ToString();
-        result.ResolverMetadata["asset-name"] = asset.Name;
         result.ResolverMetadata["asset-name"] = asset.Name;
         if (!string.IsNullOrEmpty(repo.Language))
         {

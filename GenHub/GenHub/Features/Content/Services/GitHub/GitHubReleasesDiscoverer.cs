@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -386,11 +386,16 @@ public partial class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILo
                 ? PublisherTypeConstants.TheSuperHackers
                 : SourceName;
 
-            var iconUrl = isSuperHackers
-                ? PublisherInfoConstants.TheSuperHackers.LogoSource
-                : (!string.IsNullOrWhiteSpace(release.Author)
-                    ? $"https://github.com/{release.Author}.png"
-                    : $"https://github.com/{owner}.png");
+            string iconUrl;
+            if (isSuperHackers)
+            {
+                iconUrl = PublisherInfoConstants.TheSuperHackers.LogoSource;
+            }
+            else
+            {
+                var author = !string.IsNullOrWhiteSpace(release.Author) ? release.Author : owner;
+                iconUrl = $"https://github.com/{author}.png";
+            }
 
             var cardName = ResolveCardName(isSuperHackers, repo, release);
             results.Add(BuildStandardSearchResult(new StandardSearchResultRequest(release, owner, repo, cardName, contentType, gameType, isTypeInferred, isGameInferred, totalSize, variantCount, providerName, iconUrl)));
