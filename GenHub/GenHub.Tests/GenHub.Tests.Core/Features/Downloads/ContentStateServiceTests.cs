@@ -1099,9 +1099,10 @@ public class ContentStateServiceTests
             Name = "Generals Game Patch",
             ContentType = ContentType.Patch,
             TargetGame = GameType.Generals,
+            OriginalProviderName = "github",
             Publisher = new PublisherInfo
             {
-                PublisherType = "thesuperhackers",
+                PublisherType = "github",
                 Website = "https://github.com/TheSuperHackers/GeneralsGamePatch",
             },
             Metadata = new ContentMetadata
