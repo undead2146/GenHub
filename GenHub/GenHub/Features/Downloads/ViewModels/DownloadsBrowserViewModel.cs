@@ -737,17 +737,20 @@ public sealed partial class DownloadsBrowserViewModel(
                 return;
             }
 
-            CurrentPage++;
+            var attemptedPage = ++CurrentPage;
             logger.LogInformation(
                 "Loading more content for {Publisher}, page {Page}",
                 targetPublisherId,
-                CurrentPage);
+                attemptedPage);
             var success = await RefreshContentAsync(append: true);
             if (!success)
             {
                 if (string.Equals(SelectedPublisher?.PublisherId, targetPublisherId, StringComparison.OrdinalIgnoreCase))
                 {
-                    CurrentPage--;
+                    if (CurrentPage == attemptedPage && CurrentPage > 1)
+                    {
+                        CurrentPage--;
+                    }
                 }
                 else
                 {
@@ -997,6 +1000,13 @@ public sealed partial class DownloadsBrowserViewModel(
                                 "No content loaded",
                                 $"{publisherId} returned no content.");
                         }
+                    }
+                    else if (!result.Success)
+                    {
+                        var errorMsg = result.FirstError ?? "Check your connection and try again.";
+                        notificationService.ShowWarning(
+                            "Failed to Load More",
+                            $"Could not load more content for {publisherId}: {errorMsg}");
                     }
                 }
             });
