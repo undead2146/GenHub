@@ -157,6 +157,19 @@ public class GeneralsOnlineJsonCatalogParser(
             return urlVersion;
         }
 
+        var urlHasQfe = urlVersion.Contains(GeneralsOnlineConstants.QfeMarkerPrefix, StringComparison.OrdinalIgnoreCase);
+        var apiHasQfe = apiVersion.Contains(GeneralsOnlineConstants.QfeMarkerPrefix, StringComparison.OrdinalIgnoreCase);
+
+        if (urlHasQfe && !apiHasQfe)
+        {
+            return urlVersion;
+        }
+
+        if (apiHasQfe && !urlHasQfe)
+        {
+            return apiVersion;
+        }
+
         // Both are present and not empty.
         // If the URL names an actual package, it represents the exact payload delivered to the user.
         // We prefer urlVersion to preserve payload parity and build tags (e.g. _EAC).
@@ -167,19 +180,6 @@ public class GeneralsOnlineJsonCatalogParser(
         }
 
         if (scheme.TryParse(apiVersion, out _))
-        {
-            return apiVersion;
-        }
-
-        var urlHasQfe = urlVersion.Contains(GeneralsOnlineConstants.QfeMarkerPrefix, StringComparison.OrdinalIgnoreCase);
-        var apiHasQfe = apiVersion.Contains(GeneralsOnlineConstants.QfeMarkerPrefix, StringComparison.OrdinalIgnoreCase);
-
-        if (urlHasQfe)
-        {
-            return urlVersion;
-        }
-
-        if (apiHasQfe)
         {
             return apiVersion;
         }

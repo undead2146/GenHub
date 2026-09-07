@@ -32,6 +32,22 @@ public class GeneralsOnlineDiscoverer(
     IHttpClientFactory httpClientFactory,
     IGeneralsOnlinePatchNotesService? patchNotesService = null) : IContentDiscoverer
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="GeneralsOnlineDiscoverer"/> class without patch notes service.
+    /// </summary>
+    /// <param name="logger">The logger.</param>
+    /// <param name="providerLoader">The provider definition loader.</param>
+    /// <param name="catalogParserFactory">The catalog parser factory.</param>
+    /// <param name="httpClientFactory">The HTTP client factory.</param>
+    public GeneralsOnlineDiscoverer(
+        ILogger<GeneralsOnlineDiscoverer> logger,
+        IProviderDefinitionLoader providerLoader,
+        ICatalogParserFactory catalogParserFactory,
+        IHttpClientFactory httpClientFactory)
+        : this(logger, providerLoader, catalogParserFactory, httpClientFactory, null)
+    {
+    }
+
     private const string BaseUrl = GeneralsOnlineConstants.WebsiteUrl;
     private const string DefaultPatchNotesUrl = GeneralsOnlineConstants.PatchNotesUrl;
 
