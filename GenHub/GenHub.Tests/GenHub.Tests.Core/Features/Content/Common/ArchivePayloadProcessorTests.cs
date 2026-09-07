@@ -472,10 +472,7 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     public async Task ExtractArchivesSafelyAsync_WithSmartInstallMakerExecutable_ExtractsAndNormalizesSuccessfully()
     {
         var casPath = @"A:\Steam\steamapps\common\.genhub-cas\objects\f4\f45e14d6b4a1e6e6feaa2ad737528b385586ad81ab7535bf9a330972db834c4e";
-        if (!File.Exists(casPath))
-        {
-            return;
-        }
+        Assert.True(File.Exists(casPath), "Expected test CAS object fixture to exist when running local SIM fixture test.");
 
         var testDir = Path.Combine(_stagingDirectory, "sim_test_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(testDir);
@@ -537,6 +534,36 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
 
             File.Delete(currentZip);
             currentZip = nextZip;
+        }
+
+        var processor = CreateProcessor();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            processor.ExtractArchivesSafelyAsync(_stagingDirectory));
+    }
+
+    /// <summary>
+    /// Verifies that archives containing directory traversal entries (Zip Slip) throw <see cref="InvalidDataException"/>.
+    /// </summary>
+    /// <param name="maliciousEntryName">The malicious entry path.</param>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Theory]
+    [InlineData("../evil.txt")]
+    [InlineData("../../evil.txt")]
+    [InlineData("sub/../../evil.txt")]
+    [InlineData("/evil.txt")]
+    public async Task ExtractArchivesSafelyAsync_WithZipSlipEntry_ThrowsInvalidDataExceptionAsync(string maliciousEntryName)
+    {
+        // Arrange
+        Directory.CreateDirectory(_stagingDirectory);
+        var zipPath = Path.Combine(_stagingDirectory, "malicious.zip");
+
+        using (var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create))
+        {
+            var entry = archive.CreateEntry(maliciousEntryName);
+            using var writer = new StreamWriter(entry.Open());
+            await writer.WriteAsync("malicious content");
         }
 
         var processor = CreateProcessor();

@@ -204,4 +204,21 @@ public class ContentCardBadgeHelperTests
         Assert.Equal("avares://GenHub/Assets/Covers/china-cover.png", ContentCardBadgeHelper.GetThumbnailUrl(gitHubGameClient));
         Assert.Equal("avares://GenHub/Assets/Covers/gla-cover.png", ContentCardBadgeHelper.GetThumbnailUrl(gitHubPatch));
     }
+
+    /// <summary>
+    /// Verifies that GitHub items with repo names containing publisher names are not hijacked by publisher covers.
+    /// </summary>
+    [Fact]
+    public void GetPublisherLogoUrl_DoesNotHijackGitHubReposContainingPublisherNames()
+    {
+        var unrelatedGitHubResult = new ContentSearchResult
+        {
+            Id = "github.randomdev.generalsonlinestats.latest",
+            Name = "Generals Online Stats Tool",
+            ProviderName = "GitHub",
+        };
+
+        var logoUrl = ContentCardBadgeHelper.GetPublisherLogoUrl(unrelatedGitHubResult);
+        Assert.Equal("https://github.com/randomdev.png", logoUrl);
+    }
 }

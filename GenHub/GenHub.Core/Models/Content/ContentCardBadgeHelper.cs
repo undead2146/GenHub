@@ -266,7 +266,7 @@ public static partial class ContentCardBadgeHelper
         if (IsGitHub(result))
         {
             if (!string.IsNullOrWhiteSpace(result.IconUrl) &&
-                !result.IconUrl.Contains("github-logo", StringComparison.OrdinalIgnoreCase))
+                !result.IconUrl.Equals(PublisherInfoConstants.GitHub.LogoSource, StringComparison.OrdinalIgnoreCase))
             {
                 return result.IconUrl;
             }
@@ -274,7 +274,7 @@ public static partial class ContentCardBadgeHelper
             var owner = GetGitHubOwner(result);
             if (!string.IsNullOrWhiteSpace(owner))
             {
-                return $"https://github.com/{owner}.png";
+                return $"https://github.com/{Uri.EscapeDataString(owner)}.png";
             }
 
             return PublisherInfoConstants.GitHub.LogoSource;
@@ -484,30 +484,34 @@ public static partial class ContentCardBadgeHelper
 
     private static bool IsTheSuperHackers(ContentSearchResult result)
     {
-        return (result.ProviderName?.Contains("superhacker", StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.AuthorName?.Contains("superhacker", StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.Id?.Contains("thesuperhackers", StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.Id?.Contains("superhacker", StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.VariantGroupId?.Contains("thesuperhackers", StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.VariantGroupId?.Contains("superhacker", StringComparison.OrdinalIgnoreCase) == true) ||
+        return (result.ProviderName?.Equals(PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.ProviderName?.Equals(SuperHackersConstants.PublisherName, StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.AuthorName?.Equals(SuperHackersConstants.PublisherName, StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.Id?.StartsWith("thesuperhackers.", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.Id?.StartsWith("1.thesuperhackers.", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.Id?.StartsWith("github.thesuperhackers.", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.VariantGroupId?.StartsWith("thesuperhackers.", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.VariantGroupId?.StartsWith("github.thesuperhackers.", StringComparison.OrdinalIgnoreCase) == true) ||
                (result.ResolverMetadata?.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) == true &&
-                owner.Contains("superhacker", StringComparison.OrdinalIgnoreCase));
+                owner.Equals(PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsGeneralsOnline(ContentSearchResult result)
     {
-        return (result.ProviderName?.Contains("generalsonline", StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.Id?.Contains("generalsonline", StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.AuthorName?.Contains("generals online", StringComparison.OrdinalIgnoreCase) == true);
+        return (result.ProviderName?.Equals("GeneralsOnline", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.ProviderName?.Equals("Generals Online", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.Id?.StartsWith("generalsonline.", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.Id?.StartsWith("1.generalsonline.", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.AuthorName?.Equals("Generals Online", StringComparison.OrdinalIgnoreCase) == true);
     }
 
     private static bool IsCommunityOutpost(ContentSearchResult result)
     {
-        return (result.ProviderName?.Contains("communityoutpost", StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.ProviderName?.Contains("community-outpost", StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.ProviderName?.Contains("community outpost", StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.Id?.Contains("communityoutpost", StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.Id?.Contains("community-outpost", StringComparison.OrdinalIgnoreCase) == true);
+        return (result.ProviderName?.Equals("Community-Outpost", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.ProviderName?.Equals("Community Outpost", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.ProviderName?.Equals("CommunityOutpost", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.Id?.StartsWith("communityoutpost.", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.Id?.StartsWith("1.communityoutpost.", StringComparison.OrdinalIgnoreCase) == true);
     }
 
     private static bool IsGitHub(ContentSearchResult result)
@@ -525,18 +529,18 @@ public static partial class ContentCardBadgeHelper
             return owner.Trim();
         }
 
-        if (!string.IsNullOrWhiteSpace(result.AuthorName))
-        {
-            return result.AuthorName.Trim();
-        }
-
         if (!string.IsNullOrWhiteSpace(result.Id) && result.Id.StartsWith("github.", StringComparison.OrdinalIgnoreCase))
         {
             var parts = result.Id.Split('.');
             if (parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1]))
             {
-                return parts[1];
+                return parts[1].Trim();
             }
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.AuthorName))
+        {
+            return result.AuthorName.Trim();
         }
 
         return null;

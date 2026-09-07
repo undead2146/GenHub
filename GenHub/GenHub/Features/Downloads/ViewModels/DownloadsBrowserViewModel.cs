@@ -58,7 +58,8 @@ public sealed partial class DownloadsBrowserViewModel(
     IGameProfileManager profileManager,
     INotificationService notificationService,
     ILoggerFactory loggerFactory,
-    IPublisherSubscriptionStore subscriptionStore) : ObservableObject, IDisposable
+    IPublisherSubscriptionStore subscriptionStore,
+    IContentDownloadCoordinator? downloadCoordinator = null) : ObservableObject, IDisposable
 {
     private const string CategoryStatic = "static";
     private const string CategoryDynamic = "dynamic";
@@ -67,6 +68,8 @@ public sealed partial class DownloadsBrowserViewModel(
     private readonly Dictionary<string, PublisherBrowseState> _browseCache = [];
     private readonly Dictionary<string, PublisherInFlightOperation> _inFlightOperations = [];
     private readonly object _cacheLock = new();
+    private readonly IContentDownloadCoordinator? _downloadCoordinator =
+        downloadCoordinator ?? serviceProvider.GetService<IContentDownloadCoordinator>();
 
     // GenericCatalogDiscoverer instances mapped by publisher ID for subscriber feeds.
     private readonly Dictionary<string, GenericCatalogDiscoverer> _subscribedDiscoverers =
@@ -1093,18 +1096,27 @@ public sealed partial class DownloadsBrowserViewModel(
         }
     }
 
-    private void CleanupInFlight(string publisherId, PublisherInFlightOperation? inFlightOp)
+    internal void CleanupInFlight(string publisherId, PublisherInFlightOperation? inFlightOp)
     {
         if (inFlightOp != null)
         {
             lock (_cacheLock)
             {
                 _inFlightOperations.Remove(publisherId);
-            }
 
-            foreach (var item in inFlightOp.ResolvedItems)
-            {
-                item.Dispose();
+                var retainedItems = new HashSet<ContentGridItemViewModel>(_browseCache.Values.SelectMany(s => s.Items));
+                foreach (var item in ContentItems)
+                {
+                    retainedItems.Add(item);
+                }
+
+                foreach (var item in inFlightOp.ResolvedItems)
+                {
+                    if (!retainedItems.Contains(item))
+                    {
+                        item.Dispose();
+                    }
+                }
             }
         }
     }
@@ -1460,7 +1472,9 @@ public sealed partial class DownloadsBrowserViewModel(
                 });
             });
 
-            var result = await contentOrchestrator.AcquireContentAsync(item.SearchResult, progress, effectiveToken);
+            var result = _downloadCoordinator != null
+                ? await _downloadCoordinator.DownloadContentAsync(item.SearchResult, progress, effectiveToken)
+                : await contentOrchestrator.AcquireContentAsync(item.SearchResult, progress, effectiveToken);
 
             if (result.Success && result.Data != null)
             {
@@ -1534,7 +1548,10 @@ public sealed partial class DownloadsBrowserViewModel(
             logger.LogWarning(ex, "Failed to send ContentAcquiredMessage");
         }
 
-        notificationService.ShowSuccess("Download Complete", $"Downloaded {item.Name}");
+        if (_downloadCoordinator == null)
+        {
+            notificationService.ShowSuccess("Download Complete", $"Downloaded {item.Name}");
+        }
     }
 
     /// <summary>
@@ -1579,7 +1596,9 @@ public sealed partial class DownloadsBrowserViewModel(
                 });
             });
 
-            var result = await contentOrchestrator.AcquireContentAsync(target, progress, cancellationToken);
+            var result = _downloadCoordinator != null
+                ? await _downloadCoordinator.DownloadContentAsync(target, progress, cancellationToken)
+                : await contentOrchestrator.AcquireContentAsync(target, progress, cancellationToken);
             if (!result.Success || result.Data == null)
             {
                 var errorMsg = result.FirstError ?? "Unknown error";
@@ -1811,7 +1830,7 @@ public sealed partial class DownloadsBrowserViewModel(
     /// Tracks an in-flight background default browse operation so switching away
     /// allows the fetch to complete into cache, and switching back can attach to it.
     /// </summary>
-    private sealed class PublisherInFlightOperation(
+    internal sealed class PublisherInFlightOperation(
         string publisherId,
         ContentSearchQuery query,
         CancellationTokenSource cts)

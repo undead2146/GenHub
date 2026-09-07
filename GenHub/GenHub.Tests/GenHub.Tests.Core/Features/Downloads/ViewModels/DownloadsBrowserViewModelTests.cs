@@ -19,6 +19,9 @@ using GenHub.Features.Downloads.ViewModels;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
+using ContentState = GenHub.Core.Models.Enums.ContentState;
+using ContentType = GenHub.Core.Models.Enums.ContentType;
+using GameType = GenHub.Core.Models.Enums.GameType;
 using PublisherSubscription = GenHub.Core.Models.Providers.PublisherSubscription;
 
 namespace GenHub.Tests.Core.Features.Downloads.ViewModels;
@@ -673,6 +676,115 @@ public class DownloadsBrowserViewModelTests
         // Assert
         Assert.False(item.IsDownloading);
         Assert.Equal("Download cancelled", item.DownloadStatus);
+    }
+
+    /// <summary>
+    /// Verifies that DownloadContentCommand routes through the content download coordinator when present.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task DownloadContentAsync_WhenCoordinatorProvided_RoutesThroughCoordinator()
+    {
+        // Arrange
+        var coordinator = new Mock<IContentDownloadCoordinator>();
+        var orchestrator = new Mock<IContentOrchestrator>();
+        var manifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.0.test.mod.testmod"),
+            Name = "Test Mod",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+        };
+
+        coordinator
+            .Setup(c => c.DownloadContentAsync(
+                It.IsAny<ContentSearchResult>(),
+                It.IsAny<IProgress<ContentAcquisitionProgress>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest>.CreateSuccess(manifest));
+
+        var stateService = new Mock<IContentStateService>();
+        stateService
+            .Setup(s => s.GetStateAsync(It.IsAny<ContentSearchResult>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ContentState.Downloaded);
+
+        var subscriptionStore = new Mock<IPublisherSubscriptionStore>();
+        subscriptionStore
+            .Setup(store => store.GetSubscriptionsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IReadOnlyList<PublisherSubscription>>.CreateSuccess([]));
+
+        using var viewModel = new DownloadsBrowserViewModel(
+            new Mock<IServiceProvider>().Object,
+            new Mock<ILogger<DownloadsBrowserViewModel>>().Object,
+            [],
+            stateService.Object,
+            orchestrator.Object,
+            new Mock<IProfileContentService>().Object,
+            new Mock<IGameProfileManager>().Object,
+            new Mock<INotificationService>().Object,
+            new Mock<ILoggerFactory>().Object,
+            subscriptionStore.Object,
+            coordinator.Object);
+
+        var item = new ContentGridItemViewModel(
+            new ContentSearchResult { Id = "test", Name = "Test Mod" },
+            stateService.Object,
+            new Mock<ILogger<ContentGridItemViewModel>>().Object);
+
+        // Act
+        await viewModel.DownloadContentCommand.ExecuteAsync(item);
+
+        // Assert
+        coordinator.Verify(
+            c => c.DownloadContentAsync(
+                item.SearchResult,
+                It.IsAny<IProgress<ContentAcquisitionProgress>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        orchestrator.Verify(
+            o => o.AcquireContentAsync(
+                It.IsAny<ContentSearchResult>(),
+                It.IsAny<IProgress<ContentAcquisitionProgress>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        Assert.True(item.IsDownloaded);
+    }
+
+    /// <summary>
+    /// Verifies that CleanupInFlight does not dispose items currently present in ContentItems.
+    /// </summary>
+    [Fact]
+    public void CleanupInFlight_DoesNotDisposeItemsCurrentlyInContentItems()
+    {
+        // Arrange
+        using var viewModel = CreateViewModel();
+
+        var renderedItem = new ContentGridItemViewModel(
+            new ContentSearchResult { Id = "test1", Name = "Rendered Mod" },
+            new Mock<IContentStateService>().Object,
+            new Mock<ILogger<ContentGridItemViewModel>>().Object);
+
+        var unrenderedItem = new ContentGridItemViewModel(
+            new ContentSearchResult { Id = "test2", Name = "Unrendered Mod" },
+            new Mock<IContentStateService>().Object,
+            new Mock<ILogger<ContentGridItemViewModel>>().Object);
+
+        viewModel.ContentItems.Add(renderedItem);
+
+        using var cts = new CancellationTokenSource();
+        var inFlightOp = new DownloadsBrowserViewModel.PublisherInFlightOperation(
+            "test-publisher",
+            new ContentSearchQuery(),
+            cts);
+        inFlightOp.ResolvedItems.Add(renderedItem);
+        inFlightOp.ResolvedItems.Add(unrenderedItem);
+
+        // Act
+        viewModel.CleanupInFlight("test-publisher", inFlightOp);
+
+        // Assert
+        Assert.False(renderedItem.IsDisposed, "Items visible in ContentItems must NOT be disposed by CleanupInFlight.");
+        Assert.True(unrenderedItem.IsDisposed, "Orphan items not in ContentItems or cache MUST be disposed.");
     }
 
     private static DownloadsBrowserViewModel CreateViewModel()

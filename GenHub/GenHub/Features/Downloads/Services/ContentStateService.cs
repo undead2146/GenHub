@@ -254,6 +254,22 @@ public sealed partial class ContentStateService(
     }
 
     /// <summary>
+    /// Checks whether the given publisher string corresponds to a generic GitHub hosting forge.
+    /// </summary>
+    internal static bool IsGitHubPublisher(string? publisher)
+    {
+        if (string.IsNullOrWhiteSpace(publisher))
+        {
+            return false;
+        }
+
+        var p = NormalizeSegment(publisher);
+        return string.Equals(p, GitHubPublisher, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(p, GitHubTopicsNormalized, StringComparison.OrdinalIgnoreCase) ||
+               IsCompatiblePublisherAlias(p, GitHubPublisher);
+    }
+
+    /// <summary>
     /// Checks whether a manifest belongs to the given publisher/content-type/game and whether
     /// its content-name segment matches the expected card key, with a "-suffix" variant stripped
     /// symmetrically off either side.
@@ -284,6 +300,11 @@ public sealed partial class ContentStateService(
         }
 
         var manifestPublisher = segments[2];
+        if (IsGitHubPublisher(manifestPublisher) || IsGitHubPublisher(expectedPublisher))
+        {
+            return false;
+        }
+
         bool publisherMatches = string.Equals(manifestPublisher, expectedPublisher, StringComparison.OrdinalIgnoreCase) ||
             IsCompatiblePublisherAlias(manifestPublisher, expectedPublisher);
 
@@ -553,7 +574,11 @@ public sealed partial class ContentStateService(
         var candidatePublishers = new List<string>();
         if (!string.IsNullOrWhiteSpace(item.ProviderName))
         {
-            candidatePublishers.Add(NormalizeSegment(item.ProviderName));
+            var provider = NormalizeSegment(item.ProviderName);
+            if (!IsGitHubPublisher(provider))
+            {
+                candidatePublishers.Add(provider);
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(item.AuthorName))
@@ -571,7 +596,7 @@ public sealed partial class ContentStateService(
             if (idSegments.Length == 5)
             {
                 var idPub = NormalizeSegment(idSegments[2]);
-                if (!candidatePublishers.Contains(idPub, StringComparer.OrdinalIgnoreCase))
+                if (!IsGitHubPublisher(idPub) && !candidatePublishers.Contains(idPub, StringComparer.OrdinalIgnoreCase))
                 {
                     candidatePublishers.Add(idPub);
                 }
@@ -905,6 +930,20 @@ public sealed partial class ContentStateService(
         var releaseDate = item.LastUpdated ?? DateTime.MinValue;
 
         var providerName = SanitizeSegmentForManifest(item.ProviderName, UnknownSegment) ?? UnknownSegment;
+        if (IsGitHubPublisher(providerName))
+        {
+            if (item.ResolverMetadata != null &&
+                item.ResolverMetadata.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) &&
+                !string.IsNullOrWhiteSpace(owner))
+            {
+                providerName = SanitizeSegmentForManifest(owner, providerName) ?? providerName;
+            }
+            else if (!string.IsNullOrWhiteSpace(item.AuthorName))
+            {
+                providerName = SanitizeSegmentForManifest(item.AuthorName, providerName) ?? providerName;
+            }
+        }
+
         var contentName = SanitizeSegmentForManifest(item.Name, null)
             ?? SanitizeSegmentForManifest(item.Id, UnknownSegment)
             ?? UnknownSegment;
@@ -951,11 +990,13 @@ public sealed partial class ContentStateService(
 
     private static ContentManifest? FindOriginMatch(IReadOnlyList<ContentManifest> manifests, ContentSearchResult item)
     {
+        bool isGitHub = IsGitHubPublisher(item.ProviderName);
+
         return manifests.FirstOrDefault(manifest =>
             (string.Equals(manifest.OriginalProviderName, item.ProviderName, StringComparison.OrdinalIgnoreCase) ||
              IsCompatiblePublisherAlias(manifest.OriginalProviderName ?? string.Empty, item.ProviderName)) &&
             (string.Equals(manifest.OriginalContentId, item.Id, StringComparison.Ordinal) ||
-             ContentNameMatches(manifest, item.ProviderName, item.ContentType.ToString(), item.TargetGame, item.Name)));
+             (!isGitHub && ContentNameMatches(manifest, item.ProviderName, item.ContentType.ToString(), item.TargetGame, item.Name))));
     }
 
     private static ContentManifest? FindGitHubRepoMatch(IReadOnlyList<ContentManifest> manifests, ContentSearchResult item)
@@ -982,13 +1023,29 @@ public sealed partial class ContentStateService(
             return false;
         }
 
-        var website = manifest.Publisher?.Website;
-        var supportUrl = manifest.Publisher?.SupportUrl;
-        var changelog = manifest.Metadata?.ChangelogUrl;
-        var cleanSource = (item.SourceUrl ?? string.Empty).TrimEnd('/');
+        var manifestAuthor = manifest.Publisher?.Name;
+        var itemAuthor = item.AuthorName;
+        if (item.ResolverMetadata != null &&
+            item.ResolverMetadata.TryGetValue(GitHubConstants.OwnerMetadataKey, out var metadataOwner) &&
+            !string.IsNullOrWhiteSpace(metadataOwner))
+        {
+            itemAuthor = metadataOwner;
+        }
 
-        bool urlMatches = (!string.IsNullOrEmpty(website) && string.Equals(website.TrimEnd('/'), cleanSource, StringComparison.OrdinalIgnoreCase)) ||
-                          (!string.IsNullOrEmpty(supportUrl) && string.Equals(supportUrl.TrimEnd('/'), cleanSource, StringComparison.OrdinalIgnoreCase)) ||
+        if (!string.IsNullOrWhiteSpace(manifestAuthor) &&
+            !string.IsNullOrWhiteSpace(itemAuthor) &&
+            !string.Equals(manifestAuthor, itemAuthor, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var website = NormalizeGitHubUrl(manifest.Publisher?.Website);
+        var supportUrl = NormalizeGitHubUrl(manifest.Publisher?.SupportUrl);
+        var changelog = NormalizeGitHubUrl(manifest.Metadata?.ChangelogUrl);
+        var cleanSource = NormalizeGitHubUrl(item.SourceUrl);
+
+        bool urlMatches = (!string.IsNullOrEmpty(website) && string.Equals(website, cleanSource, StringComparison.OrdinalIgnoreCase)) ||
+                          (!string.IsNullOrEmpty(supportUrl) && string.Equals(supportUrl, cleanSource, StringComparison.OrdinalIgnoreCase)) ||
                           (!string.IsNullOrEmpty(changelog) && changelog.StartsWith(cleanSource, StringComparison.OrdinalIgnoreCase));
 
         if (!urlMatches)
@@ -1010,6 +1067,22 @@ public sealed partial class ContentStateService(
         }
 
         return true;
+    }
+
+    private static string NormalizeGitHubUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return string.Empty;
+        }
+
+        var clean = url.Trim().TrimEnd('/');
+        if (clean.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
+        {
+            clean = clean[..^4];
+        }
+
+        return clean;
     }
 
     private static ContentManifest? FindDownloadUrlMatch(IReadOnlyList<ContentManifest> manifests, string? selectedDownloadUrl)

@@ -172,7 +172,7 @@
                 <ExperimentalAcrylicBorder.Material>
                     <ExperimentalAcrylicMaterial
                         BackgroundSource="Digger"
-                        TintColor="#08080C"
+                        TintColor="{DynamicResource SurfaceBackgroundDark}"
                         TintOpacity="0.85"
                         MaterialOpacity="0.55" />
                 </ExperimentalAcrylicBorder.Material>
@@ -182,8 +182,8 @@
             <Border CornerRadius="12" IsHitTestVisible="False" Opacity="0.6">
                 <Border.Background>
                     <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-                        <GradientStop Offset="0" Color="#20181828" />
-                        <GradientStop Offset="1" Color="#D008080C" />
+                        <GradientStop Offset="0" Color="{DynamicResource SurfaceElevatedDark}" />
+                        <GradientStop Offset="1" Color="{DynamicResource SurfaceBackgroundDark}" />
                     </LinearGradientBrush>
                 </Border.Background>
             </Border>

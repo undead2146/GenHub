@@ -407,6 +407,11 @@ public sealed partial class ContentGridItemViewModel(
     private Action? _unsubscribeAxisHandlers;
 
     /// <summary>
+    /// Gets a value indicating whether this view model has been disposed.
+    /// </summary>
+    public bool IsDisposed => _disposed;
+
+    /// <summary>
     /// Disposes resources used by the view model.
     /// </summary>
     public void Dispose()

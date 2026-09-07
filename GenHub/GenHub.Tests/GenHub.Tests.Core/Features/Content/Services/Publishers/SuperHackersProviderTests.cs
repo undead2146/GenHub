@@ -125,12 +125,12 @@ public class SuperHackersProviderTests
         Assert.Equal(SuperHackersConstants.GeneralsGameCodeRepo, gameCodeZh.ResolverMetadata[GitHubConstants.RepoMetadataKey]);
         Assert.NotNull(gameCodeZh.Variants);
         Assert.Equal(2, gameCodeZh.Variants.Count);
-        Assert.Equal("thesuperhackers.gameclient.weekly-2026-08-01", gameCodeZh.VariantGroupId);
+        Assert.Equal("thesuperhackers.generalsgamecode.gameclient.weekly-2026-08-01", gameCodeZh.VariantGroupId);
 
         var gameCodeGen = items.FirstOrDefault(i => i.ContentType == ContentType.GameClient && i.TargetGame == GameType.Generals);
         Assert.NotNull(gameCodeGen);
         Assert.Equal("weekly-2026-08-01", gameCodeGen.Version);
-        Assert.Equal("thesuperhackers.gameclient.weekly-2026-08-01", gameCodeGen.VariantGroupId);
+        Assert.Equal("thesuperhackers.generalsgamecode.gameclient.weekly-2026-08-01", gameCodeGen.VariantGroupId);
 
         var gamePatch2Item = items.FirstOrDefault(i => i.ContentType == ContentType.Patch);
         Assert.NotNull(gamePatch2Item);

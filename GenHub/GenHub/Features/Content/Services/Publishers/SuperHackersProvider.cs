@@ -113,7 +113,7 @@ public class SuperHackersProvider(
                                 ? latestRelease.Name
                                 : $"{displayName} {latestRelease.TagName}";
                             var tag = latestRelease.TagName ?? "latest";
-                            var variantGroupId = $"thesuperhackers.gameclient.{tag.ToLowerInvariant()}";
+                            var variantGroupId = $"thesuperhackers.{repo.ToLowerInvariant()}.gameclient.{tag.ToLowerInvariant()}";
 
                             var variants = new List<ContentVariantInfo>
                             {

@@ -23,10 +23,19 @@ public sealed class ContentDownloadCoordinator(
     INotificationService notificationService,
     ILogger<ContentDownloadCoordinator> logger) : IContentDownloadCoordinator
 {
-    private readonly ConcurrentDictionary<string, Lazy<Task<OperationResult<ContentManifest>>>> _inFlightDownloads = new(StringComparer.OrdinalIgnoreCase);
+    private sealed class InFlightDownload
+    {
+        public Task<OperationResult<ContentManifest>> Task { get; set; } = null!;
+
+        public Action<ContentAcquisitionProgress>? ProgressCallbacks { get; set; }
+
+        public object Lock { get; } = new();
+    }
+
+    private readonly ConcurrentDictionary<string, InFlightDownload> _inFlightDownloads = new(StringComparer.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public Task<OperationResult<ContentManifest>> DownloadContentAsync(
+    public async Task<OperationResult<ContentManifest>> DownloadContentAsync(
         ContentSearchResult searchResult,
         IProgress<ContentAcquisitionProgress>? progress = null,
         CancellationToken cancellationToken = default)
@@ -37,13 +46,58 @@ public sealed class ContentDownloadCoordinator(
             ? $"{searchResult.ProviderName}::{searchResult.Id}"
             : $"{searchResult.ProviderName}::{searchResult.Name}";
 
-        var lazyTask = _inFlightDownloads.GetOrAdd(
-            key,
-            k => new Lazy<Task<OperationResult<ContentManifest>>>(
-                () => ExecuteDownloadAsync(searchResult, k, progress, cancellationToken),
-                LazyThreadSafetyMode.ExecutionAndPublication));
+        InFlightDownload inFlight;
+        bool isInitiator = false;
 
-        return lazyTask.Value;
+        lock (_inFlightDownloads)
+        {
+            if (!_inFlightDownloads.TryGetValue(key, out inFlight!))
+            {
+                inFlight = new InFlightDownload();
+                isInitiator = true;
+                _inFlightDownloads[key] = inFlight;
+            }
+        }
+
+        Action<ContentAcquisitionProgress>? callback = progress != null ? progress.Report : null;
+        if (callback != null)
+        {
+            lock (inFlight.Lock)
+            {
+                inFlight.ProgressCallbacks += callback;
+            }
+        }
+
+        if (isInitiator)
+        {
+            var multiplexedProgress = new Progress<ContentAcquisitionProgress>(p =>
+            {
+                Action<ContentAcquisitionProgress>? callbacks;
+                lock (inFlight.Lock)
+                {
+                    callbacks = inFlight.ProgressCallbacks;
+                }
+
+                callbacks?.Invoke(p);
+            });
+
+            inFlight.Task = ExecuteDownloadAsync(searchResult, key, multiplexedProgress, cancellationToken);
+        }
+
+        try
+        {
+            return await inFlight.Task.WaitAsync(cancellationToken);
+        }
+        finally
+        {
+            if (callback != null)
+            {
+                lock (inFlight.Lock)
+                {
+                    inFlight.ProgressCallbacks -= callback;
+                }
+            }
+        }
     }
 
     private async Task<OperationResult<ContentManifest>> ExecuteDownloadAsync(

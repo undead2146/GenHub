@@ -88,13 +88,32 @@ public partial class GitHubResolver(
                     repo,
                     tag,
                     cancellationToken);
-                var selectedAsset = selectedRelease?.Assets?.FirstOrDefault(asset =>
+
+                if (selectedRelease == null)
+                {
+                    if (gitHubApiClient.IsRateLimited)
+                    {
+                        return OperationResult<ContentManifest>.CreateFailure(
+                            $"GitHub API rate limit exceeded while resolving {owner}/{repo}. Please configure a GitHub Personal Access Token in Settings or try again later.");
+                    }
+
+                    return OperationResult<ContentManifest>.CreateFailure(
+                        $"Release not found for {owner}/{repo}:{tag}");
+                }
+
+                var selectedAsset = selectedRelease.Assets?.FirstOrDefault(asset =>
                     string.Equals(asset.Name, assetName, StringComparison.OrdinalIgnoreCase));
 
                 if (selectedAsset == null)
                 {
                     return OperationResult<ContentManifest>.CreateFailure(
                         $"Release asset '{assetName}' was not found for {owner}/{repo}:{tag}");
+                }
+
+                if (string.IsNullOrEmpty(selectedAsset.BrowserDownloadUrl))
+                {
+                    return OperationResult<ContentManifest>.CreateFailure(
+                        $"Release asset '{assetName}' has no download URL for {owner}/{repo}:{tag}");
                 }
 
                 return await ResolveSingleAssetAsync(

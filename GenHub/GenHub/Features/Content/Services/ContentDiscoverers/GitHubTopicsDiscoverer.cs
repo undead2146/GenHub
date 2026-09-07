@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -64,6 +64,12 @@ public partial class GitHubTopicsDiscoverer(
         /// </summary>
         [System.Text.RegularExpressions.GeneratedRegex(@"[^\d]", System.Text.RegularExpressions.RegexOptions.Compiled)]
         public static partial System.Text.RegularExpressions.Regex NonDigitPattern();
+
+        /// <summary>
+        /// Regex to match dotted numeric or purely numeric version strings.
+        /// </summary>
+        [System.Text.RegularExpressions.GeneratedRegex(@"^\d+(\.\d+)*$", System.Text.RegularExpressions.RegexOptions.Compiled)]
+        public static partial System.Text.RegularExpressions.Regex NumericOrVersionPattern();
 
         /// <summary>
         /// Common resolution display names for user-friendly output.
@@ -481,43 +487,27 @@ public partial class GitHubTopicsDiscoverer(
             return versionToken;
         }
 
-        for (var i = parts.Length - 1; i >= 0; i--)
-        {
-            if (VariantPatterns.NonDigitPattern().IsMatch(parts[i]))
-            {
-                return parts[i];
-            }
-        }
-
         return fallback;
     }
 
     private static bool TryExtractVersionToken(string[] parts, out string? versionToken)
     {
-        for (var i = parts.Length - 1; i >= 0; i--)
+        for (var i = 0; i < parts.Length; i++)
         {
             var part = parts[i];
             if (part.Length >= 2 &&
                 (part[0] == 'v' || part[0] == 'V') &&
                 char.IsDigit(part[1]))
             {
-                if (i + 1 < parts.Length && !VariantPatterns.NonDigitPattern().IsMatch(parts[i + 1]))
+                var segments = new List<string> { part };
+                var j = i + 1;
+                while (j < parts.Length && !VariantPatterns.NonDigitPattern().IsMatch(parts[j]))
                 {
-                    versionToken = $"{part}.{parts[i + 1]}";
-                    return true;
+                    segments.Add(parts[j]);
+                    j++;
                 }
 
-                versionToken = part;
-                return true;
-            }
-
-            if (i > 0 &&
-                !VariantPatterns.NonDigitPattern().IsMatch(part) &&
-                parts[i - 1].Length >= 2 &&
-                (parts[i - 1][0] == 'v' || parts[i - 1][0] == 'V') &&
-                char.IsDigit(parts[i - 1][1]))
-            {
-                versionToken = $"{parts[i - 1]}.{part}";
+                versionToken = string.Join(".", segments);
                 return true;
             }
         }
@@ -528,7 +518,7 @@ public partial class GitHubTopicsDiscoverer(
 
     /// <summary>
     /// Returns <see langword="true"/> when the variant string looks like a version
-    /// token (e.g. "v1.03", "v2") that carries no meaningful semantic beyond ordering
+    /// token (e.g. "v1.03", "v2", "1.03") that carries no meaningful semantic beyond ordering
     /// and therefore should not be promoted to a visible tag chip on the card.
     /// </summary>
     private static bool IsVersionLikeVariant(string variant)
@@ -536,14 +526,16 @@ public partial class GitHubTopicsDiscoverer(
         if (string.IsNullOrWhiteSpace(variant))
             return false;
 
+        var trimmed = variant.Trim();
+
         // Matches "v1", "v1.03", "v2.0", "V3", etc.
-        if (variant.Length >= 2 &&
-            (variant[0] == 'v' || variant[0] == 'V') &&
-            char.IsDigit(variant[1]))
+        if (trimmed.Length >= 2 &&
+            (trimmed[0] == 'v' || trimmed[0] == 'V') &&
+            char.IsDigit(trimmed[1]))
             return true;
 
-        // Matches purely numeric tokens like "03", "1", "20"
-        return !VariantPatterns.NonDigitPattern().IsMatch(variant);
+        // Matches purely numeric tokens like "03", "1", "20", or dotted numbers like "1.03", "1.2.3"
+        return VariantPatterns.NumericOrVersionPattern().IsMatch(trimmed);
     }
 
     /// <summary>
@@ -551,7 +543,7 @@ public partial class GitHubTopicsDiscoverer(
     /// Selection priority (highest wins):
     /// <list type="number">
     ///   <item>1080p resolution variant — the widely-accepted standard HD target.</item>
-    ///   <item>Any other resolution variant where the display name contains "1080".</item>
+    ///   <item>Any other resolution variant ordered by parsed height descending.</item>
     ///   <item>English language variant.</item>
     ///   <item>Last variant in list — typically the most recently published or highest version.</item>
     /// </list>
@@ -563,15 +555,17 @@ public partial class GitHubTopicsDiscoverer(
 
         // Priority 1: prefer 1080p (standard HD) for resolution-typed variants
         var chosen = variants.FirstOrDefault(v =>
-            v.Name.Contains("1080p", StringComparison.OrdinalIgnoreCase) ||
-            v.Name.Contains("1920x1080", StringComparison.OrdinalIgnoreCase));
+            v.VariantType == "resolution" &&
+            (v.Name.Contains("1080p", StringComparison.OrdinalIgnoreCase) ||
+             v.Name.Contains("1920x1080", StringComparison.OrdinalIgnoreCase)));
 
         // Priority 2: any other resolution variant (prefer higher resolution before lower)
         if (chosen == null && variants.Any(v => v.VariantType == "resolution"))
         {
-            // Resolution display names sort lexicographically in a useful order (720p < 900p < 1080p ...)
-            // so picking the last resolution variant gives the highest resolution available.
-            chosen = variants.LastOrDefault(v => v.VariantType == "resolution");
+            chosen = variants
+                .Where(v => v.VariantType == "resolution")
+                .OrderByDescending(GetResolutionRank)
+                .FirstOrDefault();
         }
 
         // Priority 3: English for language packs
@@ -584,6 +578,27 @@ public partial class GitHubTopicsDiscoverer(
         chosen.IsDefault = true;
     }
 
+    private static int GetResolutionRank(ContentVariantInfo v)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(v.Name, @"(\d{3,4})p", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (match.Success && int.TryParse(match.Groups[1].Value, out var height))
+        {
+            return height;
+        }
+
+        var dimMatch = VariantPatterns.ResolutionPattern().Match(v.Name);
+        if (dimMatch.Success)
+        {
+            var parts = dimMatch.Value.Split('x');
+            if (parts.Length == 2 && int.TryParse(parts[1], out var h))
+            {
+                return h;
+            }
+        }
+
+        return 0;
+    }
+
     /// <summary>
     /// Infers the variant discriminator type from a search result's name or asset metadata.
     /// Returns "resolution" for numeric patterns like 1080p, "language" for known language
@@ -594,7 +609,9 @@ public partial class GitHubTopicsDiscoverer(
         var name = result.Name ?? string.Empty;
         var lower = name.ToLowerInvariant();
 
-        if (VariantPatterns.ResolutionPattern().IsMatch(lower))
+        if (VariantPatterns.ResolutionPattern().IsMatch(lower) ||
+            lower.Contains("1080p") || lower.Contains("720p") || lower.Contains("1440p") ||
+            lower.Contains("2160p") || lower.Contains("4k") || lower.Contains("768p") || lower.Contains("900p"))
         {
             return "resolution";
         }
@@ -666,11 +683,12 @@ public partial class GitHubTopicsDiscoverer(
             var variantList = results
                 .Select(r => new ContentVariantInfo
                 {
-                    Id = r.ResolverMetadata.TryGetValue("asset-name", out var an) ? an : r.Id,
+                    Id = r.Id,
                     Name = r.Name,
                     ManifestId = r.Id,
                     VariantType = InferVariantType(r),
                     IsDefault = false,
+                    TargetGame = r.TargetGame,
                 })
                 .ToList();
 
@@ -683,7 +701,15 @@ public partial class GitHubTopicsDiscoverer(
             {
                 r.VariantGroupId = variantGroupId;
                 r.VariantFamilyName = variantFamilyName;
-                r.Variants = variantList;
+                r.Variants = variantList.Select(v => new ContentVariantInfo
+                {
+                    Id = v.Id,
+                    Name = v.Name,
+                    ManifestId = v.ManifestId,
+                    VariantType = v.VariantType,
+                    IsDefault = v.IsDefault,
+                    TargetGame = v.TargetGame,
+                }).ToList();
             }
         }
         else

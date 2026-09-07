@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
@@ -1328,12 +1328,22 @@ public partial class ContentDetailViewModel(
                 return;
             }
         }
+        catch (OperationCanceledException)
+        {
+            // Disposed or superseded during fetch
+            return;
+        }
+        catch (ObjectDisposedException)
+        {
+            // Disposed during fetch
+            return;
+        }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to load icon from {TargetUrl} for content: {Name}", targetUrl, Name);
         }
 
-        if (!string.IsNullOrEmpty(ThumbnailUrl) && targetUrl != ThumbnailUrl)
+        if (currentVersion == _iconLoadVersion && !string.IsNullOrEmpty(ThumbnailUrl) && targetUrl != ThumbnailUrl)
         {
             try
             {
@@ -1342,6 +1352,14 @@ public partial class ContentDetailViewModel(
                 {
                     IconBitmap = fallbackBitmap;
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                // Disposed or superseded during fetch
+            }
+            catch (ObjectDisposedException)
+            {
+                // Disposed during fetch
             }
             catch (Exception ex)
             {
@@ -1893,7 +1911,7 @@ public partial class ContentDetailViewModel(
 
         if (HasBundleComponents || searchResult.ContentType == ContentType.ContentBundle)
         {
-            releaseItem.DownloadCommand = new AsyncRelayCommand(() => DownloadBundleComponentsAsync(CancellationToken.None));
+            releaseItem.DownloadCommand = new AsyncRelayCommand(() => DownloadBundleComponentsAsync(_cts.Token));
             releaseItem.AddToProfileCommand = new AsyncRelayCommand(() => AddToProfileAsync());
             releaseItem.IsDownloaded = AreBundleComponentsReadyForProfile;
         }
@@ -3343,7 +3361,7 @@ public partial class ContentDetailViewModel(
                 var bundleIds = await BundleComponentViewModel.GetRequiredProfileManifestIdsAsync(
                     BundleComponents,
                     contentStateService,
-                    CancellationToken.None);
+                    _cts.Token);
                 if (bundleIds.Count == 0)
                 {
                     notificationService.ShowWarning(
@@ -3399,7 +3417,7 @@ public partial class ContentDetailViewModel(
                 contentManifestId,
                 selectedContentName,
                 additionalManifestIds,
-                CancellationToken.None);
+                _cts.Token);
 
             // Create the profile selection dialog
             var dialog = new ProfileSelectionView(profileSelectionViewModel);
