@@ -119,10 +119,10 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
             return true;
         }
 
-        logger.LogInformation(
-            "Signature present in catalog for publisher '{PublisherId}'; cryptographic verification skipped (unconfigured)",
+        logger.LogWarning(
+            "Signature present in catalog for publisher '{PublisherId}', but cryptographic verification is not configured; rejecting signed catalog",
             catalog.Publisher?.Id);
-        return true;
+        return false;
     }
 
     private static void ValidateDependencies(

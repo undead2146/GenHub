@@ -13,6 +13,7 @@ using GenHub.Core.Interfaces.Providers;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GitHub;
+using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Providers;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Results.Content;
@@ -117,37 +118,8 @@ public class GenericCatalogDiscoverer(
     /// least one axis has two or more artifacts. An empty list means the release should NOT be
     /// split (single card, original path).
     /// </summary>
-    private static List<ReleaseArtifact> GetVariantArtifacts(ContentRelease release)
-    {
-        if (release.Artifacts == null || release.Artifacts.Count == 0)
-        {
-            return [];
-        }
-
-        var hinted = release.Artifacts
-            .Where(a => !string.IsNullOrWhiteSpace(a.VariantAxis) && !string.IsNullOrWhiteSpace(a.Variant))
-            .ToList();
-
-        if (hinted.Count < 2)
-        {
-            return [];
-        }
-
-        var multiAxes = hinted
-            .Where(a => a.VariantAxis != null)
-            .GroupBy(a => a.VariantAxis, StringComparer.OrdinalIgnoreCase)
-            .Where(g => g.Count() > 1)
-            .Select(g => g.Key)
-            .OfType<string>()
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        if (multiAxes.Count == 0)
-        {
-            return [];
-        }
-
-        return hinted.Where(a => a.VariantAxis != null && multiAxes.Contains(a.VariantAxis)).ToList();
-    }
+    private static List<ReleaseArtifact> GetVariantArtifacts(ContentRelease release) =>
+        CatalogManifestIdentity.GetVariantArtifacts(release);
 
     /// <summary>
     /// Guarantees exactly one variant is marked default. If the author declared one via
@@ -156,36 +128,12 @@ public class GenericCatalogDiscoverer(
     /// </summary>
     private static void MarkDefaultVariant(List<ContentVariantInfo> variants)
     {
-        if (variants.Count == 0)
-        {
-            return;
-        }
-
-        if (variants.Any(v => v.IsDefault))
-        {
-            // Keep the first author-declared default, clear the rest.
-            var seen = false;
-            foreach (var v in variants)
-            {
-                if (v.IsDefault && !seen)
-                {
-                    seen = true;
-                }
-                else
-                {
-                    v.IsDefault = false;
-                }
-            }
-
-            return;
-        }
-
-        var chosen = variants.FirstOrDefault(v =>
-                       v.Name.Contains("1080p", StringComparison.OrdinalIgnoreCase) ||
-                       v.Name.Contains("1920x1080", StringComparison.OrdinalIgnoreCase))
-                   ?? variants.FirstOrDefault(v => v.VariantType == "resolution")
-                   ?? variants[0];
-        chosen.IsDefault = true;
+        CatalogManifestIdentity.SelectDefaultVariant(
+            variants,
+            v => v.Name,
+            v => v.VariantType,
+            v => v.IsDefault,
+            (v, isDefault) => v.IsDefault = isDefault);
     }
 
     private static void AttachResolverMetadata(
@@ -576,7 +524,11 @@ public class GenericCatalogDiscoverer(
                  (dep.PublisherId?.Equals(PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase) == true &&
                   dep.VersionConstraint?.Equals("latest", StringComparison.OrdinalIgnoreCase) == true)))
             {
-                dep.VersionConstraint = $">={cleanTag}";
+                var testConstraint = new VersionConstraint { ConstraintExpression = $">={cleanTag}" };
+                if (testConstraint.IsSatisfiedBy(cleanTag))
+                {
+                    dep.VersionConstraint = $">={cleanTag}";
+                }
             }
         }
     }

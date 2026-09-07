@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -140,7 +141,7 @@ public class GenericCatalogResolver(
                     contentItem.Name);
             }
 
-            AddDependencies(builder, release, contentItem, resolvedTargetGame);
+            AddDependencies(builder, discoveredItem, publisher, release, contentItem, resolvedTargetGame);
 
             var manifest = builder.Build();
 
@@ -241,10 +242,26 @@ public class GenericCatalogResolver(
 
     private static void AddDependencies(
         IContentManifestBuilder builder,
+        ContentSearchResult discoveredItem,
+        PublisherProfile publisher,
         ContentRelease release,
         CatalogContentItem contentItem,
         GameType resolvedTargetGame)
     {
+        List<CatalogBundleComponentDescriptor>? bundleComponents = null;
+        if (discoveredItem.ResolverMetadata.TryGetValue(CatalogConstants.BundleComponentsJsonMetadataKey, out var bundleJson) &&
+            !string.IsNullOrWhiteSpace(bundleJson))
+        {
+            try
+            {
+                bundleComponents = JsonSerializer.Deserialize<List<CatalogBundleComponentDescriptor>>(bundleJson);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
         foreach (var dependency in release.Dependencies)
         {
             var dependencyType = CatalogManifestIdentity.ResolveDependencyContentType(dependency, contentItem);
@@ -274,12 +291,29 @@ public class GenericCatalogResolver(
             }
 
             var cleanConstraint = CatalogManifestIdentity.StripVersionConstraint(dependency.VersionConstraint);
+            var depPublisherId = dependency.PublisherId;
+            var depVersion = cleanConstraint;
+
+            if (bundleComponents?.FirstOrDefault(c => string.Equals(c.ContentId, dependency.ContentId, StringComparison.OrdinalIgnoreCase)) is { } matched)
+            {
+                if (!string.IsNullOrWhiteSpace(matched.PublisherId))
+                {
+                    depPublisherId = matched.PublisherId;
+                }
+
+                if (!string.IsNullOrWhiteSpace(matched.ReleaseVersion))
+                {
+                    depVersion = matched.ReleaseVersion;
+                }
+            }
 
             var dependencyId = CatalogManifestIdentity.CreateContentId(
-                dependency.PublisherId,
+                depPublisherId,
                 dependencyType,
                 dependency.ContentId,
-                cleanConstraint);
+                depVersion);
+
+            var (minVersion, maxVersion, compatibleVersions) = ParseVersionConstraint(dependency.VersionConstraint);
 
             var installBehavior = DependencyInstallBehavior.RequireExisting;
             if (dependency.IsOptional)
@@ -296,8 +330,57 @@ public class GenericCatalogResolver(
                 name: dependency.ContentId,
                 dependencyType: dependencyType,
                 installBehavior: installBehavior,
-                minVersion: cleanConstraint);
+                minVersion: minVersion,
+                maxVersion: maxVersion,
+                compatibleVersions: compatibleVersions);
         }
+    }
+
+    private static (string MinVersion, string MaxVersion, List<string>? CompatibleVersions) ParseVersionConstraint(string? constraint)
+    {
+        if (string.IsNullOrWhiteSpace(constraint))
+        {
+            return (string.Empty, string.Empty, null);
+        }
+
+        var trimmed = constraint.Trim();
+        if (trimmed.Equals("latest", StringComparison.OrdinalIgnoreCase))
+        {
+            return (string.Empty, string.Empty, null);
+        }
+
+        if (trimmed.StartsWith(">=", StringComparison.Ordinal))
+        {
+            return (CatalogManifestIdentity.StripVersionConstraint(trimmed), string.Empty, null);
+        }
+
+        if (trimmed.StartsWith("<=", StringComparison.Ordinal))
+        {
+            return (string.Empty, CatalogManifestIdentity.StripVersionConstraint(trimmed), null);
+        }
+
+        if (trimmed.StartsWith('>') || trimmed.StartsWith('^') || trimmed.StartsWith('~'))
+        {
+            return (CatalogManifestIdentity.StripVersionConstraint(trimmed), string.Empty, null);
+        }
+
+        if (trimmed.StartsWith('<'))
+        {
+            return (string.Empty, CatalogManifestIdentity.StripVersionConstraint(trimmed), null);
+        }
+
+        if (trimmed.Contains(',') || trimmed.Contains('|'))
+        {
+            var parts = trimmed.Split([',', '|'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(CatalogManifestIdentity.StripVersionConstraint)
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            return (string.Empty, string.Empty, parts.Count > 0 ? parts : null);
+        }
+
+        var stripped = CatalogManifestIdentity.StripVersionConstraint(trimmed);
+        return (stripped, stripped, [stripped]);
     }
 
     private static void ApplyManifestPostProcessing(

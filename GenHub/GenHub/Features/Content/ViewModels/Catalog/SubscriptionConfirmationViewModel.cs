@@ -167,7 +167,7 @@ public partial class SubscriptionConfirmationViewModel(
             // catalog-direct path: treat the shared URL as PublisherCatalog JSON.
             // future: sniff Provider Definition and branch before this parse.
             logger.LogInformation("Fetching catalog subscription");
-            logger.LogDebug("Fetching catalog from {Url}", catalogUrl);
+            logger.LogDebug("Fetching catalog from configured URL");
             var response = await CatalogDocumentReader.ReadAsync(httpClient, catalogUrl, CatalogConstants.MaxCatalogSizeBytes, cancellationToken);
 
             var result = await catalogParser.ParseCatalogAsync(response, cancellationToken);
@@ -260,7 +260,7 @@ public partial class SubscriptionConfirmationViewModel(
         try
         {
             if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
-                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+                uri.Scheme == Uri.UriSchemeHttps)
             {
                 Process.Start(new ProcessStartInfo
                 {
@@ -271,35 +271,35 @@ public partial class SubscriptionConfirmationViewModel(
             else if (url.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase))
             {
                 var rawAddress = url["mailto:".Length..].Split('?')[0];
-                if (MailAddress.TryCreate(rawAddress, out _))
+                if (MailAddress.TryCreate(rawAddress, out var mailAddress))
                 {
                     Process.Start(new ProcessStartInfo
                     {
-                        FileName = url,
+                        FileName = $"mailto:{mailAddress.Address}",
                         UseShellExecute = true,
                     });
                 }
                 else
                 {
-                    logger.LogWarning("Rejected invalid mailto address: {Url}", url);
+                    logger.LogWarning("Rejected invalid mailto address");
                 }
             }
-            else if (MailAddress.TryCreate(url, out _))
+            else if (MailAddress.TryCreate(url, out var mailAddress))
             {
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = $"mailto:{url}",
+                    FileName = $"mailto:{mailAddress.Address}",
                     UseShellExecute = true,
                 });
             }
             else
             {
-                logger.LogWarning("Rejected opening unsafe or invalid URL: {Url}", url);
+                logger.LogWarning("Rejected opening unsafe or invalid URL: scheme must be HTTPS or valid email");
             }
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to open URL in browser: {Url}", url);
+            logger.LogWarning(ex, "Failed to open URL in browser");
         }
     }
 
@@ -323,7 +323,14 @@ public partial class SubscriptionConfirmationViewModel(
             logger.LogInformation("Confirming subscription for {Publisher}", _parsedCatalog.Publisher.Id);
 
             var existingResult = await subscriptionStore.GetSubscriptionAsync(_parsedCatalog.Publisher.Id, cancellationToken);
-            var existingSub = existingResult is { Success: true } ? existingResult.Data : null;
+            if (!existingResult.Success)
+            {
+                ErrorTitle = "Subscription Error";
+                ErrorMessage = string.Join(Environment.NewLine, existingResult.Errors);
+                return;
+            }
+
+            var existingSub = existingResult.Data;
 
             var subscription = new PublisherSubscription
             {

@@ -168,30 +168,12 @@ public class GenericCatalogManifestFactory(
         });
 
         // Create updated manifest with computed hashes
-        var updatedManifest = new ContentManifest
+        var updatedManifest = originalManifest.Clone();
+        updatedManifest.Files = updatedFiles;
+        if (string.IsNullOrWhiteSpace(updatedManifest.Version))
         {
-            SchemaVersion = originalManifest.SchemaVersion,
-            Id = originalManifest.Id,
-            Name = originalManifest.Name,
-            Version = !string.IsNullOrWhiteSpace(originalManifest.Version)
-                ? originalManifest.Version
-                : CommunityOutpostCatalogConstants.DefaultMetadataVersion,
-            ContentType = originalManifest.ContentType,
-            TargetGame = originalManifest.TargetGame,
-            Publisher = originalManifest.Publisher,
-            Metadata = originalManifest.Metadata,
-            OriginalProviderName = originalManifest.OriginalProviderName,
-            OriginalContentId = originalManifest.OriginalContentId,
-            SourcePath = originalManifest.SourcePath,
-            Dependencies = originalManifest.Dependencies,
-            ContentReferences = originalManifest.ContentReferences,
-            KnownAddons = originalManifest.KnownAddons,
-            Files = updatedFiles,
-            Variants = originalManifest.Variants,
-            EntryPoint = originalManifest.EntryPoint,
-            RequiredDirectories = originalManifest.RequiredDirectories,
-            InstallationInstructions = originalManifest.InstallationInstructions,
-        };
+            updatedManifest.Version = CommunityOutpostCatalogConstants.DefaultMetadataVersion;
+        }
 
         if (string.IsNullOrWhiteSpace(updatedManifest.EntryPoint))
         {

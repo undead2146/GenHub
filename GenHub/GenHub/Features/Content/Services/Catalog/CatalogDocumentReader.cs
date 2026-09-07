@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 namespace GenHub.Features.Content.Services.Catalog;
 
 /// <summary>
-/// Reads a publisher catalog from either an HTTP(S) endpoint or a local file selected by the user.
+/// Reads a publisher catalog from either an HTTPS endpoint or a local file selected by the user.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -26,8 +26,8 @@ public static class CatalogDocumentReader
     /// <summary>
     /// Reads catalog JSON from the supplied catalog location.
     /// </summary>
-    /// <param name="httpClient">HTTP client used for HTTP(S) catalog locations.</param>
-    /// <param name="catalogLocation">An HTTP(S) URL, a local file URI, or a fully qualified local file path.</param>
+    /// <param name="httpClient">HTTP client used for HTTPS catalog locations.</param>
+    /// <param name="catalogLocation">An HTTPS URL, a local file URI, or a fully qualified local file path.</param>
     /// <param name="maximumSizeBytes">Optional maximum permitted catalog size.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The catalog JSON payload.</returns>
@@ -70,10 +70,10 @@ public static class CatalogDocumentReader
         }
 
         if (!Uri.TryCreate(catalogLocation, UriKind.Absolute, out var uri) ||
-            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            uri.Scheme != Uri.UriSchemeHttps)
         {
             throw new ArgumentException(
-                "Catalog locations must use HTTP(S), a local file URI, or a fully qualified local file path.",
+                "Catalog locations must use HTTPS, a local file URI, or a fully qualified local file path.",
                 nameof(catalogLocation));
         }
 

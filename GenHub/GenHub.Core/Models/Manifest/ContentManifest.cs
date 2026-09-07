@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using GenHub.Core.Constants;
@@ -12,6 +13,42 @@ namespace GenHub.Core.Models.Manifest;
 public class ContentManifest
 {
     private List<ArtifactVariant> _variants = [];
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ContentManifest"/> class.
+    /// </summary>
+    public ContentManifest()
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ContentManifest"/> class by copying another instance.
+    /// </summary>
+    /// <param name="other">The instance to copy from.</param>
+    public ContentManifest(ContentManifest other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+
+        ManifestVersion = other.ManifestVersion;
+        Id = other.Id;
+        Name = other.Name;
+        Version = other.Version;
+        ContentType = other.ContentType;
+        TargetGame = other.TargetGame;
+        Publisher = other.Publisher;
+        Metadata = other.Metadata;
+        OriginalProviderName = other.OriginalProviderName;
+        OriginalContentId = other.OriginalContentId;
+        SourcePath = other.SourcePath;
+        Dependencies = [.. other.Dependencies];
+        ContentReferences = [.. other.ContentReferences];
+        KnownAddons = [.. other.KnownAddons];
+        Files = [.. other.Files];
+        Variants = [.. other.Variants];
+        EntryPoint = other.EntryPoint;
+        RequiredDirectories = [.. other.RequiredDirectories];
+        InstallationInstructions = other.InstallationInstructions;
+    }
 
     /// <summary>Gets or sets the manifest format version.</summary>
     public string ManifestVersion { get; set; } = ManifestConstants.DefaultManifestVersion;
@@ -117,4 +154,10 @@ public class ContentManifest
 
     /// <summary>Gets or sets the installation instructions and hooks.</summary>
     public InstallationInstructions InstallationInstructions { get; set; } = new();
+
+    /// <summary>
+    /// Creates a copy of this manifest.
+    /// </summary>
+    /// <returns>A clone of this manifest.</returns>
+    public ContentManifest Clone() => new(this);
 }

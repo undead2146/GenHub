@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using GenHub.Core.Constants;
@@ -8,8 +11,7 @@ using GenHub.Core.Models.Manifest;
 namespace GenHub.Core.Models.Providers;
 
 /// <summary>
-/// Shared catalog identity helpers so discoverer search-result IDs, acquired manifest IDs,
-/// and declared dependency IDs are generated from the same inputs.
+/// Shared catalog identity helpers so discoverer search-result IDs, acquired manifest IDs, /// and declared dependency IDs are generated from the same inputs.
 /// </summary>
 public static class CatalogManifestIdentity
 {
@@ -250,6 +252,119 @@ public static class CatalogManifestIdentity
         }
 
         return ContentType.Mod;
+    }
+
+    /// <summary>
+    /// Extracts artifacts that belong to a multi-option variant axis (e.g. Resolution with 2+ choices).
+    /// </summary>
+    /// <param name="release">The content release containing artifacts.</param>
+    /// <returns>The list of variant artifacts matching multi-option axes, or empty list if single-option/no variants.</returns>
+    public static List<ReleaseArtifact> GetVariantArtifacts(ContentRelease release)
+    {
+        ArgumentNullException.ThrowIfNull(release);
+
+        if (release.Artifacts == null || release.Artifacts.Count == 0)
+        {
+            return [];
+        }
+
+        var hinted = release.Artifacts
+            .Where(a => !string.IsNullOrWhiteSpace(a.VariantAxis) && !string.IsNullOrWhiteSpace(a.Variant))
+            .ToList();
+
+        if (hinted.Count < 2)
+        {
+            return [];
+        }
+
+        var multiAxes = hinted
+            .Where(a => a.VariantAxis != null)
+            .GroupBy(a => a.VariantAxis!, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (multiAxes.Count == 0)
+        {
+            return [];
+        }
+
+        return hinted.Where(a => a.VariantAxis != null && multiAxes.Contains(a.VariantAxis)).ToList();
+    }
+
+    /// <summary>
+    /// Selects exactly one default variant among candidate items, adhering to:
+    /// 1. Declared default flag.
+    /// 2. 1080p / 1920x1080 naming heuristic.
+    /// 3. Resolution axis.
+    /// 4. First item.
+    /// </summary>
+    /// <typeparam name="T">The variant candidate type.</typeparam>
+    /// <param name="items">Candidate items.</param>
+    /// <param name="getLabel">Function to get item variant label.</param>
+    /// <param name="getAxis">Function to get item variant axis.</param>
+    /// <param name="getDeclaredDefault">Function to get item declared default state.</param>
+    /// <param name="setDefault">Action to set item default state.</param>
+    public static void SelectDefaultVariant<T>(
+        IList<T> items,
+        Func<T, string> getLabel,
+        Func<T, string?> getAxis,
+        Func<T, bool> getDeclaredDefault,
+        Action<T, bool> setDefault)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(getLabel);
+        ArgumentNullException.ThrowIfNull(getAxis);
+        ArgumentNullException.ThrowIfNull(getDeclaredDefault);
+        ArgumentNullException.ThrowIfNull(setDefault);
+
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        var declaredIdx = -1;
+        for (var i = 0; i < items.Count; i++)
+        {
+            if (getDeclaredDefault(items[i]))
+            {
+                declaredIdx = i;
+                break;
+            }
+        }
+
+        int targetIdx;
+        if (declaredIdx >= 0)
+        {
+            targetIdx = declaredIdx;
+        }
+        else
+        {
+            var p1080Idx = -1;
+            var resolutionIdx = -1;
+            for (var i = 0; i < items.Count; i++)
+            {
+                var label = getLabel(items[i]);
+                if (p1080Idx == -1 && (label.Contains("1080p", StringComparison.OrdinalIgnoreCase) ||
+                                       label.Contains("1920x1080", StringComparison.OrdinalIgnoreCase)))
+                {
+                    p1080Idx = i;
+                }
+
+                var axis = getAxis(items[i]);
+                if (resolutionIdx == -1 && string.Equals(axis, "resolution", StringComparison.OrdinalIgnoreCase))
+                {
+                    resolutionIdx = i;
+                }
+            }
+
+            targetIdx = p1080Idx >= 0 ? p1080Idx : (resolutionIdx >= 0 ? resolutionIdx : 0);
+        }
+
+        for (var i = 0; i < items.Count; i++)
+        {
+            setDefault(items[i], i == targetIdx);
+        }
     }
 
     private static bool TryParseDelimitedVersion(string cleanVersion, out int result)
