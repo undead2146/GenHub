@@ -9,6 +9,7 @@ using GenHub.Core.Utilities;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -322,6 +323,7 @@ public partial class ContentManifestBuilder(
     }
 
     /// <inheritdoc />
+    [SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "Manifest builder fluent API preserves overload parity with existing AddDependency methods.")]
     public IContentManifestBuilder AddDependency(
         ManifestId id,
         string name,

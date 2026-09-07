@@ -214,8 +214,15 @@ public static class CatalogBundleComponentBuilder
                 var isZh = string.Equals(artifact.Variant, "Zero Hour", StringComparison.OrdinalIgnoreCase) ||
                            string.Equals(artifact.Variant, "ZeroHour", StringComparison.OrdinalIgnoreCase);
 
-                if (parentTargetGame == GameType.Generals && isZh) return false;
-                if (parentTargetGame == GameType.ZeroHour && isGen) return false;
+                if (parentTargetGame == GameType.Generals && isZh)
+                {
+                    return false;
+                }
+
+                if (parentTargetGame == GameType.ZeroHour && isGen)
+                {
+                    return false;
+                }
             }
 
             return true;
@@ -230,7 +237,7 @@ public static class CatalogBundleComponentBuilder
     {
         if (variantArtifacts.Count > 0)
         {
-            var primaryAxis = variantArtifacts.First().VariantAxis ?? string.Empty;
+            var primaryAxis = variantArtifacts[0].VariantAxis ?? string.Empty;
             var primaryAxisArtifacts = variantArtifacts
                 .Where(a => string.Equals(a.VariantAxis, primaryAxis, StringComparison.OrdinalIgnoreCase))
                 .ToList();

@@ -167,7 +167,6 @@ public partial class SubscriptionConfirmationViewModel(
             // catalog-direct path: treat the shared URL as PublisherCatalog JSON.
             // future: sniff Provider Definition and branch before this parse.
             logger.LogInformation("Fetching catalog subscription");
-            logger.LogDebug("Fetching catalog from configured URL");
             var response = await CatalogDocumentReader.ReadAsync(httpClient, catalogUrl, CatalogConstants.MaxCatalogSizeBytes, cancellationToken);
 
             var result = await catalogParser.ParseCatalogAsync(response, cancellationToken);

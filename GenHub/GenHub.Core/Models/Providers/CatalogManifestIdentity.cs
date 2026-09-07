@@ -323,44 +323,7 @@ public static class CatalogManifestIdentity
             return;
         }
 
-        var declaredIdx = -1;
-        for (var i = 0; i < items.Count; i++)
-        {
-            if (getDeclaredDefault(items[i]))
-            {
-                declaredIdx = i;
-                break;
-            }
-        }
-
-        int targetIdx;
-        if (declaredIdx >= 0)
-        {
-            targetIdx = declaredIdx;
-        }
-        else
-        {
-            var p1080Idx = -1;
-            var resolutionIdx = -1;
-            for (var i = 0; i < items.Count; i++)
-            {
-                var label = getLabel(items[i]);
-                if (p1080Idx == -1 && (label.Contains("1080p", StringComparison.OrdinalIgnoreCase) ||
-                                       label.Contains("1920x1080", StringComparison.OrdinalIgnoreCase)))
-                {
-                    p1080Idx = i;
-                }
-
-                var axis = getAxis(items[i]);
-                if (resolutionIdx == -1 && string.Equals(axis, "resolution", StringComparison.OrdinalIgnoreCase))
-                {
-                    resolutionIdx = i;
-                }
-            }
-
-            targetIdx = p1080Idx >= 0 ? p1080Idx : (resolutionIdx >= 0 ? resolutionIdx : 0);
-        }
-
+        var targetIdx = FindDefaultVariantIndex(items, getLabel, getAxis, getDeclaredDefault);
         for (var i = 0; i < items.Count; i++)
         {
             setDefault(items[i], i == targetIdx);
@@ -462,5 +425,55 @@ public static class CatalogManifestIdentity
         }
 
         return false;
+    }
+
+    private static int FindDefaultVariantIndex<T>(
+        IList<T> items,
+        Func<T, string> getLabel,
+        Func<T, string?> getAxis,
+        Func<T, bool> getDeclaredDefault)
+    {
+        for (var i = 0; i < items.Count; i++)
+        {
+            if (getDeclaredDefault(items[i]))
+            {
+                return i;
+            }
+        }
+
+        var p1080Idx = -1;
+        var resolutionIdx = -1;
+        for (var i = 0; i < items.Count; i++)
+        {
+            var label = getLabel(items[i]);
+            if (p1080Idx == -1 && Is1080pLabel(label))
+            {
+                p1080Idx = i;
+            }
+
+            var axis = getAxis(items[i]);
+            if (resolutionIdx == -1 && string.Equals(axis, "resolution", StringComparison.OrdinalIgnoreCase))
+            {
+                resolutionIdx = i;
+            }
+        }
+
+        if (p1080Idx >= 0)
+        {
+            return p1080Idx;
+        }
+
+        if (resolutionIdx >= 0)
+        {
+            return resolutionIdx;
+        }
+
+        return 0;
+    }
+
+    private static bool Is1080pLabel(string label)
+    {
+        return label.Contains("1080p", StringComparison.OrdinalIgnoreCase) ||
+               label.Contains("1920x1080", StringComparison.OrdinalIgnoreCase);
     }
 }

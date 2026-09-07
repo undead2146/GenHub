@@ -513,6 +513,123 @@ public sealed class GenericCatalogResolverTests
         Assert.Contains("variant:1080p", manifest.Metadata.Tags);
     }
 
+    /// <summary>
+    /// Verifies that version constraints are parsed into appropriate min, max, and compatible version lists.
+    /// </summary>
+    /// <param name="constraint">The version constraint expression.</param>
+    /// <param name="expectedMin">Expected minimum version.</param>
+    /// <param name="expectedMax">Expected maximum version.</param>
+    /// <param name="expectedCompatibleCsv">Expected comma-separated compatible versions.</param>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Theory]
+    [InlineData(">=1.0.0 <2.0.0", "1.0.0", "2.0.0", null)]
+    [InlineData("^1.2.3", "1.2.3", "2.0.0", null)]
+    [InlineData("~1.2.3", "1.2.3", "1.3.0", null)]
+    [InlineData("1.0.0 | 2.0.0", "", "", "1.0.0,2.0.0")]
+    [InlineData("latest", "", "", null)]
+    [InlineData("1.5.0", "1.5.0", "1.5.0", "1.5.0")]
+    public async Task ResolveAsync_ParsesVersionConstraintsCorrectly(
+        string constraint,
+        string expectedMin,
+        string expectedMax,
+        string? expectedCompatibleCsv)
+    {
+        var contentItem = new CatalogContentItem
+        {
+            Id = "mod-a",
+            Name = "Mod A",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            Description = "Test Mod",
+            Tags = ["mod"],
+        };
+
+        var release = new ContentRelease
+        {
+            Version = "1.0.0",
+            Artifacts = [],
+            Dependencies =
+            [
+                new CatalogDependency
+                {
+                    PublisherId = "test-pub",
+                    ContentId = "dep-a",
+                    VersionConstraint = constraint,
+                },
+            ],
+        };
+
+        var publisher = new PublisherProfile { Id = "test-pub", Name = "Test Pub" };
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.0.testpub.mod.moda",
+            Name = contentItem.Name,
+            ContentType = ContentType.Mod,
+            ResolverId = CatalogConstants.GenericCatalogResolverId,
+            ResolverMetadata =
+            {
+                [CatalogConstants.ReleaseJsonMetadataKey] = JsonSerializer.Serialize(release),
+                [CatalogConstants.CatalogItemJsonMetadataKey] = JsonSerializer.Serialize(contentItem),
+                [CatalogConstants.PublisherProfileJsonMetadataKey] = JsonSerializer.Serialize(publisher),
+            },
+        };
+
+        var builtManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.0.testpub.mod.moda"),
+            Name = contentItem.Name,
+            Version = "1.0.0",
+            ContentType = ContentType.Mod,
+            Publisher = new PublisherInfo { PublisherType = "test-pub" },
+        };
+
+        var builderMock = CreateBuilderMock(builtManifest);
+        string? capturedMin = null;
+        string? capturedMax = null;
+        List<string>? capturedCompatible = null;
+
+        builderMock.Setup(b => b.AddDependency(
+                It.IsAny<ManifestId>(),
+                It.IsAny<string>(),
+                It.IsAny<ContentType>(),
+                It.IsAny<DependencyInstallBehavior>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<List<string>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<List<ManifestId>?>(),
+                It.IsAny<List<GameType>?>()))
+            .Callback<ManifestId, string, ContentType, DependencyInstallBehavior, string, string, List<string>?, bool, List<ManifestId>?, List<GameType>?>(
+                (id, name, type, behavior, min, max, comp, excl, conf, games) =>
+                {
+                    capturedMin = min;
+                    capturedMax = max;
+                    capturedCompatible = comp;
+                })
+            .Returns(builderMock.Object);
+
+        var resolver = new GenericCatalogResolver(
+            NullLogger<GenericCatalogResolver>.Instance,
+            () => builderMock.Object);
+
+        var result = await resolver.ResolveAsync(searchResult);
+
+        Assert.True(result.Success, result.FirstError);
+        Assert.Equal(expectedMin, capturedMin);
+        Assert.Equal(expectedMax, capturedMax);
+
+        if (expectedCompatibleCsv == null)
+        {
+            Assert.Null(capturedCompatible);
+        }
+        else
+        {
+            Assert.NotNull(capturedCompatible);
+            Assert.Equal(expectedCompatibleCsv.Split(','), capturedCompatible);
+        }
+    }
+
     private static Mock<IContentManifestBuilder> CreateBuilderMock(ContentManifest builtManifest)
     {
         var builderMock = new Mock<IContentManifestBuilder>();

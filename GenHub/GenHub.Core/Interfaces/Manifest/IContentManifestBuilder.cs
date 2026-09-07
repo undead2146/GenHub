@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
@@ -144,6 +145,7 @@ public interface IContentManifestBuilder
     /// <param name="conflictsWith">List of conflicting dependency IDs.</param>
     /// <param name="compatibleGameTypes">List of compatible game types.</param>
     /// <returns>The builder instance for chaining.</returns>
+    [SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "Manifest builder fluent API preserves overload parity with existing AddDependency methods.")]
     IContentManifestBuilder AddDependency(
         ManifestId id,
         string name,

@@ -130,7 +130,7 @@ public class GenericCatalogResolver(
                     contentItem.Name);
             }
 
-            AddDependencies(logger, builder, discoveredItem, publisher, release, contentItem, resolvedTargetGame);
+            AddDependencies(logger, builder, discoveredItem, release, contentItem, resolvedTargetGame);
 
             var manifest = builder.Build();
 
@@ -239,26 +239,11 @@ public class GenericCatalogResolver(
         ILogger logger,
         IContentManifestBuilder builder,
         ContentSearchResult discoveredItem,
-        PublisherProfile publisher,
         ContentRelease release,
         CatalogContentItem contentItem,
         GameType resolvedTargetGame)
     {
-        List<CatalogBundleComponentDescriptor>? bundleComponents = null;
-        if (discoveredItem.ResolverMetadata.TryGetValue(CatalogConstants.BundleComponentsJsonMetadataKey, out var bundleJson) &&
-            !string.IsNullOrWhiteSpace(bundleJson))
-        {
-            try
-            {
-                bundleComponents = JsonSerializer.Deserialize<List<CatalogBundleComponentDescriptor>>(bundleJson)
-                    ?? throw new JsonException("Bundle component metadata deserialized to null.");
-            }
-            catch (JsonException ex)
-            {
-                logger.LogWarning(ex, "Failed to deserialize bundle component metadata for '{ContentId}'", contentItem.Id);
-                throw new InvalidOperationException($"Bundle component metadata for '{contentItem.Id}' is invalid.", ex);
-            }
-        }
+        var bundleComponents = TryDeserializeBundleComponents(logger, discoveredItem, contentItem.Id);
 
         foreach (var dependency in release.Dependencies)
         {
@@ -267,77 +252,128 @@ public class GenericCatalogResolver(
             if (dependencyType == ContentType.GameInstallation ||
                 CatalogManifestIdentity.IsBaseGameDependency(dependency))
             {
-                var isGenerals = dependency.ContentId.Equals("generals", StringComparison.OrdinalIgnoreCase) ||
-                                 resolvedTargetGame == GameType.Generals;
-                var foundation = isGenerals &&
-                                 !dependency.ContentId.Equals("zerohour", StringComparison.OrdinalIgnoreCase)
-                    ? BaseDependencyBuilder.CreateGenerals108Dependency()
-                    : BaseDependencyBuilder.CreateZeroHour104Dependency();
-
-                var baseMinVersion = !string.IsNullOrWhiteSpace(dependency.VersionConstraint)
-                    ? CatalogManifestIdentity.StripVersionConstraint(dependency.VersionConstraint)
-                    : foundation.MinVersion ?? string.Empty;
-
-                builder.AddDependency(
-                    id: foundation.Id,
-                    name: foundation.Name,
-                    dependencyType: ContentType.GameInstallation,
-                    installBehavior: DependencyInstallBehavior.RequireExisting,
-                    minVersion: baseMinVersion,
-                    compatibleGameTypes: foundation.CompatibleGameTypes);
+                AddBaseGameDependency(builder, dependency, resolvedTargetGame);
                 continue;
             }
 
-            var cleanConstraint = CatalogManifestIdentity.StripVersionConstraint(dependency.VersionConstraint);
-            var depPublisherId = dependency.PublisherId;
-            var depVersion = cleanConstraint;
-
-            if (bundleComponents?.FirstOrDefault(c => string.Equals(c.ContentId, dependency.ContentId, StringComparison.OrdinalIgnoreCase)) is { } matched)
-            {
-                if (!string.IsNullOrWhiteSpace(matched.PublisherId))
-                {
-                    depPublisherId = matched.PublisherId;
-                }
-
-                if (!string.IsNullOrWhiteSpace(matched.ReleaseVersion))
-                {
-                    depVersion = matched.ReleaseVersion;
-                }
-
-                if (!string.IsNullOrWhiteSpace(matched.ContentType) &&
-                    Enum.TryParse<ContentType>(matched.ContentType, true, out var matchedType))
-                {
-                    dependencyType = matchedType;
-                }
-            }
-
-            var dependencyId = CatalogManifestIdentity.CreateContentId(
-                depPublisherId,
-                dependencyType,
-                dependency.ContentId,
-                depVersion);
-
-            var (minVersion, maxVersion, compatibleVersions) = ParseVersionConstraint(dependency.VersionConstraint);
-
-            var installBehavior = DependencyInstallBehavior.RequireExisting;
-            if (dependency.IsOptional)
-            {
-                installBehavior = DependencyInstallBehavior.Optional;
-            }
-            else if (contentItem.ContentType == ContentType.ContentBundle)
-            {
-                installBehavior = DependencyInstallBehavior.AutoInstall;
-            }
-
-            builder.AddDependency(
-                id: ManifestId.Create(dependencyId),
-                name: dependency.ContentId,
-                dependencyType: dependencyType,
-                installBehavior: installBehavior,
-                minVersion: minVersion,
-                maxVersion: maxVersion,
-                compatibleVersions: compatibleVersions);
+            AddCatalogDependency(builder, dependency, contentItem, bundleComponents);
         }
+    }
+
+    private static List<CatalogBundleComponentDescriptor>? TryDeserializeBundleComponents(
+        ILogger logger,
+        ContentSearchResult discoveredItem,
+        string contentItemId)
+    {
+        if (!discoveredItem.ResolverMetadata.TryGetValue(CatalogConstants.BundleComponentsJsonMetadataKey, out var bundleJson) ||
+            string.IsNullOrWhiteSpace(bundleJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<CatalogBundleComponentDescriptor>>(bundleJson)
+                ?? throw new JsonException("Bundle component metadata deserialized to null.");
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning(ex, "Failed to deserialize bundle component metadata for '{ContentId}'", contentItemId);
+            throw new InvalidOperationException($"Bundle component metadata for '{contentItemId}' is invalid.", ex);
+        }
+    }
+
+    private static void AddBaseGameDependency(
+        IContentManifestBuilder builder,
+        CatalogDependency dependency,
+        GameType resolvedTargetGame)
+    {
+        var isGenerals = dependency.ContentId.Equals("generals", StringComparison.OrdinalIgnoreCase) ||
+                         resolvedTargetGame == GameType.Generals;
+        var foundation = isGenerals &&
+                         !dependency.ContentId.Equals("zerohour", StringComparison.OrdinalIgnoreCase)
+            ? BaseDependencyBuilder.CreateGenerals108Dependency()
+            : BaseDependencyBuilder.CreateZeroHour104Dependency();
+
+        var baseMinVersion = !string.IsNullOrWhiteSpace(dependency.VersionConstraint)
+            ? CatalogManifestIdentity.StripVersionConstraint(dependency.VersionConstraint)
+            : foundation.MinVersion ?? string.Empty;
+
+        builder.AddDependency(
+            id: foundation.Id,
+            name: foundation.Name,
+            dependencyType: ContentType.GameInstallation,
+            installBehavior: DependencyInstallBehavior.RequireExisting,
+            minVersion: baseMinVersion,
+            compatibleGameTypes: foundation.CompatibleGameTypes);
+    }
+
+    private static void AddCatalogDependency(
+        IContentManifestBuilder builder,
+        CatalogDependency dependency,
+        CatalogContentItem contentItem,
+        List<CatalogBundleComponentDescriptor>? bundleComponents)
+    {
+        var (depPublisherId, depVersion, dependencyType) = ResolveDependencyIdentity(dependency, contentItem, bundleComponents);
+
+        var dependencyId = CatalogManifestIdentity.CreateContentId(
+            depPublisherId,
+            dependencyType,
+            dependency.ContentId,
+            depVersion);
+
+        var (minVersion, maxVersion, compatibleVersions) = ParseVersionConstraint(dependency.VersionConstraint);
+
+        var installBehavior = DependencyInstallBehavior.RequireExisting;
+        if (dependency.IsOptional)
+        {
+            installBehavior = DependencyInstallBehavior.Optional;
+        }
+        else if (contentItem.ContentType == ContentType.ContentBundle)
+        {
+            installBehavior = DependencyInstallBehavior.AutoInstall;
+        }
+
+        builder.AddDependency(
+            id: ManifestId.Create(dependencyId),
+            name: dependency.ContentId,
+            dependencyType: dependencyType,
+            installBehavior: installBehavior,
+            minVersion: minVersion,
+            maxVersion: maxVersion,
+            compatibleVersions: compatibleVersions);
+    }
+
+    private static (string PublisherId, string Version, ContentType DependencyType) ResolveDependencyIdentity(
+        CatalogDependency dependency,
+        CatalogContentItem contentItem,
+        List<CatalogBundleComponentDescriptor>? bundleComponents)
+    {
+        var cleanConstraint = CatalogManifestIdentity.StripVersionConstraint(dependency.VersionConstraint);
+        var depPublisherId = dependency.PublisherId;
+        var depVersion = cleanConstraint;
+        var dependencyType = CatalogManifestIdentity.ResolveDependencyContentType(dependency, contentItem);
+
+        if (bundleComponents?.FirstOrDefault(c => string.Equals(c.ContentId, dependency.ContentId, StringComparison.OrdinalIgnoreCase)) is { } matched)
+        {
+            if (!string.IsNullOrWhiteSpace(matched.PublisherId))
+            {
+                depPublisherId = matched.PublisherId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(matched.ReleaseVersion))
+            {
+                depVersion = matched.ReleaseVersion;
+            }
+
+            if (!string.IsNullOrWhiteSpace(matched.ContentType) &&
+                Enum.TryParse<ContentType>(matched.ContentType, true, out var matchedType))
+            {
+                dependencyType = matchedType;
+            }
+        }
+
+        return (depPublisherId, depVersion, dependencyType);
     }
 
     private static (string MinVersion, string MaxVersion, List<string>? CompatibleVersions) ParseVersionConstraint(string? constraint)
@@ -355,67 +391,83 @@ public class GenericCatalogResolver(
 
         if (trimmed.Contains(',') || trimmed.Contains('|'))
         {
-            var parts = trimmed.Split([',', '|'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(CatalogManifestIdentity.StripVersionConstraint)
-                .Where(v => !string.IsNullOrWhiteSpace(v))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            return (string.Empty, string.Empty, parts.Count > 0 ? parts : null);
+            return ParseListConstraint(trimmed);
         }
 
+        return ParseRangedTokens(trimmed);
+    }
+
+    private static (string MinVersion, string MaxVersion, List<string>? CompatibleVersions) ParseListConstraint(string trimmed)
+    {
+        var parts = trimmed.Split([',', '|'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(CatalogManifestIdentity.StripVersionConstraint)
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return (string.Empty, string.Empty, parts.Count > 0 ? parts : null);
+    }
+
+    private static (string MinVersion, string MaxVersion, List<string>? CompatibleVersions) ParseRangedTokens(string trimmed)
+    {
         var tokens = trimmed.Split([' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (tokens.Length == 1 && IsExactVersion(tokens[0]))
+        {
+            var stripped = CatalogManifestIdentity.StripVersionConstraint(tokens[0]);
+            if (!string.IsNullOrWhiteSpace(stripped))
+            {
+                return (stripped, stripped, [stripped]);
+            }
+        }
+
         string minVersion = string.Empty;
         string maxVersion = string.Empty;
 
         foreach (var token in tokens)
         {
-            if (token.StartsWith(">=", StringComparison.Ordinal))
-            {
-                minVersion = CatalogManifestIdentity.StripVersionConstraint(token);
-            }
-            else if (token.StartsWith("<=", StringComparison.Ordinal))
-            {
-                maxVersion = CatalogManifestIdentity.StripVersionConstraint(token);
-            }
-            else if (token.StartsWith('>'))
-            {
-                minVersion = CatalogManifestIdentity.StripVersionConstraint(token);
-            }
-            else if (token.StartsWith('<'))
-            {
-                maxVersion = CatalogManifestIdentity.StripVersionConstraint(token);
-            }
-            else if (token.StartsWith('^'))
-            {
-                var target = CatalogManifestIdentity.StripVersionConstraint(token);
-                minVersion = target;
-                var parts = target.Split('.');
-                if (parts.Length > 0 && int.TryParse(parts[0], out var major))
-                {
-                    maxVersion = $"{major + 1}.0.0";
-                }
-            }
-            else if (token.StartsWith('~'))
-            {
-                var target = CatalogManifestIdentity.StripVersionConstraint(token);
-                minVersion = target;
-                var parts = target.Split('.');
-                if (parts.Length >= 2 && int.TryParse(parts[0], out var major) && int.TryParse(parts[1], out var minor))
-                {
-                    maxVersion = $"{major}.{minor + 1}.0";
-                }
-            }
-            else
-            {
-                var stripped = CatalogManifestIdentity.StripVersionConstraint(token);
-                if (!string.IsNullOrWhiteSpace(stripped) && tokens.Length == 1)
-                {
-                    return (stripped, stripped, [stripped]);
-                }
-            }
+            ApplyTokenBound(token, ref minVersion, ref maxVersion);
         }
 
         return (minVersion, maxVersion, null);
+    }
+
+    private static bool IsExactVersion(string token)
+    {
+        return !token.StartsWith('>') &&
+               !token.StartsWith('<') &&
+               !token.StartsWith('^') &&
+               !token.StartsWith('~');
+    }
+
+    private static void ApplyTokenBound(string token, ref string minVersion, ref string maxVersion)
+    {
+        if (token.StartsWith(">=", StringComparison.Ordinal) || token.StartsWith('>'))
+        {
+            minVersion = CatalogManifestIdentity.StripVersionConstraint(token);
+        }
+        else if (token.StartsWith("<=", StringComparison.Ordinal) || token.StartsWith('<'))
+        {
+            maxVersion = CatalogManifestIdentity.StripVersionConstraint(token);
+        }
+        else if (token.StartsWith('^'))
+        {
+            var target = CatalogManifestIdentity.StripVersionConstraint(token);
+            minVersion = target;
+            var parts = target.Split('.');
+            if (parts.Length > 0 && int.TryParse(parts[0], out var major))
+            {
+                maxVersion = $"{major + 1}.0.0";
+            }
+        }
+        else if (token.StartsWith('~'))
+        {
+            var target = CatalogManifestIdentity.StripVersionConstraint(token);
+            minVersion = target;
+            var parts = target.Split('.');
+            if (parts.Length >= 2 && int.TryParse(parts[0], out var major) && int.TryParse(parts[1], out var minor))
+            {
+                maxVersion = $"{major}.{minor + 1}.0";
+            }
+        }
     }
 
     private static void ApplyManifestPostProcessing(
