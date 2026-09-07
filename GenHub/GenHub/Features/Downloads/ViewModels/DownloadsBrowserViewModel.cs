@@ -601,12 +601,9 @@ public sealed partial class DownloadsBrowserViewModel(
                     if (outgoingState.Items.Count > 0)
                     {
                         var activeItemSet = new HashSet<ContentGridItemViewModel>(ContentItems);
-                        foreach (var oldItem in outgoingState.Items)
+                        foreach (var oldItem in outgoingState.Items.Where(oldItem => !activeItemSet.Contains(oldItem)))
                         {
-                            if (!activeItemSet.Contains(oldItem))
-                            {
-                                oldItem.Dispose();
-                            }
+                            oldItem.Dispose();
                         }
                     }
 
@@ -1381,6 +1378,14 @@ public sealed partial class DownloadsBrowserViewModel(
                         oldState.ActiveDetailViewModel?.Dispose();
                         oldState.ActiveDetailViewModel = null;
                         foreach (var oldVm in oldState.Items)
+                        {
+                            oldVm.Dispose();
+                        }
+                    }
+                    else
+                    {
+                        var activeItemSet = new HashSet<ContentGridItemViewModel>(ContentItems);
+                        foreach (var oldVm in oldState.Items.Where(oldVm => !activeItemSet.Contains(oldVm)))
                         {
                             oldVm.Dispose();
                         }

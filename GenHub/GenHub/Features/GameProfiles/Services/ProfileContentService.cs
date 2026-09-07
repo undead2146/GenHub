@@ -921,6 +921,10 @@ public sealed class ProfileContentService(
                     "Dependencies Added",
                     $"Added required dependencies for '{contentName}': {string.Join(", ", dependencyNames)}");
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Failed to resolve dependency names for notification on {ManifestId}", primaryManifestId);

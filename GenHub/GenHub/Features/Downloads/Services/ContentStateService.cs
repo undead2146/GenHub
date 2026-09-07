@@ -32,6 +32,9 @@ public sealed partial class ContentStateService(
     ILogger<ContentStateService> logger) : IContentStateService
 {
     private const string GitHubPublisher = "github";
+    private const string GitHubTopicsPublisher = "githubtopics";
+    private const string GitHubTopicsNormalized = "githubtopic";
+    private const string UnknownSegment = "unknown";
     private const string FileSchemePrefix = "file:";
     private const int MaxSessionDownloadsEntries = 1000;
 
@@ -237,11 +240,15 @@ public sealed partial class ContentStateService(
             return true;
         }
 
-        // Only allow the specific cross-alias between "github" and "githubtopics"
-        if ((string.Equals(p1Clean, "github", StringComparison.OrdinalIgnoreCase) && string.Equals(p2Clean, "githubtopics", StringComparison.OrdinalIgnoreCase)) ||
-            (string.Equals(p1Clean, "githubtopics", StringComparison.OrdinalIgnoreCase) && string.Equals(p2Clean, "github", StringComparison.OrdinalIgnoreCase)) ||
-            (string.Equals(p1, "github", StringComparison.OrdinalIgnoreCase) && (string.Equals(p2, "githubtopics", StringComparison.OrdinalIgnoreCase) || string.Equals(p2, "githubtopic", StringComparison.OrdinalIgnoreCase))) ||
-            ((string.Equals(p1, "githubtopics", StringComparison.OrdinalIgnoreCase) || string.Equals(p1, "githubtopic", StringComparison.OrdinalIgnoreCase)) && string.Equals(p2, "github", StringComparison.OrdinalIgnoreCase)))
+        // Allow cross-alias between "github" and "githubtopics" (normalized to "githubtopic" due to trailing 's' stripping)
+        var isGitHub1 = string.Equals(p1, GitHubPublisher, StringComparison.OrdinalIgnoreCase);
+        var isGitHub2 = string.Equals(p2, GitHubPublisher, StringComparison.OrdinalIgnoreCase);
+        var isGitHubTopics1 = string.Equals(p1, GitHubTopicsNormalized, StringComparison.OrdinalIgnoreCase) ||
+                              string.Equals(p1Clean, GitHubTopicsPublisher, StringComparison.OrdinalIgnoreCase);
+        var isGitHubTopics2 = string.Equals(p2, GitHubTopicsNormalized, StringComparison.OrdinalIgnoreCase) ||
+                              string.Equals(p2Clean, GitHubTopicsPublisher, StringComparison.OrdinalIgnoreCase);
+
+        if ((isGitHub1 && isGitHubTopics2) || (isGitHubTopics1 && isGitHub2))
         {
             return true;
         }
@@ -900,9 +907,10 @@ public sealed partial class ContentStateService(
         bool hasRealDate = item.LastUpdated.HasValue && item.LastUpdated.Value > DateTime.MinValue;
         var releaseDate = item.LastUpdated ?? DateTime.MinValue;
 
-        var providerName = SanitizeSegmentForManifest(item.ProviderName, "unknown");
+        var providerName = SanitizeSegmentForManifest(item.ProviderName, UnknownSegment) ?? UnknownSegment;
         var contentName = SanitizeSegmentForManifest(item.Name, null)
-            ?? SanitizeSegmentForManifest(item.Id, "unknown");
+            ?? SanitizeSegmentForManifest(item.Id, UnknownSegment)
+            ?? UnknownSegment;
 
         string prospectiveId;
         try
@@ -919,17 +927,17 @@ public sealed partial class ContentStateService(
         return (prospectiveId, releaseDate, hasRealDate);
     }
 
-    private static string SanitizeSegmentForManifest(string? input, string? fallback)
+    private static string? SanitizeSegmentForManifest(string? input, string? fallback)
     {
         if (string.IsNullOrWhiteSpace(input))
         {
-            return fallback ?? "unknown";
+            return fallback;
         }
 
         var hasAlphaNumeric = input.Any(char.IsLetterOrDigit);
         if (!hasAlphaNumeric)
         {
-            return fallback ?? "unknown";
+            return fallback;
         }
 
         return input;

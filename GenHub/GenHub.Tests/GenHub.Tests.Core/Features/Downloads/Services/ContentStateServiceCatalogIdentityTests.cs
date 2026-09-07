@@ -25,6 +25,11 @@ public sealed class ContentStateServiceCatalogIdentityTests
     [InlineData("genhub-test-publishers", "communityoutpost", false)]
     [InlineData("github", "githubtopics", true)]
     [InlineData("githubtopics", "github", true)]
+    [InlineData("github", "githubtopic", true)]
+    [InlineData("githubtopic", "github", true)]
+    [InlineData("githubtopic", "githubtopics", true)]
+    [InlineData("github-topics", "github", true)]
+    [InlineData("githubtopic", "communityoutpost", false)]
     [InlineData("github", "github", true)]
     [InlineData("github-authorA", "github-authorB", false)]
     [InlineData("github-modder", "github-team", false)]
@@ -89,7 +94,7 @@ public sealed class ContentStateServiceCatalogIdentityTests
     {
         var manifest = new ContentManifest
         {
-            Id = ManifestId.Create("1.0.github.mod.generalsgameplay"),
+            Id = ManifestId.Create("1.0.github.mod.generals-gameplay"),
             TargetGame = GameType.ZeroHour,
         };
 

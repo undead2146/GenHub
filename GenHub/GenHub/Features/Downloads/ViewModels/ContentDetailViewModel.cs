@@ -455,6 +455,16 @@ public partial class ContentDetailViewModel(
                     component.PropertyChanged -= OnBundleComponentPropertyChanged;
                 }
 
+                foreach (var release in Releases)
+                {
+                    release.Dispose();
+                }
+
+                foreach (var addon in Addons)
+                {
+                    addon.Dispose();
+                }
+
                 IconBitmap = null;
             }
 

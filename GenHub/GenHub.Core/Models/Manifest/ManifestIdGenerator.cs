@@ -181,7 +181,7 @@ public static partial class ManifestIdGenerator
         return GeneratePublisherContentId(owner, contentType, contentName, userVersion);
     }
 
-/// <summary>
+    /// <summary>
     /// Extracts a numeric version from a release tag string.
     /// Examples: "v1.2.3" -> 123, "1.0" -> 10, "v2" -> 2, "latest" -> 0.
     /// </summary>

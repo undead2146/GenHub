@@ -1338,8 +1338,8 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
             else
             {
                 // Raw uncompressed copy
-                var rRaw = stream.Read(copyBuffer, 0, copyBuffer.Length);
-                if (rRaw > 0)
+                var rRaw = 0;
+                while ((rRaw = stream.Read(copyBuffer, 0, copyBuffer.Length)) > 0)
                 {
                     totalBytesWritten += rRaw;
                     if (totalBytesWritten > CatalogConstants.MaxZipUncompressedSizeBytes)

@@ -405,8 +405,12 @@ public abstract partial class DownloadableItemViewModel : ObservableObject, IDow
 
         if (IsExpanded && !IsDetailsLoaded && FetchDetailsAsync != null)
         {
-            _fetchCts?.Cancel();
-            _fetchCts?.Dispose();
+            if (_fetchCts != null)
+            {
+                await _fetchCts.CancelAsync();
+                _fetchCts.Dispose();
+            }
+
             _fetchCts = new CancellationTokenSource();
             var ct = _fetchCts.Token;
 
@@ -434,9 +438,9 @@ public abstract partial class DownloadableItemViewModel : ObservableObject, IDow
                 IsLoadingDetails = false;
             }
         }
-        else if (!IsExpanded)
+        else if (!IsExpanded && _fetchCts != null)
         {
-            _fetchCts?.Cancel();
+            await _fetchCts.CancelAsync();
         }
     }
 

@@ -239,15 +239,13 @@ public class GenericCatalogDiscoverer(
             return null;
         }
 
-        if (string.Equals(variant, GeneralsGameSegment, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(variant, "Generals", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(variant, GeneralsGameSegment, StringComparison.OrdinalIgnoreCase))
         {
             return GameType.Generals;
         }
 
         if (string.Equals(variant, ZeroHourGameSegment, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(variant, "Zero Hour", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(variant, "ZeroHour", StringComparison.OrdinalIgnoreCase))
+            string.Equals(variant, "Zero Hour", StringComparison.OrdinalIgnoreCase))
         {
             return GameType.ZeroHour;
         }

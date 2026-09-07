@@ -92,7 +92,7 @@
         </Style>
 
         <Style Selector="Button.primary:pointerover">
-            <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AccentLightBrush}" />
         </Style>
 
         <Style Selector="Button.secondary">
