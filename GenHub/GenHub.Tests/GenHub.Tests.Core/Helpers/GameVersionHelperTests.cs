@@ -93,7 +93,8 @@ public class GameVersionHelperTests
     }
 
     /// <summary>
-    /// Verifies that StripVersionPrefix removes a single leading 'v' or 'V' character without altering the remainder.
+    /// Verifies that StripVersionPrefix removes a single leading 'v' or 'V' character when followed by a digit,
+    /// without altering non-version strings or prefixes not followed by a digit.
     /// </summary>
     /// <param name="tag">The version or tag string.</param>
     /// <param name="expected">The expected stripped string.</param>
@@ -101,7 +102,8 @@ public class GameVersionHelperTests
     [InlineData("v1.0.0", "1.0.0")]
     [InlineData("V2.1", "2.1")]
     [InlineData("1.0.0", "1.0.0")]
-    [InlineData("vv1.0", "v1.0")]
+    [InlineData("vv1.0", "vv1.0")]
+    [InlineData("vanilla", "vanilla")]
     [InlineData("", "")]
     [InlineData(null, "")]
     public void StripVersionPrefix_RemovesLeadingVPrefix(string? tag, string expected)
