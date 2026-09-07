@@ -5,6 +5,7 @@ using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Results.Content;
 using Xunit;
+using ContentType = GenHub.Core.Models.Enums.ContentType;
 
 namespace GenHub.Tests.Core.Features.Content.Services;
 
@@ -156,5 +157,51 @@ public class ContentCardBadgeHelperTests
         Assert.Equal(PublisherInfoConstants.TheSuperHackers.LogoSource, ContentCardBadgeHelper.GetPublisherLogoUrl(superHackersResult));
         Assert.Equal("https://avatars.githubusercontent.com/u/12345?v=4", ContentCardBadgeHelper.GetPublisherLogoUrl(gitHubWithAvatarResult));
         Assert.Equal("https://github.com/customdev.png", ContentCardBadgeHelper.GetPublisherLogoUrl(gitHubWithoutAvatarResult));
+    }
+
+    /// <summary>
+    /// Verifies that TheSuperHackers cards show China cover for GameClients and GLA cover for Patch.
+    /// </summary>
+    [Fact]
+    public void GetThumbnailUrl_TheSuperHackersDifferentiatesGameClientAndPatch()
+    {
+        var gameClient = new ContentSearchResult
+        {
+            Id = "github.TheSuperHackers.GeneralsGameCode.latest.zh",
+            Name = "GeneralsGameCode weekly-2026-09-05 — Zero Hour",
+            ProviderName = "TheSuperHackers",
+            ContentType = ContentType.GameClient,
+        };
+
+        var patch = new ContentSearchResult
+        {
+            Id = "github.TheSuperHackers.GeneralsGamePatch2.latest",
+            Name = "Community Patch 2",
+            ProviderName = "TheSuperHackers",
+            ContentType = ContentType.Patch,
+        };
+
+        var gitHubGameClient = new ContentSearchResult
+        {
+            Id = "github.TheSuperHackers.GeneralsGameCode.latest.zh",
+            Name = "GeneralsGameCode",
+            ProviderName = "GitHub",
+            ContentType = ContentType.GameClient,
+            ResolverMetadata = { ["owner"] = "TheSuperHackers" },
+        };
+
+        var gitHubPatch = new ContentSearchResult
+        {
+            Id = "github.TheSuperHackers.GeneralsGamePatch2.latest",
+            Name = "Community Patch 2",
+            ProviderName = "GitHub",
+            ContentType = ContentType.Patch,
+            VariantGroupId = "thesuperhackers.patch.latest",
+        };
+
+        Assert.Equal("avares://GenHub/Assets/Covers/china-cover.png", ContentCardBadgeHelper.GetThumbnailUrl(gameClient));
+        Assert.Equal("avares://GenHub/Assets/Covers/gla-cover.png", ContentCardBadgeHelper.GetThumbnailUrl(patch));
+        Assert.Equal("avares://GenHub/Assets/Covers/china-cover.png", ContentCardBadgeHelper.GetThumbnailUrl(gitHubGameClient));
+        Assert.Equal("avares://GenHub/Assets/Covers/gla-cover.png", ContentCardBadgeHelper.GetThumbnailUrl(gitHubPatch));
     }
 }
