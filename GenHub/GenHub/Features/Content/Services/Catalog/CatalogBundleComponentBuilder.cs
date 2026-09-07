@@ -298,7 +298,8 @@ public static class CatalogBundleComponentBuilder
             return null;
         }
 
-        if (!string.IsNullOrWhiteSpace(versionConstraint))
+        if (!string.IsNullOrWhiteSpace(versionConstraint) &&
+            !string.Equals(versionConstraint.Trim(), "latest", StringComparison.OrdinalIgnoreCase))
         {
             var constraint = new VersionConstraint { ConstraintExpression = versionConstraint };
             return item.Releases

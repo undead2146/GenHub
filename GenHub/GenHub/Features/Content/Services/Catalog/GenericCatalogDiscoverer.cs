@@ -524,10 +524,17 @@ public class GenericCatalogDiscoverer(
                  (dep.PublisherId?.Equals(PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase) == true &&
                   dep.VersionConstraint?.Equals("latest", StringComparison.OrdinalIgnoreCase) == true)))
             {
-                var testConstraint = new VersionConstraint { ConstraintExpression = $">={cleanTag}" };
-                if (testConstraint.IsSatisfiedBy(cleanTag))
+                if (dep.VersionConstraint?.Equals("latest", StringComparison.OrdinalIgnoreCase) == true)
                 {
                     dep.VersionConstraint = $">={cleanTag}";
+                }
+                else
+                {
+                    var testConstraint = new VersionConstraint { ConstraintExpression = $">={cleanTag}" };
+                    if (testConstraint.IsSatisfiedBy(cleanTag))
+                    {
+                        dep.VersionConstraint = $">={cleanTag}";
+                    }
                 }
             }
         }
@@ -706,7 +713,7 @@ public class GenericCatalogDiscoverer(
         PopulatePresentation(searchResult, contentItem, release, contentNamesById);
         AttachResolverMetadata(searchResult, catalog, contentItem, resolvedRelease);
 
-        if (contentItem.ContentType == ContentType.ContentBundle)
+        if (contentItem.ContentType == ContentType.ContentBundle || (release.Dependencies != null && release.Dependencies.Count > 0))
         {
             var components = CatalogBundleComponentBuilder.Build(catalog, contentItem, release);
             searchResult.ResolverMetadata[CatalogConstants.BundleComponentsJsonMetadataKey] =
@@ -838,7 +845,7 @@ public class GenericCatalogDiscoverer(
 
         AttachResolverMetadata(sibling, catalog, contentItem, singleArtifactRelease);
 
-        if (contentItem.ContentType == ContentType.ContentBundle)
+        if (contentItem.ContentType == ContentType.ContentBundle || (context.OriginalRelease.Dependencies != null && context.OriginalRelease.Dependencies.Count > 0))
         {
             var components = CatalogBundleComponentBuilder.Build(catalog, contentItem, context.OriginalRelease);
             sibling.ResolverMetadata[CatalogConstants.BundleComponentsJsonMetadataKey] =

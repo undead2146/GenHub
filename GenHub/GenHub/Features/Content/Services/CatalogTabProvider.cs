@@ -125,7 +125,7 @@ public class CatalogTabProvider(
 
     private static bool TabAppliesToContent(CatalogTabDefinition catalogTab, string contentId, string resultId)
     {
-        if (catalogTab.AppliesTo is not { Count: > 0 } || catalogTab.AppliesTo.Count == 0)
+        if (catalogTab.AppliesTo is not { Count: > 0 })
         {
             return true;
         }

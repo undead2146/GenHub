@@ -28,17 +28,6 @@ public class GenericCatalogResolver(
     /// <inheritdoc />
     public string ResolverId => CatalogConstants.GenericCatalogResolverId;
 
-    /// <summary>
-    /// Returns true if this resolver can resolve the given search result.
-    /// </summary>
-    /// <param name="searchResult">The content search result to check.</param>
-    /// <returns>True if the resolver can resolve the item; otherwise, false.</returns>
-    public bool CanResolve(ContentSearchResult searchResult)
-    {
-        ArgumentNullException.ThrowIfNull(searchResult);
-        return string.Equals(searchResult.ResolverId, ResolverId, StringComparison.OrdinalIgnoreCase);
-    }
-
     /// <inheritdoc />
     public async Task<OperationResult<ContentManifest>> ResolveAsync(
         ContentSearchResult discoveredItem,
@@ -141,7 +130,7 @@ public class GenericCatalogResolver(
                     contentItem.Name);
             }
 
-            AddDependencies(builder, discoveredItem, publisher, release, contentItem, resolvedTargetGame);
+            AddDependencies(logger, builder, discoveredItem, publisher, release, contentItem, resolvedTargetGame);
 
             var manifest = builder.Build();
 
@@ -240,7 +229,14 @@ public class GenericCatalogResolver(
         return SanitizeFileName(Path.GetFileName(filename));
     }
 
+    private static string SanitizeFileName(string filename)
+    {
+        var invalidChars = Path.GetInvalidFileNameChars();
+        return string.Concat(filename.Select(c => invalidChars.Contains(c) ? '_' : c));
+    }
+
     private static void AddDependencies(
+        ILogger logger,
         IContentManifestBuilder builder,
         ContentSearchResult discoveredItem,
         PublisherProfile publisher,
@@ -254,11 +250,13 @@ public class GenericCatalogResolver(
         {
             try
             {
-                bundleComponents = JsonSerializer.Deserialize<List<CatalogBundleComponentDescriptor>>(bundleJson);
+                bundleComponents = JsonSerializer.Deserialize<List<CatalogBundleComponentDescriptor>>(bundleJson)
+                    ?? throw new JsonException("Bundle component metadata deserialized to null.");
             }
-            catch
+            catch (JsonException ex)
             {
-                // ignore
+                logger.LogWarning(ex, "Failed to deserialize bundle component metadata for '{ContentId}'", contentItem.Id);
+                throw new InvalidOperationException($"Bundle component metadata for '{contentItem.Id}' is invalid.", ex);
             }
         }
 
@@ -305,6 +303,12 @@ public class GenericCatalogResolver(
                 {
                     depVersion = matched.ReleaseVersion;
                 }
+
+                if (!string.IsNullOrWhiteSpace(matched.ContentType) &&
+                    Enum.TryParse<ContentType>(matched.ContentType, true, out var matchedType))
+                {
+                    dependencyType = matchedType;
+                }
             }
 
             var dependencyId = CatalogManifestIdentity.CreateContentId(
@@ -349,26 +353,6 @@ public class GenericCatalogResolver(
             return (string.Empty, string.Empty, null);
         }
 
-        if (trimmed.StartsWith(">=", StringComparison.Ordinal))
-        {
-            return (CatalogManifestIdentity.StripVersionConstraint(trimmed), string.Empty, null);
-        }
-
-        if (trimmed.StartsWith("<=", StringComparison.Ordinal))
-        {
-            return (string.Empty, CatalogManifestIdentity.StripVersionConstraint(trimmed), null);
-        }
-
-        if (trimmed.StartsWith('>') || trimmed.StartsWith('^') || trimmed.StartsWith('~'))
-        {
-            return (CatalogManifestIdentity.StripVersionConstraint(trimmed), string.Empty, null);
-        }
-
-        if (trimmed.StartsWith('<'))
-        {
-            return (string.Empty, CatalogManifestIdentity.StripVersionConstraint(trimmed), null);
-        }
-
         if (trimmed.Contains(',') || trimmed.Contains('|'))
         {
             var parts = trimmed.Split([',', '|'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -379,8 +363,59 @@ public class GenericCatalogResolver(
             return (string.Empty, string.Empty, parts.Count > 0 ? parts : null);
         }
 
-        var stripped = CatalogManifestIdentity.StripVersionConstraint(trimmed);
-        return (stripped, stripped, [stripped]);
+        var tokens = trimmed.Split([' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        string minVersion = string.Empty;
+        string maxVersion = string.Empty;
+
+        foreach (var token in tokens)
+        {
+            if (token.StartsWith(">=", StringComparison.Ordinal))
+            {
+                minVersion = CatalogManifestIdentity.StripVersionConstraint(token);
+            }
+            else if (token.StartsWith("<=", StringComparison.Ordinal))
+            {
+                maxVersion = CatalogManifestIdentity.StripVersionConstraint(token);
+            }
+            else if (token.StartsWith('>'))
+            {
+                minVersion = CatalogManifestIdentity.StripVersionConstraint(token);
+            }
+            else if (token.StartsWith('<'))
+            {
+                maxVersion = CatalogManifestIdentity.StripVersionConstraint(token);
+            }
+            else if (token.StartsWith('^'))
+            {
+                var target = CatalogManifestIdentity.StripVersionConstraint(token);
+                minVersion = target;
+                var parts = target.Split('.');
+                if (parts.Length > 0 && int.TryParse(parts[0], out var major))
+                {
+                    maxVersion = $"{major + 1}.0.0";
+                }
+            }
+            else if (token.StartsWith('~'))
+            {
+                var target = CatalogManifestIdentity.StripVersionConstraint(token);
+                minVersion = target;
+                var parts = target.Split('.');
+                if (parts.Length >= 2 && int.TryParse(parts[0], out var major) && int.TryParse(parts[1], out var minor))
+                {
+                    maxVersion = $"{major}.{minor + 1}.0";
+                }
+            }
+            else
+            {
+                var stripped = CatalogManifestIdentity.StripVersionConstraint(token);
+                if (!string.IsNullOrWhiteSpace(stripped) && tokens.Length == 1)
+                {
+                    return (stripped, stripped, [stripped]);
+                }
+            }
+        }
+
+        return (minVersion, maxVersion, null);
     }
 
     private static void ApplyManifestPostProcessing(
@@ -435,17 +470,5 @@ public class GenericCatalogResolver(
         {
             manifest.Metadata.Tags.Add($"contentCode:{contentItem.Id}");
         }
-    }
-
-    private static string SanitizeFileName(string fileName)
-    {
-        if (string.IsNullOrWhiteSpace(fileName))
-        {
-            return "download.zip";
-        }
-
-        var invalidChars = Path.GetInvalidFileNameChars();
-        var sanitized = string.Join("_", fileName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
-        return string.IsNullOrWhiteSpace(sanitized) ? "download.zip" : sanitized;
     }
 }
