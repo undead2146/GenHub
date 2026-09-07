@@ -2933,11 +2933,11 @@ public partial class ContentDetailViewModel(
             RefreshSelectedTargetProperties();
         }
 
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
-        var effectiveToken = linkedCts.Token;
-
         try
         {
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
+            var effectiveToken = linkedCts.Token;
+
             await DownloadFileCoreAsync(
                 file,
                 manifest =>
@@ -2969,11 +2969,11 @@ public partial class ContentDetailViewModel(
             RefreshSelectedTargetProperties();
         }
 
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
-        var effectiveToken = linkedCts.Token;
-
         try
         {
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
+            var effectiveToken = linkedCts.Token;
+
             await DownloadFileCoreAsync(
                 file,
                 manifest =>
@@ -3598,7 +3598,7 @@ public partial class ContentDetailViewModel(
                 },
                 () => !IsDownloading);
 
-            releaseItem.DownloadCommand = new AsyncRelayCommand(async () =>
+            releaseItem.DownloadCommand = new AsyncRelayCommand(async ct =>
             {
                 if (variantSearchResults is not null && variantSearchResults.TryGetValue(manifestId, out var swapSr))
                 {
@@ -3606,7 +3606,7 @@ public partial class ContentDetailViewModel(
                     SelectedVariant = variant;
                 }
 
-                await DownloadReleaseAsync(releaseItem, releaseItem.File ?? file, _cts.Token);
+                await DownloadReleaseAsync(releaseItem, releaseItem.File ?? file, ct);
             });
 
             releaseItem.AddToProfileCommand = new AsyncRelayCommand(async () =>

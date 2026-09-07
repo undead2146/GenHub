@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -112,8 +113,11 @@ public class GenericCatalogResolver(
                     screenshotUrls: contentItem.Metadata?.ScreenshotUrls?.ToList(),
                     changelogUrl: contentItem.Metadata?.DocumentationUrl ?? string.Empty);
 
+            var artifactHashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             if (release.Artifacts != null && release.Artifacts.Count > 0)
             {
+                var usedFilenames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
                 foreach (var artifact in release.Artifacts)
                 {
                     if (string.IsNullOrWhiteSpace(artifact.DownloadUrl))
@@ -121,7 +125,33 @@ public class GenericCatalogResolver(
                         continue;
                     }
 
-                    var filename = SanitizeArtifactFilename(artifact, contentItem);
+                    // If primary artifact belongs to a specific variant on an axis, only register
+                    // artifacts matching that variant (or common artifacts without a variant axis).
+                    if (!string.IsNullOrWhiteSpace(primaryArtifact?.VariantAxis) &&
+                        !string.IsNullOrWhiteSpace(artifact.VariantAxis) &&
+                        string.Equals(primaryArtifact.VariantAxis, artifact.VariantAxis, StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(primaryArtifact.Variant, artifact.Variant, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var baseFilename = SanitizeArtifactFilename(artifact, contentItem);
+                    var filename = baseFilename;
+                    var disambiguationIndex = 1;
+                    while (usedFilenames.Contains(filename))
+                    {
+                        var nameWithoutExt = Path.GetFileNameWithoutExtension(baseFilename);
+                        var ext = Path.GetExtension(baseFilename);
+                        filename = $"{nameWithoutExt}_{disambiguationIndex++}{ext}";
+                    }
+
+                    usedFilenames.Add(filename);
+
+                    if (!string.IsNullOrWhiteSpace(artifact.Sha256))
+                    {
+                        artifactHashes[filename] = artifact.Sha256;
+                    }
+
                     logger.LogDebug(
                         "Adding remote file {Filename} with download URL {Url}",
                         filename,
@@ -152,7 +182,8 @@ public class GenericCatalogResolver(
                 primaryArtifact,
                 declaredPublisherId,
                 resolvedName,
-                discoveredItem.Id);
+                discoveredItem.Id,
+                artifactHashes);
 
             logger.LogInformation(
                 "Successfully resolved manifest for '{ContentName}' with {FileCount} files",
@@ -300,11 +331,24 @@ public class GenericCatalogResolver(
         ReleaseArtifact? primaryArtifact,
         string declaredPublisherId,
         string resolvedName,
-        string? searchResultId)
+        string? searchResultId,
+        IReadOnlyDictionary<string, string>? artifactHashes = null)
     {
-        if (primaryArtifact != null && !string.IsNullOrWhiteSpace(primaryArtifact.Sha256))
+        if (artifactHashes != null && artifactHashes.Count > 0)
         {
-            var primaryFile = manifest.Files.FirstOrDefault();
+            foreach (var file in manifest.Files)
+            {
+                if (artifactHashes.TryGetValue(file.RelativePath, out var hash) && !string.IsNullOrWhiteSpace(hash))
+                {
+                    file.Hash = hash;
+                }
+            }
+        }
+        else if (primaryArtifact != null && !string.IsNullOrWhiteSpace(primaryArtifact.Sha256))
+        {
+            var primaryFilename = SanitizeArtifactFilename(primaryArtifact, contentItem);
+            var primaryFile = manifest.Files.FirstOrDefault(f => string.Equals(f.RelativePath, primaryFilename, StringComparison.OrdinalIgnoreCase))
+                ?? manifest.Files.FirstOrDefault();
             if (primaryFile != null)
             {
                 primaryFile.Hash = primaryArtifact.Sha256;

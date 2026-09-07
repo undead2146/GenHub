@@ -1204,17 +1204,21 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
             var z0 = new SharpCompress.Compressors.Deflate.ZlibStream(nonDisp, SharpCompress.Compressors.CompressionMode.Decompress);
             var buf0 = new byte[8192];
             var stream0Bytes = 0L;
-            while (z0.Read(buf0, 0, buf0.Length) > 0)
+            int r0;
+            while ((r0 = z0.Read(buf0, 0, buf0.Length)) > 0)
             {
-                stream0Bytes += buf0.Length;
+                stream0Bytes += r0;
                 if (stream0Bytes > CatalogConstants.MaxCatalogSizeBytes)
                 {
-                    logger.LogWarning("Smart Install Maker stream 0 script exceeded maximum allowed size, skipping further decompression");
-                    break;
+                    throw new InvalidDataException("Smart Install Maker metadata table exceeds maximum allowed size.");
                 }
             }
 
             stream.Position = payloadOffset + z0.TotalIn;
+        }
+        catch (InvalidDataException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
