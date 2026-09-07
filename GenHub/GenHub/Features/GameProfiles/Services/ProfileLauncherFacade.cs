@@ -621,10 +621,10 @@ public class ProfileLauncherFacade(
         };
 
         var prepareResult = await workspaceManager.PrepareWorkspaceAsync(workspaceConfig, progress: null, skipCleanup: false, cancellationToken: cancellationToken);
-        if (prepareResult.Failed)
+        if (prepareResult.Failed || prepareResult.Data == null)
         {
             return ProfileOperationResult<(string, string?)>.CreateFailure(
-                $"{ProfileValidationConstants.FailedToPrepareToolWorkspace}: {prepareResult.FirstError}");
+                $"{ProfileValidationConstants.FailedToPrepareToolWorkspace}: {prepareResult.FirstError ?? "Workspace preparation returned null data"}");
         }
 
         var toolWorkspacePath = prepareResult.Data.WorkspacePath;
@@ -1169,12 +1169,20 @@ public class ProfileLauncherFacade(
                     manifest.ContentType,
                     contentDirResult.Data);
             }
+            else if (contentDirResult.Success)
+            {
+                logger.LogDebug(
+                    "[Workspace] Manifest {ManifestId} ({ContentType}) is CAS-managed (no external source directory required)",
+                    manifest.Id.Value,
+                    manifest.ContentType);
+            }
             else
             {
                 logger.LogWarning(
-                    "[Workspace] Could not resolve source path for manifest {ManifestId} ({ContentType})",
+                    "[Workspace] Could not resolve source path for manifest {ManifestId} ({ContentType}): {Error}",
                     manifest.Id.Value,
-                    manifest.ContentType);
+                    manifest.ContentType,
+                    contentDirResult.FirstError);
             }
         }
 

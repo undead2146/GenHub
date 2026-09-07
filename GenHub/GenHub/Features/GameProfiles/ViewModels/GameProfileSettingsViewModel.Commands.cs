@@ -700,7 +700,11 @@ public partial class GameProfileSettingsViewModel
         StatusMessage = "Profile updated successfully";
         _logger?.LogInformation("Updated profile {ProfileId} with {ContentCount} enabled content items", CurrentProfileId, enabledContentIds.Count);
 
-        WeakReferenceMessenger.Default.Send(new ProfileUpdatedMessage(result.Data));
+        if (result.Data != null)
+        {
+            WeakReferenceMessenger.Default.Send(new ProfileUpdatedMessage(result.Data));
+        }
+
         ExecuteCancel();
     }
 
@@ -1237,8 +1241,8 @@ public partial class GameProfileSettingsViewModel
 
         if (string.IsNullOrWhiteSpace(LocalContentDirectoryPath))
         {
-             _localNotificationService.ShowWarning("Validation Error", "Please select a folder for the content.");
-             return;
+            _localNotificationService.ShowWarning("Validation Error", "Please select a folder for the content.");
+            return;
         }
 
         try
@@ -1253,14 +1257,14 @@ public partial class GameProfileSettingsViewModel
 
             if (result.Success)
             {
-                 IsAddLocalContentDialogOpen = false;
+                IsAddLocalContentDialogOpen = false;
 
-                 // Refresh filters and content to ensure new type appears and list updates
-                 await RefreshFiltersAndContentAsync();
+                // Refresh filters and content to ensure new type appears and list updates
+                await RefreshFiltersAndContentAsync();
 
-                 // If the added item matches current filter, ensure it's selected/visible (handled by LoadAvailableContent)
-                 // If the item introduced a new filter, user might want to switch to it.
-                 // For now, just refreshing ensures it's reachable.
+                // If the added item matches current filter, ensure it's selected/visible (handled by LoadAvailableContent)
+                // If the item introduced a new filter, user might want to switch to it.
+                // For now, just refreshing ensures it's reachable.
             }
             else
             {
