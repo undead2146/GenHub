@@ -75,6 +75,10 @@ public partial class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILo
                     ProcessRelease(release, owner, repo, topics, query, results);
                 }
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to discover releases for {Owner}/{Repo}", owner, repo);

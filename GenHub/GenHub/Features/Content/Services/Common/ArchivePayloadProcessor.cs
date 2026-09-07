@@ -81,7 +81,8 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
                         EnsureValidArchivePayload(archivePath);
                         logger.LogInformation("Extracting archive safely: {ArchivePath}", archivePath);
 
-                        ExtractSingleArchive(archivePath, extractedDirectory, progress, logger, cancellationToken);
+                        var archiveTargetDirectory = Path.GetDirectoryName(archivePath) ?? extractedDirectory;
+                        ExtractSingleArchive(archivePath, archiveTargetDirectory, progress, logger, cancellationToken);
                         File.Delete(archivePath);
                         logger.LogInformation("Extracted archive and removed archive source: {ArchivePath}", archivePath);
                     }
@@ -1202,9 +1203,15 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
             var nonDisp = new NonDisposingStream(stream);
             var z0 = new SharpCompress.Compressors.Deflate.ZlibStream(nonDisp, SharpCompress.Compressors.CompressionMode.Decompress);
             var buf0 = new byte[8192];
+            var stream0Bytes = 0L;
             while (z0.Read(buf0, 0, buf0.Length) > 0)
             {
-                // Discard decompressed uninstaller info script stream bytes until EOF.
+                stream0Bytes += buf0.Length;
+                if (stream0Bytes > CatalogConstants.MaxCatalogSizeBytes)
+                {
+                    logger.LogWarning("Smart Install Maker stream 0 script exceeded maximum allowed size, skipping further decompression");
+                    break;
+                }
             }
 
             stream.Position = payloadOffset + z0.TotalIn;

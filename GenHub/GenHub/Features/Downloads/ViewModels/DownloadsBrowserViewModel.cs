@@ -289,7 +289,10 @@ public sealed partial class DownloadsBrowserViewModel(
         {
             lock (_cacheLock)
             {
-                _inFlightOperations.Remove(publisherId);
+                if (_inFlightOperations.TryGetValue(publisherId, out var current) && ReferenceEquals(current, inFlightOp))
+                {
+                    _inFlightOperations.Remove(publisherId);
+                }
 
                 var retainedItems = new HashSet<ContentGridItemViewModel>(_browseCache.Values.SelectMany(s => s.Items));
                 foreach (var item in ContentItems)
@@ -728,15 +731,34 @@ public sealed partial class DownloadsBrowserViewModel(
     {
         if (CanLoadMore && !IsLoading)
         {
+            var targetPublisherId = SelectedPublisher?.PublisherId;
+            if (string.IsNullOrEmpty(targetPublisherId))
+            {
+                return;
+            }
+
             CurrentPage++;
             logger.LogInformation(
                 "Loading more content for {Publisher}, page {Page}",
-                SelectedPublisher?.PublisherId ?? "Unknown",
+                targetPublisherId,
                 CurrentPage);
             var success = await RefreshContentAsync(append: true);
             if (!success)
             {
-                CurrentPage--;
+                if (string.Equals(SelectedPublisher?.PublisherId, targetPublisherId, StringComparison.OrdinalIgnoreCase))
+                {
+                    CurrentPage--;
+                }
+                else
+                {
+                    lock (_cacheLock)
+                    {
+                        if (_browseCache.TryGetValue(targetPublisherId, out var cachedState) && cachedState.CurrentPage > 1)
+                        {
+                            cachedState.CurrentPage--;
+                        }
+                    }
+                }
             }
         }
     }
@@ -837,6 +859,20 @@ public sealed partial class DownloadsBrowserViewModel(
                     oldInFlight.Cts.Cancel();
                     oldInFlight.Cts.Dispose();
                     foreach (var item in oldInFlight.ResolvedItems)
+                    {
+                        item.Dispose();
+                    }
+                }
+
+                var retainedItems = new HashSet<ContentGridItemViewModel>(_browseCache.Values.SelectMany(s => s.Items));
+                foreach (var inFlight in _inFlightOperations.Values)
+                {
+                    retainedItems.UnionWith(inFlight.ResolvedItems);
+                }
+
+                foreach (var item in ContentItems)
+                {
+                    if (!retainedItems.Contains(item))
                     {
                         item.Dispose();
                     }
@@ -948,9 +984,19 @@ public sealed partial class DownloadsBrowserViewModel(
 
                     if (ContentItems.Count == 0)
                     {
-                        notificationService.ShowInfo(
-                            "No content loaded",
-                            $"{publisherId} returned no content. Check your connection and try again.");
+                        if (!result.Success)
+                        {
+                            var errorMsg = result.FirstError ?? "Check your connection and try again.";
+                            notificationService.ShowWarning(
+                                "Discovery Failed",
+                                $"{publisherId} discovery failed: {errorMsg}");
+                        }
+                        else
+                        {
+                            notificationService.ShowInfo(
+                                "No content loaded",
+                                $"{publisherId} returned no content.");
+                        }
                     }
                 }
             });
@@ -1130,7 +1176,11 @@ public sealed partial class DownloadsBrowserViewModel(
                     vm.Dispose();
                 }
 
-                _inFlightOperations.Remove(publisherId);
+                if (_inFlightOperations.TryGetValue(publisherId, out var currentOp) && ReferenceEquals(currentOp, inFlightOp))
+                {
+                    _inFlightOperations.Remove(publisherId);
+                }
+
                 return;
             }
 
@@ -1139,6 +1189,24 @@ public sealed partial class DownloadsBrowserViewModel(
                 if (append)
                 {
                     existingState.Items.AddRange(newVms);
+                    existingState.CurrentPage = query.Page ?? existingState.CurrentPage;
+                    existingState.CanLoadMore = hasMoreItems;
+                }
+                else
+                {
+                    var newVmSet = new HashSet<ContentGridItemViewModel>(newVms);
+                    foreach (var oldItem in existingState.Items)
+                    {
+                        if (!newVmSet.Contains(oldItem))
+                        {
+                            oldItem.Dispose();
+                        }
+                    }
+
+                    existingState.Items.Clear();
+                    existingState.Items.AddRange(newVms);
+                    existingState.CurrentPage = query.Page ?? 1;
+                    existingState.CanLoadMore = hasMoreItems;
                 }
             }
             else
@@ -1151,7 +1219,10 @@ public sealed partial class DownloadsBrowserViewModel(
                 };
             }
 
-            _inFlightOperations.Remove(publisherId);
+            if (_inFlightOperations.TryGetValue(publisherId, out var currentInFlight) && ReferenceEquals(currentInFlight, inFlightOp))
+            {
+                _inFlightOperations.Remove(publisherId);
+            }
         }
     }
 

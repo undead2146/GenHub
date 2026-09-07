@@ -1048,7 +1048,7 @@ public sealed partial class ContentStateService(
 
         bool urlMatches = (!string.IsNullOrEmpty(website) && string.Equals(website, cleanSource, StringComparison.OrdinalIgnoreCase)) ||
                           (!string.IsNullOrEmpty(supportUrl) && string.Equals(supportUrl, cleanSource, StringComparison.OrdinalIgnoreCase)) ||
-                          (!string.IsNullOrEmpty(changelog) && changelog.StartsWith(cleanSource, StringComparison.OrdinalIgnoreCase));
+                          (!string.IsNullOrEmpty(changelog) && (changelog.Equals(cleanSource, StringComparison.OrdinalIgnoreCase) || changelog.StartsWith(cleanSource.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase)));
 
         if (!urlMatches)
         {

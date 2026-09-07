@@ -112,20 +112,28 @@ public class GenericCatalogResolver(
                     screenshotUrls: contentItem.Metadata?.ScreenshotUrls?.ToList(),
                     changelogUrl: contentItem.Metadata?.DocumentationUrl ?? string.Empty);
 
-            if (primaryArtifact != null)
+            if (release.Artifacts != null && release.Artifacts.Count > 0)
             {
-                var filename = SanitizeArtifactFilename(primaryArtifact, contentItem);
-                logger.LogDebug(
-                    "Adding remote file {Filename} with download URL {Url}",
-                    filename,
-                    primaryArtifact.DownloadUrl);
+                foreach (var artifact in release.Artifacts)
+                {
+                    if (string.IsNullOrWhiteSpace(artifact.DownloadUrl))
+                    {
+                        continue;
+                    }
 
-                await builder.AddRemoteFileAsync(
-                    relativePath: filename,
-                    downloadUrl: primaryArtifact.DownloadUrl,
-                    sourceType: ContentSourceType.RemoteDownload,
-                    isExecutable: false,
-                    permissions: null);
+                    var filename = SanitizeArtifactFilename(artifact, contentItem);
+                    logger.LogDebug(
+                        "Adding remote file {Filename} with download URL {Url}",
+                        filename,
+                        artifact.DownloadUrl);
+
+                    await builder.AddRemoteFileAsync(
+                        relativePath: filename,
+                        downloadUrl: artifact.DownloadUrl,
+                        sourceType: ContentSourceType.RemoteDownload,
+                        isExecutable: false,
+                        permissions: null);
+                }
             }
             else
             {

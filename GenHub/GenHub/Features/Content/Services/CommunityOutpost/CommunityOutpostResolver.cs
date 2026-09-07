@@ -44,7 +44,7 @@ public class CommunityOutpostResolver(
     }
 
     /// <inheritdoc/>
-    public Task<OperationResult<ContentManifest>> ResolveAsync(
+    public async Task<OperationResult<ContentManifest>> ResolveAsync(
         ProviderDefinition? provider,
         ContentSearchResult discoveredItem,
         CancellationToken cancellationToken = default)
@@ -60,8 +60,8 @@ public class CommunityOutpostResolver(
             provider ??= providerLoader.GetProvider(CommunityOutpostConstants.PublisherId);
             if (provider == null)
             {
-                return Task.FromResult(OperationResult<ContentManifest>.CreateFailure(
-                    $"Provider definition '{CommunityOutpostConstants.PublisherId}' not found. Ensure communityoutpost.provider.json exists."));
+                return OperationResult<ContentManifest>.CreateFailure(
+                    $"Provider definition '{CommunityOutpostConstants.PublisherId}' not found. Ensure communityoutpost.provider.json exists.");
             }
 
             // Get configuration from provider definition
@@ -129,11 +129,11 @@ public class CommunityOutpostResolver(
                 websiteUrl,
                 patchPageUrl);
 
-            manifest.AddRemoteFileAsync(
+            await manifest.AddRemoteFileAsync(
                 filename,
                 downloadUri.AbsoluteUri,
                 ContentSourceType.RemoteDownload,
-                isExecutable: false).Wait(cancellationToken);
+                isExecutable: false);
 
             var builtManifest = manifest.Build();
 
@@ -154,13 +154,17 @@ public class CommunityOutpostResolver(
                 contentCode,
                 category);
 
-            return Task.FromResult(OperationResult<ContentManifest>.CreateSuccess(builtManifest));
+            return OperationResult<ContentManifest>.CreateSuccess(builtManifest);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to resolve Community Outpost content: {Name}", discoveredItem.Name);
-            return Task.FromResult(OperationResult<ContentManifest>.CreateFailure(
-                $"Failed to resolve content: {ex.Message}"));
+            return OperationResult<ContentManifest>.CreateFailure(
+                $"Failed to resolve content: {ex.Message}");
         }
     }
 
