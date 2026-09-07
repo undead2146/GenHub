@@ -256,6 +256,8 @@ public sealed partial class ContentStateService(
     /// <summary>
     /// Checks whether the given publisher string corresponds to a generic GitHub hosting forge.
     /// </summary>
+    /// <param name="publisher">The publisher string to inspect.</param>
+    /// <returns><see langword="true"/> if the publisher represents a GitHub hosting forge; otherwise, <see langword="false"/>.</returns>
     internal static bool IsGitHubPublisher(string? publisher)
     {
         if (string.IsNullOrWhiteSpace(publisher))

@@ -34,6 +34,9 @@ public static class GeneralsOnlineConstants
     /// <summary>Download page URL for Generals Online.</summary>
     public const string DownloadPageUrl = "https://www.playgenerals.online/download";
 
+    /// <summary>Patch notes URL for Generals Online.</summary>
+    public const string PatchNotesUrl = "https://www.playgenerals.online/patchnotes";
+
     /// <summary>
     /// Cover image source path for UI display.
     /// </summary>

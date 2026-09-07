@@ -278,6 +278,33 @@ public sealed partial class DownloadsBrowserViewModel(
         }
     }
 
+    /// <summary>
+    /// Cleans up in-flight browse operations and disposes un-retained items.
+    /// </summary>
+    /// <param name="publisherId">The publisher ID whose in-flight operation completed or faulted.</param>
+    /// <param name="inFlightOp">The in-flight operation context.</param>
+    internal void CleanupInFlight(string publisherId, PublisherInFlightOperation? inFlightOp)
+    {
+        if (inFlightOp != null)
+        {
+            lock (_cacheLock)
+            {
+                _inFlightOperations.Remove(publisherId);
+
+                var retainedItems = new HashSet<ContentGridItemViewModel>(_browseCache.Values.SelectMany(s => s.Items));
+                foreach (var item in ContentItems)
+                {
+                    retainedItems.Add(item);
+                }
+
+                foreach (var item in inFlightOp.ResolvedItems.Where(item => !retainedItems.Contains(item)))
+                {
+                    item.Dispose();
+                }
+            }
+        }
+    }
+
     [RelayCommand]
     private static void GoBack()
     {
@@ -1096,31 +1123,6 @@ public sealed partial class DownloadsBrowserViewModel(
         }
     }
 
-    internal void CleanupInFlight(string publisherId, PublisherInFlightOperation? inFlightOp)
-    {
-        if (inFlightOp != null)
-        {
-            lock (_cacheLock)
-            {
-                _inFlightOperations.Remove(publisherId);
-
-                var retainedItems = new HashSet<ContentGridItemViewModel>(_browseCache.Values.SelectMany(s => s.Items));
-                foreach (var item in ContentItems)
-                {
-                    retainedItems.Add(item);
-                }
-
-                foreach (var item in inFlightOp.ResolvedItems)
-                {
-                    if (!retainedItems.Contains(item))
-                    {
-                        item.Dispose();
-                    }
-                }
-            }
-        }
-    }
-
     private async Task<ContentGridItemViewModel?> CreateItemViewModelAsync(
         IReadOnlyList<ContentSearchResult> groupItems,
         ContentSearchResult primaryItem,
@@ -1219,7 +1221,7 @@ public sealed partial class DownloadsBrowserViewModel(
             var parsers = (serviceProvider.GetService(typeof(IEnumerable<IWebPageParser>)) as IEnumerable<IWebPageParser> ?? []).ToList();
             var tabProviderRegistry = serviceProvider.GetService(typeof(ITabProviderRegistry)) as ITabProviderRegistry
                 ?? throw new InvalidOperationException("ITabProviderRegistry not registered");
-            var downloadCoordinator = serviceProvider.GetRequiredService<IContentDownloadCoordinator>();
+            var coordinator = _downloadCoordinator ?? serviceProvider.GetRequiredService<IContentDownloadCoordinator>();
             var manifestPool = serviceProvider.GetRequiredService<IContentManifestPool>();
 
             var vm = new ContentDetailViewModel(
@@ -1230,7 +1232,7 @@ public sealed partial class DownloadsBrowserViewModel(
                 notificationService,
                 tabProviderRegistry,
                 contentStateService,
-                downloadCoordinator,
+                coordinator,
                 manifestPool,
                 loggerFactory,
                 contentLogger,

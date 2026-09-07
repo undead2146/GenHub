@@ -374,21 +374,10 @@ public partial class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILo
 
         var cardName = ResolveCardName(isSuperHackers, repo, release);
 
-        if (!string.IsNullOrWhiteSpace(query.SearchTerm))
+        if (!string.IsNullOrWhiteSpace(query.SearchTerm) &&
+            !MatchesSearchTerm(query.SearchTerm, release, repo, cardName, isSuperHackersGameClient))
         {
-            var term = query.SearchTerm;
-            var matches = (release.Name?.Contains(term, StringComparison.OrdinalIgnoreCase) == true) ||
-                          (!string.IsNullOrWhiteSpace(release.TagName) && release.TagName.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
-                          repo.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                          cardName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                          (isSuperHackersGameClient && (
-                              SuperHackersConstants.GeneralsDisplayName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                              SuperHackersConstants.ZeroHourDisplayName.Contains(term, StringComparison.OrdinalIgnoreCase)));
-
-            if (!matches)
-            {
-                return;
-            }
+            return;
         }
 
         var totalSize = release.Assets?.Sum(a => a.Size) ?? 0;
@@ -410,19 +399,48 @@ public partial class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILo
                 ? PublisherTypeConstants.TheSuperHackers
                 : SourceName;
 
-            string iconUrl;
-            if (isSuperHackers)
-            {
-                iconUrl = PublisherInfoConstants.TheSuperHackers.LogoSource;
-            }
-            else
-            {
-                var author = !string.IsNullOrWhiteSpace(release.Author) ? release.Author : owner;
-                iconUrl = $"https://github.com/{author}.png";
-            }
+            var iconUrl = ResolveIconUrl(isSuperHackers, release, owner);
 
             results.Add(BuildStandardSearchResult(new StandardSearchResultRequest(release, owner, repo, cardName, contentType, gameType, isTypeInferred, isGameInferred, totalSize, variantCount, providerName, iconUrl)));
         }
+    }
+
+    private static bool MatchesSearchTerm(
+        string term,
+        GitHubRelease release,
+        string repo,
+        string cardName,
+        bool isSuperHackersGameClient)
+    {
+        if (release.Name?.Contains(term, StringComparison.OrdinalIgnoreCase) == true)
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(release.TagName) && release.TagName.Contains(term, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (repo.Contains(term, StringComparison.OrdinalIgnoreCase) || cardName.Contains(term, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return isSuperHackersGameClient && (
+            SuperHackersConstants.GeneralsDisplayName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+            SuperHackersConstants.ZeroHourDisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string ResolveIconUrl(bool isSuperHackers, GitHubRelease release, string owner)
+    {
+        if (isSuperHackers)
+        {
+            return PublisherInfoConstants.TheSuperHackers.LogoSource;
+        }
+
+        var author = !string.IsNullOrWhiteSpace(release.Author) ? release.Author : owner;
+        return $"https://github.com/{author}.png";
     }
 
     private ContentSearchResult BuildStandardSearchResult(StandardSearchResultRequest request)

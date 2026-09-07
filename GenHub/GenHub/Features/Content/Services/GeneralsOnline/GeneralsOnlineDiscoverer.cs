@@ -32,8 +32,8 @@ public class GeneralsOnlineDiscoverer(
     IHttpClientFactory httpClientFactory,
     IGeneralsOnlinePatchNotesService? patchNotesService = null) : IContentDiscoverer
 {
-    private const string BaseUrl = "https://www.playgenerals.online";
-    private const string DefaultPatchNotesUrl = BaseUrl + "/patchnotes";
+    private const string BaseUrl = GeneralsOnlineConstants.WebsiteUrl;
+    private const string DefaultPatchNotesUrl = GeneralsOnlineConstants.PatchNotesUrl;
 
     /// <inheritdoc />
     public string SourceName => GeneralsOnlineConstants.PublisherType;

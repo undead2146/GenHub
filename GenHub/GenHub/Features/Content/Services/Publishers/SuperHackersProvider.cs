@@ -33,6 +33,8 @@ public class SuperHackersProvider(
     IInstallationInstructionsService installationInstructionsService)
     : BaseContentProvider(contentValidator, installationInstructionsService, logger)
 {
+    private const string LatestTagFallback = "latest";
+
     private readonly IContentResolver _resolver = resolvers.FirstOrDefault(r =>
             r.ResolverId?.Equals(SuperHackersConstants.ResolverId, StringComparison.OrdinalIgnoreCase) == true)
         ?? throw new InvalidOperationException("No GitHub resolver found for SuperHackers");
@@ -112,7 +114,7 @@ public class SuperHackersProvider(
                             var baseName = !string.IsNullOrWhiteSpace(latestRelease.Name)
                                 ? latestRelease.Name
                                 : $"{displayName} {latestRelease.TagName}";
-                            var tag = latestRelease.TagName ?? "latest";
+                            var tag = latestRelease.TagName ?? LatestTagFallback;
                             var variantGroupId = $"thesuperhackers.{repo.ToLowerInvariant()}.gameclient.{tag.ToLowerInvariant()}";
 
                             var variants = new List<ContentVariantInfo>
@@ -175,7 +177,7 @@ public class SuperHackersProvider(
                                     {
                                         [GitHubConstants.OwnerMetadataKey] = owner,
                                         [GitHubConstants.RepoMetadataKey] = repo,
-                                        [GitHubConstants.TagMetadataKey] = latestRelease.TagName ?? "latest",
+                                        [GitHubConstants.TagMetadataKey] = latestRelease.TagName ?? LatestTagFallback,
                                         ["VariantCount"] = "2",
                                         ["RequestedGameType"] = gType.ToString(),
                                     },
@@ -206,7 +208,7 @@ public class SuperHackersProvider(
                                 Id = manifestId,
                                 Name = !string.IsNullOrWhiteSpace(latestRelease.Name) ? latestRelease.Name : $"{displayName} {latestRelease.TagName}",
                                 Description = latestRelease.Body ?? "SuperHackers release - details available after resolution",
-                                Version = latestRelease.TagName ?? "latest",
+                                Version = latestRelease.TagName ?? LatestTagFallback,
                                 AuthorName = owner,
                                 ContentType = contentType,
                                 TargetGame = resolvedTargetGame,
@@ -221,7 +223,7 @@ public class SuperHackersProvider(
                                 {
                                     [GitHubConstants.OwnerMetadataKey] = owner,
                                     [GitHubConstants.RepoMetadataKey] = repo,
-                                    [GitHubConstants.TagMetadataKey] = latestRelease.TagName ?? "latest",
+                                    [GitHubConstants.TagMetadataKey] = latestRelease.TagName ?? LatestTagFallback,
                                 },
                             };
 

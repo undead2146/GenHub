@@ -31,6 +31,8 @@ public partial class GitHubTopicsDiscoverer(
     [System.Text.RegularExpressions.GeneratedRegex(@"[^\d]")]
     private static partial System.Text.RegularExpressions.Regex NonDigitRegex();
 
+    private const string ResolutionVariantType = "resolution";
+
     /// <summary>Maximum number of tags to include in search result.</summary>
     private const int MaxTagsToInclude = 10;
 
@@ -58,6 +60,12 @@ public partial class GitHubTopicsDiscoverer(
         /// </summary>
         [System.Text.RegularExpressions.GeneratedRegex(@"\d{3,4}x\d{3,4}", System.Text.RegularExpressions.RegexOptions.Compiled)]
         public static partial System.Text.RegularExpressions.Regex ResolutionPattern();
+
+        /// <summary>
+        /// Regex to match p-suffix resolution patterns like 1080p, 720p, etc.
+        /// </summary>
+        [System.Text.RegularExpressions.GeneratedRegex(@"(\d{3,4})p", System.Text.RegularExpressions.RegexOptions.IgnoreCase, matchTimeoutMilliseconds: 1000)]
+        public static partial System.Text.RegularExpressions.Regex ResolutionHeightPattern();
 
         /// <summary>
         /// Regex to match non-digit characters.
@@ -555,15 +563,15 @@ public partial class GitHubTopicsDiscoverer(
 
         // Priority 1: prefer 1080p (standard HD) for resolution-typed variants
         var chosen = variants.FirstOrDefault(v =>
-            v.VariantType == "resolution" &&
+            v.VariantType == ResolutionVariantType &&
             (v.Name.Contains("1080p", StringComparison.OrdinalIgnoreCase) ||
              v.Name.Contains("1920x1080", StringComparison.OrdinalIgnoreCase)));
 
         // Priority 2: any other resolution variant (prefer higher resolution before lower)
-        if (chosen == null && variants.Any(v => v.VariantType == "resolution"))
+        if (chosen == null && variants.Any(v => v.VariantType == ResolutionVariantType))
         {
             chosen = variants
-                .Where(v => v.VariantType == "resolution")
+                .Where(v => v.VariantType == ResolutionVariantType)
                 .OrderByDescending(GetResolutionRank)
                 .FirstOrDefault();
         }
@@ -580,7 +588,7 @@ public partial class GitHubTopicsDiscoverer(
 
     private static int GetResolutionRank(ContentVariantInfo v)
     {
-        var match = System.Text.RegularExpressions.Regex.Match(v.Name, @"(\d{3,4})p", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var match = VariantPatterns.ResolutionHeightPattern().Match(v.Name);
         if (match.Success && int.TryParse(match.Groups[1].Value, out var height))
         {
             return height;
@@ -613,7 +621,7 @@ public partial class GitHubTopicsDiscoverer(
             lower.Contains("1080p") || lower.Contains("720p") || lower.Contains("1440p") ||
             lower.Contains("2160p") || lower.Contains("4k") || lower.Contains("768p") || lower.Contains("900p"))
         {
-            return "resolution";
+            return ResolutionVariantType;
         }
 
         var languagePatterns = new[]
