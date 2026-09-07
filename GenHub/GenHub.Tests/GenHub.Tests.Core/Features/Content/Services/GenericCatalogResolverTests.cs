@@ -447,6 +447,78 @@ public sealed class GenericCatalogResolverTests
     }
 
     /// <summary>
+    /// Verifies that when a base-game constraint max falls below the foundation floor, resolution fails with an unsatisfiable bounds error.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Theory]
+    [InlineData(">=1.02 <1.03")]
+    [InlineData("1.03")]
+    [InlineData("<1.04")]
+    public async Task ResolveAsync_BaseGameDependency_WithMaxBelowOrAtFloorExclusive_FailsResolutionAsync(string constraint)
+    {
+        var contentItem = new CatalogContentItem
+        {
+            Id = "mod-with-invalid-zh-range",
+            Name = "Mod With Invalid ZH Range",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            Description = "Test Mod",
+            Tags = ["mod"],
+        };
+
+        var release = new ContentRelease
+        {
+            Version = "1.0.0",
+            Dependencies =
+            [
+                new CatalogDependency
+                {
+                    PublisherId = "ea",
+                    ContentId = "zerohour",
+                    VersionConstraint = constraint,
+                },
+            ],
+        };
+
+        var publisher = new PublisherProfile { Id = "test-pub", Name = "Test Pub" };
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.100.testpub.mod.modwithinvalidzhrange",
+            Name = contentItem.Name,
+            ContentType = ContentType.Mod,
+            ResolverId = CatalogConstants.GenericCatalogResolverId,
+            ResolverMetadata =
+            {
+                [CatalogConstants.ReleaseJsonMetadataKey] = JsonSerializer.Serialize(release),
+                [CatalogConstants.CatalogItemJsonMetadataKey] = JsonSerializer.Serialize(contentItem),
+                [CatalogConstants.PublisherProfileJsonMetadataKey] = JsonSerializer.Serialize(publisher),
+            },
+        };
+
+        var builtManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.100.testpub.mod.modwithinvalidzhrange"),
+            Name = "Mod With Invalid ZH Range",
+            Version = "1.0.0",
+            ContentType = ContentType.Mod,
+            Files = [],
+            Metadata = new ContentMetadata(),
+            Publisher = new PublisherInfo { PublisherType = "test-pub" },
+        };
+
+        var builderMock = CreateBuilderMock(builtManifest);
+        var resolver = new GenericCatalogResolver(
+            NullLogger<GenericCatalogResolver>.Instance,
+            () => builderMock.Object);
+
+        var result = await resolver.ResolveAsync(searchResult);
+
+        Assert.False(result.Success);
+        Assert.Contains("unsatisfiable version bounds", result.FirstError);
+    }
+
+    /// <summary>
     /// Verifies that when a constraint minimum is lower than foundation min version, the stricter foundation floor is kept.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>

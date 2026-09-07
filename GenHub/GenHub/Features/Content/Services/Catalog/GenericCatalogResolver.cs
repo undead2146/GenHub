@@ -131,7 +131,15 @@ public partial class GenericCatalogResolver(
                     contentItem.Name);
             }
 
-            AddDependencies(logger, builder, discoveredItem, release, contentItem, resolvedTargetGame);
+            var dependencyError = AddDependencies(logger, builder, discoveredItem, release, contentItem, resolvedTargetGame);
+            if (dependencyError != null)
+            {
+                logger.LogWarning(
+                    "Failed to reconcile dependencies for content '{ContentName}': {Error}",
+                    contentItem.Name,
+                    dependencyError);
+                return OperationResult<ContentManifest>.CreateFailure(dependencyError);
+            }
 
             var manifest = builder.Build();
 
@@ -236,7 +244,7 @@ public partial class GenericCatalogResolver(
         return string.Concat(filename.Select(c => invalidChars.Contains(c) ? '_' : c));
     }
 
-    private static void AddDependencies(
+    private static string? AddDependencies(
         ILogger logger,
         IContentManifestBuilder builder,
         ContentSearchResult discoveredItem,
@@ -254,7 +262,7 @@ public partial class GenericCatalogResolver(
             if (dependencyType == ContentType.GameInstallation ||
                 CatalogManifestIdentity.IsBaseGameDependency(dependency))
             {
-                AddBaseGameDependency(
+                var error = AddBaseGameDependency(
                     builder,
                     dependency,
                     resolvedTargetGame,
@@ -263,10 +271,16 @@ public partial class GenericCatalogResolver(
                     minInclusive,
                     maxInclusive,
                     compatibleVersions);
+
+                if (error != null)
+                {
+                    return error;
+                }
+
                 continue;
             }
 
-            AddCatalogDependency(
+            var catError = AddCatalogDependency(
                 builder,
                 dependency,
                 dependencyType,
@@ -277,7 +291,14 @@ public partial class GenericCatalogResolver(
                 minInclusive,
                 maxInclusive,
                 compatibleVersions);
+
+            if (catError != null)
+            {
+                return catError;
+            }
         }
+
+        return null;
     }
 
     private static List<CatalogBundleComponentDescriptor>? TryDeserializeBundleComponents(
@@ -303,7 +324,7 @@ public partial class GenericCatalogResolver(
         }
     }
 
-    private static void AddBaseGameDependency(
+    private static string? AddBaseGameDependency(
         IContentManifestBuilder builder,
         CatalogDependency dependency,
         GameType resolvedTargetGame,
@@ -341,6 +362,15 @@ public partial class GenericCatalogResolver(
             effectiveMinVersion = string.Empty;
         }
 
+        if (!string.IsNullOrEmpty(effectiveMinVersion) && !string.IsNullOrEmpty(maxVersion))
+        {
+            var comparison = CatalogManifestIdentity.CompareVersions(maxVersion, effectiveMinVersion);
+            if (comparison < 0 || (comparison == 0 && (!effectiveMinInclusive || !maxInclusive)))
+            {
+                return $"Dependency '{dependency.ContentId}' has unsatisfiable version bounds after reconciliation: min '{effectiveMinVersion}' > max '{maxVersion}'.";
+            }
+        }
+
         builder.AddDependency(
             id: foundation.Id,
             name: foundation.Name,
@@ -354,9 +384,11 @@ public partial class GenericCatalogResolver(
             compatibleGameTypes: foundation.CompatibleGameTypes,
             minInclusive: effectiveMinInclusive,
             maxInclusive: maxInclusive);
+
+        return null;
     }
 
-    private static void AddCatalogDependency(
+    private static string? AddCatalogDependency(
         IContentManifestBuilder builder,
         CatalogDependency dependency,
         ContentType initialDependencyType,
@@ -386,6 +418,15 @@ public partial class GenericCatalogResolver(
             installBehavior = DependencyInstallBehavior.AutoInstall;
         }
 
+        if (!string.IsNullOrEmpty(minVersion) && !string.IsNullOrEmpty(maxVersion))
+        {
+            var comparison = CatalogManifestIdentity.CompareVersions(maxVersion, minVersion);
+            if (comparison < 0 || (comparison == 0 && (!minInclusive || !maxInclusive)))
+            {
+                return $"Dependency '{dependency.ContentId}' has unsatisfiable version bounds: min '{minVersion}' > max '{maxVersion}'.";
+            }
+        }
+
         builder.AddDependency(
             id: ManifestId.Create(dependencyId),
             name: dependency.ContentId,
@@ -399,6 +440,8 @@ public partial class GenericCatalogResolver(
             compatibleGameTypes: null,
             minInclusive: minInclusive,
             maxInclusive: maxInclusive);
+
+        return null;
     }
 
     private static (string PublisherId, string Version, ContentType DependencyType) ResolveDependencyIdentity(
