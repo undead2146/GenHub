@@ -1307,10 +1307,13 @@ public partial class ContentDetailViewModel(
 
     private async Task LoadIconAsync()
     {
-        var thumbnailUrl = ThumbnailUrl;
-        if (string.IsNullOrEmpty(thumbnailUrl))
+        var targetUrl = !string.IsNullOrWhiteSpace(IconUrl)
+            ? IconUrl
+            : (!string.IsNullOrWhiteSpace(ThumbnailUrl) ? ThumbnailUrl : null);
+
+        if (string.IsNullOrEmpty(targetUrl))
         {
-            logger.LogDebug("No thumbnail URL available for content: {Name}", Name);
+            logger.LogDebug("No icon or thumbnail URL available for content: {Name}", Name);
             return;
         }
 
@@ -1318,17 +1321,34 @@ public partial class ContentDetailViewModel(
 
         try
         {
-            logger.LogDebug("Loading thumbnail from URL: {ThumbnailUrl}", thumbnailUrl);
-            var loadedBitmap = await ImageCacheService.Instance.GetBitmapAsync(thumbnailUrl, _cts.Token);
+            logger.LogDebug("Loading icon from URL: {TargetUrl}", targetUrl);
+            var loadedBitmap = await ImageCacheService.Instance.GetBitmapAsync(targetUrl, _cts.Token);
 
             if (currentVersion == _iconLoadVersion && loadedBitmap != null)
             {
                 IconBitmap = loadedBitmap;
+                return;
             }
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to load thumbnail from {ThumbnailUrl} for content: {Name}", thumbnailUrl, Name);
+            logger.LogWarning(ex, "Failed to load icon from {TargetUrl} for content: {Name}", targetUrl, Name);
+        }
+
+        if (!string.IsNullOrEmpty(ThumbnailUrl) && targetUrl != ThumbnailUrl)
+        {
+            try
+            {
+                var fallbackBitmap = await ImageCacheService.Instance.GetBitmapAsync(ThumbnailUrl, _cts.Token);
+                if (currentVersion == _iconLoadVersion && fallbackBitmap != null)
+                {
+                    IconBitmap = fallbackBitmap;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to load fallback thumbnail from {ThumbnailUrl} for content: {Name}", ThumbnailUrl, Name);
+            }
         }
     }
 
@@ -2341,7 +2361,11 @@ public partial class ContentDetailViewModel(
     /// <summary>
     /// Gets the icon URL - prefers parsed page context icon.
     /// </summary>
-    public string? IconUrl => ParsedPage?.Context.IconUrl ?? searchResult.IconUrl;
+    public string? IconUrl =>
+        ParsedPage?.Context.IconUrl ??
+        (!string.IsNullOrWhiteSpace(searchResult.IconUrl)
+            ? searchResult.IconUrl
+            : (ContentCardBadgeHelper.GetPublisherLogoUrl(searchResult) ?? ContentCardBadgeHelper.GetThumbnailUrl(searchResult)));
 
     /// <summary>
     /// Gets the preferred header thumbnail URL (banner / screenshot / icon).

@@ -62,8 +62,9 @@ public partial class GitHubResolver(
                 return OperationResult<ContentManifest>.CreateFailure("Missing required metadata for GitHub resolution");
             }
 
-            // Check if this is a SINGLE ASSET selection (from multi-asset split)
-            if (discoveredItem.ResolverMetadata.TryGetValue("asset-name", out var assetName))
+            // Check if this is a variant card with a specific asset targeted
+            if (discoveredItem.ResolverMetadata.TryGetValue("asset-name", out var assetName) &&
+                !string.IsNullOrWhiteSpace(assetName))
             {
                 logger.LogInformation(
                     "Resolving single asset: {AssetName} from {Owner}/{Repo}:{Tag}",
@@ -78,6 +79,35 @@ public partial class GitHubResolver(
                 {
                     return await ResolveSingleAssetAsync(discoveredItem, owner, repo, tag, assetData);
                 }
+
+                // Release cards retain only lightweight metadata; fetch the release and look up
+                // the explicitly selected asset instead of falling through to the full-release
+                // path (which downloads every archive in a multi-variant release).
+                var selectedRelease = await gitHubApiClient.GetReleaseByTagAsync(
+                    owner,
+                    repo,
+                    tag,
+                    cancellationToken);
+                var selectedAsset = selectedRelease?.Assets?.FirstOrDefault(asset =>
+                    string.Equals(asset.Name, assetName, StringComparison.OrdinalIgnoreCase));
+
+                if (selectedAsset == null)
+                {
+                    return OperationResult<ContentManifest>.CreateFailure(
+                        $"Release asset '{assetName}' was not found for {owner}/{repo}:{tag}");
+                }
+
+                return await ResolveSingleAssetAsync(
+                    discoveredItem,
+                    owner,
+                    repo,
+                    tag,
+                    new GitHubArtifact
+                    {
+                        Name = selectedAsset.Name,
+                        DownloadUrl = selectedAsset.BrowserDownloadUrl,
+                        IsRelease = true,
+                    });
             }
 
             // Check if this is a SINGLE RELEASE ASSET selection (legacy path)
@@ -196,6 +226,15 @@ public partial class GitHubResolver(
             }
 
             var builtManifest = manifest.Build();
+
+            // Propagate variant group identity from the discovery card so the installed
+            // manifest retains the grouping information the downloads browser needs.
+            if (!string.IsNullOrWhiteSpace(discoveredItem.VariantGroupId))
+            {
+                builtManifest.Metadata.VariantGroupId = discoveredItem.VariantGroupId;
+                builtManifest.Metadata.VariantFamilyName = discoveredItem.VariantFamilyName;
+            }
+
             if (!string.IsNullOrEmpty(release.TagName))
             {
                 builtManifest.Version = release.TagName;
@@ -388,6 +427,15 @@ public partial class GitHubResolver(
             logger.LogInformation("Successfully resolved single release asset: {AssetName}", asset.Name);
 
             var builtManifest = manifest.Build();
+
+            // Propagate variant group identity from the discovery card so the installed
+            // manifest retains the grouping information the downloads browser needs.
+            if (!string.IsNullOrWhiteSpace(discoveredItem.VariantGroupId))
+            {
+                builtManifest.Metadata.VariantGroupId = discoveredItem.VariantGroupId;
+                builtManifest.Metadata.VariantFamilyName = discoveredItem.VariantFamilyName;
+            }
+
             if (!string.IsNullOrEmpty(tag))
             {
                 builtManifest.Version = tag;
