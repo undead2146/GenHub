@@ -22,6 +22,10 @@ namespace GenHub.Tests.Core.Features.Downloads.ViewModels;
 /// </summary>
 public sealed class ProfileSelectionViewModelTests
 {
+    /// <summary>
+    /// Verifies that loading profiles populates compatible and other profile collections based on target game.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
     public async Task LoadProfilesAsync_PopulatesCompatibleAndOtherProfiles_BasedOnTargetGame()
     {
@@ -73,6 +77,10 @@ public sealed class ProfileSelectionViewModelTests
         Assert.True(vm.HasAnyProfiles);
     }
 
+    /// <summary>
+    /// Verifies that selecting a profile with a single manifest calls the single manifest overload and closes the dialog.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
     public async Task SelectProfileCommand_SingleManifest_CallsSingleOverloadAndCloses()
     {
@@ -125,6 +133,10 @@ public sealed class ProfileSelectionViewModelTests
             Times.Once);
     }
 
+    /// <summary>
+    /// Verifies that selecting a profile with bundle manifests calls the list overload and closes the dialog.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
     public async Task SelectProfileCommand_BundleManifests_CallsListOverloadAndCloses()
     {
@@ -178,6 +190,10 @@ public sealed class ProfileSelectionViewModelTests
             Times.Once);
     }
 
+    /// <summary>
+    /// Verifies that a failure to add content to profile sets the error message and keeps the dialog open.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
     public async Task SelectProfileCommand_Failure_SetsErrorMessageAndDoesNotClose()
     {
