@@ -449,6 +449,7 @@ public sealed class GenericCatalogResolverTests
     /// <summary>
     /// Verifies that when a base-game constraint max falls below the foundation floor, resolution fails with an unsatisfiable bounds error.
     /// </summary>
+    /// <param name="constraint">The version constraint to test.</param>
     /// <returns>A task representing the asynchronous test.</returns>
     [Theory]
     [InlineData(">=1.02 <1.03")]
@@ -500,6 +501,78 @@ public sealed class GenericCatalogResolverTests
         {
             Id = ManifestId.Create("1.100.testpub.mod.modwithinvalidzhrange"),
             Name = "Mod With Invalid ZH Range",
+            Version = "1.0.0",
+            ContentType = ContentType.Mod,
+            Files = [],
+            Metadata = new ContentMetadata(),
+            Publisher = new PublisherInfo { PublisherType = "test-pub" },
+        };
+
+        var builderMock = CreateBuilderMock(builtManifest);
+        var resolver = new GenericCatalogResolver(
+            NullLogger<GenericCatalogResolver>.Instance,
+            () => builderMock.Object);
+
+        var result = await resolver.ResolveAsync(searchResult);
+
+        Assert.False(result.Success);
+        Assert.Contains("unsatisfiable version bounds", result.FirstError);
+    }
+
+    /// <summary>
+    /// Verifies that when a non-base-game catalog dependency has unsatisfiable version bounds, resolution fails with an unsatisfiable bounds error.
+    /// </summary>
+    /// <param name="constraint">The version constraint to test.</param>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Theory]
+    [InlineData(">=2.0 <=1.0")]
+    [InlineData(">1.5 <1.5")]
+    public async Task ResolveAsync_CatalogDependency_WithUnsatisfiableBounds_FailsResolutionAsync(string constraint)
+    {
+        var contentItem = new CatalogContentItem
+        {
+            Id = "mod-with-invalid-catalog-dep",
+            Name = "Mod With Invalid Catalog Dep",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            Description = "Test Mod",
+            Tags = ["mod"],
+        };
+
+        var release = new ContentRelease
+        {
+            Version = "1.0.0",
+            Dependencies =
+            [
+                new CatalogDependency
+                {
+                    PublisherId = "other-pub",
+                    ContentId = "other-mod",
+                    VersionConstraint = constraint,
+                },
+            ],
+        };
+
+        var publisher = new PublisherProfile { Id = "test-pub", Name = "Test Pub" };
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.100.testpub.mod.modwithinvalidcatalogdep",
+            Name = contentItem.Name,
+            ContentType = ContentType.Mod,
+            ResolverId = CatalogConstants.GenericCatalogResolverId,
+            ResolverMetadata =
+            {
+                [CatalogConstants.ReleaseJsonMetadataKey] = JsonSerializer.Serialize(release),
+                [CatalogConstants.CatalogItemJsonMetadataKey] = JsonSerializer.Serialize(contentItem),
+                [CatalogConstants.PublisherProfileJsonMetadataKey] = JsonSerializer.Serialize(publisher),
+            },
+        };
+
+        var builtManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.100.testpub.mod.modwithinvalidcatalogdep"),
+            Name = "Mod With Invalid Catalog Dep",
             Version = "1.0.0",
             ContentType = ContentType.Mod,
             Files = [],

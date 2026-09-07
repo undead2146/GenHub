@@ -365,9 +365,14 @@ public partial class GenericCatalogResolver(
         if (!string.IsNullOrEmpty(effectiveMinVersion) && !string.IsNullOrEmpty(maxVersion))
         {
             var comparison = CatalogManifestIdentity.CompareVersions(maxVersion, effectiveMinVersion);
-            if (comparison < 0 || (comparison == 0 && (!effectiveMinInclusive || !maxInclusive)))
+            if (comparison < 0)
             {
                 return $"Dependency '{dependency.ContentId}' has unsatisfiable version bounds after reconciliation: min '{effectiveMinVersion}' > max '{maxVersion}'.";
+            }
+
+            if (comparison == 0 && (!effectiveMinInclusive || !maxInclusive))
+            {
+                return $"Dependency '{dependency.ContentId}' has unsatisfiable version bounds after reconciliation: min '{effectiveMinVersion}' and max '{maxVersion}' produce an empty range.";
             }
         }
 
@@ -421,9 +426,14 @@ public partial class GenericCatalogResolver(
         if (!string.IsNullOrEmpty(minVersion) && !string.IsNullOrEmpty(maxVersion))
         {
             var comparison = CatalogManifestIdentity.CompareVersions(maxVersion, minVersion);
-            if (comparison < 0 || (comparison == 0 && (!minInclusive || !maxInclusive)))
+            if (comparison < 0)
             {
                 return $"Dependency '{dependency.ContentId}' has unsatisfiable version bounds: min '{minVersion}' > max '{maxVersion}'.";
+            }
+
+            if (comparison == 0 && (!minInclusive || !maxInclusive))
+            {
+                return $"Dependency '{dependency.ContentId}' has unsatisfiable version bounds: min '{minVersion}' and max '{maxVersion}' produce an empty range.";
             }
         }
 
