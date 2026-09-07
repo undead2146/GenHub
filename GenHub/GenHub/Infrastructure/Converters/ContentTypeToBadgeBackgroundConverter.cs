@@ -13,12 +13,12 @@ namespace GenHub.Infrastructure.Converters;
 /// </summary>
 public class ContentTypeToBadgeBackgroundConverter : IValueConverter
 {
-    private const byte BadgeAlpha = 0x25;
-
     /// <summary>
     /// Gets the singleton instance of the converter.
     /// </summary>
     public static readonly ContentTypeToBadgeBackgroundConverter Instance = new();
+
+    private const byte BadgeAlpha = 0x25;
 
     private static readonly IBrush GameClientBrush = CreateTintBrush(UiConstants.ContentTypeGameClientColor);
     private static readonly IBrush ModBrush = CreateTintBrush(UiConstants.ContentTypeModColor);

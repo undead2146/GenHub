@@ -600,7 +600,7 @@ public sealed partial class DownloadsBrowserViewModel(
                 {
                     if (outgoingState.Items.Count > 0)
                     {
-                        var activeItemSet = new HashSet<ContentCardViewModel>(ContentItems);
+                        var activeItemSet = new HashSet<ContentGridItemViewModel>(ContentItems);
                         foreach (var oldItem in outgoingState.Items)
                         {
                             if (!activeItemSet.Contains(oldItem))
@@ -1375,7 +1375,7 @@ public sealed partial class DownloadsBrowserViewModel(
 
                 if (_browseCache.Remove(subscription.PublisherId, out var oldState))
                 {
-                    var isCurrentlySelected = string.Equals(SelectedPublisher?.Id, subscription.PublisherId, StringComparison.OrdinalIgnoreCase);
+                    var isCurrentlySelected = string.Equals(SelectedPublisher?.PublisherId, subscription.PublisherId, StringComparison.OrdinalIgnoreCase);
                     if (!isCurrentlySelected)
                     {
                         oldState.ActiveDetailViewModel?.Dispose();

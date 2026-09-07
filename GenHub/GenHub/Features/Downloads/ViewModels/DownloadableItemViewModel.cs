@@ -499,6 +499,27 @@ public abstract partial class DownloadableItemViewModel : ObservableObject, IDow
         }
     }
 
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Releases unmanaged and managed resources.
+    /// </summary>
+    /// <param name="disposing">True if disposing managed resources.</param>
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _fetchCts?.Cancel();
+            _fetchCts?.Dispose();
+            _fetchCts = null;
+        }
+    }
+
     private static string FormatBytes(long bytes)
     {
         const long KB = 1024;
@@ -521,26 +542,5 @@ public abstract partial class DownloadableItemViewModel : ObservableObject, IDow
         }
 
         return $"{bytes} B";
-    }
-
-    /// <inheritdoc/>
-    public void Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
-    }
-
-    /// <summary>
-    /// Releases unmanaged and managed resources.
-    /// </summary>
-    /// <param name="disposing">True if disposing managed resources.</param>
-    protected virtual void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _fetchCts?.Cancel();
-            _fetchCts?.Dispose();
-            _fetchCts = null;
-        }
     }
 }

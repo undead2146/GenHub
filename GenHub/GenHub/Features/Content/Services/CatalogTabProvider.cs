@@ -32,6 +32,7 @@ public class CatalogTabProvider(
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (PublisherCatalog Catalog, DateTime CachedAt)> _catalogCache = new(StringComparer.OrdinalIgnoreCase);
+
     /// <inheritdoc/>
     public string ProviderId => "catalog-tabs";
 
