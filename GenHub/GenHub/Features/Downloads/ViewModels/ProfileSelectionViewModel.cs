@@ -312,7 +312,7 @@ public sealed partial class ProfileSelectionViewModel(
             var manifestResult = await manifestPool.GetManifestAsync(
                 ManifestId.Create(ContentManifestId),
                 CancellationToken.None);
-            var selectedManifest = manifestResult.Success ? manifestResult.Data : null;
+            var selectedManifest = manifestResult?.Success == true ? manifestResult.Data : null;
 
             var selectedManifestId = selectedManifest?.Id.Value ?? ContentManifestId;
             var selectedContentName = selectedManifest?.Name ?? ContentName;

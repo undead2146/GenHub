@@ -110,7 +110,7 @@ public sealed partial class ContentStateService(
         }
 
         var isAcquiredResult = await manifestPool.IsManifestAcquiredAsync(prospectiveId, cancellationToken);
-        if (isAcquiredResult.Success && isAcquiredResult.Data)
+        if (isAcquiredResult?.Success == true && isAcquiredResult.Data)
         {
             logger.LogInformation("Content {ContentName} is downloaded (exact match found)", item.Name);
             return ContentState.Downloaded;
@@ -185,7 +185,7 @@ public sealed partial class ContentStateService(
 
         // Fast-path: exact match.
         var isAcquiredResult = await manifestPool.IsManifestAcquiredAsync(prospectiveId, cancellationToken);
-        if (isAcquiredResult.Success && isAcquiredResult.Data)
+        if (isAcquiredResult?.Success == true && isAcquiredResult.Data)
         {
             return prospectiveId;
         }
