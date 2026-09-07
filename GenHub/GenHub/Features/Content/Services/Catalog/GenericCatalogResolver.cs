@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Content;
@@ -21,7 +22,7 @@ namespace GenHub.Features.Content.Services.Catalog;
 /// <summary>
 /// Resolves a ContentSearchResult (from GenericCatalogDiscoverer) into a full ContentManifest.
 /// </summary>
-public class GenericCatalogResolver(
+public partial class GenericCatalogResolver(
     ILogger<GenericCatalogResolver> logger,
     Func<IContentManifestBuilder> manifestBuilderFactory) : IContentResolver
 {
@@ -130,11 +131,15 @@ public class GenericCatalogResolver(
                     contentItem.Name);
             }
 
-            AddDependencies(logger, builder, discoveredItem, release, contentItem, resolvedTargetGame);
+            var constraintFlags = AddDependencies(logger, builder, discoveredItem, release, contentItem, resolvedTargetGame);
 
             var manifest = builder.Build();
 
-            ApplyDependencyConstraints(manifest, release);
+            for (var i = 0; i < manifest.Dependencies.Count && i < constraintFlags.Count; i++)
+            {
+                manifest.Dependencies[i].MinInclusive = constraintFlags[i].MinInclusive;
+                manifest.Dependencies[i].MaxInclusive = constraintFlags[i].MaxInclusive;
+            }
 
             ApplyManifestPostProcessing(
                 manifest,
@@ -237,7 +242,7 @@ public class GenericCatalogResolver(
         return string.Concat(filename.Select(c => invalidChars.Contains(c) ? '_' : c));
     }
 
-    private static void AddDependencies(
+    private static List<(bool MinInclusive, bool MaxInclusive)> AddDependencies(
         ILogger logger,
         IContentManifestBuilder builder,
         ContentSearchResult discoveredItem,
@@ -246,20 +251,25 @@ public class GenericCatalogResolver(
         GameType resolvedTargetGame)
     {
         var bundleComponents = TryDeserializeBundleComponents(logger, discoveredItem, contentItem.Id);
+        var constraintFlags = new List<(bool MinInclusive, bool MaxInclusive)>(release.Dependencies.Count);
 
         foreach (var dependency in release.Dependencies)
         {
             var dependencyType = CatalogManifestIdentity.ResolveDependencyContentType(dependency, contentItem);
+            var (minVersion, maxVersion, minInclusive, maxInclusive, compatibleVersions) = ParseVersionConstraint(dependency.VersionConstraint);
+            constraintFlags.Add((minInclusive, maxInclusive));
 
             if (dependencyType == ContentType.GameInstallation ||
                 CatalogManifestIdentity.IsBaseGameDependency(dependency))
             {
-                AddBaseGameDependency(builder, dependency, resolvedTargetGame);
+                AddBaseGameDependency(builder, dependency, resolvedTargetGame, minVersion, maxVersion, compatibleVersions);
                 continue;
             }
 
-            AddCatalogDependency(builder, dependency, dependencyType, contentItem, bundleComponents);
+            AddCatalogDependency(builder, dependency, dependencyType, contentItem, bundleComponents, minVersion, maxVersion, compatibleVersions);
         }
+
+        return constraintFlags;
     }
 
     private static List<CatalogBundleComponentDescriptor>? TryDeserializeBundleComponents(
@@ -288,7 +298,10 @@ public class GenericCatalogResolver(
     private static void AddBaseGameDependency(
         IContentManifestBuilder builder,
         CatalogDependency dependency,
-        GameType resolvedTargetGame)
+        GameType resolvedTargetGame,
+        string minVersion,
+        string maxVersion,
+        List<string>? compatibleVersions)
     {
         var isGenerals = dependency.ContentId.Equals("generals", StringComparison.OrdinalIgnoreCase) ||
                          resolvedTargetGame == GameType.Generals;
@@ -297,16 +310,20 @@ public class GenericCatalogResolver(
             ? BaseDependencyBuilder.CreateGenerals108Dependency()
             : BaseDependencyBuilder.CreateZeroHour104Dependency();
 
-        var baseMinVersion = !string.IsNullOrWhiteSpace(dependency.VersionConstraint)
-            ? CatalogManifestIdentity.StripVersionConstraint(dependency.VersionConstraint)
-            : foundation.MinVersion ?? string.Empty;
+        var effectiveMinVersion = !string.IsNullOrEmpty(minVersion)
+            ? minVersion
+            : (string.IsNullOrEmpty(maxVersion) && (compatibleVersions == null || compatibleVersions.Count == 0)
+                ? (foundation.MinVersion ?? string.Empty)
+                : string.Empty);
 
         builder.AddDependency(
             id: foundation.Id,
             name: foundation.Name,
             dependencyType: ContentType.GameInstallation,
             installBehavior: DependencyInstallBehavior.RequireExisting,
-            minVersion: baseMinVersion,
+            minVersion: effectiveMinVersion,
+            maxVersion: maxVersion,
+            compatibleVersions: compatibleVersions,
             compatibleGameTypes: foundation.CompatibleGameTypes);
     }
 
@@ -315,7 +332,10 @@ public class GenericCatalogResolver(
         CatalogDependency dependency,
         ContentType initialDependencyType,
         CatalogContentItem contentItem,
-        List<CatalogBundleComponentDescriptor>? bundleComponents)
+        List<CatalogBundleComponentDescriptor>? bundleComponents,
+        string minVersion,
+        string maxVersion,
+        List<string>? compatibleVersions)
     {
         var (depPublisherId, depVersion, dependencyType) = ResolveDependencyIdentity(dependency, initialDependencyType, bundleComponents);
 
@@ -324,8 +344,6 @@ public class GenericCatalogResolver(
             dependencyType,
             dependency.ContentId,
             depVersion);
-
-        var (minVersion, maxVersion, _, _, compatibleVersions) = ParseVersionConstraint(dependency.VersionConstraint);
 
         var installBehavior = DependencyInstallBehavior.RequireExisting;
         if (dependency.IsOptional)
@@ -379,6 +397,9 @@ public class GenericCatalogResolver(
         return (depPublisherId, depVersion, dependencyType);
     }
 
+    [GeneratedRegex(@"([><=^~]+)\s+")]
+    private static partial Regex OperatorWhitespaceRegex();
+
     private static (string MinVersion, string MaxVersion, bool MinInclusive, bool MaxInclusive, List<string>? CompatibleVersions) ParseVersionConstraint(string? constraint)
     {
         if (string.IsNullOrWhiteSpace(constraint))
@@ -386,7 +407,7 @@ public class GenericCatalogResolver(
             return (string.Empty, string.Empty, true, true, null);
         }
 
-        var trimmed = constraint.Trim();
+        var trimmed = OperatorWhitespaceRegex().Replace(constraint.Trim(), "");
         if (trimmed.Equals("latest", StringComparison.OrdinalIgnoreCase))
         {
             return (string.Empty, string.Empty, true, true, null);
@@ -440,66 +461,99 @@ public class GenericCatalogResolver(
     {
         if (token.StartsWith(">=", StringComparison.Ordinal))
         {
-            minVersion = CatalogManifestIdentity.StripVersionConstraint(token);
-            minInclusive = true;
+            UpdateLowerBound(CatalogManifestIdentity.StripVersionConstraint(token), true, ref minVersion, ref minInclusive);
         }
         else if (token.StartsWith('>'))
         {
-            minVersion = CatalogManifestIdentity.StripVersionConstraint(token);
-            minInclusive = false;
+            UpdateLowerBound(CatalogManifestIdentity.StripVersionConstraint(token), false, ref minVersion, ref minInclusive);
         }
         else if (token.StartsWith("<=", StringComparison.Ordinal))
         {
-            maxVersion = CatalogManifestIdentity.StripVersionConstraint(token);
-            maxInclusive = true;
+            UpdateUpperBound(CatalogManifestIdentity.StripVersionConstraint(token), true, ref maxVersion, ref maxInclusive);
         }
         else if (token.StartsWith('<'))
         {
-            maxVersion = CatalogManifestIdentity.StripVersionConstraint(token);
-            maxInclusive = false;
+            UpdateUpperBound(CatalogManifestIdentity.StripVersionConstraint(token), false, ref maxVersion, ref maxInclusive);
         }
         else if (token.StartsWith('^'))
         {
             var target = CatalogManifestIdentity.StripVersionConstraint(token);
-            minVersion = target;
-            minInclusive = true;
+            UpdateLowerBound(target, true, ref minVersion, ref minInclusive);
             var parts = target.Split('.');
             if (parts.Length > 0 && int.TryParse(parts[0], out var major))
             {
-                maxVersion = $"{major + 1}.0.0";
-                maxInclusive = false;
+                UpdateUpperBound($"{major + 1}.0.0", false, ref maxVersion, ref maxInclusive);
             }
         }
         else if (token.StartsWith('~'))
         {
             var target = CatalogManifestIdentity.StripVersionConstraint(token);
-            minVersion = target;
-            minInclusive = true;
+            UpdateLowerBound(target, true, ref minVersion, ref minInclusive);
             var parts = target.Split('.');
             if (parts.Length >= 2 && int.TryParse(parts[0], out var major) && int.TryParse(parts[1], out var minor))
             {
-                maxVersion = $"{major}.{minor + 1}.0";
-                maxInclusive = false;
+                UpdateUpperBound($"{major}.{minor + 1}.0", false, ref maxVersion, ref maxInclusive);
             }
         }
     }
 
-    private static void ApplyDependencyConstraints(ContentManifest manifest, ContentRelease release)
+    private static void UpdateLowerBound(
+        string candidateMin,
+        bool candidateInclusive,
+        ref string currentMin,
+        ref bool currentInclusive)
     {
-        if (manifest.Dependencies.Count == 0)
+        if (string.IsNullOrEmpty(candidateMin))
         {
             return;
         }
 
-        foreach (var releaseDep in release.Dependencies)
+        if (string.IsNullOrEmpty(currentMin))
         {
-            var (_, _, minInclusive, maxInclusive, _) = ParseVersionConstraint(releaseDep.VersionConstraint);
-            var manifestDep = manifest.Dependencies.FirstOrDefault(d => string.Equals(d.Name, releaseDep.ContentId, StringComparison.OrdinalIgnoreCase));
-            if (manifestDep != null)
-            {
-                manifestDep.MinInclusive = minInclusive;
-                manifestDep.MaxInclusive = maxInclusive;
-            }
+            currentMin = candidateMin;
+            currentInclusive = candidateInclusive;
+            return;
+        }
+
+        var cmp = CatalogManifestIdentity.CompareVersions(candidateMin, currentMin);
+        if (cmp > 0)
+        {
+            currentMin = candidateMin;
+            currentInclusive = candidateInclusive;
+        }
+        else if (cmp == 0)
+        {
+            currentInclusive = currentInclusive && candidateInclusive;
+        }
+    }
+
+    private static void UpdateUpperBound(
+        string candidateMax,
+        bool candidateInclusive,
+        ref string currentMax,
+        ref bool currentInclusive)
+    {
+        if (string.IsNullOrEmpty(candidateMax))
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(currentMax))
+        {
+            currentMax = candidateMax;
+            currentInclusive = candidateInclusive;
+            return;
+        }
+
+        var cmp = CatalogManifestIdentity.CompareVersions(candidateMax, currentMax);
+        if (cmp < 0)
+        {
+            currentMax = candidateMax;
+            currentInclusive = candidateInclusive;
+        }
+        else if (cmp == 0)
+        {
+            currentInclusive = currentInclusive && candidateInclusive;
         }
     }
 

@@ -238,6 +238,104 @@ public sealed class GenericCatalogResolverTests
     }
 
     /// <summary>
+    /// Base-game dependency constraints with ranged tokens should parse min and max bounds and set inclusivity flags.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ResolveAsync_BaseGameDependency_WithRangeConstraint_EmitsBoundsAndInclusivityAsync()
+    {
+        var contentItem = new CatalogContentItem
+        {
+            Id = "mod-with-zh-bound",
+            Name = "Mod With ZH Bound",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            Description = "Test Mod",
+            Tags = ["mod"],
+        };
+
+        var release = new ContentRelease
+        {
+            Version = "1.0.0",
+            Dependencies =
+            [
+                new CatalogDependency
+                {
+                    PublisherId = "ea",
+                    ContentId = "zerohour",
+                    VersionConstraint = ">=1.04 <2.0",
+                },
+            ],
+        };
+
+        var publisher = new PublisherProfile { Id = "test-pub", Name = "Test Pub" };
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.100.testpub.mod.modwithzhbound",
+            Name = contentItem.Name,
+            ContentType = ContentType.Mod,
+            ResolverId = CatalogConstants.GenericCatalogResolverId,
+            ResolverMetadata =
+            {
+                [CatalogConstants.ReleaseJsonMetadataKey] = JsonSerializer.Serialize(release),
+                [CatalogConstants.CatalogItemJsonMetadataKey] = JsonSerializer.Serialize(contentItem),
+                [CatalogConstants.PublisherProfileJsonMetadataKey] = JsonSerializer.Serialize(publisher),
+            },
+        };
+
+        var builtManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.100.testpub.mod.modwithzhbound"),
+            Name = "Mod With ZH Bound",
+            Version = "1.0.0",
+            ContentType = ContentType.Mod,
+            Files = [],
+            Metadata = new ContentMetadata(),
+            Publisher = new PublisherInfo { PublisherType = "test-pub" },
+        };
+
+        var builderMock = CreateBuilderMock(builtManifest);
+        builderMock.Setup(b => b.AddDependency(
+                It.IsAny<ManifestId>(),
+                It.IsAny<string>(),
+                It.IsAny<ContentType>(),
+                It.IsAny<DependencyInstallBehavior>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<List<string>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<List<ManifestId>?>(),
+                It.IsAny<List<GameType>?>()))
+            .Callback<ManifestId, string, ContentType, DependencyInstallBehavior, string, string, List<string>?, bool, List<ManifestId>?, List<GameType>?>((id, name, type, behavior, min, max, comp, excl, conf, games) =>
+            {
+                builtManifest.Dependencies.Add(new ContentDependency
+                {
+                    Id = id,
+                    Name = name,
+                    DependencyType = type,
+                    MinVersion = min,
+                    MaxVersion = max,
+                    CompatibleVersions = comp ?? [],
+                });
+            })
+            .Returns(builderMock.Object);
+
+        var resolver = new GenericCatalogResolver(
+            NullLogger<GenericCatalogResolver>.Instance,
+            () => builderMock.Object);
+
+        var result = await resolver.ResolveAsync(searchResult);
+
+        Assert.True(result.Success, result.FirstError);
+        Assert.Single(builtManifest.Dependencies);
+        Assert.Equal("1.04", builtManifest.Dependencies[0].MinVersion);
+        Assert.Equal("2.0", builtManifest.Dependencies[0].MaxVersion);
+        Assert.True(builtManifest.Dependencies[0].MinInclusive);
+        Assert.False(builtManifest.Dependencies[0].MaxInclusive);
+    }
+
+    /// <summary>
     /// A ContentBundle must emit the canonical Zero Hour foundation ID and keep sibling GameClient
     /// dependencies as GameClient (not Mod). This is the identity mismatch behind
     /// <c>1.104.ea.mod.zerohour</c> profile-creation failures.
@@ -532,6 +630,13 @@ public sealed class GenericCatalogResolverTests
     [InlineData("1.5.0", "1.5.0", "1.5.0", "1.5.0", true, true)]
     [InlineData("v1.5", "1.5", "1.5", "1.5", true, true)]
     [InlineData("invalid-token", "", "", null, true, true)]
+    [InlineData(">1.2", "1.2", "", null, false, true)]
+    [InlineData("<2.0", "", "2.0", null, true, false)]
+    [InlineData(">= 1.0.0 < 2.0.0", "1.0.0", "2.0.0", null, true, false)]
+    [InlineData(">=2.0.0 >=1.0.0", "2.0.0", "", null, true, true)]
+    [InlineData("<2.0.0 <3.0.0", "", "2.0.0", null, true, false)]
+    [InlineData("vv1.5", "1.5", "1.5", "1.5", true, true)]
+    [InlineData("1..0", "", "", null, true, true)]
     public async Task ResolveAsync_ParsesVersionConstraintsCorrectly(
         string constraint,
         string expectedMin,

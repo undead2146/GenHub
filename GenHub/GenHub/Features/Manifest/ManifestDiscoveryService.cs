@@ -11,6 +11,7 @@ using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
+using GenHub.Core.Models.Providers;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Manifest;
@@ -155,6 +156,17 @@ public class ManifestDiscoveryService(
                 return false;
             }
 
+            if (dependency.CompatibleVersions.Count > 0 &&
+                !dependency.CompatibleVersions.Contains(dependencyManifest.Version, StringComparer.OrdinalIgnoreCase))
+            {
+                logger.LogWarning(
+                    "Dependency {DependencyId} version {Version} is not in compatible versions list [{CompatibleVersions}]",
+                    dependency.Id,
+                    dependencyManifest.Version,
+                    string.Join(", ", dependency.CompatibleVersions));
+                return false;
+            }
+
             if (!IsVersionCompatible(
                 dependencyManifest.Version,
                 dependency.MinVersion ?? string.Empty,
@@ -189,7 +201,7 @@ public class ManifestDiscoveryService(
     {
         if (!string.IsNullOrEmpty(minVersion))
         {
-            var comparison = string.Compare(actualVersion, minVersion, StringComparison.OrdinalIgnoreCase);
+            var comparison = CatalogManifestIdentity.CompareVersions(actualVersion, minVersion);
             if (minInclusive ? comparison < 0 : comparison <= 0)
             {
                 return false;
@@ -198,7 +210,7 @@ public class ManifestDiscoveryService(
 
         if (!string.IsNullOrEmpty(maxVersion))
         {
-            var comparison = string.Compare(actualVersion, maxVersion, StringComparison.OrdinalIgnoreCase);
+            var comparison = CatalogManifestIdentity.CompareVersions(actualVersion, maxVersion);
             if (maxInclusive ? comparison > 0 : comparison >= 0)
             {
                 return false;

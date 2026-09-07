@@ -7,14 +7,27 @@ using GenHub.Core.Constants;
 using GenHub.Core.Helpers;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
+using GenHub.Core.Services.Providers.VersionSchemes;
 
 namespace GenHub.Core.Models.Providers;
 
 /// <summary>
-/// Shared catalog identity helpers so discoverer search-result IDs, acquired manifest IDs, /// and declared dependency IDs are generated from the same inputs.
+/// Shared catalog identity helpers so discoverer search-result IDs, acquired manifest IDs,
+/// and declared dependency IDs are generated from the same inputs.
 /// </summary>
 public static class CatalogManifestIdentity
 {
+    private static readonly NumericVersionScheme VersionScheme = new();
+
+    /// <summary>
+    /// Compares two version strings numerically and semantically.
+    /// </summary>
+    /// <param name="version1">The first version string.</param>
+    /// <param name="version2">The second version string.</param>
+    /// <returns>A signed integer indicating relative order (-1, 0, or 1).</returns>
+    public static int CompareVersions(string? version1, string? version2) =>
+        VersionScheme.Compare(version1, version2);
+
     /// <summary>
     /// Builds a 5-segment publisher content ID from catalog coordinates.
     /// </summary>
@@ -156,13 +169,8 @@ public static class CatalogManifestIdentity
             return false;
         }
 
-        var candidate = stripped;
-        if ((candidate.StartsWith('v') || candidate.StartsWith('V')) && candidate.Length > 1 && char.IsDigit(candidate[1]))
-        {
-            candidate = candidate[1..].Trim();
-        }
-
-        if (IsValidVersion(candidate))
+        var candidate = stripped.TrimStart('v', 'V').Trim();
+        if (candidate.Length > 0 && char.IsDigit(candidate[0]) && IsValidVersion(candidate))
         {
             cleanVersion = candidate;
             return true;
@@ -421,7 +429,11 @@ public static class CatalogManifestIdentity
         }
 
         var delims = new[] { '.', '-', '/' };
-        var parts = cleanVersion.Split(delims, StringSplitOptions.RemoveEmptyEntries);
+        var parts = cleanVersion.Split(delims, StringSplitOptions.None);
+        if (parts.Any(string.IsNullOrEmpty))
+        {
+            return false;
+        }
 
         return TryParseThreePartVersion(parts, out result) ||
                TryParseFourPartVersion(parts, out result) ||

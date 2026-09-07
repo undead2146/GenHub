@@ -25,6 +25,7 @@ using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.GameSettings;
 using GenHub.Core.Models.Launching;
 using GenHub.Core.Models.Manifest;
+using GenHub.Core.Models.Providers;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Workspace;
 using GenHub.Features.Content.Services.SuperHackers;
@@ -1195,11 +1196,9 @@ public class ProfileLauncherFacade(
             return dependency.CompatibleVersions.Contains(version, StringComparer.OrdinalIgnoreCase);
         }
 
-        // Simple string comparison for min/max versions (semantic versioning would be better in production)
-        // For now, we use string comparison which works for versions like "1.04", "1.08", etc.
         if (!string.IsNullOrEmpty(dependency.MinVersion))
         {
-            var comparison = string.Compare(version, dependency.MinVersion, StringComparison.OrdinalIgnoreCase);
+            var comparison = CatalogManifestIdentity.CompareVersions(version, dependency.MinVersion);
             if (dependency.MinInclusive ? comparison < 0 : comparison <= 0)
             {
                 return false;
@@ -1208,7 +1207,7 @@ public class ProfileLauncherFacade(
 
         if (!string.IsNullOrEmpty(dependency.MaxVersion))
         {
-            var comparison = string.Compare(version, dependency.MaxVersion, StringComparison.OrdinalIgnoreCase);
+            var comparison = CatalogManifestIdentity.CompareVersions(version, dependency.MaxVersion);
             if (dependency.MaxInclusive ? comparison > 0 : comparison >= 0)
             {
                 return false;

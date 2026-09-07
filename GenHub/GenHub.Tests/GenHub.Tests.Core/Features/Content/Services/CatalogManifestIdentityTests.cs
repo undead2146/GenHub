@@ -233,7 +233,10 @@ public sealed class CatalogManifestIdentityTests
     [InlineData("=1.04", true, "1.04")]
     [InlineData("1.0.0", true, "1.0.0")]
     [InlineData("v1.5", true, "1.5")]
+    [InlineData("vv1.5", true, "1.5")]
+    [InlineData("vV1.5", true, "1.5")]
     [InlineData("V2.0.0", true, "2.0.0")]
+    [InlineData("1..0", false, "")]
     [InlineData(">=1.0.0", false, "")]
     [InlineData("<2.0.0", false, "")]
     [InlineData("^1.2.3", false, "")]
@@ -247,5 +250,20 @@ public sealed class CatalogManifestIdentityTests
         var success = CatalogManifestIdentity.TryParseExactVersion(token, out var cleanVersion);
         Assert.Equal(expectedSuccess, success);
         Assert.Equal(expectedVersion, cleanVersion);
+    }
+
+    /// <summary>
+    /// Tests that CompareVersions compares semantic and numeric versions correctly.
+    /// </summary>
+    [Theory]
+    [InlineData("1.10", "1.9", 1)]
+    [InlineData("1.9", "1.10", -1)]
+    [InlineData("1.04", "1.04", 0)]
+    [InlineData("1.04", "1.08", -1)]
+    [InlineData("2.0.0", "1.9.9", 1)]
+    public void CompareVersions_ComparesVersionsCorrectly(string v1, string v2, int expectedSign)
+    {
+        var result = CatalogManifestIdentity.CompareVersions(v1, v2);
+        Assert.Equal(expectedSign, Math.Sign(result));
     }
 }
