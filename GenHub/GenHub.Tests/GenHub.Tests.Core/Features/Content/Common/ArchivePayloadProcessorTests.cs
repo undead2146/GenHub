@@ -53,6 +53,63 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies that an archive located in a subfolder extracts its contents into that subfolder,
+    /// rather than flattening into the root payload directory.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ExtractArchivesSafelyAsync_NestedArchiveInSubfolder_ExtractsIntoSubfolderAsync()
+    {
+        // Arrange
+        Directory.CreateDirectory(_stagingDirectory);
+        var subDir = Path.Combine(_stagingDirectory, "Maps");
+        Directory.CreateDirectory(subDir);
+        var subZip = Path.Combine(subDir, "campaign.zip");
+
+        using (var archive = ZipFile.Open(subZip, ZipArchiveMode.Create))
+        {
+            var entry = archive.CreateEntry("campaign.map");
+            using var writer = new StreamWriter(entry.Open());
+            await writer.WriteAsync("map-content");
+        }
+
+        var processor = CreateProcessor();
+
+        // Act
+        await processor.ExtractArchivesSafelyAsync(_stagingDirectory);
+
+        // Assert: campaign.map should be in Maps/, not in _stagingDirectory
+        Assert.False(File.Exists(subZip));
+        Assert.True(File.Exists(Path.Combine(subDir, "campaign.map")));
+        Assert.False(File.Exists(Path.Combine(_stagingDirectory, "campaign.map")));
+    }
+
+    /// <summary>
+    /// Verifies that an archive exceeding the maximum allowed entry count throws an InvalidDataException.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ExtractArchivesSafelyAsync_ExceedsMaxZipEntryCount_ThrowsInvalidDataExceptionAsync()
+    {
+        // Arrange
+        Directory.CreateDirectory(_stagingDirectory);
+        var zipPath = Path.Combine(_stagingDirectory, "many_entries.zip");
+        using (var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create))
+        {
+            for (var i = 0; i <= CatalogConstants.MaxZipEntryCount; i++)
+            {
+                archive.CreateEntry($"file_{i}.txt");
+            }
+        }
+
+        var processor = CreateProcessor();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            processor.ExtractArchivesSafelyAsync(_stagingDirectory));
+    }
+
+    /// <summary>
     /// Verifies that multi-level nested wrapper directories (e.g. ModDB mods like C&amp;C Generals Undone)
     /// are recursively flattened so game assets end up directly at the workspace root.
     /// </summary>

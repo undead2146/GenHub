@@ -1083,6 +1083,68 @@ public class ContentStateServiceTests
         Assert.Equal(storedFullManifest.Id.Value, await service.GetLocalManifestIdAsync(fullRow));
     }
 
+    /// <summary>
+    /// Verifies that GitHub Topics matching does not falsely match repositories whose names
+    /// start with the prefix of another repository (e.g. GeneralsGamePatch matching Generals).
+    /// </summary>
+    /// <returns>A completed task.</returns>
+    [Fact]
+    public async Task GetStateAsync_GitHubRepoPrefixCollision_DoesNotMatchDifferentRepoWithSamePrefixAsync()
+    {
+        var storedManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.0.thesuperhackers.patch.generalsgamepatch"),
+            Name = "Generals Game Patch",
+            ContentType = ContentType.Patch,
+            TargetGame = GameType.Generals,
+            Publisher = new PublisherInfo
+            {
+                PublisherType = "thesuperhackers",
+                Website = "https://github.com/TheSuperHackers/GeneralsGamePatch",
+            },
+            Metadata = new ContentMetadata
+            {
+                ChangelogUrl = "https://github.com/TheSuperHackers/GeneralsGamePatch/releases/tag/v1.0",
+            },
+        };
+
+        var pool = new Mock<IContentManifestPool>();
+        pool.Setup(p => p.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([storedManifest]));
+        pool.Setup(p => p.IsManifestAcquiredAsync(storedManifest.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+
+        var service = new ContentStateService(pool.Object, NullLogger<ContentStateService>.Instance);
+
+        var prefixCard = new ContentSearchResult
+        {
+            Id = "thesuperhackers/generals",
+            Name = "Generals",
+            ProviderName = "github",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.Generals,
+            SourceUrl = "https://github.com/TheSuperHackers/Generals",
+        };
+
+        var exactCard = new ContentSearchResult
+        {
+            Id = "thesuperhackers/generalsgamepatch",
+            Name = "Generals Game Patch",
+            ProviderName = "github",
+            ContentType = ContentType.Patch,
+            TargetGame = GameType.Generals,
+            SourceUrl = "https://github.com/TheSuperHackers/GeneralsGamePatch",
+        };
+
+        // Prefix match should NOT match
+        Assert.Equal(ContentState.NotDownloaded, await service.GetStateAsync(prefixCard));
+        Assert.Null(await service.GetLocalManifestIdAsync(prefixCard));
+
+        // Exact match SHOULD match
+        Assert.Equal(ContentState.Downloaded, await service.GetStateAsync(exactCard));
+        Assert.Equal(storedManifest.Id.Value, await service.GetLocalManifestIdAsync(exactCard));
+    }
+
     private static ContentSearchResult CreateSuperHackersCard(GameType gameType)
     {
         var item = new ContentSearchResult

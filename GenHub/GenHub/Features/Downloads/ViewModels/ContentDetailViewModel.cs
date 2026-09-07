@@ -495,7 +495,7 @@ public partial class ContentDetailViewModel(
     }
 
     private static string CreateFileContentId(DownloadableFile file) =>
-        $"file:{file.DownloadUrl ?? file.Name}";
+        $"file:{(!string.IsNullOrWhiteSpace(file.DownloadUrl) ? file.DownloadUrl : file.Name)}";
 
     private static bool IsModDbContent(ContentSearchResult content) =>
         string.Equals(content.ProviderName, ModDBConstants.PublisherDisplayName, StringComparison.OrdinalIgnoreCase) ||
@@ -1080,7 +1080,7 @@ public partial class ContentDetailViewModel(
 
             if (selectedMatched)
             {
-                IsDownloaded = e.NewState == ContentState.Downloaded;
+                IsDownloaded = e.NewState is ContentState.Downloaded or ContentState.UpdateAvailable;
                 IsUpdateAvailable = e.NewState == ContentState.UpdateAvailable;
                 OnPropertyChanged(nameof(ShowDownloadButton));
                 OnPropertyChanged(nameof(ShowAddToProfileButton));
@@ -1130,7 +1130,7 @@ public partial class ContentDetailViewModel(
             if (!string.IsNullOrEmpty(release.DownloadedManifestId) &&
                 variantIds.Contains(release.DownloadedManifestId))
             {
-                release.IsDownloaded = e.NewState == ContentState.Downloaded;
+                release.IsDownloaded = e.NewState is ContentState.Downloaded or ContentState.UpdateAvailable;
                 if (!string.IsNullOrEmpty(e.ManifestId))
                 {
                     release.DownloadedManifestId = e.ManifestId;
@@ -1158,7 +1158,7 @@ public partial class ContentDetailViewModel(
                     break;
                 case ContentState.UpdateAvailable:
                     IsUpdateAvailable = true;
-                    IsDownloaded = false;
+                    IsDownloaded = true;
                     break;
                 case ContentState.NotDownloaded:
                     IsDownloaded = false;
@@ -1250,7 +1250,7 @@ public partial class ContentDetailViewModel(
 
             var state = await contentStateService.GetStateAsync(searchResult, _cts.Token);
 
-            if (state == ContentState.Downloaded &&
+            if ((state == ContentState.Downloaded || state == ContentState.UpdateAvailable) &&
                 (string.IsNullOrEmpty(searchResult.Id) || !ManifestIdValidator.IsValid(searchResult.Id, out _)))
             {
                 var manifestId = await contentStateService.GetLocalManifestIdAsync(searchResult, _cts.Token);
@@ -1262,11 +1262,11 @@ public partial class ContentDetailViewModel(
 
             await RunOnUiThreadAsync(() =>
             {
-                IsDownloaded = state == ContentState.Downloaded;
+                IsDownloaded = state is ContentState.Downloaded or ContentState.UpdateAvailable;
                 IsUpdateAvailable = state == ContentState.UpdateAvailable;
             });
 
-            if (state == ContentState.Downloaded && !string.IsNullOrEmpty(searchResult.Id))
+            if ((state == ContentState.Downloaded || state == ContentState.UpdateAvailable) && !string.IsNullOrEmpty(searchResult.Id))
             {
                 await LoadDependencySummaryAsync(searchResult.Id);
             }
@@ -1938,7 +1938,7 @@ public partial class ContentDetailViewModel(
         }
         else
         {
-            releaseItem.DownloadCommand = new AsyncRelayCommand(() => DownloadReleaseAsync(releaseItem, releaseItem.File ?? file));
+            releaseItem.DownloadCommand = new AsyncRelayCommand(ct => DownloadReleaseAsync(releaseItem, releaseItem.File ?? file, ct));
             releaseItem.AddToProfileCommand = new AsyncRelayCommand(
                 () => AddFileToProfileAsync(releaseItem.File ?? file, releaseItem.DownloadedManifestId));
         }
@@ -2534,11 +2534,11 @@ public partial class ContentDetailViewModel(
             {
                 if (SelectedDownloadableItem is ReleaseItemViewModel rel)
                 {
-                    await DownloadReleaseAsync(rel, file);
+                    await DownloadReleaseAsync(rel, file, cancellationToken);
                 }
                 else if (SelectedDownloadableItem is AddonItemViewModel addon)
                 {
-                    await DownloadAddonAsync(addon, file);
+                    await DownloadAddonAsync(addon, file, cancellationToken);
                 }
                 else
                 {
@@ -2925,7 +2925,7 @@ public partial class ContentDetailViewModel(
         return rowSearchResult;
     }
 
-    private async Task DownloadReleaseAsync(ReleaseItemViewModel releaseItem, DownloadableFile file)
+    private async Task DownloadReleaseAsync(ReleaseItemViewModel releaseItem, DownloadableFile file, CancellationToken cancellationToken = default)
     {
         releaseItem.IsDownloading = true;
         if (ReferenceEquals(SelectedDownloadableItem, releaseItem))
@@ -2933,17 +2933,23 @@ public partial class ContentDetailViewModel(
             RefreshSelectedTargetProperties();
         }
 
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
+        var effectiveToken = linkedCts.Token;
+
         try
         {
-            await DownloadFileCoreAsync(file, manifest =>
-            {
-                releaseItem.DownloadedManifestId = manifest.Id.Value;
-                releaseItem.IsDownloaded = true;
-                if (ReferenceEquals(SelectedDownloadableItem, releaseItem))
+            await DownloadFileCoreAsync(
+                file,
+                manifest =>
                 {
-                    RefreshSelectedTargetProperties();
-                }
-            });
+                    releaseItem.DownloadedManifestId = manifest.Id.Value;
+                    releaseItem.IsDownloaded = true;
+                    if (ReferenceEquals(SelectedDownloadableItem, releaseItem))
+                    {
+                        RefreshSelectedTargetProperties();
+                    }
+                },
+                effectiveToken);
         }
         finally
         {
@@ -2955,7 +2961,7 @@ public partial class ContentDetailViewModel(
         }
     }
 
-    private async Task DownloadAddonAsync(AddonItemViewModel addonItem, DownloadableFile file)
+    private async Task DownloadAddonAsync(AddonItemViewModel addonItem, DownloadableFile file, CancellationToken cancellationToken = default)
     {
         addonItem.IsDownloading = true;
         if (ReferenceEquals(SelectedDownloadableItem, addonItem))
@@ -2963,17 +2969,23 @@ public partial class ContentDetailViewModel(
             RefreshSelectedTargetProperties();
         }
 
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
+        var effectiveToken = linkedCts.Token;
+
         try
         {
-            await DownloadFileCoreAsync(file, manifest =>
-            {
-                addonItem.DownloadedManifestId = manifest.Id.Value;
-                addonItem.IsDownloaded = true;
-                if (ReferenceEquals(SelectedDownloadableItem, addonItem))
+            await DownloadFileCoreAsync(
+                file,
+                manifest =>
                 {
-                    RefreshSelectedTargetProperties();
-                }
-            });
+                    addonItem.DownloadedManifestId = manifest.Id.Value;
+                    addonItem.IsDownloaded = true;
+                    if (ReferenceEquals(SelectedDownloadableItem, addonItem))
+                    {
+                        RefreshSelectedTargetProperties();
+                    }
+                },
+                effectiveToken);
         }
         finally
         {
@@ -3022,7 +3034,7 @@ public partial class ContentDetailViewModel(
             await RunOnUiThreadAsync(() =>
             {
                 row.DownloadedManifestId = manifestId;
-                row.IsDownloaded = state == ContentState.Downloaded;
+                row.IsDownloaded = state is ContentState.Downloaded or ContentState.UpdateAvailable;
                 row.IsUpdateAvailable = state == ContentState.UpdateAvailable;
                 if (ReferenceEquals(SelectedDownloadableItem, row))
                 {
@@ -3594,7 +3606,7 @@ public partial class ContentDetailViewModel(
                     SelectedVariant = variant;
                 }
 
-                await DownloadReleaseAsync(releaseItem, releaseItem.File ?? file);
+                await DownloadReleaseAsync(releaseItem, releaseItem.File ?? file, _cts.Token);
             });
 
             releaseItem.AddToProfileCommand = new AsyncRelayCommand(async () =>
@@ -3775,7 +3787,7 @@ public partial class ContentDetailViewModel(
         releaseItem.SelectCommand = new RelayCommand(
             () => SelectDownloadableItem(releaseItem, isUserInitiated: true),
             () => !IsDownloading);
-        releaseItem.DownloadCommand = new AsyncRelayCommand(() => DownloadReleaseAsync(releaseItem, releaseItem.File ?? file));
+        releaseItem.DownloadCommand = new AsyncRelayCommand(ct => DownloadReleaseAsync(releaseItem, releaseItem.File ?? file, ct));
         releaseItem.AddToProfileCommand = new AsyncRelayCommand(
             () => AddFileToProfileAsync(releaseItem.File ?? file, releaseItem.DownloadedManifestId));
 
@@ -3846,7 +3858,7 @@ public partial class ContentDetailViewModel(
         addonItem.SelectCommand = new RelayCommand(
             () => SelectDownloadableItem(addonItem, isUserInitiated: true),
             () => !IsDownloading);
-        addonItem.DownloadCommand = new AsyncRelayCommand(() => DownloadAddonAsync(addonItem, addonItem.File ?? file));
+        addonItem.DownloadCommand = new AsyncRelayCommand(ct => DownloadAddonAsync(addonItem, addonItem.File ?? file, ct));
         addonItem.AddToProfileCommand = new AsyncRelayCommand(
             () => AddFileToProfileAsync(addonItem.File ?? file, addonItem.DownloadedManifestId));
 

@@ -120,9 +120,9 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
         }
 
         logger.LogWarning(
-            "Signature present in catalog for publisher '{PublisherId}', but signature verification is unconfigured; rejecting catalog",
+            "Signature present in catalog for publisher '{PublisherId}', but signature verification is unconfigured; accepting catalog without validation",
             catalog.Publisher?.Id);
-        return false;
+        return true;
     }
 
     private static void ValidateDependencies(

@@ -149,6 +149,119 @@ public sealed class ContentDownloadCoordinatorTests
     }
 
     /// <summary>
+    /// Verifies that when the initiator caller cancels its token, it unblocks immediately without cancelling the second caller or the underlying download.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task DownloadContentAsync_FirstCallerCancels_DoesNotCancelSecondCallerAsync()
+    {
+        // Arrange
+        var orchestratorMock = new Mock<IContentOrchestrator>();
+        var stateServiceMock = new Mock<IContentStateService>();
+        var notificationServiceMock = new Mock<INotificationService>();
+
+        var testManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.0.moddb.mod.testinitiator"),
+            Name = "Test Mod Initiator",
+        };
+
+        var acquisitionTcs = new TaskCompletionSource<OperationResult<ContentManifest>>();
+
+        orchestratorMock
+            .Setup(x => x.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()))
+            .Returns(acquisitionTcs.Task);
+
+        var coordinator = new ContentDownloadCoordinator(
+            orchestratorMock.Object,
+            stateServiceMock.Object,
+            notificationServiceMock.Object,
+            NullLogger<ContentDownloadCoordinator>.Instance);
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "test_item_initiator_cancel",
+            Name = "Test Mod Initiator",
+            ProviderName = "ModDB",
+        };
+
+        using var cts1 = new CancellationTokenSource();
+        using var cts2 = new CancellationTokenSource();
+
+        // Caller 1 (initiator) starts
+        var task1 = coordinator.DownloadContentAsync(searchResult, cancellationToken: cts1.Token);
+
+        // Caller 2 (joiner) joins
+        var task2 = coordinator.DownloadContentAsync(searchResult, cancellationToken: cts2.Token);
+
+        // Caller 1 (initiator) cancels
+        cts1.Cancel();
+
+        // Caller 1 throws OperationCanceledException
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task1);
+
+        // Caller 2 is still waiting
+        Assert.False(task2.IsCompleted);
+
+        // Underlying download completes successfully
+        acquisitionTcs.SetResult(OperationResult<ContentManifest>.CreateSuccess(testManifest));
+
+        var result2 = await task2;
+        Assert.True(result2.Success);
+        Assert.Same(testManifest, result2.Data);
+    }
+
+    /// <summary>
+    /// Verifies that when all callers cancel, the underlying acquisition is cancelled via its internal token.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task DownloadContentAsync_AllCallersCancel_CancelsUnderlyingAcquisitionAsync()
+    {
+        // Arrange
+        var orchestratorMock = new Mock<IContentOrchestrator>();
+        var stateServiceMock = new Mock<IContentStateService>();
+        var notificationServiceMock = new Mock<INotificationService>();
+
+        CancellationToken internalToken = default;
+        var acquisitionTcs = new TaskCompletionSource<OperationResult<ContentManifest>>();
+
+        orchestratorMock
+            .Setup(x => x.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()))
+            .Callback<ContentSearchResult, IProgress<ContentAcquisitionProgress>?, CancellationToken>((_, _, ct) => internalToken = ct)
+            .Returns(acquisitionTcs.Task);
+
+        var coordinator = new ContentDownloadCoordinator(
+            orchestratorMock.Object,
+            stateServiceMock.Object,
+            notificationServiceMock.Object,
+            NullLogger<ContentDownloadCoordinator>.Instance);
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "test_item_all_cancel",
+            Name = "Test Mod All Cancel",
+            ProviderName = "ModDB",
+        };
+
+        using var cts1 = new CancellationTokenSource();
+        using var cts2 = new CancellationTokenSource();
+
+        var task1 = coordinator.DownloadContentAsync(searchResult, cancellationToken: cts1.Token);
+        var task2 = coordinator.DownloadContentAsync(searchResult, cancellationToken: cts2.Token);
+
+        cts1.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task1);
+
+        Assert.False(internalToken.IsCancellationRequested);
+
+        cts2.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task2);
+
+        Assert.True(internalToken.IsCancellationRequested);
+    }
+
+    /// <summary>
     /// Verifies that progress is multiplexed to both the initial caller and subsequent concurrent callers.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>

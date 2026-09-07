@@ -513,6 +513,13 @@ public sealed partial class ProfileSelectionViewModel(
                 string.Equals(p.Name, profileName, StringComparison.OrdinalIgnoreCase));
         }
 
+        if (!profilesResult.Success)
+        {
+            logger.LogWarning(
+                "Failed to retrieve profiles when checking for profile name collision: {Error}",
+                profilesResult.FirstError);
+        }
+
         return false;
     }
 }
