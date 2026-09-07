@@ -306,8 +306,10 @@ public sealed class GenericCatalogResolverTests
                 It.IsAny<List<string>?>(),
                 It.IsAny<bool>(),
                 It.IsAny<List<ManifestId>?>(),
-                It.IsAny<List<GameType>?>()))
-            .Callback<ManifestId, string, ContentType, DependencyInstallBehavior, string, string, List<string>?, bool, List<ManifestId>?, List<GameType>?>((id, name, type, behavior, min, max, comp, excl, conf, games) =>
+                It.IsAny<List<GameType>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>()))
+            .Callback<ManifestId, string, ContentType, DependencyInstallBehavior, string, string, List<string>?, bool, List<ManifestId>?, List<GameType>?, bool, bool>((id, name, type, behavior, min, max, comp, excl, conf, games, minInc, maxInc) =>
             {
                 builtManifest.Dependencies.Add(new ContentDependency
                 {
@@ -317,6 +319,8 @@ public sealed class GenericCatalogResolverTests
                     MinVersion = min,
                     MaxVersion = max,
                     CompatibleVersions = comp ?? [],
+                    MinInclusive = minInc,
+                    MaxInclusive = maxInc,
                 });
             })
             .Returns(builderMock.Object);
@@ -333,6 +337,212 @@ public sealed class GenericCatalogResolverTests
         Assert.Equal("2.0", builtManifest.Dependencies[0].MaxVersion);
         Assert.True(builtManifest.Dependencies[0].MinInclusive);
         Assert.False(builtManifest.Dependencies[0].MaxInclusive);
+    }
+
+    /// <summary>
+    /// Verifies that an upper-bound-only constraint preserves the base game foundation min version floor.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ResolveAsync_BaseGameDependency_WithMaxOnlyConstraint_PreservesFoundationMinFloorAsync()
+    {
+        var contentItem = new CatalogContentItem
+        {
+            Id = "mod-with-zh-max-only",
+            Name = "Mod With ZH Max Only",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            Description = "Test Mod",
+            Tags = ["mod"],
+        };
+
+        var release = new ContentRelease
+        {
+            Version = "1.0.0",
+            Dependencies =
+            [
+                new CatalogDependency
+                {
+                    PublisherId = "ea",
+                    ContentId = "zerohour",
+                    VersionConstraint = "<2.0",
+                },
+            ],
+        };
+
+        var publisher = new PublisherProfile { Id = "test-pub", Name = "Test Pub" };
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.100.testpub.mod.modwithzhmaxonly",
+            Name = contentItem.Name,
+            ContentType = ContentType.Mod,
+            ResolverId = CatalogConstants.GenericCatalogResolverId,
+            ResolverMetadata =
+            {
+                [CatalogConstants.ReleaseJsonMetadataKey] = JsonSerializer.Serialize(release),
+                [CatalogConstants.CatalogItemJsonMetadataKey] = JsonSerializer.Serialize(contentItem),
+                [CatalogConstants.PublisherProfileJsonMetadataKey] = JsonSerializer.Serialize(publisher),
+            },
+        };
+
+        var builtManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.100.testpub.mod.modwithzhmaxonly"),
+            Name = "Mod With ZH Max Only",
+            Version = "1.0.0",
+            ContentType = ContentType.Mod,
+            Files = [],
+            Metadata = new ContentMetadata(),
+            Publisher = new PublisherInfo { PublisherType = "test-pub" },
+        };
+
+        var builderMock = CreateBuilderMock(builtManifest);
+        builderMock.Setup(b => b.AddDependency(
+                It.IsAny<ManifestId>(),
+                It.IsAny<string>(),
+                It.IsAny<ContentType>(),
+                It.IsAny<DependencyInstallBehavior>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<List<string>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<List<ManifestId>?>(),
+                It.IsAny<List<GameType>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>()))
+            .Callback<ManifestId, string, ContentType, DependencyInstallBehavior, string, string, List<string>?, bool, List<ManifestId>?, List<GameType>?, bool, bool>((id, name, type, behavior, min, max, comp, excl, conf, games, minInc, maxInc) =>
+            {
+                builtManifest.Dependencies.Add(new ContentDependency
+                {
+                    Id = id,
+                    Name = name,
+                    DependencyType = type,
+                    MinVersion = min,
+                    MaxVersion = max,
+                    CompatibleVersions = comp ?? [],
+                    MinInclusive = minInc,
+                    MaxInclusive = maxInc,
+                });
+            })
+            .Returns(builderMock.Object);
+
+        var resolver = new GenericCatalogResolver(
+            NullLogger<GenericCatalogResolver>.Instance,
+            () => builderMock.Object);
+
+        var result = await resolver.ResolveAsync(searchResult);
+
+        Assert.True(result.Success, result.FirstError);
+        Assert.Single(builtManifest.Dependencies);
+        var dep = builtManifest.Dependencies[0];
+        Assert.Equal("1.04", dep.MinVersion);
+        Assert.Equal("2.0", dep.MaxVersion);
+        Assert.True(dep.MinInclusive);
+        Assert.False(dep.MaxInclusive);
+    }
+
+    /// <summary>
+    /// Verifies that when a constraint minimum is lower than foundation min version, the stricter foundation floor is kept.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ResolveAsync_BaseGameDependency_WithLowerThanFoundationFloor_RetainsFoundationMinFloorAsync()
+    {
+        var contentItem = new CatalogContentItem
+        {
+            Id = "mod-with-zh-lower-floor",
+            Name = "Mod With ZH Lower Floor",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            Description = "Test Mod",
+            Tags = ["mod"],
+        };
+
+        var release = new ContentRelease
+        {
+            Version = "1.0.0",
+            Dependencies =
+            [
+                new CatalogDependency
+                {
+                    PublisherId = "ea",
+                    ContentId = "zerohour",
+                    VersionConstraint = ">=1.02 <2.0",
+                },
+            ],
+        };
+
+        var publisher = new PublisherProfile { Id = "test-pub", Name = "Test Pub" };
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.100.testpub.mod.modwithzhlowerfloor",
+            Name = contentItem.Name,
+            ContentType = ContentType.Mod,
+            ResolverId = CatalogConstants.GenericCatalogResolverId,
+            ResolverMetadata =
+            {
+                [CatalogConstants.ReleaseJsonMetadataKey] = JsonSerializer.Serialize(release),
+                [CatalogConstants.CatalogItemJsonMetadataKey] = JsonSerializer.Serialize(contentItem),
+                [CatalogConstants.PublisherProfileJsonMetadataKey] = JsonSerializer.Serialize(publisher),
+            },
+        };
+
+        var builtManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.100.testpub.mod.modwithzhlowerfloor"),
+            Name = "Mod With ZH Lower Floor",
+            Version = "1.0.0",
+            ContentType = ContentType.Mod,
+            Files = [],
+            Metadata = new ContentMetadata(),
+            Publisher = new PublisherInfo { PublisherType = "test-pub" },
+        };
+
+        var builderMock = CreateBuilderMock(builtManifest);
+        builderMock.Setup(b => b.AddDependency(
+                It.IsAny<ManifestId>(),
+                It.IsAny<string>(),
+                It.IsAny<ContentType>(),
+                It.IsAny<DependencyInstallBehavior>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<List<string>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<List<ManifestId>?>(),
+                It.IsAny<List<GameType>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>()))
+            .Callback<ManifestId, string, ContentType, DependencyInstallBehavior, string, string, List<string>?, bool, List<ManifestId>?, List<GameType>?, bool, bool>((id, name, type, behavior, min, max, comp, excl, conf, games, minInc, maxInc) =>
+            {
+                builtManifest.Dependencies.Add(new ContentDependency
+                {
+                    Id = id,
+                    Name = name,
+                    DependencyType = type,
+                    MinVersion = min,
+                    MaxVersion = max,
+                    CompatibleVersions = comp ?? [],
+                    MinInclusive = minInc,
+                    MaxInclusive = maxInc,
+                });
+            })
+            .Returns(builderMock.Object);
+
+        var resolver = new GenericCatalogResolver(
+            NullLogger<GenericCatalogResolver>.Instance,
+            () => builderMock.Object);
+
+        var result = await resolver.ResolveAsync(searchResult);
+
+        Assert.True(result.Success, result.FirstError);
+        Assert.Single(builtManifest.Dependencies);
+        var dep = builtManifest.Dependencies[0];
+        Assert.Equal("1.04", dep.MinVersion);
+        Assert.Equal("2.0", dep.MaxVersion);
+        Assert.True(dep.MinInclusive);
+        Assert.False(dep.MaxInclusive);
     }
 
     /// <summary>
@@ -710,9 +920,11 @@ public sealed class GenericCatalogResolverTests
                 It.IsAny<List<string>?>(),
                 It.IsAny<bool>(),
                 It.IsAny<List<ManifestId>?>(),
-                It.IsAny<List<GameType>?>()))
-            .Callback<ManifestId, string, ContentType, DependencyInstallBehavior, string, string, List<string>?, bool, List<ManifestId>?, List<GameType>?>(
-                (id, name, type, behavior, min, max, comp, excl, conf, games) =>
+                It.IsAny<List<GameType>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>()))
+            .Callback<ManifestId, string, ContentType, DependencyInstallBehavior, string, string, List<string>?, bool, List<ManifestId>?, List<GameType>?, bool, bool>(
+                (id, name, type, behavior, min, max, comp, excl, conf, games, minInc, maxInc) =>
                 {
                     capturedMin = min;
                     capturedMax = max;
@@ -725,6 +937,8 @@ public sealed class GenericCatalogResolverTests
                         MinVersion = min,
                         MaxVersion = max,
                         CompatibleVersions = comp ?? [],
+                        MinInclusive = minInc,
+                        MaxInclusive = maxInc,
                     });
                 })
             .Returns(builderMock.Object);
@@ -784,7 +998,9 @@ public sealed class GenericCatalogResolverTests
                 It.IsAny<List<string>?>(),
                 It.IsAny<bool>(),
                 It.IsAny<List<ManifestId>?>(),
-                It.IsAny<List<GameType>?>()))
+                It.IsAny<List<GameType>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>()))
             .Returns(builderMock.Object);
         builderMock.Setup(b => b.Build()).Returns(builtManifest);
         return builderMock;

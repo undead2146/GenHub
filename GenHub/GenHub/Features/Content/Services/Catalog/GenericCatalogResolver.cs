@@ -131,15 +131,9 @@ public partial class GenericCatalogResolver(
                     contentItem.Name);
             }
 
-            var constraintFlags = AddDependencies(logger, builder, discoveredItem, release, contentItem, resolvedTargetGame);
+            AddDependencies(logger, builder, discoveredItem, release, contentItem, resolvedTargetGame);
 
             var manifest = builder.Build();
-
-            for (var i = 0; i < manifest.Dependencies.Count && i < constraintFlags.Count; i++)
-            {
-                manifest.Dependencies[i].MinInclusive = constraintFlags[i].MinInclusive;
-                manifest.Dependencies[i].MaxInclusive = constraintFlags[i].MaxInclusive;
-            }
 
             ApplyManifestPostProcessing(
                 manifest,
@@ -242,7 +236,7 @@ public partial class GenericCatalogResolver(
         return string.Concat(filename.Select(c => invalidChars.Contains(c) ? '_' : c));
     }
 
-    private static List<(bool MinInclusive, bool MaxInclusive)> AddDependencies(
+    private static void AddDependencies(
         ILogger logger,
         IContentManifestBuilder builder,
         ContentSearchResult discoveredItem,
@@ -251,25 +245,39 @@ public partial class GenericCatalogResolver(
         GameType resolvedTargetGame)
     {
         var bundleComponents = TryDeserializeBundleComponents(logger, discoveredItem, contentItem.Id);
-        var constraintFlags = new List<(bool MinInclusive, bool MaxInclusive)>(release.Dependencies.Count);
 
         foreach (var dependency in release.Dependencies)
         {
             var dependencyType = CatalogManifestIdentity.ResolveDependencyContentType(dependency, contentItem);
             var (minVersion, maxVersion, minInclusive, maxInclusive, compatibleVersions) = ParseVersionConstraint(dependency.VersionConstraint);
-            constraintFlags.Add((minInclusive, maxInclusive));
 
             if (dependencyType == ContentType.GameInstallation ||
                 CatalogManifestIdentity.IsBaseGameDependency(dependency))
             {
-                AddBaseGameDependency(builder, dependency, resolvedTargetGame, minVersion, maxVersion, compatibleVersions);
+                AddBaseGameDependency(
+                    builder,
+                    dependency,
+                    resolvedTargetGame,
+                    minVersion,
+                    maxVersion,
+                    minInclusive,
+                    maxInclusive,
+                    compatibleVersions);
                 continue;
             }
 
-            AddCatalogDependency(builder, dependency, dependencyType, contentItem, bundleComponents, minVersion, maxVersion, compatibleVersions);
+            AddCatalogDependency(
+                builder,
+                dependency,
+                dependencyType,
+                contentItem,
+                bundleComponents,
+                minVersion,
+                maxVersion,
+                minInclusive,
+                maxInclusive,
+                compatibleVersions);
         }
-
-        return constraintFlags;
     }
 
     private static List<CatalogBundleComponentDescriptor>? TryDeserializeBundleComponents(
@@ -301,6 +309,8 @@ public partial class GenericCatalogResolver(
         GameType resolvedTargetGame,
         string minVersion,
         string maxVersion,
+        bool minInclusive,
+        bool maxInclusive,
         List<string>? compatibleVersions)
     {
         var isGenerals = dependency.ContentId.Equals("generals", StringComparison.OrdinalIgnoreCase) ||
@@ -310,11 +320,26 @@ public partial class GenericCatalogResolver(
             ? BaseDependencyBuilder.CreateGenerals108Dependency()
             : BaseDependencyBuilder.CreateZeroHour104Dependency();
 
-        var effectiveMinVersion = !string.IsNullOrEmpty(minVersion)
-            ? minVersion
-            : (string.IsNullOrEmpty(maxVersion) && (compatibleVersions == null || compatibleVersions.Count == 0)
-                ? (foundation.MinVersion ?? string.Empty)
-                : string.Empty);
+        var effectiveMinVersion = foundation.MinVersion ?? string.Empty;
+        var effectiveMinInclusive = true;
+
+        if (!string.IsNullOrEmpty(minVersion))
+        {
+            if (string.IsNullOrEmpty(effectiveMinVersion) ||
+                CatalogManifestIdentity.CompareVersions(minVersion, effectiveMinVersion) > 0)
+            {
+                effectiveMinVersion = minVersion;
+                effectiveMinInclusive = minInclusive;
+            }
+            else if (CatalogManifestIdentity.CompareVersions(minVersion, effectiveMinVersion) == 0)
+            {
+                effectiveMinInclusive = minInclusive;
+            }
+        }
+        else if (compatibleVersions is { Count: > 0 })
+        {
+            effectiveMinVersion = string.Empty;
+        }
 
         builder.AddDependency(
             id: foundation.Id,
@@ -324,7 +349,9 @@ public partial class GenericCatalogResolver(
             minVersion: effectiveMinVersion,
             maxVersion: maxVersion,
             compatibleVersions: compatibleVersions,
-            compatibleGameTypes: foundation.CompatibleGameTypes);
+            compatibleGameTypes: foundation.CompatibleGameTypes,
+            minInclusive: effectiveMinInclusive,
+            maxInclusive: maxInclusive);
     }
 
     private static void AddCatalogDependency(
@@ -335,6 +362,8 @@ public partial class GenericCatalogResolver(
         List<CatalogBundleComponentDescriptor>? bundleComponents,
         string minVersion,
         string maxVersion,
+        bool minInclusive,
+        bool maxInclusive,
         List<string>? compatibleVersions)
     {
         var (depPublisherId, depVersion, dependencyType) = ResolveDependencyIdentity(dependency, initialDependencyType, bundleComponents);
@@ -362,7 +391,9 @@ public partial class GenericCatalogResolver(
             installBehavior: installBehavior,
             minVersion: minVersion,
             maxVersion: maxVersion,
-            compatibleVersions: compatibleVersions);
+            compatibleVersions: compatibleVersions,
+            minInclusive: minInclusive,
+            maxInclusive: maxInclusive);
     }
 
     private static (string PublisherId, string Version, ContentType DependencyType) ResolveDependencyIdentity(

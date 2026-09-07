@@ -334,7 +334,9 @@ public partial class ContentManifestBuilder(
         List<string>? compatibleVersions = null,
         bool isExclusive = false,
         List<ManifestId>? conflictsWith = null,
-        List<GameType>? compatibleGameTypes = null)
+        List<GameType>? compatibleGameTypes = null,
+        bool minInclusive = true,
+        bool maxInclusive = true)
     {
         var dependency = new ContentDependency
         {
@@ -348,6 +350,8 @@ public partial class ContentManifestBuilder(
             ConflictsWith = conflictsWith ?? [],
             InstallBehavior = installBehavior,
             CompatibleGameTypes = compatibleGameTypes ?? [],
+            MinInclusive = minInclusive,
+            MaxInclusive = maxInclusive,
         };
         _manifest.Dependencies.Add(dependency);
         logger.LogDebug("Added dependency: {DependencyId} (InstallBehavior: {InstallBehavior}, Exclusive: {IsExclusive})", id, installBehavior, isExclusive);

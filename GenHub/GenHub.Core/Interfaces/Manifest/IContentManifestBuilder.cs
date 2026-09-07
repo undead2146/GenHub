@@ -144,6 +144,8 @@ public interface IContentManifestBuilder
     /// <param name="isExclusive">Whether the dependency is exclusive.</param>
     /// <param name="conflictsWith">List of conflicting dependency IDs.</param>
     /// <param name="compatibleGameTypes">List of compatible game types.</param>
+    /// <param name="minInclusive">Whether the minimum version bound is inclusive.</param>
+    /// <param name="maxInclusive">Whether the maximum version bound is inclusive.</param>
     /// <returns>The builder instance for chaining.</returns>
     [SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "Manifest builder fluent API preserves overload parity with existing AddDependency methods.")]
     IContentManifestBuilder AddDependency(
@@ -156,7 +158,9 @@ public interface IContentManifestBuilder
         List<string>? compatibleVersions = null,
         bool isExclusive = false,
         List<ManifestId>? conflictsWith = null,
-        List<GameType>? compatibleGameTypes = null);
+        List<GameType>? compatibleGameTypes = null,
+        bool minInclusive = true,
+        bool maxInclusive = true);
 
     /// <summary>
     /// Scans a directory and adds files with the specified source type.
