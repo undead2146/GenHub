@@ -218,6 +218,11 @@ public static partial class ContentCardBadgeHelper
 
         if (IsTheSuperHackers(result))
         {
+            if (result.ContentType == ContentType.Patch)
+            {
+                return "avares://GenHub/Assets/Covers/gla-cover.png";
+            }
+
             return "avares://GenHub/Assets/Covers/china-cover.png";
         }
 
@@ -482,7 +487,11 @@ public static partial class ContentCardBadgeHelper
         return (result.ProviderName?.Contains("superhacker", StringComparison.OrdinalIgnoreCase) == true) ||
                (result.AuthorName?.Contains("superhacker", StringComparison.OrdinalIgnoreCase) == true) ||
                (result.Id?.Contains("thesuperhackers", StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.Id?.Contains("superhacker", StringComparison.OrdinalIgnoreCase) == true);
+               (result.Id?.Contains("superhacker", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.VariantGroupId?.Contains("thesuperhackers", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.VariantGroupId?.Contains("superhacker", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.ResolverMetadata?.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) == true &&
+                owner.Contains("superhacker", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsGeneralsOnline(ContentSearchResult result)

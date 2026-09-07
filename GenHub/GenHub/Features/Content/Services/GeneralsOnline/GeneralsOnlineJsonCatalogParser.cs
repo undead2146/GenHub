@@ -140,6 +140,13 @@ public class GeneralsOnlineJsonCatalogParser(
     private static GeneralsOnlineRelease CreateReleaseFromApiResponse(GeneralsOnlineApiResponse apiResponse)
     {
         var versionDate = ParseVersionDate(apiResponse.Version) ?? DateTime.UtcNow;
+        var changelog = apiResponse.ReleaseNotes;
+        if (string.IsNullOrWhiteSpace(changelog) ||
+            string.Equals(changelog.Trim(), "www.playgenerals.online", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(changelog.Trim(), "https://www.playgenerals.online", StringComparison.OrdinalIgnoreCase))
+        {
+            changelog = $"Generals Online {apiResponse.Version}";
+        }
 
         return new GeneralsOnlineRelease
         {
@@ -149,7 +156,7 @@ public class GeneralsOnlineJsonCatalogParser(
             PortableUrl = apiResponse.DownloadUrl,
             PortableSize = apiResponse.Size,
             Sha256 = apiResponse.Sha256,
-            Changelog = apiResponse.ReleaseNotes ?? $"Generals Online {apiResponse.Version}",
+            Changelog = changelog,
         };
     }
 

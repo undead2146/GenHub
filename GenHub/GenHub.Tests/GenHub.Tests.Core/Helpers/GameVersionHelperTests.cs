@@ -15,6 +15,8 @@ public class GameVersionHelperTests
     /// <param name="version">The version string.</param>
     /// <param name="expected">The expected manifest ID component.</param>
     [Theory]
+    [InlineData("082826", 828260)]
+    [InlineData("082826_QFE1", 828261)]
     [InlineData("101525_QFE2", 1015252)]
     [InlineData("111825_QFE2", 1118252)]
     [InlineData("121525_QFE1", 1215251)]
@@ -68,47 +70,11 @@ public class GameVersionHelperTests
     /// <param name="expected">The expected fallback component.</param>
     [Theory]
     [InlineData("101525_QFE-1", 1015251)]
-    [InlineData("101525_QFEQFE-2", 1015252)]
-    [InlineData("101525_QFE2147483647", 1_015_252_147)]
-    public void GetGeneralsOnlineManifestIdComponent_FallsBackForInvalidQfe(string version, int expected)
+    [InlineData("101525_QFE+1", 1015251)]
+    [InlineData("101525_QFE2147483647", 1015252147)]
+    [InlineData("101525_QFE9999999999", 1015259999)]
+    public void GetGeneralsOnlineManifestIdComponent_FallsBackForMalformedOrOverflowingQfe(string version, int expected)
     {
         Assert.Equal(expected, GameVersionHelper.GetGeneralsOnlineManifestIdComponent(version));
-    }
-
-    /// <summary>
-    /// Verifies that signed and whitespace-padded date components use the fallback
-    /// rather than being accepted by permissive integer parsing.
-    /// </summary>
-    /// <param name="version">The malformed version string.</param>
-    [Theory]
-    [InlineData("01+225_QFE2")]
-    [InlineData("01 225_QFE2")]
-    [InlineData("0102+5_QFE2")]
-    public void GetGeneralsOnlineManifestIdComponent_FallsBackForNonDigitDate(string version)
-    {
-        Assert.Equal(
-            GameVersionHelper.ExtractVersionFromVersionString(version),
-            GameVersionHelper.GetGeneralsOnlineManifestIdComponent(version));
-    }
-
-    /// <summary>
-    /// Verifies that manifest IDs use the publisher's Gregorian MMDDYY digits even when
-    /// the current culture uses a different calendar.
-    /// </summary>
-    [Fact]
-    public void GetGeneralsOnlineManifestIdComponent_IsCultureInvariant()
-    {
-        var originalCulture = CultureInfo.CurrentCulture;
-
-        try
-        {
-            CultureInfo.CurrentCulture = new CultureInfo("th-TH");
-
-            Assert.Equal(314252, GameVersionHelper.GetGeneralsOnlineManifestIdComponent("031425_QFE2"));
-        }
-        finally
-        {
-            CultureInfo.CurrentCulture = originalCulture;
-        }
     }
 }

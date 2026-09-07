@@ -103,14 +103,14 @@ public sealed partial class ContentGridItemViewModel(
     {
         get
         {
-            if (!string.IsNullOrWhiteSpace(SelectedVariant?.Name))
-            {
-                return SelectedVariant.Name;
-            }
-
             if (!string.IsNullOrWhiteSpace(SearchResult.Name))
             {
                 return SearchResult.Name;
+            }
+
+            if (!string.IsNullOrWhiteSpace(SelectedVariant?.Name))
+            {
+                return SelectedVariant.Name;
             }
 
             return SearchResult.VariantFamilyName ?? UnknownValue;

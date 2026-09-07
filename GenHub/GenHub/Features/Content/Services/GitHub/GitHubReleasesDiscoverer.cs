@@ -316,6 +316,7 @@ public partial class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILo
                 ManifestId = $"github.{request.Owner}.{request.Repo}.{request.Release.TagName}.{SuperHackersConstants.ZeroHourSuffix}",
                 VariantType = "game-type",
                 IsDefault = true,
+                TargetGame = GameType.ZeroHour,
             },
             new ContentVariantInfo
             {
@@ -324,6 +325,7 @@ public partial class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILo
                 ManifestId = $"github.{request.Owner}.{request.Repo}.{request.Release.TagName}.{SuperHackersConstants.GeneralsSuffix}",
                 VariantType = "game-type",
                 IsDefault = false,
+                TargetGame = GameType.Generals,
             },
         ];
 
@@ -369,9 +371,9 @@ public partial class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILo
         var isSuperHackers = owner.Equals(PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase) ||
                              owner.Equals(SuperHackersConstants.PublisherName, StringComparison.OrdinalIgnoreCase);
 
-        var isSuperHackersGameClient = contentType == ContentType.GameClient
-            && !isTypeInferred
-            && isSuperHackers;
+        var isSuperHackersGameClient = isSuperHackers &&
+            (contentType == ContentType.GameClient ||
+             repo.Equals(SuperHackersConstants.GeneralsGameCodeRepo, StringComparison.OrdinalIgnoreCase));
 
         if (isSuperHackersGameClient)
         {

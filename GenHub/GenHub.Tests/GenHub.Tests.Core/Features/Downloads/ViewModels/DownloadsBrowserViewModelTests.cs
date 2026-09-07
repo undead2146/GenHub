@@ -11,6 +11,7 @@ using GenHub.Core.Interfaces.GitHub;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Providers;
 using GenHub.Core.Models.Content;
+using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Results.Content;
 using GenHub.Features.Content.Services.Catalog;
@@ -622,6 +623,56 @@ public class DownloadsBrowserViewModelTests
         await Task.Delay(50);
         Assert.Single(viewModel.ContentItems);
         Assert.Equal("mod-b1", viewModel.ContentItems[0].SearchResult.Id);
+    }
+
+    /// <summary>
+    /// Verifies that DownloadContentCommand propagates cancellation token and updates item download status on cancellation.
+    /// </summary>
+    /// <returns>A completed task.</returns>
+    [Fact]
+    public async Task DownloadContentCommand_WhenCancelled_UpdatesDownloadStatusToCancelledAsync()
+    {
+        // Arrange
+        var orchestrator = new Mock<IContentOrchestrator>();
+        var tcs = new TaskCompletionSource<OperationResult<ContentManifest>>();
+        orchestrator
+            .Setup(o => o.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()))
+            .Returns<ContentSearchResult, IProgress<ContentAcquisitionProgress>, CancellationToken>((_, _, token) =>
+            {
+                token.Register(() => tcs.TrySetCanceled(token));
+                return tcs.Task;
+            });
+
+        var subscriptionStore = new Mock<IPublisherSubscriptionStore>();
+        subscriptionStore
+            .Setup(store => store.GetSubscriptionsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IReadOnlyList<PublisherSubscription>>.CreateSuccess([]));
+
+        using var viewModel = new DownloadsBrowserViewModel(
+            new Mock<IServiceProvider>().Object,
+            new Mock<ILogger<DownloadsBrowserViewModel>>().Object,
+            [],
+            new Mock<IContentStateService>().Object,
+            orchestrator.Object,
+            new Mock<IProfileContentService>().Object,
+            new Mock<IGameProfileManager>().Object,
+            new Mock<INotificationService>().Object,
+            new Mock<ILoggerFactory>().Object,
+            subscriptionStore.Object);
+
+        var item = new ContentGridItemViewModel(
+            new ContentSearchResult { Id = "test", Name = "Test Mod" },
+            new Mock<IContentStateService>().Object,
+            new Mock<ILogger<ContentGridItemViewModel>>().Object);
+
+        // Act
+        var downloadTask = viewModel.DownloadContentCommand.ExecuteAsync(item);
+        viewModel.DownloadContentCommand.Cancel();
+        await downloadTask;
+
+        // Assert
+        Assert.False(item.IsDownloading);
+        Assert.Equal("Download cancelled", item.DownloadStatus);
     }
 
     private static DownloadsBrowserViewModel CreateViewModel()

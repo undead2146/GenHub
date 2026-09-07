@@ -559,7 +559,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         try
         {
             using var archive = ArchiveFactory.OpenArchive(archivePath);
-            ExtractSharpCompressArchive(archive, extractPath, progress, logger, cancellationToken);
+            ExtractSharpCompressArchive(archive, Path.GetFullPath(archivePath), extractPath, progress, logger, cancellationToken);
         }
         catch when (isExe)
         {
@@ -569,6 +569,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
 
     private static void ExtractSharpCompressArchive(
         IArchive archive,
+        string fullArchivePath,
         string extractPath,
         IProgress<ContentAcquisitionProgress>? progress,
         ILogger logger,
@@ -608,6 +609,12 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
             if (destinationPath == null)
             {
                 throw new InvalidDataException($"Archive entry could not be resolved: {entryKey}");
+            }
+
+            if (!string.IsNullOrEmpty(fullArchivePath) &&
+                string.Equals(destinationPath, fullArchivePath, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException($"Archive entry cannot overwrite the archive itself: {entryKey}");
             }
 
             var destinationDir = Path.GetDirectoryName(destinationPath);
@@ -749,11 +756,12 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
 
             long totalUncompressedSize = 0;
             var extractRoot = Path.GetFullPath(extractPath);
+            var fullArchivePath = Path.GetFullPath(archivePath);
 
             for (var i = 0; i < totalEntries; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                ExtractSingleZipEntry(validEntries[i], extractRoot, i, totalEntries, ref totalUncompressedSize, progress, logger, cancellationToken);
+                ExtractSingleZipEntry(validEntries[i], fullArchivePath, extractRoot, i, totalEntries, ref totalUncompressedSize, progress, logger, cancellationToken);
             }
 
             return true;
@@ -775,6 +783,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "Zip entry extraction requires stream coordinates, cancellation, and progress reporting.")]
     private static void ExtractSingleZipEntry(
         ZipArchiveEntry entry,
+        string fullArchivePath,
         string extractRoot,
         int index,
         int totalEntries,
@@ -795,6 +804,12 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         }
 
         var destinationPath = pathResult.Data ?? string.Empty;
+        if (!string.IsNullOrEmpty(fullArchivePath) &&
+            string.Equals(destinationPath, fullArchivePath, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException($"Archive entry cannot overwrite the archive itself: {entry.FullName}");
+        }
+
         var destinationDir = Path.GetDirectoryName(destinationPath);
         if (!string.IsNullOrEmpty(destinationDir))
         {
@@ -869,7 +884,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
             stream.Position = offset;
             using var subStream = new SubStream(stream, offset, stream.Length - offset);
             using var archive = ArchiveFactory.OpenArchive(subStream);
-            ExtractSharpCompressArchive(archive, extractPath, progress, logger, cancellationToken);
+            ExtractSharpCompressArchive(archive, Path.GetFullPath(archivePath), extractPath, progress, logger, cancellationToken);
             return true;
         }
         catch (OperationCanceledException)

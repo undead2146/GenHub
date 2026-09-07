@@ -664,6 +664,32 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
         Assert.False(File.Exists(Path.Combine(_stagingDirectory, "ModUninstaller.exe")), "Uninstaller executable should not be extracted");
     }
 
+    /// <summary>
+    /// Verifies that an archive containing an entry whose resolved destination path matches the archive itself
+    /// throws an InvalidDataException to avoid sharing violations or self-overwrite corruption.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ExtractArchivesSafelyAsync_EntryMatchesArchiveSelfPath_ThrowsInvalidDataExceptionAsync()
+    {
+        // Arrange
+        Directory.CreateDirectory(_stagingDirectory);
+        var archivePath = Path.Combine(_stagingDirectory, "self.zip");
+        using (var archive = ZipFile.Open(archivePath, ZipArchiveMode.Create))
+        {
+            var entry = archive.CreateEntry("self.zip");
+            using var writer = new StreamWriter(entry.Open());
+            await writer.WriteAsync("self content");
+        }
+
+        var processor = CreateProcessor();
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<InvalidDataException>(
+            () => processor.ExtractArchivesSafelyAsync(_stagingDirectory));
+        Assert.Contains("cannot overwrite the archive itself", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {

@@ -341,7 +341,7 @@ public sealed partial class DownloadsBrowserViewModel(
                 Description = primaryItem.Description,
                 Version = primaryItem.Version,
                 ContentType = primaryItem.ContentType,
-                TargetGame = primaryItem.TargetGame,
+                TargetGame = v.TargetGame ?? primaryItem.TargetGame,
                 ProviderName = primaryItem.ProviderName,
                 AuthorName = primaryItem.AuthorName,
                 IconUrl = primaryItem.IconUrl,
@@ -359,9 +359,11 @@ public sealed partial class DownloadsBrowserViewModel(
                 variantSr.ResolverMetadata[kvp.Key] = kvp.Value;
             }
 
+            variantSr.ResolverMetadata["selectedVariant"] = v.Id;
+
             var installable = new InstallableVariant
             {
-                Name = VariantSwap.ResolveDisplayName(variantSr, v),
+                Name = !string.IsNullOrWhiteSpace(v.Name) ? v.Name : VariantSwap.ResolveDisplayName(variantSr, v),
                 ManifestId = VariantSwap.ResolveCatalogKey(variantSr, v),
                 IconUrl = primaryItem.IconUrl ?? string.Empty,
                 VariantType = v.VariantType ?? string.Empty,
@@ -391,9 +393,13 @@ public sealed partial class DownloadsBrowserViewModel(
             };
 
             var catalogKey = VariantSwap.ResolveCatalogKey(sibling, info);
+            var displayName = !string.IsNullOrWhiteSpace(info.Name)
+                ? info.Name
+                : VariantSwap.ResolveDisplayName(sibling, info);
+
             var installable = new InstallableVariant
             {
-                Name = VariantSwap.ResolveDisplayName(sibling, info),
+                Name = displayName,
                 ManifestId = catalogKey,
                 IconUrl = sibling.IconUrl ?? string.Empty,
                 VariantType = info.VariantType ?? string.Empty,
@@ -1108,7 +1114,9 @@ public sealed partial class DownloadsBrowserViewModel(
         ContentSearchResult primaryItem,
         CancellationToken ct)
     {
-        if (groupItems.Count == 1 && string.IsNullOrEmpty(primaryItem.VariantGroupId))
+        if (groupItems.Count == 1 &&
+            string.IsNullOrEmpty(primaryItem.VariantGroupId) &&
+            (primaryItem.Variants == null || primaryItem.Variants.Count <= 1))
         {
             return await CreateSingletonItemViewModelAsync(primaryItem, ct);
         }
@@ -1410,14 +1418,15 @@ public sealed partial class DownloadsBrowserViewModel(
     }
 
     [RelayCommand]
-    private async Task DownloadContentAsync(ContentGridItemViewModel item)
+    private async Task DownloadContentAsync(ContentGridItemViewModel item, CancellationToken cancellationToken = default)
     {
         if (item == null || item.IsDownloading)
         {
             return;
         }
 
-        CancellationToken cancellationToken = default; // We might want to support cancellation later
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _vmCts.Token);
+        var effectiveToken = linkedCts.Token;
 
         try
         {
@@ -1427,7 +1436,7 @@ public sealed partial class DownloadsBrowserViewModel(
 
             if (item.HasBundleComponents)
             {
-                await DownloadBundleComponentsAsync(item, cancellationToken);
+                await DownloadBundleComponentsAsync(item, effectiveToken);
                 return;
             }
 
@@ -1451,7 +1460,7 @@ public sealed partial class DownloadsBrowserViewModel(
                 });
             });
 
-            var result = await contentOrchestrator.AcquireContentAsync(item.SearchResult, progress, cancellationToken);
+            var result = await contentOrchestrator.AcquireContentAsync(item.SearchResult, progress, effectiveToken);
 
             if (result.Success && result.Data != null)
             {

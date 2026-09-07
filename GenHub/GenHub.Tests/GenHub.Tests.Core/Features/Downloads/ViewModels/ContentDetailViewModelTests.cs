@@ -1281,6 +1281,28 @@ public sealed class ContentDetailViewModelTests
         Assert.Equal("1.20161219.moddb.mod.shwchaos", fullRel.DownloadedManifestId);
     }
 
+    /// <summary>
+    /// Verifies that OpenUrl rejects null, whitespace, or non-http/https URIs without throwing exceptions.
+    /// </summary>
+    /// <param name="url">The URL string to evaluate.</param>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("ftp://example.com/file.zip")]
+    [InlineData("file:///C:/malicious.exe")]
+    public void OpenUrlCommand_WithInvalidOrNonHttpScheme_DoesNotThrow(string? url)
+    {
+        // Arrange
+        var coordinator = new Mock<IContentDownloadCoordinator>();
+        var item = new ContentSearchResult { Id = "test-item", Name = "Test" };
+        var viewModel = CreateViewModel(item, coordinator.Object);
+
+        // Act & Assert
+        var ex = Record.Exception(() => viewModel.OpenUrlCommand.Execute(url));
+        Assert.Null(ex);
+    }
+
     private static CapturingContentDetailViewModel CreateViewModel(
         ContentSearchResult searchResult,
         IContentDownloadCoordinator downloadCoordinator,

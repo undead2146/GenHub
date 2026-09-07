@@ -498,7 +498,7 @@ public partial class ContentDetailViewModel(
         $"file:{file.DownloadUrl ?? file.Name}";
 
     private static bool IsModDbContent(ContentSearchResult content) =>
-        string.Equals(content.ProviderName, "ModDB", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(content.ProviderName, ModDBConstants.PublisherDisplayName, StringComparison.OrdinalIgnoreCase) ||
         string.Equals(content.ProviderName, ModDBConstants.PublisherType, StringComparison.OrdinalIgnoreCase) ||
         (!string.IsNullOrEmpty(content.SourceUrl) &&
          content.SourceUrl.Contains("moddb.com", StringComparison.OrdinalIgnoreCase));
@@ -598,7 +598,7 @@ public partial class ContentDetailViewModel(
         }
 
         if (providerName.Equals(PublisherInfoConstants.CommunityOutpost.Name, StringComparison.OrdinalIgnoreCase) ||
-            providerName.Equals("community-outpost", StringComparison.OrdinalIgnoreCase))
+            providerName.Equals(CommunityOutpostConstants.PublisherId, StringComparison.OrdinalIgnoreCase))
         {
             return (PublisherInfoConstants.CommunityOutpost.Name, PublisherInfoConstants.CommunityOutpost.Website, PublisherInfoConstants.CommunityOutpost.SupportUrl);
         }
@@ -1542,6 +1542,24 @@ public partial class ContentDetailViewModel(
                 !string.IsNullOrWhiteSpace(catalogItemJson))
             {
                 PopulateFromCatalogMetadata(catalogItemJson);
+            }
+            else if (Releases.Count == 0 && Variants.Count == 0 && !string.IsNullOrEmpty(searchResult.SourceUrl) && searchResult.RequiresResolution)
+            {
+                var fileName = GetFileNameFromUrl(searchResult.SourceUrl) ?? $"{searchResult.Name}.zip";
+                var file = new DownloadableFile(
+                    Name: searchResult.Name,
+                    DownloadUrl: searchResult.SourceUrl,
+                    SizeBytes: searchResult.DownloadSize > 0 ? searchResult.DownloadSize : null,
+                    UploadDate: searchResult.LastUpdated,
+                    ReleaseDate: searchResult.LastUpdated,
+                    Version: searchResult.Version,
+                    Category: searchResult.ContentType.GetDisplayName(),
+                    Uploader: searchResult.AuthorName,
+                    Filename: fileName,
+                    Description: searchResult.Description,
+                    FileSectionType: FileSectionType.Downloads);
+                Files = [file];
+                PopulateReleases(Files);
             }
 
             return;
@@ -3015,7 +3033,7 @@ public partial class ContentDetailViewModel(
                         var id = embedParts[1].Split('?')[0];
                         if (!string.IsNullOrWhiteSpace(id))
                         {
-                            targetUrl = $"https://www.youtube.com/watch?v={id}";
+                            targetUrl = $"{ApiConstants.YouTubeWatchUrlPrefix}{id}";
                         }
                     }
                 }
@@ -4058,11 +4076,18 @@ public partial class ContentDetailViewModel(
             return;
         }
 
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            logger.LogWarning("Refusing to open non-http/https URL in browser: {Url}", url);
+            return;
+        }
+
         try
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
-                FileName = url,
+                FileName = uri.AbsoluteUri,
                 UseShellExecute = true,
             });
         }
