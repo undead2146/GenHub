@@ -515,6 +515,12 @@ public partial class GitHubTopicsDiscoverer(
                     j++;
                 }
 
+                while (j < parts.Length)
+                {
+                    segments.Add(parts[j]);
+                    j++;
+                }
+
                 versionToken = string.Join(".", segments);
                 return true;
             }
@@ -588,6 +594,11 @@ public partial class GitHubTopicsDiscoverer(
 
     private static int GetResolutionRank(ContentVariantInfo v)
     {
+        if (v.Name.Contains("8K", StringComparison.OrdinalIgnoreCase)) return 4320;
+        if (v.Name.Contains("5K", StringComparison.OrdinalIgnoreCase)) return 2880;
+        if (v.Name.Contains("4K", StringComparison.OrdinalIgnoreCase)) return 2160;
+        if (v.Name.Contains("2K", StringComparison.OrdinalIgnoreCase)) return 1440;
+
         var match = VariantPatterns.ResolutionHeightPattern().Match(v.Name);
         if (match.Success && int.TryParse(match.Groups[1].Value, out var height))
         {
@@ -614,12 +625,24 @@ public partial class GitHubTopicsDiscoverer(
     /// </summary>
     private static string InferVariantType(ContentSearchResult result)
     {
-        var name = result.Name ?? string.Empty;
-        var lower = name.ToLowerInvariant();
+        var target = string.Empty;
+        if (result.ResolverMetadata.TryGetValue("asset-name", out var assetNameObj) && assetNameObj is string assetName)
+        {
+            target = ExtractAssetVariant(assetName);
+        }
+
+        if (string.IsNullOrEmpty(target))
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(result.Name ?? string.Empty, @"\(([^)]+)\)$", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1));
+            target = match.Success ? match.Groups[1].Value : (result.Name ?? string.Empty);
+        }
+
+        var lower = target.ToLowerInvariant();
 
         if (VariantPatterns.ResolutionPattern().IsMatch(lower) ||
             lower.Contains("1080p") || lower.Contains("720p") || lower.Contains("1440p") ||
-            lower.Contains("2160p") || lower.Contains("4k") || lower.Contains("768p") || lower.Contains("900p"))
+            lower.Contains("2160p") || lower.Contains("4k") || lower.Contains("5k") ||
+            lower.Contains("8k") || lower.Contains("768p") || lower.Contains("900p"))
         {
             return ResolutionVariantType;
         }

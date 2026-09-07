@@ -364,10 +364,15 @@ public sealed partial class DownloadsBrowserViewModel(
                 ? v.ManifestId
                 : $"1.0.{primaryItem.ProviderName.ToLowerInvariant()}.{primaryItem.ContentType.ToString().ToLowerInvariant()}.{lastSegment}-{v.Id}";
 
+            var baseName = !string.IsNullOrEmpty(primaryItem.VariantFamilyName) ? primaryItem.VariantFamilyName : primaryItem.Name;
+            var variantName = !string.IsNullOrEmpty(v.Name) && v.Name.StartsWith(baseName, StringComparison.OrdinalIgnoreCase)
+                ? v.Name
+                : $"{baseName} - {v.Name}";
+
             var variantSr = new ContentSearchResult
             {
                 Id = manifestId,
-                Name = string.IsNullOrEmpty(primaryItem.VariantFamilyName) ? $"{primaryItem.Name} - {v.Name}" : $"{primaryItem.VariantFamilyName} - {v.Name}",
+                Name = variantName,
                 Description = primaryItem.Description,
                 Version = primaryItem.Version,
                 ContentType = primaryItem.ContentType,
@@ -412,7 +417,9 @@ public sealed partial class DownloadsBrowserViewModel(
         {
             var variantInfo = sibling.Variants?.FirstOrDefault(v =>
                 string.Equals(v.Id, sibling.Id, StringComparison.OrdinalIgnoreCase) ||
-                (!string.IsNullOrEmpty(v.Id) && sibling.Id?.EndsWith($".{v.Id}", StringComparison.OrdinalIgnoreCase) == true));
+                string.Equals(v.ManifestId, sibling.Id, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrEmpty(v.Id) && sibling.Id?.EndsWith($".{v.Id}", StringComparison.OrdinalIgnoreCase) == true) ||
+                (!string.IsNullOrEmpty(v.Id) && sibling.Id?.EndsWith($"-{v.Id}", StringComparison.OrdinalIgnoreCase) == true));
 
             var info = variantInfo ?? new ContentVariantInfo
             {
@@ -420,6 +427,7 @@ public sealed partial class DownloadsBrowserViewModel(
                 Name = sibling.Name ?? sibling.Id ?? "Unknown",
                 ManifestId = sibling.Id ?? string.Empty,
                 IsDefault = sibling == defaultVariant,
+                VariantType = sibling.Variants?.FirstOrDefault(v => !string.IsNullOrEmpty(v.VariantType))?.VariantType ?? string.Empty,
             };
 
             var catalogKey = VariantSwap.ResolveCatalogKey(sibling, info);
@@ -527,6 +535,10 @@ public sealed partial class DownloadsBrowserViewModel(
     {
         if (value == null)
         {
+            Interlocked.Increment(ref _activeRequestId);
+            _searchCts?.Cancel();
+            _searchCts?.Dispose();
+            _searchCts = null;
             return;
         }
 
@@ -886,7 +898,7 @@ public sealed partial class DownloadsBrowserViewModel(
 
                 CommitBrowseResultsToCache(publisherId, query, result.Data.HasMoreItems, isCustomQuery, append, inFlightOp, newVms);
 
-                if (isCustomQuery && _activeRequestId != requestId)
+                if (isCustomQuery && (_activeRequestId != requestId || SelectedPublisher?.PublisherId != publisherId))
                 {
                     CleanupInFlight(publisherId, inFlightOp);
                     return false;
@@ -1110,6 +1122,18 @@ public sealed partial class DownloadsBrowserViewModel(
 
         lock (_cacheLock)
         {
+            var isPublisherKnown = Publishers.Any(p => string.Equals(p.PublisherId, publisherId, StringComparison.OrdinalIgnoreCase));
+            if (!isPublisherKnown)
+            {
+                foreach (var vm in newVms)
+                {
+                    vm.Dispose();
+                }
+
+                _inFlightOperations.Remove(publisherId);
+                return;
+            }
+
             if (_browseCache.TryGetValue(publisherId, out var existingState))
             {
                 if (append)
@@ -1353,6 +1377,19 @@ public sealed partial class DownloadsBrowserViewModel(
             {
                 Publishers.Remove(item);
                 _subscribedDiscoverers.Remove(item.PublisherId);
+
+                lock (_cacheLock)
+                {
+                    if (_inFlightOperations.Remove(item.PublisherId, out var inFlight))
+                    {
+                        inFlight.Cts.Cancel();
+                        foreach (var vm in inFlight.ResolvedItems)
+                        {
+                            vm.Dispose();
+                        }
+                    }
+                }
+
                 if (_browseCache.Remove(item.PublisherId, out var removedState))
                 {
                     removedState.ActiveDetailViewModel?.Dispose();
@@ -1365,6 +1402,10 @@ public sealed partial class DownloadsBrowserViewModel(
 
                 if (SelectedPublisher?.PublisherId == item.PublisherId)
                 {
+                    if (_searchCts != null)
+                    {
+                        await _searchCts.CancelAsync();
+                    }
                     foreach (var contentItem in ContentItems)
                     {
                         contentItem.Dispose();

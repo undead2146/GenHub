@@ -116,7 +116,8 @@ public class SuperHackersProvider(
                                 ? latestRelease.Name
                                 : $"{displayName} {latestRelease.TagName}";
                             var tag = latestRelease.TagName ?? LatestTagFallback;
-                            var variantGroupId = $"thesuperhackers.{repo.ToLowerInvariant()}.gameclient.{tag.ToLowerInvariant()}";
+                            var variantGroupId = SuperHackersConstants.GetGameClientVariantGroupId(tag);
+                            var userVersion = SuperHackersConstants.ExtractVersionFromReleaseTag(tag);
 
                             var variants = new List<ContentVariantInfo>
                             {
@@ -124,7 +125,11 @@ public class SuperHackersProvider(
                                 {
                                     Id = $"github.{owner}.{repo}.{tag}.{SuperHackersConstants.ZeroHourSuffix}",
                                     Name = $"{baseName} — {SuperHackersConstants.ZeroHourDisplayName}",
-                                    ManifestId = $"github.{owner}.{repo}.{tag}.{SuperHackersConstants.ZeroHourSuffix}",
+                                    ManifestId = ManifestIdGenerator.GeneratePublisherContentId(
+                                        PublisherTypeConstants.TheSuperHackers,
+                                        ContentType.GameClient,
+                                        SuperHackersConstants.ZeroHourSuffix,
+                                        userVersion),
                                     VariantType = "game-type",
                                     IsDefault = true,
                                     TargetGame = GameType.ZeroHour,
@@ -133,7 +138,11 @@ public class SuperHackersProvider(
                                 {
                                     Id = $"github.{owner}.{repo}.{tag}.{SuperHackersConstants.GeneralsSuffix}",
                                     Name = $"{baseName} — {SuperHackersConstants.GeneralsDisplayName}",
-                                    ManifestId = $"github.{owner}.{repo}.{tag}.{SuperHackersConstants.GeneralsSuffix}",
+                                    ManifestId = ManifestIdGenerator.GeneratePublisherContentId(
+                                        PublisherTypeConstants.TheSuperHackers,
+                                        ContentType.GameClient,
+                                        SuperHackersConstants.GeneralsSuffix,
+                                        userVersion),
                                     VariantType = "game-type",
                                     IsDefault = false,
                                     TargetGame = GameType.Generals,

@@ -705,15 +705,20 @@ public partial class ContentDetailViewModel(
         (file.PreviewImages is { Count: > 0 }) ||
         !string.IsNullOrEmpty(file.Description);
 
-    private static ContentVariantInfo MatchVariantInfo(ContentSearchResult sibling, string key)
+    private static ContentVariantInfo MatchVariantInfo(ContentSearchResult sibling, string key, IList<ContentVariantInfo>? primaryVariants = null)
     {
-        var variantInfo = sibling.Variants?.FirstOrDefault(v =>
+        var variants = sibling.Variants ?? primaryVariants;
+        var variantInfo = variants?.FirstOrDefault(v =>
             string.Equals(v.Id, sibling.Id, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(v.Id, key, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(v.ManifestId, sibling.Id, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(v.ManifestId, key, StringComparison.OrdinalIgnoreCase) ||
             (!string.IsNullOrEmpty(v.Id) && sibling.Id?.EndsWith($".{v.Id}", StringComparison.OrdinalIgnoreCase) == true) ||
-            (!string.IsNullOrEmpty(v.Id) && key.EndsWith($".{v.Id}", StringComparison.OrdinalIgnoreCase)));
+            (!string.IsNullOrEmpty(v.Id) && sibling.Id?.EndsWith($"-{v.Id}", StringComparison.OrdinalIgnoreCase) == true) ||
+            (!string.IsNullOrEmpty(v.Id) && key.EndsWith($".{v.Id}", StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrEmpty(v.Id) && key.EndsWith($"-{v.Id}", StringComparison.OrdinalIgnoreCase)));
 
-        if (variantInfo == null && sibling.Variants != null)
+        if (variantInfo == null && variants != null)
         {
             var gameSuffix = sibling.TargetGame switch
             {
@@ -723,12 +728,21 @@ public partial class ContentDetailViewModel(
             };
             if (gameSuffix != null)
             {
-                variantInfo = sibling.Variants.FirstOrDefault(v =>
+                variantInfo = variants.FirstOrDefault(v =>
                     v.Id.EndsWith($".{gameSuffix}", StringComparison.OrdinalIgnoreCase) ||
+                    v.Id.EndsWith($"-{gameSuffix}", StringComparison.OrdinalIgnoreCase) ||
                     v.Name.Contains(gameSuffix, StringComparison.OrdinalIgnoreCase) ||
                     (sibling.TargetGame == GameType.ZeroHour && v.Name.Contains("Zero Hour", StringComparison.OrdinalIgnoreCase)) ||
                     (sibling.TargetGame == GameType.Generals && v.Name.Contains("Generals", StringComparison.OrdinalIgnoreCase) && !v.Name.Contains("Zero Hour", StringComparison.OrdinalIgnoreCase)));
             }
+        }
+
+        if (variantInfo == null && variants != null)
+        {
+            variantInfo = variants.FirstOrDefault(v =>
+                !string.IsNullOrEmpty(v.Id) &&
+                ((sibling.Id != null && (sibling.Id.EndsWith($"-{v.Id}", StringComparison.OrdinalIgnoreCase) || sibling.Id.EndsWith($".{v.Id}", StringComparison.OrdinalIgnoreCase))) ||
+                 key.EndsWith($"-{v.Id}", StringComparison.OrdinalIgnoreCase) || key.EndsWith($".{v.Id}", StringComparison.OrdinalIgnoreCase)));
         }
 
         return variantInfo ?? new ContentVariantInfo
@@ -736,6 +750,7 @@ public partial class ContentDetailViewModel(
             Id = !string.IsNullOrEmpty(key) ? key : (sibling.Id ?? string.Empty),
             Name = sibling.Name ?? sibling.Id ?? UnknownValue,
             ManifestId = !string.IsNullOrEmpty(key) ? key : (sibling.Id ?? string.Empty),
+            VariantType = variants?.FirstOrDefault(v => !string.IsNullOrEmpty(v.VariantType))?.VariantType ?? string.Empty,
         };
     }
 
@@ -854,7 +869,7 @@ public partial class ContentDetailViewModel(
         foreach (var kvp in variantSearchResults)
         {
             var sibling = kvp.Value;
-            var info = MatchVariantInfo(sibling, kvp.Key);
+            var info = MatchVariantInfo(sibling, kvp.Key, searchResult.Variants);
             var catalogKey = VariantSwap.ResolveCatalogKey(sibling, info);
             if (string.IsNullOrEmpty(catalogKey))
             {
@@ -901,7 +916,7 @@ public partial class ContentDetailViewModel(
             RebuildVariantAxes();
             SelectedVariant = defaultSelection ?? Variants.FirstOrDefault();
 
-            if (Releases.Count == 0)
+            if (ParsedPage == null)
             {
                 PopulateReleasesFromVariants();
             }
@@ -920,10 +935,15 @@ public partial class ContentDetailViewModel(
                     ? v.ManifestId
                     : $"1.0.{searchResult.ProviderName.ToLowerInvariant()}.{searchResult.ContentType.ToString().ToLowerInvariant()}.{lastSegment}-{v.Id}";
 
+                var baseName = !string.IsNullOrEmpty(searchResult.VariantFamilyName) ? searchResult.VariantFamilyName : searchResult.Name;
+                var variantName = !string.IsNullOrEmpty(v.Name) && v.Name.StartsWith(baseName, StringComparison.OrdinalIgnoreCase)
+                    ? v.Name
+                    : $"{baseName} - {v.Name}";
+
                 var variantSr = new ContentSearchResult
                 {
                     Id = manifestId,
-                    Name = string.IsNullOrEmpty(searchResult.VariantFamilyName) ? $"{searchResult.Name} - {v.Name}" : $"{searchResult.VariantFamilyName} - {v.Name}",
+                    Name = variantName,
                     Description = searchResult.Description,
                     Version = searchResult.Version,
                     ContentType = searchResult.ContentType,
@@ -968,7 +988,7 @@ public partial class ContentDetailViewModel(
 
         if (value != null)
         {
-            IsDownloaded = value.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable;
+            IsDownloaded = value.CurrentState == ContentState.Downloaded;
             IsUpdateAvailable = value.CurrentState is ContentState.UpdateAvailable;
         }
 
@@ -1005,7 +1025,8 @@ public partial class ContentDetailViewModel(
         {
             var match = Releases.FirstOrDefault(r =>
                 string.Equals(r.DownloadedManifestId, value.ManifestId, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(r.Name, value.Name, StringComparison.OrdinalIgnoreCase));
+                string.Equals(r.Name, value.Name, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrEmpty(value.Name) && r.Name != null && r.Name.Contains(value.Name, StringComparison.OrdinalIgnoreCase)));
             if (match != null && !ReferenceEquals(SelectedDownloadableItem, match))
             {
                 SelectDownloadableItem(match);
@@ -1059,7 +1080,7 @@ public partial class ContentDetailViewModel(
 
             if (selectedMatched)
             {
-                IsDownloaded = e.NewState is ContentState.Downloaded or ContentState.UpdateAvailable;
+                IsDownloaded = e.NewState == ContentState.Downloaded;
                 IsUpdateAvailable = e.NewState == ContentState.UpdateAvailable;
                 OnPropertyChanged(nameof(ShowDownloadButton));
                 OnPropertyChanged(nameof(ShowAddToProfileButton));
@@ -1561,7 +1582,7 @@ public partial class ContentDetailViewModel(
             {
                 PopulateFromCatalogMetadata(catalogItemJson);
             }
-            else if (Releases.Count == 0 && Variants.Count == 0 && !string.IsNullOrEmpty(searchResult.SourceUrl) && searchResult.RequiresResolution)
+            else if (!((searchResult.Variants is { Count: > 0 }) || (variantSearchResults is { Count: > 0 }) || !string.IsNullOrEmpty(searchResult.VariantGroupId)) && Releases.Count == 0 && Variants.Count == 0 && !string.IsNullOrEmpty(searchResult.SourceUrl) && searchResult.RequiresResolution)
             {
                 var fileName = GetFileNameFromUrl(searchResult.SourceUrl) ?? $"{searchResult.Name}.zip";
                 var file = new DownloadableFile(
@@ -3538,8 +3559,8 @@ public partial class ContentDetailViewModel(
                 TargetGame = ResolveTargetGameString(sibling, searchResult),
                 IsDetailsLoaded = true,
                 File = file,
-                IsDownloaded = variant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable,
-                IsUpdateAvailable = variant.CurrentState is ContentState.UpdateAvailable,
+                IsDownloaded = variant.CurrentState == ContentState.Downloaded,
+                IsUpdateAvailable = variant.CurrentState == ContentState.UpdateAvailable,
                 FetchDetailsAsync = LoadItemDetailsAsync,
             };
 
