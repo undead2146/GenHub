@@ -238,8 +238,10 @@ public sealed partial class ContentStateService(
         }
 
         // Only allow the specific cross-alias between "github" and "githubtopics"
-        if ((string.Equals(p1, "github", StringComparison.OrdinalIgnoreCase) && string.Equals(p2, "githubtopics", StringComparison.OrdinalIgnoreCase)) ||
-            (string.Equals(p1, "githubtopics", StringComparison.OrdinalIgnoreCase) && string.Equals(p2, "github", StringComparison.OrdinalIgnoreCase)))
+        if ((string.Equals(p1Clean, "github", StringComparison.OrdinalIgnoreCase) && string.Equals(p2Clean, "githubtopics", StringComparison.OrdinalIgnoreCase)) ||
+            (string.Equals(p1Clean, "githubtopics", StringComparison.OrdinalIgnoreCase) && string.Equals(p2Clean, "github", StringComparison.OrdinalIgnoreCase)) ||
+            (string.Equals(p1, "github", StringComparison.OrdinalIgnoreCase) && (string.Equals(p2, "githubtopics", StringComparison.OrdinalIgnoreCase) || string.Equals(p2, "githubtopic", StringComparison.OrdinalIgnoreCase))) ||
+            ((string.Equals(p1, "githubtopics", StringComparison.OrdinalIgnoreCase) || string.Equals(p1, "githubtopic", StringComparison.OrdinalIgnoreCase)) && string.Equals(p2, "github", StringComparison.OrdinalIgnoreCase)))
         {
             return true;
         }
