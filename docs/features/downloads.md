@@ -7,6 +7,9 @@ description: Comprehensive documentation for the GenHub Downloads browser featur
 
 The Downloads browser is GenHub's unified content discovery and acquisition interface. It provides a user-friendly way to browse, discover, download, and install game content from multiple publishers through a single, cohesive interface.
 
+> [!NOTE]
+> This document details the **Unified Downloads Browser and Acquisition Architecture** introduced in PR #265 (`feat/ui-downloads`) and its feature carves (such as PR #443 `feat/downloads-browser`). It describes the MVVM browser interface, multi-publisher discovery model, filter panels, content detail presentation, and the centralized `ContentStateService` lifecycle.
+
 ## Overview
 
 The Downloads browser serves as the primary entry point for users to discover and acquire game content including mods, maps, patches, tools, and more. It integrates with GenHub's content pipeline to provide seamless access to content from various publishers.
@@ -138,7 +141,7 @@ Built-in publishers have dedicated discoverer and resolver classes compiled dire
 | **ModDB** | CategoryDynamic | HTML Web Scraping | Mods, addons, maps, tools |
 | **CNC Labs** | CategoryDynamic | HTML Web Scraping | Maps and missions |
 | **GitHub** | CategoryDynamic | GitHub Topics API | Project releases and topics |
-| **AOD Maps** | CategoryDynamic | HTML Web Scraping | Art of Defense maps |
+| **AOD Maps** | CategoryDynamic | HTML Web Scraping | Age of Defense maps |
 
 ##### Bot-Protected Publishers (ModDB)
 
@@ -154,8 +157,9 @@ for all ModDB traffic (browse, detail, and download):
   `%LOCALAPPDATA%\GenHub\BrowserProfiles\moddb` (`PlaywrightService.CreatePersistentPageAsync`).
 - Every subsequent ModDB page that session (and across app restarts, until the cookie expires) reuses
   that cookie, so no further window or click is needed and pages load at full speed.
-- The public RSS feed (`rss.moddb.com`, ~20 newest items, not paginated) is kept only as a last-resort
-  fallback so the grid is never empty if a scrape returns nothing.
+- Because public RSS feeds are unpaginated and limited to ~10 items, ModDB discovery avoids RSS fallbacks
+  in favor of preserving the persistent headed Playwright context so users can verify Cloudflare once
+  and browse the full paginated catalog.
 
 > [!NOTE]
 > A visible browser window is the tradeoff for ModDB access. The window appears only for ModDB and
@@ -163,23 +167,22 @@ for all ModDB traffic (browse, detail, and download):
 
 ###### ModDB Failure Handling
 
-ModDB discovery degrades gracefully when the user has not solved the challenge, the browser times
-out, or the network is unavailable:
+ModDB discovery handles Cloudflare challenges and network faults gracefully:
 
 | Situation | Behavior |
 | :--- | :--- |
-| Challenge unsolved, RSS available | Grid shows RSS items (newest ~20); an info toast tells the user to solve the bot check for the full catalog. |
-| Challenge unsolved, RSS empty | Grid is empty; a warning toast explains the bot-check window and that it is needed once. |
-| Scrape/Playwright error or timeout | Falls back to RSS; if RSS is also empty, a "No content loaded" toast appears with a retry hint. |
+| Cloudflare challenge detected | The browser window is brought to front for the user to complete verification; `ContentDiscoveryResult.ChallengeDetected` is set to `true`, and the browser UI prompts the user with an actionable toast to solve the check. |
+| Verification timeout | The browser page remains open so the user can complete verification without restarting; a refresh loads the listing once cleared. |
+| Scrape/Playwright error or timeout | Returns an error result; an actionable "No content loaded" toast appears with a retry hint. |
 | ModDB **download** fails (WAF block) | The resolver returns an actionable message ("ModDB is blocking automated access…"); the detail view shows it inline and as an error toast, and points the user to "View on Website". |
 
-The discoverer exposes `ModDBDiscoverer.ChallengeDetected` (reset per `DiscoverAsync` call) so the
-browser VM can distinguish a Cloudflare block from a genuinely empty result and surface the right
+The discoverer sets `ContentDiscoveryResult.ChallengeDetected` on the returned result so the
+browser VM (`DownloadsBrowserViewModel`) can distinguish a Cloudflare block from a genuinely empty result and surface the right
 message instead of a silent empty grid.
 
 #### Subscribed Publishers
 
-Subscribed publishers (`CatalogConstants.SubscribedPublisherCategory`) are data-driven creator catalogs added via `genhub://subscribe?url=...`. They do not require code changes and are handled uniformly by `GenericCatalogDiscoverer` and `GenericCatalogResolver`:
+Subscribed publishers (`CatalogConstants.SubscribedPublisherCategory`) are data-driven creator catalogs added via `genhub://subscribe?url=...`. Introduced in the downloads browser architecture (PR #443 / PR #265), they do not require code changes and are handled uniformly by `GenericCatalogDiscoverer`, `GenericCatalogResolver`, and `GenericCatalogManifestFactory` (`GenHub.Features.Content.Services.Catalog`):
 
 | Publisher | Category | Discovery Mechanism | Resolver Strategy |
 | :--- | :--- | :--- | :--- |
@@ -187,27 +190,36 @@ Subscribed publishers (`CatalogConstants.SubscribedPublisherCategory`) are data-
 
 ### Filter Panels
 
-Each publisher provides a specialized filter panel (`IFilterPanelViewModel`) that implements publisher-specific filtering logic:
+Each publisher provides a specialized filter panel implementing `IFilterPanelViewModel` (inheriting `FilterPanelViewModelBase` in `GenHub.Features.Downloads.ViewModels.Filters`) that encapsulates publisher-specific filtering logic and query generation:
 
 #### ModDB Filter Panel
 
-The ModDB filter supports section-based filtering with extensive category options:
+The ModDB filter panel (`ModDBFilterViewModel`) supports section-based filtering using the `ModDBSection` enum (`GenHub.Features.Downloads.ViewModels.Filters.ModDBSection`), which maps to `ContentSearchQuery.ModDBSection` on search queries:
 
 ```csharp
-// Section selection
+namespace GenHub.Features.Downloads.ViewModels.Filters;
+
+/// <summary>
+/// Represents the available ModDB sections in the downloads browser.
+/// </summary>
 public enum ModDBSection
 {
-    Downloads,  // Full game downloads and patches
-    Mods,       // Game modifications
-    Addons      // Addons for mods
-}
+    /// <summary>Downloads/Files section with category + categoryaddon filters.</summary>
+    Downloads,
 
-// Filter categories
-- Category: Releases, Full Version, Demo, Patch, Tools, Media, etc.
-- Addon Category: Maps, Models, Skins, Audio, Graphics, etc.
-- License: BSD, MIT, GPL, Creative Commons, etc.
-- Timeframe: Past 24 hours, week, month, year, or older
+    /// <summary>Addons section with addon category + licence filters.</summary>
+    Addons,
+
+    /// <summary>Mods section.</summary>
+    Mods,
+}
 ```
+
+Filter categories include:
+- **Category**: Releases, Full Version, Demo, Patch, Tools, Media, etc.
+- **Addon Category**: Maps, Models, Skins, Audio, Graphics, etc.
+- **License**: BSD, MIT, GPL, Creative Commons, etc.
+- **Timeframe**: Past 24 hours, week, month, year, or older
 
 #### CNC Labs Filter Panel
 
@@ -316,7 +328,7 @@ Clicking a content card opens the detailed content view with tabbed information:
 
 ### ContentStateService
 
-The `ContentStateService` determines the current state of content for UI display:
+Introduced in PR #265 (`feat/ui-downloads`), `ContentStateService` (`GenHub.Features.Downloads.Services.ContentStateService`, implementing `IContentStateService` in `GenHub.Core.Interfaces.Content`) centralizes content state determination for the unified downloads browser. It inspects local manifests in `IContentManifestPool` to determine whether discovered items are `NotDownloaded`, `UpdateAvailable`, or `Downloaded`:
 
 ```csharp
 public enum ContentState
@@ -406,7 +418,7 @@ sequenceDiagram
 
     DBVM->>DBVM: Create temp directory
     DBVM->>DBVM: Download files to temp
-    Note over DBVM: Progress updates via IProgress<DownloadProgress>
+    Note over DBVM: Progress updates via IProgress&lt;DownloadProgress&gt;
 
     DBVM->>Pool: AddManifestAsync(manifest, tempDir)
     Pool->>CAS: StoreContentAsync for each file
@@ -578,11 +590,11 @@ if (result.WasContentSwapped)
 | Publisher | Content Types | Filters | Discoverer | Resolver |
 | :--- | :--- | :--- | :--- | :--- |
 | **ModDB** | Mods, Addons, Maps, Tools, Patches | Category, Addon, License, Timeframe | `ModDBDiscoverer` | `ModDBResolver` |
-| **CNC Labs** | Maps, Missions | Game, Players, Tags | `CNCLabsMapDiscoverer` | `CNCLabsResolver` |
+| **CNC Labs** | Maps, Missions | Game, Players, Tags | `CNCLabsMapDiscoverer` | `CNCLabsMapResolver` |
 | **GitHub** | All types | Repository, Release type | `GitHubReleasesDiscoverer`, `GitHubTopicsDiscoverer` | `GitHubResolver` |
 | **AOD Maps** | Maps | Map type, Difficulty | `AODMapsDiscoverer` | `AODMapsResolver` |
 | **Generals Online** | GameClient, Tools | Basic | `GeneralsOnlineDiscoverer` | `GeneralsOnlineResolver` |
-| **TheSuperHackers** | GameClient, Patches | Basic | `GitHubReleasesDiscoverer` | `SuperHackersManifestFactory` |
+| **TheSuperHackers** | GameClient, Patches | Basic | `GitHubReleasesDiscoverer` | `GitHubResolver` |
 | **CommunityOutpost** | Tools, Patches | Type | `CommunityOutpostDiscoverer` | `CommunityOutpostResolver` |
 
 #### Game-Client Variants (TheSuperHackers)
@@ -667,11 +679,11 @@ public class YourPublisherDiscoverer : IContentDiscoverer
         // Fetch content from your source
         // Create ContentSearchResult for each item
 
-        return OperationResult<ContentDiscoveryResult>.Success(
+        return OperationResult<ContentDiscoveryResult>.CreateSuccess(
             new ContentDiscoveryResult
             {
                 Items = items,
-                TotalCount = items.Count,
+                TotalItems = items.Count,
                 HasMoreItems = false
             });
     }
@@ -703,10 +715,10 @@ public class YourPublisherResolver : IContentResolver
         var manifest = new ContentManifestBuilder()
             .WithBasicInfo(...)
             .WithMetadata(...)
-            .AddDownloadedFileAsync(url, ...)
+            .AddRemoteFileAsync(url, ...)
             .Build();
 
-        return OperationResult<ContentManifest>.Success(manifest);
+        return OperationResult<ContentManifest>.CreateSuccess(manifest);
     }
 }
 ```
@@ -818,31 +830,47 @@ public class ContentSearchQuery
 For publishers with special manifest generation requirements:
 
 ```csharp
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using GenHub.Core.Interfaces.Content;
+using GenHub.Core.Models.Manifest;
 
 public class YourPublisherManifestFactory : IPublisherManifestFactory
 {
+    public string PublisherId => PublisherTypeConstants.YourPublisher;
+
     public bool CanHandle(ContentManifest manifest)
     {
-        // Identify your publisher's manifests
-        return manifest.Metadata?.Publisher ==
-            PublisherTypeConstants.YourPublisher;
+        return string.Equals(
+            manifest.Publisher.PublisherType,
+            PublisherTypeConstants.YourPublisher,
+            StringComparison.OrdinalIgnoreCase);
     }
 
-    public async Task<OperationResult<IEnumerable<ContentManifest>>> CreateManifestsFromExtractedContentAsync(
-        string extractionDirectory,
+    public async Task<List<ContentManifest>> CreateManifestsFromExtractedContentAsync(
         ContentManifest originalManifest,
-        CancellationToken cancellationToken)
+        string extractedDirectory,
+        CancellationToken cancellationToken = default)
     {
-        // Custom manifest generation logic
+        // Custom manifest generation logic from extracted files on disk
         var manifests = new List<ContentManifest>();
 
-        // Create specialized manifests for your content
+        // Enrich manifest with extracted files, hashes, and variant metadata
 
-        return OperationResult<IEnumerable<ContentManifest>>.Success(manifests);
+        return manifests;
+    }
+
+    public string GetManifestDirectory(ContentManifest manifest, string extractedDirectory)
+    {
+        return extractedDirectory;
     }
 }
 ```
+
+> [!NOTE]
+> The ViewModels and Views documented below are introduced as part of the Unified Downloads Browser in PR #265 (`feat/ui-downloads`), providing MVVM presentation for the multi-publisher downloads experience.
 
 ## ViewModels Reference
 
@@ -977,7 +1005,7 @@ Manages profile selection with compatibility filtering.
 
 ### IContentStateService
 
-**Location**: `GenHub/Features/Downloads/Services/IContentStateService.cs`
+**Location**: `GenHub.Core/Interfaces/Content/IContentStateService.cs`
 
 Determines the current state of content for UI display.
 
@@ -1029,7 +1057,7 @@ var result = await discoverer.DiscoverAsync(query, cancellationToken);
 
 // Result contains:
 // - Items: List of ContentSearchResult
-// - TotalCount: Total available items
+// - TotalItems: Total available items
 // - HasMoreItems: Whether more pages exist
 ```
 

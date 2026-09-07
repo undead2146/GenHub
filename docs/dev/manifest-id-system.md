@@ -1,5 +1,8 @@
 # Manifest ID System
 
+> [!NOTE]
+> This document details the **Manifest ID System** and prefix-matching state detection logic utilized by the Unified Downloads Browser introduced in PR #265 (`feat/ui-downloads`).
+
 ## Overview
 
 The Manifest ID system provides **deterministic, human-readable, and type-safe identifiers** for all content in the GenHub ecosystem. This system ensures consistent content identification across platforms, prevents ID collisions, and provides robust validation with proper error handling.
@@ -83,7 +86,7 @@ This normalization ensures the manifest ID schema remains valid (dots separate s
 **Examples**:
 
 - ModDB Addon (release date 2025-01-20, author `westwood`): `1.20250120.moddb-westwood.addon.supercolors-newcolors`
-- ModDB Mod (release date 2024-12-15, author `contra-team`): `1.20241215.moddb-contra-team.mod.contra-007`
+- ModDB Mod (release date 2024-12-15, author `contra-team`): `1.20241215.moddb-contrateam.mod.contra-007`
 - ModDB Map Pack (release date 2025-01-10, author `mappackers`): `1.20250110.moddb-mappackers.mappack.desert-storm-collection`
 
 **Key Points**:
@@ -371,7 +374,7 @@ The system uses prefix matching to detect updates for content with date-based ve
 
 // The system compares:
 // - Schema version (1) - must match
-// - Publisher (moddb) - must match
+// - Publisher (moddb-westwood) - must match
 // - Content type (addon) - must match
 // - Content name (supercolors-newcolors) - must match
 // - Version (20250110 vs 20250120) - used to determine if newer
@@ -386,7 +389,7 @@ The manifest ID comparison for update detection follows this logic:
 
 1. **Extract base ID**: Remove the version component to get the content signature
    - From `1.20250110.moddb-westwood.addon.supercolors-newcolors`
-   - Base: `moddb.addon.supercolors-newcolors`
+   - Base: `moddb-westwood.addon.supercolors-newcolors`
 
 2. **Compare signatures**: Check if installed and available content have the same base
    - If base IDs match → same content, compare versions
@@ -402,30 +405,20 @@ The manifest ID comparison for update detection follows this logic:
 ```csharp
 // Scenario: ModDB content update detection
 
-// 1. User installs "Super Colors" addon on January 10, 2025
-var installedId = "1.20250110.moddb-westwood.addon.supercolors-newcolors";
-var manifest = new ContentManifest
-{
-    Id = installedId,
-    State = ContentState.Installed,
-    // ... other properties
-};
+// 1. User downloads "Super Colors" addon on January 10, 2025
+// Manifest is stored in IContentManifestPool:
+// Manifest ID: "1.20250110.moddb-westwood.addon.supercolors-newcolors"
 
 // 2. System discovers updated version released on January 20, 2025
-var availableId = "1.20250120.moddb-westwood.addon.supercolors-newcolors";
-var discoveredManifest = new ContentManifest
-{
-    Id = availableId,
-    State = ContentState.Available,
-    // ... other properties
-};
+// Discovered ContentSearchResult generates prospective ID:
+// "1.20250120.moddb-westwood.addon.supercolors-newcolors"
 
-// 3. ContentStateService detects update:
-//    - Base IDs match: "moddb.addon.supercolors-newcolors"
-//    - Version comparison: 20250120 > 20250110
-//    - Result: State set to ContentState.UpdateAvailable
+// 3. ContentStateService (GenHub.Features.Downloads.Services, introduced in PR #265) detects update:
+//    - Inspects IContentManifestPool for matching base signature: "moddb-westwood.addon.supercolors-newcolors"
+//    - Compares date versions: 20250120 > 20250110
+//    - Returns: ContentState.UpdateAvailable
 
-// 4. UI shows "Update Available" indicator on the content card
+// 4. UI shows "Update" button on the content card (DownloadsBrowserViewModel)
 //    User can click to download and install the newer version
 ```
 

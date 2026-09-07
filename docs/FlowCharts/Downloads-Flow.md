@@ -5,6 +5,9 @@ description: Complete user flow for downloading and installing content in GenHub
 
 ## Flowchart: Downloads User Flow
 
+> [!NOTE]
+> This document details the **Unified Downloads Flow** designed and implemented in PR #265 (`feat/ui-downloads`), illustrating how user interaction in `DownloadsBrowserViewModel` connects with discovery, resolution, state tracking via `ContentStateService`, and content acquisition.
+
 This flowchart details the complete user journey from browsing publishers to downloading and installing content, including state management, profile selection, and caching.
 
 ## Table of Contents
@@ -193,7 +196,7 @@ sequenceDiagram
     else No Exact Match
         Pool-->>CSS: false
         CSS->>Pool: GetAllManifestsAsync()
-        Pool-->>CSS: List<ContentManifest>
+        Pool-->>CSS: List&lt;ContentManifest&gt;
         CSS->>CSS: FindOlderVersionsAsync()
 
         alt Older Version Found
@@ -270,6 +273,7 @@ sequenceDiagram
     participant R as Resolver
     participant MIG as ManifestIdGenerator
     participant MF as ManifestFactory
+    participant DS as DownloadService
     participant CAS as CAS Service
     participant Pool as ManifestPool
     participant PS as ProfileSelectionViewModel
@@ -295,7 +299,7 @@ sequenceDiagram
     MF-->>BVM: ContentManifest
 
     Note over BVM: Download files to temp
-    BVM->>CAS: DownloadFileAsync(url, tempPath)
+    BVM->>DS: DownloadFileAsync(url, tempPath)
 
     alt Archive File
         BVM->>BVM: Extract all files
@@ -579,7 +583,7 @@ The `ContentCacheService` provides an in-memory cache for parsed web page conten
 
 flowchart LR
     subgraph Cache["ContentCacheService"]
-        CacheStore["ConcurrentDictionary<string, CacheEntry>"]
+        CacheStore["ConcurrentDictionary&lt;string, CacheEntry&gt;"]
         TTL["Default TTL: 1 Hour"]
     end
 

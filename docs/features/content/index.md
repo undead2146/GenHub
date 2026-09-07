@@ -5,6 +5,9 @@ description: Documentation for GenHub content management features
 
 ## Content Features
 
+> [!NOTE]
+> This section details the content system supporting the **Unified Downloads Architecture** introduced in PR #265 (`feat/ui-downloads`), unifying content discovery, resolution, state tracking, and profile integration.
+
 The GenHub content system provides a flexible, extensible architecture for discovering, acquiring, and managing game content from various sources.
 
 ## Core Documentation
@@ -135,7 +138,7 @@ Content is stored in the **Content Pool**:
 - Deterministic ManifestId generation
 - Hash-based validation
 - Duplicate detection
-- Content caching for parsed web pages (ContentCacheService)
+- Content caching for parsed web pages (IDynamicContentCache / MemoryDynamicContentCache)
 
 ## Integration Points
 
@@ -211,7 +214,7 @@ The ModDB content provider enables discovery and acquisition of game content fro
 | CNCLabs | Maps | Web scraping | Date-based | CNCLabsManifestFactory |
 | AODMaps | Maps | Web scraping | Date-based | AODMapsManifestFactory |
 | ModDB | Mods, Addons, Patches, Maps, Skins, Videos, Tools | Playwright + AngleSharp | Date-based (YYYYMMDD) | ModDBManifestFactory |
-| Community Outpost | Patches | API | Semantic | CommunityOutpostFactory |
+| Community Outpost | Patches | API | Semantic | CommunityOutpostManifestFactory |
 
 ## Downloads UI Integration
 
@@ -219,7 +222,7 @@ The content pipeline directly feeds the Downloads browser, enabling users to dis
 
 ### Content State Service
 
-The **ContentStateService** determines the current state of content for UI display:
+Introduced in PR #265 (`feat/ui-downloads`), the **ContentStateService** (`GenHub.Features.Downloads.Services.ContentStateService`) centralizes content state determination for the Downloads browser UI:
 
 - **NotDownloaded**: Content has not been downloaded. Show "Download" button
 - **UpdateAvailable**: Content exists locally but a newer version is available. Show "Update" button
@@ -228,9 +231,9 @@ The **ContentStateService** determines the current state of content for UI displ
 **State Detection:**
 
 - Generates prospective manifest IDs using `ManifestIdGenerator`
-- Checks manifest pool for exact matches
+- Checks `IContentManifestPool` for exact matches
 - Searches for older versions by comparing publisher, content type, and content name
-- Uses release date (yyyyMMdd) for version comparison
+- Uses release date (yyyyMMdd) or version precedence for update detection
 
 ### Manifest ID Generation
 
@@ -242,9 +245,10 @@ schemaVersion.userVersion.publisher.contentType.contentName
 
 **Examples:**
 
-- `1.20240315.moddb-contra-team.mod.contra` (ModDB content with date versioning)
+- `1.20240315.moddb-contrateam.mod.contra` (ModDB content with date versioning)
 - `1.0.themodders.gameclient.generals` (Publisher content with semantic versioning)
-- `1.108.ea.gameinstallation.zerohour` (Game installation)
+- `1.104.ea.gameinstallation.zerohour` (Zero Hour game installation)
+- `1.108.ea.gameinstallation.generals` (Generals game installation)
 
 **Benefits:**
 

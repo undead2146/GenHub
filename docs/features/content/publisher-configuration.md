@@ -456,15 +456,14 @@ Dynamic publishers support multiple publishers where content authors become indi
 
 #### AODMaps Configuration
 
-AODMaps uses a static publisher configuration to map its custom catalog format:
+AODMaps uses a static publisher provider configuration definition (content discovery itself is driven by `AODMapsDiscoverer` and `AODMapsPageParser` rather than a static JSON catalog):
 
 ```json
 {
   "publisherId": "aodmaps",
   "publisherType": "aodmaps",
-  "displayName": "Art of Defense Maps",
+  "displayName": "Age of Defense Maps",
   "providerType": "Static",
-  "catalogFormat": "html-scraping",
   "endpoints": {
     "catalogUrl": "https://aodmaps.com",
     "websiteUrl": "https://aodmaps.com"

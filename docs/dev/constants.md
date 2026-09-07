@@ -961,7 +961,7 @@ Storage and CAS (Content-Addressable Storage) related constants.
 
 ## UiConstants Class
 
-User interface sizing and theming constants.
+User interface sizing, theme color, and display name constants.
 
 ### Window and Layout Sizing
 
@@ -969,17 +969,13 @@ User interface sizing and theming constants.
 - `DefaultWindowHeight`: 800
 - `DefaultProfileSettingsWidth`: 750
 - `DefaultProfileSettingsHeight`: 700
-- `DefaultProfileSettingsSidebarWidth`: 190
-- `MinProfileSettingsSidebarWidth`: 68
-- `MaxProfileSettingsSidebarWidth`: 300
 
-### Status Colors
+### Status and Theme Colors
 
 - `StatusSuccessColor`: Color used to indicate success or positive status (`"#4CAF50"`)
 - `StatusErrorColor`: Color used to indicate error or negative status (`"#F44336"`)
-- `StatusDownloadedColor`: Color used for downloaded status indicator (`"#4CAF50"`)
-- `StatusNotDownloadedColor`: Color used for not downloaded status indicator (`"#B388FF"`)
-- `StatusUpdateAvailableColor`: Color used for update available status indicator (`"#FFB74D"`)
+- `GeneralsThemeColor`: Default theme color for Generals content (`"#BD5A0F"`)
+- `ZeroHourThemeColor`: Default theme color for Zero Hour content (`"#1B6575"`)
 
 ## ValidationLimits Class
 
@@ -1536,7 +1532,6 @@ Constants related to the Community Outpost (GenPatcher) catalog and metadata.
 - `CatalogFormat`: Catalog format identifier (`"genpatcher-dat"`)
 - `UnknownVersion`: Default version string when unknown (`"unknown"`)
 - `DefaultBaseUrl`: Default base URL for making relative URLs absolute (`"https://legi.cc/patch"`)
-- `DefaultFilesBaseUrl`: Default base URL for downloading GenPatcher content .dat packages (`"https://legi.cc/gp2/f"`)
 - `ContentCodeKey`: Metadata key for content code (`"contentCode"`)
 - `CatalogVersionKey`: Metadata key for catalog version (`"catalogVersion"`)
 - `FileSizeKey`: Metadata key for file size (`"fileSize"`)
@@ -1721,7 +1716,7 @@ Constants specifically for the Map Manager feature.
 
 ## AODMapsConstants Class
 
-Constants for AODMaps (Art of Defense Maps) provider.
+Constants for AODMaps (Age of Defense Maps) provider.
 
 ### Publisher & Source Information
 
@@ -1729,7 +1724,7 @@ Constants for AODMaps (Art of Defense Maps) provider.
 | ------------------------ | ------------ | ---------------------------------------- |
 | `PublisherType`          | `"aodmaps"`  | Publisher type identifier                |
 | `DiscovererSourceName`   | `"AODMaps"`  | Source name for discoverer               |
-| `DiscovererDescription`  | `"Art of Defense Maps"` | Display description          |
+| `DiscovererDescription`  | `"Age of Defense Maps"` | Display description          |
 | `ResolverId`             | `"AODMaps"`  | Resolver identifier                      |
 
 ### URLs & Page Patterns
@@ -1763,7 +1758,7 @@ Constants for the Community Outpost content provider.
 | `PublisherType`        | `"communityoutpost"`                                  |
 | `PublisherName`        | `"Community Outpost"`                                 |
 | `LogoSource`           | `"avares://GenHub/Assets/Logos/communityoutpost-logo.png"` |
-| `ProviderDescription`  | `"Official patches, tools, and addons from GenPatcher"` |
+| `ProviderDescription`  | `"Official patches, tools, and addons from GenPatcher (Community Outpost)"` |
 
 ---
 
