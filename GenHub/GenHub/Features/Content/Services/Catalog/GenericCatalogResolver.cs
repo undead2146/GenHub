@@ -544,11 +544,20 @@ public partial class GenericCatalogResolver(
         List<CatalogBundleComponentDescriptor>? bundleComponents)
     {
         var cleanConstraint = CatalogManifestIdentity.StripVersionConstraint(dependency.VersionConstraint);
-        var depPublisherId = !string.IsNullOrWhiteSpace(dependency.PublisherId)
-            ? dependency.PublisherId
-            : (!string.IsNullOrWhiteSpace(contentItem.PublisherType)
-                ? CatalogManifestIdentity.ResolveDeclaredPublisherType(contentItem)
-                : string.Empty);
+        string depPublisherId;
+        if (!string.IsNullOrWhiteSpace(dependency.PublisherId))
+        {
+            depPublisherId = dependency.PublisherId;
+        }
+        else if (!string.IsNullOrWhiteSpace(contentItem.PublisherType))
+        {
+            depPublisherId = CatalogManifestIdentity.ResolveDeclaredPublisherType(contentItem);
+        }
+        else
+        {
+            depPublisherId = string.Empty;
+        }
+
         var depVersion = cleanConstraint;
         var dependencyType = initialDependencyType;
 

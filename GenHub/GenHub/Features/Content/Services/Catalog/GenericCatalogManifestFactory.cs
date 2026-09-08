@@ -153,8 +153,7 @@ public class GenericCatalogManifestFactory(
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                logger.LogError(ex, "Failed to compute hash for file: {FilePath}", filePath);
-                throw;
+                throw new InvalidOperationException($"Failed to compute hash for file: {filePath}", ex);
             }
         }
 
