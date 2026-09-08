@@ -57,48 +57,9 @@ public class CatalogTabProvider(
         try
         {
             var publisherId = ResolvePublisherId(searchResult);
+            var catalog = await GetOrFetchCatalogAsync(publisherId, cancellationToken);
 
-            PublisherCatalog? catalog = null;
-            if (_catalogCache.TryGetValue(publisherId, out var cached) &&
-                DateTime.UtcNow - cached.FetchedAt < CacheDuration)
-            {
-                catalog = cached.Catalog;
-            }
-            else
-            {
-                // Query subscription store to retrieve publisher catalog details.
-                var subscriptionResult = await subscriptionStore.GetSubscriptionAsync(
-                    publisherId,
-                    cancellationToken);
-
-                if (!subscriptionResult.Success || subscriptionResult.Data == null)
-                {
-                    return [];
-                }
-
-                var subscription = subscriptionResult.Data;
-
-                // Download raw publisher catalog json manifest over http
-                var httpClient = httpClientFactory.CreateClient();
-                httpClient.Timeout = TimeSpan.FromSeconds(30);
-
-                var catalogJson = await CatalogDocumentReader.ReadAsync(
-                    httpClient,
-                    subscription.CatalogUrl,
-                    CatalogConstants.MaxCatalogSizeBytes,
-                    cancellationToken: cancellationToken);
-
-                // Parse raw json into structured publisher catalog model
-                var catalogResult = await catalogParser.ParseCatalogAsync(catalogJson, cancellationToken);
-
-                if (catalogResult.Success && catalogResult.Data != null)
-                {
-                    catalog = catalogResult.Data;
-                    _catalogCache[publisherId] = (DateTime.UtcNow, catalog);
-                }
-            }
-
-            if (catalog?.CustomTabs == null || catalog.CustomTabs.Count == 0)
+            if (catalog?.CustomTabs is not { Count: > 0 })
             {
                 return [];
             }
@@ -111,12 +72,10 @@ public class CatalogTabProvider(
 
             foreach (var catalogTab in catalog.CustomTabs)
             {
-                if (!TabAppliesToContent(catalogTab, contentId, resultId))
+                if (TabAppliesToContent(catalogTab, contentId, resultId))
                 {
-                    continue;
+                    tabs.Add(MapToTabDefinition(catalogTab, searchResult));
                 }
-
-                tabs.Add(MapToTabDefinition(catalogTab, searchResult));
             }
 
             return tabs;
@@ -130,6 +89,45 @@ public class CatalogTabProvider(
             logger.LogError(ex, "error loading custom tabs for content '{ContentId}' from publisher '{Publisher}'", searchResult.Id, searchResult.ProviderName);
             return [];
         }
+    }
+
+    private async Task<PublisherCatalog?> GetOrFetchCatalogAsync(
+        string publisherId,
+        CancellationToken cancellationToken)
+    {
+        if (_catalogCache.TryGetValue(publisherId, out var cached) &&
+            DateTime.UtcNow - cached.FetchedAt < CacheDuration)
+        {
+            return cached.Catalog;
+        }
+
+        var subscriptionResult = await subscriptionStore.GetSubscriptionAsync(
+            publisherId,
+            cancellationToken);
+
+        if (!subscriptionResult.Success || subscriptionResult.Data == null)
+        {
+            return null;
+        }
+
+        var subscription = subscriptionResult.Data;
+        var httpClient = httpClientFactory.CreateClient();
+        httpClient.Timeout = TimeSpan.FromSeconds(30);
+
+        var catalogJson = await CatalogDocumentReader.ReadAsync(
+            httpClient,
+            subscription.CatalogUrl,
+            CatalogConstants.MaxCatalogSizeBytes,
+            cancellationToken: cancellationToken);
+
+        var catalogResult = await catalogParser.ParseCatalogAsync(catalogJson, cancellationToken);
+        if (catalogResult.Success && catalogResult.Data != null)
+        {
+            _catalogCache[publisherId] = (DateTime.UtcNow, catalogResult.Data);
+            return catalogResult.Data;
+        }
+
+        return null;
     }
 
     private static string ResolvePublisherId(ContentSearchResult searchResult)
