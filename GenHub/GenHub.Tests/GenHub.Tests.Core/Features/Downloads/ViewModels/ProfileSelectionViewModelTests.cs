@@ -242,4 +242,45 @@ public sealed class ProfileSelectionViewModelTests
         Assert.False(closeRequested);
         Assert.Equal("Incompatible version conflict", vm.ErrorMessage);
     }
+
+    /// <summary>
+    /// Verifies that CancelCommand sets WasCancelled to true, WasSuccessful to false, and requests dialog close.
+    /// </summary>
+    [Fact]
+    public void CancelCommand_SetsWasCancelledTrue_AndRequestsClose()
+    {
+        var vm = new ProfileSelectionViewModel(
+            NullLogger<ProfileSelectionViewModel>.Instance,
+            new Mock<IGameProfileManager>().Object,
+            new Mock<IProfileContentService>().Object,
+            new Mock<IContentManifestPool>().Object,
+            new Mock<INotificationService>().Object);
+
+        var closeRequested = false;
+        vm.RequestClose += (_, _) => closeRequested = true;
+
+        vm.CancelCommand.Execute(null);
+
+        Assert.True(vm.WasCancelled);
+        Assert.False(vm.WasSuccessful);
+        Assert.Null(vm.ErrorMessage);
+        Assert.True(closeRequested);
+    }
+
+    /// <summary>
+    /// Verifies that Dispose can be called multiple times safely without throwing.
+    /// </summary>
+    [Fact]
+    public void Dispose_CanBeCalledMultipleTimesSafely()
+    {
+        var vm = new ProfileSelectionViewModel(
+            NullLogger<ProfileSelectionViewModel>.Instance,
+            new Mock<IGameProfileManager>().Object,
+            new Mock<IProfileContentService>().Object,
+            new Mock<IContentManifestPool>().Object,
+            new Mock<INotificationService>().Object);
+
+        vm.Dispose();
+        vm.Dispose();
+    }
 }

@@ -146,4 +146,9 @@ public static class ContentConstants
     /// Category label for downloadable addons.
     /// </summary>
     public const string AddonCategory = "Addon";
+
+    /// <summary>
+    /// Default fallback identifier used when synthesizing variant manifest IDs or missing publishers.
+    /// </summary>
+    public const string DefaultContentFallbackId = "content";
 }

@@ -38,6 +38,7 @@ public sealed partial class ProfileSelectionViewModel(
     INotificationService notificationService) : ObservableObject, IDisposable
 {
     private readonly CancellationTokenSource _cts = new();
+    private bool _disposed;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasCompatibleProfiles))]
@@ -83,6 +84,9 @@ public sealed partial class ProfileSelectionViewModel(
 
     [ObservableProperty]
     private bool _wasSuccessful;
+
+    [ObservableProperty]
+    private bool _wasCancelled;
 
     [ObservableProperty]
     private string? _selectedProfileName;
@@ -240,7 +244,20 @@ public sealed partial class ProfileSelectionViewModel(
     /// <inheritdoc />
     public void Dispose()
     {
-        _cts.Cancel();
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        try
+        {
+            _cts.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+
         _cts.Dispose();
     }
 
@@ -344,6 +361,12 @@ public sealed partial class ProfileSelectionViewModel(
                 WasSuccessful = false;
             }
         }
+        catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+        {
+            WasCancelled = true;
+            WasSuccessful = false;
+            logger.LogInformation("Adding content to profile '{ProfileName}' was cancelled", profile.Name);
+        }
         catch (System.Exception ex)
         {
             logger.LogError(ex, "Error adding content to profile '{ProfileName}'", profile.Name);
@@ -358,9 +381,17 @@ public sealed partial class ProfileSelectionViewModel(
     [RelayCommand]
     private void Cancel()
     {
-        _cts.Cancel();
+        WasCancelled = true;
         WasSuccessful = false;
         SelectedProfileName = null;
+        try
+        {
+            _cts.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+
         RequestClose?.Invoke(this, EventArgs.Empty);
     }
 
@@ -433,6 +464,12 @@ public sealed partial class ProfileSelectionViewModel(
                     ErrorMessage);
                 WasSuccessful = false;
             }
+        }
+        catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+        {
+            WasCancelled = true;
+            WasSuccessful = false;
+            logger.LogInformation("Profile creation with content was cancelled");
         }
         catch (System.Exception ex)
         {
