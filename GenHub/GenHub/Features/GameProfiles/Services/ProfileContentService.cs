@@ -1435,13 +1435,11 @@ public sealed class ProfileContentService(
             return null;
         }
 
-        var publisher = CommunityOutpostConstants.PublisherType.ToLowerInvariant();
-        var contentType = metadata.ContentType.ToString().ToLowerInvariant();
         var downloadUrl = $"{CommunityOutpostCatalogConstants.DefaultFilesBaseUrl.TrimEnd('/')}/{contentCode}.dat";
 
         var searchResult = new ContentSearchResult
         {
-            Id = $"1.0.{publisher}.{contentType}.{contentCode.ToLowerInvariant()}",
+            Id = ManifestIdGenerator.GeneratePublisherContentId(CommunityOutpostConstants.PublisherType, metadata.ContentType, contentCode, 0),
             Name = metadata.DisplayName,
             Description = metadata.Description ?? string.Empty,
             Version = metadata.Version ?? "1.0",

@@ -77,6 +77,7 @@ public partial class ContentDetailViewModel(
     private readonly object _basicContentLoadLock = new();
     private readonly object _preloadLock = new();
     private readonly CancellationTokenSource _cts = new();
+    private readonly List<Task> _pendingRowStateTasks = [];
     private bool _disposed;
     private bool _userManuallySelectedDownloadableItem;
     private Action? _unsubscribeAxisHandlers;
@@ -100,6 +101,10 @@ public partial class ContentDetailViewModel(
     private bool _basicContentLoaded;
     private Task? _basicContentLoadTask;
     private int _iconLoadVersion;
+    private Task? _initialStateTask;
+    private Task? _iconTask;
+    private Task? _customTabsTask;
+    private Task? _variantsTask;
 
     // ===== Observable Backing Fields =====
     [ObservableProperty]
@@ -360,7 +365,7 @@ public partial class ContentDetailViewModel(
                 return SelectedDownloadableItem.Category;
             }
 
-            return SelectedDownloadableItem is ReleaseItemViewModel ? "Release" : "Addon";
+            return SelectedDownloadableItem is ReleaseItemViewModel ? ContentConstants.ReleaseCategory : ContentConstants.AddonCategory;
         }
     }
 
@@ -369,6 +374,357 @@ public partial class ContentDetailViewModel(
     /// After acquisition, changing the type updates the stored manifest (e.g. Addon → Executable).
     /// </summary>
     public IReadOnlyList<ContentType> ContentTypeOptions { get; } = Enum.GetValues<ContentType>();
+
+    /// <summary>
+    /// Gets a value indicating whether the content has a source page to open.
+    /// </summary>
+    public bool HasSourceUrl => !string.IsNullOrEmpty(searchResult.SourceUrl);
+
+    /// <summary>
+    /// Gets a value indicating whether files are available.
+    /// </summary>
+    public bool HasFiles => Files.Count > 0;
+
+    /// <summary>
+    /// Gets a value indicating whether the Files tab should be shown.
+    /// Structured releases and addons own their respective lists; the raw Files tab is reserved
+    /// for content that has no structured release or addon grouping.
+    /// </summary>
+    public bool ShowFilesTab => Files.Count > 0 && !HasReleases && !HasAddons;
+
+    /// <summary>
+    /// Gets a value indicating whether images are available.
+    /// </summary>
+    public bool HasImages => Images.Count > 0;
+
+    /// <summary>
+    /// Gets a value indicating whether videos are available.
+    /// </summary>
+    public bool HasVideos => Videos.Count > 0;
+
+    /// <summary>
+    /// Gets a value indicating whether comments are available.
+    /// </summary>
+    public bool HasComments => Comments.Count > 0;
+
+    /// <summary>
+    /// Gets a value indicating whether reviews are available.
+    /// </summary>
+    public bool HasReviews => Reviews.Count > 0;
+
+    /// <summary>
+    /// Gets a value indicating whether media (images or videos) is available.
+    /// </summary>
+    public bool HasMedia => HasImages || HasVideos;
+
+    /// <summary>
+    /// Gets a value indicating whether community content (comments or reviews) is available.
+    /// </summary>
+    public bool HasCommunity => HasComments || HasReviews;
+
+    /// <summary>
+    /// Gets the content ID.
+    /// </summary>
+    public string Id => searchResult.Id ?? string.Empty;
+
+    /// <summary>
+    /// Gets the content name. Prefer the selected variant label or user-selected downloadable item
+    /// so the specific mod/patch/addon title stays visible; fall back to search result, then parsed page title.
+    /// </summary>
+    public string Name => SelectedVariant?.Name
+        ?? (SelectedDownloadableItem != null &&
+            !string.IsNullOrWhiteSpace(SelectedDownloadableItem.Name) &&
+            !SelectedDownloadableItem.Name.StartsWith(UnknownValue, StringComparison.OrdinalIgnoreCase)
+                ? SelectedDownloadableItem.Name
+                : null)
+        ?? (!string.IsNullOrWhiteSpace(searchResult.Name) ? searchResult.Name : null)
+        ?? ParsedPage?.Context.Title
+        ?? UnknownValue;
+
+    /// <summary>
+    /// Gets the content description (full) - prefers parsed page context description.
+    /// </summary>
+    public string Description =>
+        HtmlTextHelper.NormalizeHtml(ParsedPage?.Context.Description ?? searchResult.Description);
+
+    /// <summary>
+    /// Gets the author name - prefers parsed page context developer.
+    /// </summary>
+    public string AuthorName =>
+        ParsedPage?.Context.Developer ?? searchResult.AuthorName ?? UnknownValue;
+
+    /// <summary>
+    /// Gets the version.
+    /// </summary>
+    public string Version => SelectedDownloadableItem?.Version ?? searchResult.Version ?? string.Empty;
+
+    /// <summary>
+    /// Gets the last updated date (optional) - prefers parsed page context release date.
+    /// </summary>
+    public DateTime? LastUpdated =>
+        SelectedDownloadableItem?.ReleaseDate ?? ParsedPage?.Context.ReleaseDate ?? searchResult.LastUpdated;
+
+    /// <summary>
+    /// Gets the formatted last updated string.
+    /// </summary>
+    public string LastUpdatedDisplay => LastUpdated?.ToString("MMM dd, yyyy") ?? string.Empty;
+
+    /// <summary>
+    /// Gets the download size - prefers size from parsed files or selected item.
+    /// </summary>
+    public long DownloadSize
+    {
+        get
+        {
+            if (SelectedDownloadableItem is { FileSize: > 0 })
+            {
+                return SelectedDownloadableItem.FileSize;
+            }
+
+            // Try to get size from parsed files first
+            var parsedFile = Files?.FirstOrDefault();
+            if (parsedFile?.SizeBytes > 0)
+            {
+                return parsedFile.SizeBytes.Value;
+            }
+
+            return searchResult.DownloadSize;
+        }
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether download size is available and greater than zero.
+    /// </summary>
+    public bool HasDownloadSize => DownloadSize > 0;
+
+    /// <summary>
+    /// Gets a value indicating whether a last updated date is available.
+    /// </summary>
+    public bool HasLastUpdated => LastUpdated.HasValue && LastUpdated.Value > DateTime.MinValue;
+
+    /// <summary>
+    /// Gets a value indicating whether a version is available.
+    /// </summary>
+    public bool HasVersion => !string.IsNullOrEmpty(Version);
+
+    /// <summary>
+    /// Gets a value indicating whether an author is available and not "Unknown".
+    /// </summary>
+    public bool HasAuthor => !string.IsNullOrEmpty(AuthorName) &&
+                             !string.Equals(AuthorName, UnknownValue, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Gets the content type.
+    /// </summary>
+    public ContentType ContentType => SelectedContentType;
+
+    /// <summary>
+    /// Gets the provider name.
+    /// </summary>
+    public string ProviderName => searchResult.ProviderName ?? string.Empty;
+
+    /// <summary>
+    /// Gets the icon URL - prefers parsed page context icon.
+    /// </summary>
+    public string? IconUrl =>
+        ParsedPage?.Context.IconUrl ??
+        (!string.IsNullOrWhiteSpace(searchResult.IconUrl)
+            ? searchResult.IconUrl
+            : (ContentCardBadgeHelper.GetPublisherLogoUrl(searchResult) ?? ContentCardBadgeHelper.GetThumbnailUrl(searchResult)));
+
+    /// <summary>
+    /// Gets the preferred header thumbnail URL (banner / screenshot / icon).
+    /// </summary>
+    public string? ThumbnailUrl =>
+        !string.IsNullOrWhiteSpace(searchResult.BannerUrl)
+            ? searchResult.BannerUrl
+            : ContentCardBadgeHelper.GetThumbnailUrl(searchResult) ?? IconUrl;
+
+    /// <summary>
+    /// Gets a comma-separated includes summary for bundles / multi-content packages.
+    /// Prefers the post-download required-dependency list when available.
+    /// </summary>
+    public string IncludesSummary =>
+        !string.IsNullOrWhiteSpace(RequiredDependenciesSummary)
+            ? RequiredDependenciesSummary
+            : ContentCardBadgeHelper.GetIncludesSummary(searchResult);
+
+    /// <summary>
+    /// Gets a value indicating whether an includes / requires summary is available.
+    /// </summary>
+    public bool HasIncludesSummary => !HasBundleComponents && !string.IsNullOrWhiteSpace(IncludesSummary);
+
+    /// <summary>
+    /// Gets the sidebar section title for included or required content.
+    /// </summary>
+    public string IncludesSectionTitle =>
+        !string.IsNullOrWhiteSpace(RequiredDependenciesSummary) ? ContentConstants.RequiresSectionTitle : ContentConstants.IncludesSectionTitle;
+
+    /// <summary>
+    /// Gets a value indicating whether the Download button should be shown.
+    /// </summary>
+    public bool ShowDownloadButton
+    {
+        get
+        {
+            if (HasBundleComponents)
+            {
+                return !AreBundleComponentsReadyForProfile && !IsDownloading;
+            }
+
+            if (SelectedDownloadableItem != null)
+            {
+                return !SelectedDownloadableItem.IsDownloaded && !SelectedDownloadableItem.IsDownloading && !SelectedDownloadableItem.IsUpdateAvailable;
+            }
+
+            return !IsDownloaded && !IsUpdateAvailable;
+        }
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether the Update button should be shown.
+    /// </summary>
+    public bool ShowUpdateButton
+    {
+        get
+        {
+            if (HasBundleComponents)
+            {
+                return false;
+            }
+
+            if (SelectedDownloadableItem != null)
+            {
+                return SelectedDownloadableItem.IsUpdateAvailable && !SelectedDownloadableItem.IsDownloading;
+            }
+
+            return IsUpdateAvailable && !IsDownloading;
+        }
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether the Add to Profile button should be shown.
+    /// </summary>
+    public bool ShowAddToProfileButton
+    {
+        get
+        {
+            if (HasBundleComponents)
+            {
+                return AreBundleComponentsReadyForProfile;
+            }
+
+            return SelectedDownloadableItem != null
+                ? SelectedDownloadableItem.IsDownloaded
+                : IsDownloaded;
+        }
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether the content type can be manually changed.
+    /// </summary>
+    public bool IsContentTypeEditable => !HasBundleComponents && searchResult.ResolverId != CatalogConstants.GenericCatalogResolverId;
+
+    /// <summary>
+    /// Gets a value indicating whether the downloaded content has mandatory dependencies.
+    /// </summary>
+    public bool HasRequiredDependencies => !string.IsNullOrWhiteSpace(RequiredDependenciesSummary);
+
+    /// <summary>
+    /// Gets a value indicating whether there are releases to display.
+    /// </summary>
+    public bool HasReleases => (Releases?.Count > 0) || (Variants?.Count > 0);
+
+    /// <summary>
+    /// Gets the count of releases for display in the tab badge.
+    /// </summary>
+    public int ReleasesCount => Releases?.Count ?? 0;
+
+    /// <summary>
+    /// Gets a value indicating whether there are addons to display.
+    /// </summary>
+    public bool HasAddons => Addons.Count > 0;
+
+    /// <summary>
+    /// Gets the count of addons for display.
+    /// </summary>
+    public int AddonsCount => Addons.Count;
+
+    /// <summary>
+    /// Gets the collection of publisher referrals to other catalogs.
+    /// </summary>
+    public ObservableCollection<PublisherReferral> PublisherReferrals { get; } = [];
+
+    /// <summary>
+    /// Gets a value indicating whether publisher referrals are available.
+    /// </summary>
+    public bool HasPublisherReferrals => PublisherReferrals.Count > 0;
+
+    /// <summary>
+    /// Gets the publisher display name.
+    /// </summary>
+    public string PublisherDisplayName
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(PublisherProfile?.Name))
+            {
+                return PublisherProfile.Name;
+            }
+
+            if (!string.IsNullOrWhiteSpace(searchResult.ProviderName))
+            {
+                return searchResult.ProviderName;
+            }
+
+            return searchResult.AuthorName ?? "Publisher";
+        }
+    }
+
+    /// <summary>
+    /// Gets the publisher avatar or logo URL.
+    /// </summary>
+    public string? PublisherAvatarUrl => !string.IsNullOrWhiteSpace(PublisherProfile?.AvatarUrl)
+        ? PublisherProfile.AvatarUrl
+        : (PublisherInfoConstants.GetPublisherLogo(searchResult.ProviderName, searchResult.Id) ?? searchResult.IconUrl);
+
+    /// <summary>
+    /// Gets the publisher website URL.
+    /// </summary>
+    public string? PublisherWebsite => PublisherProfile?.Website;
+
+    /// <summary>
+    /// Gets the publisher support URL.
+    /// </summary>
+    public string? PublisherSupportUrl => PublisherProfile?.SupportUrl;
+
+    /// <summary>
+    /// Gets the publisher contact email.
+    /// </summary>
+    public string? PublisherContactEmail => PublisherProfile?.ContactEmail;
+
+    /// <summary>
+    /// Gets a value indicating whether publisher profile metadata is present.
+    /// </summary>
+    public bool HasPublisherProfile => !string.IsNullOrWhiteSpace(PublisherDisplayName) &&
+        (!string.IsNullOrWhiteSpace(PublisherWebsite) || !string.IsNullOrWhiteSpace(PublisherSupportUrl) || !string.IsNullOrWhiteSpace(PublisherContactEmail) || HasPublisherReferrals);
+
+    /// <summary>
+    /// Gets a value indicating whether the Publisher tab should be visible.
+    /// </summary>
+    public bool HasPublisherInfo => HasCustomTabs || HasPublisherProfile;
+
+    /// <summary>
+    /// Gets the publisher category or role badge text.
+    /// </summary>
+    public string PublisherTypeBadge => searchResult.ResolverId == CatalogConstants.GenericCatalogResolverId
+        ? CatalogConstants.SubscribedCatalogPublisherBadge
+        : CatalogConstants.OfficialProviderBadge;
+
+    /// <summary>
+    /// Gets a value indicating whether there are custom tabs to display.
+    /// </summary>
+    public bool HasCustomTabs => CustomTabs?.Count > 0;
 
     /// <summary>
     /// Disposes resources used by the view model.
@@ -403,15 +759,15 @@ public partial class ContentDetailViewModel(
 
         // Determine the initial downloaded/update state so a previously downloaded item
         // opens with "Add to Profile" instead of "Download Now".
-        _ = LoadInitialStateAsync();
+        _initialStateTask = LoadInitialStateAsync();
 
         // Load icon and parsed data asynchronously
         // Note: Full details are loaded eagerly for ModDB and similar content
         // that requires page parsing to show releases, addons, etc.
-        _ = LoadIconAsync();
-        _ = LoadBasicParsedDataAsync();
-        _ = LoadCustomTabsAsync();
-        _ = InitializeVariantsAsync();
+        _iconTask = LoadIconAsync();
+        _basicContentLoadTask = LoadBasicParsedDataAsync();
+        _customTabsTask = LoadCustomTabsAsync();
+        _variantsTask = InitializeVariantsAsync();
     }
 
     /// <summary>
@@ -483,6 +839,286 @@ public partial class ContentDetailViewModel(
     }
 
     /// <summary>
+    /// Awaits all in-flight row state resolution tasks (for test determinism).
+    /// </summary>
+    /// <returns>A task that completes when all row-state resolutions finish.</returns>
+    public async Task WaitForRowStateResolutionsAsync()
+    {
+        List<Task> snapshot;
+        lock (_pendingRowStateTasks)
+        {
+            snapshot = [.. _pendingRowStateTasks];
+        }
+
+        await Task.WhenAll(snapshot);
+    }
+
+    /// <summary>
+    /// Awaits all asynchronous initialization operations (for test determinism).
+    /// </summary>
+    /// <returns>A task that completes when all initialization operations finish.</returns>
+    public async Task WaitForInitializationAsync()
+    {
+        var tasks = new List<Task>();
+        if (_initialStateTask != null)
+        {
+            tasks.Add(_initialStateTask);
+        }
+
+        if (_iconTask != null)
+        {
+            tasks.Add(_iconTask);
+        }
+
+        if (_basicContentLoadTask != null)
+        {
+            tasks.Add(_basicContentLoadTask);
+        }
+
+        if (_customTabsTask != null)
+        {
+            tasks.Add(_customTabsTask);
+        }
+
+        if (_variantsTask != null)
+        {
+            tasks.Add(_variantsTask);
+        }
+
+        await Task.WhenAll(tasks);
+        await WaitForRowStateResolutionsAsync();
+    }
+
+    /// <summary>
+    /// Populates the Releases collection from available variants when no web releases exist.
+    /// </summary>
+    public void PopulateReleasesFromVariants()
+    {
+        if (Variants.Count == 0)
+        {
+            return;
+        }
+
+        Releases.Clear();
+        var sortedVariants = Variants
+            .OrderByDescending(v =>
+            {
+                if (variantSearchResults != null &&
+                    !string.IsNullOrEmpty(v.ManifestId) &&
+                    variantSearchResults.TryGetValue(v.ManifestId, out var sr))
+                {
+                    return sr.LastUpdated ?? DateTime.MinValue;
+                }
+
+                return searchResult.LastUpdated ?? DateTime.MinValue;
+            })
+            .ThenByDescending(v => v.Name, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var variant in sortedVariants)
+        {
+            var manifestId = variant.ManifestId;
+            ContentSearchResult? sibling = null;
+            if (!string.IsNullOrEmpty(manifestId) &&
+                variantSearchResults != null &&
+                variantSearchResults.TryGetValue(manifestId, out var sr))
+            {
+                sibling = sr;
+            }
+
+            var url = sibling?.SourceUrl ?? searchResult.SourceUrl ?? string.Empty;
+            var size = sibling?.DownloadSize ?? searchResult.DownloadSize;
+            var displayName = variant.Name;
+            var itemVersion = sibling?.Version ?? Version;
+            var itemAuthor = sibling?.AuthorName ?? searchResult.AuthorName;
+            var itemDescription = sibling?.Description ?? searchResult.Description;
+            var itemContentType = sibling?.ContentType ?? searchResult.ContentType;
+            var itemCategory = itemContentType.GetDisplayName();
+            var itemFilename = GetFileNameFromUrl(url) ?? displayName;
+
+            var file = new DownloadableFile(
+                Name: displayName,
+                DownloadUrl: url,
+                SizeBytes: size > 0 ? size : null,
+                UploadDate: sibling?.LastUpdated ?? searchResult.LastUpdated,
+                Version: itemVersion,
+                Category: itemCategory,
+                Uploader: itemAuthor,
+                Filename: itemFilename,
+                Description: itemDescription,
+                FileSectionType: FileSectionType.Downloads);
+
+            ReleaseItemViewModel releaseItem = new()
+            {
+                Id = Guid.NewGuid().ToString(),
+                Name = displayName,
+                Version = itemVersion,
+                ReleaseDate = sibling?.LastUpdated ?? searchResult.LastUpdated,
+                FileSize = size,
+                DownloadUrl = url,
+                DetailsUrl = url,
+                DownloadedManifestId = manifestId,
+                ContentType = itemContentType,
+                Category = itemCategory,
+                Uploader = itemAuthor,
+                Filename = itemFilename,
+                FullDescription = itemDescription,
+                TargetGame = ResolveTargetGameString(sibling, searchResult),
+                IsDetailsLoaded = true,
+                File = file,
+                IsDownloaded = variant.CurrentState == ContentState.Downloaded,
+                IsUpdateAvailable = variant.CurrentState == ContentState.UpdateAvailable,
+                FetchDetailsAsync = LoadItemDetailsAsync,
+            };
+
+            var screenshots = sibling?.ScreenshotUrls ?? searchResult.ScreenshotUrls;
+            if (screenshots != null)
+            {
+                foreach (var shot in screenshots)
+                {
+                    releaseItem.PreviewImages.Add(shot);
+                }
+            }
+
+            releaseItem.SelectCommand = new RelayCommand(
+                () =>
+                {
+                    if (variantSearchResults is not null && variantSearchResults.TryGetValue(manifestId, out var swapSr))
+                    {
+                        VariantSwap.Apply(searchResult, swapSr);
+                        SelectedVariant = variant;
+                    }
+
+                    SelectDownloadableItem(releaseItem, isUserInitiated: true);
+                },
+                () => !IsDownloading);
+
+            releaseItem.DownloadCommand = new AsyncRelayCommand(async ct =>
+            {
+                if (variantSearchResults is not null && variantSearchResults.TryGetValue(manifestId, out var swapSr))
+                {
+                    VariantSwap.Apply(searchResult, swapSr);
+                    SelectedVariant = variant;
+                }
+
+                await DownloadReleaseAsync(releaseItem, releaseItem.File ?? file, ct);
+            });
+
+            releaseItem.AddToProfileCommand = new AsyncRelayCommand(async () =>
+            {
+                if (variantSearchResults is not null && variantSearchResults.TryGetValue(manifestId, out var swapSr))
+                {
+                    VariantSwap.Apply(searchResult, swapSr);
+                    SelectedVariant = variant;
+                }
+
+                var targetManifestId = releaseItem.DownloadedManifestId ?? manifestId;
+                await AddFileToProfileAsync(releaseItem.File ?? file, targetManifestId);
+            });
+
+            Releases.Add(releaseItem);
+            TrackRowStateResolution(ResolveRowStateAsync(releaseItem, file));
+        }
+
+        var initialRelease = (SelectedVariant != null
+            ? Releases.FirstOrDefault(r =>
+                string.Equals(r.DownloadedManifestId, SelectedVariant.ManifestId, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(r.Name, SelectedVariant.Name, StringComparison.OrdinalIgnoreCase))
+            : null) ?? FindPreferredRelease(Releases);
+
+        if (initialRelease != null)
+        {
+            SelectDownloadableItem(initialRelease, isUserInitiated: false);
+        }
+
+        OnPropertyChanged(nameof(HasReleases));
+        OnPropertyChanged(nameof(ReleasesCount));
+        OnPropertyChanged(nameof(ShowSelectedTargetBanner));
+    }
+
+    /// <summary>
+    /// Populates the Releases collection from parsed page data.
+    /// </summary>
+    /// <param name="files">The files to populate releases from.</param>
+    public void PopulateReleases(IEnumerable<DownloadableFile> files)
+    {
+        Releases.Clear();
+        var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var sortedFiles = files
+            .Where(f => f.FileSectionType == FileSectionType.Downloads)
+            .OrderByDescending(f => f.ReleaseDate ?? f.UploadDate ?? DateTime.MinValue)
+            .ThenByDescending(f => f.Version, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var file in sortedFiles)
+        {
+            var dedupeKey = GetDeduplicationKey(file.DetailsUrl ?? file.DownloadUrl, file.Name, file.Filename);
+            if (!string.IsNullOrEmpty(dedupeKey) && !seenKeys.Add(dedupeKey))
+            {
+                continue;
+            }
+
+            var releaseItem = CreateReleaseItemViewModel(file);
+            Releases.Add(releaseItem);
+            TrackRowStateResolution(ResolveRowStateAsync(releaseItem, file));
+        }
+
+        SelectInitialPreferredRelease();
+
+        OnPropertyChanged(nameof(HasReleases));
+        OnPropertyChanged(nameof(ReleasesCount));
+        OnPropertyChanged(nameof(ShowSelectedTargetBanner));
+    }
+
+/// <summary>
+    /// Populates the Addons collection from parsed page data.
+    /// </summary>
+    /// <param name="files">The files to populate addons from.</param>
+    public void PopulateAddons(IEnumerable<DownloadableFile> files)
+    {
+        Addons.Clear();
+        var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var sortedFiles = files
+            .Where(f => f.FileSectionType == FileSectionType.Addons)
+            .OrderByDescending(f => f.ReleaseDate ?? f.UploadDate ?? DateTime.MinValue)
+            .ThenByDescending(f => f.Version, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var file in sortedFiles)
+        {
+            var dedupeKey = GetDeduplicationKey(file.DetailsUrl ?? file.DownloadUrl, file.Name, file.Filename);
+            if (!string.IsNullOrEmpty(dedupeKey) && !seenKeys.Add(dedupeKey))
+            {
+                continue;
+            }
+
+            var addonItem = CreateAddonItemViewModel(file);
+            Addons.Add(addonItem);
+            TrackRowStateResolution(ResolveRowStateAsync(addonItem, file));
+        }
+
+        SelectInitialPreferredAddon();
+    }
+
+/// <summary>
+    /// Triggers asynchronous background preloading for the most recent releases and addons.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task representing the preload operation.</returns>
+    public Task TriggerPreloadRecentItemDetailsAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_preloadLock)
+        {
+            if (_preloadTask != null && !_preloadTask.IsCompleted)
+            {
+                return _preloadTask;
+            }
+
+            _preloadTask = PreloadRecentItemDetailsCoreAsync(cancellationToken);
+            return _preloadTask;
+        }
+    }
+
+/// <summary>
     /// Displays the profile selection flow for a manifest. Kept overridable so derived detail
     /// views can provide a host-specific dialog while preserving the manifest chosen by a row.
     /// </summary>
@@ -936,6 +1572,14 @@ public partial class ContentDetailViewModel(
         }
     }
 
+    private void TrackRowStateResolution(Task task)
+    {
+        lock (_pendingRowStateTasks)
+        {
+            _pendingRowStateTasks.Add(task);
+        }
+    }
+
     private async Task InitializeVariantsAsync()
     {
         EnsureSynthesizedVariantSearchResults();
@@ -1016,7 +1660,7 @@ public partial class ContentDetailViewModel(
             {
                 var manifestId = !string.IsNullOrEmpty(v.ManifestId)
                     ? v.ManifestId
-                    : $"1.0.{searchResult.ProviderName.ToLowerInvariant()}.{searchResult.ContentType.ToString().ToLowerInvariant()}.{lastSegment}-{v.Id}";
+                    : ManifestIdGenerator.GeneratePublisherContentId(searchResult.ProviderName, searchResult.ContentType, $"{lastSegment}-{v.Id}", 0);
 
                 var baseName = !string.IsNullOrEmpty(searchResult.VariantFamilyName) ? searchResult.VariantFamilyName : searchResult.Name;
                 var variantName = !string.IsNullOrEmpty(v.Name) && v.Name.StartsWith(baseName, StringComparison.OrdinalIgnoreCase)
@@ -1401,11 +2045,6 @@ public partial class ContentDetailViewModel(
             logger.LogWarning(ex, "Failed to open browser for {Url}", url);
         }
     }
-
-    /// <summary>
-    /// Gets a value indicating whether the content has a source page to open.
-    /// </summary>
-    public bool HasSourceUrl => !string.IsNullOrEmpty(searchResult.SourceUrl);
 
     private async Task LoadIconAsync()
     {
@@ -1916,7 +2555,7 @@ public partial class ContentDetailViewModel(
             Releases.Add(releaseItem);
             if (!HasBundleComponents && searchResult.ContentType != ContentType.ContentBundle && releaseItem.File != null)
             {
-                _ = ResolveRowStateAsync(releaseItem, releaseItem.File);
+                TrackRowStateResolution(ResolveRowStateAsync(releaseItem, releaseItem.File));
             }
         }
 
@@ -2183,144 +2822,6 @@ public partial class ContentDetailViewModel(
         }
     }
 
-    /// <summary>
-    /// Gets a value indicating whether files are available.
-    /// </summary>
-    public bool HasFiles => Files.Count > 0;
-
-    /// <summary>
-    /// Gets a value indicating whether the Files tab should be shown.
-    /// Structured releases and addons own their respective lists; the raw Files tab is reserved
-    /// for content that has no structured release or addon grouping.
-    /// </summary>
-    public bool ShowFilesTab => Files.Count > 0 && !HasReleases && !HasAddons;
-
-    /// <summary>
-    /// Gets a value indicating whether images are available.
-    /// </summary>
-    public bool HasImages => Images.Count > 0;
-
-    /// <summary>
-    /// Gets a value indicating whether videos are available.
-    /// </summary>
-    public bool HasVideos => Videos.Count > 0;
-
-    /// <summary>
-    /// Gets a value indicating whether comments are available.
-    /// </summary>
-    public bool HasComments => Comments.Count > 0;
-
-    /// <summary>
-    /// Gets a value indicating whether reviews are available.
-    /// </summary>
-    public bool HasReviews => Reviews.Count > 0;
-
-    /// <summary>
-    /// Gets a value indicating whether media (images or videos) is available.
-    /// </summary>
-    public bool HasMedia => HasImages || HasVideos;
-
-    /// <summary>
-    /// Gets a value indicating whether community content (comments or reviews) is available.
-    /// </summary>
-    public bool HasCommunity => HasComments || HasReviews;
-
-    /// <summary>
-    /// Gets the content ID.
-    /// </summary>
-    public string Id => searchResult.Id ?? string.Empty;
-
-    /// <summary>
-    /// Gets the content name. Prefer the selected variant label or user-selected downloadable item
-    /// so the specific mod/patch/addon title stays visible; fall back to search result, then parsed page title.
-    /// </summary>
-    public string Name => SelectedVariant?.Name
-        ?? (SelectedDownloadableItem != null &&
-            !string.IsNullOrWhiteSpace(SelectedDownloadableItem.Name) &&
-            !SelectedDownloadableItem.Name.StartsWith(UnknownValue, StringComparison.OrdinalIgnoreCase)
-                ? SelectedDownloadableItem.Name
-                : null)
-        ?? (!string.IsNullOrWhiteSpace(searchResult.Name) ? searchResult.Name : null)
-        ?? ParsedPage?.Context.Title
-        ?? UnknownValue;
-
-    /// <summary>
-    /// Gets the content description (full) - prefers parsed page context description.
-    /// </summary>
-    public string Description =>
-        HtmlTextHelper.NormalizeHtml(ParsedPage?.Context.Description ?? searchResult.Description);
-
-    /// <summary>
-    /// Gets the author name - prefers parsed page context developer.
-    /// </summary>
-    public string AuthorName =>
-        ParsedPage?.Context.Developer ?? searchResult.AuthorName ?? UnknownValue;
-
-    /// <summary>
-    /// Gets the version.
-    /// </summary>
-    public string Version => SelectedDownloadableItem?.Version ?? searchResult.Version ?? string.Empty;
-
-    /// <summary>
-    /// Gets the last updated date (optional) - prefers parsed page context release date.
-    /// </summary>
-    public DateTime? LastUpdated =>
-        SelectedDownloadableItem?.ReleaseDate ?? ParsedPage?.Context.ReleaseDate ?? searchResult.LastUpdated;
-
-    /// <summary>
-    /// Gets the formatted last updated string.
-    /// </summary>
-    public string LastUpdatedDisplay => LastUpdated?.ToString("MMM dd, yyyy") ?? string.Empty;
-
-    /// <summary>
-    /// Gets the download size - prefers size from parsed files or selected item.
-    /// </summary>
-    public long DownloadSize
-    {
-        get
-        {
-            if (SelectedDownloadableItem is { FileSize: > 0 })
-            {
-                return SelectedDownloadableItem.FileSize;
-            }
-
-            // Try to get size from parsed files first
-            var parsedFile = Files?.FirstOrDefault();
-            if (parsedFile?.SizeBytes > 0)
-            {
-                return parsedFile.SizeBytes.Value;
-            }
-
-            return searchResult.DownloadSize;
-        }
-    }
-
-    /// <summary>
-    /// Gets a value indicating whether download size is available and greater than zero.
-    /// </summary>
-    public bool HasDownloadSize => DownloadSize > 0;
-
-    /// <summary>
-    /// Gets a value indicating whether a last updated date is available.
-    /// </summary>
-    public bool HasLastUpdated => LastUpdated.HasValue && LastUpdated.Value > DateTime.MinValue;
-
-    /// <summary>
-    /// Gets a value indicating whether a version is available.
-    /// </summary>
-    public bool HasVersion => !string.IsNullOrEmpty(Version);
-
-    /// <summary>
-    /// Gets a value indicating whether an author is available and not "Unknown".
-    /// </summary>
-    public bool HasAuthor => !string.IsNullOrEmpty(AuthorName) &&
-                             !string.Equals(AuthorName, UnknownValue, StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// Gets the content type.
-    /// </summary>
-    public ContentType ContentType => SelectedContentType;
-
     partial void OnSelectedContentTypeChanged(ContentType value)
     {
 
@@ -2452,113 +2953,6 @@ public partial class ContentDetailViewModel(
         OnPropertyChanged(nameof(ShowAddToProfileButton));
         OnPropertyChanged(nameof(ShowUpdateButton));
     }
-
-    /// <summary>
-    /// Gets the provider name.
-    /// </summary>
-    public string ProviderName => searchResult.ProviderName ?? string.Empty;
-
-    /// <summary>
-    /// Gets the icon URL - prefers parsed page context icon.
-    /// </summary>
-    public string? IconUrl =>
-        ParsedPage?.Context.IconUrl ??
-        (!string.IsNullOrWhiteSpace(searchResult.IconUrl)
-            ? searchResult.IconUrl
-            : (ContentCardBadgeHelper.GetPublisherLogoUrl(searchResult) ?? ContentCardBadgeHelper.GetThumbnailUrl(searchResult)));
-
-    /// <summary>
-    /// Gets the preferred header thumbnail URL (banner / screenshot / icon).
-    /// </summary>
-    public string? ThumbnailUrl =>
-        !string.IsNullOrWhiteSpace(searchResult.BannerUrl)
-            ? searchResult.BannerUrl
-            : ContentCardBadgeHelper.GetThumbnailUrl(searchResult) ?? IconUrl;
-
-    /// <summary>
-    /// Gets a comma-separated includes summary for bundles / multi-content packages.
-    /// Prefers the post-download required-dependency list when available.
-    /// </summary>
-    public string IncludesSummary =>
-        !string.IsNullOrWhiteSpace(RequiredDependenciesSummary)
-            ? RequiredDependenciesSummary
-            : ContentCardBadgeHelper.GetIncludesSummary(searchResult);
-
-    /// <summary>
-    /// Gets a value indicating whether an includes / requires summary is available.
-    /// </summary>
-    public bool HasIncludesSummary => !HasBundleComponents && !string.IsNullOrWhiteSpace(IncludesSummary);
-
-    /// <summary>
-    /// Gets the sidebar section title for included or required content.
-    /// </summary>
-    public string IncludesSectionTitle =>
-        !string.IsNullOrWhiteSpace(RequiredDependenciesSummary) ? "Requires" : "Includes";
-
-    /// <summary>
-    /// Gets a value indicating whether the Download button should be shown.
-    /// </summary>
-    public bool ShowDownloadButton
-    {
-        get
-        {
-            if (HasBundleComponents)
-            {
-                return !AreBundleComponentsReadyForProfile && !IsDownloading;
-            }
-
-            if (SelectedDownloadableItem != null)
-            {
-                return !SelectedDownloadableItem.IsDownloaded && !SelectedDownloadableItem.IsDownloading && !SelectedDownloadableItem.IsUpdateAvailable;
-            }
-
-            return !IsDownloaded && !IsUpdateAvailable;
-        }
-    }
-
-    /// <summary>
-    /// Gets a value indicating whether the Update button should be shown.
-    /// </summary>
-    public bool ShowUpdateButton
-    {
-        get
-        {
-            if (HasBundleComponents)
-            {
-                return false;
-            }
-
-            if (SelectedDownloadableItem != null)
-            {
-                return SelectedDownloadableItem.IsUpdateAvailable && !SelectedDownloadableItem.IsDownloading;
-            }
-
-            return IsUpdateAvailable && !IsDownloading;
-        }
-    }
-
-    /// <summary>
-    /// Gets a value indicating whether the Add to Profile button should be shown.
-    /// </summary>
-    public bool ShowAddToProfileButton
-    {
-        get
-        {
-            if (HasBundleComponents)
-            {
-                return AreBundleComponentsReadyForProfile;
-            }
-
-            return SelectedDownloadableItem != null
-                ? SelectedDownloadableItem.IsDownloaded
-                : IsDownloaded;
-        }
-    }
-
-    /// <summary>
-    /// Gets a value indicating whether the content type can be manually changed.
-    /// </summary>
-    public bool IsContentTypeEditable => !HasBundleComponents && searchResult.ResolverId != CatalogConstants.GenericCatalogResolverId;
 
     /// <summary>
     /// Command to download the main content or selected row target.
@@ -3183,11 +3577,6 @@ public partial class ContentDetailViewModel(
         FullScreenMediaTitle = null;
     }
 
-    /// <summary>
-    /// Gets a value indicating whether the downloaded content has mandatory dependencies.
-    /// </summary>
-    public bool HasRequiredDependencies => !string.IsNullOrWhiteSpace(RequiredDependenciesSummary);
-
     private async Task LoadDependencySummaryAsync(string manifestId)
     {
         var manifestResult = await manifestPool.GetManifestAsync(ManifestId.Create(manifestId), _cts.Token);
@@ -3521,255 +3910,6 @@ public partial class ContentDetailViewModel(
         }
     }
 
-    /// <summary>
-    /// Gets a value indicating whether there are releases to display.
-    /// </summary>
-    public bool HasReleases => (Releases?.Count > 0) || (Variants?.Count > 0);
-
-    /// <summary>
-    /// Gets the count of releases for display in the tab badge.
-    /// </summary>
-    public int ReleasesCount => Releases?.Count ?? 0;
-
-    /// <summary>
-    /// Populates the Releases collection from available variants when no web releases exist.
-    /// </summary>
-    public void PopulateReleasesFromVariants()
-    {
-        if (Variants.Count == 0)
-        {
-            return;
-        }
-
-        Releases.Clear();
-        var sortedVariants = Variants
-            .OrderByDescending(v =>
-            {
-                if (variantSearchResults != null &&
-                    !string.IsNullOrEmpty(v.ManifestId) &&
-                    variantSearchResults.TryGetValue(v.ManifestId, out var sr))
-                {
-                    return sr.LastUpdated ?? DateTime.MinValue;
-                }
-
-                return searchResult.LastUpdated ?? DateTime.MinValue;
-            })
-            .ThenByDescending(v => v.Name, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var variant in sortedVariants)
-        {
-            var manifestId = variant.ManifestId;
-            ContentSearchResult? sibling = null;
-            if (!string.IsNullOrEmpty(manifestId) &&
-                variantSearchResults != null &&
-                variantSearchResults.TryGetValue(manifestId, out var sr))
-            {
-                sibling = sr;
-            }
-
-            var url = sibling?.SourceUrl ?? searchResult.SourceUrl ?? string.Empty;
-            var size = sibling?.DownloadSize ?? searchResult.DownloadSize;
-            var displayName = variant.Name;
-            var itemVersion = sibling?.Version ?? Version;
-            var itemAuthor = sibling?.AuthorName ?? searchResult.AuthorName;
-            var itemDescription = sibling?.Description ?? searchResult.Description;
-            var itemContentType = sibling?.ContentType ?? searchResult.ContentType;
-            var itemCategory = itemContentType.GetDisplayName();
-            var itemFilename = GetFileNameFromUrl(url) ?? displayName;
-
-            var file = new DownloadableFile(
-                Name: displayName,
-                DownloadUrl: url,
-                SizeBytes: size > 0 ? size : null,
-                UploadDate: sibling?.LastUpdated ?? searchResult.LastUpdated,
-                Version: itemVersion,
-                Category: itemCategory,
-                Uploader: itemAuthor,
-                Filename: itemFilename,
-                Description: itemDescription,
-                FileSectionType: FileSectionType.Downloads);
-
-            ReleaseItemViewModel releaseItem = new()
-            {
-                Id = Guid.NewGuid().ToString(),
-                Name = displayName,
-                Version = itemVersion,
-                ReleaseDate = sibling?.LastUpdated ?? searchResult.LastUpdated,
-                FileSize = size,
-                DownloadUrl = url,
-                DetailsUrl = url,
-                DownloadedManifestId = manifestId,
-                ContentType = itemContentType,
-                Category = itemCategory,
-                Uploader = itemAuthor,
-                Filename = itemFilename,
-                FullDescription = itemDescription,
-                TargetGame = ResolveTargetGameString(sibling, searchResult),
-                IsDetailsLoaded = true,
-                File = file,
-                IsDownloaded = variant.CurrentState == ContentState.Downloaded,
-                IsUpdateAvailable = variant.CurrentState == ContentState.UpdateAvailable,
-                FetchDetailsAsync = LoadItemDetailsAsync,
-            };
-
-            var screenshots = sibling?.ScreenshotUrls ?? searchResult.ScreenshotUrls;
-            if (screenshots != null)
-            {
-                foreach (var shot in screenshots)
-                {
-                    releaseItem.PreviewImages.Add(shot);
-                }
-            }
-
-            releaseItem.SelectCommand = new RelayCommand(
-                () =>
-                {
-                    if (variantSearchResults is not null && variantSearchResults.TryGetValue(manifestId, out var swapSr))
-                    {
-                        VariantSwap.Apply(searchResult, swapSr);
-                        SelectedVariant = variant;
-                    }
-
-                    SelectDownloadableItem(releaseItem, isUserInitiated: true);
-                },
-                () => !IsDownloading);
-
-            releaseItem.DownloadCommand = new AsyncRelayCommand(async ct =>
-            {
-                if (variantSearchResults is not null && variantSearchResults.TryGetValue(manifestId, out var swapSr))
-                {
-                    VariantSwap.Apply(searchResult, swapSr);
-                    SelectedVariant = variant;
-                }
-
-                await DownloadReleaseAsync(releaseItem, releaseItem.File ?? file, ct);
-            });
-
-            releaseItem.AddToProfileCommand = new AsyncRelayCommand(async () =>
-            {
-                if (variantSearchResults is not null && variantSearchResults.TryGetValue(manifestId, out var swapSr))
-                {
-                    VariantSwap.Apply(searchResult, swapSr);
-                    SelectedVariant = variant;
-                }
-
-                var targetManifestId = releaseItem.DownloadedManifestId ?? manifestId;
-                await AddFileToProfileAsync(releaseItem.File ?? file, targetManifestId);
-            });
-
-            Releases.Add(releaseItem);
-            _ = ResolveRowStateAsync(releaseItem, file);
-        }
-
-        var initialRelease = (SelectedVariant != null
-            ? Releases.FirstOrDefault(r =>
-                string.Equals(r.DownloadedManifestId, SelectedVariant.ManifestId, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(r.Name, SelectedVariant.Name, StringComparison.OrdinalIgnoreCase))
-            : null) ?? FindPreferredRelease(Releases);
-
-        if (initialRelease != null)
-        {
-            SelectDownloadableItem(initialRelease, isUserInitiated: false);
-        }
-
-        OnPropertyChanged(nameof(HasReleases));
-        OnPropertyChanged(nameof(ReleasesCount));
-        OnPropertyChanged(nameof(ShowSelectedTargetBanner));
-    }
-
-    /// <summary>
-    /// Gets a value indicating whether there are addons to display.
-    /// </summary>
-    public bool HasAddons => Addons.Count > 0;
-
-    /// <summary>
-    /// Gets the count of addons for display.
-    /// </summary>
-    public int AddonsCount => Addons.Count;
-
-    /// <summary>
-    /// Populates the Releases collection from parsed page data.
-    /// </summary>
-    /// <param name="files">The files to populate releases from.</param>
-    public void PopulateReleases(IEnumerable<DownloadableFile> files)
-    {
-        Releases.Clear();
-        var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        var sortedFiles = files
-            .Where(f => f.FileSectionType == FileSectionType.Downloads)
-            .OrderByDescending(f => f.ReleaseDate ?? f.UploadDate ?? DateTime.MinValue)
-            .ThenByDescending(f => f.Version, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var file in sortedFiles)
-        {
-            var dedupeKey = GetDeduplicationKey(file.DetailsUrl ?? file.DownloadUrl, file.Name, file.Filename);
-            if (!string.IsNullOrEmpty(dedupeKey) && !seenKeys.Add(dedupeKey))
-            {
-                continue;
-            }
-
-            var releaseItem = CreateReleaseItemViewModel(file);
-            Releases.Add(releaseItem);
-            _ = ResolveRowStateAsync(releaseItem, file);
-        }
-
-        SelectInitialPreferredRelease();
-
-        OnPropertyChanged(nameof(HasReleases));
-        OnPropertyChanged(nameof(ReleasesCount));
-        OnPropertyChanged(nameof(ShowSelectedTargetBanner));
-    }
-
-    /// <summary>
-    /// Populates the Addons collection from parsed page data.
-    /// </summary>
-    /// <param name="files">The files to populate addons from.</param>
-    public void PopulateAddons(IEnumerable<DownloadableFile> files)
-    {
-        Addons.Clear();
-        var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        var sortedFiles = files
-            .Where(f => f.FileSectionType == FileSectionType.Addons)
-            .OrderByDescending(f => f.ReleaseDate ?? f.UploadDate ?? DateTime.MinValue)
-            .ThenByDescending(f => f.Version, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var file in sortedFiles)
-        {
-            var dedupeKey = GetDeduplicationKey(file.DetailsUrl ?? file.DownloadUrl, file.Name, file.Filename);
-            if (!string.IsNullOrEmpty(dedupeKey) && !seenKeys.Add(dedupeKey))
-            {
-                continue;
-            }
-
-            var addonItem = CreateAddonItemViewModel(file);
-            Addons.Add(addonItem);
-            _ = ResolveRowStateAsync(addonItem, file);
-        }
-
-        SelectInitialPreferredAddon();
-    }
-
-    /// <summary>
-    /// Triggers asynchronous background preloading for the most recent releases and addons.
-    /// </summary>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A task representing the preload operation.</returns>
-    public Task TriggerPreloadRecentItemDetailsAsync(CancellationToken cancellationToken = default)
-    {
-        lock (_preloadLock)
-        {
-            if (_preloadTask != null && !_preloadTask.IsCompleted)
-            {
-                return _preloadTask;
-            }
-
-            _preloadTask = PreloadRecentItemDetailsCoreAsync(cancellationToken);
-            return _preloadTask;
-        }
-    }
-
     private ReleaseItemViewModel CreateReleaseItemViewModel(DownloadableFile file)
     {
         var isDetailsAlreadyLoaded = IsFileDetailsAlreadyLoaded(file);
@@ -4052,80 +4192,9 @@ public partial class ContentDetailViewModel(
                 RefreshSelectedTargetProperties();
             }
 
-            _ = ResolveRowStateAsync(item, detailedFile);
+            TrackRowStateResolution(ResolveRowStateAsync(item, detailedFile));
         });
     }
-
-    /// <summary>
-    /// Gets the collection of publisher referrals to other catalogs.
-    /// </summary>
-    public ObservableCollection<PublisherReferral> PublisherReferrals { get; } = [];
-
-    /// <summary>
-    /// Gets a value indicating whether publisher referrals are available.
-    /// </summary>
-    public bool HasPublisherReferrals => PublisherReferrals.Count > 0;
-
-    /// <summary>
-    /// Gets the publisher display name.
-    /// </summary>
-    public string PublisherDisplayName
-    {
-        get
-        {
-            if (!string.IsNullOrWhiteSpace(PublisherProfile?.Name))
-            {
-                return PublisherProfile.Name;
-            }
-
-            if (!string.IsNullOrWhiteSpace(searchResult.ProviderName))
-            {
-                return searchResult.ProviderName;
-            }
-
-            return searchResult.AuthorName ?? "Publisher";
-        }
-    }
-
-    /// <summary>
-    /// Gets the publisher avatar or logo URL.
-    /// </summary>
-    public string? PublisherAvatarUrl => !string.IsNullOrWhiteSpace(PublisherProfile?.AvatarUrl)
-        ? PublisherProfile.AvatarUrl
-        : (PublisherInfoConstants.GetPublisherLogo(searchResult.ProviderName, searchResult.Id) ?? searchResult.IconUrl);
-
-    /// <summary>
-    /// Gets the publisher website URL.
-    /// </summary>
-    public string? PublisherWebsite => PublisherProfile?.Website;
-
-    /// <summary>
-    /// Gets the publisher support URL.
-    /// </summary>
-    public string? PublisherSupportUrl => PublisherProfile?.SupportUrl;
-
-    /// <summary>
-    /// Gets the publisher contact email.
-    /// </summary>
-    public string? PublisherContactEmail => PublisherProfile?.ContactEmail;
-
-    /// <summary>
-    /// Gets a value indicating whether publisher profile metadata is present.
-    /// </summary>
-    public bool HasPublisherProfile => !string.IsNullOrWhiteSpace(PublisherDisplayName) &&
-        (!string.IsNullOrWhiteSpace(PublisherWebsite) || !string.IsNullOrWhiteSpace(PublisherSupportUrl) || !string.IsNullOrWhiteSpace(PublisherContactEmail) || HasPublisherReferrals);
-
-    /// <summary>
-    /// Gets a value indicating whether the Publisher tab should be visible.
-    /// </summary>
-    public bool HasPublisherInfo => HasCustomTabs || HasPublisherProfile;
-
-    /// <summary>
-    /// Gets the publisher category or role badge text.
-    /// </summary>
-    public string PublisherTypeBadge => searchResult.ResolverId == CatalogConstants.GenericCatalogResolverId
-        ? "Subscribed Catalog Publisher"
-        : "Official Provider";
 
     /// <summary>
     /// Command to open an arbitrary URL in the system default browser.
@@ -4158,11 +4227,6 @@ public partial class ContentDetailViewModel(
             logger.LogWarning(ex, "Failed to open URL in browser: {Url}", url);
         }
     }
-
-    /// <summary>
-    /// Gets a value indicating whether there are custom tabs to display.
-    /// </summary>
-    public bool HasCustomTabs => CustomTabs?.Count > 0;
 
     /// <summary>
     /// Loads custom tabs from registered tab providers.

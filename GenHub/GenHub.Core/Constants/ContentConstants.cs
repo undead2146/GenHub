@@ -121,4 +121,24 @@ public static class ContentConstants
     /// Maximum concurrent background requests when preloading recent item details.
     /// </summary>
     public const int PreloadConcurrencyLimit = 3;
+
+    /// <summary>
+    /// Sidebar section title when content has required dependencies.
+    /// </summary>
+    public const string RequiresSectionTitle = "Requires";
+
+    /// <summary>
+    /// Sidebar section title when content bundles included items.
+    /// </summary>
+    public const string IncludesSectionTitle = "Includes";
+
+    /// <summary>
+    /// Category label for downloadable releases.
+    /// </summary>
+    public const string ReleaseCategory = "Release";
+
+    /// <summary>
+    /// Category label for downloadable addons.
+    /// </summary>
+    public const string AddonCategory = "Addon";
 }

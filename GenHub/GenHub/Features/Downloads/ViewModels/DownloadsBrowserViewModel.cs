@@ -501,23 +501,23 @@ public sealed partial class DownloadsBrowserViewModel(
         [
             new PublisherItemViewModel(
                 PublisherTypeConstants.GeneralsOnline,
-                "Generals Online",
-                "avares://GenHub/Assets/Logos/generalsonline-logo.png",
+                PublisherInfoConstants.GeneralsOnline.Name,
+                PublisherInfoConstants.GeneralsOnline.LogoSource,
                 CategoryStatic),
             new PublisherItemViewModel(
                 PublisherTypeConstants.TheSuperHackers,
-                "TheSuperHackers",
-                "avares://GenHub/Assets/Logos/thesuperhackers-logo.png",
+                PublisherInfoConstants.TheSuperHackers.Name,
+                PublisherInfoConstants.TheSuperHackers.LogoSource,
                 CategoryStatic),
             new PublisherItemViewModel(
                 CommunityOutpostConstants.PublisherType,
-                "CommunityOutpost",
-                "avares://GenHub/Assets/Logos/communityoutpost-logo.png",
+                PublisherInfoConstants.CommunityOutpost.Name,
+                PublisherInfoConstants.CommunityOutpost.LogoSource,
                 CategoryStatic),
             new PublisherItemViewModel(
                 GitHubTopicsConstants.PublisherType,
-                "GitHub",
-                "avares://GenHub/Assets/Logos/github-logo.png",
+                PublisherInfoConstants.GitHub.Name,
+                PublisherInfoConstants.GitHub.LogoSource,
                 CategoryDynamic),
         ];
     }
@@ -1801,7 +1801,7 @@ public sealed partial class DownloadsBrowserViewModel(
                 var bundleIds = await BundleComponentViewModel.GetRequiredProfileManifestIdsAsync(
                     item.BundleComponents,
                     contentStateService,
-                    CancellationToken.None);
+                    _vmCts.Token);
                 if (bundleIds.Count == 0)
                 {
                     item.DownloadStatus = "Please download first";
@@ -1828,12 +1828,12 @@ public sealed partial class DownloadsBrowserViewModel(
                 // before trusting the ID; otherwise fall back to the provenance-aware pool lookup.
                 var trustSearchResultId = !string.IsNullOrEmpty(manifestId)
                     && ManifestIdValidator.IsValid(manifestId, out _)
-                    && await contentStateService.GetStateByManifestIdAsync(manifestId, CancellationToken.None) == ContentState.Downloaded;
+                    && await contentStateService.GetStateByManifestIdAsync(manifestId, _vmCts.Token) == ContentState.Downloaded;
 
                 if (!trustSearchResultId)
                 {
                     logger.LogDebug("SearchResult ID '{Id}' is not an acquired manifest, looking up from pool", manifestId);
-                    manifestId = await contentStateService.GetLocalManifestIdAsync(item.SearchResult, CancellationToken.None);
+                    manifestId = await contentStateService.GetLocalManifestIdAsync(item.SearchResult, _vmCts.Token);
                 }
 
                 if (string.IsNullOrEmpty(manifestId))
@@ -1868,7 +1868,7 @@ public sealed partial class DownloadsBrowserViewModel(
                 manifestId,
                 item.Name,
                 additionalManifestIds,
-                CancellationToken.None);
+                _vmCts.Token);
 
             // Show the dialog
             var dialog = new Views.ProfileSelectionView(profileSelectionVm);
