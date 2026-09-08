@@ -276,7 +276,6 @@ public sealed class GenericCatalogDiscovererDynamicTests : IDisposable
     {
         var catalog = new PublisherCatalog
         {
-            CatalogVersion = "1.0.0",
             Publisher = new PublisherProfile
             {
                 Id = "test-pub",
@@ -297,17 +296,7 @@ public sealed class GenericCatalogDiscovererDynamicTests : IDisposable
                         new ContentRelease
                         {
                             Version = "1.0.0",
-                            ReleaseDate = DateTimeOffset.UtcNow,
-                            Artifacts =
-                            [
-                                new ContentArtifact
-                                {
-                                    FileName = "mod.zip",
-                                    DownloadUrl = "https://example.com/mod.zip",
-                                    Size = 1024,
-                                    Sha256 = "abcd",
-                                },
-                            ],
+                            Artifacts = [],
                         },
                     ],
                 },
