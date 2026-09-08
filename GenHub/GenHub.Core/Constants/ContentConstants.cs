@@ -113,6 +113,11 @@ public static class ContentConstants
     public const string IncludesSummaryMetadataKey = "includesSummary";
 
     /// <summary>
+    /// Metadata key for referencing a parent content item ID (e.g. associating child releases/addons with their parent content).
+    /// </summary>
+    public const string ParentContentIdMetadataKey = "parentContentId";
+
+    /// <summary>
     /// Number of recent releases and addons to eagerly preload extended details for.
     /// </summary>
     public const int PreloadRecentItemsLimit = 5;

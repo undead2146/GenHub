@@ -96,7 +96,7 @@ public sealed class ContentDetailViewModelTests
         var extractedRelease = coordinatorInput.GetData<GeneralsOnlineRelease>();
         Assert.NotNull(extractedRelease);
         Assert.Equal("082826_QFE1", extractedRelease.Version);
-        Assert.True(coordinatorInput.ResolverMetadata.TryGetValue("parentContentId", out var recordedParentId));
+        Assert.True(coordinatorInput.ResolverMetadata.TryGetValue(ContentConstants.ParentContentIdMetadataKey, out var recordedParentId));
         Assert.Equal(parentId, recordedParentId);
     }
 
