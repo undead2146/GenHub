@@ -1198,6 +1198,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         stream.Position = payloadOffset;
 
         // Skip stream 0 (uninstaller info script)
+        var stream0ExceededCap = false;
         try
         {
             var nonDisp = new NonDisposingStream(stream);
@@ -1210,21 +1211,26 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
                 stream0Bytes += r0;
                 if (stream0Bytes > CatalogConstants.MaxCatalogSizeBytes)
                 {
-                    throw new InvalidDataException("Smart Install Maker metadata table exceeds maximum allowed size.");
+                    stream0ExceededCap = true;
+                    break;
                 }
             }
 
-            stream.Position = payloadOffset + z0.TotalIn;
-        }
-        catch (InvalidDataException)
-        {
-            throw;
+            if (!stream0ExceededCap)
+            {
+                stream.Position = payloadOffset + z0.TotalIn;
+            }
         }
         catch (Exception ex)
         {
             // If stream 0 decompression fails, reset to payloadOffset
             logger.LogDebug(ex, "Failed to decompress Smart Install Maker stream 0 script");
             stream.Position = payloadOffset;
+        }
+
+        if (stream0ExceededCap)
+        {
+            throw new InvalidDataException("Smart Install Maker stream 0 script exceeds maximum allowed size.");
         }
 
         var copyBuffer = new byte[65536];

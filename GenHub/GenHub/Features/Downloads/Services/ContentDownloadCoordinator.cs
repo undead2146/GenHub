@@ -58,34 +58,10 @@ public sealed class ContentDownloadCoordinator(
             ? $"{searchResult.ProviderName}::{searchResult.Id}"
             : $"{searchResult.ProviderName}::{searchResult.Name}";
 
-        InFlightDownload inFlight;
-        bool isInitiator = false;
-
-        lock (_inFlightDownloads)
-        {
-            if (!_inFlightDownloads.TryGetValue(key, out inFlight!) ||
-                inFlight.InternalCts.IsCancellationRequested ||
-                inFlight.Task.IsCompleted)
-            {
-                inFlight = new InFlightDownload();
-                isInitiator = true;
-                _inFlightDownloads[key] = inFlight;
-            }
-
-            lock (inFlight.Lock)
-            {
-                inFlight.WaiterCount++;
-            }
-        }
+        var inFlight = GetOrCreateInFlightDownload(key, out var isInitiator);
 
         Action<ContentAcquisitionProgress>? callback = progress != null ? progress.Report : null;
-        if (callback != null)
-        {
-            lock (inFlight.Lock)
-            {
-                inFlight.ProgressCallbacks += callback;
-            }
-        }
+        AttachProgressCallback(inFlight, callback);
 
         if (isInitiator)
         {
@@ -104,29 +80,9 @@ public sealed class ContentDownloadCoordinator(
         }
 
         var unregistered = 0;
-        void OnCallerCancelled()
-        {
-            if (Interlocked.Exchange(ref unregistered, 1) == 0)
-            {
-                lock (inFlight.Lock)
-                {
-                    inFlight.WaiterCount--;
-                    if (inFlight.WaiterCount <= 0)
-                    {
-                        try
-                        {
-                            inFlight.InternalCts.Cancel();
-                        }
-                        catch (ObjectDisposedException)
-                        {
-                            // Ignored if already disposed
-                        }
-                    }
-                }
-            }
-        }
-
-        var reg = cancellationToken.CanBeCanceled ? cancellationToken.Register(OnCallerCancelled) : default;
+        var reg = cancellationToken.CanBeCanceled
+            ? cancellationToken.Register(() => DecrementWaiterAndCancelIfEmpty(inFlight, ref unregistered))
+            : default;
 
         try
         {
@@ -134,33 +90,83 @@ public sealed class ContentDownloadCoordinator(
         }
         finally
         {
-            reg.Dispose();
-            if (Interlocked.Exchange(ref unregistered, 1) == 0)
+            await reg.DisposeAsync();
+            DecrementWaiterAndCancelIfEmpty(inFlight, ref unregistered);
+            DetachProgressCallback(inFlight, callback);
+        }
+    }
+
+    private static void DecrementWaiterAndCancelIfEmpty(InFlightDownload inFlight, ref int unregistered)
+    {
+        if (Interlocked.Exchange(ref unregistered, 1) == 0)
+        {
+            lock (inFlight.Lock)
             {
-                lock (inFlight.Lock)
+                inFlight.WaiterCount--;
+                if (inFlight.WaiterCount <= 0)
                 {
-                    inFlight.WaiterCount--;
-                    if (inFlight.WaiterCount <= 0)
+                    try
                     {
-                        try
-                        {
-                            inFlight.InternalCts.Cancel();
-                        }
-                        catch (ObjectDisposedException)
-                        {
-                            // Ignored if already disposed
-                        }
+                        inFlight.InternalCts.Cancel();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // Ignored if already disposed
                     }
                 }
             }
+        }
+    }
 
-            if (callback != null)
+    private static void AttachProgressCallback(InFlightDownload inFlight, Action<ContentAcquisitionProgress>? callback)
+    {
+        if (callback == null)
+        {
+            return;
+        }
+
+        lock (inFlight.Lock)
+        {
+            inFlight.ProgressCallbacks += callback;
+        }
+    }
+
+    private static void DetachProgressCallback(InFlightDownload inFlight, Action<ContentAcquisitionProgress>? callback)
+    {
+        if (callback == null)
+        {
+            return;
+        }
+
+        lock (inFlight.Lock)
+        {
+            inFlight.ProgressCallbacks -= callback;
+        }
+    }
+
+    private InFlightDownload GetOrCreateInFlightDownload(string key, out bool isInitiator)
+    {
+        lock (_inFlightDownloads)
+        {
+            if (!_inFlightDownloads.TryGetValue(key, out var inFlight) ||
+                inFlight.InternalCts.IsCancellationRequested ||
+                inFlight.Task.IsCompleted)
             {
-                lock (inFlight.Lock)
-                {
-                    inFlight.ProgressCallbacks -= callback;
-                }
+                inFlight = new InFlightDownload();
+                isInitiator = true;
+                _inFlightDownloads[key] = inFlight;
             }
+            else
+            {
+                isInitiator = false;
+            }
+
+            lock (inFlight.Lock)
+            {
+                inFlight.WaiterCount++;
+            }
+
+            return inFlight;
         }
     }
 
@@ -172,7 +178,7 @@ public sealed class ContentDownloadCoordinator(
     {
         try
         {
-            var result = await ExecuteDownloadAsync(searchResult, key, progress, inFlight.InternalCts.Token);
+            var result = await ExecuteDownloadAsync(searchResult, progress, inFlight.InternalCts.Token);
             inFlight.Tcs.TrySetResult(result);
         }
         catch (OperationCanceledException oce)
@@ -187,7 +193,10 @@ public sealed class ContentDownloadCoordinator(
         {
             lock (_inFlightDownloads)
             {
-                _inFlightDownloads.TryRemove(key, out _);
+                if (_inFlightDownloads.TryGetValue(key, out var current) && ReferenceEquals(current, inFlight))
+                {
+                    _inFlightDownloads.TryRemove(key, out _);
+                }
             }
 
             inFlight.Dispose();
@@ -196,7 +205,6 @@ public sealed class ContentDownloadCoordinator(
 
     private async Task<OperationResult<ContentManifest>> ExecuteDownloadAsync(
         ContentSearchResult searchResult,
-        string inFlightKey,
         IProgress<ContentAcquisitionProgress>? progress,
         CancellationToken cancellationToken)
     {

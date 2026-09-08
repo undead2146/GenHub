@@ -1217,12 +1217,9 @@ public sealed partial class DownloadsBrowserViewModel(
                 else
                 {
                     var newVmSet = new HashSet<ContentGridItemViewModel>(newVms);
-                    foreach (var oldItem in existingState.Items)
+                    foreach (var oldItem in existingState.Items.Where(item => !newVmSet.Contains(item)))
                     {
-                        if (!newVmSet.Contains(oldItem))
-                        {
-                            oldItem.Dispose();
-                        }
+                        oldItem.Dispose();
                     }
 
                     existingState.Items.Clear();

@@ -309,26 +309,7 @@ public sealed partial class ProfileSelectionViewModel(
                 ContentManifestId,
                 profile.Name);
 
-            ContentManifest? selectedManifest = null;
-            if (ManifestId.TryCreate(ContentManifestId, out var parsedManifestId))
-            {
-                var manifestResult = await manifestPool.GetManifestAsync(
-                    parsedManifestId,
-                    CancellationToken.None);
-                selectedManifest = manifestResult?.Success == true ? manifestResult.Data : null;
-            }
-
-            var selectedManifestId = selectedManifest?.Id.Value ?? ContentManifestId;
-            var selectedContentName = selectedManifest?.Name ?? ContentName;
-            IReadOnlyList<string> idsToAdd;
-            if (ContentManifestIds.Count > 0)
-            {
-                idsToAdd = ContentManifestIds;
-            }
-            else
-            {
-                idsToAdd = string.IsNullOrEmpty(selectedManifestId) ? [] : [selectedManifestId];
-            }
+            var (selectedManifestId, selectedContentName, idsToAdd) = await ResolveContentToAddAsync();
 
             var result = idsToAdd.Count > 1
                 ? await profileContentService.AddContentToProfileAsync(
@@ -342,27 +323,7 @@ public sealed partial class ProfileSelectionViewModel(
 
             if (result.Success)
             {
-                if (result.WasContentSwapped)
-                {
-                    logger.LogInformation(
-                        "Content swap: replaced {OldContent} with {NewContent} in profile {ProfileName}",
-                        result.SwappedContentName,
-                        selectedContentName,
-                        profile.Name);
-                }
-                else
-                {
-                    logger.LogInformation("Successfully added content to profile '{ProfileName}'", profile.Name);
-
-                    // Show success notification for new content addition
-                    notificationService.ShowSuccess(
-                        "Content Added",
-                        $"Added '{selectedContentName}' to profile '{profile.Name}'");
-                }
-
-                SelectedProfileName = profile.Name;
-                WasSuccessful = true;
-                RequestClose?.Invoke(this, EventArgs.Empty);
+                HandleAddContentSuccess(profile, selectedContentName, result);
             }
             else
             {
@@ -525,5 +486,50 @@ public sealed partial class ProfileSelectionViewModel(
         }
 
         return false;
+    }
+
+    private async Task<(string? SelectedManifestId, string SelectedContentName, IReadOnlyList<string> IdsToAdd)> ResolveContentToAddAsync()
+    {
+        ContentManifest? selectedManifest = null;
+        if (!string.IsNullOrWhiteSpace(ContentManifestId) && ManifestId.TryCreate(ContentManifestId, out var parsedManifestId))
+        {
+            var manifestResult = await manifestPool.GetManifestAsync(
+                parsedManifestId,
+                CancellationToken.None);
+            selectedManifest = manifestResult?.Success == true ? manifestResult.Data : null;
+        }
+
+        var selectedManifestId = selectedManifest?.Id.Value ?? ContentManifestId;
+        var selectedContentName = selectedManifest?.Name ?? ContentName ?? string.Empty;
+        IReadOnlyList<string> idsToAdd = ContentManifestIds.Count > 0
+            ? ContentManifestIds
+            : string.IsNullOrEmpty(selectedManifestId) ? [] : [selectedManifestId];
+
+        return (selectedManifestId, selectedContentName, idsToAdd);
+    }
+
+    private void HandleAddContentSuccess(GameProfile profile, string selectedContentName, AddToProfileResult result)
+    {
+        if (result.WasContentSwapped)
+        {
+            logger.LogInformation(
+                "Content swap: replaced {OldContent} with {NewContent} in profile {ProfileName}",
+                result.SwappedContentName,
+                selectedContentName,
+                profile.Name);
+        }
+        else
+        {
+            logger.LogInformation("Successfully added content to profile '{ProfileName}'", profile.Name);
+
+            // Show success notification for new content addition
+            notificationService.ShowSuccess(
+                "Content Added",
+                $"Added '{selectedContentName}' to profile '{profile.Name}'");
+        }
+
+        SelectedProfileName = profile.Name;
+        WasSuccessful = true;
+        RequestClose?.Invoke(this, EventArgs.Empty);
     }
 }
