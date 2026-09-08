@@ -592,6 +592,105 @@ public sealed class GenericCatalogResolverTests
     }
 
     /// <summary>
+    /// Verifies that mixed compatible version lists have below-floor versions filtered out when reconciled against foundation floor.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ResolveAsync_BaseGameDependency_WithMixedCompatibleVersions_FiltersBelowFloorVersionsAsync()
+    {
+        var contentItem = new CatalogContentItem
+        {
+            Id = "mod-with-mixed-compatible-versions",
+            Name = "Mod With Mixed Compatible Versions",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            Description = "Test Mod",
+            Tags = ["mod"],
+        };
+
+        var release = new ContentRelease
+        {
+            Version = "1.0.0",
+            Dependencies =
+            [
+                new CatalogDependency
+                {
+                    PublisherId = "ea",
+                    ContentId = "zerohour",
+                    VersionConstraint = "1.02,1.04,1.05",
+                },
+            ],
+        };
+
+        var publisher = new PublisherProfile { Id = "test-pub", Name = "Test Pub" };
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.100.testpub.mod.modwithmixedcompatibleversions",
+            Name = contentItem.Name,
+            ContentType = ContentType.Mod,
+            ResolverId = CatalogConstants.GenericCatalogResolverId,
+            ResolverMetadata =
+            {
+                [CatalogConstants.ReleaseJsonMetadataKey] = JsonSerializer.Serialize(release),
+                [CatalogConstants.CatalogItemJsonMetadataKey] = JsonSerializer.Serialize(contentItem),
+                [CatalogConstants.PublisherProfileJsonMetadataKey] = JsonSerializer.Serialize(publisher),
+            },
+        };
+
+        ContentDependency? capturedDependency = null;
+        var builderMock = new Mock<IContentManifestBuilder>();
+        builderMock.Setup(b => b.AddDependency(
+            It.IsAny<ManifestId>(),
+            It.IsAny<string>(),
+            It.IsAny<ContentType>(),
+            It.IsAny<DependencyInstallBehavior>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<List<string>?>(),
+            It.IsAny<bool>(),
+            It.IsAny<List<string>?>(),
+            It.IsAny<List<GameType>?>(),
+            It.IsAny<bool>(),
+            It.IsAny<bool>()))
+            .Callback<ManifestId, string, ContentType, DependencyInstallBehavior, string, string, List<string>?, bool, List<string>?, List<GameType>?, bool, bool>(
+                (id, name, depType, install, min, max, comp, isExcl, conflicts, games, minInc, maxInc) =>
+                {
+                    capturedDependency = new ContentDependency
+                    {
+                        Id = id,
+                        Name = name,
+                        MinVersion = min,
+                        MaxVersion = max,
+                        CompatibleVersions = comp ?? [],
+                    };
+                })
+            .Returns(builderMock.Object);
+
+        var builtManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.100.testpub.mod.modwithmixedcompatibleversions"),
+            Name = "Mod With Mixed Compatible Versions",
+            Version = "1.0.0",
+            ContentType = ContentType.Mod,
+            Files = [],
+            Metadata = new ContentMetadata(),
+            Publisher = new PublisherInfo { PublisherType = "test-pub" },
+        };
+        builderMock.Setup(b => b.Build()).Returns(builtManifest);
+
+        var resolver = new GenericCatalogResolver(
+            NullLogger<GenericCatalogResolver>.Instance,
+            () => builderMock.Object);
+
+        var result = await resolver.ResolveAsync(searchResult);
+
+        Assert.True(result.Success, result.FirstError);
+        Assert.NotNull(capturedDependency);
+        Assert.Equal(["1.04", "1.05"], capturedDependency.CompatibleVersions);
+    }
+
+    /// <summary>
     /// Verifies that base-game dependencies with self-contradictory bounds where the floor was not applied do not include the reconciliation suffix.
     /// </summary>
     /// <param name="constraint">The version constraint to test.</param>

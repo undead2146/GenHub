@@ -331,7 +331,7 @@ public partial class GenericCatalogResolver(
 
         var foundationMin = foundation.MinVersion ?? string.Empty;
 
-        var compatibleError = ValidateCompatibleVersionsFloor(
+        var (compatibleError, effectiveCompatibleVersions) = ReconcileCompatibleVersionsFloor(
             dependency.ContentId,
             foundationMin,
             constraint.CompatibleVersions);
@@ -368,7 +368,7 @@ public partial class GenericCatalogResolver(
             installBehavior: DependencyInstallBehavior.RequireExisting,
             minVersion: effectiveMinVersion,
             maxVersion: constraint.MaxVersion,
-            compatibleVersions: constraint.CompatibleVersions,
+            compatibleVersions: effectiveCompatibleVersions,
             isExclusive: false,
             conflictsWith: null,
             compatibleGameTypes: foundation.CompatibleGameTypes,
@@ -378,19 +378,26 @@ public partial class GenericCatalogResolver(
         return null;
     }
 
-    private static string? ValidateCompatibleVersionsFloor(
+    private static (string? Error, List<string>? ReconciledVersions) ReconcileCompatibleVersionsFloor(
         string contentId,
         string foundationMin,
         List<string>? compatibleVersions)
     {
-        if (compatibleVersions is { Count: > 0 } &&
-            !string.IsNullOrEmpty(foundationMin) &&
-            compatibleVersions.All(v => CatalogManifestIdentity.CompareVersions(v, foundationMin) < 0))
+        if (compatibleVersions is not { Count: > 0 } || string.IsNullOrEmpty(foundationMin))
         {
-            return $"Dependency '{contentId}' has unsatisfiable version bounds after reconciliation: all compatible versions are below the minimum foundation floor '{foundationMin}'.";
+            return (null, compatibleVersions);
         }
 
-        return null;
+        var filtered = compatibleVersions
+            .Where(v => CatalogManifestIdentity.CompareVersions(v, foundationMin) >= 0)
+            .ToList();
+
+        if (filtered.Count == 0)
+        {
+            return ($"Dependency '{contentId}' has unsatisfiable version bounds after reconciliation: all compatible versions are below the minimum foundation floor '{foundationMin}'.", null);
+        }
+
+        return (null, filtered);
     }
 
     private static (string EffectiveMinVersion, bool EffectiveMinInclusive) ComputeEffectiveBaseGameMinVersion(
