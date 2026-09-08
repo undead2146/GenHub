@@ -297,6 +297,30 @@ public sealed class ContentGridItemViewModelTests
         Assert.Equal(expectedShow, viewModel.ShowAddToProfileButton);
     }
 
+    /// <summary>
+    /// Verifies that EffectiveIsDownloaded reflects acquisition states for variant-less cards.
+    /// </summary>
+    /// <param name="state">The content state to test.</param>
+    /// <param name="expected">Whether EffectiveIsDownloaded is expected to be true.</param>
+    [Theory]
+    [InlineData(ContentState.Downloaded, true)]
+    [InlineData(ContentState.UpdateAvailable, true)]
+    [InlineData(ContentState.NotDownloaded, false)]
+    public void EffectiveIsDownloaded_VariantLessCard_ReflectsState(ContentState state, bool expected)
+    {
+        var searchResult = new ContentSearchResult
+        {
+            Id = "state-test-item",
+            Name = "State Test Item",
+            Version = "1.0",
+        };
+
+        var viewModel = CreateViewModel(searchResult);
+        viewModel.CurrentState = state;
+
+        Assert.Equal(expected, viewModel.EffectiveIsDownloaded);
+    }
+
     private static void MarkAllSelectedDownloaded(ContentGridItemViewModel viewModel)
     {
         foreach (var component in viewModel.BundleComponents)

@@ -1902,7 +1902,7 @@ public sealed partial class DownloadsBrowserViewModel(
             return;
         }
 
-        if (!item.EffectiveIsDownloaded && item.EffectiveCurrentState != ContentState.Downloaded)
+        if (!item.EffectiveIsDownloaded && item.EffectiveCurrentState is not (ContentState.Downloaded or ContentState.UpdateAvailable))
         {
             item.DownloadStatus = "Please download first";
             notificationService.ShowError("Cannot Add to Profile", "Please download the content first before adding it to a profile.");
