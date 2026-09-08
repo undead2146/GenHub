@@ -80,11 +80,6 @@ public class CatalogTabProvider(
         }
     }
 
-    /// <summary>
-    /// Clears the in-memory catalog cache.
-    /// </summary>
-    internal void ClearCache() => _catalogCache.Clear();
-
     private static string ResolvePublisherId(ContentSearchResult searchResult)
     {
         var publisherId = searchResult.ProviderName;
