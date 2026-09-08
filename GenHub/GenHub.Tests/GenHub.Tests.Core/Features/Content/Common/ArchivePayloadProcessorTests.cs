@@ -632,6 +632,62 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies that self-extracting .exe archives containing directory traversal entries (Zip Slip)
+    /// throw <see cref="InvalidDataException"/> reporting unsafe path, and are not masked as generic unsupported SFX.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ExtractArchivesSafelyAsync_SelfExtractingExeWithZipSlipEntry_ThrowsInvalidDataExceptionWithUnsafePathAsync()
+    {
+        // Arrange
+        Directory.CreateDirectory(_stagingDirectory);
+        var sfxExePath = Path.Combine(_stagingDirectory, "malicious_mod.exe");
+
+        using (var archive = ZipFile.Open(sfxExePath, ZipArchiveMode.Create))
+        {
+            var entry = archive.CreateEntry("../evil.txt");
+            using var writer = new StreamWriter(entry.Open());
+            await writer.WriteAsync("malicious content");
+        }
+
+        var processor = CreateProcessor();
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            processor.ExtractArchivesSafelyAsync(_stagingDirectory, ContentType.Mod));
+        Assert.Contains("unsafe path", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Verifies that cancelling extraction of a self-extracting .exe rethrows <see cref="OperationCanceledException"/>
+    /// rather than converting it to an InvalidDataException.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ExtractArchivesSafelyAsync_SelfExtractingExeWithCancellation_RethrowsOperationCanceledExceptionAsync()
+    {
+        // Arrange
+        Directory.CreateDirectory(_stagingDirectory);
+        var sfxExePath = Path.Combine(_stagingDirectory, "mod.exe");
+
+        using (var archive = ZipFile.Open(sfxExePath, ZipArchiveMode.Create))
+        {
+            var entry = archive.CreateEntry("game.big");
+            using var writer = new StreamWriter(entry.Open());
+            await writer.WriteAsync("payload");
+        }
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var processor = CreateProcessor();
+
+        // Act & Assert
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            processor.ExtractArchivesSafelyAsync(_stagingDirectory, ContentType.Mod, cancellationToken: cts.Token));
+    }
+
+    /// <summary>
     /// Verifies that wrapper promotion with colliding files preserving both files when content differs.
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>

@@ -69,46 +69,11 @@ public partial class ContentDetailViewModel(
     Action? closeAction = null,
     IReadOnlyDictionary<string, ContentSearchResult>? variantSearchResults = null) : ObservableObject, IDisposable
 {
+    // ===== Constants =====
     private const string UnknownValue = "Unknown";
     private const string ContentNotDownloadedTitle = "Content Not Downloaded";
 
-    [ObservableProperty]
-    private ObservableCollection<InstallableVariant> _variants = [];
-
-    [ObservableProperty]
-    private InstallableVariant? _selectedVariant;
-
-    /// <summary>
-    /// Gets a value indicating whether this content has variants to choose from.
-    /// </summary>
-    public bool HasVariants => Variants.Count > 0;
-
-    /// <summary>
-    /// Gets variant options grouped by axis for multi-ComboBox UI.
-    /// </summary>
-    public ObservableCollection<VariantAxisGroup> VariantAxes { get; } = [];
-
-    /// <summary>
-    /// Gets a value indicating whether more than one variant axis is present.
-    /// </summary>
-    public bool HasMultipleVariantAxes => VariantAxes.Count > 1;
-
-    /// <summary>
-    /// Gets downloadable members of a ContentBundle.
-    /// </summary>
-    public ObservableCollection<BundleComponentViewModel> BundleComponents { get; } = [];
-
-    /// <summary>
-    /// Gets a value indicating whether this detail page is a multi-content bundle.
-    /// </summary>
-    public bool HasBundleComponents => BundleComponents.Count > 0;
-
-    /// <summary>
-    /// Gets a value indicating whether every required selected bundle member is acquired.
-    /// </summary>
-    public bool AreBundleComponentsReadyForProfile =>
-        HasBundleComponents && BundleComponentViewModel.AreRequiredSelectionsDownloaded(BundleComponents);
-
+    // ===== Instance Fields (Synchronization & Lifecycle) =====
     private readonly object _basicContentLoadLock = new();
     private readonly object _preloadLock = new();
     private readonly CancellationTokenSource _cts = new();
@@ -116,51 +81,28 @@ public partial class ContentDetailViewModel(
     private bool _userManuallySelectedDownloadableItem;
     private Action? _unsubscribeAxisHandlers;
     private Task? _preloadTask;
-
-    /// <summary>
-    /// When true, content-type changes skip persisting to the manifest pool
-    /// (used while syncing the dropdown from an already-stored manifest).
-    /// </summary>
     private bool _suppressContentTypePersist;
-
-    /// <summary>
-    /// Last post-download content-type persist task (for tests to await).
-    /// </summary>
     private Task? _contentTypePersistTask;
-
-    /// <summary>
-    /// Gets the content search result this detail view is displaying.
-    /// </summary>
-    public ContentSearchResult SearchResult => searchResult;
-
-    [ObservableProperty]
-    private string _selectedScreenshotUrl = searchResult.ScreenshotUrls.FirstOrDefault() ?? string.Empty;
-
-    [ObservableProperty]
-    private int _selectedTabIndex;
-
-    // Lazy loading flags to track which sections have been loaded
     private bool _imagesLoaded;
     private bool _videosLoaded;
     private bool _releasesLoaded;
     private bool _addonsLoaded;
     private bool _basicContentLoaded;
     private Task? _basicContentLoadTask;
+    private int _iconLoadVersion;
 
-    /// <summary>
-    /// Gets the collection of screenshot URLs.
-    /// </summary>
-    public ObservableCollection<string> Screenshots { get; } = new(searchResult.ScreenshotUrls);
+    // ===== Observable Backing Fields =====
+    [ObservableProperty]
+    private ObservableCollection<InstallableVariant> _variants = [];
 
-    /// <summary>
-    /// Gets the collection of tags associated with the content.
-    /// </summary>
-    public ObservableCollection<string> Tags { get; } = new(searchResult.Tags);
+    [ObservableProperty]
+    private InstallableVariant? _selectedVariant;
 
-    /// <summary>
-    /// Gets a value indicating whether there are multiple screenshots to display.
-    /// </summary>
-    public bool HasMultipleScreenshots => Screenshots.Count > 1;
+    [ObservableProperty]
+    private string _selectedScreenshotUrl = searchResult.ScreenshotUrls.FirstOrDefault() ?? string.Empty;
+
+    [ObservableProperty]
+    private int _selectedTabIndex;
 
     [ObservableProperty]
     private Avalonia.Media.Imaging.Bitmap? _iconBitmap;
@@ -169,19 +111,6 @@ public partial class ContentDetailViewModel(
     [NotifyPropertyChangedFor(nameof(ShowDownloadButton))]
     [NotifyPropertyChangedFor(nameof(ShowAddToProfileButton))]
     private bool _isDownloading;
-
-    partial void OnIsDownloadingChanged(bool value)
-    {
-        foreach (var release in Releases)
-        {
-            (release.SelectCommand as IRelayCommand)?.NotifyCanExecuteChanged();
-        }
-
-        foreach (var addon in Addons)
-        {
-            (addon.SelectCommand as IRelayCommand)?.NotifyCanExecuteChanged();
-        }
-    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowDownloadButton))]
@@ -232,6 +161,161 @@ public partial class ContentDetailViewModel(
     [NotifyPropertyChangedFor(nameof(ShowSelectedTargetBanner))]
     private DownloadableItemViewModel? _selectedDownloadableItem;
 
+    [ObservableProperty]
+    private string? _fullScreenMediaUrl;
+
+    [ObservableProperty]
+    private string? _fullScreenMediaTitle;
+
+    [ObservableProperty]
+    private bool _isFullScreenMediaOpen;
+
+    [ObservableProperty]
+    private bool _isLoadingDetails;
+
+    [ObservableProperty]
+    private bool _isLoadingImages;
+
+    [ObservableProperty]
+    private bool _isLoadingVideos;
+
+    [ObservableProperty]
+    private bool _isLoadingReleases;
+
+    [ObservableProperty]
+    private bool _isLoadingAddons;
+
+    /// <summary>
+    /// Gets the articles from the parsed page.
+    /// </summary>
+    [ObservableProperty]
+    private ObservableCollection<Article> _articles = [];
+
+    /// <summary>
+    /// Gets the videos from the parsed page.
+    /// </summary>
+    [ObservableProperty]
+    private ObservableCollection<Video> _videos = [];
+
+    /// <summary>
+    /// Gets the images from the parsed page (excluding screenshots).
+    /// </summary>
+    [ObservableProperty]
+    private ObservableCollection<Image> _images = [];
+
+    /// <summary>
+    /// Gets the files from the parsed page, or creates a fallback file entry for catalog-based content.
+    /// </summary>
+    [ObservableProperty]
+    private ObservableCollection<DownloadableFile> _files = [];
+
+    /// <summary>
+    /// Gets the reviews from the parsed page.
+    /// </summary>
+    [ObservableProperty]
+    private ObservableCollection<Review> _reviews = [];
+
+    /// <summary>
+    /// Gets the comments from the parsed page.
+    /// </summary>
+    [ObservableProperty]
+    private ObservableCollection<Comment> _comments = [];
+
+    /// <summary>
+    /// Gets the collection of releases (from /downloads section for mods).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasReleases))]
+    [NotifyPropertyChangedFor(nameof(ReleasesCount))]
+    [NotifyPropertyChangedFor(nameof(ShowFilesTab))]
+    private ObservableCollection<ReleaseItemViewModel> _releases = [];
+
+    /// <summary>
+    /// Gets the collection of addons (from /addons section for mods).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAddons))]
+    [NotifyPropertyChangedFor(nameof(AddonsCount))]
+    [NotifyPropertyChangedFor(nameof(ShowFilesTab))]
+    private ObservableCollection<AddonItemViewModel> _addons = [];
+
+    /// <summary>
+    /// Gets or sets the publisher profile metadata.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PublisherDisplayName))]
+    [NotifyPropertyChangedFor(nameof(PublisherAvatarUrl))]
+    [NotifyPropertyChangedFor(nameof(PublisherWebsite))]
+    [NotifyPropertyChangedFor(nameof(PublisherSupportUrl))]
+    [NotifyPropertyChangedFor(nameof(PublisherContactEmail))]
+    [NotifyPropertyChangedFor(nameof(HasPublisherProfile))]
+    [NotifyPropertyChangedFor(nameof(HasPublisherInfo))]
+    private PublisherProfile? _publisherProfile;
+
+    [ObservableProperty]
+    private CustomTabDefinition? _selectedCustomTab;
+
+    /// <summary>
+    /// Gets the collection of custom tabs from publishers.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCustomTabs))]
+    [NotifyPropertyChangedFor(nameof(HasPublisherInfo))]
+    private ObservableCollection<CustomTabDefinition> _customTabs = [];
+
+    // ===== Properties =====
+
+    /// <summary>
+    /// Gets the content search result this detail view is displaying.
+    /// </summary>
+    public ContentSearchResult SearchResult => searchResult;
+
+    /// <summary>
+    /// Gets a value indicating whether this content has variants to choose from.
+    /// </summary>
+    public bool HasVariants => Variants.Count > 0;
+
+    /// <summary>
+    /// Gets variant options grouped by axis for multi-ComboBox UI.
+    /// </summary>
+    public ObservableCollection<VariantAxisGroup> VariantAxes { get; } = [];
+
+    /// <summary>
+    /// Gets a value indicating whether more than one variant axis is present.
+    /// </summary>
+    public bool HasMultipleVariantAxes => VariantAxes.Count > 1;
+
+    /// <summary>
+    /// Gets downloadable members of a ContentBundle.
+    /// </summary>
+    public ObservableCollection<BundleComponentViewModel> BundleComponents { get; } = [];
+
+    /// <summary>
+    /// Gets a value indicating whether this detail page is a multi-content bundle.
+    /// </summary>
+    public bool HasBundleComponents => BundleComponents.Count > 0;
+
+    /// <summary>
+    /// Gets a value indicating whether every required selected bundle member is acquired.
+    /// </summary>
+    public bool AreBundleComponentsReadyForProfile =>
+        HasBundleComponents && BundleComponentViewModel.AreRequiredSelectionsDownloaded(BundleComponents);
+
+    /// <summary>
+    /// Gets the collection of screenshot URLs.
+    /// </summary>
+    public ObservableCollection<string> Screenshots { get; } = new(searchResult.ScreenshotUrls);
+
+    /// <summary>
+    /// Gets the collection of tags associated with the content.
+    /// </summary>
+    public ObservableCollection<string> Tags { get; } = new(searchResult.Tags);
+
+    /// <summary>
+    /// Gets a value indicating whether there are multiple screenshots to display.
+    /// </summary>
+    public bool HasMultipleScreenshots => Screenshots.Count > 1;
+
     /// <summary>
     /// Gets a value indicating whether a specific release or addon row is selected.
     /// </summary>
@@ -270,35 +354,11 @@ public partial class ContentDetailViewModel(
         }
     }
 
-    [ObservableProperty]
-    private string? _fullScreenMediaUrl;
-
-    [ObservableProperty]
-    private string? _fullScreenMediaTitle;
-
-    [ObservableProperty]
-    private bool _isFullScreenMediaOpen;
-
     /// <summary>
     /// Gets the content classifications the user can apply before or after download.
     /// After acquisition, changing the type updates the stored manifest (e.g. Addon → Executable).
     /// </summary>
     public IReadOnlyList<ContentType> ContentTypeOptions { get; } = Enum.GetValues<ContentType>();
-
-    [ObservableProperty]
-    private bool _isLoadingDetails;
-
-    [ObservableProperty]
-    private bool _isLoadingImages;
-
-    [ObservableProperty]
-    private bool _isLoadingVideos;
-
-    [ObservableProperty]
-    private bool _isLoadingReleases;
-
-    [ObservableProperty]
-    private bool _isLoadingAddons;
 
     /// <summary>
     /// Disposes resources used by the view model.
@@ -501,7 +561,7 @@ public partial class ContentDetailViewModel(
         string.Equals(content.ProviderName, ModDBConstants.PublisherDisplayName, StringComparison.OrdinalIgnoreCase) ||
         string.Equals(content.ProviderName, ModDBConstants.PublisherType, StringComparison.OrdinalIgnoreCase) ||
         (!string.IsNullOrEmpty(content.SourceUrl) &&
-         content.SourceUrl.Contains("moddb.com", StringComparison.OrdinalIgnoreCase));
+         content.SourceUrl.Contains(ModDBConstants.DomainFragment, StringComparison.OrdinalIgnoreCase));
 
     private static List<Comment> FlattenComments(IEnumerable<Comment> comments)
     {
@@ -563,8 +623,8 @@ public partial class ContentDetailViewModel(
         {
             manifest.Dependencies.Add(new ContentDependency
             {
-                Id = ManifestId.Create("1.104.any.gameinstallation.zerohour"),
-                Name = "Zero Hour Installation",
+                Id = ManifestId.Create(ManifestConstants.ZeroHourGameInstallationManifestId),
+                Name = ManifestConstants.ZeroHourInstallationName,
                 DependencyType = ContentType.GameInstallation,
                 InstallBehavior = DependencyInstallBehavior.RequireExisting,
                 MinVersion = ManifestConstants.ZeroHourManifestVersion,
@@ -574,8 +634,8 @@ public partial class ContentDetailViewModel(
         {
             manifest.Dependencies.Add(new ContentDependency
             {
-                Id = ManifestId.Create("1.108.any.gameinstallation.generals"),
-                Name = "Generals Installation",
+                Id = ManifestId.Create(ManifestConstants.GeneralsGameInstallationManifestId),
+                Name = ManifestConstants.GeneralsInstallationName,
                 DependencyType = ContentType.GameInstallation,
                 InstallBehavior = DependencyInstallBehavior.RequireExisting,
                 MinVersion = ManifestConstants.GeneralsManifestVersion,
@@ -851,6 +911,19 @@ public partial class ContentDetailViewModel(
         }
 
         return fallbackResult.TargetGame != GameType.Unknown ? fallbackResult.TargetGame.ToString() : null;
+    }
+
+    partial void OnIsDownloadingChanged(bool value)
+    {
+        foreach (var release in Releases)
+        {
+            (release.SelectCommand as IRelayCommand)?.NotifyCanExecuteChanged();
+        }
+
+        foreach (var addon in Addons)
+        {
+            (addon.SelectCommand as IRelayCommand)?.NotifyCanExecuteChanged();
+        }
     }
 
     private async Task InitializeVariantsAsync()
@@ -1324,8 +1397,6 @@ public partial class ContentDetailViewModel(
     /// </summary>
     public bool HasSourceUrl => !string.IsNullOrEmpty(searchResult.SourceUrl);
 
-    private int _iconLoadVersion;
-
     private async Task LoadIconAsync()
     {
         var targetUrl = !string.IsNullOrWhiteSpace(IconUrl) ? IconUrl : ThumbnailUrl;
@@ -1671,8 +1742,8 @@ public partial class ContentDetailViewModel(
                 SelectedContentType = detectedType;
             }
         }
-        else if (searchResult.SourceUrl?.Contains("/mods/", StringComparison.OrdinalIgnoreCase) == true &&
-                 !searchResult.SourceUrl.Contains("/addons/", StringComparison.OrdinalIgnoreCase) &&
+        else if (searchResult.SourceUrl?.Contains(ModDBConstants.ModsPathFragment, StringComparison.OrdinalIgnoreCase) == true &&
+                 !searchResult.SourceUrl.Contains(ModDBConstants.AddonsPathFragment, StringComparison.OrdinalIgnoreCase) &&
                  (SelectedContentType == ContentType.Addon || SelectedContentType == ContentType.UnknownContentType))
         {
             SelectedContentType = ContentType.Mod;
@@ -2101,42 +2172,6 @@ public partial class ContentDetailViewModel(
             IsLoadingAddons = false;
         }
     }
-
-    /// <summary>
-    /// Gets the articles from the parsed page.
-    /// </summary>
-    [ObservableProperty]
-    private ObservableCollection<Article> _articles = [];
-
-    /// <summary>
-    /// Gets the videos from the parsed page.
-    /// </summary>
-    [ObservableProperty]
-    private ObservableCollection<Video> _videos = [];
-
-    /// <summary>
-    /// Gets the images from the parsed page (excluding screenshots).
-    /// </summary>
-    [ObservableProperty]
-    private ObservableCollection<Image> _images = [];
-
-    /// <summary>
-    /// Gets the files from the parsed page, or creates a fallback file entry for catalog-based content.
-    /// </summary>
-    [ObservableProperty]
-    private ObservableCollection<DownloadableFile> _files = [];
-
-    /// <summary>
-    /// Gets the reviews from the parsed page.
-    /// </summary>
-    [ObservableProperty]
-    private ObservableCollection<Review> _reviews = [];
-
-    /// <summary>
-    /// Gets the comments from the parsed page.
-    /// </summary>
-    [ObservableProperty]
-    private ObservableCollection<Comment> _comments = [];
 
     /// <summary>
     /// Gets a value indicating whether files are available.
@@ -3477,15 +3512,6 @@ public partial class ContentDetailViewModel(
     }
 
     /// <summary>
-    /// Gets the collection of releases (from /downloads section for mods).
-    /// </summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasReleases))]
-    [NotifyPropertyChangedFor(nameof(ReleasesCount))]
-    [NotifyPropertyChangedFor(nameof(ShowFilesTab))]
-    private ObservableCollection<ReleaseItemViewModel> _releases = [];
-
-    /// <summary>
     /// Gets a value indicating whether there are releases to display.
     /// </summary>
     public bool HasReleases => (Releases?.Count > 0) || (Variants?.Count > 0);
@@ -3640,15 +3666,6 @@ public partial class ContentDetailViewModel(
         OnPropertyChanged(nameof(ReleasesCount));
         OnPropertyChanged(nameof(ShowSelectedTargetBanner));
     }
-
-    /// <summary>
-    /// Gets the collection of addons (from /addons section for mods).
-    /// </summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasAddons))]
-    [NotifyPropertyChangedFor(nameof(AddonsCount))]
-    [NotifyPropertyChangedFor(nameof(ShowFilesTab))]
-    private ObservableCollection<AddonItemViewModel> _addons = [];
 
     /// <summary>
     /// Gets a value indicating whether there are addons to display.
@@ -4030,19 +4047,6 @@ public partial class ContentDetailViewModel(
     }
 
     /// <summary>
-    /// Gets or sets the publisher profile metadata.
-    /// </summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(PublisherDisplayName))]
-    [NotifyPropertyChangedFor(nameof(PublisherAvatarUrl))]
-    [NotifyPropertyChangedFor(nameof(PublisherWebsite))]
-    [NotifyPropertyChangedFor(nameof(PublisherSupportUrl))]
-    [NotifyPropertyChangedFor(nameof(PublisherContactEmail))]
-    [NotifyPropertyChangedFor(nameof(HasPublisherProfile))]
-    [NotifyPropertyChangedFor(nameof(HasPublisherInfo))]
-    private PublisherProfile? _publisherProfile;
-
-    /// <summary>
     /// Gets the collection of publisher referrals to other catalogs.
     /// </summary>
     public ObservableCollection<PublisherReferral> PublisherReferrals { get; } = [];
@@ -4113,9 +4117,6 @@ public partial class ContentDetailViewModel(
         ? "Subscribed Catalog Publisher"
         : "Official Provider";
 
-    [ObservableProperty]
-    private CustomTabDefinition? _selectedCustomTab;
-
     /// <summary>
     /// Command to open an arbitrary URL in the system default browser.
     /// </summary>
@@ -4147,14 +4148,6 @@ public partial class ContentDetailViewModel(
             logger.LogWarning(ex, "Failed to open URL in browser: {Url}", url);
         }
     }
-
-    /// <summary>
-    /// Gets the collection of custom tabs from publishers.
-    /// </summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasCustomTabs))]
-    [NotifyPropertyChangedFor(nameof(HasPublisherInfo))]
-    private ObservableCollection<CustomTabDefinition> _customTabs = [];
 
     /// <summary>
     /// Gets a value indicating whether there are custom tabs to display.
