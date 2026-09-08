@@ -42,37 +42,21 @@ public class GenericCatalogResolver(
 
         try
         {
-            // Extract catalog metadata from search result (stored as JSON strings)
-            if (!discoveredItem.ResolverMetadata.TryGetValue(CatalogConstants.ReleaseJsonMetadataKey, out var releaseJson))
+            if (!TryExtractCatalogMetadata(
+                discoveredItem,
+                out var release,
+                out var contentItem,
+                out var publisher,
+                out var errorMessage))
             {
-                return OperationResult<ContentManifest>.CreateFailure("Missing release metadata");
-            }
-
-            if (!discoveredItem.ResolverMetadata.TryGetValue(CatalogConstants.CatalogItemJsonMetadataKey, out var contentItemJson))
-            {
-                return OperationResult<ContentManifest>.CreateFailure("Missing content item metadata");
-            }
-
-            if (!discoveredItem.ResolverMetadata.TryGetValue(CatalogConstants.PublisherProfileJsonMetadataKey, out var publisherJson))
-            {
-                return OperationResult<ContentManifest>.CreateFailure("Missing publisher profile");
-            }
-
-            // Deserialize from JSON
-            var release = JsonSerializer.Deserialize<ContentRelease>(releaseJson);
-            var contentItem = JsonSerializer.Deserialize<CatalogContentItem>(contentItemJson);
-            var publisher = JsonSerializer.Deserialize<PublisherProfile>(publisherJson);
-
-            if (release == null || contentItem == null || publisher == null)
-            {
-                return OperationResult<ContentManifest>.CreateFailure("Failed to deserialize catalog metadata");
+                return OperationResult<ContentManifest>.CreateFailure(errorMessage ?? "Catalog metadata extraction failed");
             }
 
             logger.LogInformation(
                 "Resolving content '{ContentName}' v{Version} from publisher '{PublisherId}'",
-                contentItem.Name,
-                release.Version,
-                publisher.Id);
+                contentItem!.Name,
+                release!.Version,
+                publisher!.Id);
 
             var declaredPublisherId = CatalogManifestIdentity.ResolveDeclaredPublisherType(contentItem);
 
@@ -113,64 +97,11 @@ public class GenericCatalogResolver(
                     screenshotUrls: contentItem.Metadata?.ScreenshotUrls?.ToList(),
                     changelogUrl: contentItem.Metadata?.DocumentationUrl ?? string.Empty);
 
-            var artifactHashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (release.Artifacts != null && release.Artifacts.Count > 0)
-            {
-                var usedFilenames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                foreach (var artifact in release.Artifacts)
-                {
-                    if (string.IsNullOrWhiteSpace(artifact.DownloadUrl))
-                    {
-                        continue;
-                    }
-
-                    // If primary artifact belongs to a specific variant on an axis, only register
-                    // artifacts matching that variant (or common artifacts without a variant axis).
-                    if (!string.IsNullOrWhiteSpace(primaryArtifact?.VariantAxis) &&
-                        !string.IsNullOrWhiteSpace(artifact.VariantAxis) &&
-                        string.Equals(primaryArtifact.VariantAxis, artifact.VariantAxis, StringComparison.OrdinalIgnoreCase) &&
-                        !string.Equals(primaryArtifact.Variant, artifact.Variant, StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-
-                    var baseFilename = SanitizeArtifactFilename(artifact, contentItem);
-                    var filename = baseFilename;
-                    var disambiguationIndex = 1;
-                    while (usedFilenames.Contains(filename))
-                    {
-                        var nameWithoutExt = Path.GetFileNameWithoutExtension(baseFilename);
-                        var ext = Path.GetExtension(baseFilename);
-                        filename = $"{nameWithoutExt}_{disambiguationIndex++}{ext}";
-                    }
-
-                    usedFilenames.Add(filename);
-
-                    if (!string.IsNullOrWhiteSpace(artifact.Sha256))
-                    {
-                        artifactHashes[filename] = artifact.Sha256;
-                    }
-
-                    logger.LogDebug(
-                        "Adding remote file {Filename} with download URL {Url}",
-                        filename,
-                        artifact.DownloadUrl);
-
-                    await builder.AddRemoteFileAsync(
-                        relativePath: filename,
-                        downloadUrl: artifact.DownloadUrl,
-                        sourceType: ContentSourceType.RemoteDownload,
-                        isExecutable: false,
-                        permissions: null);
-                }
-            }
-            else
-            {
-                logger.LogInformation(
-                    "Content '{ContentName}' has no downloadable artifacts (dependency-only package)",
-                    contentItem.Name);
-            }
+            var artifactHashes = await RegisterRemoteFilesAsync(
+                builder,
+                release,
+                contentItem,
+                primaryArtifact);
 
             AddDependencies(builder, release, contentItem, resolvedTargetGame);
 
@@ -201,6 +132,49 @@ public class GenericCatalogResolver(
             logger.LogError(ex, "Failed to resolve content from catalog");
             return OperationResult<ContentManifest>.CreateFailure($"Resolution failed: {ex.Message}");
         }
+    }
+
+    private static bool TryExtractCatalogMetadata(
+        ContentSearchResult discoveredItem,
+        out ContentRelease? release,
+        out CatalogContentItem? contentItem,
+        out PublisherProfile? publisher,
+        out string? errorMessage)
+    {
+        release = null;
+        contentItem = null;
+        publisher = null;
+        errorMessage = null;
+
+        if (!discoveredItem.ResolverMetadata.TryGetValue(CatalogConstants.ReleaseJsonMetadataKey, out var releaseJson))
+        {
+            errorMessage = "Missing release metadata";
+            return false;
+        }
+
+        if (!discoveredItem.ResolverMetadata.TryGetValue(CatalogConstants.CatalogItemJsonMetadataKey, out var contentItemJson))
+        {
+            errorMessage = "Missing content item metadata";
+            return false;
+        }
+
+        if (!discoveredItem.ResolverMetadata.TryGetValue(CatalogConstants.PublisherProfileJsonMetadataKey, out var publisherJson))
+        {
+            errorMessage = "Missing publisher profile";
+            return false;
+        }
+
+        release = JsonSerializer.Deserialize<ContentRelease>(releaseJson);
+        contentItem = JsonSerializer.Deserialize<CatalogContentItem>(contentItemJson);
+        publisher = JsonSerializer.Deserialize<PublisherProfile>(publisherJson);
+
+        if (release == null || contentItem == null || publisher == null)
+        {
+            errorMessage = "Failed to deserialize catalog metadata";
+            return false;
+        }
+
+        return true;
     }
 
     private static string ResolveManifestName(
@@ -270,6 +244,20 @@ public class GenericCatalogResolver(
         return SanitizeFileName(Path.GetFileName(filename));
     }
 
+    private static string DisambiguateFilename(HashSet<string> usedFilenames, string baseFilename)
+    {
+        var filename = baseFilename;
+        var disambiguationIndex = 1;
+        while (usedFilenames.Contains(filename))
+        {
+            var nameWithoutExt = Path.GetFileNameWithoutExtension(baseFilename);
+            var ext = Path.GetExtension(baseFilename);
+            filename = $"{nameWithoutExt}_{disambiguationIndex++}{ext}";
+        }
+
+        return filename;
+    }
+
     private static void AddDependencies(
         IContentManifestBuilder builder,
         ContentRelease release,
@@ -325,14 +313,11 @@ public class GenericCatalogResolver(
         }
     }
 
-    private static void ApplyManifestPostProcessing(
+    private static void ApplyFileHashes(
         ContentManifest manifest,
         CatalogContentItem contentItem,
         ReleaseArtifact? primaryArtifact,
-        string declaredPublisherId,
-        string resolvedName,
-        string? searchResultId,
-        IReadOnlyDictionary<string, string>? artifactHashes = null)
+        IReadOnlyDictionary<string, string>? artifactHashes)
     {
         if (artifactHashes != null && artifactHashes.Count > 0)
         {
@@ -347,13 +332,35 @@ public class GenericCatalogResolver(
         else if (primaryArtifact != null && !string.IsNullOrWhiteSpace(primaryArtifact.Sha256))
         {
             var primaryFilename = SanitizeArtifactFilename(primaryArtifact, contentItem);
-            var primaryFile = manifest.Files.FirstOrDefault(f => string.Equals(f.RelativePath, primaryFilename, StringComparison.OrdinalIgnoreCase))
-                ?? manifest.Files.FirstOrDefault();
+            var primaryFile = manifest.Files.FirstOrDefault(f => string.Equals(f.RelativePath, primaryFilename, StringComparison.OrdinalIgnoreCase));
             if (primaryFile != null)
             {
                 primaryFile.Hash = primaryArtifact.Sha256;
             }
         }
+    }
+
+    private static void ApplyDependencyGameTypes(ContentManifest manifest, GameType targetGame)
+    {
+        foreach (var dep in manifest.Dependencies)
+        {
+            if (dep.DependencyType == ContentType.GameInstallation && dep.CompatibleGameTypes.Count == 0)
+            {
+                dep.CompatibleGameTypes.Add(targetGame);
+            }
+        }
+    }
+
+    private static void ApplyManifestPostProcessing(
+        ContentManifest manifest,
+        CatalogContentItem contentItem,
+        ReleaseArtifact? primaryArtifact,
+        string declaredPublisherId,
+        string resolvedName,
+        string? searchResultId,
+        IReadOnlyDictionary<string, string>? artifactHashes = null)
+    {
+        ApplyFileHashes(manifest, contentItem, primaryArtifact, artifactHashes);
 
         if (!string.IsNullOrWhiteSpace(searchResultId) &&
             ManifestIdValidator.IsValid(searchResultId, out _))
@@ -365,13 +372,7 @@ public class GenericCatalogResolver(
         manifest.OriginalProviderName = declaredPublisherId;
         manifest.OriginalContentId = searchResultId ?? contentItem.Id;
 
-        foreach (var dep in manifest.Dependencies)
-        {
-            if (dep.DependencyType == ContentType.GameInstallation && dep.CompatibleGameTypes.Count == 0)
-            {
-                dep.CompatibleGameTypes.Add(contentItem.TargetGame);
-            }
-        }
+        ApplyDependencyGameTypes(manifest, contentItem.TargetGame);
 
         manifest.Metadata.Description = contentItem.Description;
         manifest.Metadata.Tags = [.. contentItem.Tags];
@@ -402,5 +403,66 @@ public class GenericCatalogResolver(
         var sanitized = string.Join("_", fileName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
 
         return string.IsNullOrWhiteSpace(sanitized) ? "download.zip" : sanitized;
+    }
+
+    private async Task<Dictionary<string, string>> RegisterRemoteFilesAsync(
+        IContentManifestBuilder builder,
+        ContentRelease release,
+        CatalogContentItem contentItem,
+        ReleaseArtifact? primaryArtifact)
+    {
+        var artifactHashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (release.Artifacts != null && release.Artifacts.Count > 0)
+        {
+            var usedFilenames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var artifact in release.Artifacts)
+            {
+                if (string.IsNullOrWhiteSpace(artifact.DownloadUrl))
+                {
+                    continue;
+                }
+
+                // If primary artifact belongs to a specific variant on an axis, only register
+                // artifacts matching that variant (or common artifacts without a variant axis).
+                if (!string.IsNullOrWhiteSpace(primaryArtifact?.VariantAxis) &&
+                    !string.IsNullOrWhiteSpace(artifact.VariantAxis) &&
+                    string.Equals(primaryArtifact.VariantAxis, artifact.VariantAxis, StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(artifact.Variant) &&
+                    !string.Equals(primaryArtifact.Variant, artifact.Variant, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var baseFilename = SanitizeArtifactFilename(artifact, contentItem);
+                var filename = DisambiguateFilename(usedFilenames, baseFilename);
+                usedFilenames.Add(filename);
+
+                if (!string.IsNullOrWhiteSpace(artifact.Sha256))
+                {
+                    artifactHashes[filename] = artifact.Sha256;
+                }
+
+                logger.LogDebug(
+                    "Adding remote file {Filename} with download URL {Url}",
+                    filename,
+                    artifact.DownloadUrl);
+
+                await builder.AddRemoteFileAsync(
+                    relativePath: filename,
+                    downloadUrl: artifact.DownloadUrl,
+                    sourceType: ContentSourceType.RemoteDownload,
+                    isExecutable: false,
+                    permissions: null);
+            }
+        }
+        else
+        {
+            logger.LogInformation(
+                "Content '{ContentName}' has no downloadable artifacts (dependency-only package)",
+                contentItem.Name);
+        }
+
+        return artifactHashes;
     }
 }

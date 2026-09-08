@@ -53,7 +53,7 @@ public partial class GitHubTopicsDiscoverer(
     /// <summary>
     /// Patterns that indicate variant-based releases that should be split.
     /// </summary>
-    private static partial class VariantPatterns
+    internal static partial class VariantPatterns
     {
         /// <summary>
         /// Regex to match resolution patterns like 1920x1080, 2560x1440, etc.
@@ -80,9 +80,9 @@ public partial class GitHubTopicsDiscoverer(
         public static partial System.Text.RegularExpressions.Regex NumericOrVersionPattern();
 
         /// <summary>
-        /// Regex to match 2K/4K/5K/8K resolution tokens with word boundaries.
+        /// Regex to match 2K/4K/5K/8K resolution tokens with non-alphanumeric boundaries.
         /// </summary>
-        [System.Text.RegularExpressions.GeneratedRegex(@"\b([2458])K\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase, matchTimeoutMilliseconds: 1000)]
+        [System.Text.RegularExpressions.GeneratedRegex(@"(?<![A-Za-z0-9])([2458])K(?![A-Za-z0-9])", System.Text.RegularExpressions.RegexOptions.IgnoreCase, matchTimeoutMilliseconds: 1000)]
         public static partial System.Text.RegularExpressions.Regex KResolutionPattern();
 
         /// <summary>
@@ -600,17 +600,24 @@ public partial class GitHubTopicsDiscoverer(
 
     private static int GetResolutionRank(ContentVariantInfo v)
     {
-        var kMatch = VariantPatterns.KResolutionPattern().Match(v.Name);
-        if (kMatch.Success)
+        var kMatches = VariantPatterns.KResolutionPattern().Matches(v.Name);
+        if (kMatches.Count > 0)
         {
-            return kMatch.Groups[1].Value.ToUpperInvariant() switch
+            var maxKRank = kMatches
+                .Select(m => m.Groups[1].Value.ToUpperInvariant() switch
+                {
+                    "8" => 4320,
+                    "5" => 2880,
+                    "4" => 2160,
+                    "2" => 1440,
+                    _ => 0,
+                })
+                .Max();
+
+            if (maxKRank > 0)
             {
-                "8" => 4320,
-                "5" => 2880,
-                "4" => 2160,
-                "2" => 1440,
-                _ => 0,
-            };
+                return maxKRank;
+            }
         }
 
         var match = VariantPatterns.ResolutionHeightPattern().Match(v.Name);

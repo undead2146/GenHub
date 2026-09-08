@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -7,7 +6,6 @@ using FluentAssertions;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Manifest;
-using GenHub.Core.Interfaces.Tools;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Providers;
 using GenHub.Core.Models.Results;
@@ -97,7 +95,7 @@ public class GenericCatalogResolverTests
         var result = await resolver.ResolveAsync(searchResult);
 
         // Assert
-        result.Success.Should().BeTrue(result.FirstError);
+        result.Success.Should().BeTrue(result.FirstError ?? string.Empty);
         result.Data.Should().NotBeNull();
         result.Data!.Files.Should().HaveCount(3);
         result.Data.Files.Select(f => f.RelativePath).Should().BeEquivalentTo([
@@ -172,7 +170,7 @@ public class GenericCatalogResolverTests
         var result = await resolver.ResolveAsync(searchResult);
 
         // Assert
-        result.Success.Should().BeTrue(result.FirstError);
+        result.Success.Should().BeTrue(result.FirstError ?? string.Empty);
         result.Data.Should().NotBeNull();
 
         // Should include Zero Hour artifact and common manual, but EXCLUDE Generals artifact
@@ -239,7 +237,7 @@ public class GenericCatalogResolverTests
         var result = await resolver.ResolveAsync(searchResult);
 
         // Assert
-        result.Success.Should().BeTrue(result.FirstError);
+        result.Success.Should().BeTrue(result.FirstError ?? string.Empty);
         result.Data.Should().NotBeNull();
         result.Data!.Files.Should().HaveCount(2);
 
@@ -248,5 +246,148 @@ public class GenericCatalogResolverTests
 
         primaryFile.Hash.Should().Be("1111111111111111111111111111111111111111111111111111111111111111");
         secondaryFile.Hash.Should().Be("2222222222222222222222222222222222222222222222222222222222222222");
+    }
+
+    /// <summary>
+    /// Verifies that if the primary artifact has no download URL, its hash is not stamped onto an unrelated secondary file.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ResolveAsync_PrimaryArtifactWithoutDownloadUrl_DoesNotStampHashOnSecondaryFileAsync()
+    {
+        // Arrange
+        var resolver = new GenericCatalogResolver(
+            Mock.Of<ILogger<GenericCatalogResolver>>(),
+            _builderFactory);
+
+        var release = new ContentRelease
+        {
+            Version = "1.0.0",
+            Artifacts =
+            [
+                new ReleaseArtifact
+                {
+                    IsPrimary = true,
+                    Filename = "primary.zip",
+                    DownloadUrl = string.Empty, // No download URL -> not registered in Files
+                    Sha256 = "1111111111111111111111111111111111111111111111111111111111111111",
+                },
+                new ReleaseArtifact
+                {
+                    Filename = "secondary.zip",
+                    DownloadUrl = "https://example.com/secondary.zip", // No hash
+                },
+            ],
+        };
+
+        var contentItem = new CatalogContentItem
+        {
+            Id = "item-id",
+            Name = "Item Name",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+        };
+
+        var publisher = new PublisherProfile
+        {
+            Id = "community-outpost",
+            Name = "Community Outpost",
+        };
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.0.community-outpost.mod.item-id",
+        };
+        searchResult.ResolverMetadata[CatalogConstants.ReleaseJsonMetadataKey] = JsonSerializer.Serialize(release);
+        searchResult.ResolverMetadata[CatalogConstants.CatalogItemJsonMetadataKey] = JsonSerializer.Serialize(contentItem);
+        searchResult.ResolverMetadata[CatalogConstants.PublisherProfileJsonMetadataKey] = JsonSerializer.Serialize(publisher);
+
+        // Act
+        var result = await resolver.ResolveAsync(searchResult);
+
+        // Assert
+        result.Success.Should().BeTrue(result.FirstError ?? string.Empty);
+        result.Data.Should().NotBeNull();
+        result.Data!.Files.Should().HaveCount(1);
+
+        var file = result.Data.Files.Single();
+        file.RelativePath.Should().Be("secondary.zip");
+        file.Hash.Should().BeNullOrEmpty();
+    }
+
+    /// <summary>
+    /// Verifies that an artifact on the same variant axis with a null or empty variant label is treated as common and registered.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ResolveAsync_SameAxisArtifactWithNullVariant_IsRegisteredAsCommonAsync()
+    {
+        // Arrange
+        var resolver = new GenericCatalogResolver(
+            Mock.Of<ILogger<GenericCatalogResolver>>(),
+            _builderFactory);
+
+        var release = new ContentRelease
+        {
+            Version = "1.0.0",
+            Artifacts =
+            [
+                new ReleaseArtifact
+                {
+                    IsPrimary = true,
+                    Filename = "zh.zip",
+                    DownloadUrl = "https://example.com/zh.zip",
+                    VariantAxis = "Game",
+                    Variant = "ZeroHour",
+                },
+                new ReleaseArtifact
+                {
+                    Filename = "common-shared.zip",
+                    DownloadUrl = "https://example.com/common-shared.zip",
+                    VariantAxis = "Game",
+                    Variant = null, // Null variant on the same axis should be treated as common
+                },
+                new ReleaseArtifact
+                {
+                    Filename = "generals.zip",
+                    DownloadUrl = "https://example.com/generals.zip",
+                    VariantAxis = "Game",
+                    Variant = "Generals", // Different variant on the same axis should be excluded
+                },
+            ],
+        };
+
+        var contentItem = new CatalogContentItem
+        {
+            Id = "item-id",
+            Name = "Item Name",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+        };
+
+        var publisher = new PublisherProfile
+        {
+            Id = "community-outpost",
+            Name = "Community Outpost",
+        };
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.0.community-outpost.mod.item-id",
+        };
+        searchResult.ResolverMetadata[CatalogConstants.ReleaseJsonMetadataKey] = JsonSerializer.Serialize(release);
+        searchResult.ResolverMetadata[CatalogConstants.CatalogItemJsonMetadataKey] = JsonSerializer.Serialize(contentItem);
+        searchResult.ResolverMetadata[CatalogConstants.PublisherProfileJsonMetadataKey] = JsonSerializer.Serialize(publisher);
+
+        // Act
+        var result = await resolver.ResolveAsync(searchResult);
+
+        // Assert
+        result.Success.Should().BeTrue(result.FirstError ?? string.Empty);
+        result.Data.Should().NotBeNull();
+        result.Data!.Files.Select(f => f.RelativePath).Should().BeEquivalentTo([
+            "zh.zip",
+            "common-shared.zip",
+        ]);
     }
 }
