@@ -501,7 +501,7 @@ public sealed partial class ProfileSelectionViewModel(
 
         var selectedManifestId = selectedManifest?.Id.Value ?? ContentManifestId;
         var selectedContentName = selectedManifest?.Name ?? ContentName ?? string.Empty;
-        IReadOnlyList<string> idsToAdd;
+        IReadOnlyList<string> idsToAdd = [];
         if (ContentManifestIds.Count > 0)
         {
             idsToAdd = ContentManifestIds;

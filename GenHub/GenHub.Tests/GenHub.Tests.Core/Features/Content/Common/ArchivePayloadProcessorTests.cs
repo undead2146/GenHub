@@ -3,6 +3,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
+using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Features.Content.Services.Common;
 using Microsoft.Extensions.Logging;
@@ -632,8 +633,8 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies that self-extracting .exe archives containing directory traversal entries (Zip Slip)
-    /// throw <see cref="InvalidDataException"/> reporting unsafe path, and are not masked as generic unsupported SFX.
+    /// Verifies that self-extracting zip .exe archives containing directory traversal entries (Zip Slip)
+    /// throw <see cref="InvalidDataException"/> reporting unsafe path.
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
@@ -659,7 +660,7 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies that cancelling extraction of a self-extracting .exe rethrows <see cref="OperationCanceledException"/>
+    /// Verifies that cancelling extraction of a self-extracting .exe mid-extraction rethrows <see cref="OperationCanceledException"/>
     /// rather than converting it to an InvalidDataException.
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
@@ -672,19 +673,27 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
 
         using (var archive = ZipFile.Open(sfxExePath, ZipArchiveMode.Create))
         {
-            var entry = archive.CreateEntry("game.big");
-            using var writer = new StreamWriter(entry.Open());
-            await writer.WriteAsync("payload");
+            var entry1 = archive.CreateEntry("game1.big");
+            using (var writer1 = new StreamWriter(entry1.Open()))
+            {
+                await writer1.WriteAsync("payload1");
+            }
+
+            var entry2 = archive.CreateEntry("game2.big");
+            using (var writer2 = new StreamWriter(entry2.Open()))
+            {
+                await writer2.WriteAsync("payload2");
+            }
         }
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        var progress = new SynchronousProgress<ContentAcquisitionProgress>(_ => cts.Cancel());
 
         var processor = CreateProcessor();
 
         // Act & Assert
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            processor.ExtractArchivesSafelyAsync(_stagingDirectory, ContentType.Mod, cancellationToken: cts.Token));
+            processor.ExtractArchivesSafelyAsync(_stagingDirectory, ContentType.Mod, progress: progress, cancellationToken: cts.Token));
     }
 
     /// <summary>
@@ -990,5 +999,10 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
         writer.Write(payloadBytes);
 
         return ms.ToArray();
+    }
+
+    private sealed class SynchronousProgress<T>(Action<T> action) : IProgress<T>
+    {
+        public void Report(T value) => action(value);
     }
 }
