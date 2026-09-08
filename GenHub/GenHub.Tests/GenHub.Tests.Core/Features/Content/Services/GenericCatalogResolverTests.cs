@@ -1540,7 +1540,7 @@ public sealed class GenericCatalogResolverTests
 
         Assert.True(result.Success, result.FirstError);
         Assert.NotNull(capturedId);
-        Assert.Contains(CatalogConstants.GenericCatalogResolverId, capturedId.Value.Value);
+        Assert.Contains("genericcatalog", capturedId.Value.Value);
     }
 
     /// <summary>
