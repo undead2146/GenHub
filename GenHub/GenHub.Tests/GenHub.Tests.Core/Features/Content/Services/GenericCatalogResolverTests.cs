@@ -1366,6 +1366,162 @@ public sealed class GenericCatalogResolverTests
         Assert.Equal(expectedMaxInclusive, builtManifest.Dependencies[0].MaxInclusive);
     }
 
+    /// <summary>
+    /// Verifies that a catalog dependency without an explicit PublisherId inherits the host content's declared publisher.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ResolveAsync_DependencyWithoutPublisherId_InheritsDeclaredHostPublisherAsync()
+    {
+        var contentItem = new CatalogContentItem
+        {
+            Id = "mod-with-implicit-dep-pub",
+            Name = "Mod With Implicit Dep Pub",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            PublisherType = "test-pub",
+            Description = "Test Mod",
+            Tags = ["mod"],
+        };
+
+        var release = new ContentRelease
+        {
+            Version = "1.0.0",
+            Dependencies =
+            [
+                new CatalogDependency
+                {
+                    ContentId = "sibling-mod",
+                    VersionConstraint = ">=1.0.0",
+                },
+            ],
+        };
+
+        var publisher = new PublisherProfile { Id = "test-pub", Name = "Test Pub" };
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.100.testpub.mod.modwithimplicitdeppub",
+            Name = contentItem.Name,
+            ContentType = ContentType.Mod,
+            ResolverId = CatalogConstants.GenericCatalogResolverId,
+            ResolverMetadata =
+            {
+                [CatalogConstants.ReleaseJsonMetadataKey] = JsonSerializer.Serialize(release),
+                [CatalogConstants.CatalogItemJsonMetadataKey] = JsonSerializer.Serialize(contentItem),
+                [CatalogConstants.PublisherProfileJsonMetadataKey] = JsonSerializer.Serialize(publisher),
+            },
+        };
+
+        var builtManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.100.testpub.mod.modwithimplicitdeppub"),
+            Name = contentItem.Name,
+            Version = "1.0.0",
+            ContentType = ContentType.Mod,
+            Publisher = new PublisherInfo { PublisherType = "test-pub" },
+        };
+
+        var builderMock = CreateBuilderMock(builtManifest);
+        ManifestId? capturedId = null;
+        builderMock.Setup(b => b.AddDependency(
+                It.IsAny<ManifestId>(),
+                It.IsAny<string>(),
+                It.IsAny<ContentType>(),
+                It.IsAny<DependencyInstallBehavior>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<List<string>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<List<ManifestId>?>(),
+                It.IsAny<List<GameType>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>()))
+            .Callback<ManifestId, string, ContentType, DependencyInstallBehavior, string, string, List<string>?, bool, List<ManifestId>?, List<GameType>?, bool, bool>(
+                (id, name, type, behavior, min, max, comp, excl, conf, games, minInc, maxInc) =>
+                {
+                    capturedId = id;
+                })
+            .Returns(builderMock.Object);
+
+        var resolver = new GenericCatalogResolver(
+            NullLogger<GenericCatalogResolver>.Instance,
+            () => builderMock.Object);
+
+        var result = await resolver.ResolveAsync(searchResult);
+
+        Assert.True(result.Success, result.FirstError);
+        Assert.NotNull(capturedId);
+        Assert.Contains("testpub", capturedId.Value.Value);
+    }
+
+    /// <summary>
+    /// Verifies that a catalog dependency without an explicit PublisherId and without a host publisher returns a failure result rather than throwing ArgumentException.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ResolveAsync_DependencyWithoutPublisherId_AndNoHostPublisher_ReturnsFailureAsync()
+    {
+        var contentItem = new CatalogContentItem
+        {
+            Id = "mod-with-orphaned-dep",
+            Name = "Mod With Orphaned Dep",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            PublisherType = null,
+            Description = "Test Mod",
+            Tags = ["mod"],
+        };
+
+        var release = new ContentRelease
+        {
+            Version = "1.0.0",
+            Dependencies =
+            [
+                new CatalogDependency
+                {
+                    PublisherId = "",
+                    ContentId = "unknown-dep",
+                    VersionConstraint = "1.0.0",
+                },
+            ],
+        };
+
+        var publisher = new PublisherProfile { Id = "", Name = "" };
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.100.unknown.mod.modwithorphaneddep",
+            Name = contentItem.Name,
+            ContentType = ContentType.Mod,
+            ResolverId = CatalogConstants.GenericCatalogResolverId,
+            ResolverMetadata =
+            {
+                [CatalogConstants.ReleaseJsonMetadataKey] = JsonSerializer.Serialize(release),
+                [CatalogConstants.CatalogItemJsonMetadataKey] = JsonSerializer.Serialize(contentItem),
+                [CatalogConstants.PublisherProfileJsonMetadataKey] = JsonSerializer.Serialize(publisher),
+            },
+        };
+
+        var builtManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.100.unknown.mod.modwithorphaneddep"),
+            Name = contentItem.Name,
+            Version = "1.0.0",
+            ContentType = ContentType.Mod,
+        };
+
+        var builderMock = CreateBuilderMock(builtManifest);
+        var resolver = new GenericCatalogResolver(
+            NullLogger<GenericCatalogResolver>.Instance,
+            () => builderMock.Object);
+
+        var result = await resolver.ResolveAsync(searchResult);
+
+        Assert.False(result.Success);
+        Assert.Contains("has no publisher specified", result.FirstError);
+    }
+
     private static Mock<IContentManifestBuilder> CreateBuilderMock(ContentManifest builtManifest)
     {
         var builderMock = new Mock<IContentManifestBuilder>();

@@ -198,6 +198,73 @@ public sealed class GenericCatalogDiscovererDynamicTests : IDisposable
         Assert.Contains("20260731", zhVariant.CatalogId);
     }
 
+    /// <summary>
+    /// Verifies that content items with null description or null tags do not throw NullReferenceException during search queries.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task DiscoverAsync_NullDescriptionOrTags_DoesNotThrowDuringSearchAsync()
+    {
+        var catalog = new PublisherCatalog
+        {
+            SchemaVersion = 1,
+            Publisher = new PublisherProfile
+            {
+                Id = "genhub-test-publishers",
+                Name = "GenHub Test Publishers",
+            },
+            Content =
+            [
+                new CatalogContentItem
+                {
+                    Id = "item-with-null-desc",
+                    Name = "Item Without Description",
+                    ContentType = ContentType.Mod,
+                    TargetGame = GameType.Generals,
+                    IsStandalone = true,
+                    Description = null!,
+                    Tags = null!,
+                    Releases =
+                    [
+                        new ContentRelease
+                        {
+                            Version = "1.0.0",
+                            IsLatest = true,
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var catalogParserMock = new Mock<IPublisherCatalogParser>();
+        catalogParserMock
+            .Setup(p => p.ParseCatalogAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<PublisherCatalog>.CreateSuccess(catalog));
+
+        var discoverer = new GenericCatalogDiscoverer(
+            NullLogger<GenericCatalogDiscoverer>.Instance,
+            CreateHttpClientFactory(JsonSerializer.Serialize(catalog)),
+            catalogParserMock.Object,
+            new VersionSelector(NullLogger<VersionSelector>.Instance),
+            Mock.Of<IGitHubApiClient>());
+
+        discoverer.Configure(new PublisherSubscription
+        {
+            PublisherId = "test-pub",
+            PublisherName = "Test Publisher",
+            CatalogUrl = "https://example.com/catalog.json",
+        });
+
+        var result = await discoverer.DiscoverAsync(new ContentSearchQuery
+        {
+            SearchTerm = "Description",
+        });
+
+        Assert.True(result.Success, result.FirstError);
+        Assert.NotNull(result.Data);
+        Assert.Single(result.Data.Items);
+    }
+
     private static IHttpClientFactory CreateHttpClientFactory(string responseJson)
     {
         var mockHandler = new Mock<HttpMessageHandler>();

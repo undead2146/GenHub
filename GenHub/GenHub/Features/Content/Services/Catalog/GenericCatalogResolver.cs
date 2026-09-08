@@ -26,6 +26,13 @@ public partial class GenericCatalogResolver(
     ILogger<GenericCatalogResolver> logger,
     Func<IContentManifestBuilder> manifestBuilderFactory) : IContentResolver
 {
+    private readonly record struct ParsedVersionConstraint(
+        string MinVersion,
+        string MaxVersion,
+        bool MinInclusive,
+        bool MaxInclusive,
+        List<string>? CompatibleVersions);
+
     /// <inheritdoc />
     public string ResolverId => CatalogConstants.GenericCatalogResolverId;
 
@@ -477,7 +484,12 @@ public partial class GenericCatalogResolver(
         List<CatalogBundleComponentDescriptor>? bundleComponents,
         ParsedVersionConstraint constraint)
     {
-        var (depPublisherId, depVersion, dependencyType) = ResolveDependencyIdentity(dependency, initialDependencyType, bundleComponents);
+        var (depPublisherId, depVersion, dependencyType) = ResolveDependencyIdentity(dependency, initialDependencyType, contentItem, bundleComponents);
+
+        if (string.IsNullOrWhiteSpace(depPublisherId))
+        {
+            return $"Dependency '{dependency.ContentId}' has no publisher specified and host publisher could not be determined";
+        }
 
         var dependencyId = CatalogManifestIdentity.CreateContentId(
             depPublisherId,
@@ -528,10 +540,13 @@ public partial class GenericCatalogResolver(
     private static (string PublisherId, string Version, ContentType DependencyType) ResolveDependencyIdentity(
         CatalogDependency dependency,
         ContentType initialDependencyType,
+        CatalogContentItem contentItem,
         List<CatalogBundleComponentDescriptor>? bundleComponents)
     {
         var cleanConstraint = CatalogManifestIdentity.StripVersionConstraint(dependency.VersionConstraint);
-        var depPublisherId = dependency.PublisherId;
+        var depPublisherId = !string.IsNullOrWhiteSpace(dependency.PublisherId)
+            ? dependency.PublisherId
+            : CatalogManifestIdentity.ResolveDeclaredPublisherType(contentItem);
         var depVersion = cleanConstraint;
         var dependencyType = initialDependencyType;
 
@@ -559,13 +574,6 @@ public partial class GenericCatalogResolver(
 
     [GeneratedRegex(@"([><=^~]+)\s+")]
     private static partial Regex OperatorWhitespaceRegex();
-
-    private readonly record struct ParsedVersionConstraint(
-        string MinVersion,
-        string MaxVersion,
-        bool MinInclusive,
-        bool MaxInclusive,
-        List<string>? CompatibleVersions);
 
     private static ParsedVersionConstraint ParseVersionConstraint(string? constraint)
     {

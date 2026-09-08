@@ -39,10 +39,6 @@ public class GenericCatalogDiscoverer(
     IVersionSelector versionSelector,
     IGitHubApiClient gitHubClient) : IContentDiscoverer
 {
-    private static readonly ConcurrentDictionary<string, (GitHubRelease Release, DateTime CachedAt)> ReleaseCache = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly ConcurrentDictionary<string, Task<GitHubRelease?>> PendingReleaseFetches = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(30);
-
     private readonly record struct VariantSiblingContext(
         ContentRelease OriginalRelease,
         ContentRelease ResolvedRelease,
@@ -50,12 +46,30 @@ public class GenericCatalogDiscoverer(
         string FamilyName,
         string DeclaredPublisher);
 
+    private static readonly ConcurrentDictionary<string, (GitHubRelease Release, DateTime CachedAt)> ReleaseCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, Task<GitHubRelease?>> PendingReleaseFetches = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(30);
+
     private Core.Models.Providers.PublisherSubscription? _subscription;
 
     /// <summary>
     /// Gets the unique identifier of the resolver used by this discoverer.
     /// </summary>
     public static string ResolverId => CatalogConstants.GenericCatalogResolverId;
+
+    /// <inheritdoc />
+    public string SourceName => _subscription?.PublisherName ?? "Generic Catalog";
+
+    /// <inheritdoc />
+    public string Description => _subscription != null
+        ? $"Content from {_subscription.PublisherName}"
+        : "Generic catalog-based content source";
+
+    /// <inheritdoc />
+    public bool IsEnabled => _subscription != null;
+
+    /// <inheritdoc />
+    public ContentSourceCapabilities Capabilities => ContentSourceCapabilities.RequiresDiscovery | ContentSourceCapabilities.SupportsManifestGeneration;
 
     /// <summary>
     /// Clears the static dynamic release cache. Used for testing and cache invalidation.
@@ -98,9 +112,11 @@ public class GenericCatalogDiscoverer(
         if (!string.IsNullOrWhiteSpace(query.SearchTerm))
         {
             var searchLower = query.SearchTerm.ToLowerInvariant();
-            if (!content.Name.Contains(searchLower, StringComparison.OrdinalIgnoreCase) &&
-                !content.Description.Contains(searchLower, StringComparison.OrdinalIgnoreCase) &&
-                content.Tags.All(t => !t.Contains(searchLower, StringComparison.OrdinalIgnoreCase)))
+            var matchesName = content.Name?.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ?? false;
+            var matchesDescription = content.Description?.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ?? false;
+            var matchesTags = content.Tags?.Any(t => t.Contains(searchLower, StringComparison.OrdinalIgnoreCase)) ?? false;
+
+            if (!matchesName && !matchesDescription && !matchesTags)
             {
                 return false;
             }
@@ -296,20 +312,6 @@ public class GenericCatalogDiscoverer(
                 ResolveIncludedContentNames(release, contentNamesById));
         }
     }
-
-    /// <inheritdoc />
-    public string SourceName => _subscription?.PublisherName ?? "Generic Catalog";
-
-    /// <inheritdoc />
-    public string Description => _subscription != null
-        ? $"Content from {_subscription.PublisherName}"
-        : "Generic catalog-based content source";
-
-    /// <inheritdoc />
-    public bool IsEnabled => _subscription != null;
-
-    /// <inheritdoc />
-    public ContentSourceCapabilities Capabilities => ContentSourceCapabilities.RequiresDiscovery | ContentSourceCapabilities.SupportsManifestGeneration;
 
     /// <summary>
     /// Configures this discoverer for a specific publisher subscription.

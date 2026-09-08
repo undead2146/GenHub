@@ -45,6 +45,7 @@ public partial class SubscriptionConfirmationViewModel(
     private const string DefaultCategoryKey = "All";
     private const string DefaultPublisherName = "Loading...";
     private const string FallbackPublisherInitial = "P";
+    private PublisherCatalog? _parsedCatalog;
 
     /// <summary>
     /// Gets or sets an action that occurs when a request is made to close the dialog.
@@ -145,8 +146,6 @@ public partial class SubscriptionConfirmationViewModel(
     public string PublisherInitial => !string.IsNullOrWhiteSpace(PublisherName) && !string.Equals(PublisherName, DefaultPublisherName, StringComparison.Ordinal)
         ? PublisherName[..1].ToUpperInvariant()
         : FallbackPublisherInitial;
-
-    private PublisherCatalog? _parsedCatalog;
 
     /// <summary>
     /// Fetches and validates the remote catalog so the user can confirm identity before saving.

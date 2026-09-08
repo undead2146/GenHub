@@ -182,6 +182,7 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
         catalog.Content ??= [];
         foreach (var content in catalog.Content)
         {
+            content.Description ??= string.Empty;
             content.Tags ??= [];
             if (content.Metadata != null)
             {
