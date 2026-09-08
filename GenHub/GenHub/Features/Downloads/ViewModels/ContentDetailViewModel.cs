@@ -1702,13 +1702,38 @@ public partial class ContentDetailViewModel(
         if ((variantSearchResults == null || variantSearchResults.Count == 0) && searchResult.Variants is { Count: > 0 } searchVariants)
         {
             var dict = new Dictionary<string, ContentSearchResult>(StringComparer.OrdinalIgnoreCase);
-            var lastSegment = searchResult.Id?.Split('.').LastOrDefault() ?? "content";
+            var lastSegment = searchResult.Id?.Split('.', StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
+            if (string.IsNullOrWhiteSpace(lastSegment))
+            {
+                lastSegment = ContentConstants.DefaultContentFallbackId;
+            }
+
             foreach (var v in searchVariants)
             {
-                var provider = !string.IsNullOrWhiteSpace(searchResult.ProviderName) ? searchResult.ProviderName : "content";
-                var manifestId = !string.IsNullOrEmpty(v.ManifestId)
-                    ? v.ManifestId
-                    : ManifestIdGenerator.GeneratePublisherContentId(provider, searchResult.ContentType, $"{lastSegment}-{v.Id}", 0);
+                var provider = !string.IsNullOrWhiteSpace(searchResult.ProviderName) ? searchResult.ProviderName : ContentConstants.DefaultContentFallbackId;
+                var variantId = !string.IsNullOrWhiteSpace(v.Id) ? v.Id : ContentConstants.DefaultContentFallbackId;
+                var composedName = $"{lastSegment}-{variantId}";
+                if (!composedName.Any(char.IsLetterOrDigit))
+                {
+                    composedName = $"{lastSegment}-{ContentConstants.DefaultContentFallbackId}";
+                }
+
+                string manifestId;
+                if (!string.IsNullOrEmpty(v.ManifestId))
+                {
+                    manifestId = v.ManifestId;
+                }
+                else
+                {
+                    try
+                    {
+                        manifestId = ManifestIdGenerator.GeneratePublisherContentId(provider, searchResult.ContentType, composedName, 0);
+                    }
+                    catch (ArgumentException)
+                    {
+                        manifestId = $"{ManifestConstants.DefaultManifestFormatVersion}.0.{ContentConstants.DefaultContentFallbackId}.{searchResult.ContentType.ToManifestIdString()}.{ContentConstants.DefaultContentFallbackId}";
+                    }
+                }
 
                 var baseName = !string.IsNullOrEmpty(searchResult.VariantFamilyName) ? searchResult.VariantFamilyName : searchResult.Name;
                 var variantName = !string.IsNullOrEmpty(v.Name) && v.Name.StartsWith(baseName, StringComparison.OrdinalIgnoreCase)
@@ -4023,7 +4048,7 @@ public partial class ContentDetailViewModel(
             }
 
             // Create the profile selection view model
-            var profileSelectionViewModel = new ProfileSelectionViewModel(
+            using var profileSelectionViewModel = new ProfileSelectionViewModel(
                 loggerFactory.CreateLogger<ProfileSelectionViewModel>(),
                 profileManager,
                 profileContentService,

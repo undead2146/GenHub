@@ -411,6 +411,57 @@ public sealed partial class ContentStateService(
         return false;
     }
 
+    /// <summary>
+    /// Compares two version strings, returning positive if versionA is newer than versionB,
+    /// negative if older, or zero if equivalent.
+    /// </summary>
+    /// <param name="versionA">First version string.</param>
+    /// <param name="versionB">Second version string.</param>
+    /// <returns>A signed integer indicating the relative order.</returns>
+    internal static int CompareVersions(string? versionA, string? versionB)
+    {
+        if (string.IsNullOrWhiteSpace(versionA) && string.IsNullOrWhiteSpace(versionB))
+        {
+            return 0;
+        }
+
+        if (string.IsNullOrWhiteSpace(versionA))
+        {
+            return -1;
+        }
+
+        if (string.IsNullOrWhiteSpace(versionB))
+        {
+            return 1;
+        }
+
+        var cleanedA = versionA.Trim().TrimStart('v', 'V');
+        var cleanedB = versionB.Trim().TrimStart('v', 'V');
+        if (string.Equals(cleanedA, cleanedB, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        if (Version.TryParse(cleanedA, out var vA) && Version.TryParse(cleanedB, out var vB))
+        {
+            return vA.CompareTo(vB);
+        }
+
+        var aNum = CatalogManifestIdentity.ExtractVersionNumber(versionA);
+        var bNum = CatalogManifestIdentity.ExtractVersionNumber(versionB);
+        if (aNum > 0 && bNum > 0)
+        {
+            bool aIsDate = IsDateVersion(aNum);
+            bool bIsDate = IsDateVersion(bNum);
+            if (aIsDate == bIsDate)
+            {
+                return aNum.CompareTo(bNum);
+            }
+        }
+
+        return string.Compare(cleanedA, cleanedB, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool CompareVersionStrings(
         string? prospectiveVersionStr,
         string? localVersionStr,

@@ -361,13 +361,38 @@ public sealed partial class DownloadsBrowserViewModel(
         ContentSearchResult primaryItem,
         IList<ContentVariantInfo> singleVariants)
     {
-        var lastSegment = primaryItem.Id?.Split('.').LastOrDefault() ?? "content";
+        var lastSegment = primaryItem.Id?.Split('.', StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
+        if (string.IsNullOrWhiteSpace(lastSegment))
+        {
+            lastSegment = ContentConstants.DefaultContentFallbackId;
+        }
+
         foreach (var v in singleVariants)
         {
-            var provider = !string.IsNullOrWhiteSpace(primaryItem.ProviderName) ? primaryItem.ProviderName : "content";
-            var manifestId = !string.IsNullOrEmpty(v.ManifestId)
-                ? v.ManifestId
-                : ManifestIdGenerator.GeneratePublisherContentId(provider, primaryItem.ContentType, $"{lastSegment}-{v.Id}", 0);
+            var provider = !string.IsNullOrWhiteSpace(primaryItem.ProviderName) ? primaryItem.ProviderName : ContentConstants.DefaultContentFallbackId;
+            var variantId = !string.IsNullOrWhiteSpace(v.Id) ? v.Id : ContentConstants.DefaultContentFallbackId;
+            var composedName = $"{lastSegment}-{variantId}";
+            if (!composedName.Any(char.IsLetterOrDigit))
+            {
+                composedName = $"{lastSegment}-{ContentConstants.DefaultContentFallbackId}";
+            }
+
+            string manifestId;
+            if (!string.IsNullOrEmpty(v.ManifestId))
+            {
+                manifestId = v.ManifestId;
+            }
+            else
+            {
+                try
+                {
+                    manifestId = ManifestIdGenerator.GeneratePublisherContentId(provider, primaryItem.ContentType, composedName, 0);
+                }
+                catch (ArgumentException)
+                {
+                    manifestId = $"{ManifestConstants.DefaultManifestFormatVersion}.0.{ContentConstants.DefaultContentFallbackId}.{primaryItem.ContentType.ToManifestIdString()}.{ContentConstants.DefaultContentFallbackId}";
+                }
+            }
 
             var baseName = !string.IsNullOrEmpty(primaryItem.VariantFamilyName) ? primaryItem.VariantFamilyName : primaryItem.Name;
             var variantName = !string.IsNullOrEmpty(v.Name) && v.Name.StartsWith(baseName, StringComparison.OrdinalIgnoreCase)
@@ -1344,7 +1369,7 @@ public sealed partial class DownloadsBrowserViewModel(
 
             var familyItems = family
                 .OrderByDescending(it => it.SearchResult.LastUpdated ?? DateTime.MinValue)
-                .ThenByDescending(it => it.SearchResult.Version ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .ThenByDescending(it => it.SearchResult.Version, Comparer<string?>.Create(ContentStateService.CompareVersions))
                 .ToList();
             if (familyItems.Count <= 1)
             {
@@ -1393,7 +1418,7 @@ public sealed partial class DownloadsBrowserViewModel(
             vm.SearchResult.ResolverMetadata.TryGetValue(GitHubConstants.RepoMetadataKey, out var repo) &&
             !string.IsNullOrWhiteSpace(owner) && !string.IsNullOrWhiteSpace(repo))
         {
-            return $"{owner}/{repo}";
+            return $"{owner}/{repo}/{vm.SearchResult.ContentType}";
         }
 
         if (!string.IsNullOrWhiteSpace(vm.SearchResult.ProviderName))
@@ -1981,7 +2006,7 @@ public sealed partial class DownloadsBrowserViewModel(
             var manifestPool = serviceProvider.GetRequiredService(typeof(IContentManifestPool)) as IContentManifestPool
                 ?? throw new InvalidOperationException("IContentManifestPool service not found");
 
-            var profileSelectionVm = new ProfileSelectionViewModel(
+            using var profileSelectionVm = new ProfileSelectionViewModel(
                 serviceProvider.GetService(typeof(ILogger<ProfileSelectionViewModel>)) as ILogger<ProfileSelectionViewModel>
                     ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ProfileSelectionViewModel>.Instance,
                 profileManager,
@@ -2041,7 +2066,7 @@ public sealed partial class DownloadsBrowserViewModel(
                     logger.LogWarning(ex, "Failed to send ProfileUpdatedMessage");
                 }
             }
-            else if (!profileSelectionVm.WasSuccessful && !string.IsNullOrEmpty(profileSelectionVm.ErrorMessage))
+            else if (!profileSelectionVm.WasSuccessful && !profileSelectionVm.WasCancelled && !string.IsNullOrEmpty(profileSelectionVm.ErrorMessage))
             {
                 item.DownloadStatus = $"Failed: {profileSelectionVm.ErrorMessage}";
                 notificationService.ShowError(

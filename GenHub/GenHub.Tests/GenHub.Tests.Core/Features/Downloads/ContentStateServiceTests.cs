@@ -1315,6 +1315,38 @@ public class ContentStateServiceTests
         Assert.Equal(ContentState.UpdateAvailable, state);
     }
 
+    /// <summary>
+    /// Verifies that CompareVersions correctly orders semantic versions with unequal segment counts (e.g. 1.10 > 1.9).
+    /// </summary>
+    [Fact]
+    public void CompareVersions_DottedSemver_CorrectlyComparesNumericSegments()
+    {
+        Assert.True(ContentStateService.CompareVersions("1.10", "1.9") > 0);
+        Assert.True(ContentStateService.CompareVersions("1.9", "1.10") < 0);
+        Assert.Equal(0, ContentStateService.CompareVersions("1.9.0", "v1.9.0"));
+    }
+
+    /// <summary>
+    /// Verifies that CompareVersions correctly orders multi-digit suffixes (e.g. QFE10 > QFE2).
+    /// </summary>
+    [Fact]
+    public void CompareVersions_PrefixedOrSuffixedNumericVersions_OrdersNumerically()
+    {
+        Assert.True(ContentStateService.CompareVersions("QFE10", "QFE2") > 0);
+        Assert.True(ContentStateService.CompareVersions("QFE2", "QFE10") < 0);
+    }
+
+    /// <summary>
+    /// Verifies that CompareVersions treats null or empty versions as lesser than non-empty versions.
+    /// </summary>
+    [Fact]
+    public void CompareVersions_NullOrEmptyVersions_OrdersEmptyBeforeNonEmpty()
+    {
+        Assert.True(ContentStateService.CompareVersions("1.0", null) > 0);
+        Assert.True(ContentStateService.CompareVersions(null, "1.0") < 0);
+        Assert.Equal(0, ContentStateService.CompareVersions(null, string.Empty));
+    }
+
     private static ContentSearchResult CreateSuperHackersCard(GameType gameType)
     {
         var item = new ContentSearchResult
