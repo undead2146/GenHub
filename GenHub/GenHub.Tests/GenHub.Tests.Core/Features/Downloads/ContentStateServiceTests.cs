@@ -226,6 +226,62 @@ public class ContentStateServiceTests
     }
 
     /// <summary>
+    /// A synthetic file row created for a Generals Online release carries parentContentId and
+    /// SelectedDownloadUrl. It must resolve as downloaded against the installed manifest.
+    /// </summary>
+    /// <returns>A completed task.</returns>
+    [Fact]
+    public async Task GetStateAsync_GeneralsOnlineSyntheticFileRow_MatchesInstalledManifestViaParentContentIdAsync()
+    {
+        var fileRowItem = new ContentSearchResult
+        {
+            Id = "file:https://www.playgenerals.online/#download",
+            Name = "Generals Online",
+            ProviderName = PublisherTypeConstants.GeneralsOnline,
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+            SelectedDownloadUrl = "https://www.playgenerals.online/#download",
+            ResolverMetadata =
+            {
+                ["parentContentId"] = "GeneralsOnline_082826_QFE1",
+            },
+        };
+
+        var storedVariant = new ContentManifest
+        {
+            Id = ManifestId.Create("1.828261.generalsonline.gameclient.60hz"),
+            OriginalContentId = "GeneralsOnline_082826_QFE1",
+            OriginalProviderName = PublisherTypeConstants.GeneralsOnline,
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+            Publisher = new PublisherInfo
+            {
+                Name = "Generals Online Team",
+                ContentIndexUrl = "https://www.playgenerals.online/#download",
+            },
+            Files =
+            [
+                new ManifestFile
+                {
+                    RelativePath = "GeneralsOnline_portable_082826_QFE1.zip",
+                    DownloadUrl = "https://cdn.playgenerals.online/releases/GeneralsOnline_portable_082826_QFE1.zip",
+                },
+            ],
+        };
+
+        var pool = new Mock<IContentManifestPool>();
+        pool.Setup(p => p.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<System.Collections.Generic.IEnumerable<ContentManifest>>.CreateSuccess([storedVariant]));
+        pool.Setup(p => p.IsManifestAcquiredAsync(It.IsAny<ManifestId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(false));
+
+        var service = new ContentStateService(pool.Object, NullLogger<ContentStateService>.Instance);
+
+        Assert.Equal(ContentState.Downloaded, await service.GetStateAsync(fileRowItem));
+        Assert.Equal(storedVariant.Id.Value, await service.GetLocalManifestIdAsync(fileRowItem));
+    }
+
+    /// <summary>
     /// Two distinct CommunityOutpost addon releases must not cross-detect: a card for "gent"
     /// must not be marked downloaded when only a "cbpx" sibling manifest is installed. Guards
     /// against the publisher-family fallback over-matching within a publisher.
