@@ -81,8 +81,18 @@ public partial class ContentDetailViewModel(
     private bool _userManuallySelectedDownloadableItem;
     private Action? _unsubscribeAxisHandlers;
     private Task? _preloadTask;
+
+    /// <summary>
+    /// When true, content-type changes skip persisting to the manifest pool
+    /// (used while syncing the dropdown from an already-stored manifest).
+    /// </summary>
     private bool _suppressContentTypePersist;
+
+    /// <summary>
+    /// Last post-download content-type persist task (for tests to await).
+    /// </summary>
     private Task? _contentTypePersistTask;
+
     private bool _imagesLoaded;
     private bool _videosLoaded;
     private bool _releasesLoaded;

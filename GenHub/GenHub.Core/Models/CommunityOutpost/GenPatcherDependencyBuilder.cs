@@ -129,7 +129,7 @@ public static class GenPatcherDependencyBuilder
     {
         return new ContentDependency
         {
-            Id = ManifestId.Create("1.108.any.gameinstallation.generals"),
+            Id = ManifestId.Create(ManifestConstants.GeneralsGameInstallationManifestId),
             Name = "Generals 1.08 Installation (Required)",
             DependencyType = ContentType.GameInstallation,
             MinVersion = ManifestConstants.GeneralsManifestVersion, // "1.08"
