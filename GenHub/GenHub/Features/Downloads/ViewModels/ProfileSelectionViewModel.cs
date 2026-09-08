@@ -501,19 +501,11 @@ public sealed partial class ProfileSelectionViewModel(
 
         var selectedManifestId = selectedManifest?.Id.Value ?? ContentManifestId;
         var selectedContentName = selectedManifest?.Name ?? ContentName ?? string.Empty;
-        IReadOnlyList<string> idsToAdd = [];
-        if (ContentManifestIds.Count > 0)
-        {
-            idsToAdd = ContentManifestIds;
-        }
-        else if (!string.IsNullOrEmpty(selectedManifestId))
-        {
-            idsToAdd = [selectedManifestId];
-        }
-        else
-        {
-            idsToAdd = [];
-        }
+        IReadOnlyList<string> idsToAdd = ContentManifestIds.Count > 0
+            ? ContentManifestIds
+            : !string.IsNullOrEmpty(selectedManifestId)
+                ? [selectedManifestId]
+                : [];
 
         return (selectedManifestId, selectedContentName, idsToAdd);
     }

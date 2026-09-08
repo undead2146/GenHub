@@ -1830,7 +1830,7 @@ public partial class ContentDetailViewModel(
     {
         if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName))
         {
-            Dispatcher.UIThread.Post(() =>
+            RunOnUiThread(() =>
             {
                 IsDownloading = true;
                 DownloadProgress = 0;
@@ -1843,7 +1843,7 @@ public partial class ContentDetailViewModel(
     {
         if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName))
         {
-            Dispatcher.UIThread.Post(() =>
+            RunOnUiThread(() =>
             {
                 IsDownloading = true;
                 var intPercent = (int)Math.Round(message.ProgressPercentage);
@@ -1861,7 +1861,7 @@ public partial class ContentDetailViewModel(
     {
         if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName))
         {
-            Dispatcher.UIThread.Post(() =>
+            RunOnUiThread(() =>
             {
                 IsDownloading = false;
                 if (!message.Success && !string.IsNullOrEmpty(message.ErrorMessage))

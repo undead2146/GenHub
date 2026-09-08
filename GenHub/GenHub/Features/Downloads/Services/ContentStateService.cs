@@ -390,6 +390,11 @@ public sealed partial class ContentStateService(
 
         if (int.TryParse(prospectiveVersion, out var pInt) && int.TryParse(localVersion, out var lInt))
         {
+            if (pInt == 0 || lInt == 0)
+            {
+                return false;
+            }
+
             bool pIsDate = prospectiveVersion.Length == 8 && IsDateVersion(pInt);
             bool lIsDate = localVersion.Length == 8 && IsDateVersion(lInt);
 
@@ -832,6 +837,13 @@ public sealed partial class ContentStateService(
             return false;
         }
 
+        if (IsGitHubUrl(cleanSource) &&
+            !cleanSource.Contains("/releases/tag/", StringComparison.OrdinalIgnoreCase) &&
+            !cleanSource.Contains("/releases/download/", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         if (!string.IsNullOrWhiteSpace(manifest.Publisher?.SupportUrl) &&
             string.Equals(manifest.Publisher.SupportUrl.TrimEnd('/'), cleanSource, StringComparison.OrdinalIgnoreCase) &&
             Uri.TryCreate(manifest.Publisher.SupportUrl, UriKind.Absolute, out var supportUri) &&
@@ -1247,15 +1259,6 @@ public sealed partial class ContentStateService(
         ContentSearchResult item,
         CancellationToken cancellationToken)
     {
-        if (IsNewerVersion(prospectiveId, persistedManifest.Id.Value, item.Version, persistedManifest.Version))
-        {
-            logger.LogInformation(
-                "Content {ContentName} has an update available (local persisted: {LocalId})",
-                item.Name,
-                persistedManifest.Id.Value);
-            return ContentState.UpdateAvailable;
-        }
-
         if (IsSameContentSource(persistedManifest, item))
         {
             logger.LogInformation(
@@ -1265,10 +1268,24 @@ public sealed partial class ContentStateService(
             return ContentState.Downloaded;
         }
 
-        if (IsNewerVersion(persistedManifest.Id.Value, prospectiveId, persistedManifest.Version, item.Version))
+        bool canCompareVersion = (hasRealDate && releaseDate > DateTime.MinValue) ||
+                                 (!string.IsNullOrWhiteSpace(item.Version) && !string.IsNullOrWhiteSpace(persistedManifest.Version));
+
+        if (canCompareVersion &&
+            IsNewerVersion(prospectiveId, persistedManifest.Id.Value, item.Version, persistedManifest.Version))
+        {
+            logger.LogInformation(
+                "Content {ContentName} has an update available (local persisted: {LocalId})",
+                item.Name,
+                persistedManifest.Id.Value);
+            return ContentState.UpdateAvailable;
+        }
+
+        if (canCompareVersion &&
+            IsNewerVersion(persistedManifest.Id.Value, prospectiveId, persistedManifest.Version, item.Version))
         {
             var exactResult = await manifestPool.IsManifestAcquiredAsync(prospectiveId, cancellationToken);
-            if (exactResult.Success && exactResult.Data)
+            if (exactResult?.Success == true && exactResult.Data)
             {
                 return ContentState.Downloaded;
             }
@@ -1281,24 +1298,7 @@ public sealed partial class ContentStateService(
             return ContentState.NotDownloaded;
         }
 
-        var exactMatch = await manifestPool.IsManifestAcquiredAsync(prospectiveId, cancellationToken);
-        if (exactMatch?.Success == true && exactMatch.Data)
-        {
-            return ContentState.Downloaded;
-        }
-
-        if (string.Equals(persistedManifest.Id.Value, prospectiveId, StringComparison.OrdinalIgnoreCase))
-        {
-            return ContentState.Downloaded;
-        }
-
-        if (!string.IsNullOrEmpty(item.Version) &&
-            string.Equals(item.Version, persistedManifest.Version, StringComparison.OrdinalIgnoreCase))
-        {
-            return ContentState.Downloaded;
-        }
-
-        return ContentState.NotDownloaded;
+        return ContentState.Downloaded;
     }
 
     private async Task<ContentState> EvaluateMatchingManifestStateAsync(

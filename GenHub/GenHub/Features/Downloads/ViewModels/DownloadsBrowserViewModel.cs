@@ -1321,7 +1321,7 @@ public sealed partial class DownloadsBrowserViewModel(
         }
 
         var targetItem = item.UpdateTargetVm ?? item;
-        await DownloadContentAsync(targetItem);
+        await DownloadContentAsync(targetItem, _vmCts.Token);
     }
 
     private void ReconcileReleaseUpdateStates(IReadOnlyCollection<ContentGridItemViewModel> items)
