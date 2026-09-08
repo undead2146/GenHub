@@ -394,7 +394,9 @@ public partial class GenericCatalogResolver(
 
         if (filtered.Count == 0)
         {
-            return ($"Dependency '{contentId}' has unsatisfiable version bounds after reconciliation: all compatible versions are below the minimum foundation floor '{foundationMin}'.", null);
+            return (
+                $"Dependency '{contentId}' has unsatisfiable version bounds after reconciliation: all compatible versions are below the minimum foundation floor '{foundationMin}'.",
+                null);
         }
 
         return (null, filtered);
