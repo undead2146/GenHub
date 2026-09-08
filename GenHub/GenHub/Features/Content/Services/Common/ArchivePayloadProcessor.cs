@@ -562,6 +562,14 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
             using var archive = ArchiveFactory.OpenArchive(archivePath);
             ExtractSharpCompressArchive(archive, Path.GetFullPath(archivePath), extractPath, progress, logger, cancellationToken);
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (InvalidDataException)
+        {
+            throw;
+        }
         catch when (isExe)
         {
             throw new InvalidDataException($"Executable is not a supported self-extracting archive: {archivePath}");
