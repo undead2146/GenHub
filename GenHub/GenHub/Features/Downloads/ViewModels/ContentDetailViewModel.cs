@@ -2121,6 +2121,7 @@ public partial class ContentDetailViewModel(
             var expectedId = searchResult.Id;
             var state = await contentStateService.GetStateAsync(searchResult, _cts.Token);
 
+            var idRewritten = false;
             if ((state == ContentState.Downloaded || state == ContentState.UpdateAvailable) &&
                 (string.IsNullOrEmpty(searchResult.Id) || !ManifestIdValidator.IsValid(searchResult.Id, out _)))
             {
@@ -2128,12 +2129,14 @@ public partial class ContentDetailViewModel(
                 if (!string.IsNullOrEmpty(manifestId))
                 {
                     searchResult.UpdateId(manifestId);
+                    idRewritten = true;
                 }
             }
 
             await RunOnUiThreadAsync(() =>
             {
-                if (!string.Equals(searchResult.Id, expectedId, StringComparison.OrdinalIgnoreCase) &&
+                if (!idRewritten &&
+                    !string.Equals(searchResult.Id, expectedId, StringComparison.OrdinalIgnoreCase) &&
                     !string.IsNullOrEmpty(expectedId))
                 {
                     return;
