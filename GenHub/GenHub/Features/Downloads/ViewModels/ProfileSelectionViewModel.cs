@@ -35,8 +35,10 @@ public sealed partial class ProfileSelectionViewModel(
     IGameProfileManager profileManager,
     IProfileContentService profileContentService,
     IContentManifestPool manifestPool,
-    INotificationService notificationService) : ObservableObject
+    INotificationService notificationService) : ObservableObject, IDisposable
 {
+    private readonly CancellationTokenSource _cts = new();
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasCompatibleProfiles))]
     [NotifyPropertyChangedFor(nameof(HasAnyProfiles))]
@@ -235,6 +237,13 @@ public sealed partial class ProfileSelectionViewModel(
         }
     }
 
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+
     /// <summary>
     /// Determines if a profile is compatible with the target game type.
     /// </summary>
@@ -315,11 +324,11 @@ public sealed partial class ProfileSelectionViewModel(
                 ? await profileContentService.AddContentToProfileAsync(
                     profile.Id,
                     idsToAdd,
-                    CancellationToken.None)
+                    _cts.Token)
                 : await profileContentService.AddContentToProfileAsync(
                     profile.Id,
                     selectedManifestId ?? string.Empty,
-                    CancellationToken.None);
+                    _cts.Token);
 
             if (result.Success)
             {
@@ -349,6 +358,7 @@ public sealed partial class ProfileSelectionViewModel(
     [RelayCommand]
     private void Cancel()
     {
+        _cts.Cancel();
         WasSuccessful = false;
         SelectedProfileName = null;
         RequestClose?.Invoke(this, EventArgs.Empty);
@@ -376,7 +386,7 @@ public sealed partial class ProfileSelectionViewModel(
             // Check whether this content is a member of a downloaded variant family.
             var manifestResult = await manifestPool.GetManifestAsync(
                 ManifestId.Create(ContentManifestId),
-                CancellationToken.None);
+                _cts.Token);
 
             var (selectedManifestId, selectedContentName) = manifestResult.Success && manifestResult.Data != null
                 ? (manifestResult.Data.Id.Value, manifestResult.Data.Name)
@@ -398,11 +408,11 @@ public sealed partial class ProfileSelectionViewModel(
                 ? await profileContentService.CreateProfileWithContentAsync(
                     profileName,
                     idsToEnable,
-                    CancellationToken.None)
+                    _cts.Token)
                 : await profileContentService.CreateProfileWithContentAsync(
                     profileName,
                     selectedManifestId,
-                    CancellationToken.None);
+                    _cts.Token);
 
             if (result.Success && result.Data != null)
             {
@@ -439,7 +449,7 @@ public sealed partial class ProfileSelectionViewModel(
     {
         var selectedManifestResult = await manifestPool.GetManifestAsync(
             ManifestId.Create(selectedManifestId),
-            CancellationToken.None);
+            _cts.Token);
         var selectedManifest = selectedManifestResult.Success ? selectedManifestResult.Data : null;
         string baseName;
         if (selectedManifest?.ContentType == ContentType.GameClient &&
@@ -471,7 +481,7 @@ public sealed partial class ProfileSelectionViewModel(
     /// <returns>True if a profile exists, otherwise false.</returns>
     private async Task<bool> ProfileExistsAsync(string profileName)
     {
-        var profilesResult = await profileManager.GetAllProfilesAsync(CancellationToken.None);
+        var profilesResult = await profileManager.GetAllProfilesAsync(_cts.Token);
         if (profilesResult.Success && profilesResult.Data != null)
         {
             return profilesResult.Data.Any(p =>
@@ -495,17 +505,25 @@ public sealed partial class ProfileSelectionViewModel(
         {
             var manifestResult = await manifestPool.GetManifestAsync(
                 parsedManifestId,
-                CancellationToken.None);
+                _cts.Token);
             selectedManifest = manifestResult?.Success == true ? manifestResult.Data : null;
         }
 
         var selectedManifestId = selectedManifest?.Id.Value ?? ContentManifestId;
         var selectedContentName = selectedManifest?.Name ?? ContentName ?? string.Empty;
-        IReadOnlyList<string> idsToAdd = ContentManifestIds.Count > 0
-            ? ContentManifestIds
-            : !string.IsNullOrEmpty(selectedManifestId)
-                ? [selectedManifestId]
-                : [];
+        IReadOnlyList<string> idsToAdd;
+        if (ContentManifestIds.Count > 0)
+        {
+            idsToAdd = ContentManifestIds;
+        }
+        else if (!string.IsNullOrEmpty(selectedManifestId))
+        {
+            idsToAdd = [selectedManifestId];
+        }
+        else
+        {
+            idsToAdd = [];
+        }
 
         return (selectedManifestId, selectedContentName, idsToAdd);
     }

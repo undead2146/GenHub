@@ -803,7 +803,7 @@ public partial class ContentDetailViewModel(
         // Note: Full details are loaded eagerly for ModDB and similar content
         // that requires page parsing to show releases, addons, etc.
         _iconTask = LoadIconAsync();
-        _basicContentLoadTask = LoadBasicParsedDataAsync();
+        _ = LoadBasicParsedDataAsync();
         _customTabsTask = LoadCustomTabsAsync();
         _variantsTask = InitializeVariantsAsync();
     }
@@ -882,7 +882,7 @@ public partial class ContentDetailViewModel(
     /// <returns>A task that completes when all row-state resolutions finish.</returns>
     public async Task WaitForRowStateResolutionsAsync()
     {
-        List<Task> snapshot;
+        List<Task> snapshot = [];
         lock (_pendingRowStateTasks)
         {
             snapshot = [.. _pendingRowStateTasks];
@@ -1210,6 +1210,11 @@ public partial class ContentDetailViewModel(
                 foreach (var addon in Addons)
                 {
                     addon.Dispose();
+                }
+
+                lock (_pendingRowStateTasks)
+                {
+                    _pendingRowStateTasks.Clear();
                 }
 
                 IconBitmap = null;
@@ -1617,6 +1622,7 @@ public partial class ContentDetailViewModel(
     {
         lock (_pendingRowStateTasks)
         {
+            _pendingRowStateTasks.RemoveAll(t => t.IsCompleted);
             _pendingRowStateTasks.Add(task);
         }
     }
@@ -1699,9 +1705,10 @@ public partial class ContentDetailViewModel(
             var lastSegment = searchResult.Id?.Split('.').LastOrDefault() ?? "content";
             foreach (var v in searchVariants)
             {
+                var provider = !string.IsNullOrWhiteSpace(searchResult.ProviderName) ? searchResult.ProviderName : "content";
                 var manifestId = !string.IsNullOrEmpty(v.ManifestId)
                     ? v.ManifestId
-                    : ManifestIdGenerator.GeneratePublisherContentId(searchResult.ProviderName, searchResult.ContentType, $"{lastSegment}-{v.Id}", 0);
+                    : ManifestIdGenerator.GeneratePublisherContentId(provider, searchResult.ContentType, $"{lastSegment}-{v.Id}", 0);
 
                 var baseName = !string.IsNullOrEmpty(searchResult.VariantFamilyName) ? searchResult.VariantFamilyName : searchResult.Name;
                 var variantName = !string.IsNullOrEmpty(v.Name) && v.Name.StartsWith(baseName, StringComparison.OrdinalIgnoreCase)
@@ -2239,6 +2246,7 @@ public partial class ContentDetailViewModel(
     /// </summary>
     private async Task LoadBasicParsedDataAsync()
     {
+        Task? task;
         lock (_basicContentLoadLock)
         {
             if (_basicContentLoaded || ParsedPage != null)
@@ -2247,9 +2255,13 @@ public partial class ContentDetailViewModel(
             }
 
             _basicContentLoadTask ??= LoadBasicParsedDataCoreAsync();
+            task = _basicContentLoadTask;
         }
 
-        await _basicContentLoadTask;
+        if (task != null)
+        {
+            await task;
+        }
     }
 
     private void ResetDownloadState()
@@ -2429,7 +2441,8 @@ public partial class ContentDetailViewModel(
             }
             else if (!((searchResult.Variants is { Count: > 0 }) || (variantSearchResults is { Count: > 0 }) || !string.IsNullOrEmpty(searchResult.VariantGroupId)) && Releases.Count == 0 && Variants.Count == 0 && !string.IsNullOrEmpty(searchResult.SourceUrl) && searchResult.RequiresResolution)
             {
-                var downloadUrl = searchResult.GetData<GeneralsOnlineRelease>()?.PortableUrl ?? searchResult.SourceUrl;
+                var portableUrl = searchResult.GetData<GeneralsOnlineRelease>()?.PortableUrl;
+                var downloadUrl = !string.IsNullOrWhiteSpace(portableUrl) ? portableUrl : searchResult.SourceUrl;
                 var fileName = GetFileNameFromUrl(downloadUrl) ?? $"{searchResult.Name}.zip";
                 var file = new DownloadableFile(
                     Name: searchResult.Name,
@@ -3477,7 +3490,7 @@ public partial class ContentDetailViewModel(
 
         if (!string.IsNullOrEmpty(searchResult.Id))
         {
-            rowSearchResult.ResolverMetadata["parentContentId"] = searchResult.Id;
+            rowSearchResult.ResolverMetadata[ContentConstants.ParentContentIdMetadataKey] = searchResult.Id;
         }
 
         if (IsModDbContent(searchResult))

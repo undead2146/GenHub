@@ -114,7 +114,9 @@ public sealed class ContentDownloadCoordinator(
             _inFlightDownloads.TryGetValue(nameKey, out inFlight);
         }
 
-        if (inFlight != null && !inFlight.Task.IsCompleted)
+        if (inFlight != null &&
+            !inFlight.InternalCts.IsCancellationRequested &&
+            !inFlight.Task.IsCompleted)
         {
             lock (inFlight.Lock)
             {

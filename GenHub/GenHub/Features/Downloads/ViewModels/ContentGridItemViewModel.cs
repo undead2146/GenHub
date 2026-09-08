@@ -640,7 +640,7 @@ public sealed partial class ContentGridItemViewModel(
                 if (selectedVariantMatched)
                 {
                     CurrentState = e.NewState;
-                    IsDownloaded = e.NewState == ContentState.Downloaded;
+                    IsDownloaded = e.NewState is ContentState.Downloaded or ContentState.UpdateAvailable;
                 }
 
                 OnPropertyChanged(nameof(EffectiveCurrentState));
@@ -1074,7 +1074,7 @@ public sealed partial class ContentGridItemViewModel(
         // Keep the card's own state in sync with the selected variant so non-variant-aware
         // bindings (and Add to Profile's ID resolution) reflect the active selection.
         CurrentState = value.CurrentState;
-        IsDownloaded = value.CurrentState == ContentState.Downloaded;
+        IsDownloaded = value.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable;
 
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(DownloadSize));

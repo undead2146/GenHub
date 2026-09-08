@@ -887,7 +887,7 @@ public sealed partial class ContentStateService(
             !string.IsNullOrWhiteSpace(manifest.OriginalContentId) && (
             string.Equals(manifest.OriginalContentId, item.Id, StringComparison.OrdinalIgnoreCase) ||
             (item.ResolverMetadata != null &&
-             item.ResolverMetadata.TryGetValue("parentContentId", out var parentId) &&
+             item.ResolverMetadata.TryGetValue(ContentConstants.ParentContentIdMetadataKey, out var parentId) &&
              string.Equals(manifest.OriginalContentId, parentId, StringComparison.OrdinalIgnoreCase))))
         {
             return true;
@@ -1082,10 +1082,10 @@ public sealed partial class ContentStateService(
     {
         return manifests.FirstOrDefault(manifest =>
             (!string.IsNullOrEmpty(manifest.OriginalContentId) && (
-                string.Equals(manifest.OriginalContentId, item.Id, StringComparison.Ordinal) ||
+                string.Equals(manifest.OriginalContentId, item.Id, StringComparison.OrdinalIgnoreCase) ||
                 (item.ResolverMetadata != null &&
-                 item.ResolverMetadata.TryGetValue("parentContentId", out var parentId) &&
-                 string.Equals(manifest.OriginalContentId, parentId, StringComparison.Ordinal)))) ||
+                 item.ResolverMetadata.TryGetValue(ContentConstants.ParentContentIdMetadataKey, out var parentId) &&
+                 string.Equals(manifest.OriginalContentId, parentId, StringComparison.OrdinalIgnoreCase)))) ||
             (!string.IsNullOrWhiteSpace(item.SelectedDownloadUrl) && (
                 (manifest.Files != null && manifest.Files.Any(file =>
                     !string.IsNullOrWhiteSpace(file.DownloadUrl) &&

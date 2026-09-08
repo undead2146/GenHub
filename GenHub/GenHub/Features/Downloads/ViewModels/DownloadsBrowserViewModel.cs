@@ -1340,17 +1340,16 @@ public sealed partial class DownloadsBrowserViewModel(
                 continue;
             }
 
-            var familyItems = family.ToList();
+            var familyItems = family
+                .OrderByDescending(it => it.SearchResult.LastUpdated ?? DateTime.MinValue)
+                .ThenByDescending(it => it.SearchResult.Version ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .ToList();
             if (familyItems.Count <= 1)
             {
                 continue;
             }
 
-            var newestItem = familyItems.FirstOrDefault();
-            if (newestItem == null)
-            {
-                continue;
-            }
+            var newestItem = familyItems[0];
 
             foreach (var item in familyItems)
             {
@@ -1398,7 +1397,7 @@ public sealed partial class DownloadsBrowserViewModel(
         if (!string.IsNullOrWhiteSpace(vm.SearchResult.ProviderName) && !string.IsNullOrWhiteSpace(vm.SearchResult.Name))
         {
             var baseName = vm.SearchResult.Name.Split('—')[0].Trim();
-            return $"{vm.SearchResult.ProviderName}/{baseName}";
+            return $"{vm.SearchResult.ProviderName}/{vm.SearchResult.ContentType}/{baseName}";
         }
 
         return null;

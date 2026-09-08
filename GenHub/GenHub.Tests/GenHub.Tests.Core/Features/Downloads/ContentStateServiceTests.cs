@@ -243,7 +243,7 @@ public class ContentStateServiceTests
             SelectedDownloadUrl = "https://www.playgenerals.online/#download",
             ResolverMetadata =
             {
-                ["parentContentId"] = "GeneralsOnline_082826_QFE1",
+                [ContentConstants.ParentContentIdMetadataKey] = "GeneralsOnline_082826_QFE1",
             },
         };
 

@@ -20,6 +20,11 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
 {
     private readonly string _stagingDirectory = Path.Combine(Path.GetTempPath(), "GenHubPayloadTests", Guid.NewGuid().ToString("N"));
 
+    private sealed class SynchronousProgress<T>(Action<T> action) : IProgress<T>
+    {
+        public void Report(T value) => action(value);
+    }
+
     /// <summary>
     /// Verifies that extracting a valid ZIP archive unpacks all entries and removes the archive file.
     /// </summary>
@@ -999,10 +1004,5 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
         writer.Write(payloadBytes);
 
         return ms.ToArray();
-    }
-
-    private sealed class SynchronousProgress<T>(Action<T> action) : IProgress<T>
-    {
-        public void Report(T value) => action(value);
     }
 }
