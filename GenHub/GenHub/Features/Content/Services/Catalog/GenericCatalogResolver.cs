@@ -423,8 +423,9 @@ public class GenericCatalogResolver(
                     continue;
                 }
 
-                // If primary artifact belongs to a specific variant on an axis, only register
-                // artifacts matching that variant (or common artifacts without a variant axis).
+                // If primary artifact belongs to a specific variant on an axis, register it plus
+                // common artifacts: no variant axis, a different axis, or no variant label on
+                // the same axis. Same-axis artifacts with a different variant are excluded.
                 if (!string.IsNullOrWhiteSpace(primaryArtifact?.VariantAxis) &&
                     !string.IsNullOrWhiteSpace(artifact.VariantAxis) &&
                     string.Equals(primaryArtifact.VariantAxis, artifact.VariantAxis, StringComparison.OrdinalIgnoreCase) &&

@@ -80,12 +80,15 @@ public sealed class ContentDownloadCoordinator(
         }
 
         var unregistered = 0;
-        var reg = cancellationToken.CanBeCanceled
-            ? cancellationToken.Register(() => DecrementWaiterAndCancelIfEmpty(inFlight, ref unregistered))
-            : default;
+        var reg = default(CancellationTokenRegistration);
 
         try
         {
+            if (cancellationToken.CanBeCanceled)
+            {
+                reg = cancellationToken.Register(() => DecrementWaiterAndCancelIfEmpty(inFlight, ref unregistered));
+            }
+
             return await inFlight.Task.WaitAsync(cancellationToken);
         }
         finally
