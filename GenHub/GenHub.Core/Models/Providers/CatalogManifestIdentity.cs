@@ -17,6 +17,7 @@ namespace GenHub.Core.Models.Providers;
 /// </summary>
 public static class CatalogManifestIdentity
 {
+    private const string WeeklyPrefix = "weekly-";
     private static readonly NumericVersionScheme VersionScheme = new();
 
     /// <summary>
@@ -192,8 +193,8 @@ public static class CatalogManifestIdentity
         }
 
         var normalized = candidate.Trim();
-        normalized = normalized.StartsWith("weekly-", StringComparison.OrdinalIgnoreCase)
-            ? normalized["weekly-".Length..].Trim()
+        normalized = normalized.StartsWith(WeeklyPrefix, StringComparison.OrdinalIgnoreCase)
+            ? normalized[WeeklyPrefix.Length..].Trim()
             : normalized.TrimStart('v', 'V').Trim();
 
         if (string.IsNullOrWhiteSpace(normalized))
@@ -234,8 +235,8 @@ public static class CatalogManifestIdentity
             return 0;
         }
 
-        cleanVersion = cleanVersion.StartsWith("weekly-", StringComparison.OrdinalIgnoreCase)
-            ? cleanVersion["weekly-".Length..].Trim()
+        cleanVersion = cleanVersion.StartsWith(WeeklyPrefix, StringComparison.OrdinalIgnoreCase)
+            ? cleanVersion[WeeklyPrefix.Length..].Trim()
             : cleanVersion.TrimStart('v', 'V').Trim();
 
         try

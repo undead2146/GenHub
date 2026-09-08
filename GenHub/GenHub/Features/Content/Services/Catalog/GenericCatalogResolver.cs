@@ -257,7 +257,7 @@ public partial class GenericCatalogResolver(
         foreach (var dependency in release.Dependencies)
         {
             var dependencyType = CatalogManifestIdentity.ResolveDependencyContentType(dependency, contentItem);
-            var (minVersion, maxVersion, minInclusive, maxInclusive, compatibleVersions) = ParseVersionConstraint(dependency.VersionConstraint);
+            var constraint = ParseVersionConstraint(dependency.VersionConstraint);
 
             if (dependencyType == ContentType.GameInstallation ||
                 CatalogManifestIdentity.IsBaseGameDependency(dependency))
@@ -266,11 +266,7 @@ public partial class GenericCatalogResolver(
                     builder,
                     dependency,
                     resolvedTargetGame,
-                    minVersion,
-                    maxVersion,
-                    minInclusive,
-                    maxInclusive,
-                    compatibleVersions);
+                    constraint);
 
                 if (error != null)
                 {
@@ -286,11 +282,7 @@ public partial class GenericCatalogResolver(
                 dependencyType,
                 contentItem,
                 bundleComponents,
-                minVersion,
-                maxVersion,
-                minInclusive,
-                maxInclusive,
-                compatibleVersions);
+                constraint);
 
             if (catError != null)
             {
@@ -328,11 +320,7 @@ public partial class GenericCatalogResolver(
         IContentManifestBuilder builder,
         CatalogDependency dependency,
         GameType resolvedTargetGame,
-        string minVersion,
-        string maxVersion,
-        bool minInclusive,
-        bool maxInclusive,
-        List<string>? compatibleVersions)
+        ParsedVersionConstraint constraint)
     {
         var isGenerals = dependency.ContentId.Equals("generals", StringComparison.OrdinalIgnoreCase) ||
                          resolvedTargetGame == GameType.Generals;
@@ -341,39 +329,21 @@ public partial class GenericCatalogResolver(
             ? BaseDependencyBuilder.CreateGenerals108Dependency()
             : BaseDependencyBuilder.CreateZeroHour104Dependency();
 
-        var effectiveMinVersion = foundation.MinVersion ?? string.Empty;
-        var effectiveMinInclusive = true;
+        var (effectiveMinVersion, effectiveMinInclusive) = ComputeEffectiveBaseGameMinVersion(
+            foundation.MinVersion ?? string.Empty,
+            constraint);
 
-        if (!string.IsNullOrEmpty(minVersion))
-        {
-            if (string.IsNullOrEmpty(effectiveMinVersion) ||
-                CatalogManifestIdentity.CompareVersions(minVersion, effectiveMinVersion) > 0)
-            {
-                effectiveMinVersion = minVersion;
-                effectiveMinInclusive = minInclusive;
-            }
-            else if (CatalogManifestIdentity.CompareVersions(minVersion, effectiveMinVersion) == 0)
-            {
-                effectiveMinInclusive = minInclusive;
-            }
-        }
-        else if (compatibleVersions is { Count: > 0 })
-        {
-            effectiveMinVersion = string.Empty;
-        }
+        var boundsError = ValidateVersionBounds(
+            dependency.ContentId,
+            effectiveMinVersion,
+            constraint.MaxVersion,
+            effectiveMinInclusive,
+            constraint.MaxInclusive,
+            isReconciled: true);
 
-        if (!string.IsNullOrEmpty(effectiveMinVersion) && !string.IsNullOrEmpty(maxVersion))
+        if (boundsError != null)
         {
-            var comparison = CatalogManifestIdentity.CompareVersions(maxVersion, effectiveMinVersion);
-            if (comparison < 0)
-            {
-                return $"Dependency '{dependency.ContentId}' has unsatisfiable version bounds after reconciliation: min '{effectiveMinVersion}' > max '{maxVersion}'.";
-            }
-
-            if (comparison == 0 && (!effectiveMinInclusive || !maxInclusive))
-            {
-                return $"Dependency '{dependency.ContentId}' has unsatisfiable version bounds after reconciliation: min '{effectiveMinVersion}' and max '{maxVersion}' produce an empty range.";
-            }
+            return boundsError;
         }
 
         builder.AddDependency(
@@ -382,13 +352,70 @@ public partial class GenericCatalogResolver(
             dependencyType: ContentType.GameInstallation,
             installBehavior: DependencyInstallBehavior.RequireExisting,
             minVersion: effectiveMinVersion,
-            maxVersion: maxVersion,
-            compatibleVersions: compatibleVersions,
+            maxVersion: constraint.MaxVersion,
+            compatibleVersions: constraint.CompatibleVersions,
             isExclusive: false,
             conflictsWith: null,
             compatibleGameTypes: foundation.CompatibleGameTypes,
             minInclusive: effectiveMinInclusive,
-            maxInclusive: maxInclusive);
+            maxInclusive: constraint.MaxInclusive);
+
+        return null;
+    }
+
+    private static (string EffectiveMinVersion, bool EffectiveMinInclusive) ComputeEffectiveBaseGameMinVersion(
+        string foundationMinVersion,
+        ParsedVersionConstraint constraint)
+    {
+        var effectiveMinVersion = foundationMinVersion;
+        var effectiveMinInclusive = true;
+
+        if (!string.IsNullOrEmpty(constraint.MinVersion))
+        {
+            if (string.IsNullOrEmpty(effectiveMinVersion) ||
+                CatalogManifestIdentity.CompareVersions(constraint.MinVersion, effectiveMinVersion) > 0)
+            {
+                effectiveMinVersion = constraint.MinVersion;
+                effectiveMinInclusive = constraint.MinInclusive;
+            }
+            else if (CatalogManifestIdentity.CompareVersions(constraint.MinVersion, effectiveMinVersion) == 0)
+            {
+                effectiveMinInclusive = constraint.MinInclusive;
+            }
+        }
+        else if (constraint.CompatibleVersions is { Count: > 0 })
+        {
+            effectiveMinVersion = string.Empty;
+        }
+
+        return (effectiveMinVersion, effectiveMinInclusive);
+    }
+
+    private static string? ValidateVersionBounds(
+        string contentId,
+        string minVersion,
+        string maxVersion,
+        bool minInclusive,
+        bool maxInclusive,
+        bool isReconciled = false)
+    {
+        if (string.IsNullOrEmpty(minVersion) || string.IsNullOrEmpty(maxVersion))
+        {
+            return null;
+        }
+
+        var comparison = CatalogManifestIdentity.CompareVersions(maxVersion, minVersion);
+        var context = isReconciled ? " after reconciliation" : string.Empty;
+
+        if (comparison < 0)
+        {
+            return $"Dependency '{contentId}' has unsatisfiable version bounds{context}: min '{minVersion}' > max '{maxVersion}'.";
+        }
+
+        if (comparison == 0 && (!minInclusive || !maxInclusive))
+        {
+            return $"Dependency '{contentId}' has unsatisfiable version bounds{context}: min '{minVersion}' and max '{maxVersion}' produce an empty range.";
+        }
 
         return null;
     }
@@ -399,11 +426,7 @@ public partial class GenericCatalogResolver(
         ContentType initialDependencyType,
         CatalogContentItem contentItem,
         List<CatalogBundleComponentDescriptor>? bundleComponents,
-        string minVersion,
-        string maxVersion,
-        bool minInclusive,
-        bool maxInclusive,
-        List<string>? compatibleVersions)
+        ParsedVersionConstraint constraint)
     {
         var (depPublisherId, depVersion, dependencyType) = ResolveDependencyIdentity(dependency, initialDependencyType, bundleComponents);
 
@@ -423,18 +446,17 @@ public partial class GenericCatalogResolver(
             installBehavior = DependencyInstallBehavior.AutoInstall;
         }
 
-        if (!string.IsNullOrEmpty(minVersion) && !string.IsNullOrEmpty(maxVersion))
-        {
-            var comparison = CatalogManifestIdentity.CompareVersions(maxVersion, minVersion);
-            if (comparison < 0)
-            {
-                return $"Dependency '{dependency.ContentId}' has unsatisfiable version bounds: min '{minVersion}' > max '{maxVersion}'.";
-            }
+        var boundsError = ValidateVersionBounds(
+            dependency.ContentId,
+            constraint.MinVersion,
+            constraint.MaxVersion,
+            constraint.MinInclusive,
+            constraint.MaxInclusive,
+            isReconciled: false);
 
-            if (comparison == 0 && (!minInclusive || !maxInclusive))
-            {
-                return $"Dependency '{dependency.ContentId}' has unsatisfiable version bounds: min '{minVersion}' and max '{maxVersion}' produce an empty range.";
-            }
+        if (boundsError != null)
+        {
+            return boundsError;
         }
 
         builder.AddDependency(
@@ -442,14 +464,14 @@ public partial class GenericCatalogResolver(
             name: dependency.ContentId,
             dependencyType: dependencyType,
             installBehavior: installBehavior,
-            minVersion: minVersion,
-            maxVersion: maxVersion,
-            compatibleVersions: compatibleVersions,
+            minVersion: constraint.MinVersion,
+            maxVersion: constraint.MaxVersion,
+            compatibleVersions: constraint.CompatibleVersions,
             isExclusive: false,
             conflictsWith: null,
             compatibleGameTypes: null,
-            minInclusive: minInclusive,
-            maxInclusive: maxInclusive);
+            minInclusive: constraint.MinInclusive,
+            maxInclusive: constraint.MaxInclusive);
 
         return null;
     }
@@ -489,17 +511,24 @@ public partial class GenericCatalogResolver(
     [GeneratedRegex(@"([><=^~]+)\s+")]
     private static partial Regex OperatorWhitespaceRegex();
 
-    private static (string MinVersion, string MaxVersion, bool MinInclusive, bool MaxInclusive, List<string>? CompatibleVersions) ParseVersionConstraint(string? constraint)
+    private readonly record struct ParsedVersionConstraint(
+        string MinVersion,
+        string MaxVersion,
+        bool MinInclusive,
+        bool MaxInclusive,
+        List<string>? CompatibleVersions);
+
+    private static ParsedVersionConstraint ParseVersionConstraint(string? constraint)
     {
         if (string.IsNullOrWhiteSpace(constraint))
         {
-            return (string.Empty, string.Empty, true, true, null);
+            return new(string.Empty, string.Empty, true, true, null);
         }
 
         var trimmed = OperatorWhitespaceRegex().Replace(constraint.Trim(), "$1");
         if (trimmed.Equals("latest", StringComparison.OrdinalIgnoreCase))
         {
-            return (string.Empty, string.Empty, true, true, null);
+            return new(string.Empty, string.Empty, true, true, null);
         }
 
         if (trimmed.Contains(',') || trimmed.Contains('|'))
@@ -510,22 +539,22 @@ public partial class GenericCatalogResolver(
         return ParseRangedTokens(trimmed);
     }
 
-    private static (string MinVersion, string MaxVersion, bool MinInclusive, bool MaxInclusive, List<string>? CompatibleVersions) ParseListConstraint(string trimmed)
+    private static ParsedVersionConstraint ParseListConstraint(string trimmed)
     {
         var parts = trimmed.Split([',', '|'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(CatalogManifestIdentity.StripVersionConstraint)
             .Where(v => !string.IsNullOrWhiteSpace(v))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        return (string.Empty, string.Empty, true, true, parts.Count > 0 ? parts : null);
+        return new(string.Empty, string.Empty, true, true, parts.Count > 0 ? parts : null);
     }
 
-    private static (string MinVersion, string MaxVersion, bool MinInclusive, bool MaxInclusive, List<string>? CompatibleVersions) ParseRangedTokens(string trimmed)
+    private static ParsedVersionConstraint ParseRangedTokens(string trimmed)
     {
         var tokens = trimmed.Split([' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (tokens.Length == 1 && CatalogManifestIdentity.TryParseExactVersion(tokens[0], out var exactVersion))
         {
-            return (exactVersion, exactVersion, true, true, [exactVersion]);
+            return new(exactVersion, exactVersion, true, true, [exactVersion]);
         }
 
         string minVersion = string.Empty;
@@ -538,7 +567,7 @@ public partial class GenericCatalogResolver(
             ApplyTokenBound(token, ref minVersion, ref maxVersion, ref minInclusive, ref maxInclusive);
         }
 
-        return (minVersion, maxVersion, minInclusive, maxInclusive, null);
+        return new(minVersion, maxVersion, minInclusive, maxInclusive, null);
     }
 
     private static void ApplyTokenBound(
