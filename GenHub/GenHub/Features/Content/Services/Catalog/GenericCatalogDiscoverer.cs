@@ -367,12 +367,9 @@ public class GenericCatalogDiscoverer(
 
         if (contentItem.Tags != null)
         {
-            foreach (var tag in contentItem.Tags)
+            foreach (var tag in contentItem.Tags.Where(t => !string.IsNullOrWhiteSpace(t)))
             {
-                if (!string.IsNullOrWhiteSpace(tag))
-                {
-                    searchResult.Tags.Add(tag);
-                }
+                searchResult.Tags.Add(tag);
             }
         }
 
