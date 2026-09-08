@@ -86,6 +86,18 @@ public sealed partial class ContentGridItemViewModel(
             this,
             static (recipient, _) => ((ContentGridItemViewModel)recipient).ResetDownloadState());
 
+        WeakReferenceMessenger.Default.Register<ContentDownloadStartedMessage>(
+            this,
+            static (recipient, msg) => ((ContentGridItemViewModel)recipient).OnDownloadStarted(msg));
+
+        WeakReferenceMessenger.Default.Register<ContentDownloadProgressMessage>(
+            this,
+            static (recipient, msg) => ((ContentGridItemViewModel)recipient).OnDownloadProgress(msg));
+
+        WeakReferenceMessenger.Default.Register<ContentDownloadCompletedMessage>(
+            this,
+            static (recipient, msg) => ((ContentGridItemViewModel)recipient).OnDownloadCompleted(msg));
+
         LoadBundleComponents();
         _ = LoadIconAsync();
         _ = RefreshBundleComponentStatesAsync();
@@ -338,7 +350,7 @@ public sealed partial class ContentGridItemViewModel(
     /// </summary>
     public bool ShowAddToProfileButton => HasBundleComponents
         ? AreBundleComponentsReadyForProfile
-        : EffectiveCurrentState is ContentState.Downloaded or ContentState.UpdateAvailable;
+        : EffectiveIsDownloaded;
 
     /// <summary>
     /// Gets the tags associated with this content.
@@ -421,6 +433,9 @@ public sealed partial class ContentGridItemViewModel(
             // Unsubscribe from state changes
             contentStateService.ContentStateChanged -= OnContentStateChanged;
             WeakReferenceMessenger.Default.Unregister<ContentLibraryClearedMessage>(this);
+            WeakReferenceMessenger.Default.Unregister<ContentDownloadStartedMessage>(this);
+            WeakReferenceMessenger.Default.Unregister<ContentDownloadProgressMessage>(this);
+            WeakReferenceMessenger.Default.Unregister<ContentDownloadCompletedMessage>(this);
             _unsubscribeAxisHandlers?.Invoke();
             _unsubscribeAxisHandlers = null;
             foreach (var component in BundleComponents)
@@ -444,6 +459,76 @@ public sealed partial class ContentGridItemViewModel(
         if (!IsDownloading)
         {
             DownloadStatus = string.Empty;
+        }
+    }
+
+    private bool IsMatchingDownloadMessage(string contentKey, string? contentId, string? providerName, string? contentName)
+    {
+        var msg = new ContentDownloadStartedMessage(contentKey, contentId, providerName, contentName);
+        if (msg.Matches(SearchResult))
+        {
+            return true;
+        }
+
+        if (SelectedVariant != null && !string.IsNullOrEmpty(SelectedVariant.ManifestId))
+        {
+            if (!string.IsNullOrEmpty(contentId) && string.Equals(contentId, SelectedVariant.ManifestId, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrEmpty(contentKey) && contentKey.EndsWith($"::{SelectedVariant.ManifestId}", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void OnDownloadStarted(ContentDownloadStartedMessage message)
+    {
+        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName))
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                IsDownloading = true;
+                DownloadProgress = 0;
+                DownloadStatus = "Starting download...";
+            });
+        }
+    }
+
+    private void OnDownloadProgress(ContentDownloadProgressMessage message)
+    {
+        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName))
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                IsDownloading = true;
+                var intPercent = (int)Math.Round(message.ProgressPercentage);
+                if (intPercent >= DownloadProgress)
+                {
+                    DownloadProgress = intPercent;
+                }
+
+                DownloadStatus = message.StatusMessage;
+            });
+        }
+    }
+
+    private void OnDownloadCompleted(ContentDownloadCompletedMessage message)
+    {
+        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName))
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                IsDownloading = false;
+                if (!message.Success && !string.IsNullOrEmpty(message.ErrorMessage))
+                {
+                    DownloadStatus = $"Error: {message.ErrorMessage}";
+                }
+            });
         }
     }
 
@@ -720,7 +805,8 @@ public sealed partial class ContentGridItemViewModel(
     /// downloading a sibling and switching to an undownloaded variant.
     /// </summary>
     public bool EffectiveIsDownloaded => SelectedVariant != null
-        ? SelectedVariant.CurrentState == ContentState.Downloaded
+        ? SelectedVariant.CurrentState == ContentState.Downloaded ||
+          (SelectedVariant.CurrentState == ContentState.UpdateAvailable && (IsDownloaded || !string.IsNullOrEmpty(SelectedVariant.ManifestId)))
         : IsDownloaded;
 
     /// <summary>
@@ -828,6 +914,22 @@ public sealed partial class ContentGridItemViewModel(
             await RefreshSingleVariantStateAsync(variant);
         }
 
+        NotifyStateChanged();
+    }
+
+    /// <summary>
+    /// Gets or sets the target view model to acquire when updating this content.
+    /// Used when a feed contains multiple distinct release cards for the same content.
+    /// </summary>
+    public ContentGridItemViewModel? UpdateTargetVm { get; set; }
+
+    /// <summary>
+    /// Notifies the UI that state properties have changed.
+    /// </summary>
+    public void NotifyStateChanged()
+    {
+        OnPropertyChanged(nameof(CurrentState));
+        OnPropertyChanged(nameof(IsDownloaded));
         OnPropertyChanged(nameof(EffectiveCurrentState));
         OnPropertyChanged(nameof(EffectiveIsDownloaded));
         OnPropertyChanged(nameof(ShowDownloadButton));

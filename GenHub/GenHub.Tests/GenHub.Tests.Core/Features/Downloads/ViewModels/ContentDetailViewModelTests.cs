@@ -1,4 +1,6 @@
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
+using GenHub.Core.Messages;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameProfiles;
@@ -1373,6 +1375,104 @@ public sealed class ContentDetailViewModelTests
         // Act & Assert
         var ex = Record.Exception(() => viewModel.OpenUrlCommand.Execute(url));
         Assert.Null(ex);
+    }
+
+    /// <summary>
+    /// Verifies that ShowDownloadButton returns false when IsDownloading is true, even when not downloaded.
+    /// </summary>
+    [Fact]
+    public void ShowDownloadButton_WhenIsDownloading_ReturnsFalse()
+    {
+        // Arrange
+        var coordinator = new Mock<IContentDownloadCoordinator>();
+        var item = new ContentSearchResult { Id = "test-item", Name = "Test Item" };
+        var viewModel = CreateViewModel(item, coordinator.Object);
+
+        viewModel.IsDownloaded = false;
+        viewModel.IsDownloading = false;
+        Assert.True(viewModel.ShowDownloadButton);
+
+        // Act
+        viewModel.IsDownloading = true;
+
+        // Assert
+        Assert.False(viewModel.ShowDownloadButton);
+    }
+
+    /// <summary>
+    /// Verifies that Initialize detects in-flight coordinator downloads and sets IsDownloading and progress.
+    /// </summary>
+    [Fact]
+    public void Initialize_WhenCoordinatorHasInFlightDownload_SetsIsDownloadingAndProgress()
+    {
+        // Arrange
+        var coordinator = new Mock<IContentDownloadCoordinator>();
+        var item = new ContentSearchResult { Id = "test-inflight-item", Name = "Inflight Item", ProviderName = "ModDB" };
+
+        double progressPct = 60;
+        string statusMsg = "Downloading 60%...";
+        coordinator.Setup(c => c.IsDownloading(item)).Returns(true);
+        coordinator.Setup(c => c.TryGetDownloadProgress(item, out progressPct, out statusMsg)).Returns(true);
+
+        var viewModel = CreateViewModel(item, coordinator.Object);
+
+        // Act
+        viewModel.Initialize();
+
+        // Assert
+        Assert.True(viewModel.IsDownloading);
+        Assert.False(viewModel.ShowDownloadButton);
+        Assert.Equal(60, viewModel.DownloadProgress);
+        Assert.Equal("Downloading 60%...", viewModel.DownloadStatusMessage);
+    }
+
+    /// <summary>
+    /// Verifies that download messages broadcast via WeakReferenceMessenger update ContentDetailViewModel state.
+    /// </summary>
+    [Fact]
+    public void DownloadMessages_Broadcast_UpdatesDetailViewModelDownloadState()
+    {
+        // Arrange
+        var coordinator = new Mock<IContentDownloadCoordinator>();
+        var item = new ContentSearchResult { Id = "test-msg-item", Name = "Message Item", ProviderName = "ModDB" };
+        var viewModel = CreateViewModel(item, coordinator.Object);
+        viewModel.Initialize();
+
+        Assert.False(viewModel.IsDownloading);
+        Assert.True(viewModel.ShowDownloadButton);
+
+        // Act 1: Send Started message
+        WeakReferenceMessenger.Default.Send(new ContentDownloadStartedMessage(
+            "ModDB::test-msg-item",
+            item.Id,
+            item.ProviderName,
+            item.Name));
+
+        Assert.True(viewModel.IsDownloading);
+        Assert.False(viewModel.ShowDownloadButton);
+
+        // Act 2: Send Progress message
+        WeakReferenceMessenger.Default.Send(new ContentDownloadProgressMessage(
+            "ModDB::test-msg-item",
+            item.Id,
+            item.ProviderName,
+            item.Name,
+            75,
+            "75% downloaded"));
+
+        Assert.True(viewModel.IsDownloading);
+        Assert.Equal(75, viewModel.DownloadProgress);
+        Assert.Equal("75% downloaded", viewModel.DownloadStatusMessage);
+
+        // Act 3: Send Completed message
+        WeakReferenceMessenger.Default.Send(new ContentDownloadCompletedMessage(
+            "ModDB::test-msg-item",
+            item.Id,
+            item.ProviderName,
+            item.Name,
+            true));
+
+        Assert.False(viewModel.IsDownloading);
     }
 
     private static CapturingContentDetailViewModel CreateViewModel(

@@ -37,6 +37,9 @@ public static class GeneralsOnlineConstants
     /// <summary>Patch notes URL for Generals Online.</summary>
     public const string PatchNotesUrl = "https://www.playgenerals.online/patchnotes";
 
+    /// <summary>Default releases endpoint URL for Generals Online portable downloads.</summary>
+    public const string ReleasesUrl = "https://cdn.playgenerals.online/releases";
+
     /// <summary>
     /// Cover image source path for UI display.
     /// </summary>

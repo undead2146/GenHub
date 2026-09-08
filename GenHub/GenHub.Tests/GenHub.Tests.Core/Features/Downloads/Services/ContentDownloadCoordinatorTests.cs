@@ -1,4 +1,6 @@
 using System;
+using CommunityToolkit.Mvvm.Messaging;
+using GenHub.Core.Messages;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -320,5 +322,148 @@ public sealed class ContentDownloadCoordinatorTests
 
         Assert.Contains(42, progressList1);
         Assert.Contains(42, progressList2);
+    }
+
+    /// <summary>
+    /// Verifies that IsDownloading returns true while a download is running and false after completion.
+    /// </summary>
+    [Fact]
+    public async Task IsDownloading_ReturnsTrueWhileRunning_AndFalseWhenCompletedAsync()
+    {
+        // Arrange
+        var orchestratorMock = new Mock<IContentOrchestrator>();
+        var stateServiceMock = new Mock<IContentStateService>();
+        var notificationServiceMock = new Mock<INotificationService>();
+
+        var testManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.0.test.mod"),
+            Name = "Test Active Item",
+        };
+
+        var acquisitionTcs = new TaskCompletionSource<OperationResult<ContentManifest>>();
+        IProgress<ContentAcquisitionProgress>? capturedProgress = null;
+
+        orchestratorMock
+            .Setup(x => x.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()))
+            .Callback<ContentSearchResult, IProgress<ContentAcquisitionProgress>?, CancellationToken>((_, p, _) => capturedProgress = p)
+            .Returns(acquisitionTcs.Task);
+
+        var coordinator = new ContentDownloadCoordinator(
+            orchestratorMock.Object,
+            stateServiceMock.Object,
+            notificationServiceMock.Object,
+            NullLogger<ContentDownloadCoordinator>.Instance);
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "test_active_item_1",
+            Name = "Test Active Item",
+            ProviderName = "ModDB",
+        };
+
+        Assert.False(coordinator.IsDownloading(searchResult));
+
+        // Act
+        var downloadTask = coordinator.DownloadContentAsync(searchResult);
+
+        // Assert while running
+        Assert.True(coordinator.IsDownloading(searchResult));
+
+        // Report progress
+        capturedProgress?.Report(new ContentAcquisitionProgress { ProgressPercentage = 55, StatusMessage = "Downloading files..." });
+        await Task.Delay(50);
+
+        var hasProgress = coordinator.TryGetDownloadProgress(searchResult, out var pct, out var msg);
+        Assert.True(hasProgress);
+        Assert.Equal(55, pct);
+
+        // Complete download
+        acquisitionTcs.SetResult(OperationResult<ContentManifest>.CreateSuccess(testManifest));
+        await downloadTask;
+
+        // Assert after completion
+        Assert.False(coordinator.IsDownloading(searchResult));
+    }
+
+    /// <summary>
+    /// Verifies that WeakReferenceMessenger broadcasts started, progress, and completed messages.
+    /// </summary>
+    [Fact]
+    public async Task DownloadContentAsync_BroadcastsStartedProgressAndCompletedMessagesAsync()
+    {
+        // Arrange
+        var orchestratorMock = new Mock<IContentOrchestrator>();
+        var stateServiceMock = new Mock<IContentStateService>();
+        var notificationServiceMock = new Mock<INotificationService>();
+
+        var testManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.0.broadcast.mod"),
+            Name = "Broadcast Mod",
+        };
+
+        var acquisitionTcs = new TaskCompletionSource<OperationResult<ContentManifest>>();
+        IProgress<ContentAcquisitionProgress>? capturedProgress = null;
+
+        orchestratorMock
+            .Setup(x => x.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()))
+            .Callback<ContentSearchResult, IProgress<ContentAcquisitionProgress>?, CancellationToken>((_, p, _) => capturedProgress = p)
+            .Returns(acquisitionTcs.Task);
+
+        var coordinator = new ContentDownloadCoordinator(
+            orchestratorMock.Object,
+            stateServiceMock.Object,
+            notificationServiceMock.Object,
+            NullLogger<ContentDownloadCoordinator>.Instance);
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "broadcast_test_1",
+            Name = "Broadcast Mod",
+            ProviderName = "ModDB",
+        };
+
+        var startedCount = 0;
+        var progressCount = 0;
+        var completedCount = 0;
+
+        WeakReferenceMessenger.Default.Register<ContentDownloadStartedMessage>(coordinator, (_, m) =>
+        {
+            if (m.Matches(searchResult)) startedCount++;
+        });
+        WeakReferenceMessenger.Default.Register<ContentDownloadProgressMessage>(coordinator, (_, m) =>
+        {
+            if (m.Matches(searchResult)) progressCount++;
+        });
+        WeakReferenceMessenger.Default.Register<ContentDownloadCompletedMessage>(coordinator, (_, m) =>
+        {
+            if (m.Matches(searchResult)) completedCount++;
+        });
+
+        try
+        {
+            // Act
+            var downloadTask = coordinator.DownloadContentAsync(searchResult);
+
+            await Task.Delay(50);
+            Assert.Equal(1, startedCount);
+
+            capturedProgress?.Report(new ContentAcquisitionProgress { ProgressPercentage = 30 });
+            await Task.Delay(50);
+            Assert.True(progressCount >= 1);
+
+            acquisitionTcs.SetResult(OperationResult<ContentManifest>.CreateSuccess(testManifest));
+            await downloadTask;
+
+            await Task.Delay(50);
+            Assert.Equal(1, completedCount);
+        }
+        finally
+        {
+            WeakReferenceMessenger.Default.Unregister<ContentDownloadStartedMessage>(coordinator);
+            WeakReferenceMessenger.Default.Unregister<ContentDownloadProgressMessage>(coordinator);
+            WeakReferenceMessenger.Default.Unregister<ContentDownloadCompletedMessage>(coordinator);
+        }
     }
 }
