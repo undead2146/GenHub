@@ -672,10 +672,10 @@ public sealed partial class ContentGridItemViewModel(
                 switch (e.NewState)
                 {
                     case ContentState.Downloaded:
+                    case ContentState.UpdateAvailable:
                         IsDownloaded = true;
                         IsDownloading = false;
                         break;
-                    case ContentState.UpdateAvailable:
                     case ContentState.NotDownloaded:
                         IsDownloaded = false;
                         IsDownloading = false;
@@ -807,7 +807,7 @@ public sealed partial class ContentGridItemViewModel(
     public bool EffectiveIsDownloaded => SelectedVariant != null
         ? SelectedVariant.CurrentState == ContentState.Downloaded ||
           (SelectedVariant.CurrentState == ContentState.UpdateAvailable && (IsDownloaded || !string.IsNullOrEmpty(SelectedVariant.ManifestId)))
-        : IsDownloaded;
+        : IsDownloaded || CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable;
 
     /// <summary>
     /// Adds a variant and optionally maps its <see cref="ContentSearchResult"/> for
@@ -902,7 +902,7 @@ public sealed partial class ContentGridItemViewModel(
         {
             var mainState = await contentStateService.GetStateAsync(SearchResult);
             CurrentState = mainState;
-            IsDownloaded = mainState == ContentState.Downloaded;
+            IsDownloaded = mainState is ContentState.Downloaded or ContentState.UpdateAvailable;
         }
         catch (Exception ex)
         {
