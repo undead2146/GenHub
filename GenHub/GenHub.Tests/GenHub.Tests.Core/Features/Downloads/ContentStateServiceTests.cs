@@ -240,7 +240,7 @@ public class ContentStateServiceTests
             ProviderName = PublisherTypeConstants.GeneralsOnline,
             ContentType = ContentType.GameClient,
             TargetGame = GameType.ZeroHour,
-            SelectedDownloadUrl = "https://www.playgenerals.online/#download",
+            SelectedDownloadUrl = "https://www.playgenerals.online/unrelated-installer.exe",
             ResolverMetadata =
             {
                 [ContentConstants.ParentContentIdMetadataKey] = "GeneralsOnline_082826_QFE1",

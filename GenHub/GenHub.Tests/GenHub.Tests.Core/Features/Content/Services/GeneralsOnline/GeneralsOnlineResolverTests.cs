@@ -40,6 +40,7 @@ public class GeneralsOnlineResolverTests
                 {
                     WebsiteUrl = "https://www.playgenerals.online",
                     DownloadBaseUrl = "https://cdn.playgenerals.online/releases",
+                    Custom = { ["releasesUrl"] = "https://cdn.playgenerals.online/releases" },
                 },
             });
 
