@@ -515,7 +515,10 @@ public class DownloadsBrowserViewModelTests
 
         // Act 3: Switch back to Publisher A
         viewModel.SelectedPublisher = publisherA;
-        await Task.Delay(50);
+        for (var i = 0; i < 20 && viewModel.ContentItems.Count < 3; i++)
+        {
+            await Task.Delay(50);
+        }
 
         // Assert: All 3 items from Publisher A are restored from cache
         Assert.Equal(3, viewModel.ContentItems.Count);

@@ -915,7 +915,7 @@ public sealed class ContentDetailViewModelTests
 
         // Act
         viewModel.Initialize();
-        await Task.Delay(100);
+        await viewModel.WaitForInitializationAsync();
 
         // Assert: Release is populated, preferred release is selected, and download state matches bundle readiness
         var release = Assert.Single(viewModel.Releases);
@@ -1186,7 +1186,7 @@ public sealed class ContentDetailViewModelTests
 
         // Act
         viewModel.PopulateReleases([file1, file2, file3]);
-        await Task.Delay(150);
+        await viewModel.WaitForRowStateResolutionsAsync();
 
         // Assert
         Assert.Equal(3, viewModel.Releases.Count);
@@ -1265,7 +1265,7 @@ public sealed class ContentDetailViewModelTests
 
         // Act
         viewModel.PopulateReleases([patchFile, fullFile]);
-        await Task.Delay(150);
+        await viewModel.WaitForRowStateResolutionsAsync();
 
         // Assert
         Assert.Equal(2, viewModel.Releases.Count);
