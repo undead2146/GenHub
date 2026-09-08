@@ -1165,6 +1165,14 @@ public sealed partial class DownloadsBrowserViewModel(
             await Task.Delay(UiConstants.ProgressiveItemRenderDelayMs, ct);
         }
 
+        RunOnUi(() =>
+        {
+            if (_activeRequestId == requestId && SelectedPublisher?.PublisherId == publisherId)
+            {
+                ReconcileReleaseUpdateStates(ContentItems);
+            }
+        });
+
         return newVms;
     }
 
@@ -1300,6 +1308,102 @@ public sealed partial class DownloadsBrowserViewModel(
         }
     }
 
+    /// <summary>
+    /// Updates the specified content item to its prospective newer version.
+    /// </summary>
+    [RelayCommand]
+    private async Task UpdateContentAsync(ContentGridItemViewModel? item)
+    {
+        if (item == null)
+        {
+            logger.LogWarning("UpdateContentAsync called with null item");
+            return;
+        }
+
+        var targetItem = item.UpdateTargetVm ?? item;
+        await DownloadContentAsync(targetItem);
+    }
+
+    private void ReconcileReleaseUpdateStates(IReadOnlyCollection<ContentGridItemViewModel> items)
+    {
+        if (items.Count <= 1)
+        {
+            return;
+        }
+
+        var contentFamilies = items.GroupBy(GetContentFamilyKey, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var family in contentFamilies)
+        {
+            if (string.IsNullOrEmpty(family.Key))
+            {
+                continue;
+            }
+
+            var familyItems = family.ToList();
+            if (familyItems.Count <= 1)
+            {
+                continue;
+            }
+
+            var newestItem = familyItems.FirstOrDefault();
+            if (newestItem == null)
+            {
+                continue;
+            }
+
+            foreach (var item in familyItems)
+            {
+                if (item == newestItem)
+                {
+                    if (!item.IsDownloaded && item.CurrentState == ContentState.UpdateAvailable)
+                    {
+                        item.CurrentState = ContentState.NotDownloaded;
+                        if (item.SelectedVariant != null && item.SelectedVariant.CurrentState == ContentState.UpdateAvailable)
+                        {
+                            item.SelectedVariant.CurrentState = ContentState.NotDownloaded;
+                        }
+
+                        item.NotifyStateChanged();
+                    }
+                }
+                else
+                {
+                    if (item.IsDownloaded || item.SelectedVariant?.CurrentState == ContentState.Downloaded)
+                    {
+                        item.CurrentState = ContentState.UpdateAvailable;
+                        if (item.SelectedVariant != null)
+                        {
+                            item.SelectedVariant.CurrentState = ContentState.UpdateAvailable;
+                        }
+
+                        item.UpdateTargetVm = newestItem;
+                        item.NotifyStateChanged();
+                    }
+                }
+            }
+        }
+    }
+
+    private string? GetContentFamilyKey(ContentGridItemViewModel vm)
+    {
+        if (vm.SearchResult.ResolverMetadata != null &&
+            vm.SearchResult.ResolverMetadata.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) &&
+            vm.SearchResult.ResolverMetadata.TryGetValue(GitHubConstants.RepoMetadataKey, out var repo) &&
+            !string.IsNullOrWhiteSpace(owner) && !string.IsNullOrWhiteSpace(repo))
+        {
+            return $"{owner}/{repo}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(vm.SearchResult.ProviderName) && !string.IsNullOrWhiteSpace(vm.SearchResult.Name))
+        {
+            var baseName = vm.SearchResult.Name.Split('—')[0].Trim();
+            return $"{vm.SearchResult.ProviderName}/{baseName}";
+        }
+
+        return null;
+    }
+
     private ContentGridItemViewModel CreateBaseGridItemViewModel(ContentSearchResult item)
     {
         var vm = new ContentGridItemViewModel(
@@ -1310,7 +1414,7 @@ public sealed partial class DownloadsBrowserViewModel(
             ViewCommand = ViewContentCommand,
             DownloadCommand = DownloadContentCommand,
             AddToProfileCommand = AddContentToProfileCommand,
-            UpdateCommand = DownloadContentCommand,
+            UpdateCommand = UpdateContentCommand,
         };
 
         vm.Initialize();
@@ -1364,6 +1468,13 @@ public sealed partial class DownloadsBrowserViewModel(
             if (item.HasBundleComponents)
             {
                 vm.AttachBundleComponents(item.BundleComponents);
+            }
+
+            if (item.IsDownloading)
+            {
+                vm.IsDownloading = true;
+                vm.DownloadProgress = item.DownloadProgress;
+                vm.DownloadStatusMessage = item.DownloadStatus;
             }
 
             vm.Initialize();
@@ -1788,6 +1899,14 @@ public sealed partial class DownloadsBrowserViewModel(
         if (item == null)
         {
             logger.LogWarning("AddContentToProfileAsync called with null item");
+            return;
+        }
+
+        if (!item.EffectiveIsDownloaded && item.EffectiveCurrentState != ContentState.Downloaded)
+        {
+            item.DownloadStatus = "Please download first";
+            notificationService.ShowError("Cannot Add to Profile", "Please download the content first before adding it to a profile.");
+            logger.LogWarning("Cannot add content to profile: content '{Name}' is not downloaded", item.Name);
             return;
         }
 

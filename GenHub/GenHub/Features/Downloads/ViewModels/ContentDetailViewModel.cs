@@ -125,6 +125,7 @@ public partial class ContentDetailViewModel(
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowDownloadButton))]
+    [NotifyPropertyChangedFor(nameof(ShowUpdateButton))]
     [NotifyPropertyChangedFor(nameof(ShowAddToProfileButton))]
     private bool _isDownloading;
 
@@ -578,7 +579,7 @@ public partial class ContentDetailViewModel(
                 return !SelectedDownloadableItem.IsDownloaded && !SelectedDownloadableItem.IsDownloading && !SelectedDownloadableItem.IsUpdateAvailable;
             }
 
-            return !IsDownloaded && !IsUpdateAvailable;
+            return !IsDownloaded && !IsDownloading && !IsUpdateAvailable;
         }
     }
 
@@ -750,6 +751,42 @@ public partial class ContentDetailViewModel(
         WeakReferenceMessenger.Default.Register<ContentLibraryClearedMessage>(
             this,
             static (recipient, _) => ((ContentDetailViewModel)recipient).ResetDownloadState());
+
+        // Check if download is already in-flight via download coordinator
+        if (downloadCoordinator.IsDownloading(searchResult))
+        {
+            IsDownloading = true;
+            if (downloadCoordinator.TryGetDownloadProgress(searchResult, out var pct, out var status))
+            {
+                DownloadProgress = (int)Math.Round(pct);
+                DownloadStatusMessage = status;
+            }
+        }
+        else if (SelectedVariant != null &&
+                 !string.IsNullOrEmpty(SelectedVariant.ManifestId) &&
+                 variantSearchResults != null &&
+                 variantSearchResults.TryGetValue(SelectedVariant.ManifestId, out var variantSr) &&
+                 downloadCoordinator.IsDownloading(variantSr))
+        {
+            IsDownloading = true;
+            if (downloadCoordinator.TryGetDownloadProgress(variantSr, out var pct, out var status))
+            {
+                DownloadProgress = (int)Math.Round(pct);
+                DownloadStatusMessage = status;
+            }
+        }
+
+        WeakReferenceMessenger.Default.Register<ContentDownloadStartedMessage>(
+            this,
+            static (recipient, msg) => ((ContentDetailViewModel)recipient).OnDownloadStarted(msg));
+
+        WeakReferenceMessenger.Default.Register<ContentDownloadProgressMessage>(
+            this,
+            static (recipient, msg) => ((ContentDetailViewModel)recipient).OnDownloadProgress(msg));
+
+        WeakReferenceMessenger.Default.Register<ContentDownloadCompletedMessage>(
+            this,
+            static (recipient, msg) => ((ContentDetailViewModel)recipient).OnDownloadCompleted(msg));
 
         // Hydrate bundle members before reading install state so an empty ContentBundle
         // recipe is never treated as "already downloaded".
@@ -1155,6 +1192,9 @@ public partial class ContentDetailViewModel(
                 // Unsubscribe from state changes
                 contentStateService.ContentStateChanged -= OnContentStateChanged;
                 WeakReferenceMessenger.Default.Unregister<ContentLibraryClearedMessage>(this);
+                WeakReferenceMessenger.Default.Unregister<ContentDownloadStartedMessage>(this);
+                WeakReferenceMessenger.Default.Unregister<ContentDownloadProgressMessage>(this);
+                WeakReferenceMessenger.Default.Unregister<ContentDownloadCompletedMessage>(this);
                 _unsubscribeAxisHandlers?.Invoke();
                 _unsubscribeAxisHandlers = null;
                 foreach (var component in BundleComponents)
@@ -1759,6 +1799,76 @@ public partial class ContentDetailViewModel(
             {
                 SelectDownloadableItem(match);
             }
+        }
+    }
+
+    private bool IsMatchingDownloadMessage(string contentKey, string? contentId, string? providerName, string? contentName)
+    {
+        var msg = new ContentDownloadStartedMessage(contentKey, contentId, providerName, contentName);
+        if (msg.Matches(searchResult))
+        {
+            return true;
+        }
+
+        if (SelectedVariant != null && !string.IsNullOrEmpty(SelectedVariant.ManifestId))
+        {
+            if (!string.IsNullOrEmpty(contentId) && string.Equals(contentId, SelectedVariant.ManifestId, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrEmpty(contentKey) && contentKey.EndsWith($"::{SelectedVariant.ManifestId}", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void OnDownloadStarted(ContentDownloadStartedMessage message)
+    {
+        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName))
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                IsDownloading = true;
+                DownloadProgress = 0;
+                DownloadStatusMessage = "Starting download...";
+            });
+        }
+    }
+
+    private void OnDownloadProgress(ContentDownloadProgressMessage message)
+    {
+        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName))
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                IsDownloading = true;
+                var intPercent = (int)Math.Round(message.ProgressPercentage);
+                if (intPercent >= DownloadProgress)
+                {
+                    DownloadProgress = intPercent;
+                }
+
+                DownloadStatusMessage = message.StatusMessage;
+            });
+        }
+    }
+
+    private void OnDownloadCompleted(ContentDownloadCompletedMessage message)
+    {
+        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName))
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                IsDownloading = false;
+                if (!message.Success && !string.IsNullOrEmpty(message.ErrorMessage))
+                {
+                    DownloadStatusMessage = $"Error: {message.ErrorMessage}";
+                }
+            });
         }
     }
 

@@ -3,8 +3,10 @@ using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Messaging;
+using GenHub.Core.Extensions;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Messages;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
@@ -36,6 +38,10 @@ public sealed class ContentDownloadCoordinator(
 
         public Action<ContentAcquisitionProgress>? ProgressCallbacks { get; set; }
 
+        public double LastProgressPercentage { get; set; }
+
+        public string LastStatusMessage { get; set; } = string.Empty;
+
         public object Lock { get; } = new();
 
         public void Dispose()
@@ -46,6 +52,82 @@ public sealed class ContentDownloadCoordinator(
 
     private readonly ConcurrentDictionary<string, InFlightDownload> _inFlightDownloads = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Computes the download key for a content item.
+    /// </summary>
+    /// <param name="searchResult">The search result.</param>
+    /// <returns>A string key uniquely identifying the content download.</returns>
+    public static string GetDownloadKey(ContentSearchResult searchResult)
+    {
+        ArgumentNullException.ThrowIfNull(searchResult);
+
+        return !string.IsNullOrWhiteSpace(searchResult.Id)
+            ? $"{searchResult.ProviderName}::{searchResult.Id}"
+            : $"{searchResult.ProviderName}::{searchResult.Name}";
+    }
+
+    /// <inheritdoc />
+    public bool IsDownloading(ContentSearchResult searchResult)
+    {
+        if (searchResult == null)
+        {
+            return false;
+        }
+
+        var key = GetDownloadKey(searchResult);
+        if (_inFlightDownloads.TryGetValue(key, out var inFlight) &&
+            !inFlight.InternalCts.IsCancellationRequested &&
+            !inFlight.Task.IsCompleted)
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(searchResult.Name))
+        {
+            var nameKey = $"{searchResult.ProviderName}::{searchResult.Name}";
+            if (_inFlightDownloads.TryGetValue(nameKey, out inFlight) &&
+                !inFlight.InternalCts.IsCancellationRequested &&
+                !inFlight.Task.IsCompleted)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <inheritdoc />
+    public bool TryGetDownloadProgress(ContentSearchResult searchResult, out double progressPercentage, out string statusMessage)
+    {
+        progressPercentage = 0;
+        statusMessage = string.Empty;
+
+        if (searchResult == null)
+        {
+            return false;
+        }
+
+        var key = GetDownloadKey(searchResult);
+        if (!_inFlightDownloads.TryGetValue(key, out var inFlight) && !string.IsNullOrWhiteSpace(searchResult.Name))
+        {
+            var nameKey = $"{searchResult.ProviderName}::{searchResult.Name}";
+            _inFlightDownloads.TryGetValue(nameKey, out inFlight);
+        }
+
+        if (inFlight != null && !inFlight.Task.IsCompleted)
+        {
+            lock (inFlight.Lock)
+            {
+                progressPercentage = inFlight.LastProgressPercentage;
+                statusMessage = inFlight.LastStatusMessage;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
     /// <inheritdoc />
     public async Task<OperationResult<ContentManifest>> DownloadContentAsync(
         ContentSearchResult searchResult,
@@ -54,9 +136,7 @@ public sealed class ContentDownloadCoordinator(
     {
         ArgumentNullException.ThrowIfNull(searchResult);
 
-        var key = !string.IsNullOrWhiteSpace(searchResult.Id)
-            ? $"{searchResult.ProviderName}::{searchResult.Id}"
-            : $"{searchResult.ProviderName}::{searchResult.Name}";
+        var key = GetDownloadKey(searchResult);
 
         var inFlight = GetOrCreateInFlightDownload(key, out var isInitiator);
 
@@ -67,6 +147,13 @@ public sealed class ContentDownloadCoordinator(
         {
             var multiplexedProgress = new Progress<ContentAcquisitionProgress>(p =>
             {
+                var status = p.FormatProgressStatus();
+                lock (inFlight.Lock)
+                {
+                    inFlight.LastProgressPercentage = p.ProgressPercentage;
+                    inFlight.LastStatusMessage = status;
+                }
+
                 Action<ContentAcquisitionProgress>? callbacks;
                 lock (inFlight.Lock)
                 {
@@ -74,6 +161,21 @@ public sealed class ContentDownloadCoordinator(
                 }
 
                 callbacks?.Invoke(p);
+
+                try
+                {
+                    WeakReferenceMessenger.Default.Send(new ContentDownloadProgressMessage(
+                        key,
+                        searchResult.Id,
+                        searchResult.ProviderName,
+                        searchResult.Name,
+                        p.ProgressPercentage,
+                        status));
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to broadcast ContentDownloadProgressMessage for {Key}", key);
+                }
             });
 
             _ = StartDownloadTaskAsync(inFlight, searchResult, key, multiplexedProgress);
@@ -181,15 +283,35 @@ public sealed class ContentDownloadCoordinator(
     {
         try
         {
+            WeakReferenceMessenger.Default.Send(new ContentDownloadStartedMessage(
+                key,
+                searchResult.Id,
+                searchResult.ProviderName,
+                searchResult.Name));
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to broadcast ContentDownloadStartedMessage for {Key}", key);
+        }
+
+        var success = false;
+        string? errorMessage = null;
+
+        try
+        {
             var result = await ExecuteDownloadAsync(searchResult, progress, inFlight.InternalCts.Token);
+            success = result.Success;
+            errorMessage = result.FirstError;
             inFlight.Tcs.TrySetResult(result);
         }
         catch (OperationCanceledException oce)
         {
+            errorMessage = "Download cancelled";
             inFlight.Tcs.TrySetCanceled(oce.CancellationToken);
         }
         catch (Exception ex)
         {
+            errorMessage = ex.Message;
             inFlight.Tcs.TrySetException(ex);
         }
         finally
@@ -200,6 +322,21 @@ public sealed class ContentDownloadCoordinator(
                 {
                     _inFlightDownloads.TryRemove(key, out _);
                 }
+            }
+
+            try
+            {
+                WeakReferenceMessenger.Default.Send(new ContentDownloadCompletedMessage(
+                    key,
+                    searchResult.Id,
+                    searchResult.ProviderName,
+                    searchResult.Name,
+                    success,
+                    errorMessage));
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to broadcast ContentDownloadCompletedMessage for {Key}", key);
             }
 
             inFlight.Dispose();

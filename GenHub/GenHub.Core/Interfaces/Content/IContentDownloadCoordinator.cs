@@ -21,4 +21,20 @@ public interface IContentDownloadCoordinator
         ContentSearchResult searchResult,
         IProgress<ContentAcquisitionProgress>? progress = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Checks whether content is currently being downloaded.
+    /// </summary>
+    /// <param name="searchResult">The content search result to check.</param>
+    /// <returns>True if a download is in-flight; otherwise false.</returns>
+    bool IsDownloading(ContentSearchResult searchResult);
+
+    /// <summary>
+    /// Attempts to retrieve current progress for an in-flight download.
+    /// </summary>
+    /// <param name="searchResult">The content search result.</param>
+    /// <param name="progressPercentage">The reported progress percentage (0-100).</param>
+    /// <param name="statusMessage">The reported status message.</param>
+    /// <returns>True if an in-flight download exists; otherwise false.</returns>
+    bool TryGetDownloadProgress(ContentSearchResult searchResult, out double progressPercentage, out string statusMessage);
 }

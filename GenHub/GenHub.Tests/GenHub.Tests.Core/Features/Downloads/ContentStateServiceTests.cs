@@ -1217,4 +1217,113 @@ public class ContentStateServiceTests
         item.ResolverMetadata[GitHubConstants.TagMetadataKey] = "weekly-2025-07-22";
         return item;
     }
+
+    /// <summary>
+    /// Verifies that when an older prospective release has no LastUpdated date but has a date in its release tag,
+    /// ContentStateService extracts the date and determines NotDownloaded against a newer installed release.
+    /// </summary>
+    [Fact]
+    public async Task GetStateAsync_OlderReleaseWithoutLastUpdated_ExtractsDateFromTag_ReturnsNotDownloadedAsync()
+    {
+        // Arrange: Installed release is 2026-08-28
+        var installedManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.20260828.thesuperhackers.gameclient.zerohour"),
+            Name = "GeneralsGameCode weekly-2026-08-28 — Zero Hour",
+            Version = "weekly-2026-08-28",
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+            OriginalProviderName = PublisherTypeConstants.TheSuperHackers,
+            Publisher = new PublisherInfo
+            {
+                PublisherType = PublisherTypeConstants.TheSuperHackers,
+                Website = "https://github.com/TheSuperHackers/GeneralsGameCode",
+            },
+        };
+
+        // Item being checked is older release 2026-08-07, with null LastUpdated
+        var item = new ContentSearchResult
+        {
+            Id = "1.0.thesuperhackers.gameclient.generalsgamecodeweekly20260807zerohour",
+            Name = "GeneralsGameCode weekly-2026-08-07 — Zero Hour",
+            ProviderName = PublisherTypeConstants.TheSuperHackers,
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+            Version = "weekly-2026-08-07",
+            LastUpdated = null,
+            ResolverMetadata =
+            {
+                [GitHubConstants.OwnerMetadataKey] = "TheSuperHackers",
+                [GitHubConstants.RepoMetadataKey] = "GeneralsGameCode",
+                [GitHubConstants.TagMetadataKey] = "weekly-2026-08-07",
+            },
+        };
+
+        var pool = new Mock<IContentManifestPool>();
+        pool.Setup(p => p.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([installedManifest]));
+        pool.Setup(p => p.IsManifestAcquiredAsync(It.IsAny<ManifestId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ManifestId id, CancellationToken _) => OperationResult<bool>.CreateSuccess(id == installedManifest.Id));
+
+        var service = new ContentStateService(pool.Object, NullLogger<ContentStateService>.Instance);
+
+        // Act
+        var state = await service.GetStateAsync(item);
+
+        // Assert: Must be NotDownloaded, NEVER Downloaded!
+        Assert.Equal(ContentState.NotDownloaded, state);
+    }
+
+    /// <summary>
+    /// Verifies that when a newer Generals Online release is discovered against an older installed release,
+    /// ContentStateService correctly returns UpdateAvailable rather than Downloaded.
+    /// </summary>
+    [Fact]
+    public async Task GetStateAsync_NewerGeneralsOnlineRelease_ReturnsUpdateAvailableAsync()
+    {
+        // Arrange: Installed release is 081326
+        var installedManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.813262.generalsonline.gameclient.generalsonline"),
+            Name = "Generals Online 081326",
+            Version = "081326",
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+            OriginalProviderName = PublisherTypeConstants.GeneralsOnline,
+            OriginalContentId = "generalsonline-081326",
+            Publisher = new PublisherInfo
+            {
+                PublisherType = PublisherTypeConstants.GeneralsOnline,
+                Website = "https://www.playgenerals.online",
+                SupportUrl = "https://www.playgenerals.online/support",
+            },
+        };
+
+        // Discovered release is 082826
+        var item = new ContentSearchResult
+        {
+            Id = "1.828260.generalsonline.gameclient.generalsonline",
+            Name = "Generals Online 082826",
+            Version = "082826",
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+            ProviderName = PublisherTypeConstants.GeneralsOnline,
+            SourceUrl = "https://www.playgenerals.online",
+            LastUpdated = new DateTime(2026, 8, 28, 0, 0, 0, DateTimeKind.Utc),
+        };
+
+        var pool = new Mock<IContentManifestPool>();
+        pool.Setup(p => p.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([installedManifest]));
+        pool.Setup(p => p.IsManifestAcquiredAsync(It.IsAny<ManifestId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ManifestId id, CancellationToken _) => OperationResult<bool>.CreateSuccess(id == installedManifest.Id));
+
+        var service = new ContentStateService(pool.Object, NullLogger<ContentStateService>.Instance);
+
+        // Act
+        var state = await service.GetStateAsync(item);
+
+        // Assert
+        Assert.Equal(ContentState.UpdateAvailable, state);
+    }
 }

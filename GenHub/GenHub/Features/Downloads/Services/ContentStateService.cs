@@ -820,15 +820,30 @@ public sealed partial class ContentStateService(
 
     private static bool MatchesSourceUrl(ContentManifest manifest, string sourceUrl)
     {
+        if (string.IsNullOrWhiteSpace(sourceUrl))
+        {
+            return false;
+        }
+
         var cleanSource = sourceUrl.TrimEnd('/');
+        if (Uri.TryCreate(cleanSource, UriKind.Absolute, out var sourceUri) &&
+            (string.IsNullOrEmpty(sourceUri.AbsolutePath) || sourceUri.AbsolutePath == "/"))
+        {
+            return false;
+        }
+
         if (!string.IsNullOrWhiteSpace(manifest.Publisher?.SupportUrl) &&
-            string.Equals(manifest.Publisher.SupportUrl.TrimEnd('/'), cleanSource, StringComparison.OrdinalIgnoreCase))
+            string.Equals(manifest.Publisher.SupportUrl.TrimEnd('/'), cleanSource, StringComparison.OrdinalIgnoreCase) &&
+            Uri.TryCreate(manifest.Publisher.SupportUrl, UriKind.Absolute, out var supportUri) &&
+            !string.IsNullOrEmpty(supportUri.AbsolutePath) && supportUri.AbsolutePath != "/")
         {
             return true;
         }
 
         if (!string.IsNullOrWhiteSpace(manifest.Publisher?.Website) &&
-            string.Equals(manifest.Publisher.Website.TrimEnd('/'), cleanSource, StringComparison.OrdinalIgnoreCase))
+            string.Equals(manifest.Publisher.Website.TrimEnd('/'), cleanSource, StringComparison.OrdinalIgnoreCase) &&
+            Uri.TryCreate(manifest.Publisher.Website, UriKind.Absolute, out var websiteUri) &&
+            !string.IsNullOrEmpty(websiteUri.AbsolutePath) && websiteUri.AbsolutePath != "/")
         {
             return true;
         }
@@ -942,6 +957,16 @@ public sealed partial class ContentStateService(
         bool hasRealDate = item.LastUpdated.HasValue && item.LastUpdated.Value > DateTime.MinValue;
         var releaseDate = item.LastUpdated ?? DateTime.MinValue;
 
+        if (!hasRealDate)
+        {
+            var candidateDate = TryExtractDateFromContentItem(item);
+            if (candidateDate.HasValue && candidateDate.Value > DateTime.MinValue)
+            {
+                releaseDate = candidateDate.Value;
+                hasRealDate = true;
+            }
+        }
+
         var providerName = SanitizeSegmentForManifest(item.ProviderName, UnknownSegment) ?? UnknownSegment;
         if (IsGitHubPublisher(providerName))
         {
@@ -974,6 +999,55 @@ public sealed partial class ContentStateService(
         }
 
         return (prospectiveId, releaseDate, hasRealDate);
+    }
+
+    [GeneratedRegex(@"\b(\d{4})[-.](\d{2})[-.](\d{2})\b", RegexOptions.CultureInvariant)]
+    private static partial Regex IsoDateRegex();
+
+    private static DateTime? TryExtractDateFromContentItem(ContentSearchResult item)
+    {
+        if (item.ResolverMetadata != null &&
+            item.ResolverMetadata.TryGetValue(GitHubConstants.TagMetadataKey, out var tag) &&
+            TryExtractDateFromString(tag) is { } tagDate)
+        {
+            return tagDate;
+        }
+
+        return TryExtractDateFromString(item.Version)
+            ?? TryExtractDateFromString(item.Name)
+            ?? TryExtractDateFromString(item.Id);
+    }
+
+    private static DateTime? TryExtractDateFromString(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return null;
+        }
+
+        var match = IsoDateRegex().Match(input);
+        if (match.Success &&
+            int.TryParse(match.Groups[1].Value, out var y) &&
+            int.TryParse(match.Groups[2].Value, out var m) &&
+            int.TryParse(match.Groups[3].Value, out var d) &&
+            m >= 1 && m <= 12 && d >= 1 && d <= 31)
+        {
+            return new DateTime(y, m, d, 0, 0, 0, DateTimeKind.Utc);
+        }
+
+        var versionNum = SuperHackersConstants.ExtractVersionFromReleaseTag(input);
+        if (versionNum is >= 19900101 and <= 21001231)
+        {
+            var year = versionNum / 10000;
+            var month = (versionNum % 10000) / 100;
+            var day = versionNum % 100;
+            if (month is >= 1 and <= 12 && day is >= 1 and <= 31)
+            {
+                return new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc);
+            }
+        }
+
+        return null;
     }
 
     private static string? SanitizeSegmentForManifest(string? input, string? fallback)
@@ -1173,6 +1247,15 @@ public sealed partial class ContentStateService(
         ContentSearchResult item,
         CancellationToken cancellationToken)
     {
+        if (IsNewerVersion(prospectiveId, persistedManifest.Id.Value, item.Version, persistedManifest.Version))
+        {
+            logger.LogInformation(
+                "Content {ContentName} has an update available (local persisted: {LocalId})",
+                item.Name,
+                persistedManifest.Id.Value);
+            return ContentState.UpdateAvailable;
+        }
+
         if (IsSameContentSource(persistedManifest, item))
         {
             logger.LogInformation(
@@ -1182,20 +1265,7 @@ public sealed partial class ContentStateService(
             return ContentState.Downloaded;
         }
 
-        if (hasRealDate &&
-            releaseDate > DateTime.MinValue &&
-            IsNewerVersion(prospectiveId, persistedManifest.Id.Value, item.Version, persistedManifest.Version))
-        {
-            logger.LogInformation(
-                "Content {ContentName} has an update available (local persisted: {LocalId})",
-                item.Name,
-                persistedManifest.Id.Value);
-            return ContentState.UpdateAvailable;
-        }
-
-        if (hasRealDate &&
-            releaseDate > DateTime.MinValue &&
-            IsNewerVersion(persistedManifest.Id.Value, prospectiveId, persistedManifest.Version, item.Version))
+        if (IsNewerVersion(persistedManifest.Id.Value, prospectiveId, persistedManifest.Version, item.Version))
         {
             var exactResult = await manifestPool.IsManifestAcquiredAsync(prospectiveId, cancellationToken);
             if (exactResult.Success && exactResult.Data)
@@ -1211,7 +1281,24 @@ public sealed partial class ContentStateService(
             return ContentState.NotDownloaded;
         }
 
-        return ContentState.Downloaded;
+        var exactMatch = await manifestPool.IsManifestAcquiredAsync(prospectiveId, cancellationToken);
+        if (exactMatch?.Success == true && exactMatch.Data)
+        {
+            return ContentState.Downloaded;
+        }
+
+        if (string.Equals(persistedManifest.Id.Value, prospectiveId, StringComparison.OrdinalIgnoreCase))
+        {
+            return ContentState.Downloaded;
+        }
+
+        if (!string.IsNullOrEmpty(item.Version) &&
+            string.Equals(item.Version, persistedManifest.Version, StringComparison.OrdinalIgnoreCase))
+        {
+            return ContentState.Downloaded;
+        }
+
+        return ContentState.NotDownloaded;
     }
 
     private async Task<ContentState> EvaluateMatchingManifestStateAsync(

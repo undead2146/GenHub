@@ -1,16 +1,16 @@
-using GenHub.Core.Constants;
-using GenHub.Core.Interfaces.Content;
-using GenHub.Core.Interfaces.Providers;
-using GenHub.Core.Models.Enums;
-using GenHub.Core.Models.GeneralsOnline;
-using GenHub.Core.Models.Manifest;
-using GenHub.Core.Models.Results;
-using GenHub.Core.Models.Results.Content;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Constants;
+using GenHub.Core.Interfaces.Content;
+using GenHub.Core.Interfaces.Providers;
+using GenHub.Core.Models.GeneralsOnline;
+using GenHub.Core.Models.Manifest;
+using GenHub.Core.Models.Results;
+using GenHub.Core.Models.Results.Content;
+using GenHub.Core.Services.Providers.VersionSchemes;
+using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Content.Services.GeneralsOnline;
 
@@ -23,18 +23,6 @@ public class GeneralsOnlineResolver(
     ILogger<GeneralsOnlineResolver> logger,
     IProviderDefinitionLoader? providerLoader = null) : IContentResolver
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="GeneralsOnlineResolver"/> class without an explicit provider loader.
-    /// </summary>
-    /// <param name="manifestFactory">Manifest factory for creating manifests.</param>
-    /// <param name="logger">Logger instance.</param>
-    public GeneralsOnlineResolver(
-        GeneralsOnlineManifestFactory manifestFactory,
-        ILogger<GeneralsOnlineResolver> logger)
-        : this(manifestFactory, logger, null)
-    {
-    }
-
     /// <inheritdoc />
     public string ResolverId => GeneralsOnlineConstants.ResolverId;
 
@@ -67,7 +55,7 @@ public class GeneralsOnlineResolver(
                         !portableUrl.EndsWith(GeneralsOnlineConstants.PortableExtension, StringComparison.OrdinalIgnoreCase))
                     {
                         var provider = providerLoader?.GetProvider(PublisherTypeConstants.GeneralsOnline);
-                        var releasesUrl = provider?.Endpoints.GetEndpoint("releasesUrl") ?? "https://cdn.playgenerals.online/releases";
+                        var releasesUrl = provider?.Endpoints.GetEndpoint("releasesUrl") ?? GeneralsOnlineConstants.ReleasesUrl;
                         portableUrl = $"{releasesUrl}/{GeneralsOnlineConstants.PortableFilePrefix}{searchResult.Version}{GeneralsOnlineConstants.PortableExtension}";
                     }
 
@@ -114,36 +102,11 @@ public class GeneralsOnlineResolver(
 
     private static DateTime? ParseVersionDate(string version)
     {
-        try
+        if (new MmddyyQfeVersionScheme().TryParse(version, out var parsed) && parsed.Components.Count >= 3)
         {
-            var parts = version.Split(
-                [GeneralsOnlineConstants.QfeSeparator],
-                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-            if (parts.Length < 1)
-            {
-                return null;
-            }
-
-            var datePart = parts[0];
-            if (datePart.Length != 6)
-            {
-                return null;
-            }
-
-            if (!int.TryParse(datePart[..2], out var month) ||
-                !int.TryParse(datePart.Substring(2, 2), out var day) ||
-                !int.TryParse(datePart[4..], out var yearSuffix))
-            {
-                return null;
-            }
-
-            var year = 2000 + yearSuffix;
-            return new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc);
+            return new DateTime((int)parsed.Components[0], (int)parsed.Components[1], (int)parsed.Components[2], 0, 0, 0, DateTimeKind.Utc);
         }
-        catch
-        {
-            return null;
-        }
+
+        return null;
     }
 }

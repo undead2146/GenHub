@@ -482,9 +482,25 @@ public class CommunityOutpostResolver(
     /// </summary>
     private static string? TryExtractVariantSuffix(ContentSearchResult item, GenPatcherContentMetadata metadata)
     {
-        return TryExtractVariantFromResolverMetadata(item.ResolverMetadata)
+        if (metadata.Variants is not { Count: > 0 })
+        {
+            return null;
+        }
+
+        var candidate = TryExtractVariantFromResolverMetadata(item.ResolverMetadata)
             ?? TryExtractVariantFromId(item.Id, metadata)
             ?? TryExtractVariantFromName(item.Name, metadata);
+
+        if (string.IsNullOrEmpty(candidate))
+        {
+            return null;
+        }
+
+        var matching = metadata.Variants.FirstOrDefault(v =>
+            string.Equals(v.Id, candidate, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(v.Id.Replace("-", string.Empty), candidate, StringComparison.OrdinalIgnoreCase));
+
+        return matching?.Id;
     }
 
     private static string? TryExtractVariantFromResolverMetadata(IDictionary<string, string>? resolverMetadata)
@@ -508,7 +524,7 @@ public class CommunityOutpostResolver(
 
     private static string? TryExtractVariantFromId(string? id, GenPatcherContentMetadata metadata)
     {
-        if (string.IsNullOrEmpty(id))
+        if (string.IsNullOrEmpty(id) || metadata.Variants is not { Count: > 0 })
         {
             return null;
         }
@@ -516,18 +532,12 @@ public class CommunityOutpostResolver(
         var parts = id.Split('.');
         var contentName = parts.Length >= 5 ? parts[4] : id;
 
-        if (metadata.Variants is { Count: > 0 })
-        {
-            var matchingVariant = metadata.Variants.FirstOrDefault(v =>
-                contentName.EndsWith(v.Id, StringComparison.OrdinalIgnoreCase) ||
-                contentName.EndsWith(v.Id.Replace("-", string.Empty), StringComparison.OrdinalIgnoreCase));
-            if (matchingVariant != null)
-            {
-                return matchingVariant.Id;
-            }
-        }
+        var matchingVariant = metadata.Variants.FirstOrDefault(v =>
+            contentName.EndsWith($"-{v.Id}", StringComparison.OrdinalIgnoreCase) ||
+            contentName.EndsWith($"-{v.Id.Replace("-", string.Empty)}", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(contentName, v.Id, StringComparison.OrdinalIgnoreCase));
 
-        return null;
+        return matchingVariant?.Id;
     }
 
     private static string? TryExtractVariantFromName(string? name, GenPatcherContentMetadata metadata)

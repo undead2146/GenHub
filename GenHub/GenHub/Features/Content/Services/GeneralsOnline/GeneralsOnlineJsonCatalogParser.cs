@@ -294,37 +294,12 @@ public class GeneralsOnlineJsonCatalogParser(
     /// </summary>
     private static DateTime? ParseVersionDate(string version)
     {
-        try
+        if (new MmddyyQfeVersionScheme().TryParse(version, out var parsed) && parsed.Components.Count >= 3)
         {
-            var parts = version.Split(
-                [GeneralsOnlineConstants.QfeSeparator],
-                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-            if (parts.Length < 1)
-            {
-                return null;
-            }
-
-            var datePart = parts[0];
-            if (datePart.Length != 6)
-            {
-                return null;
-            }
-
-            if (!int.TryParse(datePart[..2], out var month) ||
-                !int.TryParse(datePart.Substring(2, 2), out var day) ||
-                !int.TryParse(datePart[4..], out var yearSuffix))
-            {
-                return null;
-            }
-
-            var year = 2000 + yearSuffix;
-            return new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc);
+            return new DateTime((int)parsed.Components[0], (int)parsed.Components[1], (int)parsed.Components[2], 0, 0, 0, DateTimeKind.Utc);
         }
-        catch
-        {
-            return null;
-        }
+
+        return null;
     }
 
     /// <summary>
