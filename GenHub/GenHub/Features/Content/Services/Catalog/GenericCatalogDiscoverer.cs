@@ -72,6 +72,74 @@ public class GenericCatalogDiscoverer(
     public ContentSourceCapabilities Capabilities => ContentSourceCapabilities.RequiresDiscovery | ContentSourceCapabilities.SupportsManifestGeneration;
 
     /// <summary>
+    /// Configures this discoverer for a specific publisher subscription.
+    /// </summary>
+    /// <param name="subscription">The publisher subscription.</param>
+    public void Configure(Core.Models.Providers.PublisherSubscription subscription)
+    {
+        ArgumentNullException.ThrowIfNull(subscription);
+        _subscription = subscription;
+        logger.LogDebug("Configured discoverer for publisher: {PublisherId}", subscription.PublisherId);
+    }
+
+    /// <inheritdoc />
+    public virtual async Task<OperationResult<ContentDiscoveryResult>> DiscoverAsync(
+        ContentSearchQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        if (_subscription == null)
+        {
+            return OperationResult<ContentDiscoveryResult>.CreateFailure(
+                "Discoverer not configured with subscription");
+        }
+
+        try
+        {
+            // Fetch and parse catalog
+            var catalogResult = await FetchCatalogAsync(cancellationToken);
+            if (!catalogResult.Success)
+            {
+                return OperationResult<ContentDiscoveryResult>.CreateFailure(catalogResult);
+            }
+
+            var catalog = catalogResult.Data;
+            if (catalog == null)
+            {
+                return OperationResult<ContentDiscoveryResult>.CreateFailure("Catalog data is null");
+            }
+
+            // Dynamically hydrate upstream releases (e.g. TheSuperHackers latest release)
+            await HydrateDynamicReleasesAsync(catalog, cancellationToken);
+
+            // Convert catalog items to search results
+            var searchResults = ConvertCatalogToSearchResults(catalog, query).ToList();
+
+            var result = new ContentDiscoveryResult
+            {
+                Items = searchResults,
+                TotalItems = searchResults.Count,
+                HasMoreItems = false, // All results returned at once from catalog
+            };
+
+            logger.LogInformation(
+                "Discovered {Count} content items from publisher '{PublisherId}'",
+                searchResults.Count,
+                _subscription.PublisherId);
+
+            return OperationResult<ContentDiscoveryResult>.CreateSuccess(result);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to discover content from publisher '{PublisherId}'", _subscription.PublisherId);
+            return OperationResult<ContentDiscoveryResult>.CreateFailure($"Discovery failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// Clears the static dynamic release cache. Used for testing and cache invalidation.
     /// </summary>
     internal static void ClearReleaseCache()
@@ -171,6 +239,11 @@ public class GenericCatalogDiscoverer(
         IReadOnlyDictionary<string, string> contentNamesById)
     {
         var names = new List<string>();
+        if (release.Dependencies == null)
+        {
+            return names;
+        }
+
         foreach (var dependency in release.Dependencies)
         {
             if (dependency.IsOptional ||
@@ -292,9 +365,12 @@ public class GenericCatalogDiscoverer(
             }
         }
 
-        foreach (var tag in contentItem.Tags)
+        if (contentItem.Tags != null)
         {
-            searchResult.Tags.Add(tag);
+            foreach (var tag in contentItem.Tags)
+            {
+                searchResult.Tags.Add(tag);
+            }
         }
 
         if (contentItem.Metadata?.PlayerCount is int playerCount && playerCount > 0)
@@ -310,74 +386,6 @@ public class GenericCatalogDiscoverer(
             ContentCardBadgeHelper.ApplyIncludesSummary(
                 searchResult,
                 ResolveIncludedContentNames(release, contentNamesById));
-        }
-    }
-
-    /// <summary>
-    /// Configures this discoverer for a specific publisher subscription.
-    /// </summary>
-    /// <param name="subscription">The publisher subscription.</param>
-    public void Configure(Core.Models.Providers.PublisherSubscription subscription)
-    {
-        ArgumentNullException.ThrowIfNull(subscription);
-        _subscription = subscription;
-        logger.LogDebug("Configured discoverer for publisher: {PublisherId}", subscription.PublisherId);
-    }
-
-    /// <inheritdoc />
-    public virtual async Task<OperationResult<ContentDiscoveryResult>> DiscoverAsync(
-        ContentSearchQuery query,
-        CancellationToken cancellationToken = default)
-    {
-        if (_subscription == null)
-        {
-            return OperationResult<ContentDiscoveryResult>.CreateFailure(
-                "Discoverer not configured with subscription");
-        }
-
-        try
-        {
-            // Fetch and parse catalog
-            var catalogResult = await FetchCatalogAsync(cancellationToken);
-            if (!catalogResult.Success)
-            {
-                return OperationResult<ContentDiscoveryResult>.CreateFailure(catalogResult);
-            }
-
-            var catalog = catalogResult.Data;
-            if (catalog == null)
-            {
-                return OperationResult<ContentDiscoveryResult>.CreateFailure("Catalog data is null");
-            }
-
-            // Dynamically hydrate upstream releases (e.g. TheSuperHackers latest release)
-            await HydrateDynamicReleasesAsync(catalog, cancellationToken);
-
-            // Convert catalog items to search results
-            var searchResults = ConvertCatalogToSearchResults(catalog, query).ToList();
-
-            var result = new ContentDiscoveryResult
-            {
-                Items = searchResults,
-                TotalItems = searchResults.Count,
-                HasMoreItems = false, // All results returned at once from catalog
-            };
-
-            logger.LogInformation(
-                "Discovered {Count} content items from publisher '{PublisherId}'",
-                searchResults.Count,
-                _subscription.PublisherId);
-
-            return OperationResult<ContentDiscoveryResult>.CreateSuccess(result);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to discover content from publisher '{PublisherId}'", _subscription.PublisherId);
-            return OperationResult<ContentDiscoveryResult>.CreateFailure($"Discovery failed: {ex.Message}");
         }
     }
 

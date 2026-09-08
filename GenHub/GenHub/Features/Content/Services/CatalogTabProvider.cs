@@ -44,11 +44,6 @@ public class CatalogTabProvider(
         return !string.IsNullOrEmpty(searchResult.ProviderName);
     }
 
-    /// <summary>
-    /// Clears the in-memory catalog cache.
-    /// </summary>
-    internal void ClearCache() => _catalogCache.Clear();
-
     /// <inheritdoc/>
     public async Task<IReadOnlyList<CustomTabDefinition>> GetTabsAsync(
         ContentSearchResult searchResult,
@@ -83,6 +78,38 @@ public class CatalogTabProvider(
             logger.LogError(ex, "error loading custom tabs for content '{ContentId}' from publisher '{Publisher}'", searchResult.Id, searchResult.ProviderName);
             return [];
         }
+    }
+
+    /// <summary>
+    /// Clears the in-memory catalog cache.
+    /// </summary>
+    internal void ClearCache() => _catalogCache.Clear();
+
+    private static string ResolvePublisherId(ContentSearchResult searchResult)
+    {
+        var publisherId = searchResult.ProviderName;
+        if (searchResult.ResolverMetadata.TryGetValue(CatalogConstants.PublisherProfileJsonMetadataKey, out var publisherProfileJson))
+        {
+            var publisherProfile = JsonSerializer.Deserialize<PublisherProfile>(publisherProfileJson);
+            if (!string.IsNullOrWhiteSpace(publisherProfile?.Id))
+            {
+                publisherId = publisherProfile.Id;
+            }
+        }
+
+        return publisherId;
+    }
+
+    private static bool TabAppliesToContent(CatalogTabDefinition catalogTab, string contentId, string resultId)
+    {
+        if (catalogTab.AppliesTo is not { Count: > 0 })
+        {
+            return true;
+        }
+
+        return catalogTab.AppliesTo.Any(a =>
+            a.Equals(contentId, StringComparison.OrdinalIgnoreCase) ||
+            a.Equals(resultId, StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task<PublisherCatalog?> GetOrFetchCatalogAsync(
@@ -122,33 +149,6 @@ public class CatalogTabProvider(
         }
 
         return null;
-    }
-
-    private static string ResolvePublisherId(ContentSearchResult searchResult)
-    {
-        var publisherId = searchResult.ProviderName;
-        if (searchResult.ResolverMetadata.TryGetValue(CatalogConstants.PublisherProfileJsonMetadataKey, out var publisherProfileJson))
-        {
-            var publisherProfile = JsonSerializer.Deserialize<PublisherProfile>(publisherProfileJson);
-            if (!string.IsNullOrWhiteSpace(publisherProfile?.Id))
-            {
-                publisherId = publisherProfile.Id;
-            }
-        }
-
-        return publisherId;
-    }
-
-    private static bool TabAppliesToContent(CatalogTabDefinition catalogTab, string contentId, string resultId)
-    {
-        if (catalogTab.AppliesTo is not { Count: > 0 })
-        {
-            return true;
-        }
-
-        return catalogTab.AppliesTo.Any(a =>
-            a.Equals(contentId, StringComparison.OrdinalIgnoreCase) ||
-            a.Equals(resultId, StringComparison.OrdinalIgnoreCase));
     }
 
     private CustomTabDefinition MapToTabDefinition(CatalogTabDefinition catalogTab, ContentSearchResult searchResult)

@@ -546,7 +546,9 @@ public partial class GenericCatalogResolver(
         var cleanConstraint = CatalogManifestIdentity.StripVersionConstraint(dependency.VersionConstraint);
         var depPublisherId = !string.IsNullOrWhiteSpace(dependency.PublisherId)
             ? dependency.PublisherId
-            : CatalogManifestIdentity.ResolveDeclaredPublisherType(contentItem);
+            : (!string.IsNullOrWhiteSpace(contentItem.PublisherType)
+                ? CatalogManifestIdentity.ResolveDeclaredPublisherType(contentItem)
+                : string.Empty);
         var depVersion = cleanConstraint;
         var dependencyType = initialDependencyType;
 

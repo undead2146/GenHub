@@ -39,6 +39,11 @@ public static class CatalogBundleComponentBuilder
 
         var components = new List<CatalogBundleComponentDescriptor>();
 
+        if (release.Dependencies == null)
+        {
+            return components;
+        }
+
         foreach (var dependency in release.Dependencies)
         {
             if (string.IsNullOrWhiteSpace(dependency.ContentId))

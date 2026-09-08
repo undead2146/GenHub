@@ -1379,7 +1379,7 @@ public sealed class GenericCatalogResolverTests
             Name = "Mod With Implicit Dep Pub",
             ContentType = ContentType.Mod,
             TargetGame = GameType.ZeroHour,
-            PublisherType = "test-pub",
+            PublisherType = PublisherTypeConstants.TheSuperHackers,
             Description = "Test Mod",
             Tags = ["mod"],
         };
@@ -1452,7 +1452,7 @@ public sealed class GenericCatalogResolverTests
 
         Assert.True(result.Success, result.FirstError);
         Assert.NotNull(capturedId);
-        Assert.Contains("testpub", capturedId.Value.Value);
+        Assert.Contains(PublisherTypeConstants.TheSuperHackers, capturedId.Value.Value);
     }
 
     /// <summary>
@@ -1480,14 +1480,14 @@ public sealed class GenericCatalogResolverTests
             [
                 new CatalogDependency
                 {
-                    PublisherId = "",
+                    PublisherId = string.Empty,
                     ContentId = "unknown-dep",
                     VersionConstraint = "1.0.0",
                 },
             ],
         };
 
-        var publisher = new PublisherProfile { Id = "", Name = "" };
+        var publisher = new PublisherProfile { Id = string.Empty, Name = string.Empty };
 
         var searchResult = new ContentSearchResult
         {

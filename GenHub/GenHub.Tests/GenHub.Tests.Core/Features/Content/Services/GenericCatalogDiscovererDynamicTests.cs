@@ -230,6 +230,8 @@ public sealed class GenericCatalogDiscovererDynamicTests : IDisposable
                         {
                             Version = "1.0.0",
                             IsLatest = true,
+                            Artifacts = [],
+                            Dependencies = [],
                         },
                     ],
                 },
