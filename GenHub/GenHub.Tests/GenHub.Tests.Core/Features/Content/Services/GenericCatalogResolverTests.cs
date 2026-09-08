@@ -1456,16 +1456,16 @@ public sealed class GenericCatalogResolverTests
     }
 
     /// <summary>
-    /// Verifies that a catalog dependency without an explicit PublisherId and without a host publisher returns a failure result rather than throwing ArgumentException.
+    /// Verifies that a catalog dependency without an explicit PublisherId and without a host publisher inherits the generic catalog resolver identity.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ResolveAsync_DependencyWithoutPublisherId_AndNoHostPublisher_ReturnsFailureAsync()
+    public async Task ResolveAsync_DependencyWithoutPublisherId_AndNoHostPublisher_InheritsGenericCatalogResolverIdAsync()
     {
         var contentItem = new CatalogContentItem
         {
-            Id = "mod-with-orphaned-dep",
-            Name = "Mod With Orphaned Dep",
+            Id = "mod-with-default-dep",
+            Name = "Mod With Default Dep",
             ContentType = ContentType.Mod,
             TargetGame = GameType.ZeroHour,
             PublisherType = null,
@@ -1481,7 +1481,7 @@ public sealed class GenericCatalogResolverTests
                 new CatalogDependency
                 {
                     PublisherId = string.Empty,
-                    ContentId = "unknown-dep",
+                    ContentId = "sibling-dep",
                     VersionConstraint = "1.0.0",
                 },
             ],
@@ -1491,7 +1491,7 @@ public sealed class GenericCatalogResolverTests
 
         var searchResult = new ContentSearchResult
         {
-            Id = "1.100.unknown.mod.modwithorphaneddep",
+            Id = "1.100.generalcatalog.mod.modwithdefaultdep",
             Name = contentItem.Name,
             ContentType = ContentType.Mod,
             ResolverId = CatalogConstants.GenericCatalogResolverId,
@@ -1505,7 +1505,87 @@ public sealed class GenericCatalogResolverTests
 
         var builtManifest = new ContentManifest
         {
-            Id = ManifestId.Create("1.100.unknown.mod.modwithorphaneddep"),
+            Id = ManifestId.Create("1.100.generalcatalog.mod.modwithdefaultdep"),
+            Name = contentItem.Name,
+            Version = "1.0.0",
+            ContentType = ContentType.Mod,
+        };
+
+        ManifestId? capturedId = null;
+        var builderMock = CreateBuilderMock(builtManifest);
+        builderMock.Setup(b => b.AddDependency(
+                It.IsAny<ManifestId>(),
+                It.IsAny<string>(),
+                It.IsAny<ContentType>(),
+                It.IsAny<DependencyInstallBehavior>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<List<string>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<List<ManifestId>?>(),
+                It.IsAny<List<GameType>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>()))
+            .Callback<ManifestId, string, ContentType, DependencyInstallBehavior, string, string, List<string>?, bool, List<ManifestId>?, List<GameType>?, bool, bool>((id, name, type, behavior, min, max, comp, excl, conf, games, minInc, maxInc) =>
+            {
+                capturedId = id;
+            })
+            .Returns(builderMock.Object);
+
+        var resolver = new GenericCatalogResolver(
+            NullLogger<GenericCatalogResolver>.Instance,
+            () => builderMock.Object);
+
+        var result = await resolver.ResolveAsync(searchResult);
+
+        Assert.True(result.Success, result.FirstError);
+        Assert.NotNull(capturedId);
+        Assert.Contains(CatalogConstants.GenericCatalogResolverId, capturedId.Value.Value);
+    }
+
+    /// <summary>
+    /// Verifies that a release with null Dependencies collection resolves without throwing a NullReferenceException.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ResolveAsync_ReleaseWithNullDependencies_ResolvesSuccessfullyAsync()
+    {
+        var contentItem = new CatalogContentItem
+        {
+            Id = "mod-null-deps",
+            Name = "Mod With Null Deps",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            PublisherType = "test-pub",
+            Description = "Test Mod",
+            Tags = ["mod"],
+        };
+
+        var release = new ContentRelease
+        {
+            Version = "1.0.0",
+            Dependencies = null!,
+        };
+
+        var publisher = new PublisherProfile { Id = "test-pub", Name = "Test Pub" };
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.100.testpub.mod.modnulldeps",
+            Name = contentItem.Name,
+            ContentType = ContentType.Mod,
+            ResolverId = CatalogConstants.GenericCatalogResolverId,
+            ResolverMetadata =
+            {
+                [CatalogConstants.ReleaseJsonMetadataKey] = JsonSerializer.Serialize(release),
+                [CatalogConstants.CatalogItemJsonMetadataKey] = JsonSerializer.Serialize(contentItem),
+                [CatalogConstants.PublisherProfileJsonMetadataKey] = JsonSerializer.Serialize(publisher),
+            },
+        };
+
+        var builtManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.100.testpub.mod.modnulldeps"),
             Name = contentItem.Name,
             Version = "1.0.0",
             ContentType = ContentType.Mod,
@@ -1518,8 +1598,7 @@ public sealed class GenericCatalogResolverTests
 
         var result = await resolver.ResolveAsync(searchResult);
 
-        Assert.False(result.Success);
-        Assert.Contains("has no publisher specified", result.FirstError);
+        Assert.True(result.Success, result.FirstError);
     }
 
     private static Mock<IContentManifestBuilder> CreateBuilderMock(ContentManifest builtManifest)

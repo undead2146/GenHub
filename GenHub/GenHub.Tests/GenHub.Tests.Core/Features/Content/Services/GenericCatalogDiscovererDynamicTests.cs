@@ -267,6 +267,82 @@ public sealed class GenericCatalogDiscovererDynamicTests : IDisposable
         Assert.Single(result.Data.Items);
     }
 
+    /// <summary>
+    /// Verifies that content items with null elements in Tags list do not cause NullReferenceException during discovery.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task DiscoverAsync_ContentWithNullTagElements_DoesNotThrowNreAsync()
+    {
+        var catalog = new PublisherCatalog
+        {
+            CatalogVersion = "1.0.0",
+            Publisher = new PublisherProfile
+            {
+                Id = "test-pub",
+                Name = "Test Publisher",
+            },
+            Content =
+            [
+                new CatalogContentItem
+                {
+                    Id = "item-with-null-tag",
+                    Name = "Item With Null Tag",
+                    Description = "Description",
+                    ContentType = ContentType.Mod,
+                    TargetGame = GameType.ZeroHour,
+                    Tags = ["valid-tag", null!],
+                    Releases =
+                    [
+                        new ContentRelease
+                        {
+                            Version = "1.0.0",
+                            ReleaseDate = DateTimeOffset.UtcNow,
+                            Artifacts =
+                            [
+                                new ContentArtifact
+                                {
+                                    FileName = "mod.zip",
+                                    DownloadUrl = "https://example.com/mod.zip",
+                                    Size = 1024,
+                                    Sha256 = "abcd",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var catalogParserMock = new Mock<IPublisherCatalogParser>();
+        catalogParserMock
+            .Setup(p => p.ParseCatalogAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<PublisherCatalog>.CreateSuccess(catalog));
+
+        var discoverer = new GenericCatalogDiscoverer(
+            NullLogger<GenericCatalogDiscoverer>.Instance,
+            CreateHttpClientFactory(JsonSerializer.Serialize(catalog)),
+            catalogParserMock.Object,
+            new VersionSelector(NullLogger<VersionSelector>.Instance),
+            Mock.Of<IGitHubApiClient>());
+
+        discoverer.Configure(new PublisherSubscription
+        {
+            PublisherId = "test-pub",
+            PublisherName = "Test Publisher",
+            CatalogUrl = "https://example.com/catalog.json",
+        });
+
+        var result = await discoverer.DiscoverAsync(new ContentSearchQuery
+        {
+            SearchTerm = "valid-tag",
+        });
+
+        Assert.True(result.Success, result.FirstError);
+        Assert.NotNull(result.Data);
+        Assert.Single(result.Data.Items);
+    }
+
     private static IHttpClientFactory CreateHttpClientFactory(string responseJson)
     {
         var mockHandler = new Mock<HttpMessageHandler>();

@@ -182,7 +182,7 @@ public class GenericCatalogDiscoverer(
             var searchLower = query.SearchTerm.ToLowerInvariant();
             var matchesName = content.Name?.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ?? false;
             var matchesDescription = content.Description?.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ?? false;
-            var matchesTags = content.Tags?.Any(t => t.Contains(searchLower, StringComparison.OrdinalIgnoreCase)) ?? false;
+            var matchesTags = content.Tags?.Any(t => t?.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ?? false) ?? false;
 
             if (!matchesName && !matchesDescription && !matchesTags)
             {
@@ -369,7 +369,10 @@ public class GenericCatalogDiscoverer(
         {
             foreach (var tag in contentItem.Tags)
             {
-                searchResult.Tags.Add(tag);
+                if (!string.IsNullOrWhiteSpace(tag))
+                {
+                    searchResult.Tags.Add(tag);
+                }
             }
         }
 

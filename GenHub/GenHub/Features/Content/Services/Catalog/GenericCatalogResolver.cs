@@ -265,6 +265,11 @@ public partial class GenericCatalogResolver(
             return deserializeError;
         }
 
+        if (release.Dependencies == null || release.Dependencies.Count == 0)
+        {
+            return null;
+        }
+
         foreach (var dependency in release.Dependencies)
         {
             var dependencyType = CatalogManifestIdentity.ResolveDependencyContentType(dependency, contentItem);
@@ -544,19 +549,9 @@ public partial class GenericCatalogResolver(
         List<CatalogBundleComponentDescriptor>? bundleComponents)
     {
         var cleanConstraint = CatalogManifestIdentity.StripVersionConstraint(dependency.VersionConstraint);
-        string depPublisherId;
-        if (!string.IsNullOrWhiteSpace(dependency.PublisherId))
-        {
-            depPublisherId = dependency.PublisherId;
-        }
-        else if (!string.IsNullOrWhiteSpace(contentItem.PublisherType))
-        {
-            depPublisherId = CatalogManifestIdentity.ResolveDeclaredPublisherType(contentItem);
-        }
-        else
-        {
-            depPublisherId = string.Empty;
-        }
+        var depPublisherId = !string.IsNullOrWhiteSpace(dependency.PublisherId)
+            ? dependency.PublisherId
+            : CatalogManifestIdentity.ResolveDeclaredPublisherType(contentItem);
 
         var depVersion = cleanConstraint;
         var dependencyType = initialDependencyType;
