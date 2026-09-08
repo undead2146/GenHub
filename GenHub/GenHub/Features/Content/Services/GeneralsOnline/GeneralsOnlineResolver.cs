@@ -46,30 +46,7 @@ public class GeneralsOnlineResolver(
             {
                 if (!string.IsNullOrWhiteSpace(searchResult.Version))
                 {
-                    logger.LogInformation(
-                        "Release payload missing from search result; reconstructing release metadata for version {Version}",
-                        searchResult.Version);
-
-                    var portableUrl = searchResult.SelectedDownloadUrl;
-                    if (string.IsNullOrWhiteSpace(portableUrl) ||
-                        !portableUrl.EndsWith(GeneralsOnlineConstants.PortableExtension, StringComparison.OrdinalIgnoreCase))
-                    {
-                        var provider = providerLoader?.GetProvider(PublisherTypeConstants.GeneralsOnline);
-                        var releasesUrl = provider?.Endpoints.GetEndpoint("releasesUrl") ?? GeneralsOnlineConstants.ReleasesUrl;
-                        portableUrl = $"{releasesUrl}/{GeneralsOnlineConstants.PortableFilePrefix}{searchResult.Version}{GeneralsOnlineConstants.PortableExtension}";
-                    }
-
-                    var versionDate = searchResult.LastUpdated ?? ParseVersionDate(searchResult.Version) ?? DateTime.UtcNow;
-
-                    release = new GeneralsOnlineRelease
-                    {
-                        Version = searchResult.Version,
-                        VersionDate = versionDate,
-                        ReleaseDate = searchResult.LastUpdated ?? versionDate,
-                        PortableUrl = portableUrl,
-                        PortableSize = searchResult.DownloadSize > 0 ? searchResult.DownloadSize : null,
-                        Changelog = !string.IsNullOrWhiteSpace(searchResult.Description) ? searchResult.Description : $"Generals Online {searchResult.Version}",
-                    };
+                    release = ReconstructReleaseFromSearchResult(searchResult);
                 }
                 else
                 {
@@ -108,5 +85,33 @@ public class GeneralsOnlineResolver(
         }
 
         return null;
+    }
+
+    private GeneralsOnlineRelease ReconstructReleaseFromSearchResult(ContentSearchResult searchResult)
+    {
+        logger.LogInformation(
+            "Release payload missing from search result; reconstructing release metadata for version {Version}",
+            searchResult.Version);
+
+        var portableUrl = searchResult.SelectedDownloadUrl;
+        if (string.IsNullOrWhiteSpace(portableUrl) ||
+            !portableUrl.EndsWith(GeneralsOnlineConstants.PortableExtension, StringComparison.OrdinalIgnoreCase))
+        {
+            var provider = providerLoader?.GetProvider(PublisherTypeConstants.GeneralsOnline);
+            var releasesUrl = provider?.Endpoints.GetEndpoint("releasesUrl") ?? GeneralsOnlineConstants.ReleasesUrl;
+            portableUrl = $"{releasesUrl}/{GeneralsOnlineConstants.PortableFilePrefix}{searchResult.Version}{GeneralsOnlineConstants.PortableExtension}";
+        }
+
+        var versionDate = searchResult.LastUpdated ?? ParseVersionDate(searchResult.Version) ?? DateTime.UtcNow;
+
+        return new GeneralsOnlineRelease
+        {
+            Version = searchResult.Version,
+            VersionDate = versionDate,
+            ReleaseDate = searchResult.LastUpdated ?? versionDate,
+            PortableUrl = portableUrl,
+            PortableSize = searchResult.DownloadSize > 0 ? searchResult.DownloadSize : null,
+            Changelog = !string.IsNullOrWhiteSpace(searchResult.Description) ? searchResult.Description : $"Generals Online {searchResult.Version}",
+        };
     }
 }

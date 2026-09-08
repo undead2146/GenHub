@@ -350,7 +350,7 @@ public sealed partial class ContentGridItemViewModel(
     /// </summary>
     public bool ShowAddToProfileButton => HasBundleComponents
         ? AreBundleComponentsReadyForProfile
-        : EffectiveIsDownloaded;
+        : EffectiveCurrentState is ContentState.Downloaded or ContentState.UpdateAvailable;
 
     /// <summary>
     /// Gets the tags associated with this content.

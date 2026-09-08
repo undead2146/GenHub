@@ -338,7 +338,7 @@ public sealed class ContentDownloadCoordinatorTests
 
         var testManifest = new ContentManifest
         {
-            Id = ManifestId.Create("1.0.test.mod"),
+            Id = ManifestId.Create("1.0.test.mod.test"),
             Name = "Test Active Item",
         };
 
@@ -401,7 +401,7 @@ public sealed class ContentDownloadCoordinatorTests
 
         var testManifest = new ContentManifest
         {
-            Id = ManifestId.Create("1.0.broadcast.mod"),
+            Id = ManifestId.Create("1.0.broadcast.mod.test"),
             Name = "Broadcast Mod",
         };
 
