@@ -151,10 +151,10 @@ public class GenericCatalogManifestFactory(
                     hash,
                     fileInfo.Length);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 logger.LogError(ex, "Failed to compute hash for file: {FilePath}", filePath);
-                throw new InvalidOperationException($"Failed to compute hash for file: {filePath}", ex);
+                return [];
             }
         }
 

@@ -208,11 +208,11 @@ public static class CatalogBundleComponentBuilder
 
         return variantArtifacts.Where(artifact =>
         {
-            if (string.Equals(artifact.VariantAxis, "game-type", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(artifact.VariantAxis, CatalogConstants.GameTypeVariantAxis, StringComparison.OrdinalIgnoreCase))
             {
-                var isGen = string.Equals(artifact.Variant, "Generals", StringComparison.OrdinalIgnoreCase);
-                var isZh = string.Equals(artifact.Variant, "Zero Hour", StringComparison.OrdinalIgnoreCase) ||
-                           string.Equals(artifact.Variant, "ZeroHour", StringComparison.OrdinalIgnoreCase);
+                var isGen = string.Equals(artifact.Variant, CatalogConstants.GeneralsVariantLabel, StringComparison.OrdinalIgnoreCase);
+                var isZh = string.Equals(artifact.Variant, CatalogConstants.ZeroHourVariantLabel, StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(artifact.Variant, CatalogConstants.ZeroHourCompactVariantLabel, StringComparison.OrdinalIgnoreCase);
 
                 if (parentTargetGame == GameType.Generals && isZh)
                 {

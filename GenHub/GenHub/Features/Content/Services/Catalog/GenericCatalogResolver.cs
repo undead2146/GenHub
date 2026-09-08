@@ -190,15 +190,15 @@ public partial class GenericCatalogResolver(
         ReleaseArtifact? primaryArtifact,
         ContentSearchResult searchResult)
     {
-        if (primaryArtifact?.VariantAxis?.Equals("game-type", StringComparison.OrdinalIgnoreCase) == true)
+        if (primaryArtifact?.VariantAxis?.Equals(CatalogConstants.GameTypeVariantAxis, StringComparison.OrdinalIgnoreCase) == true)
         {
-            if (primaryArtifact.Variant?.Equals("Generals", StringComparison.OrdinalIgnoreCase) == true)
+            if (primaryArtifact.Variant?.Equals(CatalogConstants.GeneralsVariantLabel, StringComparison.OrdinalIgnoreCase) == true)
             {
                 return GameType.Generals;
             }
 
-            if (primaryArtifact.Variant?.Equals("Zero Hour", StringComparison.OrdinalIgnoreCase) == true ||
-                primaryArtifact.Variant?.Equals("ZeroHour", StringComparison.OrdinalIgnoreCase) == true)
+            if (primaryArtifact.Variant?.Equals(CatalogConstants.ZeroHourVariantLabel, StringComparison.OrdinalIgnoreCase) == true ||
+                primaryArtifact.Variant?.Equals(CatalogConstants.ZeroHourCompactVariantLabel, StringComparison.OrdinalIgnoreCase) == true)
             {
                 return GameType.ZeroHour;
             }
@@ -252,7 +252,11 @@ public partial class GenericCatalogResolver(
         CatalogContentItem contentItem,
         GameType resolvedTargetGame)
     {
-        var bundleComponents = TryDeserializeBundleComponents(logger, discoveredItem, contentItem.Id);
+        var (bundleComponents, deserializeError) = TryDeserializeBundleComponents(logger, discoveredItem, contentItem.Id);
+        if (deserializeError != null)
+        {
+            return deserializeError;
+        }
 
         foreach (var dependency in release.Dependencies)
         {
@@ -293,7 +297,7 @@ public partial class GenericCatalogResolver(
         return null;
     }
 
-    private static List<CatalogBundleComponentDescriptor>? TryDeserializeBundleComponents(
+    private static (List<CatalogBundleComponentDescriptor>? Components, string? Error) TryDeserializeBundleComponents(
         ILogger logger,
         ContentSearchResult discoveredItem,
         string contentItemId)
@@ -301,18 +305,24 @@ public partial class GenericCatalogResolver(
         if (!discoveredItem.ResolverMetadata.TryGetValue(CatalogConstants.BundleComponentsJsonMetadataKey, out var bundleJson) ||
             string.IsNullOrWhiteSpace(bundleJson))
         {
-            return null;
+            return (null, null);
         }
 
         try
         {
-            return JsonSerializer.Deserialize<List<CatalogBundleComponentDescriptor>>(bundleJson)
-                ?? throw new JsonException("Bundle component metadata deserialized to null.");
+            var components = JsonSerializer.Deserialize<List<CatalogBundleComponentDescriptor>>(bundleJson);
+            if (components == null)
+            {
+                logger.LogWarning("Bundle component metadata for '{ContentId}' deserialized to null", contentItemId);
+                return (null, $"Bundle component metadata for '{contentItemId}' is invalid.");
+            }
+
+            return (components, null);
         }
         catch (JsonException ex)
         {
             logger.LogWarning(ex, "Failed to deserialize bundle component metadata for '{ContentId}'", contentItemId);
-            throw new InvalidOperationException($"Bundle component metadata for '{contentItemId}' is invalid.", ex);
+            return (null, $"Bundle component metadata for '{contentItemId}' is invalid: {ex.Message}");
         }
     }
 
@@ -322,10 +332,10 @@ public partial class GenericCatalogResolver(
         GameType resolvedTargetGame,
         ParsedVersionConstraint constraint)
     {
-        var isGenerals = dependency.ContentId.Equals("generals", StringComparison.OrdinalIgnoreCase) ||
+        var isGenerals = dependency.ContentId.Equals(CatalogConstants.GeneralsContentId, StringComparison.OrdinalIgnoreCase) ||
                          resolvedTargetGame == GameType.Generals;
         var foundation = isGenerals &&
-                         !dependency.ContentId.Equals("zerohour", StringComparison.OrdinalIgnoreCase)
+                         !dependency.ContentId.Equals(CatalogConstants.ZeroHourContentId, StringComparison.OrdinalIgnoreCase)
             ? BaseDependencyBuilder.CreateGenerals108Dependency()
             : BaseDependencyBuilder.CreateZeroHour104Dependency();
 

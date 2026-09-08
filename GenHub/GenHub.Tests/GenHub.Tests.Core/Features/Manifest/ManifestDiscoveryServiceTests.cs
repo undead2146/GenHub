@@ -356,6 +356,35 @@ public class ManifestDiscoveryServiceTests : IDisposable
     }
 
     /// <summary>
+    /// Tests that ValidateDependencies accepts dependencies when version matches CompatibleVersions numerically or with v-prefix.
+    /// </summary>
+    [Fact]
+    public void ValidateDependencies_AcceptsDependency_WhenVersionMatchesCompatibleVersionsNumerically()
+    {
+        var manifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.0.genhub.mod.content"),
+            Dependencies =
+            [
+                new()
+                {
+                    Id = ManifestId.Create("1.0.genhub.mod.dep1"),
+                    InstallBehavior = DependencyInstallBehavior.RequireExisting,
+                    CompatibleVersions = ["1.04", "1.08"],
+                },
+            ],
+        };
+        var availableManifests = new Dictionary<string, ContentManifest>
+        {
+            ["1.0.genhub.mod.dep1"] = new() { Id = ManifestId.Create("1.0.genhub.mod.dep1"), Version = "v1.04" },
+        };
+
+        var result = _discoveryService.ValidateDependencies(manifest, availableManifests);
+
+        Assert.True(result);
+    }
+
+    /// <summary>
     /// Deletes temporary files created by filesystem discovery tests.
     /// </summary>
     public void Dispose()

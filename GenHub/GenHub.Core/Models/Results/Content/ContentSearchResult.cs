@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Parsers;
 
@@ -132,5 +133,5 @@ public class ContentSearchResult
     /// Gets or sets the selectable variants exposed for this content. Populated when this card is the
     /// primary representation of a variant group; null for single-variant content.
     /// </summary>
-    public IList<ContentVariantInfo>? Variants { get; set; }
+    public IReadOnlyList<ContentVariantInfo>? Variants { get; set; }
 }

@@ -292,15 +292,15 @@ public static class CatalogManifestIdentity
 
         var publisher = dependency.PublisherId ?? string.Empty;
         var contentId = dependency.ContentId ?? string.Empty;
-        var isEaOrAny = publisher.Equals("ea", StringComparison.OrdinalIgnoreCase) ||
-                        publisher.Equals("any", StringComparison.OrdinalIgnoreCase);
+        var isEaOrAny = publisher.Equals(CatalogConstants.EaPublisherId, StringComparison.OrdinalIgnoreCase) ||
+                        publisher.Equals(CatalogConstants.AnyPublisherId, StringComparison.OrdinalIgnoreCase);
         if (!isEaOrAny)
         {
             return false;
         }
 
-        return contentId.Equals("zerohour", StringComparison.OrdinalIgnoreCase) ||
-               contentId.Equals("generals", StringComparison.OrdinalIgnoreCase);
+        return contentId.Equals(CatalogConstants.ZeroHourContentId, StringComparison.OrdinalIgnoreCase) ||
+               contentId.Equals(CatalogConstants.GeneralsContentId, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -547,7 +547,7 @@ public static class CatalogManifestIdentity
             }
 
             var axis = getAxis(items[i]);
-            if (resolutionIdx == -1 && string.Equals(axis, "resolution", StringComparison.OrdinalIgnoreCase))
+            if (resolutionIdx == -1 && string.Equals(axis, CatalogConstants.ResolutionVariantAxis, StringComparison.OrdinalIgnoreCase))
             {
                 resolutionIdx = i;
             }

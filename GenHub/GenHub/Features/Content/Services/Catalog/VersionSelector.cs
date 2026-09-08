@@ -14,7 +14,7 @@ namespace GenHub.Features.Content.Services.Catalog;
 public class VersionSelector(ILogger<VersionSelector> logger) : IVersionSelector
 {
     /// <inheritdoc />
-    public IEnumerable<ContentRelease> SelectReleases(
+    public IReadOnlyList<ContentRelease> SelectReleases(
         IEnumerable<ContentRelease> releases,
         VersionPolicy policy)
     {
@@ -58,7 +58,7 @@ public class VersionSelector(ILogger<VersionSelector> logger) : IVersionSelector
             .FirstOrDefault();
     }
 
-    private IEnumerable<ContentRelease> GetLatestStableReleases(List<ContentRelease> releases)
+    private IReadOnlyList<ContentRelease> GetLatestStableReleases(List<ContentRelease> releases)
     {
         var latest = GetLatestStable(releases);
         if (latest != null)
@@ -71,7 +71,7 @@ public class VersionSelector(ILogger<VersionSelector> logger) : IVersionSelector
         return [];
     }
 
-    private IEnumerable<ContentRelease> GetLatestWithPrereleases(List<ContentRelease> releases)
+    private IReadOnlyList<ContentRelease> GetLatestWithPrereleases(List<ContentRelease> releases)
     {
         var latest = GetLatest(releases);
         if (latest != null)

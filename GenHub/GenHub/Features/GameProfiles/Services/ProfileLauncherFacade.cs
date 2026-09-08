@@ -1190,10 +1190,12 @@ public class ProfileLauncherFacade(
     /// <returns>True if compatible, false otherwise.</returns>
     private bool IsVersionCompatible(string version, ContentDependency dependency)
     {
-        // If compatible versions list is specified, check exact match
+        // If compatible versions list is specified, check exact match or numeric equivalence
         if (dependency.CompatibleVersions.Count > 0)
         {
-            return dependency.CompatibleVersions.Contains(version, StringComparer.OrdinalIgnoreCase);
+            return dependency.CompatibleVersions.Any(cv =>
+                string.Equals(cv, version, StringComparison.OrdinalIgnoreCase) ||
+                CatalogManifestIdentity.CompareVersions(cv, version) == 0);
         }
 
         if (!string.IsNullOrEmpty(dependency.MinVersion))

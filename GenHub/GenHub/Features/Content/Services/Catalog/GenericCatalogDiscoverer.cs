@@ -39,9 +39,6 @@ public class GenericCatalogDiscoverer(
     IVersionSelector versionSelector,
     IGitHubApiClient gitHubClient) : IContentDiscoverer
 {
-    private const string GeneralsGameSegment = "generals";
-    private const string ZeroHourGameSegment = "zerohour";
-    private const string GameTypeVariantAxis = "game-type";
     private static readonly ConcurrentDictionary<string, (GitHubRelease Release, DateTime CachedAt)> ReleaseCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, Task<GitHubRelease?>> PendingReleaseFetches = new(StringComparer.OrdinalIgnoreCase);
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(30);
@@ -82,7 +79,7 @@ public class GenericCatalogDiscoverer(
         {
             var targetGame = query.TargetGame.Value;
             var hasGameVariant = release?.Artifacts?.Any(a =>
-                string.Equals(a.VariantAxis, GameTypeVariantAxis, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(a.VariantAxis, CatalogConstants.GameTypeVariantAxis, StringComparison.OrdinalIgnoreCase) &&
                 ResolveSiblingTargetGame(GameType.Unknown, a.VariantAxis ?? string.Empty, a.Variant ?? string.Empty) == targetGame) == true;
 
             if (content.TargetGame != targetGame && !hasGameVariant)
@@ -182,15 +179,15 @@ public class GenericCatalogDiscoverer(
 
     private static GameType ResolveSiblingTargetGame(GameType defaultTargetGame, string axis, string variantLabel)
     {
-        if (axis.Equals(GameTypeVariantAxis, StringComparison.OrdinalIgnoreCase))
+        if (axis.Equals(CatalogConstants.GameTypeVariantAxis, StringComparison.OrdinalIgnoreCase))
         {
-            if (variantLabel.Equals("Generals", StringComparison.OrdinalIgnoreCase))
+            if (variantLabel.Equals(CatalogConstants.GeneralsVariantLabel, StringComparison.OrdinalIgnoreCase))
             {
                 return GameType.Generals;
             }
 
-            if (variantLabel.Equals("Zero Hour", StringComparison.OrdinalIgnoreCase) ||
-                variantLabel.Equals("ZeroHour", StringComparison.OrdinalIgnoreCase))
+            if (variantLabel.Equals(CatalogConstants.ZeroHourVariantLabel, StringComparison.OrdinalIgnoreCase) ||
+                variantLabel.Equals(CatalogConstants.ZeroHourCompactVariantLabel, StringComparison.OrdinalIgnoreCase))
             {
                 return GameType.ZeroHour;
             }
@@ -441,9 +438,9 @@ public class GenericCatalogDiscoverer(
             a.Name.Contains("_zh", StringComparison.OrdinalIgnoreCase));
 
         var genAsset = latestRelease.Assets?.FirstOrDefault(a =>
-            a.Name.Contains(GeneralsGameSegment, StringComparison.OrdinalIgnoreCase) &&
+            a.Name.Contains(CatalogConstants.GeneralsContentId, StringComparison.OrdinalIgnoreCase) &&
             !a.Name.Contains("generalszh", StringComparison.OrdinalIgnoreCase) &&
-            !a.Name.Contains("zerohour", StringComparison.OrdinalIgnoreCase) &&
+            !a.Name.Contains(CatalogConstants.ZeroHourContentId, StringComparison.OrdinalIgnoreCase) &&
             !a.Name.Contains("zero-hour", StringComparison.OrdinalIgnoreCase) &&
             !a.Name.Contains("_zh", StringComparison.OrdinalIgnoreCase));
 
@@ -463,8 +460,8 @@ public class GenericCatalogDiscoverer(
                     DownloadUrl = zhAsset.BrowserDownloadUrl,
                     Size = zhAsset.Size,
                     ContentType = "application/zip",
-                    VariantAxis = GameTypeVariantAxis,
-                    Variant = "Zero Hour",
+                    VariantAxis = CatalogConstants.GameTypeVariantAxis,
+                    Variant = CatalogConstants.ZeroHourVariantLabel,
                     IsDefaultVariant = item.TargetGame == GameType.ZeroHour,
                     IsPrimary = item.TargetGame == GameType.ZeroHour,
                 });
@@ -478,8 +475,8 @@ public class GenericCatalogDiscoverer(
                     DownloadUrl = genAsset.BrowserDownloadUrl,
                     Size = genAsset.Size,
                     ContentType = "application/zip",
-                    VariantAxis = GameTypeVariantAxis,
-                    Variant = "Generals",
+                    VariantAxis = CatalogConstants.GameTypeVariantAxis,
+                    Variant = CatalogConstants.GeneralsVariantLabel,
                     IsDefaultVariant = item.TargetGame == GameType.Generals,
                     IsPrimary = item.TargetGame == GameType.Generals,
                 });
@@ -499,9 +496,9 @@ public class GenericCatalogDiscoverer(
                     [
                         new CatalogDependency
                         {
-                            PublisherId = "ea",
-                            ContentId = item.TargetGame == GameType.Generals ? GeneralsGameSegment : ZeroHourGameSegment,
-                            VersionConstraint = item.TargetGame == GameType.Generals ? "1.08" : "1.04",
+                            PublisherId = CatalogConstants.EaPublisherId,
+                            ContentId = item.TargetGame == GameType.Generals ? CatalogConstants.GeneralsContentId : CatalogConstants.ZeroHourContentId,
+                            VersionConstraint = item.TargetGame == GameType.Generals ? ManifestConstants.GeneralsManifestVersion : ManifestConstants.ZeroHourManifestVersion,
                             ContentType = ContentType.GameInstallation.ToString(),
                             IsOptional = false,
                         },
@@ -831,9 +828,9 @@ public class GenericCatalogDiscoverer(
                 {
                     return new CatalogDependency
                     {
-                        PublisherId = dep.PublisherId ?? "ea",
-                        ContentId = siblingTargetGame == GameType.Generals ? GeneralsGameSegment : ZeroHourGameSegment,
-                        VersionConstraint = siblingTargetGame == GameType.Generals ? "1.08" : "1.04",
+                        PublisherId = dep.PublisherId ?? CatalogConstants.EaPublisherId,
+                        ContentId = siblingTargetGame == GameType.Generals ? CatalogConstants.GeneralsContentId : CatalogConstants.ZeroHourContentId,
+                        VersionConstraint = siblingTargetGame == GameType.Generals ? ManifestConstants.GeneralsManifestVersion : ManifestConstants.ZeroHourManifestVersion,
                         ContentType = ContentType.GameInstallation.ToString(),
                         IsOptional = dep.IsOptional,
                     };
