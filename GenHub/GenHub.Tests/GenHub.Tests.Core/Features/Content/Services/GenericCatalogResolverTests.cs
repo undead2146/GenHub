@@ -638,35 +638,6 @@ public sealed class GenericCatalogResolverTests
             },
         };
 
-        ContentDependency? capturedDependency = null;
-        var builderMock = new Mock<IContentManifestBuilder>();
-        builderMock.Setup(b => b.AddDependency(
-            It.IsAny<ManifestId>(),
-            It.IsAny<string>(),
-            It.IsAny<ContentType>(),
-            It.IsAny<DependencyInstallBehavior>(),
-            It.IsAny<string>(),
-            It.IsAny<string>(),
-            It.IsAny<List<string>?>(),
-            It.IsAny<bool>(),
-            It.IsAny<List<string>?>(),
-            It.IsAny<List<GameType>?>(),
-            It.IsAny<bool>(),
-            It.IsAny<bool>()))
-            .Callback<ManifestId, string, ContentType, DependencyInstallBehavior, string, string, List<string>?, bool, List<string>?, List<GameType>?, bool, bool>(
-                (id, name, depType, install, min, max, comp, isExcl, conflicts, games, minInc, maxInc) =>
-                {
-                    capturedDependency = new ContentDependency
-                    {
-                        Id = id,
-                        Name = name,
-                        MinVersion = min,
-                        MaxVersion = max,
-                        CompatibleVersions = comp ?? [],
-                    };
-                })
-            .Returns(builderMock.Object);
-
         var builtManifest = new ContentManifest
         {
             Id = ManifestId.Create("1.100.testpub.mod.modwithmixedcompatibleversions"),
@@ -677,7 +648,36 @@ public sealed class GenericCatalogResolverTests
             Metadata = new ContentMetadata(),
             Publisher = new PublisherInfo { PublisherType = "test-pub" },
         };
-        builderMock.Setup(b => b.Build()).Returns(builtManifest);
+
+        var builderMock = CreateBuilderMock(builtManifest);
+        builderMock.Setup(b => b.AddDependency(
+                It.IsAny<ManifestId>(),
+                It.IsAny<string>(),
+                It.IsAny<ContentType>(),
+                It.IsAny<DependencyInstallBehavior>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<List<string>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<List<ManifestId>?>(),
+                It.IsAny<List<GameType>?>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>()))
+            .Callback<ManifestId, string, ContentType, DependencyInstallBehavior, string, string, List<string>?, bool, List<ManifestId>?, List<GameType>?, bool, bool>((id, name, type, behavior, min, max, comp, excl, conf, games, minInc, maxInc) =>
+            {
+                builtManifest.Dependencies.Add(new ContentDependency
+                {
+                    Id = id,
+                    Name = name,
+                    DependencyType = type,
+                    MinVersion = min,
+                    MaxVersion = max,
+                    CompatibleVersions = comp ?? [],
+                    MinInclusive = minInc,
+                    MaxInclusive = maxInc,
+                });
+            })
+            .Returns(builderMock.Object);
 
         var resolver = new GenericCatalogResolver(
             NullLogger<GenericCatalogResolver>.Instance,
@@ -686,8 +686,8 @@ public sealed class GenericCatalogResolverTests
         var result = await resolver.ResolveAsync(searchResult);
 
         Assert.True(result.Success, result.FirstError);
-        Assert.NotNull(capturedDependency);
-        Assert.Equal(["1.04", "1.05"], capturedDependency.CompatibleVersions);
+        Assert.Single(builtManifest.Dependencies);
+        Assert.Equal(["1.04", "1.05"], builtManifest.Dependencies[0].CompatibleVersions);
     }
 
     /// <summary>
