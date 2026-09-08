@@ -329,9 +329,24 @@ public partial class GenericCatalogResolver(
             ? BaseDependencyBuilder.CreateGenerals108Dependency()
             : BaseDependencyBuilder.CreateZeroHour104Dependency();
 
+        var foundationMin = foundation.MinVersion ?? string.Empty;
+
+        var compatibleError = ValidateCompatibleVersionsFloor(
+            dependency.ContentId,
+            foundationMin,
+            constraint.CompatibleVersions);
+
+        if (compatibleError != null)
+        {
+            return compatibleError;
+        }
+
         var (effectiveMinVersion, effectiveMinInclusive) = ComputeEffectiveBaseGameMinVersion(
-            foundation.MinVersion ?? string.Empty,
+            foundationMin,
             constraint);
+
+        var isReconciled = !string.Equals(effectiveMinVersion, constraint.MinVersion, StringComparison.OrdinalIgnoreCase) ||
+                           effectiveMinInclusive != constraint.MinInclusive;
 
         var boundsError = ValidateVersionBounds(
             dependency.ContentId,
@@ -339,7 +354,7 @@ public partial class GenericCatalogResolver(
             constraint.MaxVersion,
             effectiveMinInclusive,
             constraint.MaxInclusive,
-            isReconciled: true);
+            isReconciled: isReconciled);
 
         if (boundsError != null)
         {
@@ -359,6 +374,21 @@ public partial class GenericCatalogResolver(
             compatibleGameTypes: foundation.CompatibleGameTypes,
             minInclusive: effectiveMinInclusive,
             maxInclusive: constraint.MaxInclusive);
+
+        return null;
+    }
+
+    private static string? ValidateCompatibleVersionsFloor(
+        string contentId,
+        string foundationMin,
+        List<string>? compatibleVersions)
+    {
+        if (compatibleVersions is { Count: > 0 } &&
+            !string.IsNullOrEmpty(foundationMin) &&
+            compatibleVersions.All(v => CatalogManifestIdentity.CompareVersions(v, foundationMin) < 0))
+        {
+            return $"Dependency '{contentId}' has unsatisfiable version bounds after reconciliation: all compatible versions are below the minimum foundation floor '{foundationMin}'.";
+        }
 
         return null;
     }

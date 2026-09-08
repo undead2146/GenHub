@@ -520,6 +520,150 @@ public sealed class GenericCatalogResolverTests
     }
 
     /// <summary>
+    /// Verifies that base-game dependencies with compatible version lists entirely below the foundation floor fail resolution.
+    /// </summary>
+    /// <param name="constraint">The version constraint to test.</param>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Theory]
+    [InlineData("1.02,1.03")]
+    [InlineData("1.02|1.03")]
+    public async Task ResolveAsync_BaseGameDependency_WithCompatibleVersionsBelowFloor_FailsResolutionAsync(string constraint)
+    {
+        var contentItem = new CatalogContentItem
+        {
+            Id = "mod-with-below-floor-compatible-versions",
+            Name = "Mod With Below Floor Compatible Versions",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            Description = "Test Mod",
+            Tags = ["mod"],
+        };
+
+        var release = new ContentRelease
+        {
+            Version = "1.0.0",
+            Dependencies =
+            [
+                new CatalogDependency
+                {
+                    PublisherId = "ea",
+                    ContentId = "zerohour",
+                    VersionConstraint = constraint,
+                },
+            ],
+        };
+
+        var publisher = new PublisherProfile { Id = "test-pub", Name = "Test Pub" };
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.100.testpub.mod.modwithbelowfloorcompatibleversions",
+            Name = contentItem.Name,
+            ContentType = ContentType.Mod,
+            ResolverId = CatalogConstants.GenericCatalogResolverId,
+            ResolverMetadata =
+            {
+                [CatalogConstants.ReleaseJsonMetadataKey] = JsonSerializer.Serialize(release),
+                [CatalogConstants.CatalogItemJsonMetadataKey] = JsonSerializer.Serialize(contentItem),
+                [CatalogConstants.PublisherProfileJsonMetadataKey] = JsonSerializer.Serialize(publisher),
+            },
+        };
+
+        var builtManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.100.testpub.mod.modwithbelowfloorcompatibleversions"),
+            Name = "Mod With Below Floor Compatible Versions",
+            Version = "1.0.0",
+            ContentType = ContentType.Mod,
+            Files = [],
+            Metadata = new ContentMetadata(),
+            Publisher = new PublisherInfo { PublisherType = "test-pub" },
+        };
+
+        var builderMock = CreateBuilderMock(builtManifest);
+        var resolver = new GenericCatalogResolver(
+            NullLogger<GenericCatalogResolver>.Instance,
+            () => builderMock.Object);
+
+        var result = await resolver.ResolveAsync(searchResult);
+
+        Assert.False(result.Success);
+        Assert.Contains("unsatisfiable version bounds after reconciliation: all compatible versions are below the minimum foundation floor '1.04'", result.FirstError);
+    }
+
+    /// <summary>
+    /// Verifies that base-game dependencies with self-contradictory bounds where the floor was not applied do not include the reconciliation suffix.
+    /// </summary>
+    /// <param name="constraint">The version constraint to test.</param>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Theory]
+    [InlineData(">=1.06 <1.05")]
+    public async Task ResolveAsync_BaseGameDependency_WithSelfContradictoryBoundsAboveFloor_ReportsWithoutReconciliationSuffixAsync(string constraint)
+    {
+        var contentItem = new CatalogContentItem
+        {
+            Id = "mod-with-invalid-above-floor-range",
+            Name = "Mod With Invalid Above Floor Range",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+            Description = "Test Mod",
+            Tags = ["mod"],
+        };
+
+        var release = new ContentRelease
+        {
+            Version = "1.0.0",
+            Dependencies =
+            [
+                new CatalogDependency
+                {
+                    PublisherId = "ea",
+                    ContentId = "zerohour",
+                    VersionConstraint = constraint,
+                },
+            ],
+        };
+
+        var publisher = new PublisherProfile { Id = "test-pub", Name = "Test Pub" };
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.100.testpub.mod.modwithinvalidabovefloorrange",
+            Name = contentItem.Name,
+            ContentType = ContentType.Mod,
+            ResolverId = CatalogConstants.GenericCatalogResolverId,
+            ResolverMetadata =
+            {
+                [CatalogConstants.ReleaseJsonMetadataKey] = JsonSerializer.Serialize(release),
+                [CatalogConstants.CatalogItemJsonMetadataKey] = JsonSerializer.Serialize(contentItem),
+                [CatalogConstants.PublisherProfileJsonMetadataKey] = JsonSerializer.Serialize(publisher),
+            },
+        };
+
+        var builtManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.100.testpub.mod.modwithinvalidabovefloorrange"),
+            Name = "Mod With Invalid Above Floor Range",
+            Version = "1.0.0",
+            ContentType = ContentType.Mod,
+            Files = [],
+            Metadata = new ContentMetadata(),
+            Publisher = new PublisherInfo { PublisherType = "test-pub" },
+        };
+
+        var builderMock = CreateBuilderMock(builtManifest);
+        var resolver = new GenericCatalogResolver(
+            NullLogger<GenericCatalogResolver>.Instance,
+            () => builderMock.Object);
+
+        var result = await resolver.ResolveAsync(searchResult);
+
+        Assert.False(result.Success);
+        Assert.Contains("unsatisfiable version bounds: min '1.06' > max '1.05'", result.FirstError);
+        Assert.DoesNotContain("after reconciliation", result.FirstError);
+    }
+
+    /// <summary>
     /// Verifies that when a non-base-game catalog dependency has unsatisfiable version bounds, resolution fails with an unsatisfiable bounds error.
     /// </summary>
     /// <param name="constraint">The version constraint to test.</param>
