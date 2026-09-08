@@ -7,6 +7,7 @@ using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Parsers;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.GeneralsOnline;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Parsers;
 using GenHub.Core.Models.Providers;
@@ -25,6 +26,77 @@ namespace GenHub.Tests.Core.Features.Downloads.ViewModels;
 /// </summary>
 public sealed class ContentDetailViewModelTests
 {
+    /// <summary>
+    /// Verifies downloading a release row does not mark the parent card downloaded and adding it
+    /// to a profile sends the exact child manifest produced by that row.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    /// <summary>
+    /// Verifies that downloading a release row preserves the typed Data payload and sets parentContentId.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ReleaseRowDownload_PreservesDataPayloadAndSetsParentContentIdAsync()
+    {
+        // Arrange
+        const string parentId = "GeneralsOnline_082826_QFE1";
+        var releaseData = new GeneralsOnlineRelease
+        {
+            Version = "082826_QFE1",
+            PortableUrl = "https://cdn.playgenerals.online/releases/GeneralsOnline_portable_082826_QFE1.zip",
+        };
+
+        var parent = new ContentSearchResult
+        {
+            Id = parentId,
+            Name = "Generals Online",
+            ProviderName = PublisherTypeConstants.GeneralsOnline,
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+            ResolverId = GeneralsOnlineConstants.ResolverId,
+            RequiresResolution = true,
+            SourceUrl = "https://www.playgenerals.online/#download",
+        };
+        parent.SetData(releaseData);
+
+        ContentSearchResult? coordinatorInput = null;
+        var coordinator = new Mock<IContentDownloadCoordinator>();
+        coordinator
+            .Setup(c => c.DownloadContentAsync(
+                It.IsAny<ContentSearchResult>(),
+                It.IsAny<IProgress<ContentAcquisitionProgress>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<ContentSearchResult, IProgress<ContentAcquisitionProgress>?, CancellationToken>(
+                (content, _, _) => coordinatorInput = content)
+            .ReturnsAsync(OperationResult<ContentManifest>.CreateSuccess(new ContentManifest
+            {
+                Id = ManifestId.Create("1.828261.generalsonline.gameclient.60hz"),
+                Name = "Generals Online",
+                ContentType = ContentType.GameClient,
+            }));
+
+        var viewModel = CreateViewModel(parent, coordinator.Object);
+        var releaseFile = new DownloadableFile(
+            Name: "Generals Online",
+            DownloadUrl: releaseData.PortableUrl,
+            FileSectionType: FileSectionType.Downloads);
+        viewModel.PopulateReleases([releaseFile]);
+
+        var release = Assert.Single(viewModel.Releases);
+
+        // Act
+        await Assert.IsAssignableFrom<IAsyncRelayCommand>(release.DownloadCommand).ExecuteAsync(null);
+
+        // Assert
+        Assert.NotNull(coordinatorInput);
+        Assert.NotNull(coordinatorInput.Data);
+        var extractedRelease = coordinatorInput.GetData<GeneralsOnlineRelease>();
+        Assert.NotNull(extractedRelease);
+        Assert.Equal("082826_QFE1", extractedRelease.Version);
+        Assert.True(coordinatorInput.ResolverMetadata.TryGetValue("parentContentId", out var recordedParentId));
+        Assert.Equal(parentId, recordedParentId);
+    }
+
     /// <summary>
     /// Verifies downloading a release row does not mark the parent card downloaded and adding it
     /// to a profile sends the exact child manifest produced by that row.

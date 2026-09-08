@@ -23,6 +23,7 @@ using GenHub.Core.Interfaces.Parsers;
 using GenHub.Core.Messages;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.GeneralsOnline;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.ModDB;
 using GenHub.Core.Models.Parsers;
@@ -1069,7 +1070,7 @@ public partial class ContentDetailViewModel(
         OnPropertyChanged(nameof(ShowSelectedTargetBanner));
     }
 
-/// <summary>
+    /// <summary>
     /// Populates the Addons collection from parsed page data.
     /// </summary>
     /// <param name="files">The files to populate addons from.</param>
@@ -1099,7 +1100,7 @@ public partial class ContentDetailViewModel(
         SelectInitialPreferredAddon();
     }
 
-/// <summary>
+    /// <summary>
     /// Triggers asynchronous background preloading for the most recent releases and addons.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -1118,7 +1119,7 @@ public partial class ContentDetailViewModel(
         }
     }
 
-/// <summary>
+    /// <summary>
     /// Displays the profile selection flow for a manifest. Kept overridable so derived detail
     /// views can provide a host-specific dialog while preserving the manifest chosen by a row.
     /// </summary>
@@ -1991,6 +1992,20 @@ public partial class ContentDetailViewModel(
             {
                 IsDownloaded = state is ContentState.Downloaded or ContentState.UpdateAvailable;
                 IsUpdateAvailable = state == ContentState.UpdateAvailable;
+
+                if (IsDownloaded && Releases.Count == 1 &&
+                    (string.Equals(Releases[0].Name, searchResult.Name, StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(Releases[0].Version, searchResult.Version, StringComparison.OrdinalIgnoreCase)))
+                {
+                    Releases[0].IsDownloaded = true;
+                    Releases[0].IsUpdateAvailable = IsUpdateAvailable;
+                    if (!string.IsNullOrEmpty(searchResult.Id) && ManifestIdValidator.IsValid(searchResult.Id, out _))
+                    {
+                        Releases[0].DownloadedManifestId = searchResult.Id;
+                    }
+
+                    RefreshSelectedTargetProperties();
+                }
             });
 
             if ((state == ContentState.Downloaded || state == ContentState.UpdateAvailable) && !string.IsNullOrEmpty(searchResult.Id))
@@ -2304,10 +2319,11 @@ public partial class ContentDetailViewModel(
             }
             else if (!((searchResult.Variants is { Count: > 0 }) || (variantSearchResults is { Count: > 0 }) || !string.IsNullOrEmpty(searchResult.VariantGroupId)) && Releases.Count == 0 && Variants.Count == 0 && !string.IsNullOrEmpty(searchResult.SourceUrl) && searchResult.RequiresResolution)
             {
-                var fileName = GetFileNameFromUrl(searchResult.SourceUrl) ?? $"{searchResult.Name}.zip";
+                var downloadUrl = searchResult.GetData<GeneralsOnlineRelease>()?.PortableUrl ?? searchResult.SourceUrl;
+                var fileName = GetFileNameFromUrl(downloadUrl) ?? $"{searchResult.Name}.zip";
                 var file = new DownloadableFile(
                     Name: searchResult.Name,
-                    DownloadUrl: searchResult.SourceUrl,
+                    DownloadUrl: downloadUrl,
                     SizeBytes: searchResult.DownloadSize > 0 ? searchResult.DownloadSize : null,
                     UploadDate: searchResult.LastUpdated,
                     ReleaseDate: searchResult.LastUpdated,
@@ -3338,6 +3354,7 @@ public partial class ContentDetailViewModel(
             ParsedPageData = ParsedPage ?? searchResult.ParsedPageData,
             ResolverId = searchResult.ResolverId,
             RequiresResolution = true,
+            Data = searchResult.Data,
         };
 
         // Copy resolver metadata (e.g. GitHub owner/tag, CommunityOutpost content code) so the
@@ -3346,6 +3363,11 @@ public partial class ContentDetailViewModel(
         foreach (var pair in searchResult.ResolverMetadata)
         {
             rowSearchResult.ResolverMetadata[pair.Key] = pair.Value;
+        }
+
+        if (!string.IsNullOrEmpty(searchResult.Id))
+        {
+            rowSearchResult.ResolverMetadata["parentContentId"] = searchResult.Id;
         }
 
         if (IsModDbContent(searchResult))
