@@ -65,20 +65,14 @@ public class CatalogTabProvider(
             }
 
             // Convert parsed catalog tab definitions into runtime tab definitions for the downloads detail view
-            var tabs = new List<CustomTabDefinition>();
             searchResult.ResolverMetadata.TryGetValue(CatalogConstants.CatalogContentIdMetadataKey, out var catalogContentId);
             var contentId = !string.IsNullOrWhiteSpace(catalogContentId) ? catalogContentId : searchResult.Id;
             var resultId = searchResult.Id;
 
-            foreach (var catalogTab in catalog.CustomTabs)
-            {
-                if (TabAppliesToContent(catalogTab, contentId, resultId))
-                {
-                    tabs.Add(MapToTabDefinition(catalogTab, searchResult));
-                }
-            }
-
-            return tabs;
+            return catalog.CustomTabs
+                .Where(catalogTab => TabAppliesToContent(catalogTab, contentId, resultId))
+                .Select(catalogTab => MapToTabDefinition(catalogTab, searchResult))
+                .ToList();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
