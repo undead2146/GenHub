@@ -1204,24 +1204,11 @@ public class ContentStateServiceTests
         Assert.Equal(storedManifest.Id.Value, await service.GetLocalManifestIdAsync(exactCard));
     }
 
-    private static ContentSearchResult CreateSuperHackersCard(GameType gameType)
-    {
-        var item = new ContentSearchResult
-        {
-            Id = $"github.thesuperhackers.generalsgamecode.weekly-2025-07-22.{gameType}",
-            ProviderName = ContentSourceNames.GitHubDiscoverer,
-            ContentType = ContentType.GameClient,
-            TargetGame = gameType,
-        };
-        item.ResolverMetadata[GitHubConstants.OwnerMetadataKey] = PublisherTypeConstants.TheSuperHackers;
-        item.ResolverMetadata[GitHubConstants.TagMetadataKey] = "weekly-2025-07-22";
-        return item;
-    }
-
     /// <summary>
     /// Verifies that when an older prospective release has no LastUpdated date but has a date in its release tag,
     /// ContentStateService extracts the date and determines NotDownloaded against a newer installed release.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
     public async Task GetStateAsync_OlderReleaseWithoutLastUpdated_ExtractsDateFromTag_ReturnsNotDownloadedAsync()
     {
@@ -1278,6 +1265,7 @@ public class ContentStateServiceTests
     /// Verifies that when a newer Generals Online release is discovered against an older installed release,
     /// ContentStateService correctly returns UpdateAvailable rather than Downloaded.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
     public async Task GetStateAsync_NewerGeneralsOnlineRelease_ReturnsUpdateAvailableAsync()
     {
@@ -1325,5 +1313,19 @@ public class ContentStateServiceTests
 
         // Assert
         Assert.Equal(ContentState.UpdateAvailable, state);
+    }
+
+    private static ContentSearchResult CreateSuperHackersCard(GameType gameType)
+    {
+        var item = new ContentSearchResult
+        {
+            Id = $"github.thesuperhackers.generalsgamecode.weekly-2025-07-22.{gameType}",
+            ProviderName = ContentSourceNames.GitHubDiscoverer,
+            ContentType = ContentType.GameClient,
+            TargetGame = gameType,
+        };
+        item.ResolverMetadata[GitHubConstants.OwnerMetadataKey] = PublisherTypeConstants.TheSuperHackers;
+        item.ResolverMetadata[GitHubConstants.TagMetadataKey] = "weekly-2025-07-22";
+        return item;
     }
 }

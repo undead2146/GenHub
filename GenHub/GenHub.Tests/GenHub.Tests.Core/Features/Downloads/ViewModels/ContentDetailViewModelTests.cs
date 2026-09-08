@@ -1,12 +1,17 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
-using GenHub.Core.Messages;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Parsers;
+using GenHub.Core.Messages;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GeneralsOnline;
@@ -18,6 +23,7 @@ using GenHub.Core.Models.Results.Content;
 using GenHub.Features.Downloads.ViewModels;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Xunit;
 
 using ContentType = GenHub.Core.Models.Enums.ContentType;
 
@@ -28,11 +34,6 @@ namespace GenHub.Tests.Core.Features.Downloads.ViewModels;
 /// </summary>
 public sealed class ContentDetailViewModelTests
 {
-    /// <summary>
-    /// Verifies downloading a release row does not mark the parent card downloaded and adding it
-    /// to a profile sends the exact child manifest produced by that row.
-    /// </summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
     /// <summary>
     /// Verifies that downloading a release row preserves the typed Data payload and sets parentContentId.
     /// </summary>

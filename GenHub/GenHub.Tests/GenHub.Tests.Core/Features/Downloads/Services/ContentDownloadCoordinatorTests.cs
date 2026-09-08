@@ -1,11 +1,11 @@
 using System;
-using CommunityToolkit.Mvvm.Messaging;
-using GenHub.Core.Messages;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Messages;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
@@ -327,6 +327,7 @@ public sealed class ContentDownloadCoordinatorTests
     /// <summary>
     /// Verifies that IsDownloading returns true while a download is running and false after completion.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
     public async Task IsDownloading_ReturnsTrueWhileRunning_AndFalseWhenCompletedAsync()
     {
@@ -371,7 +372,7 @@ public sealed class ContentDownloadCoordinatorTests
         Assert.True(coordinator.IsDownloading(searchResult));
 
         // Report progress
-        capturedProgress?.Report(new ContentAcquisitionProgress { ProgressPercentage = 55, StatusMessage = "Downloading files..." });
+        capturedProgress?.Report(new ContentAcquisitionProgress { ProgressPercentage = 55, CurrentOperation = "Downloading files..." });
         await Task.Delay(50);
 
         var hasProgress = coordinator.TryGetDownloadProgress(searchResult, out var pct, out var msg);
@@ -389,6 +390,7 @@ public sealed class ContentDownloadCoordinatorTests
     /// <summary>
     /// Verifies that WeakReferenceMessenger broadcasts started, progress, and completed messages.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
     public async Task DownloadContentAsync_BroadcastsStartedProgressAndCompletedMessagesAsync()
     {
