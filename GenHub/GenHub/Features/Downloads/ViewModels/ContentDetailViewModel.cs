@@ -2093,6 +2093,7 @@ public partial class ContentDetailViewModel(
                 return;
             }
 
+            var expectedId = searchResult.Id;
             var state = await contentStateService.GetStateAsync(searchResult, _cts.Token);
 
             if ((state == ContentState.Downloaded || state == ContentState.UpdateAvailable) &&
@@ -2107,6 +2108,12 @@ public partial class ContentDetailViewModel(
 
             await RunOnUiThreadAsync(() =>
             {
+                if (!string.Equals(searchResult.Id, expectedId, StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrEmpty(expectedId))
+                {
+                    return;
+                }
+
                 IsDownloaded = state is ContentState.Downloaded or ContentState.UpdateAvailable;
                 IsUpdateAvailable = state == ContentState.UpdateAvailable;
 

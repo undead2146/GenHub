@@ -12,6 +12,7 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Core.Constants;
 using GenHub.Core.Extensions;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameProfiles;
@@ -363,9 +364,10 @@ public sealed partial class DownloadsBrowserViewModel(
         var lastSegment = primaryItem.Id?.Split('.').LastOrDefault() ?? "content";
         foreach (var v in singleVariants)
         {
+            var provider = !string.IsNullOrWhiteSpace(primaryItem.ProviderName) ? primaryItem.ProviderName : "content";
             var manifestId = !string.IsNullOrEmpty(v.ManifestId)
                 ? v.ManifestId
-                : $"1.0.{primaryItem.ProviderName.ToLowerInvariant()}.{primaryItem.ContentType.ToString().ToLowerInvariant()}.{lastSegment}-{v.Id}";
+                : ManifestIdGenerator.GeneratePublisherContentId(provider, primaryItem.ContentType, $"{lastSegment}-{v.Id}", 0);
 
             var baseName = !string.IsNullOrEmpty(primaryItem.VariantFamilyName) ? primaryItem.VariantFamilyName : primaryItem.Name;
             var variantName = !string.IsNullOrEmpty(v.Name) && v.Name.StartsWith(baseName, StringComparison.OrdinalIgnoreCase)
@@ -1394,10 +1396,17 @@ public sealed partial class DownloadsBrowserViewModel(
             return $"{owner}/{repo}";
         }
 
-        if (!string.IsNullOrWhiteSpace(vm.SearchResult.ProviderName) && !string.IsNullOrWhiteSpace(vm.SearchResult.Name))
+        if (!string.IsNullOrWhiteSpace(vm.SearchResult.ProviderName))
         {
-            var baseName = vm.SearchResult.Name.Split('—')[0].Trim();
-            return $"{vm.SearchResult.ProviderName}/{vm.SearchResult.ContentType}/{baseName}";
+            var effectiveName = !string.IsNullOrWhiteSpace(vm.SearchResult.VariantFamilyName)
+                ? vm.SearchResult.VariantFamilyName
+                : vm.SearchResult.Name;
+
+            if (!string.IsNullOrWhiteSpace(effectiveName))
+            {
+                var baseName = effectiveName.Split('—')[0].Trim();
+                return $"{vm.SearchResult.ProviderName}/{vm.SearchResult.ContentType}/{baseName}";
+            }
         }
 
         return null;
@@ -2048,6 +2057,10 @@ public sealed partial class DownloadsBrowserViewModel(
                 item.ClearInactiveDownloadStatus();
                 logger.LogInformation("User cancelled profile selection for '{ContentName}'", item.Name);
             }
+        }
+        catch (OperationCanceledException) when (_vmCts.IsCancellationRequested)
+        {
+            // View disposal/cancellation is expected.
         }
         catch (Exception ex)
         {
