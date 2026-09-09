@@ -116,27 +116,11 @@ public partial class GenericCatalogResolver(
                     screenshotUrls: contentItem.Metadata?.ScreenshotUrls?.ToList(),
                     changelogUrl: contentItem.Metadata?.DocumentationUrl ?? string.Empty);
 
-            if (primaryArtifact != null)
-            {
-                var filename = SanitizeArtifactFilename(primaryArtifact, contentItem);
-                logger.LogDebug(
-                    "Adding remote file {Filename} with download URL {Url}",
-                    filename,
-                    primaryArtifact.DownloadUrl);
-
-                await builder.AddRemoteFileAsync(
-                    relativePath: filename,
-                    downloadUrl: primaryArtifact.DownloadUrl,
-                    sourceType: ContentSourceType.RemoteDownload,
-                    isExecutable: false,
-                    permissions: null);
-            }
-            else
-            {
-                logger.LogInformation(
-                    "Content '{ContentName}' has no downloadable artifacts (dependency-only package)",
-                    contentItem.Name);
-            }
+            var artifactHashes = await RegisterRemoteFilesAsync(
+                builder,
+                release,
+                contentItem,
+                primaryArtifact);
 
             var dependencyError = AddDependencies(logger, builder, discoveredItem, release, contentItem, resolvedTargetGame);
             if (dependencyError != null)
@@ -157,7 +141,8 @@ public partial class GenericCatalogResolver(
                 declaredPublisherId,
                 resolvedName,
                 discoveredItem.Id,
-                resolvedTargetGame);
+                resolvedTargetGame,
+                artifactHashes);
 
             logger.LogInformation(
                 "Successfully resolved manifest for '{ContentName}' with {FileCount} files",
@@ -243,6 +228,22 @@ public partial class GenericCatalogResolver(
         }
 
         return SanitizeFileName(Path.GetFileName(filename));
+    }
+
+    private static string DisambiguateFilename(HashSet<string> usedFilenames, string baseFilename)
+    {
+        var filename = baseFilename;
+        var counter = 1;
+        var stem = Path.GetFileNameWithoutExtension(baseFilename);
+        var ext = Path.GetExtension(baseFilename);
+
+        while (usedFilenames.Contains(filename))
+        {
+            filename = $"{stem}_{counter}{ext}";
+            counter++;
+        }
+
+        return filename;
     }
 
     private static string SanitizeFileName(string filename)
@@ -738,16 +739,23 @@ public partial class GenericCatalogResolver(
         }
     }
 
-    private static void ApplyManifestPostProcessing(
+    private static void ApplyFileHashes(
         ContentManifest manifest,
         CatalogContentItem contentItem,
         ReleaseArtifact? primaryArtifact,
-        string declaredPublisherId,
-        string resolvedName,
-        string? searchResultId,
-        GameType resolvedTargetGame)
+        IReadOnlyDictionary<string, string>? artifactHashes)
     {
-        if (primaryArtifact != null && !string.IsNullOrWhiteSpace(primaryArtifact.Sha256))
+        if (artifactHashes != null && artifactHashes.Count > 0)
+        {
+            foreach (var file in manifest.Files)
+            {
+                if (artifactHashes.TryGetValue(file.RelativePath, out var hash))
+                {
+                    file.Hash = hash;
+                }
+            }
+        }
+        else if (primaryArtifact != null && !string.IsNullOrWhiteSpace(primaryArtifact.Sha256))
         {
             var primaryFile = manifest.Files.FirstOrDefault();
             if (primaryFile != null)
@@ -755,6 +763,19 @@ public partial class GenericCatalogResolver(
                 primaryFile.Hash = primaryArtifact.Sha256;
             }
         }
+    }
+
+    private static void ApplyManifestPostProcessing(
+        ContentManifest manifest,
+        CatalogContentItem contentItem,
+        ReleaseArtifact? primaryArtifact,
+        string declaredPublisherId,
+        string resolvedName,
+        string? searchResultId,
+        GameType resolvedTargetGame,
+        IReadOnlyDictionary<string, string>? artifactHashes = null)
+    {
+        ApplyFileHashes(manifest, contentItem, primaryArtifact, artifactHashes);
 
         if (!string.IsNullOrWhiteSpace(searchResultId) &&
             ManifestIdValidator.IsValid(searchResultId, out _))
@@ -790,5 +811,67 @@ public partial class GenericCatalogResolver(
         {
             manifest.Metadata.Tags.Add($"contentCode:{contentItem.Id}");
         }
+    }
+
+    private async Task<Dictionary<string, string>> RegisterRemoteFilesAsync(
+        IContentManifestBuilder builder,
+        ContentRelease release,
+        CatalogContentItem contentItem,
+        ReleaseArtifact? primaryArtifact)
+    {
+        var artifactHashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (release.Artifacts != null && release.Artifacts.Count > 0)
+        {
+            var usedFilenames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var artifact in release.Artifacts)
+            {
+                if (string.IsNullOrWhiteSpace(artifact.DownloadUrl))
+                {
+                    continue;
+                }
+
+                // If primary artifact belongs to a specific variant on an axis, register it plus
+                // common artifacts: no variant axis, a different axis, or no variant label on
+                // the same axis. Same-axis artifacts with a different variant are excluded.
+                if (!string.IsNullOrWhiteSpace(primaryArtifact?.VariantAxis) &&
+                    !string.IsNullOrWhiteSpace(artifact.VariantAxis) &&
+                    string.Equals(primaryArtifact.VariantAxis, artifact.VariantAxis, StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(artifact.Variant) &&
+                    !string.Equals(primaryArtifact.Variant, artifact.Variant, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var baseFilename = SanitizeArtifactFilename(artifact, contentItem);
+                var filename = DisambiguateFilename(usedFilenames, baseFilename);
+                usedFilenames.Add(filename);
+
+                if (!string.IsNullOrWhiteSpace(artifact.Sha256))
+                {
+                    artifactHashes[filename] = artifact.Sha256;
+                }
+
+                logger.LogDebug(
+                    "Adding remote file {Filename} with download URL {Url}",
+                    filename,
+                    artifact.DownloadUrl);
+
+                await builder.AddRemoteFileAsync(
+                    relativePath: filename,
+                    downloadUrl: artifact.DownloadUrl,
+                    sourceType: ContentSourceType.RemoteDownload,
+                    isExecutable: false,
+                    permissions: null);
+            }
+        }
+        else
+        {
+            logger.LogInformation(
+                "Content '{ContentName}' has no downloadable artifacts (dependency-only package)",
+                contentItem.Name);
+        }
+
+        return artifactHashes;
     }
 }
