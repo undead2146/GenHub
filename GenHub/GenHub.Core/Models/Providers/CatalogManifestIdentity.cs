@@ -226,7 +226,7 @@ public static class CatalogManifestIdentity
         if (!string.IsNullOrWhiteSpace(dependency.ContentType))
         {
             var rawType = dependency.ContentType.Trim();
-            if (!char.IsDigit(rawType[0]) &&
+            if (char.IsAsciiLetter(rawType[0]) &&
                 Enum.TryParse<ContentType>(rawType, ignoreCase: true, out var declared) &&
                 Enum.IsDefined(declared))
             {

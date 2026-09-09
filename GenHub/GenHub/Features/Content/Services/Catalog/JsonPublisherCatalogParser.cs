@@ -149,7 +149,7 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
             if (!string.IsNullOrWhiteSpace(dep.ContentType))
             {
                 var trimmedType = dep.ContentType.Trim();
-                if (char.IsDigit(trimmedType[0]) ||
+                if (!char.IsAsciiLetter(trimmedType[0]) ||
                     !Enum.TryParse<ContentType>(trimmedType, ignoreCase: true, out var parsedType) ||
                     !Enum.IsDefined(parsedType))
                 {

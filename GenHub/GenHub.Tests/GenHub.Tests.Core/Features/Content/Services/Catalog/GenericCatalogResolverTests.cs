@@ -537,11 +537,11 @@ public class GenericCatalogResolverTests
     }
 
     /// <summary>
-    /// Verifies that JsonPublisherCatalogParser fails validation when dependency contentType is an undefined numeric string.
+    /// Verifies that JsonPublisherCatalogParser fails validation when dependency contentType is a signed numeric string.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
-    public async Task ParseCatalogAsync_DependencyDeclaringUndefinedNumericContentType_FailsValidationAsync()
+    public async Task ParseCatalogAsync_DependencyDeclaringSignedNumericContentType_FailsValidationAsync()
     {
         var parser = new JsonPublisherCatalogParser(Mock.Of<ILogger<JsonPublisherCatalogParser>>());
         var json = """
@@ -557,7 +557,46 @@ public class GenericCatalogResolverTests
                         {
                             "version": "1.0.0",
                             "dependencies": [
-                                { "publisherId": "custom", "contentId": "other", "contentType": "99" }
+                                { "publisherId": "custom", "contentId": "other", "contentType": "+2" }
+                            ],
+                            "artifacts": [
+                                { "filename": "test.zip", "downloadUrl": "https://example.com/test.zip", "isPrimary": true }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = await parser.ParseCatalogAsync(json);
+
+        result.Success.Should().BeFalse();
+        result.FirstError.Should().Contain("specifies invalid contentType");
+    }
+
+    /// <summary>
+    /// Verifies that JsonPublisherCatalogParser fails validation when dependency contentType is an undefined named string starting with a letter.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ParseCatalogAsync_DependencyDeclaringUndefinedNamedContentType_FailsValidationAsync()
+    {
+        var parser = new JsonPublisherCatalogParser(Mock.Of<ILogger<JsonPublisherCatalogParser>>());
+        var json = """
+        {
+            "schemaVersion": 1,
+            "publisher": { "id": "test-pub", "name": "Test Publisher" },
+            "content": [
+                {
+                    "id": "test-mod",
+                    "name": "Test Mod",
+                    "contentType": "Mod",
+                    "releases": [
+                        {
+                            "version": "1.0.0",
+                            "dependencies": [
+                                { "publisherId": "custom", "contentId": "other", "contentType": "NonExistentType" }
                             ],
                             "artifacts": [
                                 { "filename": "test.zip", "downloadUrl": "https://example.com/test.zip", "isPrimary": true }
@@ -585,7 +624,7 @@ public class GenericCatalogResolverTests
         {
             PublisherId = "custom",
             ContentId = "custom-addon",
-            ContentType = "99",
+            ContentType = "+2",
         };
         var parent = new CatalogContentItem
         {
