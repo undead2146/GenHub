@@ -956,20 +956,6 @@ public class SettingsViewModelTests
             .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([new ContentManifest { Name = "manifest-to-delete" }]));
     }
 
-    private SettingsViewModel CreateViewModel() => new(
-        _mockConfigService.Object,
-        _mockLogger.Object,
-        _mockCasService.Object,
-        _mockProfileManager.Object,
-        _mockWorkspaceManager.Object,
-        _mockManifestPool.Object,
-        _mockUpdateManager.Object,
-        _mockNotificationService.Object,
-        _mockConfigurationProvider.Object,
-        _mockInstallationService.Object,
-        _mockStorageLocationService.Object,
-        _mockUserDataTracker.Object,
-        _mockDialogService.Object);
 
     /// <summary>
     /// Verifies that LoadSubscriptionsCommand populates subscriptions from the store.
@@ -1049,7 +1035,7 @@ public class SettingsViewModelTests
 
         // Assert
         Assert.DoesNotContain(sub, viewModel.Subscriptions);
-        _mockNotificationService.Verify(n => n.ShowSuccess(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()), Times.Once);
+        _mockNotificationService.Verify(n => n.ShowSuccess(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<bool>()), Times.Once);
     }
 
     /// <summary>
@@ -1129,6 +1115,21 @@ public class SettingsViewModelTests
 
         // Assert
         mockRefresh.Verify(r => r.RefreshAllAsync(It.IsAny<CancellationToken>()), Times.Once);
-        _mockNotificationService.Verify(n => n.ShowSuccess(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()), Times.Once);
+        _mockNotificationService.Verify(n => n.ShowSuccess(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<bool>()), Times.Once);
     }
+
+    private SettingsViewModel CreateViewModel() => new(
+        _mockConfigService.Object,
+        _mockLogger.Object,
+        _mockCasService.Object,
+        _mockProfileManager.Object,
+        _mockWorkspaceManager.Object,
+        _mockManifestPool.Object,
+        _mockUpdateManager.Object,
+        _mockNotificationService.Object,
+        _mockConfigurationProvider.Object,
+        _mockInstallationService.Object,
+        _mockStorageLocationService.Object,
+        _mockUserDataTracker.Object,
+        _mockDialogService.Object);
 }
