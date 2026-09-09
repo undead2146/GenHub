@@ -2078,12 +2078,20 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             if (result.Success)
             {
                 subscription.TrustLevel = newTrust;
-                OnPropertyChanged(nameof(Subscriptions));
             }
+            else
+            {
+                _notificationService.ShowError("Error", $"Failed to update trust level: {result.FirstError}");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to update trust level");
+            _notificationService.ShowError("Error", "Failed to update trust level");
         }
     }
 
