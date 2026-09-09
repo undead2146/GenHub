@@ -1,7 +1,5 @@
-using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 using GenHub.Core.Constants;
 using GenHub.Core.Helpers;
 using GenHub.Core.Models.Enums;
@@ -13,7 +11,7 @@ namespace GenHub.Core.Models.Providers;
 /// Shared catalog identity helpers so discoverer search-result IDs, acquired manifest IDs,
 /// and declared dependency IDs are generated from the same inputs.
 /// </summary>
-public static partial class CatalogManifestIdentity
+public static class CatalogManifestIdentity
 {
     /// <summary>
     /// Builds a 5-segment publisher content ID from catalog coordinates.
@@ -167,12 +165,6 @@ public static partial class CatalogManifestIdentity
             if (int.TryParse(cleanVersion, out var intVersion) && intVersion >= 0)
             {
                 return intVersion;
-            }
-
-            var suffixedMatch = SuffixedDigitsRegex().Match(cleanVersion);
-            if (suffixedMatch.Success && int.TryParse(suffixedMatch.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var suffixedVersion) && suffixedVersion >= 0)
-            {
-                return suffixedVersion;
             }
         }
         catch (FormatException)
@@ -349,7 +341,4 @@ public static partial class CatalogManifestIdentity
 
         return false;
     }
-
-    [GeneratedRegex(@"^[a-zA-Z]+[._-]?(\d+)$")]
-    private static partial Regex SuffixedDigitsRegex();
 }

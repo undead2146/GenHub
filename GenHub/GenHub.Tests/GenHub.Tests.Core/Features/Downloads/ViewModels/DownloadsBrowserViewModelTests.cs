@@ -1252,6 +1252,80 @@ public class DownloadsBrowserViewModelTests
     }
 
     /// <summary>
+    /// Verifies that UpdateContentCommand falls back to downloading the target item when publisher reconciler reports no reconciliation.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task UpdateContentCommand_WhenPublisherReconcilerReturnsNoReconciliation_FallsBackToDownload()
+    {
+        // Arrange
+        var orchestratorMock = new Mock<IContentOrchestrator>();
+        var manifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.0.custom.mod.test"),
+            Name = "Custom Mod",
+            Version = "2.0.0",
+        };
+        string? acquiredId = null;
+        orchestratorMock
+            .Setup(o => o.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>?>(), It.IsAny<CancellationToken>()))
+            .Callback<ContentSearchResult, IProgress<ContentAcquisitionProgress>?, CancellationToken>((sr, _, _) => acquiredId = sr.Id)
+            .ReturnsAsync(OperationResult<ContentManifest>.CreateSuccess(manifest));
+
+        var reconcilerMock = new Mock<IPublisherReconciler>();
+        reconcilerMock
+            .Setup(r => r.CheckAndReconcileIfNeededAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(false));
+
+        var reconcilerRegistryMock = new Mock<IPublisherReconcilerRegistry>();
+        reconcilerRegistryMock
+            .Setup(r => r.GetReconciler("custom"))
+            .Returns(reconcilerMock.Object);
+
+        var viewModel = CreateViewModel(
+            orchestrator: orchestratorMock.Object,
+            reconcilerRegistry: reconcilerRegistryMock.Object);
+
+        var stateServiceMock = new Mock<IContentStateService>();
+        var loggerMock = new Mock<ILogger<ContentGridItemViewModel>>();
+        var targetSr = new ContentSearchResult
+        {
+            Id = "custom.mod.v2",
+            ProviderName = "custom",
+            Name = "Custom Mod v2",
+            Version = "2.0.0",
+        };
+        var targetVm = new ContentGridItemViewModel(targetSr, stateServiceMock.Object, loggerMock.Object);
+
+        var currentSr = new ContentSearchResult
+        {
+            Id = "custom.mod.v1",
+            ProviderName = "custom",
+            Name = "Custom Mod v1",
+            Version = "1.0.0",
+        };
+        var currentVm = new ContentGridItemViewModel(currentSr, stateServiceMock.Object, loggerMock.Object)
+        {
+            UpdateTargetVm = targetVm,
+        };
+
+        // Act
+        await viewModel.UpdateContentCommand.ExecuteAsync(currentVm);
+
+        // Assert: Reconciler was invoked but returned false, so fallback downloaded target VM
+        reconcilerMock.Verify(
+            r => r.CheckAndReconcileIfNeededAsync(string.Empty, It.IsAny<CancellationToken>()),
+            Times.Once);
+        Assert.Equal("custom.mod.v2", acquiredId);
+        orchestratorMock.Verify(
+            o => o.AcquireContentAsync(
+                It.IsAny<ContentSearchResult>(),
+                It.IsAny<IProgress<ContentAcquisitionProgress>?>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    /// <summary>
     /// Verifies that UpdateTargetVm is null when the selected variant is NotDownloaded,
     /// even if a sibling variant was downloaded (Kilo Code bot comment).
     /// </summary>

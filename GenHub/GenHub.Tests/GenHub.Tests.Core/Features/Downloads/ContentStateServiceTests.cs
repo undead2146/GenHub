@@ -2,6 +2,7 @@ using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
+using GenHub.Core.Models.Providers;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Results.Content;
 using GenHub.Features.Downloads.Services;
@@ -1394,6 +1395,22 @@ public class ContentStateServiceTests
         Assert.True(ContentStateService.CompareVersions("QFE2", "QFE10") < 0);
         Assert.True(ContentStateService.CompareVersions("QFE10", "QFE9") > 0);
         Assert.True(ContentStateService.CompareVersions("QFE9", "QFE10") < 0);
+    }
+
+    /// <summary>
+    /// Verifies that distinct alpha prefixes do not collapse onto the same numeric version segment in CatalogManifestIdentity.
+    /// </summary>
+    [Fact]
+    public void ExtractVersionNumber_DistinctAlphaPrefixes_DoNotCollideOntoSameNumericValue()
+    {
+        var idBeta2 = CatalogManifestIdentity.ExtractVersionNumber("beta2");
+        var idRc2 = CatalogManifestIdentity.ExtractVersionNumber("rc2");
+        var id2 = CatalogManifestIdentity.ExtractVersionNumber("2");
+
+        Assert.Equal(2, id2);
+        Assert.NotEqual(id2, idBeta2);
+        Assert.NotEqual(id2, idRc2);
+        Assert.NotEqual(idBeta2, idRc2);
     }
 
     /// <summary>

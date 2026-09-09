@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -462,6 +463,20 @@ public sealed partial class ContentStateService(
             return vA.CompareTo(vB);
         }
 
+        var matchA = PrefixedDigitsRegex().Match(cleanedA);
+        var matchB = PrefixedDigitsRegex().Match(cleanedB);
+        if (matchA.Success && matchB.Success)
+        {
+            var prefixA = matchA.Groups[1].Value;
+            var prefixB = matchB.Groups[1].Value;
+            if (string.Equals(prefixA, prefixB, StringComparison.OrdinalIgnoreCase) &&
+                int.TryParse(matchA.Groups[2].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var numA) &&
+                int.TryParse(matchB.Groups[2].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var numB))
+            {
+                return numA.CompareTo(numB);
+            }
+        }
+
         var aNum = CatalogManifestIdentity.ExtractVersionNumber(versionA);
         var bNum = CatalogManifestIdentity.ExtractVersionNumber(versionB);
         if (aNum > 0 && bNum > 0)
@@ -499,6 +514,21 @@ public sealed partial class ContentStateService(
         {
             isNewer = vP > vL;
             return true;
+        }
+
+        var matchP = PrefixedDigitsRegex().Match(cleanedP);
+        var matchL = PrefixedDigitsRegex().Match(cleanedL);
+        if (matchP.Success && matchL.Success)
+        {
+            var prefixP = matchP.Groups[1].Value;
+            var prefixL = matchL.Groups[1].Value;
+            if (string.Equals(prefixP, prefixL, StringComparison.OrdinalIgnoreCase) &&
+                int.TryParse(matchP.Groups[2].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var numP) &&
+                int.TryParse(matchL.Groups[2].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var numL))
+            {
+                isNewer = numP > numL;
+                return true;
+            }
         }
 
         var pNum = CatalogManifestIdentity.ExtractVersionNumber(prospectiveVersionStr);
@@ -1081,6 +1111,9 @@ public sealed partial class ContentStateService(
 
     [GeneratedRegex(@"\b(\d{4})[-.](\d{2})[-.](\d{2})\b", RegexOptions.CultureInvariant)]
     private static partial Regex IsoDateRegex();
+
+    [GeneratedRegex(@"^([a-zA-Z]+[._-]?)(\d+)$")]
+    private static partial Regex PrefixedDigitsRegex();
 
     private static DateTime? TryExtractDateFromContentItem(ContentSearchResult item)
     {

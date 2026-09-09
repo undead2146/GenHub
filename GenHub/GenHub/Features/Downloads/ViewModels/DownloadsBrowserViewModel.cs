@@ -1522,7 +1522,7 @@ public sealed partial class DownloadsBrowserViewModel(
 
         var targetItem = item.UpdateTargetVm ?? item;
         var publisherId = item.SearchResult?.ProviderName;
-        if ((string.IsNullOrEmpty(publisherId) || string.Equals(publisherId, "github", StringComparison.OrdinalIgnoreCase)) &&
+        if ((string.IsNullOrEmpty(publisherId) || ContentStateService.IsGitHubPublisher(publisherId)) &&
             item.SearchResult?.ResolverMetadata != null &&
             item.SearchResult.ResolverMetadata.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) &&
             !string.IsNullOrWhiteSpace(owner))
@@ -1552,8 +1552,6 @@ public sealed partial class DownloadsBrowserViewModel(
             {
                 logger.LogWarning("Reconciler failed for {PublisherId}: {Error}", publisherId, result.FirstError);
             }
-
-            return;
         }
 
         await DownloadContentAsync(targetItem, _vmCts.Token);
@@ -1566,31 +1564,60 @@ public sealed partial class DownloadsBrowserViewModel(
             return;
         }
 
-        await Task.WhenAll(items.Select(async item =>
+        using var throttler = new SemaphoreSlim(4);
+        var tasks = items.Select(async item =>
         {
             if (_disposed || _vmCts.IsCancellationRequested)
             {
                 return;
             }
 
-            item.ClearInactiveDownloadStatus();
             try
             {
-                await item.RefreshVariantStatesAsync().ConfigureAwait(false);
+                await throttler.WaitAsync(_vmCts.Token).ConfigureAwait(false);
             }
-            catch (Exception ex)
+            catch (OperationCanceledException)
             {
-                logger.LogDebug(ex, "Failed to refresh variant states for item {Id}", item.Id);
+                return;
             }
 
-            _ = item.EnsureIconsLoadedAsync();
-        })).ConfigureAwait(false);
+            try
+            {
+                item.ClearInactiveDownloadStatus();
+                try
+                {
+                    await item.RefreshVariantStatesAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogDebug(ex, "Failed to refresh variant states for item {Id}", item.Id);
+                }
+            }
+            finally
+            {
+                throttler.Release();
+            }
+        });
+
+        try
+        {
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
 
         RunOnUi(() =>
         {
             if (!_disposed && !_vmCts.IsCancellationRequested && SelectedPublisher?.PublisherId == publisherId)
             {
-                ReconcileReleaseUpdateStates(items);
+                foreach (var item in items)
+                {
+                    _ = item.EnsureIconsLoadedAsync();
+                }
+
+                ReconcileReleaseUpdateStates(ContentItems);
             }
         });
     }
