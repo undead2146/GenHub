@@ -1091,6 +1091,10 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Major Code Smell",
+        "S2325:Methods and properties that don't access instance data should be static",
+        Justification = "Kept as instance method to maintain member ordering and consistency.")]
     private void RunOnUiSafe(Action action)
     {
         if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess() || Avalonia.Application.Current == null)
@@ -1103,6 +1107,10 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Major Code Smell",
+        "S2325:Methods and properties that don't access instance data should be static",
+        Justification = "Accesses generated RelayCommand instance properties.")]
     private void NotifyDangerZoneCanExecuteChanged()
     {
         RunOnUiSafe(() =>
@@ -1571,21 +1579,17 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
                             var workspacePath = _storageLocationService.GetWorkspacePath(installation);
                             if (Directory.Exists(workspacePath))
                             {
-                                var subdirectories = Directory.GetDirectories(workspacePath);
-                                foreach (var dir in subdirectories)
+                                foreach (var dir in Directory.GetDirectories(workspacePath).Where(d => !trackedPaths.Contains(d)))
                                 {
-                                    if (!trackedPaths.Contains(dir))
+                                    _logger.LogInformation("Deleting orphaned adjacent workspace directory: {Path}", dir);
+                                    try
                                     {
-                                        _logger.LogInformation("Deleting orphaned adjacent workspace directory: {Path}", dir);
-                                        try
-                                        {
-                                            Directory.Delete(dir, true);
-                                            deletedCount++;
-                                        }
-                                        catch (Exception deleteEx)
-                                        {
-                                            _logger.LogDebug(deleteEx, "Failed to delete adjacent workspace directory {Path}", dir);
-                                        }
+                                        Directory.Delete(dir, true);
+                                        deletedCount++;
+                                    }
+                                    catch (Exception deleteEx)
+                                    {
+                                        _logger.LogDebug(deleteEx, "Failed to delete adjacent workspace directory {Path}", dir);
                                     }
                                 }
                             }
@@ -1602,23 +1606,19 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             var centralizedPath = Path.Combine(_configurationProvider.GetApplicationDataPath(), DirectoryNames.Workspaces);
             if (Directory.Exists(centralizedPath))
             {
-                var subdirectories = Directory.GetDirectories(centralizedPath);
-                foreach (var dir in subdirectories)
+                foreach (var dir in Directory.GetDirectories(centralizedPath).Where(d => !trackedPaths.Contains(d)))
                 {
                     try
                     {
-                        if (!trackedPaths.Contains(dir))
+                        _logger.LogInformation("Deleting orphaned centralized workspace directory: {Path}", dir);
+                        try
                         {
-                            _logger.LogInformation("Deleting orphaned centralized workspace directory: {Path}", dir);
-                            try
-                            {
-                                Directory.Delete(dir, true);
-                                deletedCount++;
-                            }
-                            catch (Exception deleteEx)
-                            {
-                                _logger.LogDebug(deleteEx, "Failed to delete workspace directory {Path}", dir);
-                            }
+                            Directory.Delete(dir, true);
+                            deletedCount++;
+                        }
+                        catch (Exception deleteEx)
+                        {
+                            _logger.LogDebug(deleteEx, "Failed to delete workspace directory {Path}", dir);
                         }
                     }
                     catch (Exception ex)
@@ -1633,23 +1633,19 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
                 !string.Equals(Path.GetFullPath(settings.WorkspacePath), Path.GetFullPath(centralizedPath), StringComparison.OrdinalIgnoreCase) &&
                 Directory.Exists(settings.WorkspacePath))
             {
-                var subdirectories = Directory.GetDirectories(settings.WorkspacePath);
-                foreach (var dir in subdirectories)
+                foreach (var dir in Directory.GetDirectories(settings.WorkspacePath).Where(d => !trackedPaths.Contains(d)))
                 {
                     try
                     {
-                        if (!trackedPaths.Contains(dir))
+                        _logger.LogInformation("Deleting orphaned custom workspace directory: {Path}", dir);
+                        try
                         {
-                            _logger.LogInformation("Deleting orphaned custom workspace directory: {Path}", dir);
-                            try
-                            {
-                                Directory.Delete(dir, true);
-                                deletedCount++;
-                            }
-                            catch (Exception deleteEx)
-                            {
-                                _logger.LogDebug(deleteEx, "Failed to delete custom workspace directory {Path}", dir);
-                            }
+                            Directory.Delete(dir, true);
+                            deletedCount++;
+                        }
+                        catch (Exception deleteEx)
+                        {
+                            _logger.LogDebug(deleteEx, "Failed to delete custom workspace directory {Path}", dir);
                         }
                     }
                     catch (Exception ex)

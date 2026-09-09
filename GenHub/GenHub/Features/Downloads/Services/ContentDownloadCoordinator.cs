@@ -79,52 +79,7 @@ public sealed class ContentDownloadCoordinator(
             return false;
         }
 
-        var key = GetDownloadKey(searchResult);
-        if (_inFlightDownloads.TryGetValue(key, out var inFlight) &&
-            !inFlight.InternalCts.IsCancellationRequested &&
-            !inFlight.Task.IsCompleted)
-        {
-            return true;
-        }
-
-        if (!string.IsNullOrWhiteSpace(searchResult.Name))
-        {
-            var nameKey = $"{searchResult.ProviderName}::{searchResult.Name}";
-            if (_inFlightDownloads.TryGetValue(nameKey, out inFlight) &&
-                !inFlight.InternalCts.IsCancellationRequested &&
-                !inFlight.Task.IsCompleted)
-            {
-                return true;
-            }
-        }
-
-        foreach (var download in _inFlightDownloads.Values)
-        {
-            if (download.InternalCts.IsCancellationRequested || download.Task.IsCompleted)
-            {
-                continue;
-            }
-
-            if (!string.IsNullOrEmpty(download.ParentContentId) &&
-                string.Equals(download.ParentContentId, searchResult.Id, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            if (download.SearchResult != null &&
-                DownloadMessageMatchHelper.Matches(
-                    null,
-                    download.SearchResult.Id,
-                    download.SearchResult.ProviderName,
-                    download.SearchResult.Name,
-                    searchResult,
-                    download.ParentContentId))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return FindInFlightDownload(searchResult) != null;
     }
 
     /// <inheritdoc />
@@ -138,59 +93,19 @@ public sealed class ContentDownloadCoordinator(
             return false;
         }
 
-        InFlightDownload? inFlight = null;
-        var key = GetDownloadKey(searchResult);
-        if (!_inFlightDownloads.TryGetValue(key, out inFlight) && !string.IsNullOrWhiteSpace(searchResult.Name))
+        var inFlight = FindInFlightDownload(searchResult);
+        if (inFlight == null)
         {
-            var nameKey = $"{searchResult.ProviderName}::{searchResult.Name}";
-            _inFlightDownloads.TryGetValue(nameKey, out inFlight);
+            return false;
         }
 
-        if (inFlight == null || inFlight.InternalCts.IsCancellationRequested || inFlight.Task.IsCompleted)
+        lock (inFlight.Lock)
         {
-            foreach (var download in _inFlightDownloads.Values)
-            {
-                if (download.InternalCts.IsCancellationRequested || download.Task.IsCompleted)
-                {
-                    continue;
-                }
-
-                if (!string.IsNullOrEmpty(download.ParentContentId) &&
-                    string.Equals(download.ParentContentId, searchResult.Id, StringComparison.OrdinalIgnoreCase))
-                {
-                    inFlight = download;
-                    break;
-                }
-
-                if (download.SearchResult != null &&
-                    DownloadMessageMatchHelper.Matches(
-                        null,
-                        download.SearchResult.Id,
-                        download.SearchResult.ProviderName,
-                        download.SearchResult.Name,
-                        searchResult,
-                        download.ParentContentId))
-                {
-                    inFlight = download;
-                    break;
-                }
-            }
+            progressPercentage = inFlight.LastProgressPercentage;
+            statusMessage = inFlight.LastStatusMessage;
         }
 
-        if (inFlight != null &&
-            !inFlight.InternalCts.IsCancellationRequested &&
-            !inFlight.Task.IsCompleted)
-        {
-            lock (inFlight.Lock)
-            {
-                progressPercentage = inFlight.LastProgressPercentage;
-                statusMessage = inFlight.LastStatusMessage;
-            }
-
-            return true;
-        }
-
-        return false;
+        return true;
     }
 
     /// <inheritdoc />
@@ -232,6 +147,32 @@ public sealed class ContentDownloadCoordinator(
             DecrementWaiterAndCancelIfEmpty(inFlight, ref unregistered);
             DetachProgressCallback(inFlight, callback);
         }
+    }
+
+    private static bool IsInFlightActive(InFlightDownload inFlight) =>
+        !inFlight.InternalCts.IsCancellationRequested && !inFlight.Task.IsCompleted;
+
+    private static bool MatchesInFlightDownload(InFlightDownload download, ContentSearchResult searchResult)
+    {
+        if (!IsInFlightActive(download))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrEmpty(download.ParentContentId) &&
+            string.Equals(download.ParentContentId, searchResult.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return download.SearchResult != null &&
+            DownloadMessageMatchHelper.Matches(
+                null,
+                download.SearchResult.Id,
+                download.SearchResult.ProviderName,
+                download.SearchResult.Name,
+                searchResult,
+                download.ParentContentId);
     }
 
     private static void IncrementWaiterCount(InFlightDownload inFlight)
@@ -304,6 +245,34 @@ public sealed class ContentDownloadCoordinator(
         {
             inFlight.ProgressCallbacks -= callback;
         }
+    }
+
+    private InFlightDownload? FindInFlightDownload(ContentSearchResult searchResult)
+    {
+        var key = GetDownloadKey(searchResult);
+        if (_inFlightDownloads.TryGetValue(key, out var inFlight) && IsInFlightActive(inFlight))
+        {
+            return inFlight;
+        }
+
+        if (!string.IsNullOrWhiteSpace(searchResult.Name))
+        {
+            var nameKey = $"{searchResult.ProviderName}::{searchResult.Name}";
+            if (_inFlightDownloads.TryGetValue(nameKey, out inFlight) && IsInFlightActive(inFlight))
+            {
+                return inFlight;
+            }
+        }
+
+        foreach (var download in _inFlightDownloads.Values)
+        {
+            if (MatchesInFlightDownload(download, searchResult))
+            {
+                return download;
+            }
+        }
+
+        return null;
     }
 
     private async Task<(InFlightDownload InFlight, bool IsInitiator)> GetOrCreateInFlightDownloadAsync(
