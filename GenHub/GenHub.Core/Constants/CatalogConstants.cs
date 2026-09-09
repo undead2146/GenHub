@@ -94,6 +94,16 @@ public static class CatalogConstants
     public const string CatalogReferralsJsonMetadataKey = "catalogReferralsJson";
 
     /// <summary>
+    /// Badge text for subscribed catalog publishers.
+    /// </summary>
+    public const string SubscribedCatalogPublisherBadge = "Subscribed Catalog Publisher";
+
+    /// <summary>
+    /// Badge text for official providers.
+    /// </summary>
+    public const string OfficialProviderBadge = "Official Provider";
+
+    /// <summary>
     /// Base game content ID for Command &amp; Conquer Generals.
     /// </summary>
     public const string GeneralsContentId = "generals";

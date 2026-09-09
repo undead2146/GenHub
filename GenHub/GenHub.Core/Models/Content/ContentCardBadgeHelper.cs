@@ -15,6 +15,36 @@ namespace GenHub.Core.Models.Content;
 /// </summary>
 public static partial class ContentCardBadgeHelper
 {
+    private static readonly string[] GitHubFallbackCovers =
+    [
+        "avares://GenHub/Assets/Covers/generals-cover-2.png",
+        "avares://GenHub/Assets/Covers/generals-cover.png",
+        "avares://GenHub/Assets/Covers/zerohour-cover.png",
+    ];
+
+    /// <summary>
+    /// Computes a deterministic cover URI for a GitHub repository owner using a stable FNV-1a hash.
+    /// Ensures all releases from the same repository owner share the same banner and remain stable across refreshes.
+    /// </summary>
+    /// <param name="owner">The repository owner name.</param>
+    /// <returns>A cover asset URI string.</returns>
+    public static string GetDeterministicGitHubCover(string? owner)
+    {
+        if (string.IsNullOrWhiteSpace(owner))
+        {
+            return GitHubFallbackCovers[0];
+        }
+
+        uint hash = 2166136261;
+        foreach (var c in owner.Trim().ToLowerInvariant())
+        {
+            hash ^= c;
+            hash *= 16777619;
+        }
+
+        return GitHubFallbackCovers[hash % (uint)GitHubFallbackCovers.Length];
+    }
+
     /// <summary>
     /// Applies a player-count value to search-result metadata and tags.
     /// </summary>
@@ -156,7 +186,7 @@ public static partial class ContentCardBadgeHelper
     }
 
     /// <summary>
-    /// Resolves the best card/detail thumbnail URL: banner, then first screenshot, then icon.
+    /// Resolves the best card/detail thumbnail URL: banner, then first screenshot, then publisher/repo fallback cover, then icon.
     /// Returns null when no thumbnail is present so cards can fall back to publisher logo placeholders cleanly.
     /// </summary>
     /// <param name="result">The search result.</param>
@@ -176,6 +206,31 @@ public static partial class ContentCardBadgeHelper
             return screenshot;
         }
 
+        if (IsGeneralsOnline(result))
+        {
+            return PublisherInfoConstants.GeneralsOnline.LogoSource;
+        }
+
+        if (IsCommunityOutpost(result))
+        {
+            return "avares://GenHub/Assets/Covers/gla-cover.png";
+        }
+
+        if (IsTheSuperHackers(result))
+        {
+            if (result.ContentType == ContentType.Patch)
+            {
+                return "avares://GenHub/Assets/Covers/gla-cover.png";
+            }
+
+            return "avares://GenHub/Assets/Covers/china-cover.png";
+        }
+
+        if (IsGitHub(result))
+        {
+            return GetDeterministicGitHubCover(GetGitHubOwner(result));
+        }
+
         if (!string.IsNullOrWhiteSpace(result.IconUrl))
         {
             return result.IconUrl;
@@ -192,6 +247,39 @@ public static partial class ContentCardBadgeHelper
     public static string? GetPublisherLogoUrl(ContentSearchResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
+
+        if (IsTheSuperHackers(result))
+        {
+            return PublisherInfoConstants.TheSuperHackers.LogoSource;
+        }
+
+        if (IsGeneralsOnline(result))
+        {
+            return PublisherInfoConstants.GeneralsOnline.LogoSource;
+        }
+
+        if (IsCommunityOutpost(result))
+        {
+            return PublisherInfoConstants.CommunityOutpost.LogoSource;
+        }
+
+        if (IsGitHub(result))
+        {
+            if (!string.IsNullOrWhiteSpace(result.IconUrl) &&
+                !result.IconUrl.Equals(PublisherInfoConstants.GitHub.LogoSource, StringComparison.OrdinalIgnoreCase))
+            {
+                return result.IconUrl;
+            }
+
+            var owner = GetGitHubOwner(result);
+            if (!string.IsNullOrWhiteSpace(owner))
+            {
+                return $"https://github.com/{Uri.EscapeDataString(owner)}.png";
+            }
+
+            return PublisherInfoConstants.GitHub.LogoSource;
+        }
+
         return PublisherInfoConstants.GetPublisherLogo(result.ProviderName, $"{result.AuthorName} {result.Id} {result.Name}");
     }
 
@@ -392,6 +480,70 @@ public static partial class ContentCardBadgeHelper
                 }
             }
         }
+    }
+
+    private static bool IsTheSuperHackers(ContentSearchResult result)
+    {
+        return (result.ProviderName?.Equals(PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.ProviderName?.Equals(SuperHackersConstants.PublisherName, StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.AuthorName?.Equals(SuperHackersConstants.PublisherName, StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.Id?.StartsWith("thesuperhackers.", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.Id?.StartsWith("1.thesuperhackers.", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.Id?.StartsWith("github.thesuperhackers.", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.VariantGroupId?.StartsWith("thesuperhackers.", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.VariantGroupId?.StartsWith("github.thesuperhackers.", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.ResolverMetadata?.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) == true &&
+                owner.Equals(PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsGeneralsOnline(ContentSearchResult result)
+    {
+        return (result.ProviderName?.Equals("GeneralsOnline", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.ProviderName?.Equals("Generals Online", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.Id?.StartsWith("generalsonline.", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.Id?.StartsWith("1.generalsonline.", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.AuthorName?.Equals("Generals Online", StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    private static bool IsCommunityOutpost(ContentSearchResult result)
+    {
+        return (result.ProviderName?.Equals("Community-Outpost", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.ProviderName?.Equals("Community Outpost", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.ProviderName?.Equals("CommunityOutpost", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.Id?.StartsWith("communityoutpost.", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.Id?.StartsWith("1.communityoutpost.", StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    private static bool IsGitHub(ContentSearchResult result)
+    {
+        return (result.ProviderName?.Equals("GitHub", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.ProviderName?.Contains("github", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.ResolverId?.Contains("github", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.Id?.StartsWith("github.", StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    private static string? GetGitHubOwner(ContentSearchResult result)
+    {
+        if (TryGetMetadata(result, GitHubConstants.OwnerMetadataKey, out var owner) && !string.IsNullOrWhiteSpace(owner))
+        {
+            return owner.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.Id) && result.Id.StartsWith("github.", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = result.Id.Split('.');
+            if (parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1]))
+            {
+                return parts[1].Trim();
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.AuthorName))
+        {
+            return result.AuthorName.Trim();
+        }
+
+        return null;
     }
 
     [GeneratedRegex(@"^(?:players?:)?(?<players>[1-8])\s*players?$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]

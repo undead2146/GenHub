@@ -1,52 +1,57 @@
 namespace GenHub.Core.Constants;
 
 /// <summary>
-/// Constants for the Settings feature sections and identifiers.
+/// Constants for settings navigation and sections.
 /// </summary>
 public static class SettingsConstants
 {
     /// <summary>
-    /// Section ID for Game Configuration.
+    /// Section ID for General settings.
     /// </summary>
-    public const string SectionGameConfig = "game-config";
+    public const string SectionGeneral = "general";
 
     /// <summary>
-    /// Section ID for Downloads.
+    /// Section ID for Content settings.
     /// </summary>
-    public const string SectionDownloads = "downloads";
+    public const string SectionContent = "content";
 
     /// <summary>
-    /// Section ID for Appearance.
+    /// Section ID for Profiles settings.
+    /// </summary>
+    public const string SectionProfiles = "profiles";
+
+    /// <summary>
+    /// Section ID for Launching settings.
+    /// </summary>
+    public const string SectionLaunching = "launching";
+
+    /// <summary>
+    /// Section ID for Storage settings.
+    /// </summary>
+    public const string SectionStorage = "storage";
+
+    /// <summary>
+    /// Section ID for Appearance settings.
     /// </summary>
     public const string SectionAppearance = "appearance";
 
     /// <summary>
-    /// Section ID for Data Directories.
+    /// Section ID for Diagnostics settings.
     /// </summary>
-    public const string SectionDataDirectories = "data-directories";
+    public const string SectionDiagnostics = "diagnostics";
 
     /// <summary>
-    /// Section ID for Logs.
+    /// Section ID for ModDB settings.
     /// </summary>
-    public const string SectionLogs = "logs";
+    public const string SectionModDb = "moddb";
 
     /// <summary>
-    /// Section ID for Performance.
+    /// Section ID for CNCLabs settings.
     /// </summary>
-    public const string SectionPerformance = "performance";
+    public const string SectionCncLabs = "cnclabs";
 
     /// <summary>
-    /// Section ID for Content-Addressable Storage (CAS).
-    /// </summary>
-    public const string SectionCas = "cas";
-
-    /// <summary>
-    /// Section ID for Local Content Directories.
-    /// </summary>
-    public const string SectionLocalContent = "local-content";
-
-    /// <summary>
-    /// Section ID for GitHub Discovery.
+    /// Section ID for GitHub Discovery settings.
     /// </summary>
     public const string SectionGitHubDiscovery = "github-discovery";
 
@@ -54,6 +59,11 @@ public static class SettingsConstants
     /// Section ID for Updates.
     /// </summary>
     public const string SectionUpdates = "updates";
+
+    /// <summary>
+    /// Section ID for Catalog Subscriptions.
+    /// </summary>
+    public const string SectionSubscriptions = "subscriptions";
 
     /// <summary>
     /// Section ID for Danger Zone.

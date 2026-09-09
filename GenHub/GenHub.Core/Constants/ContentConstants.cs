@@ -113,6 +113,11 @@ public static class ContentConstants
     public const string IncludesSummaryMetadataKey = "includesSummary";
 
     /// <summary>
+    /// Metadata key for referencing a parent content item ID (e.g. associating child releases/addons with their parent content).
+    /// </summary>
+    public const string ParentContentIdMetadataKey = "parentContentId";
+
+    /// <summary>
     /// Number of recent releases and addons to eagerly preload extended details for.
     /// </summary>
     public const int PreloadRecentItemsLimit = 5;
@@ -121,4 +126,29 @@ public static class ContentConstants
     /// Maximum concurrent background requests when preloading recent item details.
     /// </summary>
     public const int PreloadConcurrencyLimit = 3;
+
+    /// <summary>
+    /// Sidebar section title when content has required dependencies.
+    /// </summary>
+    public const string RequiresSectionTitle = "Requires";
+
+    /// <summary>
+    /// Sidebar section title when content bundles included items.
+    /// </summary>
+    public const string IncludesSectionTitle = "Includes";
+
+    /// <summary>
+    /// Category label for downloadable releases.
+    /// </summary>
+    public const string ReleaseCategory = "Release";
+
+    /// <summary>
+    /// Category label for downloadable addons.
+    /// </summary>
+    public const string AddonCategory = "Addon";
+
+    /// <summary>
+    /// Default fallback identifier used when synthesizing variant manifest IDs or missing publishers.
+    /// </summary>
+    public const string DefaultContentFallbackId = "content";
 }

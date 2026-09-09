@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -12,6 +13,7 @@ using GenHub.Core.Models.GeneralsOnline;
 using GenHub.Core.Models.Providers;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Results.Content;
+using GenHub.Core.Services.Providers.VersionSchemes;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Content.Services.GeneralsOnline;
@@ -74,9 +76,9 @@ public class GeneralsOnlineJsonCatalogParser(
                         dataElement.GetRawText(),
                         _jsonOptions);
 
-                    if (apiResponse != null && !string.IsNullOrEmpty(apiResponse.Version))
+                    if (apiResponse != null && (!string.IsNullOrWhiteSpace(apiResponse.Version) || !string.IsNullOrWhiteSpace(apiResponse.DownloadUrl)))
                     {
-                        release = CreateReleaseFromApiResponse(apiResponse);
+                        release = CreateReleaseFromApiResponse(apiResponse, logger);
                         logger.LogInformation(
                             "Parsed release from manifest.json: {Version}",
                             release.Version);
@@ -89,7 +91,7 @@ public class GeneralsOnlineJsonCatalogParser(
                 if (root.TryGetProperty("version", out var versionElement))
                 {
                     var version = versionElement.GetString();
-                    if (!string.IsNullOrEmpty(version))
+                    if (!string.IsNullOrWhiteSpace(version))
                     {
                         release = CreateReleaseFromVersion(version, provider);
                         logger.LogInformation(
@@ -135,21 +137,135 @@ public class GeneralsOnlineJsonCatalogParser(
     }
 
     /// <summary>
+    /// Resolves the canonical release version, preferring the payload package version from the download URL
+    /// (which reflects the actual binaries and preserves build tags like _EAC), falling back to the API version
+    /// when the URL does not yield a version.
+    /// </summary>
+    /// <param name="apiVersion">The version string from the API JSON response.</param>
+    /// <param name="downloadUrl">The download URL for the portable package.</param>
+    /// <param name="logger">Optional logger for diagnostic warnings.</param>
+    /// <returns>The resolved canonical version string.</returns>
+    internal static string ResolveReleaseVersion(string? apiVersion, string? downloadUrl, ILogger? logger = null)
+    {
+        var urlVersion = ExtractVersionFromUrl(downloadUrl);
+
+        if (string.IsNullOrWhiteSpace(urlVersion))
+        {
+            return !string.IsNullOrWhiteSpace(apiVersion) ? apiVersion : GeneralsOnlineConstants.UnknownVersion;
+        }
+
+        if (string.IsNullOrWhiteSpace(apiVersion))
+        {
+            return urlVersion;
+        }
+
+        if (!string.Equals(urlVersion, apiVersion, StringComparison.OrdinalIgnoreCase))
+        {
+            logger?.LogWarning(
+                "Generals Online URL package version '{UrlVersion}' diverges from API manifest version '{ApiVersion}'",
+                urlVersion,
+                apiVersion);
+        }
+
+        var urlHasQfe = urlVersion.Contains(GeneralsOnlineConstants.QfeMarkerPrefix, StringComparison.OrdinalIgnoreCase);
+        var apiHasQfe = apiVersion.Contains(GeneralsOnlineConstants.QfeMarkerPrefix, StringComparison.OrdinalIgnoreCase);
+
+        if (urlHasQfe && !apiHasQfe)
+        {
+            return urlVersion;
+        }
+
+        if (apiHasQfe && !urlHasQfe)
+        {
+            return apiVersion;
+        }
+
+        // Both are present and not empty.
+        // If the URL names an actual package, it represents the exact payload delivered to the user.
+        // We prefer urlVersion to preserve payload parity and build tags (e.g. _EAC).
+        var scheme = new MmddyyQfeVersionScheme();
+        if (scheme.TryParse(urlVersion, out _))
+        {
+            return urlVersion;
+        }
+
+        if (scheme.TryParse(apiVersion, out _))
+        {
+            return apiVersion;
+        }
+
+        return urlVersion;
+    }
+
+    /// <summary>
+    /// Extracts a version string from a Generals Online download URL or package filename.
+    /// e.g. "https://cdn.playgenerals.online/GeneralsOnline_portable_082826_QFE1.zip" -> "082826_QFE1".
+    /// </summary>
+    /// <param name="downloadUrl">The download URL or archive filename.</param>
+    /// <returns>The extracted version string, or null if not found.</returns>
+    internal static string? ExtractVersionFromUrl(string? downloadUrl)
+    {
+        if (string.IsNullOrWhiteSpace(downloadUrl))
+        {
+            return null;
+        }
+
+        string fileName;
+        try
+        {
+            if (Uri.TryCreate(downloadUrl, UriKind.Absolute, out var uri))
+            {
+                fileName = Path.GetFileNameWithoutExtension(uri.AbsolutePath);
+            }
+            else
+            {
+                var urlWithoutQuery = downloadUrl.Split('?')[0];
+                fileName = Path.GetFileNameWithoutExtension(urlWithoutQuery);
+            }
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+
+        var prefix = GeneralsOnlineConstants.PortableFilePrefix;
+        var prefixIndex = fileName.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+        if (prefixIndex >= 0)
+        {
+            var candidate = fileName[(prefixIndex + prefix.Length)..].Trim();
+            if (!string.IsNullOrEmpty(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Creates a GeneralsOnlineRelease from a full API response (manifest.json).
     /// </summary>
-    private static GeneralsOnlineRelease CreateReleaseFromApiResponse(GeneralsOnlineApiResponse apiResponse)
+    private static GeneralsOnlineRelease CreateReleaseFromApiResponse(GeneralsOnlineApiResponse apiResponse, ILogger? logger = null)
     {
-        var versionDate = ParseVersionDate(apiResponse.Version) ?? DateTime.UtcNow;
+        var version = ResolveReleaseVersion(apiResponse.Version, apiResponse.DownloadUrl, logger);
+        var versionDate = ParseVersionDate(version) ?? DateTime.UnixEpoch;
+        var changelog = apiResponse.ReleaseNotes;
+        if (string.IsNullOrWhiteSpace(changelog) ||
+            string.Equals(changelog.Trim(), "www.playgenerals.online", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(changelog.Trim(), "https://www.playgenerals.online", StringComparison.OrdinalIgnoreCase))
+        {
+            changelog = $"Generals Online {version}";
+        }
 
         return new GeneralsOnlineRelease
         {
-            Version = apiResponse.Version,
+            Version = version,
             VersionDate = versionDate,
             ReleaseDate = versionDate,
             PortableUrl = apiResponse.DownloadUrl,
             PortableSize = apiResponse.Size,
             Sha256 = apiResponse.Sha256,
-            Changelog = apiResponse.ReleaseNotes ?? $"Generals Online {apiResponse.Version}",
+            Changelog = changelog,
         };
     }
 
@@ -167,7 +283,7 @@ public class GeneralsOnlineJsonCatalogParser(
             Version = version,
             VersionDate = versionDate,
             ReleaseDate = versionDate,
-            PortableUrl = $"{releasesUrl}/GeneralsOnline_portable_{version}{GeneralsOnlineConstants.PortableExtension}",
+            PortableUrl = $"{releasesUrl}/{GeneralsOnlineConstants.PortableFilePrefix}{version}{GeneralsOnlineConstants.PortableExtension}",
             PortableSize = null, // Size unknown when using latest.txt fallback
             Changelog = $"Generals Online {version}",
         };
@@ -178,37 +294,12 @@ public class GeneralsOnlineJsonCatalogParser(
     /// </summary>
     private static DateTime? ParseVersionDate(string version)
     {
-        try
+        if (new MmddyyQfeVersionScheme().TryParse(version, out var parsed) && parsed.Components.Count >= 3)
         {
-            var parts = version.Split(
-                [GeneralsOnlineConstants.QfeSeparator],
-                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-            if (parts.Length < 1)
-            {
-                return null;
-            }
-
-            var datePart = parts[0];
-            if (datePart.Length != 6)
-            {
-                return null;
-            }
-
-            if (!int.TryParse(datePart[..2], out var month) ||
-                !int.TryParse(datePart.Substring(2, 2), out var day) ||
-                !int.TryParse(datePart[4..], out var yearSuffix))
-            {
-                return null;
-            }
-
-            var year = 2000 + yearSuffix;
-            return new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc);
+            return new DateTime((int)parsed.Components[0], (int)parsed.Components[1], (int)parsed.Components[2], 0, 0, 0, DateTimeKind.Utc);
         }
-        catch
-        {
-            return null;
-        }
+
+        return null;
     }
 
     /// <summary>
@@ -231,7 +322,7 @@ public class GeneralsOnlineJsonCatalogParser(
             TargetGame = provider.TargetGame ?? GameType.ZeroHour,
             ProviderName = provider.PublisherType,
             AuthorName = GeneralsOnlineConstants.PublisherName,
-            IconUrl = iconUrl ?? string.Empty,
+            IconUrl = !string.IsNullOrEmpty(iconUrl) ? iconUrl : PublisherInfoConstants.GeneralsOnline.LogoSource,
             LastUpdated = release.ReleaseDate,
             DownloadSize = release.PortableSize ?? 0,
             RequiresResolution = true,
