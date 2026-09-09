@@ -40,6 +40,23 @@ IInstallationPathResolver? pathResolver = null) : IGameInstallationService, IDis
     private ReadOnlyCollection<GameInstallation>? _cachedInstallations;
     private bool _disposed = false;
 
+    /// <inheritdoc/>
+    public IReadOnlyList<GameInstallation>? CachedInstallations
+    {
+        get
+        {
+            _cacheLock.Wait();
+            try
+            {
+                return _cachedInstallations;
+            }
+            finally
+            {
+                _cacheLock.Release();
+            }
+        }
+    }
+
     /// <summary>
     /// Gets a game installation by its ID.
     /// </summary>

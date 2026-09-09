@@ -52,6 +52,9 @@ namespace GenHub.Features.Downloads.ViewModels;
 /// <param name="logger">The logger.</param>
 /// <param name="closeAction">Optional action to invoke when the view should close.</param>
 /// <param name="variantSearchResults">Optional map of sibling variant search results.</param>
+/// <param name="updateTargetSearchResult">Optional search result targeted for an available update.</param>
+/// <param name="updateAction">Optional callback executing an update workflow.</param>
+/// <param name="isUpdateAvailable">Optional flag indicating if an update is available on open.</param>
 [SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "ContentDetailViewModel coordinates rich media, downloads, profile binding, and custom tabs.")]
 [SuppressMessage("Major Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Properties and methods access CommunityToolkit MVVM generated instance properties.")]
 [SuppressMessage("Critical Code Smell", "S3776:Cognitive Complexity of methods should not be too high", Justification = "Content detail ViewModel coordinates complex UI state, downloads, and multiple catalog sources.")]
@@ -68,7 +71,10 @@ public partial class ContentDetailViewModel(
     ILoggerFactory loggerFactory,
     ILogger<ContentDetailViewModel> logger,
     Action? closeAction = null,
-    IReadOnlyDictionary<string, ContentSearchResult>? variantSearchResults = null) : ObservableObject, IDisposable
+    IReadOnlyDictionary<string, ContentSearchResult>? variantSearchResults = null,
+    ContentSearchResult? updateTargetSearchResult = null,
+    Func<CancellationToken, Task>? updateAction = null,
+    bool? isUpdateAvailable = null) : ObservableObject, IDisposable
 {
     // ===== Constants =====
     private const string UnknownValue = "Unknown";
@@ -79,6 +85,9 @@ public partial class ContentDetailViewModel(
     private readonly object _preloadLock = new();
     private readonly CancellationTokenSource _cts = new();
     private readonly List<Task> _pendingRowStateTasks = [];
+    private readonly ContentSearchResult? _updateTargetSearchResult = updateTargetSearchResult;
+    private readonly Func<CancellationToken, Task>? _updateAction = updateAction;
+    private readonly bool _initialIsUpdateAvailable = isUpdateAvailable ?? (updateTargetSearchResult != null);
     private bool _disposed;
     private bool _userManuallySelectedDownloadableItem;
     private Action? _unsubscribeAxisHandlers;
@@ -1834,9 +1843,14 @@ public partial class ContentDetailViewModel(
         }
     }
 
-    private bool IsMatchingDownloadMessage(string contentKey, string? contentId, string? providerName, string? contentName)
+    private bool IsMatchingDownloadMessage(
+        string contentKey,
+        string? contentId,
+        string? providerName,
+        string? contentName,
+        string? parentContentId = null)
     {
-        var msg = new ContentDownloadStartedMessage(contentKey, contentId, providerName, contentName);
+        var msg = new ContentDownloadStartedMessage(contentKey, contentId, providerName, contentName, parentContentId);
         if (msg.Matches(searchResult))
         {
             return true;
@@ -1860,7 +1874,7 @@ public partial class ContentDetailViewModel(
 
     private void OnDownloadStarted(ContentDownloadStartedMessage message)
     {
-        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName))
+        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName, message.ParentContentId))
         {
             RunOnUiThread(() =>
             {
@@ -1873,7 +1887,7 @@ public partial class ContentDetailViewModel(
 
     private void OnDownloadProgress(ContentDownloadProgressMessage message)
     {
-        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName))
+        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName, message.ParentContentId))
         {
             RunOnUiThread(() =>
             {
@@ -1891,7 +1905,7 @@ public partial class ContentDetailViewModel(
 
     private void OnDownloadCompleted(ContentDownloadCompletedMessage message)
     {
-        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName))
+        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName, message.ParentContentId))
         {
             RunOnUiThread(() =>
             {
@@ -2143,7 +2157,8 @@ public partial class ContentDetailViewModel(
                 }
 
                 IsDownloaded = state is ContentState.Downloaded or ContentState.UpdateAvailable;
-                IsUpdateAvailable = state == ContentState.UpdateAvailable;
+                IsUpdateAvailable = state == ContentState.UpdateAvailable ||
+                    ((state == ContentState.Downloaded) && (_initialIsUpdateAvailable || _updateTargetSearchResult != null));
 
                 if (IsDownloaded && Releases.Count == 1 &&
                     (string.Equals(Releases[0].Name, searchResult.Name, StringComparison.OrdinalIgnoreCase) ||
@@ -2156,6 +2171,12 @@ public partial class ContentDetailViewModel(
                         Releases[0].DownloadedManifestId = searchResult.Id;
                     }
 
+                    RefreshSelectedTargetProperties();
+                }
+
+                if (SelectedDownloadableItem != null && SelectedDownloadableItem.IsDownloaded && IsUpdateAvailable)
+                {
+                    SelectedDownloadableItem.IsUpdateAvailable = true;
                     RefreshSelectedTargetProperties();
                 }
             });
@@ -2826,7 +2847,7 @@ public partial class ContentDetailViewModel(
 
         if (HasBundleComponents || searchResult.ContentType == ContentType.ContentBundle)
         {
-            releaseItem.DownloadCommand = new AsyncRelayCommand(() => DownloadBundleComponentsAsync(_cts.Token));
+            releaseItem.DownloadCommand = new AsyncRelayCommand(ct => DownloadBundleComponentsAsync(ct));
             releaseItem.AddToProfileCommand = new AsyncRelayCommand(() => AddToProfileAsync());
             releaseItem.IsDownloaded = AreBundleComponentsReadyForProfile;
         }
@@ -3129,6 +3150,99 @@ public partial class ContentDetailViewModel(
     }
 
     /// <summary>
+    /// Reconciles release states so older downloaded releases show update available
+    /// when a newer release is not downloaded.
+    /// </summary>
+    private void ReconcileReleases()
+    {
+        if (Releases.Count <= 1)
+        {
+            if (Releases.Count == 1 && (IsUpdateAvailable || _initialIsUpdateAvailable) && Releases[0].IsDownloaded)
+            {
+                Releases[0].IsUpdateAvailable = true;
+            }
+
+            return;
+        }
+
+        var newestRelease = Releases[0];
+        bool newestNeedsDownload = !newestRelease.IsDownloaded;
+
+        foreach (var rel in Releases)
+        {
+            if (rel.IsDownloaded && newestNeedsDownload && rel != newestRelease)
+            {
+                rel.IsUpdateAvailable = true;
+            }
+            else if (!newestNeedsDownload || rel == newestRelease)
+            {
+                rel.IsUpdateAvailable = false;
+            }
+        }
+
+        if (SelectedDownloadableItem is ReleaseItemViewModel selectedRel)
+        {
+            IsUpdateAvailable = selectedRel.IsUpdateAvailable;
+        }
+
+        RefreshSelectedTargetProperties();
+    }
+
+    /// <summary>
+    /// Command to update the content to the latest available release.
+    /// </summary>
+    [RelayCommand]
+    private async Task UpdateAsync(CancellationToken cancellationToken = default)
+    {
+        if (IsDownloading)
+        {
+            return;
+        }
+
+        if (_updateAction != null)
+        {
+            await _updateAction(cancellationToken);
+            IsUpdateAvailable = false;
+            if (SelectedDownloadableItem != null)
+            {
+                SelectedDownloadableItem.IsUpdateAvailable = false;
+            }
+
+            RefreshSelectedTargetProperties();
+            return;
+        }
+
+        if (_updateTargetSearchResult != null)
+        {
+            await ExecuteDownloadFlowAsync(_updateTargetSearchResult, cancellationToken);
+            IsUpdateAvailable = false;
+            IsDownloaded = true;
+            if (SelectedDownloadableItem != null)
+            {
+                SelectedDownloadableItem.IsUpdateAvailable = false;
+            }
+
+            RefreshSelectedTargetProperties();
+            return;
+        }
+
+        if (SelectedDownloadableItem is ReleaseItemViewModel rel && rel.IsUpdateAvailable)
+        {
+            var newerRelease = Releases.FirstOrDefault(r => !r.IsDownloaded && r != rel);
+            if (newerRelease?.File != null)
+            {
+                await DownloadReleaseAsync(newerRelease, newerRelease.File, cancellationToken);
+                rel.IsUpdateAvailable = false;
+                IsUpdateAvailable = false;
+                RefreshSelectedTargetProperties();
+                return;
+            }
+        }
+
+        await DownloadAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Command to download the main content or selected row target.
     /// </summary>
     [RelayCommand]
@@ -3178,7 +3292,11 @@ public partial class ContentDetailViewModel(
         var targets = BundleComponentViewModel.GetRequiredDownloadTargets(BundleComponents);
         if (targets.Count == 0)
         {
-            DownloadStatusMessage = "All selected content is already downloaded";
+            if (!_disposed)
+            {
+                DownloadStatusMessage = "All selected content is already downloaded";
+            }
+
             await RefreshBundleComponentStatesAsync();
             return;
         }
@@ -3191,13 +3309,16 @@ public partial class ContentDetailViewModel(
             foreach (var target in targets)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                DownloadStatusMessage = $"Downloading {target.Name} ({completed + 1}/{targets.Count})...";
+                if (!_disposed)
+                {
+                    DownloadStatusMessage = $"Downloading {target.Name} ({completed + 1}/{targets.Count})...";
+                }
 
                 var progress = new Progress<ContentAcquisitionProgress>(p =>
                 {
                     Dispatcher.UIThread.Post(() =>
                     {
-                        if (!IsDownloading)
+                        if (_disposed || !IsDownloading)
                         {
                             return;
                         }
@@ -3212,7 +3333,11 @@ public partial class ContentDetailViewModel(
                 var result = await downloadCoordinator.DownloadContentAsync(target, progress, cancellationToken);
                 if (!result.Success || result.Data == null)
                 {
-                    DownloadStatusMessage = result.FirstError ?? "Download failed";
+                    if (!_disposed)
+                    {
+                        DownloadStatusMessage = result.FirstError ?? "Download failed";
+                    }
+
                     return;
                 }
 
@@ -3222,6 +3347,11 @@ public partial class ContentDetailViewModel(
                 }
 
                 completed++;
+            }
+
+            if (_disposed)
+            {
+                return;
             }
 
             await RefreshBundleComponentStatesAsync();
@@ -3241,7 +3371,10 @@ public partial class ContentDetailViewModel(
         }
         finally
         {
-            IsDownloading = false;
+            if (!_disposed)
+            {
+                IsDownloading = false;
+            }
         }
     }
 
@@ -3249,11 +3382,21 @@ public partial class ContentDetailViewModel(
     {
         foreach (var component in BundleComponents)
         {
-            await component.RefreshStateAsync(contentStateService, _cts.Token);
+            await component.RefreshStateAsync(contentStateService, CancellationToken.None);
+        }
+
+        if (_disposed)
+        {
+            return;
         }
 
         await RunOnUiThreadAsync(() =>
         {
+            if (_disposed)
+            {
+                return;
+            }
+
             IsDownloaded = AreBundleComponentsReadyForProfile;
             if (HasBundleComponents)
             {
@@ -3325,7 +3468,7 @@ public partial class ContentDetailViewModel(
             {
                 Dispatcher.UIThread.Post(() =>
                 {
-                    if (!IsDownloading)
+                    if (_disposed || !IsDownloading)
                     {
                         return;
                     }
@@ -3346,6 +3489,11 @@ public partial class ContentDetailViewModel(
 
             var result = await downloadCoordinator.DownloadContentAsync(targetContent, progress, cancellationToken);
 
+            if (_disposed)
+            {
+                return;
+            }
+
             if (result.Success && result.Data != null)
             {
                 var manifest = result.Data;
@@ -3354,8 +3502,8 @@ public partial class ContentDetailViewModel(
                 UpdateDependencySummary(manifest);
 
                 // Only update the main search result and downloaded state if we were downloading the main content
-                // and it was not previously downloaded
-                if (targetContent == searchResult)
+                // or update target and it was not previously downloaded
+                if (targetContent == searchResult || (_updateTargetSearchResult != null && targetContent == _updateTargetSearchResult))
                 {
                     IsDownloaded = true;
 
@@ -3398,27 +3546,26 @@ public partial class ContentDetailViewModel(
         catch (OperationCanceledException ex)
         {
             logger.LogInformation(ex, "Download cancelled for: {Name}", targetContent.Name);
-            DownloadStatusMessage = "Download cancelled";
+            if (!_disposed)
+            {
+                DownloadStatusMessage = "Download cancelled";
+            }
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error downloading content: {Name}", targetContent.Name);
-            DownloadStatusMessage = $"Error: {ex.Message}";
+            if (!_disposed)
+            {
+                DownloadStatusMessage = $"Error: {ex.Message}";
+            }
         }
         finally
         {
-            IsDownloading = false;
+            if (!_disposed)
+            {
+                IsDownloading = false;
+            }
         }
-    }
-
-    /// <summary>
-    /// Command to update the content (download newer version).
-    /// </summary>
-    [RelayCommand]
-    private async Task UpdateAsync(CancellationToken cancellationToken = default)
-    {
-        // Update uses the same download flow as initial download
-        await DownloadAsync(cancellationToken);
     }
 
     /// <summary>
@@ -3554,13 +3701,15 @@ public partial class ContentDetailViewModel(
 
         try
         {
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
-            var effectiveToken = linkedCts.Token;
-
             await DownloadFileCoreAsync(
                 file,
                 manifest =>
                 {
+                    if (_disposed)
+                    {
+                        return;
+                    }
+
                     releaseItem.DownloadedManifestId = manifest.Id.Value;
                     releaseItem.IsDownloaded = true;
                     if (ReferenceEquals(SelectedDownloadableItem, releaseItem))
@@ -3568,14 +3717,17 @@ public partial class ContentDetailViewModel(
                         RefreshSelectedTargetProperties();
                     }
                 },
-                effectiveToken);
+                cancellationToken);
         }
         finally
         {
-            releaseItem.IsDownloading = false;
-            if (ReferenceEquals(SelectedDownloadableItem, releaseItem))
+            if (!_disposed)
             {
-                RefreshSelectedTargetProperties();
+                releaseItem.IsDownloading = false;
+                if (ReferenceEquals(SelectedDownloadableItem, releaseItem))
+                {
+                    RefreshSelectedTargetProperties();
+                }
             }
         }
     }
@@ -3590,13 +3742,15 @@ public partial class ContentDetailViewModel(
 
         try
         {
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
-            var effectiveToken = linkedCts.Token;
-
             await DownloadFileCoreAsync(
                 file,
                 manifest =>
                 {
+                    if (_disposed)
+                    {
+                        return;
+                    }
+
                     addonItem.DownloadedManifestId = manifest.Id.Value;
                     addonItem.IsDownloaded = true;
                     if (ReferenceEquals(SelectedDownloadableItem, addonItem))
@@ -3604,14 +3758,17 @@ public partial class ContentDetailViewModel(
                         RefreshSelectedTargetProperties();
                     }
                 },
-                effectiveToken);
+                cancellationToken);
         }
         finally
         {
-            addonItem.IsDownloading = false;
-            if (ReferenceEquals(SelectedDownloadableItem, addonItem))
+            if (!_disposed)
             {
-                RefreshSelectedTargetProperties();
+                addonItem.IsDownloading = false;
+                if (ReferenceEquals(SelectedDownloadableItem, addonItem))
+                {
+                    RefreshSelectedTargetProperties();
+                }
             }
         }
     }
@@ -3655,6 +3812,7 @@ public partial class ContentDetailViewModel(
                 row.DownloadedManifestId = manifestId;
                 row.IsDownloaded = state is ContentState.Downloaded or ContentState.UpdateAvailable;
                 row.IsUpdateAvailable = state == ContentState.UpdateAvailable;
+                ReconcileReleases();
                 if (ReferenceEquals(SelectedDownloadableItem, row))
                 {
                     RefreshSelectedTargetProperties();

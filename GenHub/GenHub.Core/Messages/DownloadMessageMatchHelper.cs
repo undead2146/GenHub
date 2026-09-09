@@ -17,17 +17,26 @@ public static class DownloadMessageMatchHelper
     /// <param name="providerName">The message provider name.</param>
     /// <param name="contentName">The message content name.</param>
     /// <param name="item">The search result to match.</param>
+    /// <param name="parentContentId">Optional parent content ID for child release/addon downloads.</param>
     /// <returns>True if the message matches the item; otherwise, false.</returns>
     public static bool Matches(
         string? contentKey,
         string? contentId,
         string? providerName,
         string? contentName,
-        ContentSearchResult? item)
+        ContentSearchResult? item,
+        string? parentContentId = null)
     {
         if (item == null)
         {
             return false;
+        }
+
+        if (!string.IsNullOrEmpty(parentContentId) &&
+            (string.Equals(parentContentId, item.Id, StringComparison.OrdinalIgnoreCase) ||
+             (item.Variants != null && item.Variants.Any(v => string.Equals(parentContentId, v.ManifestId, StringComparison.OrdinalIgnoreCase)))))
+        {
+            return true;
         }
 
         if (MatchesContentKey(contentKey, item))

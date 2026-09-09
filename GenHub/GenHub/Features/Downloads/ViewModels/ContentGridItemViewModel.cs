@@ -462,9 +462,14 @@ public sealed partial class ContentGridItemViewModel(
         }
     }
 
-    private bool IsMatchingDownloadMessage(string contentKey, string? contentId, string? providerName, string? contentName)
+    private bool IsMatchingDownloadMessage(
+        string contentKey,
+        string? contentId,
+        string? providerName,
+        string? contentName,
+        string? parentContentId = null)
     {
-        var msg = new ContentDownloadStartedMessage(contentKey, contentId, providerName, contentName);
+        var msg = new ContentDownloadStartedMessage(contentKey, contentId, providerName, contentName, parentContentId);
         if (msg.Matches(SearchResult))
         {
             return true;
@@ -488,7 +493,7 @@ public sealed partial class ContentGridItemViewModel(
 
     private void OnDownloadStarted(ContentDownloadStartedMessage message)
     {
-        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName))
+        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName, message.ParentContentId))
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
@@ -501,7 +506,7 @@ public sealed partial class ContentGridItemViewModel(
 
     private void OnDownloadProgress(ContentDownloadProgressMessage message)
     {
-        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName))
+        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName, message.ParentContentId))
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
@@ -519,7 +524,7 @@ public sealed partial class ContentGridItemViewModel(
 
     private void OnDownloadCompleted(ContentDownloadCompletedMessage message)
     {
-        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName))
+        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName, message.ParentContentId))
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
@@ -527,6 +532,10 @@ public sealed partial class ContentGridItemViewModel(
                 if (!message.Success && !string.IsNullOrEmpty(message.ErrorMessage))
                 {
                     DownloadStatus = $"Error: {message.ErrorMessage}";
+                }
+                else
+                {
+                    DownloadStatus = string.Empty;
                 }
             });
         }
@@ -667,9 +676,16 @@ public sealed partial class ContentGridItemViewModel(
 
             if (isForThisContent && !HasBundleComponents)
             {
-                CurrentState = e.NewState;
+                if (e.NewState == ContentState.Downloaded && UpdateTargetVm != null && !UpdateTargetVm.IsDownloaded)
+                {
+                    CurrentState = ContentState.UpdateAvailable;
+                }
+                else
+                {
+                    CurrentState = e.NewState;
+                }
 
-                switch (e.NewState)
+                switch (CurrentState)
                 {
                     case ContentState.Downloaded:
                     case ContentState.UpdateAvailable:
@@ -685,7 +701,7 @@ public sealed partial class ContentGridItemViewModel(
                         break;
                 }
 
-                logger.LogDebug("Content state updated for {ContentId}: {State}", e.ContentId, e.NewState);
+                logger.LogDebug("Content state updated for {ContentId}: {State}", e.ContentId, CurrentState);
             }
         });
     }
@@ -901,7 +917,15 @@ public sealed partial class ContentGridItemViewModel(
         try
         {
             var mainState = await contentStateService.GetStateAsync(SearchResult);
-            CurrentState = mainState;
+            if (mainState == ContentState.Downloaded && UpdateTargetVm != null && !UpdateTargetVm.IsDownloaded)
+            {
+                CurrentState = ContentState.UpdateAvailable;
+            }
+            else
+            {
+                CurrentState = mainState;
+            }
+
             IsDownloaded = mainState is ContentState.Downloaded or ContentState.UpdateAvailable;
         }
         catch (Exception ex)
@@ -912,6 +936,10 @@ public sealed partial class ContentGridItemViewModel(
         foreach (var variant in Variants)
         {
             await RefreshSingleVariantStateAsync(variant);
+            if (variant.CurrentState == ContentState.Downloaded && UpdateTargetVm != null && !UpdateTargetVm.IsDownloaded)
+            {
+                variant.CurrentState = ContentState.UpdateAvailable;
+            }
         }
 
         NotifyStateChanged();

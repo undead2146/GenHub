@@ -51,6 +51,12 @@
             <Setter Property="MaxHeight" Value="560" />
         </Style>
 
+        <Style Selector="Border.content-card.has-update">
+            <Setter Property="Height" Value="NaN" />
+            <Setter Property="MinHeight" Value="340" />
+            <Setter Property="MaxHeight" Value="400" />
+        </Style>
+
         <Style Selector="Border.content-card:pointerover">
             <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="BoxShadow" Value="0 10 28 0 #60000000" />
@@ -165,7 +171,7 @@
         </Style>
     </UserControl.Styles>
 
-    <Border Classes="content-card" Classes.bundle-card="{Binding HasBundleComponents}">
+    <Border Classes="content-card" Classes.bundle-card="{Binding HasBundleComponents}" Classes.has-update="{Binding ShowUpdateButton}">
         <Panel>
             <!-- 1. Acrylic blur -->
             <ExperimentalAcrylicBorder CornerRadius="12" IsHitTestVisible="False">

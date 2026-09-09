@@ -191,6 +191,7 @@ public sealed partial class DownloadsBrowserViewModel(
         {
             Publishers = CreateBuiltInPublishers();
             InitializeFilterViewModels();
+            contentStateService.ContentStateChanged += OnContentStateChanged;
             _builtInPublishersInitialized = true;
         }
 
@@ -229,6 +230,11 @@ public sealed partial class DownloadsBrowserViewModel(
         if (!_disposed)
         {
             // Unsubscribe from event handlers
+            if (_builtInPublishersInitialized)
+            {
+                contentStateService.ContentStateChanged -= OnContentStateChanged;
+            }
+
             if (CurrentFilterViewModel != null)
             {
                 CurrentFilterViewModel.FiltersApplied -= OnFiltersApplied;
@@ -915,6 +921,11 @@ public sealed partial class DownloadsBrowserViewModel(
         CurrentPage = 1;
         Interlocked.Increment(ref _activeRequestId);
         _ = RefreshContentAsync();
+    }
+
+    private void OnContentStateChanged(object? sender, ContentStateChangedEventArgs e)
+    {
+        RunOnUi(() => ReconcileReleaseUpdateStates(ContentItems));
     }
 
     [RelayCommand]
@@ -1681,7 +1692,10 @@ public sealed partial class DownloadsBrowserViewModel(
                 loggerFactory,
                 contentLogger,
                 CloseDetail,
-                item.VariantSearchResults);
+                item.VariantSearchResults,
+                updateTargetSearchResult: item.UpdateTargetVm?.SearchResult,
+                updateAction: async ct => await UpdateContentAsync(item),
+                isUpdateAvailable: item.CurrentState == ContentState.UpdateAvailable);
 
             if (item.HasBundleComponents)
             {
@@ -1989,7 +2003,7 @@ public sealed partial class DownloadsBrowserViewModel(
         logger.LogInformation("Successfully downloaded and stored content: {ManifestId}", manifest.Id.Value);
 
         item.DownloadProgress = 100;
-        item.DownloadStatus = "Download complete!";
+        item.DownloadStatus = string.Empty;
 
         // Remember the pre-download catalog ID before rewriting SearchResult.Id so
         // variant dropdown matching and ContentStateService session maps stay keyed

@@ -11,7 +11,8 @@ public sealed record ContentDownloadCompletedMessage(
     string? ProviderName,
     string? ContentName,
     bool Success,
-    string? ErrorMessage = null)
+    string? ErrorMessage = null,
+    string? ParentContentId = null)
 {
     /// <summary>
     /// Checks whether this download message matches the specified content item.
@@ -19,5 +20,5 @@ public sealed record ContentDownloadCompletedMessage(
     /// <param name="item">The search result to match.</param>
     /// <returns>True if the message matches the item; otherwise false.</returns>
     public bool Matches(ContentSearchResult? item) =>
-        DownloadMessageMatchHelper.Matches(ContentKey, ContentId, ProviderName, ContentName, item);
+        DownloadMessageMatchHelper.Matches(ContentKey, ContentId, ProviderName, ContentName, item, ParentContentId);
 }

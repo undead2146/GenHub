@@ -11,7 +11,8 @@ public sealed record ContentDownloadProgressMessage(
     string? ProviderName,
     string? ContentName,
     double ProgressPercentage,
-    string StatusMessage)
+    string StatusMessage,
+    string? ParentContentId = null)
 {
     /// <summary>
     /// Checks whether this download message matches the specified content item.
@@ -19,5 +20,5 @@ public sealed record ContentDownloadProgressMessage(
     /// <param name="item">The search result to match.</param>
     /// <returns>True if the message matches the item; otherwise false.</returns>
     public bool Matches(ContentSearchResult? item) =>
-        DownloadMessageMatchHelper.Matches(ContentKey, ContentId, ProviderName, ContentName, item);
+        DownloadMessageMatchHelper.Matches(ContentKey, ContentId, ProviderName, ContentName, item, ParentContentId);
 }

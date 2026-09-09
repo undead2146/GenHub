@@ -1476,6 +1476,110 @@ public sealed class ContentDetailViewModelTests
         Assert.False(viewModel.IsDownloading);
     }
 
+    /// <summary>
+    /// Verifies that UpdateCommand executes the update action, clears update availability, and updates ShowUpdateButton.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task UpdateCommand_WhenUpdateActionProvided_ExecutesUpdateActionAndClearsUpdateAvailableAsync()
+    {
+        // Arrange
+        var searchResult = new ContentSearchResult
+        {
+            Id = "weekly-2026-08-21",
+            Name = "GeneralsGameCode weekly-2026-08-21",
+            ProviderName = PublisherTypeConstants.TheSuperHackers,
+        };
+        var coordinator = new Mock<IContentDownloadCoordinator>();
+        var stateService = new Mock<IContentStateService>();
+        stateService.Setup(s => s.GetStateAsync(searchResult, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ContentState.Downloaded);
+
+        var updateExecuted = false;
+        var viewModel = CreateViewModel(
+            searchResult,
+            coordinator.Object,
+            contentStateService: stateService.Object,
+            updateAction: ct =>
+            {
+                updateExecuted = true;
+                return Task.CompletedTask;
+            },
+            isUpdateAvailable: true);
+
+        viewModel.Initialize();
+        await viewModel.WaitForInitializationAsync();
+
+        // Assert initial update state
+        Assert.True(viewModel.IsUpdateAvailable);
+        Assert.True(viewModel.ShowUpdateButton);
+
+        // Act
+        await viewModel.UpdateCommand.ExecuteAsync(null);
+
+        // Assert
+        Assert.True(updateExecuted);
+        Assert.False(viewModel.IsUpdateAvailable);
+        Assert.False(viewModel.ShowUpdateButton);
+    }
+
+    /// <summary>
+    /// Verifies that ReconcileReleases marks older downloaded releases with IsUpdateAvailable when a newer release is not downloaded.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ReconcileReleases_WhenOlderReleaseDownloadedAndNewerNotDownloaded_MarksUpdateAvailable()
+    {
+        // Arrange
+        var searchResult = new ContentSearchResult
+        {
+            Id = "mod-parent",
+            Name = "Test Mod",
+            ProviderName = "ModDB",
+        };
+        var fileNewer = new DownloadableFile(
+            Name: "Test Mod v2.0",
+            DownloadUrl: "https://example.com/v2.zip",
+            ReleaseDate: new DateTime(2026, 9, 1),
+            FileSectionType: FileSectionType.Downloads);
+        var fileOlder = new DownloadableFile(
+            Name: "Test Mod v1.0",
+            DownloadUrl: "https://example.com/v1.zip",
+            ReleaseDate: new DateTime(2026, 8, 1),
+            FileSectionType: FileSectionType.Downloads);
+
+        var stateService = new Mock<IContentStateService>();
+        stateService.Setup(s => s.GetStateAsync(It.Is<ContentSearchResult>(r => r.SelectedDownloadUrl == "https://example.com/v2.zip"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ContentState.NotDownloaded);
+        stateService.Setup(s => s.GetStateAsync(It.Is<ContentSearchResult>(r => r.SelectedDownloadUrl == "https://example.com/v1.zip"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ContentState.Downloaded);
+        stateService.Setup(s => s.GetLocalManifestIdAsync(It.Is<ContentSearchResult>(r => r.SelectedDownloadUrl == "https://example.com/v1.zip"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("1.20260801.test.mod.test");
+
+        var coordinator = new Mock<IContentDownloadCoordinator>();
+        var viewModel = CreateViewModel(searchResult, coordinator.Object, contentStateService: stateService.Object);
+
+        // Act
+        viewModel.PopulateReleases([fileNewer, fileOlder]);
+        await viewModel.WaitForRowStateResolutionsAsync();
+
+        // Assert
+        Assert.Equal(2, viewModel.Releases.Count);
+        var newerRel = viewModel.Releases[0];
+        var olderRel = viewModel.Releases[1];
+
+        Assert.False(newerRel.IsDownloaded);
+        Assert.False(newerRel.IsUpdateAvailable);
+
+        Assert.True(olderRel.IsDownloaded);
+        Assert.True(olderRel.IsUpdateAvailable);
+
+        viewModel.SelectDownloadableItemCommand.Execute(olderRel);
+        Assert.True(viewModel.ShowUpdateButton);
+        Assert.True(viewModel.ShowAddToProfileButton);
+        Assert.False(viewModel.ShowDownloadButton);
+    }
+
     private static CapturingContentDetailViewModel CreateViewModel(
         ContentSearchResult searchResult,
         IContentDownloadCoordinator downloadCoordinator,
@@ -1483,7 +1587,10 @@ public sealed class ContentDetailViewModelTests
         INotificationService? notificationService = null,
         IReadOnlyDictionary<string, ContentSearchResult>? variantSearchResults = null,
         IReadOnlyList<IWebPageParser>? parsers = null,
-        IContentStateService? contentStateService = null)
+        IContentStateService? contentStateService = null,
+        ContentSearchResult? updateTargetSearchResult = null,
+        Func<CancellationToken, Task>? updateAction = null,
+        bool? isUpdateAvailable = null)
     {
         if (contentStateService == null)
         {
@@ -1509,7 +1616,10 @@ public sealed class ContentDetailViewModelTests
             manifestPool ?? new Mock<IContentManifestPool>().Object,
             new Mock<ILoggerFactory>().Object,
             new Mock<ILogger<ContentDetailViewModel>>().Object,
-            variantSearchResults: variantSearchResults);
+            variantSearchResults: variantSearchResults,
+            updateTargetSearchResult: updateTargetSearchResult,
+            updateAction: updateAction,
+            isUpdateAvailable: isUpdateAvailable);
     }
 
     private sealed class CapturingContentDetailViewModel(
@@ -1524,7 +1634,10 @@ public sealed class ContentDetailViewModelTests
         IContentManifestPool manifestPool,
         ILoggerFactory loggerFactory,
         ILogger<ContentDetailViewModel> logger,
-        IReadOnlyDictionary<string, ContentSearchResult>? variantSearchResults = null)
+        IReadOnlyDictionary<string, ContentSearchResult>? variantSearchResults = null,
+        ContentSearchResult? updateTargetSearchResult = null,
+        Func<CancellationToken, Task>? updateAction = null,
+        bool? isUpdateAvailable = null)
         : ContentDetailViewModel(
             searchResult,
             parsers,
@@ -1537,7 +1650,10 @@ public sealed class ContentDetailViewModelTests
             manifestPool,
             loggerFactory,
             logger,
-            variantSearchResults: variantSearchResults)
+            variantSearchResults: variantSearchResults,
+            updateTargetSearchResult: updateTargetSearchResult,
+            updateAction: updateAction,
+            isUpdateAvailable: isUpdateAvailable)
     {
         /// <summary>
         /// Gets the manifest ID sent to the profile selection flow.
@@ -1613,5 +1729,66 @@ public sealed class ContentDetailViewModelTests
 
         // Assert
         Assert.Equal(localManifestId, viewModel.ProfileManifestId);
+    }
+
+    /// <summary>
+    /// Verifies that disposing ContentDetailViewModel while a download is in-flight
+    /// does not cancel the download operation in ContentDownloadCoordinator.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task Dispose_WhileDownloadInFlight_DoesNotCancelCoordinatorDownloadAsync()
+    {
+        // Arrange
+        var item = new ContentSearchResult
+        {
+            Id = "test-download-item",
+            Name = "Test Item",
+            ProviderName = "ModDB",
+            ContentType = ContentType.Mod,
+        };
+
+        var downloadStartedTcs = new TaskCompletionSource<bool>();
+        var tcsCompleteDownload = new TaskCompletionSource<OperationResult<ContentManifest>>();
+        var coordinator = new Mock<IContentDownloadCoordinator>();
+
+        coordinator
+            .Setup(c => c.DownloadContentAsync(
+                It.Is<ContentSearchResult>(sr => sr.Id == item.Id),
+                It.IsAny<IProgress<ContentAcquisitionProgress>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<ContentSearchResult, IProgress<ContentAcquisitionProgress>, CancellationToken>((_, _, ct) =>
+            {
+                downloadStartedTcs.SetResult(true);
+                ct.Register(() => tcsCompleteDownload.TrySetCanceled(ct));
+                return tcsCompleteDownload.Task;
+            });
+
+        var viewModel = CreateViewModel(item, coordinator.Object);
+        viewModel.Initialize();
+
+        // Act
+        var downloadTask = viewModel.DownloadCommand.ExecuteAsync(null);
+        await downloadStartedTcs.Task;
+
+        // Dispose the viewmodel (simulating user navigating away or closing detail tab)
+        viewModel.Dispose();
+
+        // Assert: Verify cancellation was NOT requested on the coordinator token
+        Assert.False(tcsCompleteDownload.Task.IsCanceled);
+
+        // Complete the download successfully
+        var manifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.100.moddb.mod.testitem"),
+            Name = "Test Item",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+        };
+        tcsCompleteDownload.SetResult(OperationResult<ContentManifest>.CreateSuccess(manifest));
+
+        // Wait for downloadTask to finish without throwing
+        var ex = await Record.ExceptionAsync(() => downloadTask);
+        Assert.Null(ex);
     }
 }

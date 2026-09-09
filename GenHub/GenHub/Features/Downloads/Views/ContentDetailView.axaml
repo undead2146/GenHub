@@ -376,6 +376,10 @@
                                                                         IsVisible="{Binding HasVersion}">
                                                                     <TextBlock Text="{Binding Version}" FontSize="11" Foreground="{DynamicResource TextSecondary}" />
                                                                 </Border>
+                                                                <Border Background="{DynamicResource WarningBrush}" CornerRadius="4" Padding="6,2" VerticalAlignment="Center" Margin="0,0,6,2"
+                                                                        IsVisible="{Binding IsUpdateAvailable}">
+                                                                    <TextBlock Text="Update Available" FontSize="11" Foreground="White" FontWeight="SemiBold" />
+                                                                </Border>
                                                             </WrapPanel>
 
                                                             <!-- Subtitle metadata line -->
