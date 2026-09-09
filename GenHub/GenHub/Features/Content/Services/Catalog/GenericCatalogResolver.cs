@@ -749,7 +749,7 @@ public partial class GenericCatalogResolver(
         {
             foreach (var file in manifest.Files)
             {
-                if (artifactHashes.TryGetValue(file.RelativePath, out var hash))
+                if (artifactHashes.TryGetValue(file.RelativePath, out var hash) && !string.IsNullOrWhiteSpace(hash))
                 {
                     file.Hash = hash;
                 }
@@ -757,7 +757,8 @@ public partial class GenericCatalogResolver(
         }
         else if (primaryArtifact != null && !string.IsNullOrWhiteSpace(primaryArtifact.Sha256))
         {
-            var primaryFile = manifest.Files.FirstOrDefault();
+            var primaryFilename = SanitizeArtifactFilename(primaryArtifact, contentItem);
+            var primaryFile = manifest.Files.FirstOrDefault(f => string.Equals(f.RelativePath, primaryFilename, StringComparison.OrdinalIgnoreCase));
             if (primaryFile != null)
             {
                 primaryFile.Hash = primaryArtifact.Sha256;
