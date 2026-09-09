@@ -141,106 +141,13 @@ public sealed class ContentDownloadCoordinator(
         var key = GetDownloadKey(searchResult);
         Action<ContentAcquisitionProgress>? callback = progress != null ? progress.Report : null;
 
-        InFlightDownload inFlight;
-        bool isInitiator;
-
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            Task? previousCancelledTask = null;
-
-            lock (_inFlightDownloads)
-            {
-                if (_inFlightDownloads.TryGetValue(key, out var existing) && !existing.Task.IsCompleted)
-                {
-                    if (existing.InternalCts.IsCancellationRequested)
-                    {
-                        // The previous download was cancelled by its waiter(s) but is still unwinding.
-                        // Wait for it to complete outside the lock before launching a fresh acquire.
-                        previousCancelledTask = existing.Task;
-                    }
-                    else
-                    {
-                        // Existing active download: join it as a waiter
-                        inFlight = existing;
-                        isInitiator = false;
-                        lock (inFlight.Lock)
-                        {
-                            inFlight.WaiterCount++;
-                        }
-
-                        break;
-                    }
-                }
-                else
-                {
-                    inFlight = new InFlightDownload();
-                    isInitiator = true;
-                    _inFlightDownloads[key] = inFlight;
-                    lock (inFlight.Lock)
-                    {
-                        inFlight.WaiterCount++;
-                    }
-
-                    break;
-                }
-            }
-
-            if (previousCancelledTask != null)
-            {
-                try
-                {
-                    await previousCancelledTask.WaitAsync(cancellationToken);
-                }
-                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-                {
-                    // Previous task cancelled; proceed to retry in the loop to start a fresh acquire.
-                }
-                catch (Exception)
-                {
-                    // Previous task failed; proceed to retry in the loop to start a fresh acquire.
-                }
-            }
-        }
+        var (inFlight, isInitiator) = await GetOrCreateInFlightDownloadAsync(key, cancellationToken);
 
         AttachProgressCallback(inFlight, callback);
 
         if (isInitiator)
         {
-            var multiplexedProgress = new Progress<ContentAcquisitionProgress>(p =>
-            {
-                var status = p.FormatProgressStatus();
-                lock (inFlight.Lock)
-                {
-                    inFlight.LastProgressPercentage = p.ProgressPercentage;
-                    inFlight.LastStatusMessage = status;
-                }
-
-                Action<ContentAcquisitionProgress>? callbacks;
-                lock (inFlight.Lock)
-                {
-                    callbacks = inFlight.ProgressCallbacks;
-                }
-
-                callbacks?.Invoke(p);
-
-                try
-                {
-                    WeakReferenceMessenger.Default.Send(new ContentDownloadProgressMessage(
-                        key,
-                        searchResult.Id,
-                        searchResult.ProviderName,
-                        searchResult.Name,
-                        p.ProgressPercentage,
-                        status));
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "Failed to broadcast ContentDownloadProgressMessage for {Key}", key);
-                }
-            });
-
+            var multiplexedProgress = CreateMultiplexedProgress(inFlight, searchResult, key);
             _ = StartDownloadTaskAsync(inFlight, searchResult, key, multiplexedProgress);
         }
 
@@ -261,6 +168,30 @@ public sealed class ContentDownloadCoordinator(
             await reg.DisposeAsync();
             DecrementWaiterAndCancelIfEmpty(inFlight, ref unregistered);
             DetachProgressCallback(inFlight, callback);
+        }
+    }
+
+    private static void IncrementWaiterCount(InFlightDownload inFlight)
+    {
+        lock (inFlight.Lock)
+        {
+            inFlight.WaiterCount++;
+        }
+    }
+
+    private static async Task AwaitPreviousCancelledTaskAsync(Task task, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await task.WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Previous task cancelled; proceed to retry in the loop to start a fresh acquire.
+        }
+        catch (Exception)
+        {
+            // Previous task failed; proceed to retry in the loop to start a fresh acquire.
         }
     }
 
@@ -309,6 +240,89 @@ public sealed class ContentDownloadCoordinator(
         lock (inFlight.Lock)
         {
             inFlight.ProgressCallbacks -= callback;
+        }
+    }
+
+    private async Task<(InFlightDownload InFlight, bool IsInitiator)> GetOrCreateInFlightDownloadAsync(
+        string key,
+        CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            Task? previousCancelledTask = null;
+
+            lock (_inFlightDownloads)
+            {
+                if (_inFlightDownloads.TryGetValue(key, out var existing) && !existing.Task.IsCompleted)
+                {
+                    if (existing.InternalCts.IsCancellationRequested)
+                    {
+                        // The previous download was cancelled by its waiter(s) but is still unwinding.
+                        // Wait for it to complete outside the lock before launching a fresh acquire.
+                        previousCancelledTask = existing.Task;
+                    }
+                    else
+                    {
+                        // Existing active download: join it as a waiter
+                        IncrementWaiterCount(existing);
+                        return (existing, false);
+                    }
+                }
+                else
+                {
+                    var inFlight = new InFlightDownload();
+                    _inFlightDownloads[key] = inFlight;
+                    IncrementWaiterCount(inFlight);
+                    return (inFlight, true);
+                }
+            }
+
+            if (previousCancelledTask != null)
+            {
+                await AwaitPreviousCancelledTaskAsync(previousCancelledTask, cancellationToken);
+            }
+        }
+    }
+
+    private Progress<ContentAcquisitionProgress> CreateMultiplexedProgress(
+        InFlightDownload inFlight,
+        ContentSearchResult searchResult,
+        string key)
+    {
+        return new Progress<ContentAcquisitionProgress>(p =>
+        {
+            var status = p.FormatProgressStatus();
+            Action<ContentAcquisitionProgress>? callbacks;
+            lock (inFlight.Lock)
+            {
+                inFlight.LastProgressPercentage = p.ProgressPercentage;
+                inFlight.LastStatusMessage = status;
+                callbacks = inFlight.ProgressCallbacks;
+            }
+
+            callbacks?.Invoke(p);
+
+            BroadcastDownloadProgress(key, searchResult, p.ProgressPercentage, status);
+        });
+    }
+
+    private void BroadcastDownloadProgress(string key, ContentSearchResult searchResult, double progressPercentage, string status)
+    {
+        try
+        {
+            WeakReferenceMessenger.Default.Send(new ContentDownloadProgressMessage(
+                key,
+                searchResult.Id,
+                searchResult.ProviderName,
+                searchResult.Name,
+                progressPercentage,
+                status));
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to broadcast ContentDownloadProgressMessage for {Key}", key);
         }
     }
 

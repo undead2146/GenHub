@@ -1200,8 +1200,10 @@ public class DownloadsBrowserViewModelTests
             Name = "Custom Mod",
             Version = "1.0.0",
         };
+        string? acquiredId = null;
         orchestratorMock
             .Setup(o => o.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>?>(), It.IsAny<CancellationToken>()))
+            .Callback<ContentSearchResult, IProgress<ContentAcquisitionProgress>?, CancellationToken>((sr, _, _) => acquiredId = sr.Id)
             .ReturnsAsync(OperationResult<ContentManifest>.CreateSuccess(manifest));
 
         var reconcilerRegistryMock = new Mock<IPublisherReconcilerRegistry>();
@@ -1240,9 +1242,10 @@ public class DownloadsBrowserViewModelTests
         await viewModel.UpdateContentCommand.ExecuteAsync(currentVm);
 
         // Assert: Orchestrator downloaded the target VM
+        Assert.Equal("custom.mod.v2", acquiredId);
         orchestratorMock.Verify(
             o => o.AcquireContentAsync(
-                It.Is<ContentSearchResult>(s => s.Id == "custom.mod.v2"),
+                It.IsAny<ContentSearchResult>(),
                 It.IsAny<IProgress<ContentAcquisitionProgress>?>(),
                 It.IsAny<CancellationToken>()),
             Times.Once);

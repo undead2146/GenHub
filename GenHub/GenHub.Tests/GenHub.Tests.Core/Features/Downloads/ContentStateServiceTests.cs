@@ -1266,6 +1266,7 @@ public class ContentStateServiceTests
     /// ContentStateService correctly returns NotDownloaded because in multi-release feeds, each release is its own card
     /// and the prospective uninstalled card must not display UpdateAvailable.
     /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
     public async Task GetStateAsync_NewerSuperHackersRelease_ReturnsNotDownloadedAsync()
     {

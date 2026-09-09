@@ -3947,7 +3947,8 @@ public partial class ContentDetailViewModel(
             return;
         }
 
-        if (!IsDownloaded)
+        var resolvedManifestId = await ResolveDownloadedManifestIdAsync();
+        if (string.IsNullOrWhiteSpace(resolvedManifestId))
         {
             logger.LogWarning("Cannot add to profile: content not downloaded yet");
             notificationService.ShowWarning(ContentNotDownloadedTitle, "Please download the content before adding it to a profile.");
@@ -3957,7 +3958,7 @@ public partial class ContentDetailViewModel(
         logger.LogInformation("Add to Profile clicked for content: {Name}", Name);
 
         // Show profile selection dialog
-        await ShowProfileSelectionDialogAsync();
+        await ShowProfileSelectionDialogAsync(resolvedManifestId, searchResult.Name, searchResult.TargetGame);
     }
 
     /// <summary>

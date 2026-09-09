@@ -256,6 +256,7 @@ public sealed partial class ProfileSelectionViewModel(
         }
         catch (ObjectDisposedException)
         {
+            // Ignore if CTS is already disposed.
         }
 
         _cts.Dispose();
@@ -361,11 +362,11 @@ public sealed partial class ProfileSelectionViewModel(
                 WasSuccessful = false;
             }
         }
-        catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+        catch (OperationCanceledException ex) when (_cts.IsCancellationRequested)
         {
             WasCancelled = true;
             WasSuccessful = false;
-            logger.LogInformation("Adding content to profile '{ProfileName}' was cancelled", profile.Name);
+            logger.LogInformation(ex, "Adding content to profile '{ProfileName}' was cancelled", profile.Name);
         }
         catch (System.Exception ex)
         {
@@ -390,6 +391,7 @@ public sealed partial class ProfileSelectionViewModel(
         }
         catch (ObjectDisposedException)
         {
+            // Ignore if CTS is already disposed.
         }
 
         RequestClose?.Invoke(this, EventArgs.Empty);
@@ -465,11 +467,11 @@ public sealed partial class ProfileSelectionViewModel(
                 WasSuccessful = false;
             }
         }
-        catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+        catch (OperationCanceledException ex) when (_cts.IsCancellationRequested)
         {
             WasCancelled = true;
             WasSuccessful = false;
-            logger.LogInformation("Profile creation with content was cancelled");
+            logger.LogInformation(ex, "Profile creation with content was cancelled");
         }
         catch (System.Exception ex)
         {

@@ -1485,6 +1485,18 @@ public sealed class ContentDetailViewModelTests
         IReadOnlyList<IWebPageParser>? parsers = null,
         IContentStateService? contentStateService = null)
     {
+        if (contentStateService == null)
+        {
+            var defaultStateService = new Mock<IContentStateService>();
+            defaultStateService
+                .Setup(s => s.GetStateByManifestIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(ContentState.Downloaded);
+            defaultStateService
+                .Setup(s => s.GetLocalManifestIdAsync(It.IsAny<ContentSearchResult>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((ContentSearchResult sr, CancellationToken _) => sr.Id);
+            contentStateService = defaultStateService.Object;
+        }
+
         return new CapturingContentDetailViewModel(
             searchResult,
             parsers ?? [],
@@ -1492,7 +1504,7 @@ public sealed class ContentDetailViewModelTests
             new Mock<IGameProfileManager>().Object,
             notificationService ?? new Mock<INotificationService>().Object,
             new Mock<ITabProviderRegistry>().Object,
-            contentStateService ?? new Mock<IContentStateService>().Object,
+            contentStateService,
             downloadCoordinator,
             manifestPool ?? new Mock<IContentManifestPool>().Object,
             new Mock<ILoggerFactory>().Object,

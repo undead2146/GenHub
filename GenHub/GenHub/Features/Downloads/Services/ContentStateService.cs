@@ -276,6 +276,8 @@ public sealed partial class ContentStateService(
     /// TheSuperHackers weekly builds) where every release has its own discrete card in the UI.
     /// In such feeds, prospective newer releases are uninstalled items, not update targets on that card.
     /// </summary>
+    /// <param name="item">The content search result item to check.</param>
+    /// <returns>True if the item originates from a multi-release feed; otherwise, false.</returns>
     internal static bool IsMultiReleaseItem(ContentSearchResult item)
     {
         return IsGitHubPublisher(item.ProviderName) ||

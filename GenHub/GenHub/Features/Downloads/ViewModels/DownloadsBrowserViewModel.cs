@@ -1522,20 +1522,18 @@ public sealed partial class DownloadsBrowserViewModel(
 
         var targetItem = item.UpdateTargetVm ?? item;
         var publisherId = item.SearchResult?.ProviderName;
-        if (string.IsNullOrEmpty(publisherId) || string.Equals(publisherId, "github", StringComparison.OrdinalIgnoreCase))
+        if ((string.IsNullOrEmpty(publisherId) || string.Equals(publisherId, "github", StringComparison.OrdinalIgnoreCase)) &&
+            item.SearchResult?.ResolverMetadata != null &&
+            item.SearchResult.ResolverMetadata.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) &&
+            !string.IsNullOrWhiteSpace(owner))
         {
-            if (item.SearchResult?.ResolverMetadata != null &&
-                item.SearchResult.ResolverMetadata.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) &&
-                !string.IsNullOrWhiteSpace(owner))
-            {
-                publisherId = owner;
-            }
+            publisherId = owner;
         }
 
         publisherId ??= targetItem.SearchResult?.ProviderName ?? SelectedPublisher?.PublisherId;
 
-        var reconcilerRegistry = _reconcilerRegistry ?? serviceProvider.GetService<IPublisherReconcilerRegistry>();
-        var reconciler = !string.IsNullOrEmpty(publisherId) ? reconcilerRegistry?.GetReconciler(publisherId) : null;
+        var registry = _reconcilerRegistry ?? serviceProvider.GetService<IPublisherReconcilerRegistry>();
+        var reconciler = !string.IsNullOrEmpty(publisherId) ? registry?.GetReconciler(publisherId) : null;
 
         if (reconciler != null)
         {
