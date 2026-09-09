@@ -268,8 +268,7 @@ public class GenericCatalogResolver(
         {
             var dependencyType = CatalogManifestIdentity.ResolveDependencyContentType(dependency, contentItem);
 
-            if (dependencyType == ContentType.GameInstallation ||
-                CatalogManifestIdentity.IsBaseGameDependency(dependency))
+            if (dependencyType == ContentType.GameInstallation)
             {
                 var isGenerals = dependency.ContentId.Equals("generals", StringComparison.OrdinalIgnoreCase) ||
                                  resolvedTargetGame == GameType.Generals;

@@ -1395,6 +1395,10 @@ public class ContentStateServiceTests
         Assert.True(ContentStateService.CompareVersions("QFE2", "QFE10") < 0);
         Assert.True(ContentStateService.CompareVersions("QFE10", "QFE9") > 0);
         Assert.True(ContentStateService.CompareVersions("QFE9", "QFE10") < 0);
+        Assert.Equal(0, ContentStateService.CompareVersions("beta2", "beta.2"));
+        Assert.Equal(0, ContentStateService.CompareVersions("beta2", "beta-2"));
+        Assert.True(ContentStateService.CompareVersions("beta.10", "beta2") > 0);
+        Assert.True(ContentStateService.CompareVersions("beta2", "beta.10") < 0);
     }
 
     /// <summary>

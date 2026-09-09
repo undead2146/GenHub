@@ -1112,7 +1112,7 @@ public sealed partial class ContentStateService(
     [GeneratedRegex(@"\b(\d{4})[-.](\d{2})[-.](\d{2})\b", RegexOptions.CultureInvariant)]
     private static partial Regex IsoDateRegex();
 
-    [GeneratedRegex(@"^([a-zA-Z]+[._-]?)(\d+)$")]
+    [GeneratedRegex(@"^([a-zA-Z]+)[._-]?(\d+)$")]
     private static partial Regex PrefixedDigitsRegex();
 
     private static DateTime? TryExtractDateFromContentItem(ContentSearchResult item)
