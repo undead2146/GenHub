@@ -148,10 +148,7 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
 
             if (!string.IsNullOrWhiteSpace(dep.ContentType))
             {
-                var trimmedType = dep.ContentType.Trim();
-                if (!char.IsAsciiLetter(trimmedType[0]) ||
-                    !Enum.TryParse<ContentType>(trimmedType, ignoreCase: true, out var parsedType) ||
-                    !Enum.IsDefined(parsedType))
+                if (!CatalogManifestIdentity.TryParseDeclaredContentType(dep.ContentType, out var parsedType))
                 {
                     errors.Add($"Dependency '{dep.ContentId}' in '{content.Id}' specifies invalid contentType '{dep.ContentType}'");
                     continue;

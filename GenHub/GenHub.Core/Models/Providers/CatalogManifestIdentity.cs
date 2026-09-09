@@ -204,6 +204,32 @@ public static class CatalogManifestIdentity
     }
 
     /// <summary>
+    /// Attempts to parse a declared content type string into a valid <see cref="ContentType"/> member.
+    /// Rejects null/whitespace, strings starting with non-ASCII-letter characters (such as digits or sign prefixes),
+    /// and undefined enum values.
+    /// </summary>
+    /// <param name="rawContentType">The raw content type string to parse.</param>
+    /// <param name="contentType">When this method returns, contains the parsed <see cref="ContentType"/> if valid; otherwise, the default value.</param>
+    /// <returns><c>true</c> if successfully parsed to a defined content type; otherwise, <c>false</c>.</returns>
+    public static bool TryParseDeclaredContentType(string? rawContentType, out ContentType contentType)
+    {
+        if (!string.IsNullOrWhiteSpace(rawContentType))
+        {
+            var rawType = rawContentType.Trim();
+            if (char.IsAsciiLetter(rawType[0]) &&
+                Enum.TryParse<ContentType>(rawType, ignoreCase: true, out var declared) &&
+                Enum.IsDefined(declared))
+            {
+                contentType = declared;
+                return true;
+            }
+        }
+
+        contentType = default;
+        return false;
+    }
+
+    /// <summary>
     /// Resolves the content type a catalog dependency should use when minting its manifest ID.
     /// </summary>
     /// <param name="dependency">The catalog dependency.</param>
@@ -223,15 +249,9 @@ public static class CatalogManifestIdentity
             return ContentType.GameInstallation;
         }
 
-        if (!string.IsNullOrWhiteSpace(dependency.ContentType))
+        if (TryParseDeclaredContentType(dependency.ContentType, out var declared))
         {
-            var rawType = dependency.ContentType.Trim();
-            if (char.IsAsciiLetter(rawType[0]) &&
-                Enum.TryParse<ContentType>(rawType, ignoreCase: true, out var declared) &&
-                Enum.IsDefined(declared))
-            {
-                return declared;
-            }
+            return declared;
         }
 
         if (catalogItems != null &&

@@ -624,7 +624,7 @@ public class GenericCatalogResolverTests
         {
             PublisherId = "custom",
             ContentId = "custom-addon",
-            ContentType = "+2",
+            ContentType = "+3",
         };
         var parent = new CatalogContentItem
         {
