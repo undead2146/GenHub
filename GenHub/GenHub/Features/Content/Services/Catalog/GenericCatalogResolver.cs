@@ -138,10 +138,11 @@ public partial class GenericCatalogResolver(
                 manifest,
                 contentItem,
                 primaryArtifact,
-                declaredPublisherId,
-                resolvedName,
-                discoveredItem.Id,
-                resolvedTargetGame,
+                new ManifestResolutionContext(
+                    declaredPublisherId,
+                    resolvedName,
+                    discoveredItem.Id,
+                    resolvedTargetGame),
                 artifactHashes);
 
             logger.LogInformation(
@@ -766,33 +767,36 @@ public partial class GenericCatalogResolver(
         }
     }
 
+    private readonly record struct ManifestResolutionContext(
+        string DeclaredPublisherId,
+        string ResolvedName,
+        string? SearchResultId,
+        GameType ResolvedTargetGame);
+
     private static void ApplyManifestPostProcessing(
         ContentManifest manifest,
         CatalogContentItem contentItem,
         ReleaseArtifact? primaryArtifact,
-        string declaredPublisherId,
-        string resolvedName,
-        string? searchResultId,
-        GameType resolvedTargetGame,
+        ManifestResolutionContext context,
         IReadOnlyDictionary<string, string>? artifactHashes = null)
     {
         ApplyFileHashes(manifest, contentItem, primaryArtifact, artifactHashes);
 
-        if (!string.IsNullOrWhiteSpace(searchResultId) &&
-            ManifestIdValidator.IsValid(searchResultId, out _))
+        if (!string.IsNullOrWhiteSpace(context.SearchResultId) &&
+            ManifestIdValidator.IsValid(context.SearchResultId, out _))
         {
-            manifest.Id = ManifestId.Create(searchResultId);
+            manifest.Id = ManifestId.Create(context.SearchResultId);
         }
 
-        manifest.Name = resolvedName;
-        manifest.OriginalProviderName = declaredPublisherId;
-        manifest.OriginalContentId = searchResultId ?? contentItem.Id;
+        manifest.Name = context.ResolvedName;
+        manifest.OriginalProviderName = context.DeclaredPublisherId;
+        manifest.OriginalContentId = context.SearchResultId ?? contentItem.Id;
 
         foreach (var dep in manifest.Dependencies)
         {
             if (dep.DependencyType == ContentType.GameInstallation && dep.CompatibleGameTypes.Count == 0)
             {
-                dep.CompatibleGameTypes.Add(resolvedTargetGame);
+                dep.CompatibleGameTypes.Add(context.ResolvedTargetGame);
             }
         }
 
