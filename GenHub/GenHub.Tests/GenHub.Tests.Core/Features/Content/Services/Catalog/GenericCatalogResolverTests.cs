@@ -453,4 +453,72 @@ public class GenericCatalogResolverTests
         result.Success.Should().BeFalse();
         result.FirstError.Should().Contain("cannot declare non-GameInstallation contentType");
     }
+
+    /// <summary>
+    /// Verifies that JsonPublisherCatalogParser succeeds when a base game dependency declares GameInstallation contentType.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ParseCatalogAsync_BaseGameDependencyDeclaringGameInstallationType_SucceedsAsync()
+    {
+        var parser = new JsonPublisherCatalogParser(Mock.Of<ILogger<JsonPublisherCatalogParser>>());
+        var json = """
+        {
+            "schemaVersion": 1,
+            "publisher": { "id": "test-pub", "name": "Test Publisher" },
+            "content": [
+                {
+                    "id": "test-mod",
+                    "name": "Test Mod",
+                    "contentType": "Mod",
+                    "releases": [
+                        {
+                            "version": "1.0.0",
+                            "dependencies": [
+                                { "publisherId": "any", "contentId": "zerohour", "contentType": "GameInstallation" }
+                            ],
+                            "artifacts": [
+                                { "filename": "test.zip", "downloadUrl": "https://example.com/test.zip", "isPrimary": true }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = await parser.ParseCatalogAsync(json);
+
+        result.Success.Should().BeTrue();
+        result.Data.Should().NotBeNull();
+        result.Data!.Content.Should().HaveCount(1);
+        var dep = result.Data.Content[0].Releases[0].Dependencies![0];
+        dep.ContentType.Should().Be("GameInstallation");
+        var resolvedType = CatalogManifestIdentity.ResolveDependencyContentType(dep, result.Data.Content[0]);
+        resolvedType.Should().Be(ContentType.GameInstallation);
+    }
+
+    /// <summary>
+    /// Verifies that ResolveDependencyContentType ignores undefined or numeric enum values and falls back.
+    /// </summary>
+    [Fact]
+    public void ResolveDependencyContentType_UndefinedNumericContentType_FallsBackToDefault()
+    {
+        var dep = new CatalogDependency
+        {
+            PublisherId = "custom",
+            ContentId = "custom-addon",
+            ContentType = "99",
+        };
+        var parent = new CatalogContentItem
+        {
+            Id = "my-mod",
+            Name = "My Mod",
+            ContentType = ContentType.Mod,
+        };
+
+        var resolvedType = CatalogManifestIdentity.ResolveDependencyContentType(dep, parent);
+
+        resolvedType.Should().Be(ContentType.Mod);
+    }
 }

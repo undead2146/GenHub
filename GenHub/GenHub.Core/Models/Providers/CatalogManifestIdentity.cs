@@ -224,7 +224,8 @@ public static class CatalogManifestIdentity
         }
 
         if (!string.IsNullOrWhiteSpace(dependency.ContentType) &&
-            Enum.TryParse<ContentType>(dependency.ContentType, ignoreCase: true, out var declared))
+            Enum.TryParse<ContentType>(dependency.ContentType, ignoreCase: true, out var declared) &&
+            Enum.IsDefined(declared))
         {
             return declared;
         }

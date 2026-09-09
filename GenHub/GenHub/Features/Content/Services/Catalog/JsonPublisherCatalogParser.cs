@@ -146,6 +146,14 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
                 continue;
             }
 
+            if (!string.IsNullOrWhiteSpace(dep.ContentType) &&
+                (!Enum.TryParse<ContentType>(dep.ContentType, ignoreCase: true, out var parsedType) ||
+                 !Enum.IsDefined(parsedType)))
+            {
+                errors.Add($"Dependency '{dep.ContentId}' in '{content.Id}' specifies invalid contentType '{dep.ContentType}'");
+                continue;
+            }
+
             if (CatalogManifestIdentity.IsBaseGameDependency(dep))
             {
                 if (!string.IsNullOrWhiteSpace(dep.ContentType) &&
