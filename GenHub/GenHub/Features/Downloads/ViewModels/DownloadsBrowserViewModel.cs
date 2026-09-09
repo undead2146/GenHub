@@ -309,6 +309,161 @@ public sealed partial class DownloadsBrowserViewModel(
         }
     }
 
+    /// <summary>
+    /// Reconciles the update and download states across multiple releases belonging to the same content family.
+    /// In multi-release feeds, the prospective newest release is marked NotDownloaded (showing only Download),
+    /// while older downloaded releases are marked UpdateAvailable targeting the newest release.
+    /// </summary>
+    /// <param name="items">The collection of content grid items to reconcile.</param>
+    internal static void ReconcileReleaseUpdateStates(IReadOnlyCollection<ContentGridItemViewModel> items)
+    {
+        if (items.Count <= 1)
+        {
+            return;
+        }
+
+        var contentFamilies = items.GroupBy(GetContentFamilyKey, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var family in contentFamilies)
+        {
+            if (string.IsNullOrEmpty(family.Key))
+            {
+                continue;
+            }
+
+            var familyItems = family
+                .OrderByDescending(it => it.SearchResult.LastUpdated ?? DateTime.MinValue)
+                .ThenByDescending(it => it.SearchResult.Version, Comparer<string?>.Create(ContentStateService.CompareVersions))
+                .ToList();
+            if (familyItems.Count <= 1)
+            {
+                continue;
+            }
+
+            var newestItem = familyItems[0];
+
+            // Reconcile newestItem:
+            // The newest item in the release family can never have an update available.
+            // If ContentStateService returned UpdateAvailable (because an older release is installed locally),
+            // this newest item is not downloaded and its state must be reset to NotDownloaded.
+            bool newestWasUpdateAvailable = newestItem.CurrentState == ContentState.UpdateAvailable;
+            foreach (var variant in newestItem.Variants)
+            {
+                if (variant.CurrentState == ContentState.UpdateAvailable)
+                {
+                    variant.CurrentState = ContentState.NotDownloaded;
+                    newestWasUpdateAvailable = true;
+                }
+            }
+
+            if (newestWasUpdateAvailable)
+            {
+                if (newestItem.SelectedVariant != null)
+                {
+                    newestItem.CurrentState = newestItem.SelectedVariant.CurrentState;
+                    newestItem.IsDownloaded = newestItem.SelectedVariant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable;
+                }
+                else
+                {
+                    newestItem.CurrentState = ContentState.NotDownloaded;
+                    newestItem.IsDownloaded = false;
+                }
+
+                newestItem.UpdateTargetVm = null;
+                newestItem.NotifyStateChanged();
+            }
+
+            // Check if newest item needs download (i.e. is not downloaded yet).
+            // Older downloaded items only offer an update if the newest item is not already downloaded.
+            bool newestNeedsDownload = newestItem.CurrentState != ContentState.Downloaded &&
+                                      !newestItem.Variants.Any(v => v.CurrentState == ContentState.Downloaded);
+
+            for (int i = 1; i < familyItems.Count; i++)
+            {
+                var item = familyItems[i];
+
+                if (newestNeedsDownload)
+                {
+                    bool isAnyDownloaded = false;
+                    foreach (var variant in item.Variants)
+                    {
+                        if (variant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable)
+                        {
+                            variant.CurrentState = ContentState.UpdateAvailable;
+                            isAnyDownloaded = true;
+                        }
+                    }
+
+                    if (item.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable || isAnyDownloaded)
+                    {
+                        if (item.SelectedVariant != null)
+                        {
+                            item.CurrentState = item.SelectedVariant.CurrentState;
+                            item.IsDownloaded = item.SelectedVariant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable;
+                        }
+                        else
+                        {
+                            item.CurrentState = ContentState.UpdateAvailable;
+                            item.IsDownloaded = true;
+                        }
+
+                        item.UpdateTargetVm = newestItem;
+                        item.NotifyStateChanged();
+                    }
+                }
+                else
+                {
+                    // Newest item is already downloaded, so older items should not offer an update to it.
+                    foreach (var variant in item.Variants)
+                    {
+                        if (variant.CurrentState == ContentState.UpdateAvailable)
+                        {
+                            variant.CurrentState = ContentState.Downloaded;
+                        }
+                    }
+
+                    if (item.CurrentState == ContentState.UpdateAvailable)
+                    {
+                        item.CurrentState = ContentState.Downloaded;
+                        item.UpdateTargetVm = null;
+                        item.NotifyStateChanged();
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets the unique family key used to group releases of the same content across versions.
+    /// </summary>
+    /// <param name="vm">The content grid item view model.</param>
+    /// <returns>A string identifying the content family, or null if it cannot be grouped.</returns>
+    internal static string? GetContentFamilyKey(ContentGridItemViewModel vm)
+    {
+        if (vm.SearchResult.ResolverMetadata != null &&
+            vm.SearchResult.ResolverMetadata.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) &&
+            vm.SearchResult.ResolverMetadata.TryGetValue(GitHubConstants.RepoMetadataKey, out var repo) &&
+            !string.IsNullOrWhiteSpace(owner) && !string.IsNullOrWhiteSpace(repo))
+        {
+            return $"{owner}/{repo}/{vm.SearchResult.ContentType}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(vm.SearchResult.ProviderName))
+        {
+            var effectiveName = !string.IsNullOrWhiteSpace(vm.SearchResult.VariantFamilyName)
+                ? vm.SearchResult.VariantFamilyName
+                : vm.SearchResult.Name;
+
+            if (!string.IsNullOrWhiteSpace(effectiveName))
+            {
+                var baseName = effectiveName.Split('—')[0].Trim();
+                return $"{vm.SearchResult.ProviderName}/{vm.SearchResult.ContentType}/{baseName}";
+            }
+        }
+
+        return null;
+    }
+
     [RelayCommand]
     private static void GoBack()
     {
@@ -600,12 +755,7 @@ public sealed partial class DownloadsBrowserViewModel(
             if (_browseCache.TryGetValue(value.PublisherId, out var cached))
             {
                 // Cache hit: restore full dataset instantly without network discovery
-                foreach (var item in cached.Items)
-                {
-                    item.ClearInactiveDownloadStatus();
-                    _ = item.RefreshVariantStatesAsync();
-                    _ = item.EnsureIconsLoadedAsync();
-                }
+                _ = RefreshAndReconcileItemsAsync(cached.Items, value.PublisherId);
 
                 ContentItems = new ObservableCollection<ContentGridItemViewModel>(cached.Items);
                 CurrentPage = cached.CurrentPage;
@@ -626,12 +776,7 @@ public sealed partial class DownloadsBrowserViewModel(
             {
                 // Attach UI to ongoing in-flight background operation
                 var itemsSoFar = inFlight.ResolvedItems.ToList();
-                foreach (var item in itemsSoFar)
-                {
-                    item.ClearInactiveDownloadStatus();
-                    _ = item.RefreshVariantStatesAsync();
-                    _ = item.EnsureIconsLoadedAsync();
-                }
+                _ = RefreshAndReconcileItemsAsync(itemsSoFar, value.PublisherId);
 
                 ContentItems = new ObservableCollection<ContentGridItemViewModel>(itemsSoFar);
                 CurrentPage = inFlight.Query.Page ?? 1;
@@ -1351,91 +1496,33 @@ public sealed partial class DownloadsBrowserViewModel(
         await DownloadContentAsync(targetItem, _vmCts.Token);
     }
 
-    private void ReconcileReleaseUpdateStates(IReadOnlyCollection<ContentGridItemViewModel> items)
+    private async Task RefreshAndReconcileItemsAsync(IReadOnlyList<ContentGridItemViewModel> items, string publisherId)
     {
-        if (items.Count <= 1)
+        foreach (var item in items)
         {
-            return;
+            item.ClearInactiveDownloadStatus();
+            try
+            {
+                await item.RefreshVariantStatesAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Failed to refresh variant states for item {Id}", item.Id);
+            }
+
+            _ = item.EnsureIconsLoadedAsync();
         }
 
-        var contentFamilies = items.GroupBy(GetContentFamilyKey, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var family in contentFamilies)
+        RunOnUi(() =>
         {
-            if (string.IsNullOrEmpty(family.Key))
+            if (SelectedPublisher?.PublisherId == publisherId)
             {
-                continue;
+                ReconcileReleaseUpdateStates(ContentItems);
             }
-
-            var familyItems = family
-                .OrderByDescending(it => it.SearchResult.LastUpdated ?? DateTime.MinValue)
-                .ThenByDescending(it => it.SearchResult.Version, Comparer<string?>.Create(ContentStateService.CompareVersions))
-                .ToList();
-            if (familyItems.Count <= 1)
-            {
-                continue;
-            }
-
-            var newestItem = familyItems[0];
-
-            foreach (var item in familyItems)
-            {
-                if (item == newestItem)
-                {
-                    if (!item.IsDownloaded && item.CurrentState == ContentState.UpdateAvailable)
-                    {
-                        item.CurrentState = ContentState.NotDownloaded;
-                        if (item.SelectedVariant != null && item.SelectedVariant.CurrentState == ContentState.UpdateAvailable)
-                        {
-                            item.SelectedVariant.CurrentState = ContentState.NotDownloaded;
-                        }
-
-                        item.NotifyStateChanged();
-                    }
-                }
-                else
-                {
-                    if (item.IsDownloaded || item.SelectedVariant?.CurrentState == ContentState.Downloaded)
-                    {
-                        item.CurrentState = ContentState.UpdateAvailable;
-                        if (item.SelectedVariant != null)
-                        {
-                            item.SelectedVariant.CurrentState = ContentState.UpdateAvailable;
-                        }
-
-                        item.UpdateTargetVm = newestItem;
-                        item.NotifyStateChanged();
-                    }
-                }
-            }
-        }
+        });
     }
 
-    private string? GetContentFamilyKey(ContentGridItemViewModel vm)
-    {
-        if (vm.SearchResult.ResolverMetadata != null &&
-            vm.SearchResult.ResolverMetadata.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) &&
-            vm.SearchResult.ResolverMetadata.TryGetValue(GitHubConstants.RepoMetadataKey, out var repo) &&
-            !string.IsNullOrWhiteSpace(owner) && !string.IsNullOrWhiteSpace(repo))
-        {
-            return $"{owner}/{repo}/{vm.SearchResult.ContentType}";
-        }
 
-        if (!string.IsNullOrWhiteSpace(vm.SearchResult.ProviderName))
-        {
-            var effectiveName = !string.IsNullOrWhiteSpace(vm.SearchResult.VariantFamilyName)
-                ? vm.SearchResult.VariantFamilyName
-                : vm.SearchResult.Name;
-
-            if (!string.IsNullOrWhiteSpace(effectiveName))
-            {
-                var baseName = effectiveName.Split('—')[0].Trim();
-                return $"{vm.SearchResult.ProviderName}/{vm.SearchResult.ContentType}/{baseName}";
-            }
-        }
-
-        return null;
-    }
 
     private ContentGridItemViewModel CreateBaseGridItemViewModel(ContentSearchResult item)
     {
@@ -1828,6 +1915,7 @@ public sealed partial class DownloadsBrowserViewModel(
         // Re-read every sibling so checkmarks stay accurate if acquisition produced
         // a different on-disk identity than the catalog key (e.g. SuperHackers).
         await item.RefreshVariantStatesAsync();
+        ReconcileReleaseUpdateStates(ContentItems);
 
         // Notify other components that content was acquired
         try
