@@ -146,22 +146,29 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
                 continue;
             }
 
-            if (!string.IsNullOrWhiteSpace(dep.ContentType) &&
-                (!Enum.TryParse<ContentType>(dep.ContentType, ignoreCase: true, out var parsedType) ||
-                 !Enum.IsDefined(parsedType)))
+            if (!string.IsNullOrWhiteSpace(dep.ContentType))
             {
-                errors.Add($"Dependency '{dep.ContentId}' in '{content.Id}' specifies invalid contentType '{dep.ContentType}'");
-                continue;
-            }
-
-            if (CatalogManifestIdentity.IsBaseGameDependency(dep))
-            {
-                if (!string.IsNullOrWhiteSpace(dep.ContentType) &&
-                    !dep.ContentType.Equals(nameof(ContentType.GameInstallation), StringComparison.OrdinalIgnoreCase))
+                var trimmedType = dep.ContentType.Trim();
+                if (char.IsDigit(trimmedType[0]) ||
+                    !Enum.TryParse<ContentType>(trimmedType, ignoreCase: true, out var parsedType) ||
+                    !Enum.IsDefined(parsedType))
                 {
-                    errors.Add($"Base game dependency '{dep.ContentId}' in '{content.Id}' cannot declare non-GameInstallation contentType '{dep.ContentType}'");
+                    errors.Add($"Dependency '{dep.ContentId}' in '{content.Id}' specifies invalid contentType '{dep.ContentType}'");
+                    continue;
                 }
 
+                if (CatalogManifestIdentity.IsBaseGameDependency(dep))
+                {
+                    if (parsedType != ContentType.GameInstallation)
+                    {
+                        errors.Add($"Base game dependency '{dep.ContentId}' in '{content.Id}' cannot declare non-GameInstallation contentType '{dep.ContentType}'");
+                    }
+
+                    continue;
+                }
+            }
+            else if (CatalogManifestIdentity.IsBaseGameDependency(dep))
+            {
                 continue;
             }
 

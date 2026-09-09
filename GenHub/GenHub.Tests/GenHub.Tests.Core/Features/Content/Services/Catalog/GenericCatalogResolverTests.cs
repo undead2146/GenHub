@@ -455,7 +455,7 @@ public class GenericCatalogResolverTests
     }
 
     /// <summary>
-    /// Verifies that JsonPublisherCatalogParser succeeds when a base game dependency declares GameInstallation contentType.
+    /// Verifies that JsonPublisherCatalogParser succeeds when a base game dependency declares GameInstallation contentType with surrounding whitespace.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Fact]
@@ -475,7 +475,7 @@ public class GenericCatalogResolverTests
                         {
                             "version": "1.0.0",
                             "dependencies": [
-                                { "publisherId": "any", "contentId": "zerohour", "contentType": "GameInstallation" }
+                                { "publisherId": "any", "contentId": "zerohour", "contentType": "  GameInstallation  " }
                             ],
                             "artifacts": [
                                 { "filename": "test.zip", "downloadUrl": "https://example.com/test.zip", "isPrimary": true }
@@ -493,9 +493,86 @@ public class GenericCatalogResolverTests
         result.Data.Should().NotBeNull();
         result.Data!.Content.Should().HaveCount(1);
         var dep = result.Data.Content[0].Releases[0].Dependencies![0];
-        dep.ContentType.Should().Be("GameInstallation");
         var resolvedType = CatalogManifestIdentity.ResolveDependencyContentType(dep, result.Data.Content[0]);
         resolvedType.Should().Be(ContentType.GameInstallation);
+    }
+
+    /// <summary>
+    /// Verifies that JsonPublisherCatalogParser fails validation when dependency contentType is a bare integer string.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ParseCatalogAsync_DependencyDeclaringIntegerContentType_FailsValidationAsync()
+    {
+        var parser = new JsonPublisherCatalogParser(Mock.Of<ILogger<JsonPublisherCatalogParser>>());
+        var json = """
+        {
+            "schemaVersion": 1,
+            "publisher": { "id": "test-pub", "name": "Test Publisher" },
+            "content": [
+                {
+                    "id": "test-mod",
+                    "name": "Test Mod",
+                    "contentType": "Mod",
+                    "releases": [
+                        {
+                            "version": "1.0.0",
+                            "dependencies": [
+                                { "publisherId": "custom", "contentId": "other", "contentType": "2" }
+                            ],
+                            "artifacts": [
+                                { "filename": "test.zip", "downloadUrl": "https://example.com/test.zip", "isPrimary": true }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = await parser.ParseCatalogAsync(json);
+
+        result.Success.Should().BeFalse();
+        result.FirstError.Should().Contain("specifies invalid contentType");
+    }
+
+    /// <summary>
+    /// Verifies that JsonPublisherCatalogParser fails validation when dependency contentType is an undefined numeric string.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ParseCatalogAsync_DependencyDeclaringUndefinedNumericContentType_FailsValidationAsync()
+    {
+        var parser = new JsonPublisherCatalogParser(Mock.Of<ILogger<JsonPublisherCatalogParser>>());
+        var json = """
+        {
+            "schemaVersion": 1,
+            "publisher": { "id": "test-pub", "name": "Test Publisher" },
+            "content": [
+                {
+                    "id": "test-mod",
+                    "name": "Test Mod",
+                    "contentType": "Mod",
+                    "releases": [
+                        {
+                            "version": "1.0.0",
+                            "dependencies": [
+                                { "publisherId": "custom", "contentId": "other", "contentType": "99" }
+                            ],
+                            "artifacts": [
+                                { "filename": "test.zip", "downloadUrl": "https://example.com/test.zip", "isPrimary": true }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = await parser.ParseCatalogAsync(json);
+
+        result.Success.Should().BeFalse();
+        result.FirstError.Should().Contain("specifies invalid contentType");
     }
 
     /// <summary>

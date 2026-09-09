@@ -223,11 +223,15 @@ public static class CatalogManifestIdentity
             return ContentType.GameInstallation;
         }
 
-        if (!string.IsNullOrWhiteSpace(dependency.ContentType) &&
-            Enum.TryParse<ContentType>(dependency.ContentType, ignoreCase: true, out var declared) &&
-            Enum.IsDefined(declared))
+        if (!string.IsNullOrWhiteSpace(dependency.ContentType))
         {
-            return declared;
+            var rawType = dependency.ContentType.Trim();
+            if (!char.IsDigit(rawType[0]) &&
+                Enum.TryParse<ContentType>(rawType, ignoreCase: true, out var declared) &&
+                Enum.IsDefined(declared))
+            {
+                return declared;
+            }
         }
 
         if (catalogItems != null &&
