@@ -1255,8 +1255,11 @@ public partial class ContentDetailViewModel(
         return null;
     }
 
+    private static string CreateFileContentId(string? downloadUrl, string? name) =>
+        $"file:{(!string.IsNullOrWhiteSpace(downloadUrl) ? downloadUrl : name)}";
+
     private static string CreateFileContentId(DownloadableFile file) =>
-        $"file:{(!string.IsNullOrWhiteSpace(file.DownloadUrl) ? file.DownloadUrl : file.Name)}";
+        CreateFileContentId(file.DownloadUrl, file.Name);
 
     private static bool IsModDbContent(ContentSearchResult content) =>
         string.Equals(content.ProviderName, ModDBConstants.PublisherDisplayName, StringComparison.OrdinalIgnoreCase) ||
@@ -2075,9 +2078,7 @@ public partial class ContentDetailViewModel(
         {
             foreach (var row in EnumerateRows())
             {
-                // Mirror CreateFileContentId: "file:<downloadUrl ?? name>".
-                var rowKey = !string.IsNullOrEmpty(row.DownloadUrl) ? row.DownloadUrl : row.Name;
-                var rowContentId = $"file:{rowKey}";
+                var rowContentId = CreateFileContentId(row.DownloadUrl, row.Name);
                 var matches = rowContentId == contentId
                               || (!string.IsNullOrEmpty(manifestId) && row.DownloadedManifestId == manifestId);
                 if (!matches)

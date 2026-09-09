@@ -108,6 +108,27 @@ public sealed partial class DownloadsBrowserViewModel(
 
     private PublisherItemViewModel? _selectedPublisher;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanShowFilters))]
+    [NotifyPropertyChangedFor(nameof(CanSearchOrFilter))]
+    private IFilterPanelViewModel? _currentFilterViewModel;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDetailViewVisible))]
+    private ContentDetailViewModel? _selectedContent;
+
+    [ObservableProperty]
+    private ObservableCollection<ContentGridItemViewModel> _contentItems = [];
+
+    [ObservableProperty]
+    private int _currentPage = 1;
+
+    [ObservableProperty]
+    private bool _canLoadMore;
+
+    [ObservableProperty]
+    private int _pageSize = 24;
+
     /// <summary>
     /// Gets or sets the currently selected publisher.
     /// </summary>
@@ -131,11 +152,6 @@ public sealed partial class DownloadsBrowserViewModel(
         }
     }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanShowFilters))]
-    [NotifyPropertyChangedFor(nameof(CanSearchOrFilter))]
-    private IFilterPanelViewModel? _currentFilterViewModel;
-
     /// <summary>
     /// Gets a value indicating whether filters are available for the current publisher.
     /// </summary>
@@ -156,26 +172,10 @@ public sealed partial class DownloadsBrowserViewModel(
     /// </summary>
     public bool CanSearchOrFilter => CanSearch || CanShowFilters;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsDetailViewVisible))]
-    private ContentDetailViewModel? _selectedContent;
-
-    [ObservableProperty]
-    private ObservableCollection<ContentGridItemViewModel> _contentItems = [];
-
-    [ObservableProperty]
-    private int _currentPage = 1;
-
-    [ObservableProperty]
-    private bool _canLoadMore;
-
     /// <summary>
     /// Gets a value indicating whether the detail view is currently visible.
     /// </summary>
     public bool IsDetailViewVisible => SelectedContent != null;
-
-    [ObservableProperty]
-    private int _pageSize = 24;
 
     /// <summary>
     /// Ensures built-in publishers exist, then reloads subscribed catalogs from disk.
