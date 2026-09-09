@@ -1560,4 +1560,46 @@ public sealed class ContentDetailViewModelTests
             return Task.CompletedTask;
         }
     }
+
+    /// <summary>
+    /// Verifies that AddToProfile does not trust a valid-format catalog ID if it is not actually
+    /// downloaded in the pool, and falls back to GetLocalManifestIdAsync (Finding 1).
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task AddToProfile_WhenSearchResultIdNotInPool_FallsBackToLocalManifestIdAsync()
+    {
+        // Arrange
+        const string catalogId = "1.20260901.custom.mod.test";
+        const string localManifestId = "1.20260801.custom.mod.test";
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = catalogId,
+            Name = "Custom Mod",
+            ProviderName = "custom",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+        };
+
+        var stateService = new Mock<IContentStateService>();
+        stateService
+            .Setup(s => s.GetStateByManifestIdAsync(catalogId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ContentState.NotDownloaded);
+        stateService
+            .Setup(s => s.GetLocalManifestIdAsync(searchResult, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(localManifestId);
+        stateService
+            .Setup(s => s.GetStateByManifestIdAsync(localManifestId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ContentState.Downloaded);
+
+        var coordinator = new Mock<IContentDownloadCoordinator>();
+        var viewModel = CreateViewModel(searchResult, coordinator.Object, contentStateService: stateService.Object);
+
+        // Act
+        await viewModel.AddToProfileCommand.ExecuteAsync(null);
+
+        // Assert
+        Assert.Equal(localManifestId, viewModel.ProfileManifestId);
+    }
 }

@@ -97,7 +97,7 @@ public sealed partial class ContentStateService(
 
         var (prospectiveId, releaseDate, hasRealDate) = DetermineProspectiveManifestId(item);
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Generated prospective manifest ID: {ManifestId} for content: {ContentName} (hasRealDate: {HasDate})",
             prospectiveId,
             item.Name,
@@ -112,7 +112,7 @@ public sealed partial class ContentStateService(
         var isAcquiredResult = await manifestPool.IsManifestAcquiredAsync(prospectiveId, cancellationToken);
         if (isAcquiredResult?.Success == true && isAcquiredResult.Data)
         {
-            logger.LogInformation("Content {ContentName} is downloaded (exact match found)", item.Name);
+            logger.LogDebug("Content {ContentName} is downloaded (exact match found)", item.Name);
             return ContentState.Downloaded;
         }
 
@@ -120,7 +120,7 @@ public sealed partial class ContentStateService(
                         !string.IsNullOrWhiteSpace(item.SelectedDownloadUrl);
         if (isFileRow)
         {
-            logger.LogInformation("Content {ContentName} is not downloaded (file row with no exact manifest match)", item.Name);
+            logger.LogDebug("Content {ContentName} is not downloaded (file row with no exact manifest match)", item.Name);
             return ContentState.NotDownloaded;
         }
 
@@ -136,7 +136,7 @@ public sealed partial class ContentStateService(
             return await EvaluateMatchingManifestStateAsync(matchingManifest, prospectiveId, isNewerAvailable, isOlderAvailable, item, cancellationToken);
         }
 
-        logger.LogInformation("Content {ContentName} is not downloaded", item.Name);
+        logger.LogDebug("Content {ContentName} is not downloaded", item.Name);
         return ContentState.NotDownloaded;
     }
 
@@ -269,6 +269,19 @@ public sealed partial class ContentStateService(
         return string.Equals(p, GitHubPublisher, StringComparison.OrdinalIgnoreCase) ||
                string.Equals(p, GitHubTopicsNormalized, StringComparison.OrdinalIgnoreCase) ||
                IsCompatiblePublisherAlias(p, GitHubPublisher);
+    }
+
+    /// <summary>
+    /// Checks whether the given item originates from a multi-release feed (such as GitHub releases or
+    /// TheSuperHackers weekly builds) where every release has its own discrete card in the UI.
+    /// In such feeds, prospective newer releases are uninstalled items, not update targets on that card.
+    /// </summary>
+    internal static bool IsMultiReleaseItem(ContentSearchResult item)
+    {
+        return IsGitHubPublisher(item.ProviderName) ||
+               string.Equals(item.ProviderName, PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase) ||
+               (item.ResolverMetadata != null &&
+                item.ResolverMetadata.ContainsKey(GitHubConstants.OwnerMetadataKey));
     }
 
     /// <summary>
@@ -1325,6 +1338,15 @@ public sealed partial class ContentStateService(
         if (canCompareVersion &&
             IsNewerVersion(prospectiveId, persistedManifest.Id.Value, item.Version, persistedManifest.Version))
         {
+            if (IsMultiReleaseItem(item))
+            {
+                logger.LogInformation(
+                    "Content {ContentName} is not downloaded (multi-release prospective release; local persisted: {LocalId})",
+                    item.Name,
+                    persistedManifest.Id.Value);
+                return ContentState.NotDownloaded;
+            }
+
             logger.LogInformation(
                 "Content {ContentName} has an update available (local persisted: {LocalId})",
                 item.Name,
@@ -1371,6 +1393,15 @@ public sealed partial class ContentStateService(
 
         if (isNewerAvailable)
         {
+            if (IsMultiReleaseItem(item))
+            {
+                logger.LogInformation(
+                    "Content {ContentName} is not downloaded (multi-release prospective release; older local: {LocalId})",
+                    item.Name,
+                    matchingManifest.Id.Value);
+                return ContentState.NotDownloaded;
+            }
+
             logger.LogInformation(
                 "Content {ContentName} has an update available (local: {LocalId})",
                 item.Name,

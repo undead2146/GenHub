@@ -60,7 +60,8 @@ public sealed partial class DownloadsBrowserViewModel(
     INotificationService notificationService,
     ILoggerFactory loggerFactory,
     IPublisherSubscriptionStore subscriptionStore,
-    IContentDownloadCoordinator? downloadCoordinator = null) : ObservableObject, IDisposable
+    IContentDownloadCoordinator? downloadCoordinator = null,
+    IPublisherReconcilerRegistry? reconcilerRegistry = null) : ObservableObject, IDisposable
 {
     private const string CategoryStatic = "static";
     private const string CategoryDynamic = "dynamic";
@@ -71,6 +72,9 @@ public sealed partial class DownloadsBrowserViewModel(
     private readonly object _cacheLock = new();
     private readonly IContentDownloadCoordinator? _downloadCoordinator =
         downloadCoordinator ?? serviceProvider.GetService<IContentDownloadCoordinator>();
+
+    private readonly IPublisherReconcilerRegistry? _reconcilerRegistry =
+        reconcilerRegistry ?? serviceProvider.GetService<IPublisherReconcilerRegistry>();
 
     // GenericCatalogDiscoverer instances mapped by publisher ID for subscriber feeds.
     private readonly Dictionary<string, GenericCatalogDiscoverer> _subscribedDiscoverers =
@@ -310,80 +314,96 @@ public sealed partial class DownloadsBrowserViewModel(
                 continue;
             }
 
+            // Identify which items are locally installed on disk.
+            // Items that are actually installed come in with Downloaded state or have an acquired variant,
+            // or were previously reconciled with an UpdateTargetVm.
+            // An item that arrived with UpdateAvailable and UpdateTargetVm == null received UpdateAvailable
+            // from ContentStateService purely because an older release was installed locally; it is NOT installed itself.
+            var installedItems = new HashSet<ContentGridItemViewModel>();
+            foreach (var item in familyItems)
+            {
+                if (item.CurrentState == ContentState.Downloaded ||
+                    item.Variants.Any(v => v.CurrentState == ContentState.Downloaded) ||
+                    item.UpdateTargetVm != null)
+                {
+                    installedItems.Add(item);
+                }
+            }
+
+            // Reset any uninstalled prospective items: they should be NotDownloaded, not UpdateAvailable or Downloaded.
+            foreach (var item in familyItems)
+            {
+                if (installedItems.Contains(item))
+                {
+                    continue;
+                }
+
+                foreach (var variant in item.Variants)
+                {
+                    if (variant.CurrentState is ContentState.UpdateAvailable or ContentState.Downloaded)
+                    {
+                        variant.CurrentState = ContentState.NotDownloaded;
+                    }
+                }
+
+                if (item.CurrentState is ContentState.UpdateAvailable or ContentState.Downloaded)
+                {
+                    if (item.SelectedVariant != null)
+                    {
+                        item.CurrentState = item.SelectedVariant.CurrentState;
+                        item.IsDownloaded = item.SelectedVariant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable;
+                    }
+                    else
+                    {
+                        item.CurrentState = ContentState.NotDownloaded;
+                        item.IsDownloaded = false;
+                    }
+                }
+
+                item.UpdateTargetVm = null;
+                item.NotifyStateChanged();
+            }
+
             var newestItem = familyItems[0];
+            bool newestNeedsDownload = !installedItems.Contains(newestItem);
 
-            // Reconcile newestItem:
-            // The newest item in the release family can never have an update available.
-            // If ContentStateService returned UpdateAvailable (because an older release is installed locally),
-            // this newest item is not downloaded and its state must be reset to NotDownloaded.
-            bool newestWasUpdateAvailable = newestItem.CurrentState == ContentState.UpdateAvailable;
-            foreach (var variant in newestItem.Variants)
+            // Reconcile installed items
+            foreach (var item in familyItems)
             {
-                if (variant.CurrentState == ContentState.UpdateAvailable)
+                if (!installedItems.Contains(item))
                 {
-                    variant.CurrentState = ContentState.NotDownloaded;
-                    newestWasUpdateAvailable = true;
-                }
-            }
-
-            if (newestWasUpdateAvailable)
-            {
-                if (newestItem.SelectedVariant != null)
-                {
-                    newestItem.CurrentState = newestItem.SelectedVariant.CurrentState;
-                    newestItem.IsDownloaded = newestItem.SelectedVariant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable;
-                }
-                else
-                {
-                    newestItem.CurrentState = ContentState.NotDownloaded;
-                    newestItem.IsDownloaded = false;
+                    continue;
                 }
 
-                newestItem.UpdateTargetVm = null;
-                newestItem.NotifyStateChanged();
-            }
-
-            // Check if newest item needs download (i.e. is not downloaded yet).
-            // Older downloaded items only offer an update if the newest item is not already downloaded.
-            bool newestNeedsDownload = newestItem.CurrentState != ContentState.Downloaded &&
-                                      !newestItem.Variants.Any(v => v.CurrentState == ContentState.Downloaded);
-
-            for (int i = 1; i < familyItems.Count; i++)
-            {
-                var item = familyItems[i];
-
-                if (newestNeedsDownload)
+                if (newestNeedsDownload && item != newestItem)
                 {
-                    bool isAnyDownloaded = false;
+                    // An update to newestItem is available for this installed older release.
                     foreach (var variant in item.Variants)
                     {
                         if (variant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable)
                         {
                             variant.CurrentState = ContentState.UpdateAvailable;
-                            isAnyDownloaded = true;
                         }
                     }
 
-                    if (item.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable || isAnyDownloaded)
+                    if (item.SelectedVariant != null)
                     {
-                        if (item.SelectedVariant != null)
-                        {
-                            item.CurrentState = item.SelectedVariant.CurrentState;
-                            item.IsDownloaded = item.SelectedVariant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable;
-                        }
-                        else
-                        {
-                            item.CurrentState = ContentState.UpdateAvailable;
-                            item.IsDownloaded = true;
-                        }
-
-                        item.UpdateTargetVm = newestItem;
-                        item.NotifyStateChanged();
+                        item.CurrentState = item.SelectedVariant.CurrentState;
+                        item.IsDownloaded = item.SelectedVariant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable;
                     }
+                    else
+                    {
+                        item.CurrentState = ContentState.UpdateAvailable;
+                        item.IsDownloaded = true;
+                    }
+
+                    item.UpdateTargetVm = item.CurrentState == ContentState.UpdateAvailable ? newestItem : null;
+                    item.NotifyStateChanged();
                 }
                 else
                 {
-                    // Newest item is already downloaded, so older items should not offer an update to it.
+                    // Either newestItem is already installed or this item IS the newest item.
+                    // No update can be offered.
                     foreach (var variant in item.Variants)
                     {
                         if (variant.CurrentState == ContentState.UpdateAvailable)
@@ -394,10 +414,20 @@ public sealed partial class DownloadsBrowserViewModel(
 
                     if (item.CurrentState == ContentState.UpdateAvailable)
                     {
-                        item.CurrentState = ContentState.Downloaded;
-                        item.UpdateTargetVm = null;
-                        item.NotifyStateChanged();
+                        if (item.SelectedVariant != null)
+                        {
+                            item.CurrentState = item.SelectedVariant.CurrentState;
+                            item.IsDownloaded = item.SelectedVariant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable;
+                        }
+                        else
+                        {
+                            item.CurrentState = ContentState.Downloaded;
+                            item.IsDownloaded = true;
+                        }
                     }
+
+                    item.UpdateTargetVm = null;
+                    item.NotifyStateChanged();
                 }
             }
         }
@@ -755,8 +785,6 @@ public sealed partial class DownloadsBrowserViewModel(
             if (_browseCache.TryGetValue(value.PublisherId, out var cached))
             {
                 // Cache hit: restore full dataset instantly without network discovery
-                _ = RefreshAndReconcileItemsAsync(cached.Items, value.PublisherId);
-
                 ContentItems = new ObservableCollection<ContentGridItemViewModel>(cached.Items);
                 CurrentPage = cached.CurrentPage;
                 CanLoadMore = cached.CanLoadMore;
@@ -765,6 +793,7 @@ public sealed partial class DownloadsBrowserViewModel(
                 SelectedContent = cached.ActiveDetailViewModel;
                 _lastPopulatedPublisherId = value.PublisherId;
                 IsLoading = false;
+                _ = RefreshAndReconcileItemsAsync(cached.Items, value.PublisherId);
                 logger.LogInformation(
                     "Restored {Count} cached items for {Publisher} (no refresh needed)",
                     cached.Items.Count,
@@ -776,8 +805,6 @@ public sealed partial class DownloadsBrowserViewModel(
             {
                 // Attach UI to ongoing in-flight background operation
                 var itemsSoFar = inFlight.ResolvedItems.ToList();
-                _ = RefreshAndReconcileItemsAsync(itemsSoFar, value.PublisherId);
-
                 ContentItems = new ObservableCollection<ContentGridItemViewModel>(itemsSoFar);
                 CurrentPage = inFlight.Query.Page ?? 1;
                 CanLoadMore = inFlight.HasMoreItems;
@@ -786,6 +813,7 @@ public sealed partial class DownloadsBrowserViewModel(
                 SelectedContent = null;
                 _lastPopulatedPublisherId = value.PublisherId;
                 IsLoading = !inFlight.IsCompleted;
+                _ = RefreshAndReconcileItemsAsync(itemsSoFar, value.PublisherId);
                 logger.LogInformation(
                     "Attached to in-flight operation for {Publisher} ({Count} items loaded so far)",
                     value.PublisherId,
@@ -1493,17 +1521,64 @@ public sealed partial class DownloadsBrowserViewModel(
         }
 
         var targetItem = item.UpdateTargetVm ?? item;
+        var publisherId = item.SearchResult?.ProviderName;
+        if (string.IsNullOrEmpty(publisherId) || string.Equals(publisherId, "github", StringComparison.OrdinalIgnoreCase))
+        {
+            if (item.SearchResult?.ResolverMetadata != null &&
+                item.SearchResult.ResolverMetadata.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) &&
+                !string.IsNullOrWhiteSpace(owner))
+            {
+                publisherId = owner;
+            }
+        }
+
+        publisherId ??= targetItem.SearchResult?.ProviderName ?? SelectedPublisher?.PublisherId;
+
+        var reconcilerRegistry = _reconcilerRegistry ?? serviceProvider.GetService<IPublisherReconcilerRegistry>();
+        var reconciler = !string.IsNullOrEmpty(publisherId) ? reconcilerRegistry?.GetReconciler(publisherId) : null;
+
+        if (reconciler != null)
+        {
+            var result = await reconciler.CheckAndReconcileIfNeededAsync(string.Empty, _vmCts.Token);
+            if (result.Success && result.Data)
+            {
+                if (SelectedPublisher != null)
+                {
+                    await RefreshAndReconcileItemsAsync(ContentItems, SelectedPublisher.PublisherId);
+                }
+
+                return;
+            }
+
+            if (!result.Success)
+            {
+                logger.LogWarning("Reconciler failed for {PublisherId}: {Error}", publisherId, result.FirstError);
+            }
+
+            return;
+        }
+
         await DownloadContentAsync(targetItem, _vmCts.Token);
     }
 
     private async Task RefreshAndReconcileItemsAsync(IReadOnlyList<ContentGridItemViewModel> items, string publisherId)
     {
-        foreach (var item in items)
+        if (_disposed || _vmCts.IsCancellationRequested)
         {
+            return;
+        }
+
+        await Task.WhenAll(items.Select(async item =>
+        {
+            if (_disposed || _vmCts.IsCancellationRequested)
+            {
+                return;
+            }
+
             item.ClearInactiveDownloadStatus();
             try
             {
-                await item.RefreshVariantStatesAsync();
+                await item.RefreshVariantStatesAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -1511,13 +1586,13 @@ public sealed partial class DownloadsBrowserViewModel(
             }
 
             _ = item.EnsureIconsLoadedAsync();
-        }
+        })).ConfigureAwait(false);
 
         RunOnUi(() =>
         {
-            if (SelectedPublisher?.PublisherId == publisherId)
+            if (!_disposed && !_vmCts.IsCancellationRequested && SelectedPublisher?.PublisherId == publisherId)
             {
-                ReconcileReleaseUpdateStates(ContentItems);
+                ReconcileReleaseUpdateStates(items);
             }
         });
     }
@@ -1913,21 +1988,20 @@ public sealed partial class DownloadsBrowserViewModel(
         // Re-read every sibling so checkmarks stay accurate if acquisition produced
         // a different on-disk identity than the catalog key (e.g. SuperHackers).
         await item.RefreshVariantStatesAsync();
-        ReconcileReleaseUpdateStates(ContentItems);
-
-        // Notify other components that content was acquired
-        try
-        {
-            var message = new ContentAcquiredMessage(manifest);
-            WeakReferenceMessenger.Default.Send(message);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to send ContentAcquiredMessage");
-        }
+        RunOnUi(() => ReconcileReleaseUpdateStates(ContentItems));
 
         if (_downloadCoordinator == null)
         {
+            try
+            {
+                var message = new ContentAcquiredMessage(manifest);
+                WeakReferenceMessenger.Default.Send(message);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to send ContentAcquiredMessage");
+            }
+
             notificationService.ShowSuccess("Download Complete", $"Downloaded {item.Name}");
         }
     }
@@ -1974,6 +2048,7 @@ public sealed partial class DownloadsBrowserViewModel(
                 });
             });
 
+            var originalContentId = target.Id ?? string.Empty;
             var result = _downloadCoordinator != null
                 ? await _downloadCoordinator.DownloadContentAsync(target, progress, cancellationToken)
                 : await contentOrchestrator.AcquireContentAsync(target, progress, cancellationToken);
@@ -1986,7 +2061,6 @@ public sealed partial class DownloadsBrowserViewModel(
                 return;
             }
 
-            var originalContentId = target.Id ?? string.Empty;
             target.UpdateId(result.Data.Id.Value);
             foreach (var component in item.BundleComponents)
             {

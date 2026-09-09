@@ -1262,6 +1262,63 @@ public class ContentStateServiceTests
     }
 
     /// <summary>
+    /// Verifies that when a newer SuperHackers release is discovered against an older installed release,
+    /// ContentStateService correctly returns NotDownloaded because in multi-release feeds, each release is its own card
+    /// and the prospective uninstalled card must not display UpdateAvailable.
+    /// </summary>
+    [Fact]
+    public async Task GetStateAsync_NewerSuperHackersRelease_ReturnsNotDownloadedAsync()
+    {
+        // Arrange: Installed release is weekly-2026-08-21
+        var installedManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.082126.thesuperhackers.gameclient.zerohour"),
+            Name = "GeneralsGameCode weekly-2026-08-21 — Zero Hour",
+            Version = "weekly-2026-08-21",
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+            OriginalProviderName = PublisherTypeConstants.TheSuperHackers,
+            Publisher = new PublisherInfo
+            {
+                PublisherType = PublisherTypeConstants.TheSuperHackers,
+                Website = "https://github.com/TheSuperHackers/GeneralsGameCode",
+            },
+        };
+
+        // Prospective release is newer: weekly-2026-08-28
+        var item = new ContentSearchResult
+        {
+            Id = "github.TheSuperHackers.GeneralsGameCode.weekly-2026-08-28.zerohour",
+            Name = "GeneralsGameCode weekly-2026-08-28 — Zero Hour",
+            ProviderName = PublisherTypeConstants.TheSuperHackers,
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+            Version = "weekly-2026-08-28",
+            LastUpdated = new DateTime(2026, 8, 28, 0, 0, 0, DateTimeKind.Utc),
+            ResolverMetadata =
+            {
+                [GitHubConstants.OwnerMetadataKey] = "TheSuperHackers",
+                [GitHubConstants.RepoMetadataKey] = "GeneralsGameCode",
+                [GitHubConstants.TagMetadataKey] = "weekly-2026-08-28",
+            },
+        };
+
+        var pool = new Mock<IContentManifestPool>();
+        pool.Setup(p => p.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([installedManifest]));
+        pool.Setup(p => p.IsManifestAcquiredAsync(It.IsAny<ManifestId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ManifestId id, CancellationToken _) => OperationResult<bool>.CreateSuccess(id == installedManifest.Id));
+
+        var service = new ContentStateService(pool.Object, NullLogger<ContentStateService>.Instance);
+
+        // Act
+        var state = await service.GetStateAsync(item);
+
+        // Assert: Uninstalled prospective card must be NotDownloaded, never UpdateAvailable
+        Assert.Equal(ContentState.NotDownloaded, state);
+    }
+
+    /// <summary>
     /// Verifies that when a newer Generals Online release is discovered against an older installed release,
     /// ContentStateService correctly returns UpdateAvailable rather than Downloaded.
     /// </summary>
@@ -1327,13 +1384,15 @@ public class ContentStateServiceTests
     }
 
     /// <summary>
-    /// Verifies that CompareVersions correctly orders multi-digit suffixes (e.g. QFE10 > QFE2).
+    /// Verifies that CompareVersions correctly orders multi-digit suffixes (e.g. QFE10 > QFE2 and QFE10 > QFE9).
     /// </summary>
     [Fact]
     public void CompareVersions_PrefixedOrSuffixedNumericVersions_OrdersNumerically()
     {
         Assert.True(ContentStateService.CompareVersions("QFE10", "QFE2") > 0);
         Assert.True(ContentStateService.CompareVersions("QFE2", "QFE10") < 0);
+        Assert.True(ContentStateService.CompareVersions("QFE10", "QFE9") > 0);
+        Assert.True(ContentStateService.CompareVersions("QFE9", "QFE10") < 0);
     }
 
     /// <summary>

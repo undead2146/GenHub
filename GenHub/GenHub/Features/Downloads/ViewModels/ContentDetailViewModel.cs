@@ -3208,6 +3208,7 @@ public partial class ContentDetailViewModel(
                     });
                 });
 
+                var originalContentId = target.Id ?? string.Empty;
                 var result = await downloadCoordinator.DownloadContentAsync(target, progress, cancellationToken);
                 if (!result.Success || result.Data == null)
                 {
@@ -3215,7 +3216,6 @@ public partial class ContentDetailViewModel(
                     return;
                 }
 
-                var originalContentId = target.Id ?? string.Empty;
                 foreach (var component in BundleComponents)
                 {
                     component.MarkDownloaded(originalContentId, result.Data.Id.Value);
@@ -3891,7 +3891,9 @@ public partial class ContentDetailViewModel(
 
     private async Task<string?> ResolveDownloadedManifestIdAsync()
     {
-        if (!string.IsNullOrEmpty(searchResult.Id) && ManifestIdValidator.IsValid(searchResult.Id, out _))
+        if (!string.IsNullOrEmpty(searchResult.Id) &&
+            ManifestIdValidator.IsValid(searchResult.Id, out _) &&
+            await contentStateService.GetStateByManifestIdAsync(searchResult.Id, _cts.Token) == ContentState.Downloaded)
         {
             return searchResult.Id;
         }
@@ -4028,7 +4030,9 @@ public partial class ContentDetailViewModel(
             }
 
             // First, check if the SearchResult has a valid manifest ID (set during download).
-            else if (!string.IsNullOrEmpty(searchResult.Id) && ManifestIdValidator.IsValid(searchResult.Id, out _))
+            else if (!string.IsNullOrEmpty(searchResult.Id) &&
+                     ManifestIdValidator.IsValid(searchResult.Id, out _) &&
+                     await contentStateService.GetStateByManifestIdAsync(searchResult.Id, _cts.Token) == ContentState.Downloaded)
             {
                 contentManifestId = searchResult.Id;
                 selectedContentName = searchResult.Name;

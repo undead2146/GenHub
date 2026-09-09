@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using GenHub.Core.Constants;
 using GenHub.Core.Helpers;
 using GenHub.Core.Models.Enums;
@@ -11,7 +13,7 @@ namespace GenHub.Core.Models.Providers;
 /// Shared catalog identity helpers so discoverer search-result IDs, acquired manifest IDs,
 /// and declared dependency IDs are generated from the same inputs.
 /// </summary>
-public static class CatalogManifestIdentity
+public static partial class CatalogManifestIdentity
 {
     /// <summary>
     /// Builds a 5-segment publisher content ID from catalog coordinates.
@@ -166,6 +168,12 @@ public static class CatalogManifestIdentity
             {
                 return intVersion;
             }
+
+            var suffixedMatch = SuffixedDigitsRegex().Match(cleanVersion);
+            if (suffixedMatch.Success && int.TryParse(suffixedMatch.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var suffixedVersion) && suffixedVersion >= 0)
+            {
+                return suffixedVersion;
+            }
         }
         catch (FormatException)
         {
@@ -189,13 +197,6 @@ public static class CatalogManifestIdentity
     public static bool IsBaseGameDependency(CatalogDependency dependency)
     {
         ArgumentNullException.ThrowIfNull(dependency);
-
-        if (!string.IsNullOrWhiteSpace(dependency.ContentType) &&
-            Enum.TryParse<ContentType>(dependency.ContentType, ignoreCase: true, out var declared) &&
-            declared == ContentType.GameInstallation)
-        {
-            return true;
-        }
 
         var publisher = dependency.PublisherId ?? string.Empty;
         var contentId = dependency.ContentId ?? string.Empty;
@@ -348,4 +349,7 @@ public static class CatalogManifestIdentity
 
         return false;
     }
+
+    [GeneratedRegex(@"^[a-zA-Z]+[._-]?(\d+)$")]
+    private static partial Regex SuffixedDigitsRegex();
 }

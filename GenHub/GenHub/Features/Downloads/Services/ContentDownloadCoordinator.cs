@@ -139,10 +139,71 @@ public sealed class ContentDownloadCoordinator(
         ArgumentNullException.ThrowIfNull(searchResult);
 
         var key = GetDownloadKey(searchResult);
-
-        var inFlight = GetOrCreateInFlightDownload(key, out var isInitiator);
-
         Action<ContentAcquisitionProgress>? callback = progress != null ? progress.Report : null;
+
+        InFlightDownload inFlight;
+        bool isInitiator;
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            Task? previousCancelledTask = null;
+
+            lock (_inFlightDownloads)
+            {
+                if (_inFlightDownloads.TryGetValue(key, out var existing) && !existing.Task.IsCompleted)
+                {
+                    if (existing.InternalCts.IsCancellationRequested)
+                    {
+                        // The previous download was cancelled by its waiter(s) but is still unwinding.
+                        // Wait for it to complete outside the lock before launching a fresh acquire.
+                        previousCancelledTask = existing.Task;
+                    }
+                    else
+                    {
+                        // Existing active download: join it as a waiter
+                        inFlight = existing;
+                        isInitiator = false;
+                        lock (inFlight.Lock)
+                        {
+                            inFlight.WaiterCount++;
+                        }
+
+                        break;
+                    }
+                }
+                else
+                {
+                    inFlight = new InFlightDownload();
+                    isInitiator = true;
+                    _inFlightDownloads[key] = inFlight;
+                    lock (inFlight.Lock)
+                    {
+                        inFlight.WaiterCount++;
+                    }
+
+                    break;
+                }
+            }
+
+            if (previousCancelledTask != null)
+            {
+                try
+                {
+                    await previousCancelledTask.WaitAsync(cancellationToken);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // Previous task cancelled; proceed to retry in the loop to start a fresh acquire.
+                }
+                catch (Exception)
+                {
+                    // Previous task failed; proceed to retry in the loop to start a fresh acquire.
+                }
+            }
+        }
+
         AttachProgressCallback(inFlight, callback);
 
         if (isInitiator)
@@ -248,32 +309,6 @@ public sealed class ContentDownloadCoordinator(
         lock (inFlight.Lock)
         {
             inFlight.ProgressCallbacks -= callback;
-        }
-    }
-
-    private InFlightDownload GetOrCreateInFlightDownload(string key, out bool isInitiator)
-    {
-        lock (_inFlightDownloads)
-        {
-            if (!_inFlightDownloads.TryGetValue(key, out var inFlight) ||
-                inFlight.InternalCts.IsCancellationRequested ||
-                inFlight.Task.IsCompleted)
-            {
-                inFlight = new InFlightDownload();
-                isInitiator = true;
-                _inFlightDownloads[key] = inFlight;
-            }
-            else
-            {
-                isInitiator = false;
-            }
-
-            lock (inFlight.Lock)
-            {
-                inFlight.WaiterCount++;
-            }
-
-            return inFlight;
         }
     }
 
