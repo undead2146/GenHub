@@ -1,6 +1,4 @@
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
@@ -108,31 +106,7 @@ public interface IContentManifestBuilder
     IContentManifestBuilder WithMetadata(string description, List<string>? tags = null, string iconUrl = "", List<string>? screenshotUrls = null, string changelogUrl = "");
 
     /// <summary>
-    /// Adds a content dependency without compatible game types.
-    /// </summary>
-    /// <param name="id">Dependency ID.</param>
-    /// <param name="name">Dependency name.</param>
-    /// <param name="dependencyType">The type of dependency.</param>
-    /// <param name="installBehavior">Defines the requirement and installation action for this dependency.</param>
-    /// <param name="minVersion">Minimum required version.</param>
-    /// <param name="maxVersion">Maximum allowed version.</param>
-    /// <param name="compatibleVersions">List of compatible versions.</param>
-    /// <param name="isExclusive">Whether the dependency is exclusive.</param>
-    /// <param name="conflictsWith">List of conflicting dependency IDs.</param>
-    /// <returns>The builder instance for chaining.</returns>
-    IContentManifestBuilder AddDependency(
-        ManifestId id,
-        string name,
-        ContentType dependencyType,
-        DependencyInstallBehavior installBehavior,
-        string minVersion,
-        string maxVersion,
-        List<string>? compatibleVersions,
-        bool isExclusive,
-        List<ManifestId>? conflictsWith);
-
-    /// <summary>
-    /// Adds a content dependency with compatible game types.
+    /// Adds a content dependency.
     /// </summary>
     /// <param name="id">Dependency ID.</param>
     /// <param name="name">Dependency name.</param>
@@ -145,7 +119,6 @@ public interface IContentManifestBuilder
     /// <param name="conflictsWith">List of conflicting dependency IDs.</param>
     /// <param name="compatibleGameTypes">List of compatible game types.</param>
     /// <returns>The builder instance for chaining.</returns>
-    [SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "Manifest builder fluent API preserves overload parity with existing AddDependency methods.")]
     IContentManifestBuilder AddDependency(
         ManifestId id,
         string name,
@@ -159,7 +132,7 @@ public interface IContentManifestBuilder
         List<GameType>? compatibleGameTypes = null);
 
     /// <summary>
-    /// Adds a content dependency with compatible game types and explicit version bound inclusivity.
+    /// Adds a dependency to the manifest with version bounds inclusivity.
     /// </summary>
     /// <param name="id">Dependency ID.</param>
     /// <param name="name">Dependency name.</param>
@@ -228,8 +201,18 @@ public interface IContentManifestBuilder
     /// <param name="sourcePath">The source path of the file in the game installation.</param>
     /// <param name="isExecutable">Whether the file is executable.</param>
     /// <param name="permissions">File permissions.</param>
+    /// <param name="hash">Optional pre-computed SHA256 content hash.</param>
+    /// <param name="size">Optional file size in bytes.</param>
+    /// <param name="isRequired">Whether the file is required.</param>
     /// <returns>A task that yields the <see cref="IContentManifestBuilder"/> instance for chaining upon completion.</returns>
-    Task<IContentManifestBuilder> AddGameInstallationFileAsync(string relativePath, string sourcePath, bool isExecutable = false, FilePermissions? permissions = null);
+    Task<IContentManifestBuilder> AddGameInstallationFileAsync(
+        string relativePath,
+        string sourcePath,
+        bool isExecutable = false,
+        FilePermissions? permissions = null,
+        string? hash = null,
+        long? size = null,
+        bool isRequired = true);
 
     /// <summary>
     /// Adds a content-addressable file from the CAS system.
