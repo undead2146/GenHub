@@ -826,6 +826,225 @@ public class DownloadsBrowserViewModelTests
         Assert.True(orphanItem2.IsDisposed, "Orphan VMs from superseded custom query must be disposed.");
     }
 
+    /// <summary>
+    /// Verifies that in a multi-release feed, the newest release (not yet downloaded) is marked
+    /// NotDownloaded (showing only Download) while older downloaded releases are marked
+    /// UpdateAvailable targeting the newest release (showing Update Available and Add to Profile).
+    /// </summary>
+    [Fact]
+    public void ReconcileReleaseUpdateStates_WhenNewestReleaseIsNotDownloadedAndOlderIsDownloaded_ReconcilesCorrectly()
+    {
+        // Arrange
+        var stateServiceMock = new Mock<IContentStateService>();
+        var loggerMock = new Mock<ILogger<ContentGridItemViewModel>>();
+
+        var newestSr = new ContentSearchResult
+        {
+            Id = "github.TheSuperHackers.GeneralsGameCode.weekly-2026-09-05.zerohour",
+            Name = "GeneralsGameCode weekly-2026-09-05 — Zero Hour",
+            Version = "2026-09-05",
+            ProviderName = "thesuperhackers",
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+            LastUpdated = new DateTime(2026, 9, 5, 0, 0, 0, DateTimeKind.Utc),
+            ResolverMetadata = new Dictionary<string, string>
+            {
+                [GitHubConstants.OwnerMetadataKey] = "TheSuperHackers",
+                [GitHubConstants.RepoMetadataKey] = "GeneralsGameCode",
+            },
+        };
+        var newestVm = new ContentGridItemViewModel(newestSr, stateServiceMock.Object, loggerMock.Object)
+        {
+            CurrentState = ContentState.UpdateAvailable,
+            IsDownloaded = true,
+        };
+        var newestVariant = new InstallableVariant
+        {
+            Name = "Zero Hour",
+            ManifestId = "1.20260905.thesuperhackers.gameclient.zerohour",
+            CurrentState = ContentState.UpdateAvailable,
+        };
+        newestVm.Variants.Add(newestVariant);
+        newestVm.SelectedVariant = newestVariant;
+
+        var olderSr = new ContentSearchResult
+        {
+            Id = "github.TheSuperHackers.GeneralsGameCode.weekly-2026-08-28.zerohour",
+            Name = "GeneralsGameCode weekly-2026-08-28 — Zero Hour",
+            Version = "2026-08-28",
+            ProviderName = "thesuperhackers",
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+            LastUpdated = new DateTime(2026, 8, 28, 0, 0, 0, DateTimeKind.Utc),
+            ResolverMetadata = new Dictionary<string, string>
+            {
+                [GitHubConstants.OwnerMetadataKey] = "TheSuperHackers",
+                [GitHubConstants.RepoMetadataKey] = "GeneralsGameCode",
+            },
+        };
+        var olderVm = new ContentGridItemViewModel(olderSr, stateServiceMock.Object, loggerMock.Object)
+        {
+            CurrentState = ContentState.Downloaded,
+            IsDownloaded = true,
+        };
+        var olderVariant = new InstallableVariant
+        {
+            Name = "Zero Hour",
+            ManifestId = "1.20260828.thesuperhackers.gameclient.zerohour",
+            CurrentState = ContentState.Downloaded,
+        };
+        olderVm.Variants.Add(olderVariant);
+        olderVm.SelectedVariant = olderVariant;
+
+        var oldestSr = new ContentSearchResult
+        {
+            Id = "github.TheSuperHackers.GeneralsGameCode.weekly-2026-08-21.zerohour",
+            Name = "GeneralsGameCode weekly-2026-08-21 — Zero Hour",
+            Version = "2026-08-21",
+            ProviderName = "thesuperhackers",
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+            LastUpdated = new DateTime(2026, 8, 21, 0, 0, 0, DateTimeKind.Utc),
+            ResolverMetadata = new Dictionary<string, string>
+            {
+                [GitHubConstants.OwnerMetadataKey] = "TheSuperHackers",
+                [GitHubConstants.RepoMetadataKey] = "GeneralsGameCode",
+            },
+        };
+        var oldestVm = new ContentGridItemViewModel(oldestSr, stateServiceMock.Object, loggerMock.Object)
+        {
+            CurrentState = ContentState.NotDownloaded,
+            IsDownloaded = false,
+        };
+        var oldestVariant = new InstallableVariant
+        {
+            Name = "Zero Hour",
+            ManifestId = "1.20260821.thesuperhackers.gameclient.zerohour",
+            CurrentState = ContentState.NotDownloaded,
+        };
+        oldestVm.Variants.Add(oldestVariant);
+        oldestVm.SelectedVariant = oldestVariant;
+
+        // Act
+        DownloadsBrowserViewModel.ReconcileReleaseUpdateStates([newestVm, olderVm, oldestVm]);
+
+        // Assert: Newest item must be NotDownloaded, show only Download button
+        Assert.Equal(ContentState.NotDownloaded, newestVm.CurrentState);
+        Assert.Equal(ContentState.NotDownloaded, newestVm.EffectiveCurrentState);
+        Assert.False(newestVm.IsDownloaded);
+        Assert.False(newestVm.EffectiveIsDownloaded);
+        Assert.Null(newestVm.UpdateTargetVm);
+        Assert.True(newestVm.ShowDownloadButton);
+        Assert.False(newestVm.ShowUpdateButton);
+        Assert.False(newestVm.ShowAddToProfileButton);
+        Assert.Equal(ContentState.NotDownloaded, newestVariant.CurrentState);
+
+        // Assert: Older downloaded item must be UpdateAvailable targeting newestVm
+        Assert.Equal(ContentState.UpdateAvailable, olderVm.CurrentState);
+        Assert.Equal(ContentState.UpdateAvailable, olderVm.EffectiveCurrentState);
+        Assert.True(olderVm.IsDownloaded);
+        Assert.True(olderVm.EffectiveIsDownloaded);
+        Assert.Same(newestVm, olderVm.UpdateTargetVm);
+        Assert.False(olderVm.ShowDownloadButton);
+        Assert.True(olderVm.ShowUpdateButton);
+        Assert.True(olderVm.ShowAddToProfileButton);
+        Assert.Equal(ContentState.UpdateAvailable, olderVariant.CurrentState);
+
+        // Assert: Oldest un-downloaded item remains NotDownloaded, show only Download
+        Assert.Equal(ContentState.NotDownloaded, oldestVm.CurrentState);
+        Assert.Equal(ContentState.NotDownloaded, oldestVm.EffectiveCurrentState);
+        Assert.False(oldestVm.IsDownloaded);
+        Assert.False(oldestVm.EffectiveIsDownloaded);
+        Assert.Null(oldestVm.UpdateTargetVm);
+        Assert.True(oldestVm.ShowDownloadButton);
+        Assert.False(oldestVm.ShowUpdateButton);
+        Assert.False(oldestVm.ShowAddToProfileButton);
+    }
+
+    /// <summary>
+    /// Verifies that when the newest release is already downloaded, older downloaded releases
+    /// stay Downloaded and do not show an unnecessary Update Available button.
+    /// </summary>
+    [Fact]
+    public void ReconcileReleaseUpdateStates_WhenNewestReleaseIsAlreadyDownloaded_OlderReleaseDoesNotOfferUpdate()
+    {
+        // Arrange
+        var stateServiceMock = new Mock<IContentStateService>();
+        var loggerMock = new Mock<ILogger<ContentGridItemViewModel>>();
+
+        var newestSr = new ContentSearchResult
+        {
+            Id = "github.TheSuperHackers.GeneralsGameCode.weekly-2026-09-05.zerohour",
+            Name = "GeneralsGameCode weekly-2026-09-05 — Zero Hour",
+            Version = "2026-09-05",
+            ProviderName = "thesuperhackers",
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+            LastUpdated = new DateTime(2026, 9, 5, 0, 0, 0, DateTimeKind.Utc),
+            ResolverMetadata = new Dictionary<string, string>
+            {
+                [GitHubConstants.OwnerMetadataKey] = "TheSuperHackers",
+                [GitHubConstants.RepoMetadataKey] = "GeneralsGameCode",
+            },
+        };
+        var newestVm = new ContentGridItemViewModel(newestSr, stateServiceMock.Object, loggerMock.Object)
+        {
+            CurrentState = ContentState.Downloaded,
+            IsDownloaded = true,
+        };
+        var newestVariant = new InstallableVariant
+        {
+            Name = "Zero Hour",
+            ManifestId = "1.20260905.thesuperhackers.gameclient.zerohour",
+            CurrentState = ContentState.Downloaded,
+        };
+        newestVm.Variants.Add(newestVariant);
+        newestVm.SelectedVariant = newestVariant;
+
+        var olderSr = new ContentSearchResult
+        {
+            Id = "github.TheSuperHackers.GeneralsGameCode.weekly-2026-08-28.zerohour",
+            Name = "GeneralsGameCode weekly-2026-08-28 — Zero Hour",
+            Version = "2026-08-28",
+            ProviderName = "thesuperhackers",
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+            LastUpdated = new DateTime(2026, 8, 28, 0, 0, 0, DateTimeKind.Utc),
+            ResolverMetadata = new Dictionary<string, string>
+            {
+                [GitHubConstants.OwnerMetadataKey] = "TheSuperHackers",
+                [GitHubConstants.RepoMetadataKey] = "GeneralsGameCode",
+            },
+        };
+        var olderVm = new ContentGridItemViewModel(olderSr, stateServiceMock.Object, loggerMock.Object)
+        {
+            CurrentState = ContentState.Downloaded,
+            IsDownloaded = true,
+        };
+        var olderVariant = new InstallableVariant
+        {
+            Name = "Zero Hour",
+            ManifestId = "1.20260828.thesuperhackers.gameclient.zerohour",
+            CurrentState = ContentState.Downloaded,
+        };
+        olderVm.Variants.Add(olderVariant);
+        olderVm.SelectedVariant = olderVariant;
+
+        // Act
+        DownloadsBrowserViewModel.ReconcileReleaseUpdateStates([newestVm, olderVm]);
+
+        // Assert
+        Assert.Equal(ContentState.Downloaded, newestVm.CurrentState);
+        Assert.Null(newestVm.UpdateTargetVm);
+        Assert.True(newestVm.ShowAddToProfileButton);
+        Assert.False(newestVm.ShowUpdateButton);
+
+        Assert.Equal(ContentState.Downloaded, olderVm.CurrentState);
+        Assert.Null(olderVm.UpdateTargetVm);
+        Assert.True(olderVm.ShowAddToProfileButton);
+        Assert.False(olderVm.ShowUpdateButton);
+    }
+
     private static DownloadsBrowserViewModel CreateViewModel()
     {
         var subscriptionStore = new Mock<IPublisherSubscriptionStore>();
