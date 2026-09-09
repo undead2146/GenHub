@@ -13,6 +13,11 @@ using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Models.Enums;
+using System.Net.Http;
+using GenHub.Core.Interfaces.Providers;
+using GenHub.Core.Interfaces.Publishers;
+using GenHub.Features.Content.ViewModels.Catalog;
+using GenHub.Features.Downloads.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -334,25 +339,61 @@ public partial class App : Application
 
             logger?.LogInformation("Handling subscription URL: {Url}", uri.AbsoluteUri);
 
-            var dialogService = _serviceProvider.GetService<IDialogService>();
-            if (dialogService != null)
-            {
-                var confirmed = await dialogService.ShowConfirmationAsync(
-                    "Subscribe to Catalog",
-                    $"Do you want to subscribe to content from:\n{uri.AbsoluteUri}",
-                    "Subscribe",
-                    "Cancel");
+            var subscriptionStore = _serviceProvider.GetService<IPublisherSubscriptionStore>();
+            var catalogParser = _serviceProvider.GetService<IPublisherCatalogParser>();
+            var httpClientFactory = _serviceProvider.GetService<IHttpClientFactory>();
+            var vmLogger = _serviceProvider.GetService<ILogger<SubscriptionConfirmationViewModel>>();
+            var definitionService = _serviceProvider.GetService<IPublisherDefinitionService>();
 
-                if (confirmed)
+            if (subscriptionStore != null && catalogParser != null && httpClientFactory != null && vmLogger != null)
+            {
+                var httpClient = httpClientFactory.CreateClient();
+                var viewModel = new SubscriptionConfirmationViewModel(
+                    uri.AbsoluteUri,
+                    subscriptionStore,
+                    catalogParser,
+                    httpClient,
+                    vmLogger,
+                    definitionService);
+
+                var dialog = new SubscriptionConfirmationDialog
                 {
-                    if (mainWindow?.DataContext is MainViewModel mainViewModel)
+                    DataContext = viewModel,
+                };
+
+                viewModel.RequestClose = success =>
+                {
+                    dialog.Close();
+                    if (success)
+                    {
+                        if (mainWindow?.DataContext is MainViewModel mainViewModel)
+                        {
+                            mainViewModel.SelectTab(NavigationTab.Downloads);
+                        }
+
+                        var notificationService = _serviceProvider.GetService<INotificationService>();
+                        notificationService?.ShowSuccess("Subscribed", $"Successfully subscribed to: {viewModel.PublisherName}");
+                    }
+                };
+
+                _ = viewModel.InitializeAsync();
+                await dialog.ShowDialog(mainWindow);
+            }
+            else
+            {
+                var dialogService = _serviceProvider.GetService<IDialogService>();
+                if (dialogService != null)
+                {
+                    var confirmed = await dialogService.ShowConfirmationAsync(
+                        "Subscribe to Catalog",
+                        $"Do you want to subscribe to content from:\n{uri.AbsoluteUri}",
+                        "Subscribe",
+                        "Cancel");
+
+                    if (confirmed && mainWindow?.DataContext is MainViewModel mainViewModel)
                     {
                         mainViewModel.SelectTab(NavigationTab.Downloads);
                     }
-
-                    logger?.LogInformation("User confirmed subscription to: {Url}", uri.AbsoluteUri);
-                    var notificationService = _serviceProvider.GetService<INotificationService>();
-                    notificationService?.ShowSuccess("Subscribed", $"Successfully subscribed to: {uri.AbsoluteUri}");
                 }
             }
         }

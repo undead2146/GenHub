@@ -1006,7 +1006,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             HasGitHubPat = _gitHubTokenStorage?.HasToken() == true;
             if (HasGitHubPat)
             {
-                PatStatusMessage = "GitHub PAT configured ✓";
+                PatStatusMessage = "GitHub PAT configured";
                 IsPatValid = true;
             }
             else
@@ -1194,7 +1194,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
                     var artifact = await _updateManager.CheckForArtifactUpdatesAsync();
                     if (artifact != null || _gitHubTokenStorage.HasToken())
                     {
-                        PatStatusMessage = "PAT validated successfully ✓";
+                        PatStatusMessage = "PAT validated successfully";
                         IsPatValid = true;
                         HasGitHubPat = true;
                         GitHubPatInput = string.Empty; // Clear input after successful save
