@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Providers;
+using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Providers;
 using GenHub.Core.Models.Results;
 using Microsoft.Extensions.Logging;
@@ -147,6 +148,12 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
 
             if (CatalogManifestIdentity.IsBaseGameDependency(dep))
             {
+                if (!string.IsNullOrWhiteSpace(dep.ContentType) &&
+                    !dep.ContentType.Equals(nameof(ContentType.GameInstallation), StringComparison.OrdinalIgnoreCase))
+                {
+                    errors.Add($"Base game dependency '{dep.ContentId}' in '{content.Id}' cannot declare non-GameInstallation contentType '{dep.ContentType}'");
+                }
+
                 continue;
             }
 

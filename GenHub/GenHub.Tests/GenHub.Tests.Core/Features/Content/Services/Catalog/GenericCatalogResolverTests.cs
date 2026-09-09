@@ -390,4 +390,67 @@ public class GenericCatalogResolverTests
             "common-shared.zip",
         ]);
     }
+
+    /// <summary>
+    /// Verifies that base game dependencies misdeclared as Mod still resolve to GameInstallation dependencies.
+    /// </summary>
+    [Fact]
+    public void ResolveDependencyContentType_BaseGameDependencyMisdeclaredAsMod_ResolvesToGameInstallation()
+    {
+        var dep = new CatalogDependency
+        {
+            PublisherId = "any",
+            ContentId = "zerohour",
+            ContentType = "Mod",
+        };
+        var parent = new CatalogContentItem
+        {
+            Id = "my-mod",
+            Name = "My Mod",
+            ContentType = ContentType.Mod,
+        };
+
+        var resolvedType = CatalogManifestIdentity.ResolveDependencyContentType(dep, parent);
+
+        resolvedType.Should().Be(ContentType.GameInstallation);
+    }
+
+    /// <summary>
+    /// Verifies that JsonPublisherCatalogParser fails validation when a base game dependency declares a non-GameInstallation contentType.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task ParseCatalogAsync_BaseGameDependencyDeclaringNonGameInstallationType_FailsValidationAsync()
+    {
+        var parser = new JsonPublisherCatalogParser(Mock.Of<ILogger<JsonPublisherCatalogParser>>());
+        var json = """
+        {
+            "schemaVersion": 1,
+            "publisher": { "id": "test-pub", "name": "Test Publisher" },
+            "content": [
+                {
+                    "id": "test-mod",
+                    "name": "Test Mod",
+                    "contentType": "Mod",
+                    "releases": [
+                        {
+                            "version": "1.0.0",
+                            "dependencies": [
+                                { "publisherId": "any", "contentId": "zerohour", "contentType": "Mod" }
+                            ],
+                            "artifacts": [
+                                { "filename": "test.zip", "downloadUrl": "https://example.com/test.zip", "isPrimary": true }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = await parser.ParseCatalogAsync(json);
+
+        result.Success.Should().BeFalse();
+        result.FirstError.Should().Contain("cannot declare non-GameInstallation contentType");
+    }
 }

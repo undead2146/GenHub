@@ -218,15 +218,15 @@ public static class CatalogManifestIdentity
         ArgumentNullException.ThrowIfNull(dependency);
         ArgumentNullException.ThrowIfNull(parent);
 
+        if (IsBaseGameDependency(dependency))
+        {
+            return ContentType.GameInstallation;
+        }
+
         if (!string.IsNullOrWhiteSpace(dependency.ContentType) &&
             Enum.TryParse<ContentType>(dependency.ContentType, ignoreCase: true, out var declared))
         {
             return declared;
-        }
-
-        if (IsBaseGameDependency(dependency))
-        {
-            return ContentType.GameInstallation;
         }
 
         if (catalogItems != null &&
