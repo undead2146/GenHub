@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Messaging;
@@ -264,15 +265,7 @@ public sealed class ContentDownloadCoordinator(
             }
         }
 
-        foreach (var download in _inFlightDownloads.Values)
-        {
-            if (MatchesInFlightDownload(download, searchResult))
-            {
-                return download;
-            }
-        }
-
-        return null;
+        return _inFlightDownloads.Values.FirstOrDefault(download => MatchesInFlightDownload(download, searchResult));
     }
 
     private async Task<(InFlightDownload InFlight, bool IsInitiator)> GetOrCreateInFlightDownloadAsync(
