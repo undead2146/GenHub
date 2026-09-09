@@ -280,36 +280,6 @@ public sealed partial class DownloadsBrowserViewModel(
     }
 
     /// <summary>
-    /// Cleans up in-flight browse operations and disposes un-retained items.
-    /// </summary>
-    /// <param name="publisherId">The publisher ID whose in-flight operation completed or faulted.</param>
-    /// <param name="inFlightOp">The in-flight operation context.</param>
-    internal void CleanupInFlight(string publisherId, PublisherInFlightOperation? inFlightOp)
-    {
-        if (inFlightOp != null)
-        {
-            lock (_cacheLock)
-            {
-                if (_inFlightOperations.TryGetValue(publisherId, out var current) && ReferenceEquals(current, inFlightOp))
-                {
-                    _inFlightOperations.Remove(publisherId);
-                }
-
-                var retainedItems = new HashSet<ContentGridItemViewModel>(_browseCache.Values.SelectMany(s => s.Items));
-                foreach (var item in ContentItems)
-                {
-                    retainedItems.Add(item);
-                }
-
-                foreach (var item in inFlightOp.ResolvedItems.Where(item => !retainedItems.Contains(item)))
-                {
-                    item.Dispose();
-                }
-            }
-        }
-    }
-
-    /// <summary>
     /// Reconciles the update and download states across multiple releases belonging to the same content family.
     /// In multi-release feeds, the prospective newest release is marked NotDownloaded (showing only Download),
     /// while older downloaded releases are marked UpdateAvailable targeting the newest release.
@@ -462,6 +432,36 @@ public sealed partial class DownloadsBrowserViewModel(
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Cleans up in-flight browse operations and disposes un-retained items.
+    /// </summary>
+    /// <param name="publisherId">The publisher ID whose in-flight operation completed or faulted.</param>
+    /// <param name="inFlightOp">The in-flight operation context.</param>
+    internal void CleanupInFlight(string publisherId, PublisherInFlightOperation? inFlightOp)
+    {
+        if (inFlightOp != null)
+        {
+            lock (_cacheLock)
+            {
+                if (_inFlightOperations.TryGetValue(publisherId, out var current) && ReferenceEquals(current, inFlightOp))
+                {
+                    _inFlightOperations.Remove(publisherId);
+                }
+
+                var retainedItems = new HashSet<ContentGridItemViewModel>(_browseCache.Values.SelectMany(s => s.Items));
+                foreach (var item in ContentItems)
+                {
+                    retainedItems.Add(item);
+                }
+
+                foreach (var item in inFlightOp.ResolvedItems.Where(item => !retainedItems.Contains(item)))
+                {
+                    item.Dispose();
+                }
+            }
+        }
     }
 
     [RelayCommand]
@@ -1521,8 +1521,6 @@ public sealed partial class DownloadsBrowserViewModel(
             }
         });
     }
-
-
 
     private ContentGridItemViewModel CreateBaseGridItemViewModel(ContentSearchResult item)
     {

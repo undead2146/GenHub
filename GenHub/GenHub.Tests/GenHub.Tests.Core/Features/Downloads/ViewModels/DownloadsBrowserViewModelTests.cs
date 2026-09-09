@@ -847,7 +847,7 @@ public class DownloadsBrowserViewModelTests
             ContentType = ContentType.GameClient,
             TargetGame = GameType.ZeroHour,
             LastUpdated = new DateTime(2026, 9, 5, 0, 0, 0, DateTimeKind.Utc),
-            ResolverMetadata = new Dictionary<string, string>
+            ResolverMetadata =
             {
                 [GitHubConstants.OwnerMetadataKey] = "TheSuperHackers",
                 [GitHubConstants.RepoMetadataKey] = "GeneralsGameCode",
@@ -876,7 +876,7 @@ public class DownloadsBrowserViewModelTests
             ContentType = ContentType.GameClient,
             TargetGame = GameType.ZeroHour,
             LastUpdated = new DateTime(2026, 8, 28, 0, 0, 0, DateTimeKind.Utc),
-            ResolverMetadata = new Dictionary<string, string>
+            ResolverMetadata =
             {
                 [GitHubConstants.OwnerMetadataKey] = "TheSuperHackers",
                 [GitHubConstants.RepoMetadataKey] = "GeneralsGameCode",
@@ -905,7 +905,7 @@ public class DownloadsBrowserViewModelTests
             ContentType = ContentType.GameClient,
             TargetGame = GameType.ZeroHour,
             LastUpdated = new DateTime(2026, 8, 21, 0, 0, 0, DateTimeKind.Utc),
-            ResolverMetadata = new Dictionary<string, string>
+            ResolverMetadata =
             {
                 [GitHubConstants.OwnerMetadataKey] = "TheSuperHackers",
                 [GitHubConstants.RepoMetadataKey] = "GeneralsGameCode",
@@ -981,7 +981,7 @@ public class DownloadsBrowserViewModelTests
             ContentType = ContentType.GameClient,
             TargetGame = GameType.ZeroHour,
             LastUpdated = new DateTime(2026, 9, 5, 0, 0, 0, DateTimeKind.Utc),
-            ResolverMetadata = new Dictionary<string, string>
+            ResolverMetadata =
             {
                 [GitHubConstants.OwnerMetadataKey] = "TheSuperHackers",
                 [GitHubConstants.RepoMetadataKey] = "GeneralsGameCode",
@@ -1010,7 +1010,7 @@ public class DownloadsBrowserViewModelTests
             ContentType = ContentType.GameClient,
             TargetGame = GameType.ZeroHour,
             LastUpdated = new DateTime(2026, 8, 28, 0, 0, 0, DateTimeKind.Utc),
-            ResolverMetadata = new Dictionary<string, string>
+            ResolverMetadata =
             {
                 [GitHubConstants.OwnerMetadataKey] = "TheSuperHackers",
                 [GitHubConstants.RepoMetadataKey] = "GeneralsGameCode",
