@@ -26,117 +26,12 @@ public static partial class MarkdownLinkFormatter
 
         var (owner, repo) = ExtractGitHubOwnerRepo(sourceUrl, text);
 
-        var result = text;
-
-        // 0. Sanitize pre-existing markdown links and images in untrusted input:
-        // Only permit http and https schemes. Convert non-http(s) links to plain text and remove non-http(s) images.
-        result = MarkdownImageRegex().Replace(result, m =>
-        {
-            var url = m.Groups["url"].Value.Trim();
-            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
-                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
-            {
-                return m.Value;
-            }
-
-            return m.Groups["alt"].Value;
-        });
-
-        result = MarkdownHyperlinkRegex().Replace(result, m =>
-        {
-            var url = m.Groups["url"].Value.Trim();
-            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
-                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
-            {
-                return m.Value;
-            }
-
-            return m.Groups["text"].Value;
-        });
-
-        // 1. Transform GitHub pull request / issue URLs into compact clickable links, e.g.
-        // in https://github.com/Owner/Repo/pull/109 -> in [#109](https://github.com/Owner/Repo/pull/109)
-        result = GitHubPullUrlRegex().Replace(result, m =>
-        {
-            var url = m.Value;
-            var num = m.Groups["num"].Value;
-            return $"[#{num}]({url})";
-        });
-
-        // 2. Transform GitHub commit URLs into compact clickable links, e.g.
-        // https://github.com/Owner/Repo/commit/1234567890 -> [`1234567`](https://github.com/Owner/Repo/commit/1234567890)
-        result = GitHubCommitUrlRegex().Replace(result, m =>
-        {
-            var url = m.Value;
-            var sha = m.Groups["sha"].Value;
-            var shortSha = sha.Length > 7 ? sha[..7] : sha;
-            return $"[`{shortSha}`]({url})";
-        });
-
-        // 3. Transform PR/issue references like (#1234) or #1234 if owner and repo are known
-        if (!string.IsNullOrEmpty(owner) && !string.IsNullOrEmpty(repo))
-        {
-            var baseRepoUrl = $"https://github.com/{owner}/{repo}";
-
-            // Transform (#1234) -> ([#1234](https://github.com/owner/repo/pull/1234))
-            result = ParenthesizedIssueRegex().Replace(result, m =>
-            {
-                var num = m.Groups["num"].Value;
-                return $"([#{num}]({baseRepoUrl}/pull/{num}))";
-            });
-
-            // Transform standalone #1234 at word boundaries not already part of a link or markdown header
-            result = StandaloneIssueRegex().Replace(result, m =>
-            {
-                var prefix = m.Groups["prefix"].Value;
-                var num = m.Groups["num"].Value;
-                return $"{prefix}[#{num}]({baseRepoUrl}/pull/{num})";
-            });
-        }
-
-        // 4. Transform GitHub @username mentions (e.g. "by @Stubbjax") into clickable links
-        result = GitHubMentionRegex().Replace(result, m =>
-        {
-            var prefix = m.Groups["prefix"].Value;
-            var user = m.Groups["user"].Value;
-            return $"{prefix}[@{user}](https://github.com/{user})";
-        });
-
-        // 5. Transform any remaining bare HTTP/HTTPS URLs into clickable markdown links
-        result = BareUrlRegex().Replace(result, m =>
-        {
-            // If already matched by an existing markdown link [text](url), leave untouched
-            if (m.Groups["mdlink"].Success)
-            {
-                return m.Value;
-            }
-
-            var url = m.Groups["url"].Value;
-            var trimmedLength = url.Length;
-
-            // Trim trailing punctuation like . , ; : ? ! ) ] from the URL
-            while (trimmedLength > 0 && ".,;:?!)]".Contains(url[trimmedLength - 1]))
-            {
-                trimmedLength--;
-            }
-
-            if (trimmedLength == url.Length)
-            {
-                return $"[{url}]({url})";
-            }
-
-            var cleanUrl = url[..trimmedLength];
-            var trailing = url[trimmedLength..];
-            return $"[{cleanUrl}]({cleanUrl}){trailing}";
-        });
-
-        // 6. Normalize Unicode bullets (•, ●, ▪, ▫) at line starts into standard Markdown list items (- )
-        // so Markdown engines render each item on its own bulleted line instead of collapsing into a single paragraph.
-        result = BulletListRegex().Replace(result, "${indent}- ");
-
-        // 7. Ensure list items have a blank line before them when preceded by non-list paragraph text,
-        // which prevents Markdown parsers from treating list items as soft breaks in the preceding paragraph.
-        result = ListPrecedingBlankLineRegex().Replace(result, "${prev}\n\n${curr}");
+        var result = SanitizeMarkdownLinksAndImages(text);
+        result = TransformGitHubUrls(result);
+        result = TransformIssueReferences(result, owner, repo);
+        result = TransformGitHubMentions(result);
+        result = TransformBareUrls(result);
+        result = NormalizeBulletLists(result);
 
         return result;
     }
@@ -170,6 +65,122 @@ public static partial class MarkdownLinkFormatter
         return (null, null);
     }
 
+    private static string SanitizeMarkdownLinksAndImages(string text)
+    {
+        var result = MarkdownImageRegex().Replace(text, m =>
+        {
+            var url = m.Groups["url"].Value.Trim();
+            if (IsSafeWebUrl(url))
+            {
+                return m.Value;
+            }
+
+            return m.Groups["alt"].Value;
+        });
+
+        return MarkdownHyperlinkRegex().Replace(result, m =>
+        {
+            var url = m.Groups["url"].Value.Trim();
+            if (IsSafeWebUrl(url))
+            {
+                return m.Value;
+            }
+
+            return m.Groups["text"].Value;
+        });
+    }
+
+    private static bool IsSafeWebUrl(string url)
+    {
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+               (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+    }
+
+    private static string TransformGitHubUrls(string text)
+    {
+        var result = GitHubPullUrlRegex().Replace(text, m =>
+        {
+            var url = m.Value;
+            var num = m.Groups["num"].Value;
+            return $"[#{num}]({url})";
+        });
+
+        return GitHubCommitUrlRegex().Replace(result, m =>
+        {
+            var url = m.Value;
+            var sha = m.Groups["sha"].Value;
+            var shortSha = sha.Length > 7 ? sha[..7] : sha;
+            return $"[`{shortSha}`]({url})";
+        });
+    }
+
+    private static string TransformIssueReferences(string text, string? owner, string? repo)
+    {
+        if (string.IsNullOrEmpty(owner) || string.IsNullOrEmpty(repo))
+        {
+            return text;
+        }
+
+        var baseRepoUrl = $"https://github.com/{owner}/{repo}";
+
+        var result = ParenthesizedIssueRegex().Replace(text, m =>
+        {
+            var num = m.Groups["num"].Value;
+            return $"([#{num}]({baseRepoUrl}/pull/{num}))";
+        });
+
+        return StandaloneIssueRegex().Replace(result, m =>
+        {
+            var prefix = m.Groups["prefix"].Value;
+            var num = m.Groups["num"].Value;
+            return $"{prefix}[#{num}]({baseRepoUrl}/pull/{num})";
+        });
+    }
+
+    private static string TransformGitHubMentions(string text)
+    {
+        return GitHubMentionRegex().Replace(text, m =>
+        {
+            var prefix = m.Groups["prefix"].Value;
+            var user = m.Groups["user"].Value;
+            return $"{prefix}[@{user}](https://github.com/{user})";
+        });
+    }
+
+    private static string TransformBareUrls(string text)
+    {
+        return BareUrlRegex().Replace(text, m =>
+        {
+            if (m.Groups["mdlink"].Success)
+            {
+                return m.Value;
+            }
+
+            var url = m.Groups["url"].Value;
+            var trimmedLength = url.Length;
+
+            while (trimmedLength > 0 && ".,;:?!)]".Contains(url[trimmedLength - 1]))
+            {
+                trimmedLength--;
+            }
+
+            if (trimmedLength == url.Length)
+            {
+                return $"[{url}]({url})";
+            }
+
+            var cleanUrl = url[..trimmedLength];
+            var trailing = url[trimmedLength..];
+            return $"[{cleanUrl}]({cleanUrl}){trailing}";
+        });
+    }
+
+    private static string NormalizeBulletLists(string text)
+    {
+        var result = BulletListRegex().Replace(text, "${indent}- ");
+        return ListPrecedingBlankLineRegex().Replace(result, "${prev}\n\n${curr}");
+    }
+
     [GeneratedRegex(@"!\[(?<alt>[^\]]*)\]\((?<url>(?:[^\s()]+|\([^\s()]+\))+)(?:\s+[""'][^""']*[""'])?\)")]
     private static partial Regex MarkdownImageRegex();
 
@@ -197,7 +208,7 @@ public static partial class MarkdownLinkFormatter
     [GeneratedRegex(@"(?<mdlink>\[[^\]]*\]\([^)]*\))|(?<url>https?://[^\s<>""]+)")]
     private static partial Regex BareUrlRegex();
 
-    [GeneratedRegex(@"^(?<indent>[ \t]*)[•●▪▫][ \t]+", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^(?<indent>[ \t]*)[\u2022\u25cf\u25aa\u25ab][ \t]+", RegexOptions.Multiline)]
     private static partial Regex BulletListRegex();
 
     [GeneratedRegex(@"(?<prev>^[ \t]*[^\s\-*+>#|`].*)\r?\n(?<curr>[ \t]*[-*+][ \t]+)", RegexOptions.Multiline)]

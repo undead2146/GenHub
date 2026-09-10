@@ -14,8 +14,8 @@ public sealed class SafeMarkdownHyperlinkCommand : ICommand
     /// <inheritdoc/>
     public event EventHandler? CanExecuteChanged
     {
-        add { }
-        remove { }
+        add { /* CanExecute condition is invariant for this command */ }
+        remove { /* CanExecute condition is invariant for this command */ }
     }
 
     /// <inheritdoc/>
@@ -42,12 +42,26 @@ public sealed class SafeMarkdownHyperlinkCommand : ICommand
         }
     }
 
+    private static bool IsSafeUrl(object? parameter)
+    {
+        return IsSafeUrl(parameter, out _);
+    }
+
     private static bool IsSafeUrl(object? parameter, [NotNullWhen(true)] out Uri? safeUri)
     {
         safeUri = null;
-        if (parameter is string urlText &&
-            !string.IsNullOrWhiteSpace(urlText) &&
-            Uri.TryCreate(urlText, UriKind.Absolute, out var uri) &&
+        if (parameter is null)
+        {
+            return false;
+        }
+
+        var urlString = parameter.ToString()?.Trim();
+        if (string.IsNullOrEmpty(urlString))
+        {
+            return false;
+        }
+
+        if (Uri.TryCreate(urlString, UriKind.Absolute, out var uri) &&
             (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
         {
             safeUri = uri;
@@ -56,6 +70,4 @@ public sealed class SafeMarkdownHyperlinkCommand : ICommand
 
         return false;
     }
-
-    private static bool IsSafeUrl(object? parameter) => IsSafeUrl(parameter, out _);
 }
