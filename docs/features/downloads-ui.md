@@ -61,7 +61,7 @@ graph TD
 1. **Left Sidebar Pane (`SidebarLayout`)**:
    - Displays available publishers: built-in static providers (Generals Online, TheSuperHackers, Community Outpost), built-in dynamic providers (GitHub), and user-subscribed creator catalogs.
    - Each item displays the publisher logo (via `infraControls:ImageLoader`), publisher display name, and content count badge.
-   - Footer contains an "Add Subscription" button for subscribing to community creator catalogs.
+   - Footer contains a "Manifests Folder" button (`OpenManifestsFolderCommand`) to open local manifests in file manager.
 
 2. **Top Header & Toolbar**:
    - Page title dynamically displaying the selected publisher's name.
@@ -78,10 +78,10 @@ graph TD
    - Handles empty states ("No content found") and loading shimmer indicators.
 
 5. **Load More Footer**:
-   - Displays a "Load More" button when `HasMoreItems` is true and more content is available from the publisher.
+   - Displays a "Load More" button when `CanLoadMore` is true and more content is available from the publisher.
 
 6. **Detail View Modal Layer**:
-   - Renders `ContentDetailView` in a full overlay when `SelectedDetailItem` is non-null.
+   - Renders `ContentDetailView` in a full overlay when `IsDetailViewVisible` is true (`SelectedContent != null`).
 
 ---
 
@@ -96,7 +96,7 @@ graph TD
 
 - **Preview Media**: Thumbnail image with fallback icon when no screenshot is provided.
 - **Header Badges**:
-  - **Content Type Badge**: Styled using `ContentTypeToBadgeBackgroundConverter` (tinted pill) and `ContentTypeToBrushConverter` (border and text) to visually identify `Mod`, `Patch`, `GameClient`, `Tool`, `Map`, etc.
+  - **Content Type Badge**: Styled using `ContentTypeToBrushConverter` (for border and foreground text against `CardBackground`) to visually identify `Mod`, `Patch`, `GameClient`, `Tool`, `Map`, etc. (Tinted background via `ContentTypeToBadgeBackgroundConverter` is featured in `ContentDetailView`).
   - **Publisher Identifier**: Pill identifying the source publisher.
 - **Title & Description**: Title with two-line character ellipsis truncation, and clean summary text formatted by `ReleaseDescriptionHelper`.
 - **Variant Selector**: Dropdown selector displayed when `HasVariants` is true (e.g. resolution variants, game-client variants for Generals vs Zero Hour).
@@ -154,7 +154,7 @@ A modal dialog that appears when a user clicks "Add to Profile" on downloaded co
 - **Game Compatibility Categorization**:
   - **Compatible Profiles**: Highlighted profiles matching the content's target game (Generals or Zero Hour).
   - **Other Profiles**: Incompatible profiles shown with cautionary badges to avoid accidental cross-game attachment.
-- **Multi-Binding Selection**: Uses `ProfileSelectionConverter` to bind `[SelectedContent, GameProfile]` tuples to the attachment command.
+- **Direct Command Selection**: Directly binds `SelectProfileCommand` with the selected `ProfileOptionViewModel` parameter.
 - **Quick Create Profile**: Allows one-click creation of a new game profile preconfigured with the downloaded content.
 
 ---
@@ -190,8 +190,8 @@ The Downloads UI utilizes several custom Avalonia converters located in `GenHub.
 | Converter | Type | Role in Downloads UI |
 | :--- | :--- | :--- |
 | `ContentTypeToBrushConverter` | `IValueConverter` | Translates `ContentType` enum values into vivid accent brushes for badge borders, text, and card outlines. |
-| `ContentTypeToBadgeBackgroundConverter` | `IValueConverter` | Produces an 18% opacity tinted background brush matching the content type accent color. |
-| `ProfileSelectionConverter` | `IMultiValueConverter` | Packages `ContentGridItemViewModel` and target `GameProfile` into command parameters for profile assignment. |
+| `ContentTypeToBadgeBackgroundConverter` | `IValueConverter` | Produces a 14.5% opacity tinted background brush (alpha 0x25 / 37) matching the content type accent color. |
+| `ProfileSelectionConverter` | `IMultiValueConverter` | Legacy multi-value converter packaging content item and target `GameProfile` into command parameters for profile assignment. |
 | `SafeMarkdownHyperlinkCommand` | `ICommand` | Sanitizes markdown hyperlinks to ensure only external HTTP/HTTPS browser links can be triggered. |
 
 All styling tokens, including brush keys (`SurfaceElevatedBrush`, `SurfaceHoverBrush`, `AccentBrush`, `BorderBrush`), are defined in `GenHub/Assets/Styles/ThemeResources.axaml`.

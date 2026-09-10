@@ -72,7 +72,7 @@ graph TB
         CD["IContentDiscoverer"]
         CR["IContentResolver"]
         CMP["IContentManifestPool"]
-        CAS["ContentAddressableStore"]
+        CAS["ICasService / CasService"]
     end
 
     DBV --> DBVM
@@ -334,7 +334,7 @@ Once content is in the `Downloaded` state, clicking "Add to Profile" opens `Prof
 
 ```mermaid
 flowchart TD
-    A["User clicks Add to Profile"] --> B["ProfileSelectionViewModel.InitializeAsync()"]
+    A["User clicks Add to Profile"] --> B["ProfileSelectionViewModel.LoadProfilesAsync()"]
     B --> C["Load all GameProfiles from GameProfileManager"]
     C --> D{"Profile.TargetGame == Content.TargetGame?"}
     D -->|Match| E["Add to CompatibleProfiles"]
@@ -348,7 +348,7 @@ flowchart TD
 
 - **Safety Checks**: Incompatible profiles (e.g. adding a Zero Hour mod to a Generals profile) are visually quarantined in `OtherProfiles` with explicit warning badges.
 - **Quick Creation**: If no suitable profile exists, "Create New Profile" creates a dedicated profile with the target game and pre-enables the content.
-- **Converter Integration**: `ProfileSelectionConverter` passes the content item and target profile into the attachment command.
+- **Profile Selection**: `ProfileSelectionView` binds `SelectProfileCommand` directly with the selected `ProfileOptionViewModel`.
 
 ---
 
@@ -358,9 +358,9 @@ The Downloads browser uses specialized Avalonia converters from `GenHub.Infrastr
 
 | Converter | Type | Description |
 | :--- | :--- | :--- |
-| `ContentTypeToBrushConverter` | `IValueConverter` | Converts a `ContentType` enum value into a solid accent brush for badges and card borders (e.g. Green for GameClient, Blue for Mod, Orange for Patch, Purple for Map). |
-| `ContentTypeToBadgeBackgroundConverter` | `IValueConverter` | Produces an 18% opacity tinted background brush matching the content type's accent color. |
-| `ProfileSelectionConverter` | `IMultiValueConverter` | Combines `ContentGridItemViewModel` and `GameProfile` into a two-element array parameter for profile assignment. |
+| `ContentTypeToBrushConverter` | `IValueConverter` | Converts a `ContentType` enum value into a solid accent brush for badges and card borders (e.g. Cyan for GameClient, Purple for Mod, Amber for Patch, Green for Map). |
+| `ContentTypeToBadgeBackgroundConverter` | `IValueConverter` | Produces a 14.5% opacity tinted background brush (alpha 0x25 / 37) matching the content type accent color. |
+| `ProfileSelectionConverter` | `IMultiValueConverter` | Legacy multi-value converter combining content item and profile into parameters for profile assignment. |
 
 ---
 
@@ -375,8 +375,8 @@ The Downloads browser uses specialized Avalonia converters from `GenHub.Infrastr
 | `Publishers` | `ObservableCollection<PublisherItemViewModel>` | Available content sources. |
 | `SelectedPublisher` | `PublisherItemViewModel?` | Currently active publisher. |
 | `ContentItems` | `ObservableCollection<ContentGridItemViewModel>` | Grid of discovered content items. |
-| `SelectedDetailItem` | `ContentDetailViewModel?` | Active content detail view overlay. |
-| `IsDetailOpen` | `bool` | Whether the detail modal is visible. |
+| `SelectedContent` | `ContentDetailViewModel?` | Active content detail view overlay. |
+| `IsDetailViewVisible` | `bool` | Whether the detail view overlay is visible. |
 | `SearchTerm` | `string` | Search query text. |
 | `CanSearch` | `bool` | Whether active publisher supports text search. |
 | `CanShowFilters` | `bool` | Whether active publisher provides filter options. |
@@ -384,10 +384,19 @@ The Downloads browser uses specialized Avalonia converters from `GenHub.Infrastr
 | `CurrentFilterViewModel` | `IFilterPanelViewModel?` | Active publisher filter view model. |
 | `IsLoading` | `bool` | Content discovery in progress. |
 | `CanLoadMore` | `bool` | Whether more pages can be requested. |
+| `OpenManifestsFolderCommand` | `IRelayCommand` | Opens the local manifests folder in file explorer. |
+| `SearchCommand` | `IAsyncRelayCommand` | Executes a content search with active terms and filters. |
+| `LoadMoreCommand` | `IAsyncRelayCommand` | Requests next page of content from current publisher. |
+| `UpdateContentCommand` | `IAsyncRelayCommand` | Updates an installed item to its prospective newer version. |
+| `ViewContentCommand` | `IRelayCommand` | Opens the content detail view overlay for selected item. |
+| `CloseDetailCommand` | `IRelayCommand` | Closes the content detail view overlay. |
 | `DownloadContentCommand` | `IAsyncRelayCommand` | Downloads selected content item via `ContentDownloadCoordinator`. |
-| `DownloadBundleComponentsCommand` | `IAsyncRelayCommand` | Downloads all components belonging to a bundle. |
-| `OpenAddToProfileDialogCommand` | `IAsyncRelayCommand` | Opens the profile assignment modal. |
-| `SwapVariantCommand` | `IRelayCommand` | Swaps active card variant within a variant axis group. |
+| `AddContentToProfileCommand` | `IAsyncRelayCommand` | Opens profile selection modal and attaches content. |
+
+> [!NOTE]
+> - `TogglePaneCommand` is provided on the shared [`SidebarLayout`](../Common/Controls/SidebarLayout.cs) control rather than the view model.
+> - Filter drawer opening/closing is bound directly to the `IsFilterPanelVisible` property.
+> - Download and search cancellation is handled internally via cancellation tokens rather than a separate public command.
 
 ---
 

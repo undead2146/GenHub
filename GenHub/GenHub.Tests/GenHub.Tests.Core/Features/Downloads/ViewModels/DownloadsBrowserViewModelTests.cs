@@ -829,6 +829,46 @@ public class DownloadsBrowserViewModelTests
     }
 
     /// <summary>
+    /// Verifies that when switching away from an in-flight publisher and switching back,
+    /// the active request ID is updated on the in-flight operation so it doesn't get stuck in loading state.
+    /// </summary>
+    [Fact]
+    public void HandleSelectedPublisherChanged_WhenInFlightOperationExists_UpdatesActiveRequestIdAndAttaches()
+    {
+        // Arrange
+        using var viewModel = CreateViewModel();
+
+        var publisherA = new PublisherItemViewModel("pub-a", "Publisher A");
+
+        var itemA = new ContentGridItemViewModel(
+            new ContentSearchResult { Id = "mod-a", Name = "Mod A" },
+            new Mock<IContentStateService>().Object,
+            new Mock<ILogger<ContentGridItemViewModel>>().Object);
+
+        var cts = new CancellationTokenSource();
+        var inFlightOp = new DownloadsBrowserViewModel.PublisherInFlightOperation(
+            "pub-a",
+            new ContentSearchQuery(),
+            cts)
+        {
+            ActiveRequestId = 1,
+            IsCompleted = false,
+        };
+        inFlightOp.ResolvedItems.Add(itemA);
+
+        viewModel.SetInFlightOperationForTesting("pub-a", inFlightOp);
+
+        // Act: select Publisher A (attaching to in-flight operation)
+        viewModel.SelectedPublisher = publisherA;
+
+        // Assert
+        Assert.Single(viewModel.ContentItems);
+        Assert.Equal("mod-a", viewModel.ContentItems[0].Id);
+        Assert.True(viewModel.IsLoading);
+        Assert.Equal(viewModel.ActiveRequestId, inFlightOp.ActiveRequestId);
+    }
+
+    /// <summary>
     /// Verifies that in a multi-release feed, the newest release (not yet downloaded) is marked
     /// NotDownloaded (showing only Download) while older downloaded releases are marked
     /// UpdateAvailable targeting the newest release (showing Update Available and Add to Profile).

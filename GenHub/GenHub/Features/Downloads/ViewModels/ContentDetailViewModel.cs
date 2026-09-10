@@ -80,11 +80,11 @@ public partial class ContentDetailViewModel(
 {
     // ===== Constants =====
     private const string UnknownValue = "Unknown";
-    private const string ContentNotDownloadedTitle = "Content Not Downloaded";
 
     // ===== Instance Fields (Synchronization & Lifecycle) =====
     private readonly object _basicContentLoadLock = new();
     private readonly object _preloadLock = new();
+    private readonly object _contentTypePersistLock = new();
     private readonly CancellationTokenSource _cts = new();
     private readonly List<Task> _pendingRowStateTasks = [];
     private readonly Func<CancellationToken, Task>? _updateAction = updateAction;
@@ -932,17 +932,21 @@ public partial class ContentDetailViewModel(
             return;
         }
 
-        _pendingSelectedVariantManifestId = manifestId;
-
         if (Variants == null || Variants.Count == 0)
         {
+            _pendingSelectedVariantManifestId = manifestId;
             return;
         }
 
         var match = FindMatchingVariant(Variants, manifestId);
         if (match != null)
         {
+            _pendingSelectedVariantManifestId = null;
             SelectedVariant = match;
+        }
+        else
+        {
+            _pendingSelectedVariantManifestId = manifestId;
         }
     }
 
@@ -1317,7 +1321,7 @@ public partial class ContentDetailViewModel(
     }
 
     private static string CreateFileContentId(string? downloadUrl, string? name) =>
-        $"file:{(!string.IsNullOrWhiteSpace(downloadUrl) ? downloadUrl : name)}";
+        $"{ContentConstants.FileContentIdPrefix}{(!string.IsNullOrWhiteSpace(downloadUrl) ? downloadUrl : name)}";
 
     private static string CreateFileContentId(DownloadableFile file) =>
         CreateFileContentId(file.DownloadUrl, file.Name);
@@ -1487,15 +1491,15 @@ public partial class ContentDetailViewModel(
         var category = release.Category?.Trim() ?? string.Empty;
         var name = release.Name?.Trim() ?? string.Empty;
 
-        var isExplicitPatch = category.Contains("patch", StringComparison.OrdinalIgnoreCase) ||
-                              name.Contains("patch", StringComparison.OrdinalIgnoreCase) ||
-                              name.Contains("hotfix", StringComparison.OrdinalIgnoreCase) ||
-                              name.Contains("update", StringComparison.OrdinalIgnoreCase);
+        var isExplicitPatch = category.Contains(ContentConstants.PatchKeyword, StringComparison.OrdinalIgnoreCase) ||
+                              name.Contains(ContentConstants.PatchKeyword, StringComparison.OrdinalIgnoreCase) ||
+                              name.Contains(ContentConstants.HotfixKeyword, StringComparison.OrdinalIgnoreCase) ||
+                              name.Contains(ContentConstants.UpdateKeyword, StringComparison.OrdinalIgnoreCase);
 
-        var isFullVersion = category.Contains("full version", StringComparison.OrdinalIgnoreCase) ||
-                            category.Contains("full", StringComparison.OrdinalIgnoreCase) ||
-                            name.Contains("full version", StringComparison.OrdinalIgnoreCase) ||
-                            name.Contains("standalone", StringComparison.OrdinalIgnoreCase);
+        var isFullVersion = category.Contains(ContentConstants.FullVersionKeyword, StringComparison.OrdinalIgnoreCase) ||
+                            category.Contains(ContentConstants.FullKeyword, StringComparison.OrdinalIgnoreCase) ||
+                            name.Contains(ContentConstants.FullVersionKeyword, StringComparison.OrdinalIgnoreCase) ||
+                            name.Contains(ContentConstants.StandaloneKeyword, StringComparison.OrdinalIgnoreCase);
 
         if (isFullVersion && !isExplicitPatch)
         {
@@ -1678,6 +1682,10 @@ public partial class ContentDetailViewModel(
         return fallbackResult.TargetGame != GameType.Unknown ? fallbackResult.TargetGame.ToString() : null;
     }
 
+    private static InstallableVariant? FindMatchingVariant(
+        IEnumerable<InstallableVariant> variants,
+        string? identifier) => VariantSwap.FindMatchingVariant(variants, identifier);
+
     partial void OnIsDownloadingChanged(bool value)
     {
         foreach (var release in Releases)
@@ -1698,30 +1706,6 @@ public partial class ContentDetailViewModel(
             _pendingRowStateTasks.RemoveAll(t => t.IsCompleted);
             _pendingRowStateTasks.Add(task);
         }
-    }
-
-    private static InstallableVariant? FindMatchingVariant(
-        IEnumerable<InstallableVariant> variants,
-        string? identifier)
-    {
-        if (string.IsNullOrWhiteSpace(identifier))
-        {
-            return null;
-        }
-
-        var list = variants as IList<InstallableVariant> ?? variants.ToList();
-
-        return list.FirstOrDefault(v => string.Equals(v.ManifestId, identifier, StringComparison.OrdinalIgnoreCase))
-            ?? list.FirstOrDefault(v => string.Equals(v.Name, identifier, StringComparison.OrdinalIgnoreCase))
-            ?? list.FirstOrDefault(v => !string.IsNullOrEmpty(v.ManifestId) &&
-                (v.ManifestId.EndsWith($"-{identifier}", StringComparison.OrdinalIgnoreCase) ||
-                 v.ManifestId.EndsWith($".{identifier}", StringComparison.OrdinalIgnoreCase)))
-            ?? list.FirstOrDefault(v => !string.IsNullOrEmpty(v.ManifestId) &&
-                (identifier.EndsWith($"-{v.ManifestId}", StringComparison.OrdinalIgnoreCase) ||
-                 identifier.EndsWith($".{v.ManifestId}", StringComparison.OrdinalIgnoreCase)))
-            ?? list.FirstOrDefault(v => !string.IsNullOrEmpty(v.Name) &&
-                (v.Name.EndsWith(identifier, StringComparison.OrdinalIgnoreCase) ||
-                 v.Name.Contains(identifier, StringComparison.OrdinalIgnoreCase)));
     }
 
     private async Task InitializeVariantsAsync()
@@ -1777,11 +1761,12 @@ public partial class ContentDetailViewModel(
         if (!string.IsNullOrEmpty(_pendingSelectedVariantManifestId))
         {
             chosenVariant = FindMatchingVariant(variantsList, _pendingSelectedVariantManifestId);
+            _pendingSelectedVariantManifestId = null;
         }
 
         // 2. searchResult.ResolverMetadata["selectedVariant"]
         if (chosenVariant == null &&
-            searchResult.ResolverMetadata.TryGetValue("selectedVariant", out var selVar) &&
+            searchResult.ResolverMetadata.TryGetValue(CatalogConstants.SelectedVariantMetadataKey, out var selVar) &&
             !string.IsNullOrWhiteSpace(selVar))
         {
             chosenVariant = FindMatchingVariant(variantsList, selVar);
@@ -1851,13 +1836,11 @@ public partial class ContentDetailViewModel(
                 baseSegment = searchResult.Id?.Split('.', StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
                 if (!string.IsNullOrWhiteSpace(baseSegment))
                 {
-                    foreach (var v in searchVariants)
+                    var matchingVariant = searchVariants.FirstOrDefault(v =>
+                        !string.IsNullOrEmpty(v.Id) && baseSegment.EndsWith($"-{v.Id}", StringComparison.OrdinalIgnoreCase));
+                    if (matchingVariant != null)
                     {
-                        if (!string.IsNullOrEmpty(v.Id) && baseSegment.EndsWith($"-{v.Id}", StringComparison.OrdinalIgnoreCase))
-                        {
-                            baseSegment = baseSegment[..^(v.Id.Length + 1)];
-                            break;
-                        }
+                        baseSegment = baseSegment[..^(matchingVariant.Id.Length + 1)];
                     }
                 }
             }
@@ -1924,7 +1907,7 @@ public partial class ContentDetailViewModel(
                     variantSr.ResolverMetadata[kvp.Key] = kvp.Value;
                 }
 
-                variantSr.ResolverMetadata["selectedVariant"] = v.Id;
+                variantSr.ResolverMetadata[CatalogConstants.SelectedVariantMetadataKey] = v.Id;
 
                 dict[manifestId] = variantSr;
             }
@@ -2033,7 +2016,7 @@ public partial class ContentDetailViewModel(
             {
                 IsDownloading = true;
                 DownloadProgress = 0;
-                DownloadStatusMessage = "Starting download...";
+                DownloadStatusMessage = ContentConstants.StartingDownloadStatusMessage;
             }
 
             DownloadCommand.NotifyCanExecuteChanged();
@@ -3190,16 +3173,26 @@ public partial class ContentDetailViewModel(
 
     partial void OnSelectedContentTypeChanged(ContentType value)
     {
-        if (!_suppressContentTypePersist && ContentCardBadgeHelper.IsOfficialProvider(searchResult))
+        if (ContentCardBadgeHelper.IsOfficialProvider(searchResult))
         {
-            _suppressContentTypePersist = true;
-            try
+            if (!_suppressContentTypePersist)
             {
-                SelectedContentType = searchResult.ContentType;
-            }
-            finally
-            {
-                _suppressContentTypePersist = false;
+                var expected = searchResult.ContentType == ContentType.UnknownContentType
+                    ? ContentType.Mod
+                    : searchResult.ContentType;
+
+                if (value != expected)
+                {
+                    _suppressContentTypePersist = true;
+                    try
+                    {
+                        SelectedContentType = expected;
+                    }
+                    finally
+                    {
+                        _suppressContentTypePersist = false;
+                    }
+                }
             }
 
             return;
@@ -3210,7 +3203,7 @@ public partial class ContentDetailViewModel(
             SelectedDownloadableItem.ContentType = value;
             if (!_suppressContentTypePersist && SelectedDownloadableItem.IsDownloaded && !string.IsNullOrEmpty(SelectedDownloadableItem.DownloadedManifestId))
             {
-                _contentTypePersistTask = PersistContentTypeChangeAsync(value, SelectedDownloadableItem.DownloadedManifestId);
+                QueueContentTypePersist(value, SelectedDownloadableItem.DownloadedManifestId);
             }
 
             return;
@@ -3222,7 +3215,7 @@ public partial class ContentDetailViewModel(
         // Post-download: persist so Add to Profile / launch use the corrected classification.
         if (!_suppressContentTypePersist && IsDownloaded)
         {
-            _contentTypePersistTask = PersistContentTypeChangeAsync(value);
+            QueueContentTypePersist(value);
         }
     }
 
@@ -3575,7 +3568,7 @@ public partial class ContentDetailViewModel(
 
             await RefreshBundleComponentStatesAsync();
             DownloadProgress = 100;
-            DownloadStatusMessage = "Download complete!";
+            DownloadStatusMessage = ContentConstants.DownloadCompleteStatusMessage;
             IsDownloaded = AreBundleComponentsReadyForProfile;
             if (HasBundleComponents)
             {
@@ -3669,7 +3662,7 @@ public partial class ContentDetailViewModel(
         {
             IsDownloading = true;
             DownloadProgress = 0;
-            DownloadStatusMessage = "Starting download...";
+            DownloadStatusMessage = ContentConstants.StartingDownloadStatusMessage;
 
             if (IsModDbContent(targetContent))
             {
@@ -3717,7 +3710,7 @@ public partial class ContentDetailViewModel(
             {
                 var manifest = result.Data;
                 DownloadProgress = 100;
-                DownloadStatusMessage = "Download complete!";
+                DownloadStatusMessage = ContentConstants.DownloadCompleteStatusMessage;
                 UpdateDependencySummary(manifest);
 
                 // Only update the main search result and downloaded state if we were downloading the main content
@@ -4191,6 +4184,29 @@ public partial class ContentDetailViewModel(
             : string.Join(", ", requirements);
     }
 
+    private void QueueContentTypePersist(ContentType value, string? explicitManifestId = null)
+    {
+        lock (_contentTypePersistLock)
+        {
+            var previousTask = _contentTypePersistTask ?? Task.CompletedTask;
+            _contentTypePersistTask = Task.Run(
+                async () =>
+                {
+                    try
+                    {
+                        await previousTask.ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        // Ignore failure of earlier persist task to allow latest persist to proceed
+                    }
+
+                    await PersistContentTypeChangeAsync(value, explicitManifestId).ConfigureAwait(false);
+                },
+                _cts.Token);
+        }
+    }
+
     /// <summary>
     /// Persists a post-download content-type correction to the stored manifest.
     /// Standalone types (Executable / ModdingTool) drop required game-installation dependencies
@@ -4300,7 +4316,7 @@ public partial class ContentDetailViewModel(
             {
                 logger.LogWarning("Cannot add to profile: bundle members are not all downloaded");
                 notificationService.ShowWarning(
-                    ContentNotDownloadedTitle,
+                    ContentConstants.ContentNotDownloadedTitle,
                     "Download every selected bundle item (including the chosen variants) before adding them to a profile.");
                 return;
             }
@@ -4315,7 +4331,7 @@ public partial class ContentDetailViewModel(
             if (!SelectedDownloadableItem.IsDownloaded || string.IsNullOrWhiteSpace(SelectedDownloadableItem.DownloadedManifestId))
             {
                 logger.LogWarning("Cannot add to profile: selected downloadable item not downloaded yet");
-                notificationService.ShowWarning(ContentNotDownloadedTitle, "Please download this item before adding it to a profile.");
+                notificationService.ShowWarning(ContentConstants.ContentNotDownloadedTitle, "Please download this item before adding it to a profile.");
                 return;
             }
 
@@ -4338,7 +4354,7 @@ public partial class ContentDetailViewModel(
         if (string.IsNullOrWhiteSpace(resolvedManifestId))
         {
             logger.LogWarning("Cannot add to profile: content not downloaded yet");
-            notificationService.ShowWarning(ContentNotDownloadedTitle, "Please download the content before adding it to a profile.");
+            notificationService.ShowWarning(ContentConstants.ContentNotDownloadedTitle, "Please download the content before adding it to a profile.");
             return;
         }
 
@@ -4365,7 +4381,7 @@ public partial class ContentDetailViewModel(
 
         if (string.IsNullOrWhiteSpace(manifestId) || !ManifestIdValidator.IsValid(manifestId, out _))
         {
-            notificationService.ShowWarning(ContentNotDownloadedTitle, "Please download this file before adding it to a profile.");
+            notificationService.ShowWarning(ContentConstants.ContentNotDownloadedTitle, "Please download this file before adding it to a profile.");
             return;
         }
 
@@ -4402,7 +4418,7 @@ public partial class ContentDetailViewModel(
                 if (bundleIds.Count == 0)
                 {
                     notificationService.ShowWarning(
-                        ContentNotDownloadedTitle,
+                        ContentConstants.ContentNotDownloadedTitle,
                         "Please download the content before adding it to a profile.");
                     return;
                 }
@@ -4436,7 +4452,7 @@ public partial class ContentDetailViewModel(
                 if (string.IsNullOrEmpty(contentManifestId))
                 {
                     notificationService.ShowWarning(
-                        ContentNotDownloadedTitle,
+                        ContentConstants.ContentNotDownloadedTitle,
                         "Please download the content before adding it to a profile.");
                     return;
                 }

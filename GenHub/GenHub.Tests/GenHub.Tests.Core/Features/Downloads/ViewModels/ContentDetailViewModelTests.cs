@@ -155,7 +155,7 @@ public sealed class ContentDetailViewModelTests
         // Assert
         Assert.NotNull(coordinatorInput);
         Assert.NotEqual(parentCatalogId, coordinatorInput.Id);
-        Assert.StartsWith("file:", coordinatorInput.Id, StringComparison.Ordinal);
+        Assert.StartsWith(ContentConstants.FileContentIdPrefix, coordinatorInput.Id, StringComparison.Ordinal);
         Assert.False(string.IsNullOrWhiteSpace(coordinatorInput.Version));
         Assert.True(release.IsDownloaded);
         Assert.Equal(childManifestId, release.DownloadedManifestId);

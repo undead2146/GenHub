@@ -126,15 +126,15 @@ These converters transform Avalonia `Color` values into brushes, opacity values,
 - **Namespace**: `GenHub.Infrastructure.Converters`
 - **Purpose**: Converts a `ContentType` enum value into a solid accent brush for badges, card borders, and tags.
 - **Color Mapping** (from `UiConstants`):
-  - `ContentType.GameClient` → `ContentTypeGameClientColor` (#4CAF50 - Green)
-  - `ContentType.Mod` → `ContentTypeModColor` (#2196F3 - Blue)
-  - `ContentType.Patch` → `ContentTypePatchColor` (#FF9800 - Orange)
-  - `ContentType.Map` / `ContentType.MapPack` → `ContentTypeMapColor` (#9C27B0 - Purple)
-  - `ContentType.Addon` → `ContentTypeAddonColor` (#00BCD4 - Cyan)
-  - `ContentType.ModdingTool` / `ContentType.Executable` → `ContentTypeToolColor` (#607D8B - Blue Grey)
-  - `ContentType.Bundle` → `ContentTypeBundleColor` (#E91E63 - Pink)
-  - `ContentType.Mission` → `ContentTypeMissionColor` (#FF5722 - Deep Orange)
-  - `ContentType.Skin` → `ContentTypeSkinColor` (#8BC34A - Light Green)
+  - `ContentType.GameClient` → `ContentTypeGameClientColor` (#06B6D4 - Cyan)
+  - `ContentType.Mod` → `ContentTypeModColor` (#A855F7 - Purple)
+  - `ContentType.Patch` → `ContentTypePatchColor` (#F59E0B - Amber)
+  - `ContentType.Map` / `ContentType.MapPack` → `ContentTypeMapColor` (#10B981 - Green)
+  - `ContentType.Addon` → `ContentTypeAddonColor` (#EC4899 - Pink)
+  - `ContentType.ModdingTool` / `ContentType.Executable` → `ContentTypeToolColor` (#38BDF8 - Light Blue)
+  - `ContentType.ContentBundle` → `ContentTypeBundleColor` (#6366F1 - Indigo)
+  - `ContentType.Mission` → `ContentTypeMissionColor` (#F97316 - Orange)
+  - `ContentType.Skin` / `ContentType.LanguagePack` → `ContentTypeSkinColor` (#8B5CF6 - Violet)
 - **Singleton**: `ContentTypeToBrushConverter.Instance`
 - **Return Type**: `SolidColorBrush`
 
@@ -152,8 +152,8 @@ These converters transform Avalonia `Color` values into brushes, opacity values,
 ## `ContentTypeToBadgeBackgroundConverter`
 
 - **Namespace**: `GenHub.Infrastructure.Converters`
-- **Purpose**: Converts a `ContentType` enum value into a low-opacity, tinted background brush (alpha ~18% / 0x2D) suitable for badge and tag pills.
-- **Color Source**: Inherits the color defined by `UiConstants` for that content type with alpha set to 45.
+- **Purpose**: Converts a `ContentType` enum value into a low-opacity, tinted background brush (alpha ~14.5% / 0x25) suitable for badge and tag pills.
+- **Color Source**: Inherits the color defined by `UiConstants` for that content type with alpha set to 37 (0x25).
 - **Singleton**: `ContentTypeToBadgeBackgroundConverter.Instance`
 - **Return Type**: `SolidColorBrush`
 

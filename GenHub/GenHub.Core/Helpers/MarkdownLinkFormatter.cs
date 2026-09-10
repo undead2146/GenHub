@@ -169,45 +169,7 @@ public static partial class MarkdownLinkFormatter
             }
 
             var url = m.Groups["url"].Value;
-            var trimmedLength = url.Length;
-
-            while (trimmedLength > 0)
-            {
-                var ch = url[trimmedLength - 1];
-                if (".,;:?!]".Contains(ch))
-                {
-                    trimmedLength--;
-                }
-                else if (ch == ')')
-                {
-                    var openCount = 0;
-                    var closeCount = 0;
-                    for (var i = 0; i < trimmedLength; i++)
-                    {
-                        if (url[i] == '(')
-                        {
-                            openCount++;
-                        }
-                        else if (url[i] == ')')
-                        {
-                            closeCount++;
-                        }
-                    }
-
-                    if (closeCount > openCount)
-                    {
-                        trimmedLength--;
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-                else
-                {
-                    break;
-                }
-            }
+            var trimmedLength = GetTrimmedUrlLength(url);
 
             if (trimmedLength == url.Length)
             {
@@ -218,6 +180,49 @@ public static partial class MarkdownLinkFormatter
             var trailing = url[trimmedLength..];
             return $"[{cleanUrl}]({cleanUrl}){trailing}";
         });
+    }
+
+    private static int GetTrimmedUrlLength(string url)
+    {
+        var trimmedLength = url.Length;
+
+        while (trimmedLength > 0)
+        {
+            var ch = url[trimmedLength - 1];
+            if (".,;:?!]".Contains(ch))
+            {
+                trimmedLength--;
+            }
+            else if (ch == ')' && HasUnbalancedTrailingParen(url, trimmedLength))
+            {
+                trimmedLength--;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        return trimmedLength;
+    }
+
+    private static bool HasUnbalancedTrailingParen(string url, int length)
+    {
+        var openCount = 0;
+        var closeCount = 0;
+        for (var i = 0; i < length; i++)
+        {
+            if (url[i] == '(')
+            {
+                openCount++;
+            }
+            else if (url[i] == ')')
+            {
+                closeCount++;
+            }
+        }
+
+        return closeCount > openCount;
     }
 
     private static string NormalizeBulletLists(string text)

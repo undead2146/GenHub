@@ -52,9 +52,9 @@ flowchart TD
 
     subgraph ViewModel["📱 DownloadsBrowserViewModel"]
         V1["CreateBuiltInPublishers()"]
-        V2["SelectPublisherCommand"]
-        V3["DiscoverContentAsync()"]
-        V4["OpenDetailCommand"]
+        V2["HandleSelectedPublisherChanged()"]
+        V3["PopulatePublisherContentAsync()"]
+        V4["ViewContentCommand"]
         V5["DownloadContentCommand"]
     end
 
@@ -66,7 +66,7 @@ flowchart TD
     end
 
     subgraph Storage["💾 Storage & Pools"]
-        S1["ContentAddressableStore (CAS)"]
+        S1["ICasService (CAS)"]
         S2["IContentManifestPool"]
         S3["Profile Integration"]
     end
@@ -276,7 +276,7 @@ sequenceDiagram
     participant BVM as DownloadsBrowserViewModel
     participant CDC as ContentDownloadCoordinator
     participant CO as ContentOrchestrator
-    participant CAS as ContentAddressableStore
+    participant CAS as ICasService
     participant Pool as IContentManifestPool
     participant CSS as ContentStateService
     participant PS as ProfileSelectionViewModel
@@ -305,8 +305,8 @@ sequenceDiagram
 
     Note over User: Content ready for profile attachment
     User->>UI: Click "Add to Profile"
-    UI->>BVM: OpenAddToProfileDialogCommand
-    BVM->>PS: Initialize(targetGame, manifestId, contentName)
+    UI->>BVM: AddContentToProfileCommand
+    BVM->>PS: LoadProfilesAsync(targetGame, manifestId, contentName)
 
     Note over PS: Partition profiles by target game
     PS-->>User: Show ProfileSelectionView modal
@@ -380,7 +380,7 @@ sequenceDiagram
     participant PCS as ProfileContentService
 
     User->>CDVM: Click "Add to Profile"
-    CDVM->>PSVM: Initialize(targetGame, manifestId, contentName)
+    CDVM->>PSVM: LoadProfilesAsync(targetGame, manifestId, contentName)
     PSVM->>PM: GetAllProfilesAsync()
     PM-->>PSVM: List of GameProfile
 
@@ -466,8 +466,8 @@ flowchart LR
 | `ContentItems` | `ObservableCollection<ContentGridItemViewModel>` | Discovered content items |
 | `CurrentFilterViewModel` | `IFilterPanelViewModel?` | Publisher-specific filter model |
 | `DownloadContentCommand` | `IAsyncRelayCommand` | Initiates content acquisition |
-| `DownloadBundleComponentsCommand` | `IAsyncRelayCommand` | Initiates acquisition of composite bundles |
-| `OpenAddToProfileDialogCommand` | `IAsyncRelayCommand` | Opens profile selection modal |
+| `AddContentToProfileCommand` | `IAsyncRelayCommand` | Opens profile selection modal and attaches content |
+| `ViewContentCommand` | `IRelayCommand` | Opens content detail view overlay |
 
 ### ContentDownloadCoordinator
 
@@ -535,4 +535,4 @@ flowchart TD
 
 - [Downloads Browser Feature Guide](../features/downloads.md) - Complete feature documentation.
 - [Downloads UI & Views Architecture](../features/downloads-ui.md) - UI controls, view models, and styling.
-- [Content Pipeline Flow](./content-pipeline-flow.md) - Detailed pipeline architecture.
+- [Content Pipeline Flow](../features/content/content-pipeline.md) - Detailed pipeline architecture.

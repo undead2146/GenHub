@@ -151,4 +151,54 @@ public static class ContentConstants
     /// Default fallback identifier used when synthesizing variant manifest IDs or missing publishers.
     /// </summary>
     public const string DefaultContentFallbackId = "content";
+
+    /// <summary>
+    /// Prefix used for synthetic file content IDs when a dedicated manifest ID is not available.
+    /// </summary>
+    public const string FileContentIdPrefix = "file:";
+
+    /// <summary>
+    /// Status message displayed when content download is initiated.
+    /// </summary>
+    public const string StartingDownloadStatusMessage = "Starting download...";
+
+    /// <summary>
+    /// Status message displayed when content download finishes successfully.
+    /// </summary>
+    public const string DownloadCompleteStatusMessage = "Download complete!";
+
+    /// <summary>
+    /// Dialog title displayed when attempting to launch or profile un-downloaded content.
+    /// </summary>
+    public const string ContentNotDownloadedTitle = "Content Not Downloaded";
+
+    /// <summary>
+    /// Release categorization keyword indicating a patch release.
+    /// </summary>
+    public const string PatchKeyword = "patch";
+
+    /// <summary>
+    /// Release categorization keyword indicating a hotfix release.
+    /// </summary>
+    public const string HotfixKeyword = "hotfix";
+
+    /// <summary>
+    /// Release categorization keyword indicating an update release.
+    /// </summary>
+    public const string UpdateKeyword = "update";
+
+    /// <summary>
+    /// Release categorization keyword indicating a full version release.
+    /// </summary>
+    public const string FullVersionKeyword = "full version";
+
+    /// <summary>
+    /// Release categorization keyword indicating a full release.
+    /// </summary>
+    public const string FullKeyword = "full";
+
+    /// <summary>
+    /// Release categorization keyword indicating a standalone release.
+    /// </summary>
+    public const string StandaloneKeyword = "standalone";
 }

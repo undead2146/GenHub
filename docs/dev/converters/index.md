@@ -83,12 +83,20 @@ Several modern converters provide static singleton instances for convenient zero
 <TextBlock Text="{Binding BuildInfo.Compiler, Converter={StaticResource NullSafeConverter}, ConverterParameter='Unknown'}" />
 ```
 
-**DownloadsBrowserView.axaml / ContentCardView.axaml:**
+**ContentCardView.axaml / ContentDetailView.axaml:**
 
 ```xml
-<!-- Badge border and foreground colored by content type -->
-<Border BorderBrush="{Binding SearchResult.ContentType, Converter={x:Static conv:ContentTypeToBrushConverter.Instance}}">
-    <TextBlock Text="{Binding SearchResult.ContentType}"
-               Foreground="{Binding SearchResult.ContentType, Converter={x:Static conv:ContentTypeToBrushConverter.Instance}}" />
+<!-- Badge border and foreground colored by content type (via StaticResource) -->
+<Border Classes="type-badge"
+        BorderBrush="{Binding ContentType, Converter={StaticResource ContentTypeToBrushConverter}}">
+    <TextBlock Text="{Binding ContentTypeDisplay}"
+               Foreground="{Binding ContentType, Converter={StaticResource ContentTypeToBrushConverter}}" />
+</Border>
+
+<!-- Translucent tinted pill background in ContentDetailView -->
+<Border Background="{Binding ContentType, Converter={StaticResource ContentTypeToBadgeBackgroundConverter}}"
+        BorderBrush="{Binding ContentType, Converter={StaticResource ContentTypeToBrushConverter}}">
+    <TextBlock Text="{Binding ContentType, Converter={StaticResource ContentTypeDisplayConverter}}"
+               Foreground="{Binding ContentType, Converter={StaticResource ContentTypeToBrushConverter}}" />
 </Border>
 ```

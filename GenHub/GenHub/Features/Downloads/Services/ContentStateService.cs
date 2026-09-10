@@ -36,7 +36,7 @@ public sealed partial class ContentStateService(
     private const string GitHubPublisher = "github";
     private const string GitHubTopicsNormalized = "githubtopic";
     private const string UnknownSegment = "unknown";
-    private const string FileSchemePrefix = "file:";
+    private const string FileSchemePrefix = ContentConstants.FileContentIdPrefix;
     private const int MaxSessionDownloadsEntries = 1000;
 
     /// <summary>Matches any non-alphanumeric character, mirroring ManifestIdGenerator.Normalize.</summary>
