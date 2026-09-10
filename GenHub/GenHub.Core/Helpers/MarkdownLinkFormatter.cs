@@ -83,16 +83,22 @@ public static partial class MarkdownLinkFormatter
             }
 
             var url = m.Groups["url"].Value;
-            var trailing = string.Empty;
+            var trimmedLength = url.Length;
 
             // Trim trailing punctuation like . , ; : ? ! ) ] from the URL
-            while (url.Length > 0 && ".,;:?!)]".Contains(url[^1]))
+            while (trimmedLength > 0 && ".,;:?!)]".Contains(url[trimmedLength - 1]))
             {
-                trailing = url[^1] + trailing;
-                url = url[..^1];
+                trimmedLength--;
             }
 
-            return $"[{url}]({url}){trailing}";
+            if (trimmedLength == url.Length)
+            {
+                return $"[{url}]({url})";
+            }
+
+            var cleanUrl = url[..trimmedLength];
+            var trailing = url[trimmedLength..];
+            return $"[{cleanUrl}]({cleanUrl}){trailing}";
         });
 
         return result;
