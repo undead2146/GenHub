@@ -1791,6 +1791,7 @@ public sealed class ContentDetailViewModelTests
         var ex = await Record.ExceptionAsync(() => downloadTask);
         Assert.Null(ex);
     }
+
     /// <summary>
     /// Verifies that Generals Online preserves its authoritative GameClient content type across release population,
     /// rather than falling back to Addon, and that CanChangeContentType is false.
