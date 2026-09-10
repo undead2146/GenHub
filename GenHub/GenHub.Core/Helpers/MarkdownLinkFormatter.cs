@@ -67,18 +67,8 @@ public static partial class MarkdownLinkFormatter
 
     private static string SanitizeMarkdownLinksAndImages(string text)
     {
-        var result = MarkdownImageRegex().Replace(text, m =>
-        {
-            var url = m.Groups["url"].Value.Trim();
-            if (IsSafeWebUrl(url))
-            {
-                return m.Value;
-            }
-
-            return m.Groups["alt"].Value;
-        });
-
-        return MarkdownHyperlinkRegex().Replace(result, m =>
+        // 1. Sanitize outer hyperlinks first to prevent bypasses via badge-style image links
+        var result = MarkdownHyperlinkRegex().Replace(text, m =>
         {
             var url = m.Groups["url"].Value.Trim();
             if (IsSafeWebUrl(url))
@@ -87,6 +77,18 @@ public static partial class MarkdownLinkFormatter
             }
 
             return m.Groups["text"].Value;
+        });
+
+        // 2. Sanitize embedded images
+        return MarkdownImageRegex().Replace(result, m =>
+        {
+            var url = m.Groups["url"].Value.Trim();
+            if (IsSafeWebUrl(url))
+            {
+                return m.Value;
+            }
+
+            return m.Groups["alt"].Value;
         });
     }
 
@@ -100,14 +102,24 @@ public static partial class MarkdownLinkFormatter
     {
         var result = GitHubPullUrlRegex().Replace(text, m =>
         {
-            var url = m.Value;
+            if (m.Groups["mdlink"].Success)
+            {
+                return m.Value;
+            }
+
+            var url = m.Groups["url"].Value;
             var num = m.Groups["num"].Value;
             return $"[#{num}]({url})";
         });
 
         return GitHubCommitUrlRegex().Replace(result, m =>
         {
-            var url = m.Value;
+            if (m.Groups["mdlink"].Success)
+            {
+                return m.Value;
+            }
+
+            var url = m.Groups["url"].Value;
             var sha = m.Groups["sha"].Value;
             var shortSha = sha.Length > 7 ? sha[..7] : sha;
             return $"[`{shortSha}`]({url})";
@@ -159,9 +171,42 @@ public static partial class MarkdownLinkFormatter
             var url = m.Groups["url"].Value;
             var trimmedLength = url.Length;
 
-            while (trimmedLength > 0 && ".,;:?!)]".Contains(url[trimmedLength - 1]))
+            while (trimmedLength > 0)
             {
-                trimmedLength--;
+                var ch = url[trimmedLength - 1];
+                if (".,;:?!]".Contains(ch))
+                {
+                    trimmedLength--;
+                }
+                else if (ch == ')')
+                {
+                    var openCount = 0;
+                    var closeCount = 0;
+                    for (var i = 0; i < trimmedLength; i++)
+                    {
+                        if (url[i] == '(')
+                        {
+                            openCount++;
+                        }
+                        else if (url[i] == ')')
+                        {
+                            closeCount++;
+                        }
+                    }
+
+                    if (closeCount > openCount)
+                    {
+                        trimmedLength--;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                else
+                {
+                    break;
+                }
             }
 
             if (trimmedLength == url.Length)
@@ -177,23 +222,35 @@ public static partial class MarkdownLinkFormatter
 
     private static string NormalizeBulletLists(string text)
     {
-        var result = BulletListRegex().Replace(text, "${indent}- ");
-        return ListPrecedingBlankLineRegex().Replace(result, "${prev}\n\n${curr}");
+        if (!text.Contains("```"))
+        {
+            var result = BulletListRegex().Replace(text, "${indent}- ");
+            return ListPrecedingBlankLineRegex().Replace(result, "${prev}\n\n${curr}");
+        }
+
+        var segments = text.Split("```");
+        for (var i = 0; i < segments.Length; i += 2)
+        {
+            var segment = BulletListRegex().Replace(segments[i], "${indent}- ");
+            segments[i] = ListPrecedingBlankLineRegex().Replace(segment, "${prev}\n\n${curr}");
+        }
+
+        return string.Join("```", segments);
     }
 
-    [GeneratedRegex(@"!\[(?<alt>[^\]]*)\]\((?<url>(?:[^\s()]+|\([^\s()]+\))+)(?:\s+[""'][^""']*[""'])?\)")]
+    [GeneratedRegex(@"!\[(?<alt>[^\]]*)\]\(\s*(?<url>(?:[^\s()]|\([^\s()]*\))+)(?:\s+[""'][^""']*[""'])?\s*\)")]
     private static partial Regex MarkdownImageRegex();
 
-    [GeneratedRegex(@"(?<!\!)\[(?<text>[^\]]*)\]\((?<url>(?:[^\s()]+|\([^\s()]+\))+)(?:\s+[""'][^""']*[""'])?\)")]
+    [GeneratedRegex(@"(?<!\!)\[(?<text>(?:[^\[\]]|\[[^\]]*\])*)\]\(\s*(?<url>(?:[^\s()]|\([^\s()]*\))+)(?:\s+[""'][^""']*[""'])?\s*\)")]
     private static partial Regex MarkdownHyperlinkRegex();
 
     [GeneratedRegex(@"https?://github\.com/(?<owner>[a-zA-Z0-9_\-\.]+)/(?<repo>[a-zA-Z0-9_\-\.]+)(?:/|$|\.git)", RegexOptions.IgnoreCase)]
     private static partial Regex GitHubRepoUrlRegex();
 
-    [GeneratedRegex(@"https?://github\.com/(?<owner>[a-zA-Z0-9_\-\.]+)/(?<repo>[a-zA-Z0-9_\-\.]+)/(?:pull|issues)/(?<num>\d+)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"(?<mdlink>\[(?:[^\[\]]|\[[^\]]*\])*\]\([^)]*\))|(?<url>https?://github\.com/(?<owner>[a-zA-Z0-9_\-\.]+)/(?<repo>[a-zA-Z0-9_\-\.]+)/(?:pull|issues)/(?<num>\d+))", RegexOptions.IgnoreCase)]
     private static partial Regex GitHubPullUrlRegex();
 
-    [GeneratedRegex(@"https?://github\.com/(?<owner>[a-zA-Z0-9_\-\.]+)/(?<repo>[a-zA-Z0-9_\-\.]+)/commit/(?<sha>[a-fA-F0-9]{7,40})", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"(?<mdlink>\[(?:[^\[\]]|\[[^\]]*\])*\]\([^)]*\))|(?<url>https?://github\.com/(?<owner>[a-zA-Z0-9_\-\.]+)/(?<repo>[a-zA-Z0-9_\-\.]+)/commit/(?<sha>[a-fA-F0-9]{7,40}))", RegexOptions.IgnoreCase)]
     private static partial Regex GitHubCommitUrlRegex();
 
     [GeneratedRegex(@"\((?:#(?<num>\d+))\)")]
@@ -205,7 +262,7 @@ public static partial class MarkdownLinkFormatter
     [GeneratedRegex(@"(?<prefix>(?:^|[\s(]))@(?<user>[a-zA-Z0-9_\-]+)\b(?!\.)")]
     private static partial Regex GitHubMentionRegex();
 
-    [GeneratedRegex(@"(?<mdlink>\[[^\]]*\]\([^)]*\))|(?<url>https?://[^\s<>""]+)")]
+    [GeneratedRegex(@"(?<mdlink>\[(?:[^\[\]]|\[[^\]]*\])*\]\([^)]*\))|(?<url>https?://[^\s<>""]+)")]
     private static partial Regex BareUrlRegex();
 
     [GeneratedRegex(@"^(?<indent>[ \t]*)[\u2022\u25cf\u25aa\u25ab][ \t]+", RegexOptions.Multiline)]

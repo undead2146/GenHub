@@ -42,6 +42,13 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
 {
     private static readonly char[] LineSeparators = ['\r', '\n'];
 
+    private enum CasCleanupOutcome
+    {
+        Success,
+        Disabled,
+        Failed,
+    }
+
     /// <summary>
     /// Gets the available workspace strategies for selection in the UI.
     /// </summary>
@@ -1381,13 +1388,6 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         {
             NotifyDangerZoneCanExecuteChanged();
         }
-    }
-
-    private enum CasCleanupOutcome
-    {
-        Success,
-        Disabled,
-        Failed,
     }
 
     private async Task<CasCleanupOutcome> DeleteCasStorageInternalAsync(bool showToast, bool updateDangerZone)

@@ -828,15 +828,27 @@ public sealed partial class ContentStateService(
             var token = parenMatch.Groups[1].Value.Trim().ToLowerInvariant();
             if (!string.IsNullOrEmpty(token))
             {
-                return token switch
+                if (GitHubTopicsDiscoverer.VariantPatterns.LanguageDisplayNames.ContainsKey(token))
                 {
-                    "720" => "720p",
-                    "900" => "900p",
-                    "1080" => "1080p",
-                    "1440" => "1440p",
-                    "2160" => "4k",
-                    _ => token,
-                };
+                    return token;
+                }
+
+                if (token switch
+                    {
+                        "720" or "720p" or "900" or "900p" or "1080" or "1080p" or "1440" or "1440p" or "2160" or "4k" or "5k" or "8k" => true,
+                        _ => false,
+                    })
+                {
+                    return token switch
+                    {
+                        "720" => "720p",
+                        "900" => "900p",
+                        "1080" => "1080p",
+                        "1440" => "1440p",
+                        "2160" => "4k",
+                        _ => token,
+                    };
+                }
             }
         }
 
@@ -1297,7 +1309,7 @@ public sealed partial class ContentStateService(
         var itemVariant = ExtractVariantToken(item.Name) ?? ExtractVariantToken(item.Id);
         var manifestVariant = ExtractVariantToken(manifest.Name) ?? ExtractVariantToken(manifest.Id.Value);
 
-        if (string.IsNullOrEmpty(manifestVariant) && manifest.Files != null && manifest.Files.Count > 0)
+        if (string.IsNullOrEmpty(manifestVariant) && !string.IsNullOrEmpty(itemVariant) && manifest.Files != null && manifest.Files.Count > 0)
         {
             manifestVariant = manifest.Files
                 .Select(f => ExtractVariantToken(f.RelativePath))

@@ -1816,15 +1816,14 @@ public sealed class ContentDetailViewModelTests
 
         // Act
         viewModel.Initialize();
+        viewModel.PopulateReleases([new DownloadableFile("Generals Online Client") { FileSectionType = FileSectionType.Downloads }]);
 
         // Assert
         Assert.Equal(ContentType.GameClient, viewModel.ContentType);
         Assert.Equal(ContentType.GameClient, viewModel.SelectedContentType);
         Assert.False(viewModel.CanChangeContentType);
-        if (viewModel.Releases.Count > 0)
-        {
-            Assert.Equal(ContentType.GameClient, viewModel.Releases[0].ContentType);
-        }
+        Assert.NotEmpty(viewModel.Releases);
+        Assert.Equal(ContentType.GameClient, viewModel.Releases[0].ContentType);
     }
 
     /// <summary>
@@ -1857,8 +1856,10 @@ public sealed class ContentDetailViewModelTests
         // Act: try to change SelectedContentType
         viewModel.SelectedContentType = ContentType.Addon;
 
-        // Assert: searchResult.ContentType remains unchanged
+        // Assert: searchResult.ContentType and VM properties remain unchanged
         Assert.Equal(ContentType.Mod, searchResult.ContentType);
+        Assert.Equal(ContentType.Mod, viewModel.ContentType);
+        Assert.Equal(ContentType.Mod, viewModel.SelectedContentType);
     }
 
     /// <summary>

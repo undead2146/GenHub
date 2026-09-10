@@ -221,4 +221,34 @@ public class ContentCardBadgeHelperTests
         var logoUrl = ContentCardBadgeHelper.GetPublisherLogoUrl(unrelatedGitHubResult);
         Assert.Equal("https://github.com/randomdev.png", logoUrl);
     }
+
+    /// <summary>
+    /// Verifies that GitHub-sourced items with official owner metadata are identified as official and not generic GitHub.
+    /// </summary>
+    [Fact]
+    public void IsOfficialProvider_GitHubOfficialOwners_IdentifiedAsOfficial()
+    {
+        var goResult = new ContentSearchResult
+        {
+            Id = "github.generalsonline.launcher",
+            Name = "Generals Online Launcher",
+            ProviderName = "GitHub",
+            ResolverMetadata = { [GitHubConstants.OwnerMetadataKey] = "GeneralsOnline" },
+        };
+
+        var coResult = new ContentSearchResult
+        {
+            Id = "github.community-outpost.maps",
+            Name = "Community Outpost Maps",
+            ProviderName = "GitHub",
+            ResolverMetadata = { [GitHubConstants.OwnerMetadataKey] = "Community-Outpost" },
+        };
+
+        Assert.True(ContentCardBadgeHelper.IsGeneralsOnline(goResult));
+        Assert.True(ContentCardBadgeHelper.IsCommunityOutpost(coResult));
+        Assert.True(ContentCardBadgeHelper.IsOfficialProvider(goResult));
+        Assert.True(ContentCardBadgeHelper.IsOfficialProvider(coResult));
+        Assert.False(ContentCardBadgeHelper.IsGenericGitHub(goResult));
+        Assert.False(ContentCardBadgeHelper.IsGenericGitHub(coResult));
+    }
 }

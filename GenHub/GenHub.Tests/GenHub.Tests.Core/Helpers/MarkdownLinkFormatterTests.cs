@@ -192,4 +192,58 @@ public sealed class MarkdownLinkFormatterTests
 
         Assert.Equal("[Valid Link](https://example.com) and ![Valid Image](https://example.com/pic.png)", result);
     }
+
+    /// <summary>
+    /// Verifies that existing markdown links whose destination is a GitHub PR or commit URL
+    /// are not rewritten or corrupted.
+    /// </summary>
+    [Fact]
+    public void FormatLinks_ExistingMarkdownLink_WithGitHubUrl_DoesNotCorruptLink()
+    {
+        var input = "Check out [release notes](https://github.com/community-outpost/GenHub/pull/109) and [commit](https://github.com/community-outpost/GenHub/commit/a1b2c3d4e5f6789012345678).";
+        var result = MarkdownLinkFormatter.FormatLinks(input);
+
+        Assert.Equal(input, result);
+    }
+
+    /// <summary>
+    /// Verifies that bare URLs containing balanced parentheses preserve their closing parenthesis.
+    /// </summary>
+    [Fact]
+    public void FormatLinks_BareUrl_WithBalancedParentheses_PreservesClosingParen()
+    {
+        var input = "Download at https://github.com/owner/repo/releases/tag/v1.0_(hotfix) now.";
+        var result = MarkdownLinkFormatter.FormatLinks(input);
+
+        Assert.Equal("Download at [https://github.com/owner/repo/releases/tag/v1.0_(hotfix)](https://github.com/owner/repo/releases/tag/v1.0_(hotfix)) now.", result);
+    }
+
+    /// <summary>
+    /// Verifies that markdown links with leading whitespace inside parens or badge-style image links
+    /// are properly sanitized against dangerous schemes.
+    /// </summary>
+    [Fact]
+    public void FormatLinks_WhitespaceAndBadgeLinks_SanitizesDangerousSchemes()
+    {
+        var whitespaceLink = "[Click](   javascript:alert(1))";
+        var sanitizedWhitespace = MarkdownLinkFormatter.FormatLinks(whitespaceLink);
+        Assert.Equal("Click", sanitizedWhitespace);
+
+        var badgeLink = "[![badge](https://example.com/badge.png)](javascript:alert(1))";
+        var sanitizedBadge = MarkdownLinkFormatter.FormatLinks(badgeLink);
+        Assert.Equal("![badge](https://example.com/badge.png)", sanitizedBadge);
+    }
+
+    /// <summary>
+    /// Verifies that fenced code blocks are not corrupted by bullet list normalization.
+    /// </summary>
+    [Fact]
+    public void FormatLinks_FencedCodeBlocks_PreservedUntouched()
+    {
+        var input = "Intro:\n```\n• inside code\n  • indented\n```\n• outside list";
+        var result = MarkdownLinkFormatter.FormatLinks(input);
+
+        Assert.Contains("```\n• inside code\n  • indented\n```", result);
+        Assert.Contains("- outside list", result);
+    }
 }

@@ -460,7 +460,10 @@ public static partial class ContentCardBadgeHelper
                (result.Id?.StartsWith("generalsonline.", StringComparison.OrdinalIgnoreCase) == true) ||
                (result.Id?.StartsWith("1.generalsonline.", StringComparison.OrdinalIgnoreCase) == true) ||
                (result.Id?.StartsWith("GeneralsOnline_", StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.AuthorName?.Equals("Generals Online", StringComparison.OrdinalIgnoreCase) == true);
+               (result.AuthorName?.Equals("Generals Online", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.ResolverMetadata?.TryGetValue(GitHubConstants.OwnerMetadataKey, out var goOwner) == true &&
+                (goOwner.Equals(PublisherTypeConstants.GeneralsOnline, StringComparison.OrdinalIgnoreCase) ||
+                 goOwner.Equals("GeneralsOnline", StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>
@@ -472,12 +475,15 @@ public static partial class ContentCardBadgeHelper
     {
         ArgumentNullException.ThrowIfNull(result);
         return (result.ProviderName?.Equals(PublisherTypeConstants.CommunityOutpost, StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.ProviderName?.Equals(CommunityOutpostConstants.PublisherType, StringComparison.OrdinalIgnoreCase) == true) ||
                (result.ProviderName?.Equals("Community-Outpost", StringComparison.OrdinalIgnoreCase) == true) ||
                (result.ProviderName?.Equals("Community Outpost", StringComparison.OrdinalIgnoreCase) == true) ||
                (result.ProviderName?.Equals("CommunityOutpost", StringComparison.OrdinalIgnoreCase) == true) ||
                (result.Id?.StartsWith("communityoutpost.", StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.Id?.StartsWith("1.communityoutpost.", StringComparison.OrdinalIgnoreCase) == true);
+               (result.Id?.StartsWith("1.communityoutpost.", StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.ResolverMetadata?.TryGetValue(GitHubConstants.OwnerMetadataKey, out var coOwner) == true &&
+                (coOwner.Equals(PublisherTypeConstants.CommunityOutpost, StringComparison.OrdinalIgnoreCase) ||
+                 coOwner.Equals("CommunityOutpost", StringComparison.OrdinalIgnoreCase) ||
+                 coOwner.Equals("community-outpost", StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>
@@ -500,13 +506,9 @@ public static partial class ContentCardBadgeHelper
     public static bool IsGitHub(ContentSearchResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
-        return (result.ProviderName?.Equals("GitHub", StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.ProviderName?.Equals(PublisherTypeConstants.GitHub, StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.ProviderName?.Equals(GitHubTopicsConstants.PublisherType, StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.ProviderName?.Contains("github", StringComparison.OrdinalIgnoreCase) == true) ||
+        return (result.ProviderName?.Contains("github", StringComparison.OrdinalIgnoreCase) == true) ||
                (result.ResolverId?.Contains("github", StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.Id?.StartsWith("github.", StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.Id?.StartsWith("1.github.", StringComparison.OrdinalIgnoreCase) == true);
+               (result.Id?.StartsWith("github.", StringComparison.OrdinalIgnoreCase) == true);
     }
 
     /// <summary>

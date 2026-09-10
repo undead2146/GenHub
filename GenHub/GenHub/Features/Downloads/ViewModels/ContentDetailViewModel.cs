@@ -186,7 +186,9 @@ public partial class ContentDetailViewModel(
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ContentType))]
-    private ContentType _selectedContentType = searchResult.ContentType;
+    private ContentType _selectedContentType = searchResult.ContentType == ContentType.UnknownContentType
+        ? ContentType.Mod
+        : searchResult.ContentType;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelectedDownloadableItem))]
@@ -3092,6 +3094,16 @@ public partial class ContentDetailViewModel(
     {
         if (!_suppressContentTypePersist && ContentCardBadgeHelper.IsOfficialProvider(searchResult))
         {
+            _suppressContentTypePersist = true;
+            try
+            {
+                SelectedContentType = searchResult.ContentType;
+            }
+            finally
+            {
+                _suppressContentTypePersist = false;
+            }
+
             return;
         }
 
@@ -4379,7 +4391,9 @@ public partial class ContentDetailViewModel(
 
         if (ContentCardBadgeHelper.IsOfficialProvider(searchResult))
         {
-            mappedType = searchResult.ContentType;
+            mappedType = searchResult.ContentType != ContentType.UnknownContentType
+                ? searchResult.ContentType
+                : ContentType.Mod;
         }
         else if (!string.IsNullOrWhiteSpace(file.Category))
         {

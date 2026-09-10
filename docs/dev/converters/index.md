@@ -5,7 +5,7 @@ description: Overview of Avalonia IValueConverter implementations in GenHub
 
 # Converters Overview
 
-GenHub provides a comprehensive suite of `IValueConverter` implementations for UI binding scenarios. These converters help transform data between ViewModels and UI elements.
+GenHub provides a comprehensive suite of `IValueConverter` and `IMultiValueConverter` implementations for UI binding scenarios. These converters help transform data between ViewModels and UI elements.
 
 ## Categories
 
@@ -23,11 +23,11 @@ Converters that work with string values, converting them to booleans, images, or
 
 ### [Color Converters](./color-converters)
 
-Converters that transform Colors into brushes, opacity values, or contrast-appropriate text colors.
+Converters that transform Colors or ContentTypes into brushes, opacity values, contrast-appropriate text colors, and badge background tints (`ContentTypeToBrushConverter`, `ContentTypeToBadgeBackgroundConverter`).
 
 ### [Profile Converters](./profile-converters)
 
-Converters specific to profile-related data like cover images and color opacity.
+Converters specific to profile-related data like cover images, color opacity, and profile selection multi-value binding (`ProfileSelectionConverter`).
 
 ### [Enum Converters](./enum-converters)
 
@@ -43,7 +43,7 @@ Converters for numeric types, nullable values, and data type transformations for
 
 ## Usage in GenHub
 
-In GenHub, converters are registered locally in each XAML view where they're needed:
+In GenHub, converters are registered locally in each XAML view or accessed via singleton instances:
 
 ### Local Registration Pattern
 
@@ -57,6 +57,15 @@ In GenHub, converters are registered locally in each XAML view where they're nee
         <conv:BoolToValueConverter x:Key="NotConverter" TrueValue="False" FalseValue="True" />
     </UserControl.Resources>
 </UserControl>
+```
+
+### Static Instance Pattern
+
+Several modern converters provide static singleton instances for convenient zero-allocation XAML references:
+
+```xml
+<!-- Direct static singleton reference without local resource dictionary declaration -->
+<Border Background="{Binding ContentType, Converter={x:Static conv:ContentTypeToBadgeBackgroundConverter.Instance}}" />
 ```
 
 ### Examples from the codebase
@@ -74,20 +83,12 @@ In GenHub, converters are registered locally in each XAML view where they're nee
 <TextBlock Text="{Binding BuildInfo.Compiler, Converter={StaticResource NullSafeConverter}, ConverterParameter='Unknown'}" />
 ```
 
-**GameProfileSettingsWindow.axaml:**
+**DownloadsBrowserView.axaml / ContentCardView.axaml:**
 
 ```xml
-<!-- Status color for validation feedback -->
-<TextBlock Foreground="{Binding IsShortcutPathValid, Converter={StaticResource BoolToStatusColorConverter}}" />
-
-<!-- Conditional visibility for settings sections -->
-<Border IsVisible="{Binding SelectedVersion, Converter={StaticResource NotNullConverter}}" />
+<!-- Badge border and foreground colored by content type -->
+<Border BorderBrush="{Binding SearchResult.ContentType, Converter={x:Static conv:ContentTypeToBrushConverter.Instance}}">
+    <TextBlock Text="{Binding SearchResult.ContentType}"
+               Foreground="{Binding SearchResult.ContentType, Converter={x:Static conv:ContentTypeToBrushConverter.Instance}}" />
+</Border>
 ```
-
-
-### Registration Strategy
-
-- **Local Registration**: Converters are registered in `UserControl.Resources` or `Window.Resources` of each view
-- **No Global Registration**: No converters are registered globally in `App.axaml` to maintain modularity
-- **On-Demand Loading**: Each view loads only the converters it actually uses
-- **Consistent Naming**: Converter keys follow PascalCase naming convention matching the converter class name

@@ -100,7 +100,10 @@ public static class ModDBCategoryMapper
 
         var trimmed = categoryName.Trim();
         var normalized = trimmed.Replace(" ", string.Empty).Replace("-", string.Empty);
-        if (Enum.TryParse<ContentType>(normalized, ignoreCase: true, out var exactParsed) &&
+        if (normalized.Length > 0 &&
+            !char.IsDigit(normalized[0]) &&
+            Enum.TryParse<ContentType>(normalized, ignoreCase: true, out var exactParsed) &&
+            Enum.IsDefined(exactParsed) &&
             exactParsed != ContentType.UnknownContentType)
         {
             return exactParsed;
@@ -114,12 +117,6 @@ public static class ModDBCategoryMapper
             var s when s.Contains("game installation") || s.Contains("gameinstallation") => ContentType.GameInstallation,
             var s when s.Contains("content bundle") || s.Contains("contentbundle") => ContentType.ContentBundle,
             var s when s.Contains("executable") || s.Contains("exe") => ContentType.Executable,
-            var s when s.Contains("full version") => ContentType.Mod,
-            var s when s.Contains("demo") => ContentType.Mod,
-            var s when s == "mod" || s == "mods" || s.StartsWith("mod ") || s.EndsWith(" mod") => ContentType.Mod,
-            var s when s.Contains("patch") => ContentType.Patch,
-            var s when s.Contains("script") => ContentType.Patch,
-            var s when s.Contains("trainer") => ContentType.Addon,
 
             var s when s.Contains("trailer") => ContentType.Video,
             var s when s.Contains("movie") => ContentType.Video,
@@ -129,6 +126,13 @@ public static class ModDBCategoryMapper
             var s when s.Contains("sdk") => ContentType.ModdingTool,
             var s when s == "ide" || s.Contains(" ide") || s.Contains("ide ") || s.Contains("-ide") || s.Contains("ide-") => ContentType.ModdingTool,
             var s when s.Contains("source code") => ContentType.ModdingTool,
+
+            var s when s.Contains("full version") => ContentType.Mod,
+            var s when s.Contains("demo") => ContentType.Mod,
+            var s when s == "mod" || s == "mods" || s.StartsWith("mod ") || s.EndsWith(" mod") => ContentType.Mod,
+            var s when s.Contains("patch") => ContentType.Patch,
+            var s when s.Contains("script") => ContentType.Patch,
+            var s when s.Contains("trainer") => ContentType.Addon,
 
             var s when s.Contains("multiplayer map") => ContentType.Map,
             var s when s.Contains("singleplayer map") => ContentType.Map,
