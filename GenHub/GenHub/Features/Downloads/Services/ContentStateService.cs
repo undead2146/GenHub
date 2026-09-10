@@ -842,12 +842,9 @@ public sealed partial class ContentStateService(
 
         // 2. Check resolution patterns like 1920x1080 or 1080p
         var resMatch = GitHubTopicsDiscoverer.VariantPatterns.ResolutionPattern().Match(input);
-        if (resMatch.Success)
+        if (resMatch.Success && GitHubTopicsDiscoverer.VariantPatterns.ResolutionDisplayNames.TryGetValue(resMatch.Value, out var disp))
         {
-            if (GitHubTopicsDiscoverer.VariantPatterns.ResolutionDisplayNames.TryGetValue(resMatch.Value, out var disp))
-            {
-                return disp.ToLowerInvariant();
-            }
+            return disp.ToLowerInvariant();
         }
 
         var match = Regex.Match(input, @"\b(720p?|900p?|1080p?|1440p?|2160p?|4k)\b", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));

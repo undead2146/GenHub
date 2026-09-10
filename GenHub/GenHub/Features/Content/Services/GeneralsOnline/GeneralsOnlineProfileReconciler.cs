@@ -617,6 +617,75 @@ public class GeneralsOnlineProfileReconciler(
                   (m.Name is { } name && name.Contains("GeneralsOnline", StringComparison.OrdinalIgnoreCase))))];
     }
 
+    private IProgress<ContentAcquisitionProgress>? CreateAcquisitionProgress(
+        Guid? progressNotificationId,
+        string itemName,
+        int currentItemIndex,
+        int totalItems)
+    {
+        if (!progressNotificationId.HasValue)
+        {
+            return null;
+        }
+
+        var notificationId = progressNotificationId.Value;
+        var lastNotificationTimestamp = Stopwatch.GetTimestamp();
+
+        return new Progress<ContentAcquisitionProgress>(p =>
+        {
+            var elapsedMs = Stopwatch.GetElapsedTime(lastNotificationTimestamp).TotalMilliseconds;
+            if (elapsedMs < ManifestConstants.NotificationUpdateThrottleMs && p.ProgressPercentage < 100)
+            {
+                return;
+            }
+
+            lastNotificationTimestamp = Stopwatch.GetTimestamp();
+            var status = p.FormatProgressStatus();
+            var message = totalItems > 1
+                ? $"[{currentItemIndex}/{totalItems}] {itemName}: {status}"
+                : $"{itemName}: {status}";
+
+            notificationService.Update(
+                notificationId,
+                message,
+                "GeneralsOnline Update");
+        });
+    }
+
+    private async Task<OperationResult<bool>> AcquireItemsAsync(
+        IReadOnlyList<ContentSearchResult> items,
+        Guid? progressNotificationId,
+        CancellationToken cancellationToken)
+    {
+        int totalItems = items.Count;
+        int currentItemIndex = 0;
+
+        foreach (var result in items)
+        {
+            currentItemIndex++;
+            var progress = CreateAcquisitionProgress(
+                progressNotificationId,
+                result.Name,
+                currentItemIndex,
+                totalItems);
+
+            var acquireOp = await contentOrchestrator.AcquireContentAsync(result, progress, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!acquireOp.Success)
+            {
+                logger.LogError(
+                    "[GO:Reconciler] Failed to acquire content {ContentId}: {Error}",
+                    result.Id,
+                    acquireOp.FirstError);
+
+                return OperationResult<bool>.CreateFailure(
+                    $"Failed to acquire content {result.Id}: {acquireOp.FirstError}");
+            }
+        }
+
+        return OperationResult<bool>.CreateSuccess(true);
+    }
+
     /// <summary>
     /// Acquires the latest GeneralsOnline version by searching and downloading.
     /// </summary>
@@ -671,46 +740,10 @@ public class GeneralsOnlineProfileReconciler(
             }
 
             var items = allResults;
-            int totalItems = items.Count;
-            int currentItemIndex = 0;
-
-            foreach (var result in items)
+            var acquireResult = await AcquireItemsAsync(items, progressNotificationId, cancellationToken);
+            if (!acquireResult.Success)
             {
-                currentItemIndex++;
-
-                var lastNotificationTimestamp = Stopwatch.GetTimestamp();
-                var progress = progressNotificationId.HasValue
-                    ? new Progress<ContentAcquisitionProgress>(p =>
-                    {
-                        var elapsedMs = Stopwatch.GetElapsedTime(lastNotificationTimestamp).TotalMilliseconds;
-                        if (elapsedMs >= ManifestConstants.NotificationUpdateThrottleMs || p.ProgressPercentage >= 100)
-                        {
-                            lastNotificationTimestamp = Stopwatch.GetTimestamp();
-                            var status = p.FormatProgressStatus();
-                            var message = totalItems > 1
-                                ? $"[{currentItemIndex}/{totalItems}] {result.Name}: {status}"
-                                : $"{result.Name}: {status}";
-
-                            notificationService.Update(
-                                progressNotificationId.Value,
-                                message,
-                                "GeneralsOnline Update");
-                        }
-                    })
-                    : null;
-
-                var acquireOp = await contentOrchestrator.AcquireContentAsync(result, progress, cancellationToken);
-                cancellationToken.ThrowIfCancellationRequested();
-                if (!acquireOp.Success)
-                {
-                    logger.LogError(
-                        "[GO:Reconciler] Failed to acquire content {ContentId}: {Error}",
-                        result.Id,
-                        acquireOp.FirstError);
-
-                    return OperationResult<List<ContentManifest>>.CreateFailure(
-                        $"Failed to acquire content {result.Id}: {acquireOp.FirstError}");
-                }
+                return OperationResult<List<ContentManifest>>.CreateFailure(acquireResult.FirstError ?? "Failed to acquire content");
             }
 
             var allGoManifests = await FindGeneralsOnlineManifestsAsync(cancellationToken);

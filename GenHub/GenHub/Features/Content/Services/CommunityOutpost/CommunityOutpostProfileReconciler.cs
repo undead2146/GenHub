@@ -241,6 +241,75 @@ public class CommunityOutpostProfileReconciler(
                 m.Publisher?.PublisherType?.Equals(CommunityOutpostConstants.PublisherType, StringComparison.OrdinalIgnoreCase) == true)];
     }
 
+    private IProgress<ContentAcquisitionProgress>? CreateAcquisitionProgress(
+        Guid? progressNotificationId,
+        string itemName,
+        int currentItemIndex,
+        int totalItems)
+    {
+        if (!progressNotificationId.HasValue)
+        {
+            return null;
+        }
+
+        var notificationId = progressNotificationId.Value;
+        var lastNotificationTimestamp = Stopwatch.GetTimestamp();
+
+        return new Progress<ContentAcquisitionProgress>(p =>
+        {
+            var elapsedMs = Stopwatch.GetElapsedTime(lastNotificationTimestamp).TotalMilliseconds;
+            if (elapsedMs < ManifestConstants.NotificationUpdateThrottleMs && p.ProgressPercentage < 100)
+            {
+                return;
+            }
+
+            lastNotificationTimestamp = Stopwatch.GetTimestamp();
+            var status = p.FormatProgressStatus();
+            var message = totalItems > 1
+                ? $"[{currentItemIndex}/{totalItems}] {itemName}: {status}"
+                : $"{itemName}: {status}";
+
+            notificationService.Update(
+                notificationId,
+                message,
+                "Community Patch Update");
+        });
+    }
+
+    private async Task<OperationResult<bool>> AcquireItemsAsync(
+        IReadOnlyList<ContentSearchResult> items,
+        Guid? progressNotificationId,
+        CancellationToken cancellationToken)
+    {
+        int totalItems = items.Count;
+        int currentItemIndex = 0;
+
+        foreach (var result in items)
+        {
+            currentItemIndex++;
+            var progress = CreateAcquisitionProgress(
+                progressNotificationId,
+                result.Name,
+                currentItemIndex,
+                totalItems);
+
+            var acquireOp = await contentOrchestrator.AcquireContentAsync(result, progress, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!acquireOp.Success)
+            {
+                logger.LogError(
+                    "[CO:Reconciler] Failed to acquire content {ContentId}: {Error}",
+                    result.Id,
+                    acquireOp.FirstError);
+
+                return OperationResult<bool>.CreateFailure(
+                    $"Failed to acquire Community Patch content {result.Id}: {acquireOp.FirstError}");
+            }
+        }
+
+        return OperationResult<bool>.CreateSuccess(true);
+    }
+
     private async Task<OperationResult<List<ContentManifest>>> AcquireLatestVersionAsync(
         IReadOnlyList<ContentManifest> oldManifests,
         Guid? progressNotificationId,
@@ -266,46 +335,10 @@ public class CommunityOutpostProfileReconciler(
             }
 
             var items = searchResult.Data.ToList();
-            int totalItems = items.Count;
-            int currentItemIndex = 0;
-
-            foreach (var result in items)
+            var acquireResult = await AcquireItemsAsync(items, progressNotificationId, cancellationToken);
+            if (!acquireResult.Success)
             {
-                currentItemIndex++;
-
-                var lastNotificationTimestamp = Stopwatch.GetTimestamp();
-                var progress = progressNotificationId.HasValue
-                    ? new Progress<ContentAcquisitionProgress>(p =>
-                    {
-                        var elapsedMs = Stopwatch.GetElapsedTime(lastNotificationTimestamp).TotalMilliseconds;
-                        if (elapsedMs >= ManifestConstants.NotificationUpdateThrottleMs || p.ProgressPercentage >= 100)
-                        {
-                            lastNotificationTimestamp = Stopwatch.GetTimestamp();
-                            var status = p.FormatProgressStatus();
-                            var message = totalItems > 1
-                                ? $"[{currentItemIndex}/{totalItems}] {result.Name}: {status}"
-                                : $"{result.Name}: {status}";
-
-                            notificationService.Update(
-                                progressNotificationId.Value,
-                                message,
-                                "Community Patch Update");
-                        }
-                    })
-                    : null;
-
-                var acquireOp = await contentOrchestrator.AcquireContentAsync(result, progress, cancellationToken);
-                cancellationToken.ThrowIfCancellationRequested();
-                if (!acquireOp.Success)
-                {
-                    logger.LogError(
-                        "[CO:Reconciler] Failed to acquire content {ContentId}: {Error}",
-                        result.Id,
-                        acquireOp.FirstError);
-
-                    return OperationResult<List<ContentManifest>>.CreateFailure(
-                        $"Failed to acquire Community Patch content {result.Id}: {acquireOp.FirstError}");
-                }
+                return OperationResult<List<ContentManifest>>.CreateFailure(acquireResult.FirstError ?? "Failed to acquire content");
             }
 
             var allManifests = await FindCommunityOutpostManifestsAsync(cancellationToken);
