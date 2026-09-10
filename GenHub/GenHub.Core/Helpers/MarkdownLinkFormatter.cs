@@ -4,12 +4,15 @@ using System.Text.RegularExpressions;
 namespace GenHub.Core.Helpers;
 
 /// <summary>
-/// Formats text and markdown to make GitHub PR/issue references, mentions, and raw URLs clickable.
+/// Formats text and markdown to make GitHub PR/issue references, mentions, and raw URLs clickable,
+/// normalizes list formatting so descriptions render correctly in Markdown viewers,
+/// and sanitizes untrusted markdown links and images to prevent arbitrary scheme execution.
 /// </summary>
 public static partial class MarkdownLinkFormatter
 {
     /// <summary>
-    /// Formats the input text into markdown with clickable links for PRs, issues, GitHub users, and bare URLs.
+    /// Formats the input text into markdown with clickable links for PRs, issues, GitHub users, and bare URLs,
+    /// normalizes bullet lists and line breaks for Markdown viewers, and sanitizes untrusted links/images.
     /// </summary>
     /// <param name="text">The raw text or markdown to format.</param>
     /// <param name="sourceUrl">The optional repository or source URL to resolve relative issue/PR numbers.</param>
@@ -25,6 +28,32 @@ public static partial class MarkdownLinkFormatter
 
         var result = text;
 
+        // 0. Sanitize pre-existing markdown links and images in untrusted input:
+        // Only permit http and https schemes. Convert non-http(s) links to plain text and remove non-http(s) images.
+        result = MarkdownImageRegex().Replace(result, m =>
+        {
+            var url = m.Groups["url"].Value.Trim();
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+            {
+                return m.Value;
+            }
+
+            return m.Groups["alt"].Value;
+        });
+
+        result = MarkdownHyperlinkRegex().Replace(result, m =>
+        {
+            var url = m.Groups["url"].Value.Trim();
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+            {
+                return m.Value;
+            }
+
+            return m.Groups["text"].Value;
+        });
+
         // 1. Transform GitHub pull request / issue URLs into compact clickable links, e.g.
         // in https://github.com/Owner/Repo/pull/109 -> in [#109](https://github.com/Owner/Repo/pull/109)
         result = GitHubPullUrlRegex().Replace(result, m =>
@@ -35,7 +64,7 @@ public static partial class MarkdownLinkFormatter
         });
 
         // 2. Transform GitHub commit URLs into compact clickable links, e.g.
-        // https://github.com/Owner/Repo/commit/1234567890 -> [1234567](https://github.com/Owner/Repo/commit/1234567890)
+        // https://github.com/Owner/Repo/commit/1234567890 -> [`1234567`](https://github.com/Owner/Repo/commit/1234567890)
         result = GitHubCommitUrlRegex().Replace(result, m =>
         {
             var url = m.Value;
@@ -101,6 +130,14 @@ public static partial class MarkdownLinkFormatter
             return $"[{cleanUrl}]({cleanUrl}){trailing}";
         });
 
+        // 6. Normalize Unicode bullets (•, ●, ▪, ▫) at line starts into standard Markdown list items (- )
+        // so Markdown engines render each item on its own bulleted line instead of collapsing into a single paragraph.
+        result = BulletListRegex().Replace(result, "${indent}- ");
+
+        // 7. Ensure list items have a blank line before them when preceded by non-list paragraph text,
+        // which prevents Markdown parsers from treating list items as soft breaks in the preceding paragraph.
+        result = ListPrecedingBlankLineRegex().Replace(result, "${prev}\n\n${curr}");
+
         return result;
     }
 
@@ -133,6 +170,12 @@ public static partial class MarkdownLinkFormatter
         return (null, null);
     }
 
+    [GeneratedRegex(@"!\[(?<alt>[^\]]*)\]\((?<url>(?:[^\s()]+|\([^\s()]+\))+)(?:\s+[""'][^""']*[""'])?\)")]
+    private static partial Regex MarkdownImageRegex();
+
+    [GeneratedRegex(@"(?<!\!)\[(?<text>[^\]]*)\]\((?<url>(?:[^\s()]+|\([^\s()]+\))+)(?:\s+[""'][^""']*[""'])?\)")]
+    private static partial Regex MarkdownHyperlinkRegex();
+
     [GeneratedRegex(@"https?://github\.com/(?<owner>[a-zA-Z0-9_\-\.]+)/(?<repo>[a-zA-Z0-9_\-\.]+)(?:/|$|\.git)", RegexOptions.IgnoreCase)]
     private static partial Regex GitHubRepoUrlRegex();
 
@@ -153,4 +196,10 @@ public static partial class MarkdownLinkFormatter
 
     [GeneratedRegex(@"(?<mdlink>\[[^\]]*\]\([^)]*\))|(?<url>https?://[^\s<>""]+)")]
     private static partial Regex BareUrlRegex();
+
+    [GeneratedRegex(@"^(?<indent>[ \t]*)[•●▪▫][ \t]+", RegexOptions.Multiline)]
+    private static partial Regex BulletListRegex();
+
+    [GeneratedRegex(@"(?<prev>^[ \t]*[^\s\-*+>#|`].*)\r?\n(?<curr>[ \t]*[-*+][ \t]+)", RegexOptions.Multiline)]
+    private static partial Regex ListPrecedingBlankLineRegex();
 }

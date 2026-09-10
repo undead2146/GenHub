@@ -9,7 +9,7 @@ namespace GenHub.Tests.Core.Helpers;
 public sealed class MarkdownLinkFormatterTests
 {
     /// <summary>
-    /// Verifies that null or whitespace input returns empty string.
+    /// Verifies that null or whitespace inputs return an empty string.
     /// </summary>
     /// <param name="input">The input string to format.</param>
     [Theory]
@@ -23,77 +23,173 @@ public sealed class MarkdownLinkFormatterTests
     }
 
     /// <summary>
-    /// Verifies that GitHub pull request URLs are converted to compact clickable links.
+    /// Verifies that GitHub pull request URLs are converted into short [#109](url) links.
     /// </summary>
     [Fact]
-    public void FormatLinks_GitHubPullRequestUrl_ConvertsToCompactLink()
+    public void FormatLinks_GitHubPullUrl_FormatsToShortPrLink()
     {
-        var input = "• bugfix: Add missing audio by @Stubbjax in https://github.com/TheSuperHackers/GeneralsGamePatch2/pull/109";
+        var input = "Added feature in https://github.com/community-outpost/GenHub/pull/109 by dev";
         var result = MarkdownLinkFormatter.FormatLinks(input);
 
-        Assert.Contains("[#109](https://github.com/TheSuperHackers/GeneralsGamePatch2/pull/109)", result);
-        Assert.Contains("[@Stubbjax](https://github.com/Stubbjax)", result);
+        Assert.Equal("Added feature in [#109](https://github.com/community-outpost/GenHub/pull/109) by dev", result);
     }
 
     /// <summary>
-    /// Verifies that issue/PR numbers in parentheses are converted when repo is known from sourceUrl.
+    /// Verifies that GitHub commit URLs are converted into short [`abcdef1`](url) links.
     /// </summary>
     [Fact]
-    public void FormatLinks_ParenthesizedIssue_ConvertsToLink()
+    public void FormatLinks_GitHubCommitUrl_FormatsToShortShaLink()
     {
-        var input = "• ci(release): Fix weekly release workflow permissions (#3256)";
-        var sourceUrl = "https://github.com/TheSuperHackers/GeneralsGameCode/releases/tag/weekly-2026-09-05";
-        var result = MarkdownLinkFormatter.FormatLinks(input, sourceUrl);
-
-        Assert.Equal("• ci(release): Fix weekly release workflow permissions ([#3256](https://github.com/TheSuperHackers/GeneralsGameCode/pull/3256))", result);
-    }
-
-    /// <summary>
-    /// Verifies that standalone issue/PR numbers are converted when repo is known.
-    /// </summary>
-    [Fact]
-    public void FormatLinks_StandaloneIssue_ConvertsToLink()
-    {
-        var input = "Fixed issue #4525 in this release.";
-        var sourceUrl = "https://github.com/TheSuperHackers/GeneralsGameCode";
-        var result = MarkdownLinkFormatter.FormatLinks(input, sourceUrl);
-
-        Assert.Equal("Fixed issue [#4525](https://github.com/TheSuperHackers/GeneralsGameCode/pull/4525) in this release.", result);
-    }
-
-    /// <summary>
-    /// Verifies that bare URLs are made clickable markdown links and trailing punctuation is preserved.
-    /// </summary>
-    [Fact]
-    public void FormatLinks_BareUrl_PreservesPunctuationAndLinks()
-    {
-        var input = "Visit https://generalshub.com for more info.";
+        var input = "Fixed bug in https://github.com/community-outpost/GenHub/commit/a1b2c3d4e5f6789012345678";
         var result = MarkdownLinkFormatter.FormatLinks(input);
 
-        Assert.Equal("Visit [https://generalshub.com](https://generalshub.com) for more info.", result);
+        Assert.Equal("Fixed bug in [`a1b2c3d`](https://github.com/community-outpost/GenHub/commit/a1b2c3d4e5f6789012345678)", result);
     }
 
     /// <summary>
-    /// Verifies that existing markdown links are not mangled or double-wrapped.
+    /// Verifies that parenthesized PR references like (#109) are converted to links when sourceUrl is provided.
     /// </summary>
     [Fact]
-    public void FormatLinks_ExistingMarkdownLink_PreservedAsIs()
+    public void FormatLinks_ParenthesizedIssue_WithSourceUrl_FormatsLink()
     {
-        var input = "Check out [our website](https://generalshub.com) today.";
+        var input = "Fix map crash (#109)";
+        var sourceUrl = "https://github.com/community-outpost/GenHub";
+        var result = MarkdownLinkFormatter.FormatLinks(input, sourceUrl);
+
+        Assert.Equal("Fix map crash ([#109](https://github.com/community-outpost/GenHub/pull/109))", result);
+    }
+
+    /// <summary>
+    /// Verifies that standalone #109 references are converted to links when sourceUrl is provided.
+    /// </summary>
+    [Fact]
+    public void FormatLinks_StandaloneIssue_WithSourceUrl_FormatsLink()
+    {
+        var input = "Closes #109 and #42.";
+        var sourceUrl = "https://github.com/community-outpost/GenHub";
+        var result = MarkdownLinkFormatter.FormatLinks(input, sourceUrl);
+
+        Assert.Equal("Closes [#109](https://github.com/community-outpost/GenHub/pull/109) and [#42](https://github.com/community-outpost/GenHub/pull/42).", result);
+    }
+
+    /// <summary>
+    /// Verifies that GitHub user mentions are converted to clickable profile links.
+    /// </summary>
+    [Fact]
+    public void FormatLinks_GitHubMention_FormatsToUserLink()
+    {
+        var input = "Thanks to @Stubbjax and (@TheSuperHack)";
+        var result = MarkdownLinkFormatter.FormatLinks(input);
+
+        Assert.Equal("Thanks to [@Stubbjax](https://github.com/Stubbjax) and ([@TheSuperHack](https://github.com/TheSuperHack))", result);
+    }
+
+    /// <summary>
+    /// Verifies that bare URLs are wrapped in markdown link syntax while trailing punctuation is preserved.
+    /// </summary>
+    [Fact]
+    public void FormatLinks_BareUrl_WrapsInMarkdownLink()
+    {
+        var input = "Visit https://generalsonline.net, or see https://example.com/info.";
+        var result = MarkdownLinkFormatter.FormatLinks(input);
+
+        Assert.Equal("Visit [https://generalsonline.net](https://generalsonline.net), or see [https://example.com/info](https://example.com/info).", result);
+    }
+
+    /// <summary>
+    /// Verifies that existing markdown links are not duplicated or double-wrapped.
+    /// </summary>
+    [Fact]
+    public void FormatLinks_ExistingMarkdownLink_PreservesWithoutDoubleWrapping()
+    {
+        var input = "Check out [our website](https://generalsonline.net) for details.";
+        var result = MarkdownLinkFormatter.FormatLinks(input);
+
+        Assert.Equal("Check out [our website](https://generalsonline.net) for details.", result);
+    }
+
+    /// <summary>
+    /// Verifies that Unicode bullet points at line starts are normalized to Markdown list items.
+    /// </summary>
+    [Fact]
+    public void FormatLinks_UnicodeBullets_ConvertsToMarkdownListItems()
+    {
+        var input = "Update 082826 (28th August 2026)\n\n• First change\n• Second change\n  • Nested change";
+        var result = MarkdownLinkFormatter.FormatLinks(input);
+
+        Assert.Contains("- First change", result);
+        Assert.Contains("- Second change", result);
+        Assert.Contains("  - Nested change", result);
+        Assert.DoesNotContain("•", result);
+    }
+
+    /// <summary>
+    /// Verifies that an empty line is inserted before list items when immediately following a paragraph.
+    /// </summary>
+    [Fact]
+    public void FormatLinks_ListImmediatelyFollowingParagraph_InsertsBlankLine()
+    {
+        var input = "Heading line\n• First change\n• Second change";
+        var result = MarkdownLinkFormatter.FormatLinks(input);
+
+        Assert.Equal("Heading line\n\n- First change\n- Second change", result);
+    }
+
+    /// <summary>
+    /// Verifies that inline bullet characters are preserved and not converted into list items.
+    /// </summary>
+    [Fact]
+    public void FormatLinks_InlineBullets_PreservedAsIs()
+    {
+        var input = "Generals Online Team • generalsonline • 082826";
         var result = MarkdownLinkFormatter.FormatLinks(input);
 
         Assert.Equal(input, result);
     }
 
     /// <summary>
-    /// Verifies that email addresses are not turned into GitHub mention links.
+    /// Verifies that markdown links with non-http(s) schemes (e.g. file://, UNC, javascript:)
+    /// are stripped of link markup and rendered as plain text.
     /// </summary>
-    [Fact]
-    public void FormatLinks_EmailAddress_NotMangled()
+    /// <param name="input">The input markdown text containing links.</param>
+    /// <param name="expected">The expected sanitized output text.</param>
+    [Theory]
+    [InlineData("[Fix the crash](file:///C:/Users/Public/payload.exe)", "Fix the crash")]
+    [InlineData("[Read UNC](\\\\192.168.1.1\\share\\payload.bat)", "Read UNC")]
+    [InlineData("[Exploit](javascript:alert(1))", "Exploit")]
+    [InlineData("[App Data](data:text/html,payload)", "App Data")]
+    public void FormatLinks_NonHttpLinks_SanitizedToPlainText(string input, string expected)
     {
-        var input = "Contact support at help@example.com for assistance.";
         var result = MarkdownLinkFormatter.FormatLinks(input);
 
-        Assert.DoesNotContain("[@example](https://github.com/example)", result);
+        Assert.Equal(expected, result);
+    }
+
+    /// <summary>
+    /// Verifies that markdown images with non-http(s) schemes (e.g. file://, avares://)
+    /// are stripped of image markup and rendered as alt text.
+    /// </summary>
+    /// <param name="input">The input markdown text containing images.</param>
+    /// <param name="expected">The expected sanitized output text.</param>
+    [Theory]
+    [InlineData("![Local file](file:///etc/passwd)", "Local file")]
+    [InlineData("![App asset](avares://GenHub/Assets/logo.png)", "App asset")]
+    public void FormatLinks_NonHttpImages_SanitizedToAltText(string input, string expected)
+    {
+        var result = MarkdownLinkFormatter.FormatLinks(input);
+
+        Assert.Equal(expected, result);
+    }
+
+    /// <summary>
+    /// Verifies that valid HTTP and HTTPS markdown links and images are preserved.
+    /// </summary>
+    [Fact]
+    public void FormatLinks_HttpAndHttpsLinksAndImages_Preserved()
+    {
+        var input = "[Valid Link](https://example.com) and ![Valid Image](https://example.com/pic.png)";
+        var result = MarkdownLinkFormatter.FormatLinks(input);
+
+        Assert.Equal("[Valid Link](https://example.com) and ![Valid Image](https://example.com/pic.png)", result);
     }
 }

@@ -894,6 +894,54 @@ public class SettingsViewModelTests
     }
 
     /// <summary>
+    /// Verifies that when CAS garbage collection is disabled, DeleteAllData reports that CAS cleanup
+    /// was skipped rather than claiming CAS cleanup failed.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task DeleteAllDataCommand_WhenCasCleanupDisabled_ReportsSkippedWordingAsync()
+    {
+        // Arrange
+        SetupDeletableData();
+        _mockDialogService
+            .Setup(x => x.ShowConfirmationAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>()))
+            .ReturnsAsync(true);
+        _mockUserDataTracker
+            .Setup(x => x.DeleteAllUserDataAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+        _mockCasService
+            .Setup(x => x.RunGarbageCollectionAsync(true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CasGarbageCollectionResult.CreateDisabled());
+
+        string? capturedWarningMessage = null;
+        _mockNotificationService
+            .Setup(x => x.ShowWarning(
+                "Data Partially Deleted",
+                It.IsAny<string>(),
+                It.IsAny<int?>(),
+                It.IsAny<bool>()))
+            .Callback<string, string, int?, bool>((title, message, duration, closable) =>
+            {
+                capturedWarningMessage = message;
+            });
+
+        var viewModel = CreateViewModel();
+
+        // Act
+        await viewModel.DeleteAllDataCommand.ExecuteAsync(null);
+
+        // Assert
+        Assert.NotNull(capturedWarningMessage);
+        Assert.Contains("CAS cleanup was skipped (disabled)", capturedWarningMessage);
+        Assert.DoesNotContain("CAS cleanup failed", capturedWarningMessage);
+    }
+
+    /// <summary>
     /// Verifies that the confirmation prompt states the action is irreversible and that game data
     /// backups are discarded, and that it cannot be suppressed by a "do not ask again" preference.
     /// </summary>

@@ -17,15 +17,13 @@ public static class DownloadMessageMatchHelper
     /// <param name="providerName">The message provider name.</param>
     /// <param name="contentName">The message content name.</param>
     /// <param name="item">The search result to match.</param>
-    /// <param name="parentContentId">Optional parent content ID for child release/addon downloads.</param>
     /// <returns>True if the message matches the item; otherwise, false.</returns>
     public static bool Matches(
         string? contentKey,
         string? contentId,
         string? providerName,
         string? contentName,
-        ContentSearchResult? item,
-        string? parentContentId = null)
+        ContentSearchResult? item)
     {
         if (item == null)
         {
@@ -47,30 +45,19 @@ public static class DownloadMessageMatchHelper
 
     private static bool MatchesContentKey(string? contentKey, ContentSearchResult item)
     {
-        if (string.IsNullOrEmpty(contentKey) || string.IsNullOrEmpty(item.ProviderName))
+        if (string.IsNullOrEmpty(contentKey))
         {
             return false;
         }
 
-        if (!string.IsNullOrEmpty(item.Id))
+        var expectedKey = $"{item.ProviderName}::{item.Id}";
+        if (string.Equals(contentKey, expectedKey, StringComparison.OrdinalIgnoreCase))
         {
-            var itemKeyWithId = $"{item.ProviderName}::{item.Id}";
-            if (string.Equals(contentKey, itemKeyWithId, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
+            return true;
         }
 
-        if (!string.IsNullOrEmpty(item.Name))
-        {
-            var itemKeyWithName = $"{item.ProviderName}::{item.Name}";
-            if (string.Equals(contentKey, itemKeyWithName, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        var legacyKey = $"{item.ProviderName}::{item.Name}";
+        return string.Equals(contentKey, legacyKey, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool MatchesContentId(string? contentId, ContentSearchResult item)
@@ -85,12 +72,17 @@ public static class DownloadMessageMatchHelper
             return true;
         }
 
-        return item.Variants != null &&
-               item.Variants.Any(v => string.Equals(contentId, v.ManifestId, StringComparison.OrdinalIgnoreCase));
+        return item.Variants?.Any(v =>
+            string.Equals(contentId, v.ManifestId, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(contentId, v.Id, StringComparison.OrdinalIgnoreCase)) == true;
     }
 
     private static bool MatchesProviderAndNameFallback(string? providerName, string? contentName, ContentSearchResult item)
     {
+        // When an item has an authoritative Id, never fall back to Provider+Name matching.
+        // Multiple distinct items from the same provider can share a display name
+        // (e.g. Generals Online releases vs addons); matching by name alone causes
+        // download state on one item to cross-light or clear state on its sibling.
         if (!string.IsNullOrEmpty(item.Id))
         {
             return false;

@@ -1272,7 +1272,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             await DeleteProfilesInternalAsync(showToast: false, updateDangerZone: false);
             await DeleteWorkspacesInternalAsync(showToast: false, updateDangerZone: false);
             await DeleteManifestsInternalAsync(showToast: false, updateDangerZone: false);
-            var casDeleted = await DeleteCasStorageInternalAsync(showToast: false, updateDangerZone: false);
+            var casOutcome = await DeleteCasStorageInternalAsync(showToast: false, updateDangerZone: false);
             var userDataDeleted = await DeleteUserDataInternalAsync();
 
             // Invalidate installation cache to force re-generation of manifests on next scan
@@ -1282,7 +1282,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
 
             // A success toast on top of the partial-failure toast the user data deletion just raised
             // would tell the user their data is gone while their originals are still on disk.
-            if (userDataDeleted && casDeleted)
+            if (userDataDeleted && casOutcome == CasCleanupOutcome.Success)
             {
                 _notificationService.ShowSuccess(
                     "Data Deleted",
@@ -1292,13 +1292,20 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             else
             {
                 string partialDetails;
-                if (!casDeleted && !userDataDeleted)
+                var casDetail = casOutcome switch
                 {
-                    partialDetails = "some user data was kept and CAS cleanup failed";
+                    CasCleanupOutcome.Disabled => "CAS cleanup was skipped (disabled)",
+                    CasCleanupOutcome.Failed => "CAS cleanup failed",
+                    _ => null,
+                };
+
+                if (!userDataDeleted && casDetail != null)
+                {
+                    partialDetails = $"some user data was kept and {casDetail}";
                 }
-                else if (!casDeleted)
+                else if (casDetail != null)
                 {
-                    partialDetails = "CAS cleanup failed";
+                    partialDetails = casDetail;
                 }
                 else
                 {
@@ -1376,7 +1383,14 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         }
     }
 
-    private async Task<bool> DeleteCasStorageInternalAsync(bool showToast, bool updateDangerZone)
+    private enum CasCleanupOutcome
+    {
+        Success,
+        Disabled,
+        Failed,
+    }
+
+    private async Task<CasCleanupOutcome> DeleteCasStorageInternalAsync(bool showToast, bool updateDangerZone)
     {
         try
         {
@@ -1392,7 +1406,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
                         (int)TimeIntervals.NotificationHideDelay.TotalMilliseconds);
                 }
 
-                return false;
+                return CasCleanupOutcome.Disabled;
             }
 
             if (!result.Success)
@@ -1403,7 +1417,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
                     _notificationService.ShowError("Deletion Failed", result.FirstError ?? "Failed to collect CAS storage", 5000);
                 }
 
-                return false;
+                return CasCleanupOutcome.Failed;
             }
 
             if (showToast)
@@ -1416,7 +1430,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
                 await UpdateDangerZoneDataAsync();
             }
 
-            return true;
+            return CasCleanupOutcome.Success;
         }
         catch (Exception ex)
         {
@@ -1426,7 +1440,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
                 _notificationService.ShowError("Deletion Failed", $"An error occurred: {ex.Message}", 5000);
             }
 
-            return false;
+            return CasCleanupOutcome.Failed;
         }
     }
 

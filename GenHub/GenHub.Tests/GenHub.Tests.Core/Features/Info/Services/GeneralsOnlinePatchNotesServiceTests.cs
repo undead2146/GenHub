@@ -71,9 +71,9 @@ public class GeneralsOnlinePatchNotesServiceTests
         // Assert
         Assert.NotNull(formatted);
         Assert.Contains("Update 082826 (28th August 2026)", formatted);
-        Assert.Contains("• Community Patch v1.0.1", formatted);
-        Assert.Contains("• Fixed a bug where some players cannot establish connection", formatted);
-        Assert.Contains("• Added 'tournament' lobby in server list menu", formatted);
+        Assert.Contains("- Community Patch v1.0.1", formatted);
+        Assert.Contains("- Fixed a bug where some players cannot establish connection", formatted);
+        Assert.Contains("- Added 'tournament' lobby in server list menu", formatted);
     }
 
     /// <summary>
@@ -87,7 +87,10 @@ public class GeneralsOnlinePatchNotesServiceTests
     [InlineData("   ")]
     [InlineData("invalid")]
     [InlineData("123")]
-    public async Task GetPatchNotesFormattedAsync_WithInvalidVersion_ReturnsNullAsync(string? version)
+    [InlineData("12345")]
+    [InlineData("1234567")]
+    [InlineData("abcdef")]
+    public async Task GetPatchNotesFormattedAsync_InvalidVersion_ReturnsNullAsync(string? version)
     {
         // Arrange
         var factoryMock = new Mock<IHttpClientFactory>();
@@ -96,18 +99,18 @@ public class GeneralsOnlinePatchNotesServiceTests
             NullLogger<GeneralsOnlinePatchNotesService>.Instance);
 
         // Act
-        var formatted = await service.GetPatchNotesFormattedAsync(version!);
+        var result = await service.GetPatchNotesFormattedAsync(version!);
 
         // Assert
-        Assert.Null(formatted);
+        Assert.Null(result);
     }
 
     /// <summary>
-    /// Tests that <see cref="GeneralsOnlinePatchNotesService.GetPatchNotesFormattedAsync"/> returns null when HTTP request fails.
+    /// Tests that <see cref="GeneralsOnlinePatchNotesService.GetPatchNotesFormattedAsync"/> returns null when HTTP fails.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task GetPatchNotesFormattedAsync_WhenHttpFails_ReturnsNullAsync()
+    public async Task GetPatchNotesFormattedAsync_HttpError_ReturnsNullAsync()
     {
         // Arrange
         var handler = new TestHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
@@ -120,17 +123,17 @@ public class GeneralsOnlinePatchNotesServiceTests
             NullLogger<GeneralsOnlinePatchNotesService>.Instance);
 
         // Act
-        var formatted = await service.GetPatchNotesFormattedAsync("082826");
+        var result = await service.GetPatchNotesFormattedAsync("082826");
 
         // Assert
-        Assert.Null(formatted);
+        Assert.Null(result);
     }
 
-    private sealed class TestHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> handlerFunc) : HttpMessageHandler
+    private sealed class TestHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> handler) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            return Task.FromResult(handlerFunc(request));
+            return Task.FromResult(handler(request));
         }
     }
 }

@@ -9,6 +9,7 @@
              xmlns:parsers="clr-namespace:GenHub.Core.Models.Parsers;assembly=GenHub.Core"
              xmlns:content="clr-namespace:GenHub.Core.Models.Content;assembly=GenHub.Core"
              xmlns:md="https://github.com/whistyun/Markdown.Avalonia"
+             xmlns:markdown="clr-namespace:GenHub.Infrastructure.Markdown;assembly=GenHub"
              mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
              x:Class="GenHub.Features.Downloads.Views.ContentDetailView"
              x:DataType="vm:ContentDetailViewModel"
@@ -23,6 +24,8 @@
         <converters:ContentTypeToBrushConverter x:Key="ContentTypeToBrushConverter" />
         <converters:ContentTypeToBadgeBackgroundConverter x:Key="ContentTypeToBadgeBackgroundConverter" />
         <converters:ContentTypeDisplayConverter x:Key="ContentTypeDisplayConverter" />
+        <markdown:SafeMarkdownHyperlinkCommand x:Key="SafeMarkdownHyperlinkCommand" />
+        <markdown:SafeMarkdownPathResolver x:Key="SafeMarkdownPathResolver" />
     </UserControl.Resources>
 
     <UserControl.Styles>
@@ -264,6 +267,10 @@
                                 <StackPanel Spacing="12">
                                     <TextBlock Text="About" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" />
                                     <md:MarkdownScrollViewer Markdown="{Binding FormattedDescription}">
+                                        <md:MarkdownScrollViewer.Plugins>
+                                            <md:MdAvPlugins HyperlinkCommand="{StaticResource SafeMarkdownHyperlinkCommand}"
+                                                            PathResolver="{StaticResource SafeMarkdownPathResolver}" />
+                                        </md:MarkdownScrollViewer.Plugins>
                                         <md:MarkdownScrollViewer.Styles>
                                             <Style Selector="TextBlock">
                                                 <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
@@ -624,6 +631,10 @@
                                                                 </StackPanel>
                                                                 <Border Background="{DynamicResource CardBackground}" CornerRadius="8" Padding="16" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}">
                                                                     <md:MarkdownScrollViewer Markdown="{Binding FormattedFullDescription}">
+                                                                        <md:MarkdownScrollViewer.Plugins>
+                                                                            <md:MdAvPlugins HyperlinkCommand="{StaticResource SafeMarkdownHyperlinkCommand}"
+                                                                                            PathResolver="{StaticResource SafeMarkdownPathResolver}" />
+                                                                        </md:MarkdownScrollViewer.Plugins>
                                                                         <md:MarkdownScrollViewer.Styles>
                                                                             <Style Selector="TextBlock">
                                                                                 <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
@@ -988,6 +999,10 @@
                                                                 </StackPanel>
                                                                 <Border Background="{DynamicResource CardBackground}" CornerRadius="8" Padding="16" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}">
                                                                     <md:MarkdownScrollViewer Markdown="{Binding FormattedFullDescription}">
+                                                                        <md:MarkdownScrollViewer.Plugins>
+                                                                            <md:MdAvPlugins HyperlinkCommand="{StaticResource SafeMarkdownHyperlinkCommand}"
+                                                                                            PathResolver="{StaticResource SafeMarkdownPathResolver}" />
+                                                                        </md:MarkdownScrollViewer.Plugins>
                                                                         <md:MarkdownScrollViewer.Styles>
                                                                             <Style Selector="TextBlock">
                                                                                 <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
