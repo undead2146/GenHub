@@ -946,30 +946,6 @@ public partial class ContentDetailViewModel(
         }
     }
 
-    private static InstallableVariant? FindMatchingVariant(
-        IEnumerable<InstallableVariant> variants,
-        string? identifier)
-    {
-        if (string.IsNullOrWhiteSpace(identifier))
-        {
-            return null;
-        }
-
-        var list = variants as IList<InstallableVariant> ?? variants.ToList();
-
-        return list.FirstOrDefault(v => string.Equals(v.ManifestId, identifier, StringComparison.OrdinalIgnoreCase))
-            ?? list.FirstOrDefault(v => string.Equals(v.Name, identifier, StringComparison.OrdinalIgnoreCase))
-            ?? list.FirstOrDefault(v => !string.IsNullOrEmpty(v.ManifestId) &&
-                (v.ManifestId.EndsWith($"-{identifier}", StringComparison.OrdinalIgnoreCase) ||
-                 v.ManifestId.EndsWith($".{identifier}", StringComparison.OrdinalIgnoreCase)))
-            ?? list.FirstOrDefault(v => !string.IsNullOrEmpty(v.ManifestId) &&
-                (identifier.EndsWith($"-{v.ManifestId}", StringComparison.OrdinalIgnoreCase) ||
-                 identifier.EndsWith($".{v.ManifestId}", StringComparison.OrdinalIgnoreCase)))
-            ?? list.FirstOrDefault(v => !string.IsNullOrEmpty(v.Name) &&
-                (v.Name.EndsWith(identifier, StringComparison.OrdinalIgnoreCase) ||
-                 v.Name.Contains(identifier, StringComparison.OrdinalIgnoreCase)));
-    }
-
     /// <summary>
     /// Awaits all in-flight row state resolution tasks (for test determinism).
     /// </summary>
@@ -1722,6 +1698,30 @@ public partial class ContentDetailViewModel(
             _pendingRowStateTasks.RemoveAll(t => t.IsCompleted);
             _pendingRowStateTasks.Add(task);
         }
+    }
+
+    private static InstallableVariant? FindMatchingVariant(
+        IEnumerable<InstallableVariant> variants,
+        string? identifier)
+    {
+        if (string.IsNullOrWhiteSpace(identifier))
+        {
+            return null;
+        }
+
+        var list = variants as IList<InstallableVariant> ?? variants.ToList();
+
+        return list.FirstOrDefault(v => string.Equals(v.ManifestId, identifier, StringComparison.OrdinalIgnoreCase))
+            ?? list.FirstOrDefault(v => string.Equals(v.Name, identifier, StringComparison.OrdinalIgnoreCase))
+            ?? list.FirstOrDefault(v => !string.IsNullOrEmpty(v.ManifestId) &&
+                (v.ManifestId.EndsWith($"-{identifier}", StringComparison.OrdinalIgnoreCase) ||
+                 v.ManifestId.EndsWith($".{identifier}", StringComparison.OrdinalIgnoreCase)))
+            ?? list.FirstOrDefault(v => !string.IsNullOrEmpty(v.ManifestId) &&
+                (identifier.EndsWith($"-{v.ManifestId}", StringComparison.OrdinalIgnoreCase) ||
+                 identifier.EndsWith($".{v.ManifestId}", StringComparison.OrdinalIgnoreCase)))
+            ?? list.FirstOrDefault(v => !string.IsNullOrEmpty(v.Name) &&
+                (v.Name.EndsWith(identifier, StringComparison.OrdinalIgnoreCase) ||
+                 v.Name.Contains(identifier, StringComparison.OrdinalIgnoreCase)));
     }
 
     private async Task InitializeVariantsAsync()

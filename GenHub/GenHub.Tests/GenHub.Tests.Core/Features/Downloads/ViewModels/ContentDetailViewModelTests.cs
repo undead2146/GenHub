@@ -1903,10 +1903,12 @@ public sealed class ContentDetailViewModelTests
         viewModel.IsDownloaded = true;
         Assert.False(viewModel.CanChangeContentType);
     }
+
     /// <summary>
     /// Verifies that initializing ContentDetailViewModel with an initial variant selection
     /// retains that variant rather than resetting to the default variant.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
     public async Task Initialize_WithInitialVariantManifestId_RetainsSelectedVariant()
     {
@@ -1952,6 +1954,7 @@ public sealed class ContentDetailViewModelTests
     /// Verifies that calling SelectVariantByManifestId before initialization finishes
     /// buffers the selection and applies it once variants load.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
     public async Task SelectVariantByManifestId_CalledBeforeInitialization_AppliesVariantWhenLoaded()
     {
@@ -1995,6 +1998,7 @@ public sealed class ContentDetailViewModelTests
     /// Verifies that when SearchResult has ResolverMetadata selectedVariant,
     /// ContentDetailViewModel initializes with that variant selected.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
     public async Task Initialize_WithSelectedVariantInResolverMetadata_RetainsSelectedVariant()
     {

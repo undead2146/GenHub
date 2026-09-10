@@ -8,7 +8,9 @@ using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.GitHub;
+using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Notifications;
+using GenHub.Core.Interfaces.Parsers;
 using GenHub.Core.Interfaces.Providers;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Manifest;
@@ -1371,32 +1373,11 @@ public class DownloadsBrowserViewModelTests
         Assert.Equal(ContentState.NotDownloaded, olderVm.CurrentState);
     }
 
-    private static DownloadsBrowserViewModel CreateViewModel(
-        IContentOrchestrator? orchestrator = null,
-        IPublisherReconcilerRegistry? reconcilerRegistry = null)
-    {
-        var subscriptionStore = new Mock<IPublisherSubscriptionStore>();
-        subscriptionStore
-            .Setup(store => store.GetSubscriptionsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(OperationResult<IReadOnlyList<PublisherSubscription>>.CreateSuccess([]));
-
-        return new DownloadsBrowserViewModel(
-            new Mock<IServiceProvider>().Object,
-            new Mock<ILogger<DownloadsBrowserViewModel>>().Object,
-            [],
-            new Mock<IContentStateService>().Object,
-            orchestrator ?? new Mock<IContentOrchestrator>().Object,
-            new Mock<IProfileContentService>().Object,
-            new Mock<IGameProfileManager>().Object,
-            new Mock<INotificationService>().Object,
-            new Mock<ILoggerFactory>().Object,
-            subscriptionStore.Object,
-            reconcilerRegistry: reconcilerRegistry);
-    }
     /// <summary>
     /// Verifies that when a variant is selected on a card in the browser view,
     /// ViewContentCommand opens ContentDetailViewModel with that variant preserved and not reset.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
     public async Task ViewContentCommand_WithSelectedVariant_PreservesVariantInDetailView()
     {
@@ -1478,5 +1459,28 @@ public class DownloadsBrowserViewModelTests
         // Assert: Detail is closed and card retained the 1080p variant
         Assert.Null(viewModel.SelectedContent);
         Assert.Equal("1.0.communityoutpost.addon.cbpx-1080p", item.SelectedVariant?.ManifestId);
+    }
+
+    private static DownloadsBrowserViewModel CreateViewModel(
+        IContentOrchestrator? orchestrator = null,
+        IPublisherReconcilerRegistry? reconcilerRegistry = null)
+    {
+        var subscriptionStore = new Mock<IPublisherSubscriptionStore>();
+        subscriptionStore
+            .Setup(store => store.GetSubscriptionsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IReadOnlyList<PublisherSubscription>>.CreateSuccess([]));
+
+        return new DownloadsBrowserViewModel(
+            new Mock<IServiceProvider>().Object,
+            new Mock<ILogger<DownloadsBrowserViewModel>>().Object,
+            [],
+            new Mock<IContentStateService>().Object,
+            orchestrator ?? new Mock<IContentOrchestrator>().Object,
+            new Mock<IProfileContentService>().Object,
+            new Mock<IGameProfileManager>().Object,
+            new Mock<INotificationService>().Object,
+            new Mock<ILoggerFactory>().Object,
+            subscriptionStore.Object,
+            reconcilerRegistry: reconcilerRegistry);
     }
 }
