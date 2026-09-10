@@ -8,6 +8,7 @@
              xmlns:controls="clr-namespace:GenHub.Infrastructure.Controls;assembly=GenHub"
              xmlns:parsers="clr-namespace:GenHub.Core.Models.Parsers;assembly=GenHub.Core"
              xmlns:content="clr-namespace:GenHub.Core.Models.Content;assembly=GenHub.Core"
+             xmlns:md="https://github.com/whistyun/Markdown.Avalonia"
              mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
              x:Class="GenHub.Features.Downloads.Views.ContentDetailView"
              x:DataType="vm:ContentDetailViewModel"
@@ -262,11 +263,16 @@
                                 <!-- Description -->
                                 <StackPanel Spacing="12">
                                     <TextBlock Text="About" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" />
-                                    <TextBlock Text="{Binding Description}"
-                                               Foreground="{DynamicResource TextSecondary}"
-                                               FontSize="15"
-                                               LineHeight="24"
-                                               TextWrapping="Wrap" />
+                                    <md:MarkdownScrollViewer Markdown="{Binding FormattedDescription}">
+                                        <md:MarkdownScrollViewer.Styles>
+                                            <Style Selector="TextBlock">
+                                                <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+                                                <Setter Property="FontSize" Value="15"/>
+                                                <Setter Property="LineHeight" Value="24"/>
+                                                <Setter Property="TextWrapping" Value="Wrap"/>
+                                            </Style>
+                                        </md:MarkdownScrollViewer.Styles>
+                                    </md:MarkdownScrollViewer>
                                 </StackPanel>
                             </StackPanel>
                         </ScrollViewer>
@@ -617,8 +623,16 @@
                                                                     <TextBlock Text="Readme &amp; Release Notes" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
                                                                 </StackPanel>
                                                                 <Border Background="{DynamicResource CardBackground}" CornerRadius="8" Padding="16" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}">
-                                                                    <TextBlock Text="{Binding FullDescription}"
-                                                                               Foreground="{DynamicResource TextSecondary}" FontSize="13" LineHeight="22" TextWrapping="Wrap" />
+                                                                    <md:MarkdownScrollViewer Markdown="{Binding FormattedFullDescription}">
+                                                                        <md:MarkdownScrollViewer.Styles>
+                                                                            <Style Selector="TextBlock">
+                                                                                <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+                                                                                <Setter Property="FontSize" Value="13"/>
+                                                                                <Setter Property="LineHeight" Value="22"/>
+                                                                                <Setter Property="TextWrapping" Value="Wrap"/>
+                                                                            </Style>
+                                                                        </md:MarkdownScrollViewer.Styles>
+                                                                    </md:MarkdownScrollViewer>
                                                                 </Border>
                                                             </StackPanel>
 
@@ -973,8 +987,16 @@
                                                                     <TextBlock Text="Readme &amp; Release Notes" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
                                                                 </StackPanel>
                                                                 <Border Background="{DynamicResource CardBackground}" CornerRadius="8" Padding="16" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}">
-                                                                    <TextBlock Text="{Binding FullDescription}"
-                                                                               Foreground="{DynamicResource TextSecondary}" FontSize="13" LineHeight="22" TextWrapping="Wrap" />
+                                                                    <md:MarkdownScrollViewer Markdown="{Binding FormattedFullDescription}">
+                                                                        <md:MarkdownScrollViewer.Styles>
+                                                                            <Style Selector="TextBlock">
+                                                                                <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+                                                                                <Setter Property="FontSize" Value="13"/>
+                                                                                <Setter Property="LineHeight" Value="22"/>
+                                                                                <Setter Property="TextWrapping" Value="Wrap"/>
+                                                                            </Style>
+                                                                        </md:MarkdownScrollViewer.Styles>
+                                                                    </md:MarkdownScrollViewer>
                                                                 </Border>
                                                             </StackPanel>
 

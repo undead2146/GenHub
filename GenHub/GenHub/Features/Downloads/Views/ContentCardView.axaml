@@ -27,8 +27,8 @@
         <Style Selector="Border.content-card">
             <Setter Property="Background" Value="{DynamicResource CardBackground}" />
             <Setter Property="CornerRadius" Value="12" />
-            <Setter Property="Width" Value="240" />
-            <Setter Property="Height" Value="365" />
+            <Setter Property="Width" Value="245" />
+            <Setter Property="Height" Value="385" />
             <Setter Property="BoxShadow" Value="0 6 20 0 #40000000" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
@@ -47,17 +47,7 @@
 
         <Style Selector="Border.content-card.bundle-card">
             <Setter Property="Height" Value="NaN" />
-            <Setter Property="MinHeight" Value="340" />
-            <Setter Property="MaxHeight" Value="560" />
-        </Style>
-
-        <Style Selector="Border.content-card.has-update">
-            <Setter Property="Height" Value="NaN" />
-            <Setter Property="MinHeight" Value="340" />
-            <Setter Property="MaxHeight" Value="400" />
-        </Style>
-
-        <Style Selector="Border.content-card.bundle-card.has-update">
+            <Setter Property="MinHeight" Value="385" />
             <Setter Property="MaxHeight" Value="560" />
         </Style>
 
@@ -69,7 +59,7 @@
 
         <!-- CTAs -->
         <Style Selector="Button.card-button">
-            <Setter Property="Height" Value="34" />
+            <Setter Property="Height" Value="32" />
             <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
             <Setter Property="Foreground" Value="White" />
             <Setter Property="CornerRadius" Value="8" />
@@ -175,7 +165,7 @@
         </Style>
     </UserControl.Styles>
 
-    <Border Classes="content-card" Classes.bundle-card="{Binding HasBundleComponents}" Classes.has-update="{Binding ShowUpdateButton}">
+    <Border Classes="content-card" Classes.bundle-card="{Binding HasBundleComponents}">
         <Panel>
             <!-- 1. Acrylic blur -->
             <ExperimentalAcrylicBorder CornerRadius="12" IsHitTestVisible="False">
@@ -314,8 +304,8 @@
                     </Border>
 
                     <!-- Content Info -->
-                    <Grid Grid.Row="1" Margin="12,8" Background="Transparent" ClipToBounds="True">
-                        <StackPanel Spacing="4">
+                    <Grid Grid.Row="1" RowDefinitions="Auto,*" Margin="12,6,12,6" Background="Transparent" ClipToBounds="True">
+                        <StackPanel Grid.Row="0" Spacing="3">
                             <!-- Title -->
                             <TextBlock Text="{Binding Name}"
                                        FontSize="14"
@@ -558,21 +548,24 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <!-- Short description (full text lives in details) -->
-                        <TextBlock Text="{Binding ShortDescription}"
+                        </StackPanel>
+
+                        <!-- Short description (dynamically fills remaining space, gracefully trimmed on busy cards) -->
+                        <TextBlock Grid.Row="1"
+                                   Text="{Binding ShortDescription}"
                                    FontSize="11"
                                    Foreground="{DynamicResource TextSecondary}"
                                    TextWrapping="Wrap"
                                    TextTrimming="CharacterEllipsis"
-                                   MaxLines="2"
                                    LineHeight="15"
+                                   Margin="0,4,0,0"
+                                   VerticalAlignment="Top"
                                    ToolTip.Tip="{Binding Description}"
                                    IsVisible="{Binding HasShortDescription}" />
-                    </StackPanel>
-                </Grid>
+                    </Grid>
 
                 <!-- Action Area -->
-                <StackPanel Grid.Row="2" Margin="12,0,12,12" Spacing="6">
+                <StackPanel Grid.Row="2" Margin="12,0,12,10" Spacing="5">
                     <!-- Download Progress -->
                     <ProgressBar Value="{Binding DownloadProgress}"
                                  Maximum="100"

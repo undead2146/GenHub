@@ -283,4 +283,37 @@ public sealed class ProfileSelectionViewModelTests
         vm.Dispose();
         vm.Dispose();
     }
+
+    /// <summary>
+    /// Verifies that AddToProfileTooltip and CreateProfileTooltip include the content name.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task TooltipProperties_ReflectContentName()
+    {
+        var profileManagerMock = new Mock<IGameProfileManager>();
+        profileManagerMock
+            .Setup(x => x.GetAllProfilesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<IReadOnlyList<GameProfile>>.CreateSuccess([]));
+
+        var manifestPoolMock = new Mock<IContentManifestPool>();
+        manifestPoolMock
+            .Setup(x => x.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([]));
+
+        var vm = new ProfileSelectionViewModel(
+            NullLogger<ProfileSelectionViewModel>.Instance,
+            profileManagerMock.Object,
+            new Mock<IProfileContentService>().Object,
+            manifestPoolMock.Object,
+            new Mock<INotificationService>().Object);
+
+        Assert.Equal("Add this content to this profile", vm.AddToProfileTooltip);
+        Assert.Equal("Create a new profile with this content", vm.CreateProfileTooltip);
+
+        await vm.LoadProfilesAsync(GameType.ZeroHour, "manifest-1", "ShockWave Mod");
+
+        Assert.Equal("Add ShockWave Mod to this profile", vm.AddToProfileTooltip);
+        Assert.Equal("Create a new profile with ShockWave Mod", vm.CreateProfileTooltip);
+    }
 }

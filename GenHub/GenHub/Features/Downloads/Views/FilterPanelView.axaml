@@ -160,25 +160,10 @@
                 </StackPanel>
             </DataTemplate>
 
-            <!-- GitHub Filter (Topics + Authors dropdowns) -->
+            <!-- GitHub Filter (Authors dropdown) -->
             <DataTemplate DataType="filters:GitHubFilterViewModel">
                 <StackPanel Spacing="12">
                     <StackPanel Orientation="Horizontal" Spacing="16">
-                        <!-- Topics -->
-                        <StackPanel>
-                            <TextBlock Classes="filter-label" Text="Topics" />
-                            <ComboBox Classes="filter-dropdown"
-                                      ItemsSource="{Binding TopicOptions}"
-                                      SelectedValue="{Binding SelectedTopic, Mode=TwoWay}"
-                                      SelectedValueBinding="{Binding Value}">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding DisplayName}" />
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                        </StackPanel>
-
                         <!-- Authors -->
                         <StackPanel>
                             <TextBlock Classes="filter-label" Text="Authors" />

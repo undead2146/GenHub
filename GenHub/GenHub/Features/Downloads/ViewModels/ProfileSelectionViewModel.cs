@@ -74,6 +74,8 @@ public sealed partial class ProfileSelectionViewModel(
     public IReadOnlyList<string> ContentManifestIds { get; private set; } = [];
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AddToProfileTooltip))]
+    [NotifyPropertyChangedFor(nameof(CreateProfileTooltip))]
     private string? _contentName;
 
     [ObservableProperty]
@@ -111,6 +113,20 @@ public sealed partial class ProfileSelectionViewModel(
     /// (i.e. only incompatible profiles are available).
     /// </summary>
     public bool HasOnlyIncompatibleProfiles => OtherProfiles.Count > 0 && CompatibleProfiles.Count == 0;
+
+    /// <summary>
+    /// Gets the tooltip text for adding content to a profile.
+    /// </summary>
+    public string AddToProfileTooltip => !string.IsNullOrWhiteSpace(ContentName)
+        ? $"Add {ContentName} to this profile"
+        : "Add this content to this profile";
+
+    /// <summary>
+    /// Gets the tooltip text for creating a new profile with this content.
+    /// </summary>
+    public string CreateProfileTooltip => !string.IsNullOrWhiteSpace(ContentName)
+        ? $"Create a new profile with {ContentName}"
+        : "Create a new profile with this content";
 
     /// <summary>
     /// Gets a summary of the profile counts.

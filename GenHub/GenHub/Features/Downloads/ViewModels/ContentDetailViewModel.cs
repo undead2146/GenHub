@@ -476,6 +476,12 @@ public partial class ContentDetailViewModel(
         HtmlTextHelper.NormalizeHtml(ParsedPage?.Context.Description ?? searchResult.Description);
 
     /// <summary>
+    /// Gets the formatted markdown description with clickable links for PRs, issues, and URLs.
+    /// </summary>
+    public string FormattedDescription =>
+        MarkdownLinkFormatter.FormatLinks(Description, searchResult.SourceUrl);
+
+    /// <summary>
     /// Gets the author name - prefers parsed page context developer.
     /// </summary>
     public string AuthorName =>
@@ -2557,6 +2563,7 @@ public partial class ContentDetailViewModel(
         // Notify property changes for context-dependent properties (from GlobalContext)
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(Description));
+        OnPropertyChanged(nameof(FormattedDescription));
         OnPropertyChanged(nameof(AuthorName));
         OnPropertyChanged(nameof(IconUrl));
         OnPropertyChanged(nameof(LastUpdated));
@@ -2735,6 +2742,7 @@ public partial class ContentDetailViewModel(
             PopulateCatalogMedia(catalogItem);
 
             OnPropertyChanged(nameof(Description));
+            OnPropertyChanged(nameof(FormattedDescription));
             OnPropertyChanged(nameof(HasReleases));
             OnPropertyChanged(nameof(HasVideos));
             OnPropertyChanged(nameof(HasImages));

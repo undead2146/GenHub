@@ -10,6 +10,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using GenHub.Core.Helpers;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Parsers;
 
@@ -164,6 +165,7 @@ public abstract partial class DownloadableItemViewModel : ObservableObject, IDow
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasDownloadUrl))]
+    [NotifyPropertyChangedFor(nameof(FormattedFullDescription))]
     private string? _downloadUrl;
 
     /// <summary>
@@ -176,6 +178,7 @@ public abstract partial class DownloadableItemViewModel : ObservableObject, IDow
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasDetailsUrl))]
+    [NotifyPropertyChangedFor(nameof(FormattedFullDescription))]
     private string? _detailsUrl;
 
     /// <summary>
@@ -243,7 +246,14 @@ public abstract partial class DownloadableItemViewModel : ObservableObject, IDow
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasDescription))]
     [NotifyPropertyChangedFor(nameof(Description))]
+    [NotifyPropertyChangedFor(nameof(FormattedFullDescription))]
     private string? _fullDescription;
+
+    /// <summary>
+    /// Gets the formatted markdown description with clickable links.
+    /// </summary>
+    public string FormattedFullDescription =>
+        MarkdownLinkFormatter.FormatLinks(FullDescription, DetailsUrl ?? DownloadUrl);
 
     /// <summary>
     /// Gets or sets the short summary or description of the item.
