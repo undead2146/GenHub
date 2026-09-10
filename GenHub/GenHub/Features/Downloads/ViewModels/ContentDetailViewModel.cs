@@ -85,9 +85,9 @@ public partial class ContentDetailViewModel(
     private readonly object _preloadLock = new();
     private readonly CancellationTokenSource _cts = new();
     private readonly List<Task> _pendingRowStateTasks = [];
-    private readonly ContentSearchResult? _updateTargetSearchResult = updateTargetSearchResult;
     private readonly Func<CancellationToken, Task>? _updateAction = updateAction;
-    private readonly bool _initialIsUpdateAvailable = isUpdateAvailable ?? (updateTargetSearchResult != null);
+    private ContentSearchResult? _updateTargetSearchResult = updateTargetSearchResult;
+    private bool _initialIsUpdateAvailable = isUpdateAvailable ?? (updateTargetSearchResult != null);
     private bool _disposed;
     private bool _userManuallySelectedDownloadableItem;
     private Action? _unsubscribeAxisHandlers;
@@ -3202,8 +3202,27 @@ public partial class ContentDetailViewModel(
 
         if (_updateAction != null)
         {
-            await _updateAction(cancellationToken);
+            var task = _updateAction(cancellationToken);
+            bool success;
+            if (task is Task<bool> boolTask)
+            {
+                success = await boolTask;
+            }
+            else
+            {
+                await task;
+                success = task.IsCompletedSuccessfully;
+            }
+
+            if (_disposed || !success)
+            {
+                return;
+            }
+
+            _initialIsUpdateAvailable = false;
+            _updateTargetSearchResult = null;
             IsUpdateAvailable = false;
+            IsDownloaded = true;
             if (SelectedDownloadableItem != null)
             {
                 SelectedDownloadableItem.IsUpdateAvailable = false;
@@ -3215,7 +3234,14 @@ public partial class ContentDetailViewModel(
 
         if (_updateTargetSearchResult != null)
         {
-            await ExecuteDownloadFlowAsync(_updateTargetSearchResult, cancellationToken);
+            var success = await ExecuteDownloadFlowAsync(_updateTargetSearchResult, cancellationToken);
+            if (_disposed || !success)
+            {
+                return;
+            }
+
+            _initialIsUpdateAvailable = false;
+            _updateTargetSearchResult = null;
             IsUpdateAvailable = false;
             IsDownloaded = true;
             if (SelectedDownloadableItem != null)
@@ -3229,10 +3255,18 @@ public partial class ContentDetailViewModel(
 
         if (SelectedDownloadableItem is ReleaseItemViewModel rel && rel.IsUpdateAvailable)
         {
-            var newerRelease = Releases.FirstOrDefault(r => !r.IsDownloaded && r != rel);
+            var newerRelease = (Releases.Count > 0 && !Releases[0].IsDownloaded && Releases[0] != rel)
+                ? Releases[0]
+                : Releases.FirstOrDefault(r => !r.IsDownloaded && r != rel);
+
             if (newerRelease?.File != null)
             {
-                await DownloadReleaseAsync(newerRelease, newerRelease.File, cancellationToken);
+                var success = await DownloadReleaseAsync(newerRelease, newerRelease.File, cancellationToken);
+                if (_disposed || !success)
+                {
+                    return;
+                }
+
                 rel.IsUpdateAvailable = false;
                 IsUpdateAvailable = false;
                 RefreshSelectedTargetProperties();
@@ -3437,14 +3471,14 @@ public partial class ContentDetailViewModel(
     /// <summary>
     /// Executes the download flow for a specific content search result.
     /// </summary>
-    private async Task ExecuteDownloadFlowAsync(
+    private async Task<bool> ExecuteDownloadFlowAsync(
         ContentSearchResult targetContent,
         CancellationToken cancellationToken,
         Action<ContentManifest>? onDownloadCompleted = null)
     {
         if (IsDownloading)
         {
-            return;
+            return false;
         }
 
         try
@@ -3492,7 +3526,7 @@ public partial class ContentDetailViewModel(
 
             if (_disposed)
             {
-                return;
+                return false;
             }
 
             if (result.Success && result.Data != null)
@@ -3533,6 +3567,7 @@ public partial class ContentDetailViewModel(
                 }
 
                 onDownloadCompleted?.Invoke(manifest);
+                return true;
             }
             else
             {
@@ -3542,6 +3577,7 @@ public partial class ContentDetailViewModel(
                 // Surface the failure as a toast so the user sees actionable text (e.g. the ModDB
                 // WAF block message) instead of only the inline status label.
                 notificationService.ShowError("Download failed", errorMsg);
+                return false;
             }
         }
         catch (OperationCanceledException ex)
@@ -3551,6 +3587,8 @@ public partial class ContentDetailViewModel(
             {
                 DownloadStatusMessage = "Download cancelled";
             }
+
+            return false;
         }
         catch (Exception ex)
         {
@@ -3559,6 +3597,8 @@ public partial class ContentDetailViewModel(
             {
                 DownloadStatusMessage = $"Error: {ex.Message}";
             }
+
+            return false;
         }
         finally
         {
@@ -3580,7 +3620,7 @@ public partial class ContentDetailViewModel(
         CancellationToken cancellationToken = default) =>
         DownloadFileCoreAsync(file, null, cancellationToken);
 
-    private async Task DownloadFileCoreAsync(
+    private async Task<bool> DownloadFileCoreAsync(
         DownloadableFile file,
         Action<ContentManifest>? onDownloadCompleted = null,
         CancellationToken cancellationToken = default)
@@ -3588,17 +3628,18 @@ public partial class ContentDetailViewModel(
         if (file == null || string.IsNullOrEmpty(file.DownloadUrl))
         {
             logger.LogWarning("Cannot download file: invalid file or missing download URL");
-            return;
+            return false;
         }
 
         try
         {
             logger.LogInformation("Downloading individual file: {FileName} from {Url}", file.Name, file.DownloadUrl);
-            await ExecuteDownloadFlowAsync(CreateFileSearchResult(file), cancellationToken, onDownloadCompleted);
+            return await ExecuteDownloadFlowAsync(CreateFileSearchResult(file), cancellationToken, onDownloadCompleted);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error downloading file: {FileName}", file.Name);
+            return false;
         }
     }
 
@@ -3692,7 +3733,10 @@ public partial class ContentDetailViewModel(
         return rowSearchResult;
     }
 
-    private async Task DownloadReleaseAsync(ReleaseItemViewModel releaseItem, DownloadableFile file, CancellationToken cancellationToken = default)
+    // Note: Row-level downloads intentionally do not link to the view-model's _cts token
+    // so that navigating away or closing this detail view allows an in-flight background
+    // download to complete acquisition in the coordinator. Caller can pass an explicit cancellationToken.
+    private async Task<bool> DownloadReleaseAsync(ReleaseItemViewModel releaseItem, DownloadableFile file, CancellationToken cancellationToken = default)
     {
         releaseItem.IsDownloading = true;
         if (ReferenceEquals(SelectedDownloadableItem, releaseItem))
@@ -3702,7 +3746,7 @@ public partial class ContentDetailViewModel(
 
         try
         {
-            await DownloadFileCoreAsync(
+            return await DownloadFileCoreAsync(
                 file,
                 manifest =>
                 {
@@ -3733,7 +3777,7 @@ public partial class ContentDetailViewModel(
         }
     }
 
-    private async Task DownloadAddonAsync(AddonItemViewModel addonItem, DownloadableFile file, CancellationToken cancellationToken = default)
+    private async Task<bool> DownloadAddonAsync(AddonItemViewModel addonItem, DownloadableFile file, CancellationToken cancellationToken = default)
     {
         addonItem.IsDownloading = true;
         if (ReferenceEquals(SelectedDownloadableItem, addonItem))
@@ -3743,7 +3787,7 @@ public partial class ContentDetailViewModel(
 
         try
         {
-            await DownloadFileCoreAsync(
+            return await DownloadFileCoreAsync(
                 file,
                 manifest =>
                 {

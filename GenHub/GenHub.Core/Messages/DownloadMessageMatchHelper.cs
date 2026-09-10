@@ -32,13 +32,6 @@ public static class DownloadMessageMatchHelper
             return false;
         }
 
-        if (!string.IsNullOrEmpty(parentContentId) &&
-            (string.Equals(parentContentId, item.Id, StringComparison.OrdinalIgnoreCase) ||
-             (item.Variants != null && item.Variants.Any(v => string.Equals(parentContentId, v.ManifestId, StringComparison.OrdinalIgnoreCase)))))
-        {
-            return true;
-        }
-
         if (MatchesContentKey(contentKey, item))
         {
             return true;

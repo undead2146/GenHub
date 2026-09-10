@@ -160,20 +160,13 @@ public sealed class ContentDownloadCoordinator(
             return false;
         }
 
-        if (!string.IsNullOrEmpty(download.ParentContentId) &&
-            string.Equals(download.ParentContentId, searchResult.Id, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
         return download.SearchResult != null &&
             DownloadMessageMatchHelper.Matches(
                 null,
                 download.SearchResult.Id,
                 download.SearchResult.ProviderName,
                 download.SearchResult.Name,
-                searchResult,
-                download.ParentContentId);
+                searchResult);
     }
 
     private static void IncrementWaiterCount(InFlightDownload inFlight)
@@ -265,7 +258,15 @@ public sealed class ContentDownloadCoordinator(
             }
         }
 
-        return _inFlightDownloads.Values.FirstOrDefault(download => MatchesInFlightDownload(download, searchResult));
+        foreach (var pair in _inFlightDownloads)
+        {
+            if (MatchesInFlightDownload(pair.Value, searchResult))
+            {
+                return pair.Value;
+            }
+        }
+
+        return null;
     }
 
     private async Task<(InFlightDownload InFlight, bool IsInitiator)> GetOrCreateInFlightDownloadAsync(
@@ -456,12 +457,6 @@ public sealed class ContentDownloadCoordinator(
                 // Update state. The event carries both the original catalog ID and the manifest ID
                 // so every subscriber can match regardless of which ID it currently holds.
                 contentStateService.NotifyStateChanged(originalContentId, ContentState.Downloaded, manifest.Id.Value);
-
-                if (searchResult.ResolverMetadata.TryGetValue(ContentConstants.ParentContentIdMetadataKey, out var parentContentId) &&
-                    !string.IsNullOrEmpty(parentContentId))
-                {
-                    contentStateService.NotifyStateChanged(parentContentId, ContentState.Downloaded, manifest.Id.Value);
-                }
 
                 // Notify other components
                 try

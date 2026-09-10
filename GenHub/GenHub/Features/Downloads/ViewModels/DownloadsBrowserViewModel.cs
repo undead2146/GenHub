@@ -1523,13 +1523,16 @@ public sealed partial class DownloadsBrowserViewModel(
     /// Updates the specified content item to its prospective newer version.
     /// </summary>
     [RelayCommand]
-    private async Task UpdateContentAsync(ContentGridItemViewModel? item)
+    private async Task<bool> UpdateContentAsync(ContentGridItemViewModel? item, CancellationToken cancellationToken = default)
     {
         if (item == null)
         {
             logger.LogWarning("UpdateContentAsync called with null item");
-            return;
+            return false;
         }
+
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_vmCts.Token, cancellationToken);
+        var ct = linkedCts.Token;
 
         var targetItem = item.UpdateTargetVm ?? item;
         var publisherId = item.SearchResult?.ProviderName;
@@ -1548,7 +1551,7 @@ public sealed partial class DownloadsBrowserViewModel(
 
         if (reconciler != null)
         {
-            var result = await reconciler.CheckAndReconcileIfNeededAsync(string.Empty, _vmCts.Token);
+            var result = await reconciler.CheckAndReconcileIfNeededAsync(string.Empty, ct);
             if (result.Success && result.Data)
             {
                 if (SelectedPublisher != null)
@@ -1556,7 +1559,7 @@ public sealed partial class DownloadsBrowserViewModel(
                     await RefreshAndReconcileItemsAsync(ContentItems, SelectedPublisher.PublisherId);
                 }
 
-                return;
+                return true;
             }
 
             if (!result.Success)
@@ -1565,7 +1568,7 @@ public sealed partial class DownloadsBrowserViewModel(
             }
         }
 
-        await DownloadContentAsync(targetItem, _vmCts.Token);
+        return await DownloadContentAsync(targetItem, ct);
     }
 
     private async Task RefreshAndReconcileItemsAsync(IReadOnlyList<ContentGridItemViewModel> items, string publisherId)
@@ -1694,7 +1697,7 @@ public sealed partial class DownloadsBrowserViewModel(
                 CloseDetail,
                 item.VariantSearchResults,
                 updateTargetSearchResult: item.UpdateTargetVm?.SearchResult,
-                updateAction: async ct => await UpdateContentAsync(item),
+                updateAction: ct => UpdateContentAsync(item, ct),
                 isUpdateAvailable: item.CurrentState == ContentState.UpdateAvailable);
 
             if (item.HasBundleComponents)
@@ -1921,11 +1924,11 @@ public sealed partial class DownloadsBrowserViewModel(
     }
 
     [RelayCommand]
-    private async Task DownloadContentAsync(ContentGridItemViewModel item, CancellationToken cancellationToken = default)
+    private async Task<bool> DownloadContentAsync(ContentGridItemViewModel item, CancellationToken cancellationToken = default)
     {
         if (item == null || item.IsDownloading)
         {
-            return;
+            return false;
         }
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _vmCts.Token);
@@ -1940,7 +1943,7 @@ public sealed partial class DownloadsBrowserViewModel(
             if (item.HasBundleComponents)
             {
                 await DownloadBundleComponentsAsync(item, effectiveToken);
-                return;
+                return item.AreBundleComponentsReadyForProfile;
             }
 
             logger.LogInformation("Starting download for content: {Name} ({Provider})", item.Name, item.ProviderName);
@@ -1970,23 +1973,27 @@ public sealed partial class DownloadsBrowserViewModel(
             if (result.Success && result.Data != null)
             {
                 await HandleSuccessfulAcquisitionAsync(item, result.Data);
+                return true;
             }
             else
             {
                 var errorMsg = result.FirstError ?? "Unknown error";
                 logger.LogError("Failed to download {ItemName}: {Error}", item.Name, errorMsg);
                 item.DownloadStatus = $"Error: {errorMsg}";
+                return false;
             }
         }
         catch (OperationCanceledException ex)
         {
             logger.LogInformation(ex, "Download cancelled for: {Name}", item.Name);
             item.DownloadStatus = "Download cancelled";
+            return false;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error downloading content: {Name}", item.Name);
             item.DownloadStatus = $"Error: {ex.Message}";
+            return false;
         }
         finally
         {

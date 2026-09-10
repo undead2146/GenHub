@@ -1271,7 +1271,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             await DeleteProfilesInternalAsync(showToast: false, updateDangerZone: false);
             await DeleteWorkspacesInternalAsync(showToast: false, updateDangerZone: false);
             await DeleteManifestsInternalAsync(showToast: false, updateDangerZone: false);
-            await DeleteCasStorageInternalAsync(showToast: false, updateDangerZone: false);
+            var casDeleted = await DeleteCasStorageInternalAsync(showToast: false, updateDangerZone: false);
             var userDataDeleted = await DeleteUserDataInternalAsync();
 
             // Invalidate installation cache to force re-generation of manifests on next scan
@@ -1281,7 +1281,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
 
             // A success toast on top of the partial-failure toast the user data deletion just raised
             // would tell the user their data is gone while their originals are still on disk.
-            if (userDataDeleted)
+            if (userDataDeleted && casDeleted)
             {
                 _notificationService.ShowSuccess(
                     "Data Deleted",
@@ -1290,9 +1290,15 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             }
             else
             {
+                var partialDetails = !casDeleted && !userDataDeleted
+                    ? "some user data was kept and CAS cleanup failed"
+                    : !casDeleted
+                        ? "CAS cleanup failed"
+                        : "some user data was kept";
+
                 _notificationService.ShowWarning(
                     "Data Partially Deleted",
-                    $"Profiles, workspaces, and manifests were deleted, but some user data was kept. {CasDefaults.GarbageCollectionDisabledMessage}",
+                    $"Profiles, workspaces, and manifests were deleted, but {partialDetails}. {CasDefaults.GarbageCollectionDisabledMessage}",
                     5000);
             }
         }
@@ -1361,22 +1367,39 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         }
     }
 
-    private async Task DeleteCasStorageInternalAsync(bool showToast, bool updateDangerZone)
+    private async Task<bool> DeleteCasStorageInternalAsync(bool showToast, bool updateDangerZone)
     {
         try
         {
             _logger.LogWarning("Deleting CAS storage (forced)");
             var result = await _casService.RunGarbageCollectionAsync(force: true, CancellationToken.None);
-            if (showToast)
+            if (result.Disabled)
             {
-                if (result.Disabled)
+                if (showToast)
                 {
                     _notificationService.ShowInfo(
                         "CAS Cleanup Disabled",
                         result.FirstError ?? CasDefaults.GarbageCollectionDisabledMessage,
                         (int)TimeIntervals.NotificationHideDelay.TotalMilliseconds);
                 }
-                else if (result.ObjectsDeleted == 0)
+
+                return false;
+            }
+
+            if (!result.Success)
+            {
+                _logger.LogWarning("Failed to collect CAS storage: {Error}", result.FirstError);
+                if (showToast)
+                {
+                    _notificationService.ShowError("Deletion Failed", result.FirstError ?? "Failed to collect CAS storage", 5000);
+                }
+
+                return false;
+            }
+
+            if (showToast)
+            {
+                if (result.ObjectsDeleted == 0)
                 {
                     if (result.ObjectsReferenced > 0)
                     {
@@ -1397,6 +1420,8 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             {
                 await UpdateDangerZoneDataAsync();
             }
+
+            return true;
         }
         catch (Exception ex)
         {
@@ -1405,6 +1430,8 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             {
                 _notificationService.ShowError("Deletion Failed", $"An error occurred: {ex.Message}", 5000);
             }
+
+            return false;
         }
     }
 
@@ -1635,6 +1662,14 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             {
                 foreach (var dir in Directory.GetDirectories(settings.WorkspacePath).Where(d => !trackedPaths.Contains(d)))
                 {
+                    var dirName = Path.GetFileName(dir);
+                    if (!Guid.TryParse(dirName, out _))
+                    {
+                        // Protect user's arbitrary subdirectories under custom workspace roots:
+                        // only sweep directories formatted as GenHub workspace GUIDs.
+                        continue;
+                    }
+
                     try
                     {
                         _logger.LogInformation("Deleting orphaned custom workspace directory: {Path}", dir);

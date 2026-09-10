@@ -914,10 +914,18 @@ public sealed partial class ContentGridItemViewModel(
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task RefreshVariantStatesAsync()
     {
+        var isTargetDownloaded = false;
         try
         {
+            if (UpdateTargetVm != null)
+            {
+                var targetState = await contentStateService.GetStateAsync(UpdateTargetVm.SearchResult);
+                isTargetDownloaded = targetState is ContentState.Downloaded or ContentState.UpdateAvailable;
+                UpdateTargetVm.IsDownloaded = isTargetDownloaded;
+            }
+
             var mainState = await contentStateService.GetStateAsync(SearchResult);
-            if (mainState == ContentState.Downloaded && UpdateTargetVm != null && !UpdateTargetVm.IsDownloaded)
+            if (mainState == ContentState.Downloaded && UpdateTargetVm != null && !isTargetDownloaded)
             {
                 CurrentState = ContentState.UpdateAvailable;
             }
@@ -936,7 +944,7 @@ public sealed partial class ContentGridItemViewModel(
         foreach (var variant in Variants)
         {
             await RefreshSingleVariantStateAsync(variant);
-            if (variant.CurrentState == ContentState.Downloaded && UpdateTargetVm != null && !UpdateTargetVm.IsDownloaded)
+            if (variant.CurrentState == ContentState.Downloaded && UpdateTargetVm != null && !isTargetDownloaded)
             {
                 variant.CurrentState = ContentState.UpdateAvailable;
             }

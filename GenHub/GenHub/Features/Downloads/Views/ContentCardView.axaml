@@ -57,6 +57,10 @@
             <Setter Property="MaxHeight" Value="400" />
         </Style>
 
+        <Style Selector="Border.content-card.bundle-card.has-update">
+            <Setter Property="MaxHeight" Value="560" />
+        </Style>
+
         <Style Selector="Border.content-card:pointerover">
             <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="BoxShadow" Value="0 10 28 0 #60000000" />

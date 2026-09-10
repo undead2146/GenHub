@@ -378,7 +378,7 @@
                                                                 </Border>
                                                                 <Border Background="{DynamicResource WarningBrush}" CornerRadius="4" Padding="6,2" VerticalAlignment="Center" Margin="0,0,6,2"
                                                                         IsVisible="{Binding IsUpdateAvailable}">
-                                                                    <TextBlock Text="Update Available" FontSize="11" Foreground="White" FontWeight="SemiBold" />
+                                                                    <TextBlock Text="Update Available" FontSize="11" Foreground="{DynamicResource WarningForegroundBrush}" FontWeight="SemiBold" />
                                                                 </Border>
                                                             </WrapPanel>
 
@@ -1315,7 +1315,7 @@
                             <Button HorizontalAlignment="Stretch"
                                     Height="48"
                                     Background="{DynamicResource WarningBrush}"
-                                    Foreground="White"
+                                    Foreground="{DynamicResource WarningForegroundBrush}"
                                     CornerRadius="8"
                                     FontSize="15"
                                     FontWeight="SemiBold"
@@ -1342,7 +1342,7 @@
                                 <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
                                     <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
                                               Width="18" Height="18"
-                                              Foreground="White"/>
+                                              Foreground="{DynamicResource WarningForegroundBrush}"/>
                                     <TextBlock Text="Update Available" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
