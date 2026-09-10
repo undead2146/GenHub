@@ -1683,6 +1683,8 @@ public sealed partial class DownloadsBrowserViewModel(
             var coordinator = _downloadCoordinator ?? serviceProvider.GetRequiredService<IContentDownloadCoordinator>();
             var manifestPool = serviceProvider.GetRequiredService<IContentManifestPool>();
 
+            var selectedVariantId = item.SelectedVariant?.ManifestId ?? item.SelectedVariant?.Name;
+
             var vm = new ContentDetailViewModel(
                 item.SearchResult,
                 parsers,
@@ -1699,7 +1701,8 @@ public sealed partial class DownloadsBrowserViewModel(
                 item.VariantSearchResults,
                 updateTargetSearchResult: item.UpdateTargetVm?.SearchResult,
                 updateAction: ct => UpdateContentAsync(item, ct),
-                isUpdateAvailable: item.CurrentState == ContentState.UpdateAvailable);
+                isUpdateAvailable: item.CurrentState == ContentState.UpdateAvailable,
+                initialVariantManifestId: selectedVariantId);
 
             if (item.HasBundleComponents)
             {
@@ -1715,9 +1718,9 @@ public sealed partial class DownloadsBrowserViewModel(
 
             vm.Initialize();
 
-            if (item.SelectedVariant != null && !string.IsNullOrEmpty(item.SelectedVariant.ManifestId))
+            if (!string.IsNullOrEmpty(selectedVariantId))
             {
-                vm.SelectVariantByManifestId(item.SelectedVariant.ManifestId);
+                vm.SelectVariantByManifestId(selectedVariantId);
             }
 
             SelectedContent?.Dispose();
@@ -1757,7 +1760,14 @@ public sealed partial class DownloadsBrowserViewModel(
 
         if (viewedSearchResult != null)
         {
-            var match = ContentItems.FirstOrDefault(i => ReferenceEquals(i.SearchResult, viewedSearchResult) || i.SearchResult.Id == viewedSearchResult.Id);
+            var match = ContentItems.FirstOrDefault(i =>
+                ReferenceEquals(i.SearchResult, viewedSearchResult) ||
+                i.SearchResult.Id == viewedSearchResult.Id ||
+                (!string.IsNullOrEmpty(i.SearchResult?.VariantGroupId) && !string.IsNullOrEmpty(viewedSearchResult?.VariantGroupId) &&
+                 string.Equals(i.SearchResult.VariantGroupId, viewedSearchResult.VariantGroupId, StringComparison.OrdinalIgnoreCase)) ||
+                (i.VariantSearchResults != null && !string.IsNullOrEmpty(selectedVariantId) &&
+                 i.VariantSearchResults.ContainsKey(selectedVariantId)));
+
             if (match != null && !string.IsNullOrWhiteSpace(selectedVariantId))
             {
                 match.SelectVariantByManifestId(selectedVariantId);

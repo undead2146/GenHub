@@ -55,6 +55,7 @@ namespace GenHub.Features.Downloads.ViewModels;
 /// <param name="updateTargetSearchResult">Optional search result targeted for an available update.</param>
 /// <param name="updateAction">Optional callback executing an update workflow.</param>
 /// <param name="isUpdateAvailable">Optional flag indicating if an update is available on open.</param>
+/// <param name="initialVariantManifestId">Optional manifest ID or identifier of the variant to select on initialization.</param>
 [SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "ContentDetailViewModel coordinates rich media, downloads, profile binding, and custom tabs.")]
 [SuppressMessage("Major Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Properties and methods access CommunityToolkit MVVM generated instance properties.")]
 [SuppressMessage("Critical Code Smell", "S3776:Cognitive Complexity of methods should not be too high", Justification = "Content detail ViewModel coordinates complex UI state, downloads, and multiple catalog sources.")]
@@ -74,7 +75,8 @@ public partial class ContentDetailViewModel(
     IReadOnlyDictionary<string, ContentSearchResult>? variantSearchResults = null,
     ContentSearchResult? updateTargetSearchResult = null,
     Func<CancellationToken, Task>? updateAction = null,
-    bool? isUpdateAvailable = null) : ObservableObject, IDisposable
+    bool? isUpdateAvailable = null,
+    string? initialVariantManifestId = null) : ObservableObject, IDisposable
 {
     // ===== Constants =====
     private const string UnknownValue = "Unknown";
@@ -88,6 +90,7 @@ public partial class ContentDetailViewModel(
     private readonly Func<CancellationToken, Task>? _updateAction = updateAction;
     private ContentSearchResult? _updateTargetSearchResult = updateTargetSearchResult;
     private bool _initialIsUpdateAvailable = isUpdateAvailable ?? (updateTargetSearchResult != null);
+    private string? _pendingSelectedVariantManifestId = initialVariantManifestId;
     private bool _disposed;
     private bool _userManuallySelectedDownloadableItem;
     private Action? _unsubscribeAxisHandlers;
@@ -924,16 +927,47 @@ public partial class ContentDetailViewModel(
     /// <param name="manifestId">The manifest ID of the variant to select.</param>
     public void SelectVariantByManifestId(string manifestId)
     {
-        if (string.IsNullOrWhiteSpace(manifestId) || Variants == null)
+        if (string.IsNullOrWhiteSpace(manifestId))
         {
             return;
         }
 
-        var match = Variants.FirstOrDefault(v => string.Equals(v.ManifestId, manifestId, StringComparison.OrdinalIgnoreCase));
+        _pendingSelectedVariantManifestId = manifestId;
+
+        if (Variants == null || Variants.Count == 0)
+        {
+            return;
+        }
+
+        var match = FindMatchingVariant(Variants, manifestId);
         if (match != null)
         {
             SelectedVariant = match;
         }
+    }
+
+    private static InstallableVariant? FindMatchingVariant(
+        IEnumerable<InstallableVariant> variants,
+        string? identifier)
+    {
+        if (string.IsNullOrWhiteSpace(identifier))
+        {
+            return null;
+        }
+
+        var list = variants as IList<InstallableVariant> ?? variants.ToList();
+
+        return list.FirstOrDefault(v => string.Equals(v.ManifestId, identifier, StringComparison.OrdinalIgnoreCase))
+            ?? list.FirstOrDefault(v => string.Equals(v.Name, identifier, StringComparison.OrdinalIgnoreCase))
+            ?? list.FirstOrDefault(v => !string.IsNullOrEmpty(v.ManifestId) &&
+                (v.ManifestId.EndsWith($"-{identifier}", StringComparison.OrdinalIgnoreCase) ||
+                 v.ManifestId.EndsWith($".{identifier}", StringComparison.OrdinalIgnoreCase)))
+            ?? list.FirstOrDefault(v => !string.IsNullOrEmpty(v.ManifestId) &&
+                (identifier.EndsWith($"-{v.ManifestId}", StringComparison.OrdinalIgnoreCase) ||
+                 identifier.EndsWith($".{v.ManifestId}", StringComparison.OrdinalIgnoreCase)))
+            ?? list.FirstOrDefault(v => !string.IsNullOrEmpty(v.Name) &&
+                (v.Name.EndsWith(identifier, StringComparison.OrdinalIgnoreCase) ||
+                 v.Name.Contains(identifier, StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>
@@ -1701,7 +1735,6 @@ public partial class ContentDetailViewModel(
 
         var normalized = new Dictionary<string, ContentSearchResult>(StringComparer.OrdinalIgnoreCase);
         var variantsList = new List<InstallableVariant>();
-        InstallableVariant? defaultSelection = null;
 
         foreach (var kvp in variantSearchResults)
         {
@@ -1734,24 +1767,71 @@ public partial class ContentDetailViewModel(
             }
 
             variantsList.Add(installable);
-
-            if (string.Equals(catalogKey, searchResult.Id, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(sibling.Id, searchResult.Id, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(kvp.Key, searchResult.Id, StringComparison.OrdinalIgnoreCase) ||
-                (searchResult.TargetGame != GameType.Unknown && sibling.TargetGame == searchResult.TargetGame))
-            {
-                defaultSelection ??= installable;
-            }
         }
 
         variantSearchResults = normalized;
+
+        InstallableVariant? chosenVariant = null;
+
+        // 1. Pending/requested variant selection (from constructor or SelectVariantByManifestId)
+        if (!string.IsNullOrEmpty(_pendingSelectedVariantManifestId))
+        {
+            chosenVariant = FindMatchingVariant(variantsList, _pendingSelectedVariantManifestId);
+        }
+
+        // 2. searchResult.ResolverMetadata["selectedVariant"]
+        if (chosenVariant == null &&
+            searchResult.ResolverMetadata.TryGetValue("selectedVariant", out var selVar) &&
+            !string.IsNullOrWhiteSpace(selVar))
+        {
+            chosenVariant = FindMatchingVariant(variantsList, selVar);
+        }
+
+        // 3. searchResult.Id
+        if (chosenVariant == null && !string.IsNullOrWhiteSpace(searchResult.Id))
+        {
+            chosenVariant = FindMatchingVariant(variantsList, searchResult.Id);
+        }
+
+        // 4. Variant marked as default in searchResult.Variants
+        if (chosenVariant == null && searchResult.Variants is { Count: > 0 } searchVariants)
+        {
+            var defVariantInfo = searchVariants.FirstOrDefault(v => v.IsDefault);
+            if (defVariantInfo != null)
+            {
+                if (!string.IsNullOrWhiteSpace(defVariantInfo.ManifestId))
+                {
+                    chosenVariant = FindMatchingVariant(variantsList, defVariantInfo.ManifestId);
+                }
+
+                if (chosenVariant == null && !string.IsNullOrWhiteSpace(defVariantInfo.Id))
+                {
+                    chosenVariant = FindMatchingVariant(variantsList, defVariantInfo.Id);
+                }
+
+                if (chosenVariant == null && !string.IsNullOrWhiteSpace(defVariantInfo.Name))
+                {
+                    chosenVariant = FindMatchingVariant(variantsList, defVariantInfo.Name);
+                }
+            }
+        }
+
+        // 5. Target game match fallback
+        if (chosenVariant == null && searchResult.TargetGame != GameType.Unknown)
+        {
+            chosenVariant = variantsList.FirstOrDefault(v =>
+                normalized.TryGetValue(v.ManifestId, out var sn) && sn.TargetGame == searchResult.TargetGame);
+        }
+
+        // 6. Final fallback to first variant
+        chosenVariant ??= variantsList.FirstOrDefault();
 
         await RunOnUiThreadAsync(() =>
         {
             Variants = new ObservableCollection<InstallableVariant>(variantsList);
             OnPropertyChanged(nameof(HasVariants));
+            SelectedVariant = chosenVariant;
             RebuildVariantAxes();
-            SelectedVariant = defaultSelection ?? Variants.FirstOrDefault();
 
             if (ParsedPage == null)
             {
@@ -1765,20 +1845,36 @@ public partial class ContentDetailViewModel(
         if ((variantSearchResults == null || variantSearchResults.Count == 0) && searchResult.Variants is { Count: > 0 } searchVariants)
         {
             var dict = new Dictionary<string, ContentSearchResult>(StringComparer.OrdinalIgnoreCase);
-            var lastSegment = searchResult.Id?.Split('.', StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
-            if (string.IsNullOrWhiteSpace(lastSegment))
+            var baseSegment = searchResult.VariantGroupId?.Split('.', StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
+            if (string.IsNullOrWhiteSpace(baseSegment))
             {
-                lastSegment = ContentConstants.DefaultContentFallbackId;
+                baseSegment = searchResult.Id?.Split('.', StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
+                if (!string.IsNullOrWhiteSpace(baseSegment))
+                {
+                    foreach (var v in searchVariants)
+                    {
+                        if (!string.IsNullOrEmpty(v.Id) && baseSegment.EndsWith($"-{v.Id}", StringComparison.OrdinalIgnoreCase))
+                        {
+                            baseSegment = baseSegment[..^(v.Id.Length + 1)];
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(baseSegment))
+            {
+                baseSegment = ContentConstants.DefaultContentFallbackId;
             }
 
             foreach (var v in searchVariants)
             {
                 var provider = !string.IsNullOrWhiteSpace(searchResult.ProviderName) ? searchResult.ProviderName : ContentConstants.DefaultContentFallbackId;
                 var variantId = !string.IsNullOrWhiteSpace(v.Id) ? v.Id : ContentConstants.DefaultContentFallbackId;
-                var composedName = $"{lastSegment}-{variantId}";
+                var composedName = $"{baseSegment}-{variantId}";
                 if (!composedName.Any(char.IsLetterOrDigit))
                 {
-                    composedName = $"{lastSegment}-{ContentConstants.DefaultContentFallbackId}";
+                    composedName = $"{baseSegment}-{ContentConstants.DefaultContentFallbackId}";
                 }
 
                 string manifestId;
@@ -1827,6 +1923,8 @@ public partial class ContentDetailViewModel(
                 {
                     variantSr.ResolverMetadata[kvp.Key] = kvp.Value;
                 }
+
+                variantSr.ResolverMetadata["selectedVariant"] = v.Id;
 
                 dict[manifestId] = variantSr;
             }

@@ -1590,7 +1590,8 @@ public sealed class ContentDetailViewModelTests
         IContentStateService? contentStateService = null,
         ContentSearchResult? updateTargetSearchResult = null,
         Func<CancellationToken, Task>? updateAction = null,
-        bool? isUpdateAvailable = null)
+        bool? isUpdateAvailable = null,
+        string? initialVariantManifestId = null)
     {
         if (contentStateService == null)
         {
@@ -1619,7 +1620,8 @@ public sealed class ContentDetailViewModelTests
             variantSearchResults: variantSearchResults,
             updateTargetSearchResult: updateTargetSearchResult,
             updateAction: updateAction,
-            isUpdateAvailable: isUpdateAvailable);
+            isUpdateAvailable: isUpdateAvailable,
+            initialVariantManifestId: initialVariantManifestId);
     }
 
     private sealed class CapturingContentDetailViewModel(
@@ -1637,7 +1639,8 @@ public sealed class ContentDetailViewModelTests
         IReadOnlyDictionary<string, ContentSearchResult>? variantSearchResults = null,
         ContentSearchResult? updateTargetSearchResult = null,
         Func<CancellationToken, Task>? updateAction = null,
-        bool? isUpdateAvailable = null)
+        bool? isUpdateAvailable = null,
+        string? initialVariantManifestId = null)
         : ContentDetailViewModel(
             searchResult,
             parsers,
@@ -1653,7 +1656,8 @@ public sealed class ContentDetailViewModelTests
             variantSearchResults: variantSearchResults,
             updateTargetSearchResult: updateTargetSearchResult,
             updateAction: updateAction,
-            isUpdateAvailable: isUpdateAvailable)
+            isUpdateAvailable: isUpdateAvailable,
+            initialVariantManifestId: initialVariantManifestId)
     {
         /// <summary>
         /// Gets the manifest ID sent to the profile selection flow.
@@ -1898,5 +1902,135 @@ public sealed class ContentDetailViewModelTests
         viewModel.IsDownloading = false;
         viewModel.IsDownloaded = true;
         Assert.False(viewModel.CanChangeContentType);
+    }
+    /// <summary>
+    /// Verifies that initializing ContentDetailViewModel with an initial variant selection
+    /// retains that variant rather than resetting to the default variant.
+    /// </summary>
+    [Fact]
+    public async Task Initialize_WithInitialVariantManifestId_RetainsSelectedVariant()
+    {
+        // Arrange: Item with multiple variants (720p, 1080p, Russian)
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.0.communityoutpost.addon.cbpx",
+            Name = "Control Bar Pro",
+            ContentType = ContentType.Addon,
+            TargetGame = GameType.ZeroHour,
+            Variants =
+            [
+                new ContentVariantInfo { Id = "720p", Name = "720p Resolution", ManifestId = "1.0.communityoutpost.addon.cbpx-720p" },
+                new ContentVariantInfo { Id = "1080p", Name = "1080p Resolution", ManifestId = "1.0.communityoutpost.addon.cbpx-1080p", IsDefault = false },
+                new ContentVariantInfo { Id = "ru", Name = "Russian Language", ManifestId = "1.0.communityoutpost.addon.cbpx-ru", IsDefault = false },
+            ],
+        };
+
+        var variantsMap = new Dictionary<string, ContentSearchResult>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["1.0.communityoutpost.addon.cbpx-720p"] = new() { Id = "1.0.communityoutpost.addon.cbpx-720p", Name = "Control Bar Pro - 720p", TargetGame = GameType.ZeroHour },
+            ["1.0.communityoutpost.addon.cbpx-1080p"] = new() { Id = "1.0.communityoutpost.addon.cbpx-1080p", Name = "Control Bar Pro - 1080p", TargetGame = GameType.ZeroHour },
+            ["1.0.communityoutpost.addon.cbpx-ru"] = new() { Id = "1.0.communityoutpost.addon.cbpx-ru", Name = "Control Bar Pro - Russian", TargetGame = GameType.ZeroHour },
+        };
+
+        var coordinator = new Mock<IContentDownloadCoordinator>();
+        var viewModel = CreateViewModel(
+            searchResult,
+            coordinator.Object,
+            variantSearchResults: variantsMap,
+            initialVariantManifestId: "1.0.communityoutpost.addon.cbpx-1080p");
+
+        // Act
+        viewModel.Initialize();
+        await viewModel.WaitForInitializationAsync();
+
+        // Assert: 1080p variant remains selected, not 720p
+        Assert.NotNull(viewModel.SelectedVariant);
+        Assert.Equal("1.0.communityoutpost.addon.cbpx-1080p", viewModel.SelectedVariant.ManifestId);
+    }
+
+    /// <summary>
+    /// Verifies that calling SelectVariantByManifestId before initialization finishes
+    /// buffers the selection and applies it once variants load.
+    /// </summary>
+    [Fact]
+    public async Task SelectVariantByManifestId_CalledBeforeInitialization_AppliesVariantWhenLoaded()
+    {
+        // Arrange
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.0.communityoutpost.addon.cbpx",
+            Name = "Control Bar Pro",
+            ContentType = ContentType.Addon,
+            TargetGame = GameType.ZeroHour,
+            Variants =
+            [
+                new ContentVariantInfo { Id = "en", Name = "English", ManifestId = "1.0.communityoutpost.addon.cbpx-en", IsDefault = true },
+                new ContentVariantInfo { Id = "ru", Name = "Russian", ManifestId = "1.0.communityoutpost.addon.cbpx-ru", IsDefault = false },
+            ],
+        };
+
+        var variantsMap = new Dictionary<string, ContentSearchResult>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["1.0.communityoutpost.addon.cbpx-en"] = new() { Id = "1.0.communityoutpost.addon.cbpx-en", Name = "English", TargetGame = GameType.ZeroHour },
+            ["1.0.communityoutpost.addon.cbpx-ru"] = new() { Id = "1.0.communityoutpost.addon.cbpx-ru", Name = "Russian", TargetGame = GameType.ZeroHour },
+        };
+
+        var coordinator = new Mock<IContentDownloadCoordinator>();
+        var viewModel = CreateViewModel(
+            searchResult,
+            coordinator.Object,
+            variantSearchResults: variantsMap);
+
+        // Act: select variant before initializing
+        viewModel.SelectVariantByManifestId("1.0.communityoutpost.addon.cbpx-ru");
+        viewModel.Initialize();
+        await viewModel.WaitForInitializationAsync();
+
+        // Assert: Russian was buffered and selected
+        Assert.NotNull(viewModel.SelectedVariant);
+        Assert.Equal("1.0.communityoutpost.addon.cbpx-ru", viewModel.SelectedVariant.ManifestId);
+    }
+
+    /// <summary>
+    /// Verifies that when SearchResult has ResolverMetadata selectedVariant,
+    /// ContentDetailViewModel initializes with that variant selected.
+    /// </summary>
+    [Fact]
+    public async Task Initialize_WithSelectedVariantInResolverMetadata_RetainsSelectedVariant()
+    {
+        // Arrange
+        var searchResult = new ContentSearchResult
+        {
+            Id = "1.0.communityoutpost.addon.cbpx",
+            Name = "Control Bar Pro",
+            ContentType = ContentType.Addon,
+            TargetGame = GameType.ZeroHour,
+            Variants =
+            [
+                new ContentVariantInfo { Id = "720p", Name = "720p", ManifestId = "1.0.communityoutpost.addon.cbpx-720p" },
+                new ContentVariantInfo { Id = "1080p", Name = "1080p", ManifestId = "1.0.communityoutpost.addon.cbpx-1080p" },
+            ],
+        };
+        searchResult.ResolverMetadata["selectedVariant"] = "1080p";
+
+        var variantsMap = new Dictionary<string, ContentSearchResult>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["1.0.communityoutpost.addon.cbpx-720p"] = new() { Id = "1.0.communityoutpost.addon.cbpx-720p", Name = "720p", TargetGame = GameType.ZeroHour },
+            ["1.0.communityoutpost.addon.cbpx-1080p"] = new() { Id = "1.0.communityoutpost.addon.cbpx-1080p", Name = "1080p", TargetGame = GameType.ZeroHour },
+        };
+
+        var coordinator = new Mock<IContentDownloadCoordinator>();
+        var viewModel = CreateViewModel(
+            searchResult,
+            coordinator.Object,
+            variantSearchResults: variantsMap);
+
+        // Act
+        viewModel.Initialize();
+        await viewModel.WaitForInitializationAsync();
+
+        // Assert: 1080p selected from metadata
+        Assert.NotNull(viewModel.SelectedVariant);
+        Assert.Equal("1.0.communityoutpost.addon.cbpx-1080p", viewModel.SelectedVariant.ManifestId);
     }
 }

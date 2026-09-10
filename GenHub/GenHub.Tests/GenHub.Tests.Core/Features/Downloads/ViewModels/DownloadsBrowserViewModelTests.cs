@@ -1393,4 +1393,90 @@ public class DownloadsBrowserViewModelTests
             subscriptionStore.Object,
             reconcilerRegistry: reconcilerRegistry);
     }
+    /// <summary>
+    /// Verifies that when a variant is selected on a card in the browser view,
+    /// ViewContentCommand opens ContentDetailViewModel with that variant preserved and not reset.
+    /// </summary>
+    [Fact]
+    public async Task ViewContentCommand_WithSelectedVariant_PreservesVariantInDetailView()
+    {
+        // Arrange
+        var tabRegistryMock = new Mock<ITabProviderRegistry>();
+        var coordinatorMock = new Mock<IContentDownloadCoordinator>();
+        var manifestPoolMock = new Mock<IContentManifestPool>();
+        var stateServiceMock = new Mock<IContentStateService>();
+        var loggerFactoryMock = new Mock<ILoggerFactory>();
+        var contentLoggerMock = new Mock<ILogger<ContentDetailViewModel>>();
+
+        var serviceProviderMock = new Mock<IServiceProvider>();
+        serviceProviderMock.Setup(sp => sp.GetService(typeof(ITabProviderRegistry))).Returns(tabRegistryMock.Object);
+        serviceProviderMock.Setup(sp => sp.GetService(typeof(IContentDownloadCoordinator))).Returns(coordinatorMock.Object);
+        serviceProviderMock.Setup(sp => sp.GetService(typeof(IContentManifestPool))).Returns(manifestPoolMock.Object);
+        serviceProviderMock.Setup(sp => sp.GetService(typeof(ILogger<ContentDetailViewModel>))).Returns(contentLoggerMock.Object);
+        serviceProviderMock.Setup(sp => sp.GetService(typeof(ILoggerFactory))).Returns(loggerFactoryMock.Object);
+        serviceProviderMock.Setup(sp => sp.GetService(typeof(IContentStateService))).Returns(stateServiceMock.Object);
+        serviceProviderMock.Setup(sp => sp.GetService(typeof(IEnumerable<IWebPageParser>))).Returns(Array.Empty<IWebPageParser>());
+
+        var subscriptionStore = new Mock<IPublisherSubscriptionStore>();
+        subscriptionStore
+            .Setup(store => store.GetSubscriptionsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IReadOnlyList<PublisherSubscription>>.CreateSuccess([]));
+
+        using var viewModel = new DownloadsBrowserViewModel(
+            serviceProviderMock.Object,
+            new Mock<ILogger<DownloadsBrowserViewModel>>().Object,
+            [],
+            stateServiceMock.Object,
+            new Mock<IContentOrchestrator>().Object,
+            new Mock<IProfileContentService>().Object,
+            new Mock<IGameProfileManager>().Object,
+            new Mock<INotificationService>().Object,
+            loggerFactoryMock.Object,
+            subscriptionStore.Object);
+
+        var sr = new ContentSearchResult
+        {
+            Id = "1.0.communityoutpost.addon.cbpx",
+            Name = "Control Bar Pro",
+            ContentType = ContentType.Addon,
+            TargetGame = GameType.ZeroHour,
+            Variants =
+            [
+                new ContentVariantInfo { Id = "720p", Name = "720p", ManifestId = "1.0.communityoutpost.addon.cbpx-720p" },
+                new ContentVariantInfo { Id = "1080p", Name = "1080p", ManifestId = "1.0.communityoutpost.addon.cbpx-1080p" },
+            ],
+        };
+
+        var variantsMap = new Dictionary<string, ContentSearchResult>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["1.0.communityoutpost.addon.cbpx-720p"] = new() { Id = "1.0.communityoutpost.addon.cbpx-720p", Name = "720p", TargetGame = GameType.ZeroHour },
+            ["1.0.communityoutpost.addon.cbpx-1080p"] = new() { Id = "1.0.communityoutpost.addon.cbpx-1080p", Name = "1080p", TargetGame = GameType.ZeroHour },
+        };
+
+        var item = new ContentGridItemViewModel(sr, stateServiceMock.Object, new Mock<ILogger<ContentGridItemViewModel>>().Object);
+        var v720 = new InstallableVariant { Name = "720p", ManifestId = "1.0.communityoutpost.addon.cbpx-720p" };
+        var v1080 = new InstallableVariant { Name = "1080p", ManifestId = "1.0.communityoutpost.addon.cbpx-1080p" };
+        item.AddVariant(v720, variantsMap["1.0.communityoutpost.addon.cbpx-720p"]);
+        item.AddVariant(v1080, variantsMap["1.0.communityoutpost.addon.cbpx-1080p"]);
+
+        // Select 1080p on the card
+        item.SelectedVariant = v1080;
+        viewModel.ContentItems.Add(item);
+
+        // Act: click content card to open detail view
+        viewModel.ViewContentCommand.Execute(item);
+
+        // Assert: SelectedContent is populated and retains 1080p
+        Assert.NotNull(viewModel.SelectedContent);
+        await viewModel.SelectedContent.WaitForInitializationAsync();
+        Assert.NotNull(viewModel.SelectedContent.SelectedVariant);
+        Assert.Equal("1.0.communityoutpost.addon.cbpx-1080p", viewModel.SelectedContent.SelectedVariant.ManifestId);
+
+        // Act: close detail view
+        viewModel.CloseDetailCommand.Execute(null);
+
+        // Assert: Detail is closed and card retained the 1080p variant
+        Assert.Null(viewModel.SelectedContent);
+        Assert.Equal("1.0.communityoutpost.addon.cbpx-1080p", item.SelectedVariant?.ManifestId);
+    }
 }

@@ -1020,7 +1020,18 @@ public sealed partial class ContentGridItemViewModel(
             return;
         }
 
-        var match = Variants.FirstOrDefault(v => string.Equals(v.ManifestId, manifestId, StringComparison.OrdinalIgnoreCase));
+        var match = Variants.FirstOrDefault(v => string.Equals(v.ManifestId, manifestId, StringComparison.OrdinalIgnoreCase))
+            ?? Variants.FirstOrDefault(v => string.Equals(v.Name, manifestId, StringComparison.OrdinalIgnoreCase))
+            ?? Variants.FirstOrDefault(v => !string.IsNullOrEmpty(v.ManifestId) &&
+                (v.ManifestId.EndsWith($"-{manifestId}", StringComparison.OrdinalIgnoreCase) ||
+                 v.ManifestId.EndsWith($".{manifestId}", StringComparison.OrdinalIgnoreCase)))
+            ?? Variants.FirstOrDefault(v => !string.IsNullOrEmpty(v.ManifestId) &&
+                (manifestId.EndsWith($"-{v.ManifestId}", StringComparison.OrdinalIgnoreCase) ||
+                 manifestId.EndsWith($".{v.ManifestId}", StringComparison.OrdinalIgnoreCase)))
+            ?? Variants.FirstOrDefault(v => !string.IsNullOrEmpty(v.Name) &&
+                (v.Name.EndsWith(manifestId, StringComparison.OrdinalIgnoreCase) ||
+                 v.Name.Contains(manifestId, StringComparison.OrdinalIgnoreCase)));
+
         if (match != null)
         {
             SelectedVariant = match;
