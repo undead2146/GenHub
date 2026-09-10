@@ -539,6 +539,7 @@ public sealed class ContentDownloadCoordinatorTests
         Assert.Equal(testManifest.Id, result.Data?.Id);
         Assert.Equal(2, callCount);
     }
+
     /// <summary>
     /// Verifies that HasActiveDownloads returns true while a download is in-flight and false otherwise.
     /// </summary>

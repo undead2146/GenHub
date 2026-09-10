@@ -1428,19 +1428,6 @@ public class ContentStateServiceTests
         Assert.Equal(0, ContentStateService.CompareVersions(null, string.Empty));
     }
 
-    private static ContentSearchResult CreateSuperHackersCard(GameType gameType)
-    {
-        var item = new ContentSearchResult
-        {
-            Id = $"github.thesuperhackers.generalsgamecode.weekly-2025-07-22.{gameType}",
-            ProviderName = ContentSourceNames.GitHubDiscoverer,
-            ContentType = ContentType.GameClient,
-            TargetGame = gameType,
-        };
-        item.ResolverMetadata[GitHubConstants.OwnerMetadataKey] = PublisherTypeConstants.TheSuperHackers;
-        item.ResolverMetadata[GitHubConstants.TagMetadataKey] = "weekly-2025-07-22";
-        return item;
-    }
     /// <summary>
     /// Verifies that when a GitHub release with language variants (e.g. ImprovedMenus) has only one
     /// language variant installed (e.g. English), only the English card is marked Downloaded, while
@@ -1513,4 +1500,17 @@ public class ContentStateServiceTests
         Assert.Equal(ContentState.NotDownloaded, await service.GetStateAsync(cardSpanish));
     }
 
+    private static ContentSearchResult CreateSuperHackersCard(GameType gameType)
+    {
+        var item = new ContentSearchResult
+        {
+            Id = $"github.thesuperhackers.generalsgamecode.weekly-2025-07-22.{gameType}",
+            ProviderName = ContentSourceNames.GitHubDiscoverer,
+            ContentType = ContentType.GameClient,
+            TargetGame = gameType,
+        };
+        item.ResolverMetadata[GitHubConstants.OwnerMetadataKey] = PublisherTypeConstants.TheSuperHackers;
+        item.ResolverMetadata[GitHubConstants.TagMetadataKey] = "weekly-2025-07-22";
+        return item;
+    }
 }
