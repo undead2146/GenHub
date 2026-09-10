@@ -1641,7 +1641,8 @@ public sealed partial class DownloadsBrowserViewModel(
         var vm = new ContentGridItemViewModel(
             item,
             contentStateService,
-            loggerFactory.CreateLogger<ContentGridItemViewModel>())
+            loggerFactory.CreateLogger<ContentGridItemViewModel>(),
+            _downloadCoordinator)
         {
             ViewCommand = ViewContentCommand,
             DownloadCommand = DownloadContentCommand,

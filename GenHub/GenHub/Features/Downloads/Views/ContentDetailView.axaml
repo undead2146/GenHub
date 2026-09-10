@@ -1285,7 +1285,7 @@
                                     FontSize="15"
                                     FontWeight="SemiBold"
                                     IsVisible="{Binding ShowDownloadButton}"
-                                    IsEnabled="{Binding !IsDownloading}"
+                                    IsEnabled="{Binding CanDownload}"
                                     Command="{Binding DownloadCommand}"
                                     Cursor="Hand"
                                     Padding="20,0">
@@ -1320,7 +1320,7 @@
                                     FontSize="15"
                                     FontWeight="SemiBold"
                                     IsVisible="{Binding ShowUpdateButton}"
-                                    IsEnabled="{Binding !IsDownloading}"
+                                    IsEnabled="{Binding CanUpdate}"
                                     Command="{Binding UpdateCommand}"
                                     Cursor="Hand"
                                     Padding="20,0">

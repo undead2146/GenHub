@@ -539,4 +539,45 @@ public sealed class ContentDownloadCoordinatorTests
         Assert.Equal(testManifest.Id, result.Data?.Id);
         Assert.Equal(2, callCount);
     }
+    /// <summary>
+    /// Verifies that HasActiveDownloads returns true while a download is in-flight and false otherwise.
+    /// </summary>
+    /// <returns>A task representing the test.</returns>
+    [Fact]
+    public async Task HasActiveDownloads_TracksInFlightAcquisitionStateAsync()
+    {
+        var orchestratorMock = new Mock<IContentOrchestrator>();
+        var stateServiceMock = new Mock<IContentStateService>();
+        var notificationServiceMock = new Mock<INotificationService>();
+
+        var testManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.1.github.addon.improvedmenusenglish"),
+            Name = "ImprovedMenus (English)",
+        };
+
+        var tcs = new TaskCompletionSource<OperationResult<ContentManifest>>();
+        orchestratorMock
+            .Setup(x => x.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()))
+            .Returns(tcs.Task);
+
+        var coordinator = new ContentDownloadCoordinator(
+            orchestratorMock.Object,
+            stateServiceMock.Object,
+            notificationServiceMock.Object,
+            NullLogger<ContentDownloadCoordinator>.Instance);
+
+        Assert.False(coordinator.HasActiveDownloads);
+
+        var sr = new ContentSearchResult { Id = "test-1", Name = "Test" };
+        var downloadTask = coordinator.DownloadContentAsync(sr);
+
+        Assert.True(coordinator.HasActiveDownloads);
+
+        tcs.SetResult(OperationResult<ContentManifest>.CreateSuccess(testManifest));
+        await downloadTask;
+
+        Assert.False(coordinator.HasActiveDownloads);
+    }
+
 }

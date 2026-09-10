@@ -11,6 +11,11 @@ namespace GenHub.Core.Interfaces.Content;
 public interface IContentDownloadCoordinator
 {
     /// <summary>
+    /// Gets a value indicating whether any download is currently in flight.
+    /// </summary>
+    bool HasActiveDownloads { get; }
+
+    /// <summary>
     /// Downloads content, updates state, and shows notifications.
     /// </summary>
     /// <param name="searchResult">The content search result to download.</param>

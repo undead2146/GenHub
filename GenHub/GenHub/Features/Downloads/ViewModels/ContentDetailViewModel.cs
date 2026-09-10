@@ -136,7 +136,24 @@ public partial class ContentDetailViewModel(
     [NotifyPropertyChangedFor(nameof(ShowDownloadButton))]
     [NotifyPropertyChangedFor(nameof(ShowUpdateButton))]
     [NotifyPropertyChangedFor(nameof(ShowAddToProfileButton))]
+    [NotifyPropertyChangedFor(nameof(CanDownload))]
+    [NotifyPropertyChangedFor(nameof(CanUpdate))]
     private bool _isDownloading;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanDownload))]
+    [NotifyPropertyChangedFor(nameof(CanUpdate))]
+    private bool _hasActiveDownloads;
+
+    /// <summary>
+    /// Gets a value indicating whether this item can start a download.
+    /// </summary>
+    public bool CanDownload => !IsDownloading && !HasActiveDownloads;
+
+    /// <summary>
+    /// Gets a value indicating whether this item can start an update.
+    /// </summary>
+    public bool CanUpdate => !IsDownloading && !HasActiveDownloads;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowDownloadButton))]
@@ -762,6 +779,7 @@ public partial class ContentDetailViewModel(
             static (recipient, _) => ((ContentDetailViewModel)recipient).ResetDownloadState());
 
         // Check if download is already in-flight via download coordinator
+        HasActiveDownloads = downloadCoordinator.HasActiveDownloads;
         if (downloadCoordinator.IsDownloading(searchResult))
         {
             IsDownloading = true;
@@ -1877,15 +1895,19 @@ public partial class ContentDetailViewModel(
 
     private void OnDownloadStarted(ContentDownloadStartedMessage message)
     {
-        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName, message.ParentContentId))
+        RunOnUiThread(() =>
         {
-            RunOnUiThread(() =>
+            HasActiveDownloads = true;
+            if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName, message.ParentContentId))
             {
                 IsDownloading = true;
                 DownloadProgress = 0;
                 DownloadStatusMessage = "Starting download...";
-            });
-        }
+            }
+
+            DownloadCommand.NotifyCanExecuteChanged();
+            UpdateCommand.NotifyCanExecuteChanged();
+        });
     }
 
     private void OnDownloadProgress(ContentDownloadProgressMessage message)
@@ -1908,17 +1930,27 @@ public partial class ContentDetailViewModel(
 
     private void OnDownloadCompleted(ContentDownloadCompletedMessage message)
     {
-        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName, message.ParentContentId))
+        RunOnUiThread(() =>
         {
-            RunOnUiThread(() =>
+            HasActiveDownloads = downloadCoordinator.HasActiveDownloads;
+            if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName, message.ParentContentId))
             {
                 IsDownloading = false;
                 if (!message.Success && !string.IsNullOrEmpty(message.ErrorMessage))
                 {
                     DownloadStatusMessage = $"Error: {message.ErrorMessage}";
                 }
-            });
-        }
+                else
+                {
+                    DownloadStatusMessage = null;
+                }
+
+                _ = LoadInitialStateAsync();
+            }
+
+            DownloadCommand.NotifyCanExecuteChanged();
+            UpdateCommand.NotifyCanExecuteChanged();
+        });
     }
 
     /// <summary>
@@ -3192,7 +3224,7 @@ public partial class ContentDetailViewModel(
     /// <summary>
     /// Command to update the content to the latest available release.
     /// </summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanUpdate))]
     private async Task UpdateAsync(CancellationToken cancellationToken = default)
     {
         if (IsDownloading)
@@ -3280,7 +3312,7 @@ public partial class ContentDetailViewModel(
     /// <summary>
     /// Command to download the main content or selected row target.
     /// </summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanDownload))]
     private async Task DownloadAsync(CancellationToken cancellationToken = default)
     {
         if (HasBundleComponents)

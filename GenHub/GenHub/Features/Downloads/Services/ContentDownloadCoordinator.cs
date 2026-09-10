@@ -73,6 +73,9 @@ public sealed class ContentDownloadCoordinator(
     }
 
     /// <inheritdoc />
+    public bool HasActiveDownloads => !_inFlightDownloads.IsEmpty;
+
+    /// <inheritdoc />
     public bool IsDownloading(ContentSearchResult searchResult)
     {
         if (searchResult == null)

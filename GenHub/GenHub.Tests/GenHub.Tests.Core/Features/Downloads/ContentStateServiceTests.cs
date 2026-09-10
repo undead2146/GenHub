@@ -1441,4 +1441,76 @@ public class ContentStateServiceTests
         item.ResolverMetadata[GitHubConstants.TagMetadataKey] = "weekly-2025-07-22";
         return item;
     }
+    /// <summary>
+    /// Verifies that when a GitHub release with language variants (e.g. ImprovedMenus) has only one
+    /// language variant installed (e.g. English), only the English card is marked Downloaded, while
+    /// the Russian and Spanish sibling cards remain NotDownloaded.
+    /// </summary>
+    /// <returns>A completed task.</returns>
+    [Fact]
+    public async Task GetStateAsync_WhenGitHubLanguageVariantDownloaded_OnlyMatchesMatchingVariant()
+    {
+        // Stored manifest for English variant (manifest relative path has English)
+        var manifestEnglish = new ContentManifest
+        {
+            Id = ManifestId.Create("1.1.github.addon.improvedmenusenglish"),
+            Name = "ImprovedMenus (English)",
+            ContentType = ContentType.Addon,
+            TargetGame = GameType.ZeroHour,
+            Publisher = new PublisherInfo
+            {
+                PublisherType = "github",
+                Website = "https://github.com/ElTioRata/ImprovedMenus",
+            },
+            Files =
+            [
+                new ManifestFile { RelativePath = "ImprovedMenusEnglish.big" },
+            ],
+        };
+
+        var pool = new Mock<IContentManifestPool>();
+        pool.Setup(p => p.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([manifestEnglish]));
+        pool.Setup(p => p.IsManifestAcquiredAsync(manifestEnglish.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+        pool.Setup(p => p.IsManifestAcquiredAsync(It.Is<ManifestId>(m => m.Value != manifestEnglish.Id.Value), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(false));
+
+        var service = new ContentStateService(pool.Object, NullLogger<ContentStateService>.Instance);
+
+        var cardEnglish = new ContentSearchResult
+        {
+            Id = "github.eltiorata.improvedmenus.v1.1.english",
+            Name = "ImprovedMenus (English)",
+            ProviderName = "github",
+            ContentType = ContentType.Addon,
+            TargetGame = GameType.ZeroHour,
+            SourceUrl = "https://github.com/ElTioRata/ImprovedMenus",
+        };
+
+        var cardRussian = new ContentSearchResult
+        {
+            Id = "github.eltiorata.improvedmenus.v1.1.russian",
+            Name = "ImprovedMenus (Russian)",
+            ProviderName = "github",
+            ContentType = ContentType.Addon,
+            TargetGame = GameType.ZeroHour,
+            SourceUrl = "https://github.com/ElTioRata/ImprovedMenus",
+        };
+
+        var cardSpanish = new ContentSearchResult
+        {
+            Id = "github.eltiorata.improvedmenus.v1.1.spanish",
+            Name = "ImprovedMenus (Spanish)",
+            ProviderName = "github",
+            ContentType = ContentType.Addon,
+            TargetGame = GameType.ZeroHour,
+            SourceUrl = "https://github.com/ElTioRata/ImprovedMenus",
+        };
+
+        Assert.Equal(ContentState.Downloaded, await service.GetStateAsync(cardEnglish));
+        Assert.Equal(ContentState.NotDownloaded, await service.GetStateAsync(cardRussian));
+        Assert.Equal(ContentState.NotDownloaded, await service.GetStateAsync(cardSpanish));
+    }
+
 }

@@ -291,6 +291,40 @@ public partial class GitHubTopicsDiscoverer(
     }
 
     /// <summary>
+    /// Extracts a variant name from an asset filename.
+    /// Detects resolutions (1920x1080 → "1080p"), languages, and version numbers (v1.03).
+    /// </summary>
+    /// <param name="assetName">The asset filename.</param>
+    /// <returns>The extracted variant token.</returns>
+    internal static string ExtractAssetVariant(string assetName)
+    {
+        var nameWithoutExt = System.IO.Path.GetFileNameWithoutExtension(assetName);
+
+        if (nameWithoutExt.EndsWith(".tar", StringComparison.OrdinalIgnoreCase))
+        {
+            nameWithoutExt = System.IO.Path.GetFileNameWithoutExtension(nameWithoutExt);
+        }
+
+        if (TryExtractResolutionVariant(nameWithoutExt, out var resolution))
+        {
+            return resolution;
+        }
+
+        if (TryExtractLanguageVariant(nameWithoutExt, out var language))
+        {
+            return language;
+        }
+
+        var parts = nameWithoutExt.Split(['_', '-', '.'], StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length > 1)
+        {
+            return ExtractVersionOrTokenVariant(parts, nameWithoutExt);
+        }
+
+        return nameWithoutExt;
+    }
+
+    /// <summary>
     /// Checks if a search result matches the query criteria.
     /// </summary>
     private static bool MatchesQuery(ContentSearchResult result, ContentSearchQuery query)
@@ -435,38 +469,6 @@ public partial class GitHubTopicsDiscoverer(
             digits = digits[..9];
 
         return int.TryParse(digits, out var version) ? version : 0;
-    }
-
-    /// <summary>
-    /// Extracts a variant name from an asset filename.
-    /// Detects resolutions (1920x1080 → "1080p"), languages, and version numbers (v1.03).
-    /// </summary>
-    private static string ExtractAssetVariant(string assetName)
-    {
-        var nameWithoutExt = System.IO.Path.GetFileNameWithoutExtension(assetName);
-
-        if (nameWithoutExt.EndsWith(".tar", StringComparison.OrdinalIgnoreCase))
-        {
-            nameWithoutExt = System.IO.Path.GetFileNameWithoutExtension(nameWithoutExt);
-        }
-
-        if (TryExtractResolutionVariant(nameWithoutExt, out var resolution))
-        {
-            return resolution;
-        }
-
-        if (TryExtractLanguageVariant(nameWithoutExt, out var language))
-        {
-            return language;
-        }
-
-        var parts = nameWithoutExt.Split(['_', '-', '.'], StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length > 1)
-        {
-            return ExtractVersionOrTokenVariant(parts, nameWithoutExt);
-        }
-
-        return nameWithoutExt;
     }
 
     private static bool TryExtractResolutionVariant(string nameWithoutExt, out string resolution)

@@ -14,6 +14,7 @@ using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Providers;
 using GenHub.Core.Models.Results.Content;
+using GenHub.Features.Content.Services.ContentDiscoverers;
 using Microsoft.Extensions.Logging;
 
 namespace GenHub.Features.Downloads.Services;
@@ -811,13 +812,42 @@ public sealed partial class ContentStateService(
     }
 
     /// <summary>
-    /// Extracts a resolution variant token (e.g. 720p, 900p, 1080p, 1440p, 4k) from a string.
+    /// Extracts a variant token (e.g. 720p, 1080p, 4k, english, russian, etc.) from a name or ID string.
     /// </summary>
     private static string? ExtractVariantToken(string? input)
     {
         if (string.IsNullOrWhiteSpace(input))
         {
             return null;
+        }
+
+        // 1. Check for trailing parentheses like "(English)" or "(1080p)"
+        var parenMatch = GitHubTopicsDiscoverer.VariantPatterns.TrailingParenthesesPattern().Match(input);
+        if (parenMatch.Success)
+        {
+            var token = parenMatch.Groups[1].Value.Trim().ToLowerInvariant();
+            if (!string.IsNullOrEmpty(token))
+            {
+                return token switch
+                {
+                    "720" => "720p",
+                    "900" => "900p",
+                    "1080" => "1080p",
+                    "1440" => "1440p",
+                    "2160" => "4k",
+                    _ => token,
+                };
+            }
+        }
+
+        // 2. Check resolution patterns like 1920x1080 or 1080p
+        var resMatch = GitHubTopicsDiscoverer.VariantPatterns.ResolutionPattern().Match(input);
+        if (resMatch.Success)
+        {
+            if (GitHubTopicsDiscoverer.VariantPatterns.ResolutionDisplayNames.TryGetValue(resMatch.Value, out var disp))
+            {
+                return disp.ToLowerInvariant();
+            }
         }
 
         var match = Regex.Match(input, @"\b(720p?|900p?|1080p?|1440p?|2160p?|4k)\b", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
@@ -839,6 +869,15 @@ public sealed partial class ContentStateService(
         if (inlineMatch.Success)
         {
             return inlineMatch.Value.ToLowerInvariant();
+        }
+
+        // 3. Check language patterns (e.g. english, russian, spanish)
+        foreach (var (pattern, _) in GitHubTopicsDiscoverer.VariantPatterns.LanguageDisplayNames)
+        {
+            if (input.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+            {
+                return pattern.ToLowerInvariant();
+            }
         }
 
         return null;
@@ -1260,6 +1299,13 @@ public sealed partial class ContentStateService(
 
         var itemVariant = ExtractVariantToken(item.Name) ?? ExtractVariantToken(item.Id);
         var manifestVariant = ExtractVariantToken(manifest.Name) ?? ExtractVariantToken(manifest.Id.Value);
+
+        if (string.IsNullOrEmpty(manifestVariant) && manifest.Files != null && manifest.Files.Count > 0)
+        {
+            manifestVariant = manifest.Files
+                .Select(f => ExtractVariantToken(f.RelativePath))
+                .FirstOrDefault(v => !string.IsNullOrEmpty(v));
+        }
 
         if (!string.IsNullOrEmpty(itemVariant) && !string.IsNullOrEmpty(manifestVariant))
         {

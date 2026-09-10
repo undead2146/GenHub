@@ -30,12 +30,14 @@ namespace GenHub.Features.Downloads.ViewModels;
 /// <param name="searchResult">The content search result to display.</param>
 /// <param name="contentStateService">The content state service.</param>
 /// <param name="logger">The logger.</param>
+/// <param name="downloadCoordinator">The optional download coordinator.</param>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "ViewModel instance methods and properties bound to UI and MVVM bindings.")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Critical Code Smell", "S3776:Cognitive Complexity of methods should not be too high", Justification = "Content grid item VM coordinates download, installation, and multi-component bundle state.")]
 public sealed partial class ContentGridItemViewModel(
     ContentSearchResult searchResult,
     IContentStateService contentStateService,
-    ILogger<ContentGridItemViewModel> logger) : ObservableObject, IDisposable
+    ILogger<ContentGridItemViewModel> logger,
+    IContentDownloadCoordinator? downloadCoordinator = null) : ObservableObject, IDisposable
 {
     private const string UnknownValue = "Unknown";
 
@@ -47,7 +49,25 @@ public sealed partial class ContentGridItemViewModel(
     public ContentSearchResult SearchResult { get; } = searchResult ?? throw new ArgumentNullException(nameof(searchResult));
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanDownload))]
+    [NotifyPropertyChangedFor(nameof(CanUpdate))]
+    [NotifyPropertyChangedFor(nameof(ShowDownloadButton))]
     private bool _isDownloading;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanDownload))]
+    [NotifyPropertyChangedFor(nameof(CanUpdate))]
+    private bool _hasActiveDownloads;
+
+    /// <summary>
+    /// Gets a value indicating whether this item can start a download.
+    /// </summary>
+    public bool CanDownload => !IsDownloading && !HasActiveDownloads;
+
+    /// <summary>
+    /// Gets a value indicating whether this item can start an update.
+    /// </summary>
+    public bool CanUpdate => !IsDownloading && !HasActiveDownloads;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowDownloadButton))]
@@ -97,6 +117,20 @@ public sealed partial class ContentGridItemViewModel(
         WeakReferenceMessenger.Default.Register<ContentDownloadCompletedMessage>(
             this,
             static (recipient, msg) => ((ContentGridItemViewModel)recipient).OnDownloadCompleted(msg));
+
+        if (downloadCoordinator != null)
+        {
+            HasActiveDownloads = downloadCoordinator.HasActiveDownloads;
+            if (downloadCoordinator.IsDownloading(searchResult))
+            {
+                IsDownloading = true;
+                if (downloadCoordinator.TryGetDownloadProgress(searchResult, out var pct, out var status))
+                {
+                    DownloadProgress = (int)Math.Round(pct);
+                    DownloadStatus = status;
+                }
+            }
+        }
 
         LoadBundleComponents();
         _ = LoadIconAsync();
@@ -493,15 +527,16 @@ public sealed partial class ContentGridItemViewModel(
 
     private void OnDownloadStarted(ContentDownloadStartedMessage message)
     {
-        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName, message.ParentContentId))
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            HasActiveDownloads = true;
+            if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName, message.ParentContentId))
             {
                 IsDownloading = true;
                 DownloadProgress = 0;
                 DownloadStatus = "Starting download...";
-            });
-        }
+            }
+        });
     }
 
     private void OnDownloadProgress(ContentDownloadProgressMessage message)
@@ -524,9 +559,10 @@ public sealed partial class ContentGridItemViewModel(
 
     private void OnDownloadCompleted(ContentDownloadCompletedMessage message)
     {
-        if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName, message.ParentContentId))
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            HasActiveDownloads = downloadCoordinator?.HasActiveDownloads ?? false;
+            if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName, message.ParentContentId))
             {
                 IsDownloading = false;
                 if (!message.Success && !string.IsNullOrEmpty(message.ErrorMessage))
@@ -537,8 +573,8 @@ public sealed partial class ContentGridItemViewModel(
                 {
                     DownloadStatus = string.Empty;
                 }
-            });
-        }
+            }
+        });
     }
 
     private void ResetDownloadState()

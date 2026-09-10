@@ -13,6 +13,7 @@ using GenHub.Core.Models.GitHub;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Results.Content;
+using GenHub.Features.Content.Services.ContentDiscoverers;
 using GenHub.Features.Content.Services.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -321,30 +322,7 @@ public partial class GitHubResolver(
     /// </summary>
     private static string ExtractAssetVariant(string assetName)
     {
-        var nameWithoutExt = System.IO.Path.GetFileNameWithoutExtension(assetName);
-
-        // Common language patterns
-        var languagePatterns = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            { "english", "English" },
-            { "russian", "Russian" },
-            { "spanish", "Spanish" },
-            { "french", "French" },
-            { "german", "German" },
-            { "chinese", "Chinese" },
-            { "japanese", "Japanese" },
-            { "korean", "Korean" },
-        };
-
-        // Check if filename contains a language keyword
-        foreach (var (pattern, displayName) in languagePatterns)
-        {
-            if (nameWithoutExt.Contains(pattern, StringComparison.OrdinalIgnoreCase))
-                return displayName;
-        }
-
-        // Fallback: use the filename itself (cleaned up)
-        return nameWithoutExt.Replace("_", " ").Replace("-", " ").Trim();
+        return GitHubTopicsDiscoverer.ExtractAssetVariant(assetName);
     }
 
     private static (ContentType Type, bool IsInferred) InferContentType(string repo, string? releaseName)
