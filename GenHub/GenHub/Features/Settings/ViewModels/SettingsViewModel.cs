@@ -26,6 +26,7 @@ using GenHub.Core.Interfaces.Workspace;
 using GenHub.Core.Messages;
 using GenHub.Core.Models.AppUpdate;
 using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.Results.CAS;
 using GenHub.Core.Models.Theming;
 using GenHub.Features.AppUpdate.Interfaces;
 using GenHub.Features.Settings.Models;
@@ -1290,11 +1291,19 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             }
             else
             {
-                var partialDetails = !casDeleted && !userDataDeleted
-                    ? "some user data was kept and CAS cleanup failed"
-                    : !casDeleted
-                        ? "CAS cleanup failed"
-                        : "some user data was kept";
+                string partialDetails;
+                if (!casDeleted && !userDataDeleted)
+                {
+                    partialDetails = "some user data was kept and CAS cleanup failed";
+                }
+                else if (!casDeleted)
+                {
+                    partialDetails = "CAS cleanup failed";
+                }
+                else
+                {
+                    partialDetails = "some user data was kept";
+                }
 
                 _notificationService.ShowWarning(
                     "Data Partially Deleted",
@@ -1399,21 +1408,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
 
             if (showToast)
             {
-                if (result.ObjectsDeleted == 0)
-                {
-                    if (result.ObjectsReferenced > 0)
-                    {
-                        _notificationService.ShowInfo("CAS Clean", "All items in CAS are currently in use and cannot be deleted.", (int)TimeIntervals.NotificationHideDelay.TotalMilliseconds);
-                    }
-                    else
-                    {
-                        _notificationService.ShowInfo("CAS Empty", "CAS storage is already empty.", (int)TimeIntervals.NotificationHideDelay.TotalMilliseconds);
-                    }
-                }
-                else
-                {
-                    _notificationService.ShowSuccess("CAS Cleared", $"Deleted {result.ObjectsDeleted} objects, freed {result.BytesFreed / (double)ConversionConstants.BytesPerGigabyte:F2} GB.", 5000); // Keep 5s for significant operations
-                }
+                ShowCasStorageResultToast(result);
             }
 
             if (updateDangerZone)
@@ -1433,6 +1428,24 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
 
             return false;
         }
+    }
+
+    private void ShowCasStorageResultToast(CasGarbageCollectionResult result)
+    {
+        if (result.ObjectsDeleted > 0)
+        {
+            _notificationService.ShowSuccess(
+                "CAS Cleared",
+                $"Deleted {result.ObjectsDeleted} objects, freed {result.BytesFreed / (double)ConversionConstants.BytesPerGigabyte:F2} GB.",
+                5000);
+            return;
+        }
+
+        var (title, message) = result.ObjectsReferenced > 0
+            ? ("CAS Clean", "All items in CAS are currently in use and cannot be deleted.")
+            : ("CAS Empty", "CAS storage is already empty.");
+
+        _notificationService.ShowInfo(title, message, (int)TimeIntervals.NotificationHideDelay.TotalMilliseconds);
     }
 
     [RelayCommand]

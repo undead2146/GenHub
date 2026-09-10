@@ -258,15 +258,7 @@ public sealed class ContentDownloadCoordinator(
             }
         }
 
-        foreach (var pair in _inFlightDownloads)
-        {
-            if (MatchesInFlightDownload(pair.Value, searchResult))
-            {
-                return pair.Value;
-            }
-        }
-
-        return null;
+        return _inFlightDownloads.Values.FirstOrDefault(download => MatchesInFlightDownload(download, searchResult));
     }
 
     private async Task<(InFlightDownload InFlight, bool IsInitiator)> GetOrCreateInFlightDownloadAsync(
