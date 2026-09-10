@@ -1791,4 +1791,110 @@ public sealed class ContentDetailViewModelTests
         var ex = await Record.ExceptionAsync(() => downloadTask);
         Assert.Null(ex);
     }
+    /// <summary>
+    /// Verifies that Generals Online preserves its authoritative GameClient content type across release population,
+    /// rather than falling back to Addon, and that CanChangeContentType is false.
+    /// </summary>
+    [Fact]
+    public void GeneralsOnline_RetainsGameClientContentType_AndCanChangeContentTypeIsFalse()
+    {
+        // Arrange
+        var searchResult = new ContentSearchResult
+        {
+            Id = "generalsonline.client",
+            Name = "Generals Online",
+            ProviderName = PublisherTypeConstants.GeneralsOnline,
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+            SourceUrl = "https://playgenerals.online/download",
+            RequiresResolution = true,
+        };
+
+        var coordinator = new Mock<IContentDownloadCoordinator>();
+        var viewModel = CreateViewModel(searchResult, coordinator.Object);
+
+        // Act
+        viewModel.Initialize();
+
+        // Assert
+        Assert.Equal(ContentType.GameClient, viewModel.ContentType);
+        Assert.Equal(ContentType.GameClient, viewModel.SelectedContentType);
+        Assert.False(viewModel.CanChangeContentType);
+        if (viewModel.Releases.Count > 0)
+        {
+            Assert.Equal(ContentType.GameClient, viewModel.Releases[0].ContentType);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that official providers (Generals Online, Community Outpost, The Super Hackers)
+    /// lock their content type and reject changes.
+    /// </summary>
+    /// <param name="provider">The official provider identifier.</param>
+    [Theory]
+    [InlineData(PublisherTypeConstants.GeneralsOnline)]
+    [InlineData(PublisherTypeConstants.CommunityOutpost)]
+    [InlineData(PublisherTypeConstants.TheSuperHackers)]
+    public void OfficialProviders_CanChangeContentTypeIsFalse_AndContentTypeChangeIsBlocked(string provider)
+    {
+        // Arrange
+        var searchResult = new ContentSearchResult
+        {
+            Id = $"{provider}.test",
+            Name = $"{provider} Content",
+            ProviderName = provider,
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+        };
+
+        var coordinator = new Mock<IContentDownloadCoordinator>();
+        var viewModel = CreateViewModel(searchResult, coordinator.Object);
+
+        // Assert initial
+        Assert.False(viewModel.CanChangeContentType);
+
+        // Act: try to change SelectedContentType
+        viewModel.SelectedContentType = ContentType.Addon;
+
+        // Assert: searchResult.ContentType remains unchanged
+        Assert.Equal(ContentType.Mod, searchResult.ContentType);
+    }
+
+    /// <summary>
+    /// Verifies that generic GitHub community content allows changing content type before download,
+    /// but locks it once downloaded or downloading.
+    /// </summary>
+    [Fact]
+    public void GenericGitHub_CanChangeContentTypeIsTrue_BeforeDownload_AndFalseAfterDownload()
+    {
+        // Arrange
+        var searchResult = new ContentSearchResult
+        {
+            Id = "github.someone.generals-tool",
+            Name = "Generals Community Tool",
+            ProviderName = "GitHub",
+            ContentType = ContentType.Mod,
+            TargetGame = GameType.ZeroHour,
+        };
+
+        var coordinator = new Mock<IContentDownloadCoordinator>();
+        var viewModel = CreateViewModel(searchResult, coordinator.Object);
+
+        // Assert: prior to download, user can change content type
+        Assert.True(viewModel.CanChangeContentType);
+
+        // Act: change content type prior to download
+        viewModel.SelectedContentType = ContentType.ModdingTool;
+        Assert.Equal(ContentType.ModdingTool, searchResult.ContentType);
+        Assert.Equal(ContentType.ModdingTool, viewModel.ContentType);
+
+        // Download in progress
+        viewModel.IsDownloading = true;
+        Assert.False(viewModel.CanChangeContentType);
+
+        // Download complete
+        viewModel.IsDownloading = false;
+        viewModel.IsDownloaded = true;
+        Assert.False(viewModel.CanChangeContentType);
+    }
 }

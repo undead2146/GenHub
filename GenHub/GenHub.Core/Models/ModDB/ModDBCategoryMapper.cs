@@ -1,3 +1,4 @@
+using System;
 using GenHub.Core.Models.Enums;
 
 namespace GenHub.Core.Models.ModDB;
@@ -86,9 +87,9 @@ public static class ModDBCategoryMapper
     }
 
     /// <summary>
-    /// Maps a friendly category name (from text scraping) to ContentType.
+    /// Maps a friendly category name (from text scraping or provider metadata) to ContentType.
     /// </summary>
-    /// <param name="categoryName">The category name (e.g., &quot;Full Version&quot;, &quot;Multiplayer Map&quot;).</param>
+    /// <param name="categoryName">The category name (e.g., &quot;Full Version&quot;, &quot;GameClient&quot;, &quot;Multiplayer Map&quot;).</param>
     /// <returns>The mapped ContentType.</returns>
     public static ContentType MapCategoryByName(string? categoryName)
     {
@@ -97,12 +98,25 @@ public static class ModDBCategoryMapper
             return ContentType.Addon;
         }
 
-        var lower = categoryName.ToLowerInvariant();
+        var trimmed = categoryName.Trim();
+        var normalized = trimmed.Replace(" ", string.Empty).Replace("-", string.Empty);
+        if (Enum.TryParse<ContentType>(normalized, ignoreCase: true, out var exactParsed) &&
+            exactParsed != ContentType.UnknownContentType)
+        {
+            return exactParsed;
+        }
+
+        var lower = trimmed.ToLowerInvariant();
 
         return lower switch
         {
+            var s when s.Contains("game client") || s.Contains("gameclient") => ContentType.GameClient,
+            var s when s.Contains("game installation") || s.Contains("gameinstallation") => ContentType.GameInstallation,
+            var s when s.Contains("content bundle") || s.Contains("contentbundle") => ContentType.ContentBundle,
+            var s when s.Contains("executable") || s.Contains("exe") => ContentType.Executable,
             var s when s.Contains("full version") => ContentType.Mod,
             var s when s.Contains("demo") => ContentType.Mod,
+            var s when s == "mod" || s == "mods" || s.StartsWith("mod ") || s.EndsWith(" mod") => ContentType.Mod,
             var s when s.Contains("patch") => ContentType.Patch,
             var s when s.Contains("script") => ContentType.Patch,
             var s when s.Contains("trainer") => ContentType.Addon,
@@ -118,8 +132,11 @@ public static class ModDBCategoryMapper
 
             var s when s.Contains("multiplayer map") => ContentType.Map,
             var s when s.Contains("singleplayer map") => ContentType.Map,
+            var s when s.Contains("map pack") || s.Contains("mappack") || s == "maps" => ContentType.MapPack,
             var s when s.Contains("map") => ContentType.Map,
             var s when s.Contains("prefab") => ContentType.Map,
+
+            var s when s.Contains("mission") => ContentType.Mission,
 
             var s when s.Contains("skin") => ContentType.Skin,
             var s when s.Contains("gui") => ContentType.Skin,

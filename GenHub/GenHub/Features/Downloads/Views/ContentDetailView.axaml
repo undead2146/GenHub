@@ -1539,15 +1539,28 @@
                                     <TextBlock Grid.Column="1" Text="{Binding LastUpdatedDisplay}" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Right"/>
                                 </Grid>
 
-                                <!-- Content type can be corrected before download when a mixed or
-                                     generic publisher cannot classify an item reliably. -->
+                                <!-- Content type can only be corrected before download for generic GitHub items.
+                                     Official providers (Generals Online, Community Outpost, The Super Hackers) are locked. -->
                                 <Grid ColumnDefinitions="Auto,*" VerticalAlignment="Center">
-                                    <TextBlock Grid.Column="0" Text="Type" Foreground="{DynamicResource TextSecondary}"/>
+                                    <TextBlock Grid.Column="0" Text="Type" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
                                     <ComboBox Grid.Column="1"
                                               ItemsSource="{Binding ContentTypeOptions}"
                                               SelectedItem="{Binding SelectedContentType}"
                                               HorizontalAlignment="Right"
-                                              MinWidth="130" />
+                                              MinWidth="130"
+                                              IsVisible="{Binding CanChangeContentType}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Converter={StaticResource ContentTypeDisplayConverter}}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding ContentType, Converter={StaticResource ContentTypeDisplayConverter}}"
+                                               Foreground="{DynamicResource TextPrimary}"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               IsVisible="{Binding !CanChangeContentType}" />
                                 </Grid>
 
                                 <!-- Version - only show if not empty -->

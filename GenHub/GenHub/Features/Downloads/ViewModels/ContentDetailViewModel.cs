@@ -138,6 +138,7 @@ public partial class ContentDetailViewModel(
     [NotifyPropertyChangedFor(nameof(ShowAddToProfileButton))]
     [NotifyPropertyChangedFor(nameof(CanDownload))]
     [NotifyPropertyChangedFor(nameof(CanUpdate))]
+    [NotifyPropertyChangedFor(nameof(CanChangeContentType))]
     private bool _isDownloading;
 
     [ObservableProperty]
@@ -158,6 +159,7 @@ public partial class ContentDetailViewModel(
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowDownloadButton))]
     [NotifyPropertyChangedFor(nameof(ShowAddToProfileButton))]
+    [NotifyPropertyChangedFor(nameof(CanChangeContentType))]
     private bool _isDownloaded;
 
     [ObservableProperty]
@@ -398,10 +400,22 @@ public partial class ContentDetailViewModel(
     }
 
     /// <summary>
-    /// Gets the content classifications the user can apply before or after download.
-    /// After acquisition, changing the type updates the stored manifest (e.g. Addon → Executable).
+    /// Gets the selectable content classifications for community content.
     /// </summary>
-    public IReadOnlyList<ContentType> ContentTypeOptions { get; } = Enum.GetValues<ContentType>();
+    public IReadOnlyList<ContentType> ContentTypeOptions { get; } =
+    [
+        ContentType.Mod,
+        ContentType.Patch,
+        ContentType.Addon,
+        ContentType.MapPack,
+        ContentType.Map,
+        ContentType.Mission,
+        ContentType.LanguagePack,
+        ContentType.Skin,
+        ContentType.ModdingTool,
+        ContentType.Executable,
+        ContentType.GameClient,
+    ];
 
     /// <summary>
     /// Gets a value indicating whether the content has a source page to open.
@@ -551,6 +565,17 @@ public partial class ContentDetailViewModel(
     /// Gets the content type.
     /// </summary>
     public ContentType ContentType => SelectedContentType;
+
+    /// <summary>
+    /// Gets a value indicating whether the user can change the content type.
+    /// Official providers (Generals Online, Community Outpost, The Super Hackers) and other
+    /// structured publishers lock their content type; only un-downloaded generic GitHub community items
+    /// allow user correction prior to download.
+    /// </summary>
+    public bool CanChangeContentType =>
+        !IsDownloaded &&
+        !IsDownloading &&
+        ContentCardBadgeHelper.IsGenericGitHub(searchResult);
 
     /// <summary>
     /// Gets the provider name.
@@ -2617,6 +2642,11 @@ public partial class ContentDetailViewModel(
 
     private void UpdateContentTypeFromParsedPage(ParsedWebPage parsedPage)
     {
+        if (ContentCardBadgeHelper.IsOfficialProvider(searchResult))
+        {
+            return;
+        }
+
         var detailedPrimaryFile = parsedPage.Sections.OfType<DownloadableFile>().FirstOrDefault();
         if (detailedPrimaryFile != null && !string.IsNullOrWhiteSpace(detailedPrimaryFile.Category))
         {
@@ -3060,6 +3090,10 @@ public partial class ContentDetailViewModel(
 
     partial void OnSelectedContentTypeChanged(ContentType value)
     {
+        if (!_suppressContentTypePersist && ContentCardBadgeHelper.IsOfficialProvider(searchResult))
+        {
+            return;
+        }
 
         if (SelectedDownloadableItem != null)
         {
@@ -4341,9 +4375,31 @@ public partial class ContentDetailViewModel(
     private ReleaseItemViewModel CreateReleaseItemViewModel(DownloadableFile file)
     {
         var isDetailsAlreadyLoaded = IsFileDetailsAlreadyLoaded(file);
-        var mappedType = !string.IsNullOrWhiteSpace(file.Category)
-            ? ModDBCategoryMapper.MapCategoryByName(file.Category)
-            : ContentType.Mod;
+        ContentType mappedType;
+
+        if (ContentCardBadgeHelper.IsOfficialProvider(searchResult))
+        {
+            mappedType = searchResult.ContentType;
+        }
+        else if (!string.IsNullOrWhiteSpace(file.Category))
+        {
+            mappedType = ModDBCategoryMapper.MapCategoryByName(file.Category);
+            if (mappedType == ContentType.Addon &&
+                file.FileSectionType != FileSectionType.Addons &&
+                searchResult.ContentType != ContentType.UnknownContentType &&
+                searchResult.ContentType != ContentType.Addon)
+            {
+                mappedType = searchResult.ContentType;
+            }
+        }
+        else if (searchResult.ContentType != ContentType.UnknownContentType)
+        {
+            mappedType = searchResult.ContentType;
+        }
+        else
+        {
+            mappedType = ContentType.Mod;
+        }
 
         ReleaseItemViewModel releaseItem = new()
         {
