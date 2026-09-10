@@ -38,7 +38,7 @@ public sealed class SafeMarkdownPathResolver : IPathResolver
             try
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-                var response = await HttpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
+                using var response = await HttpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode)
                 {
                     return null;
@@ -49,24 +49,33 @@ public sealed class SafeMarkdownPathResolver : IPathResolver
                     return null;
                 }
 
-                var stream = await response.Content.ReadAsStreamAsync(cts.Token).ConfigureAwait(false);
+                using var stream = await response.Content.ReadAsStreamAsync(cts.Token).ConfigureAwait(false);
                 var memoryStream = new MemoryStream();
-                var buffer = new byte[81920];
-                int bytesRead;
-                long totalBytes = 0;
-                while ((bytesRead = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cts.Token).ConfigureAwait(false)) > 0)
+                try
                 {
-                    totalBytes += bytesRead;
-                    if (totalBytes > MaxImageSizeBytes)
+                    var buffer = new byte[81920];
+                    int bytesRead;
+                    long totalBytes = 0;
+                    while ((bytesRead = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cts.Token).ConfigureAwait(false)) > 0)
                     {
-                        return null;
+                        totalBytes += bytesRead;
+                        if (totalBytes > MaxImageSizeBytes)
+                        {
+                            memoryStream.Dispose();
+                            return null;
+                        }
+
+                        await memoryStream.WriteAsync(buffer.AsMemory(0, bytesRead), cts.Token).ConfigureAwait(false);
                     }
 
-                    await memoryStream.WriteAsync(buffer.AsMemory(0, bytesRead), cts.Token).ConfigureAwait(false);
+                    memoryStream.Position = 0;
+                    return memoryStream;
                 }
-
-                memoryStream.Position = 0;
-                return memoryStream;
+                catch
+                {
+                    memoryStream.Dispose();
+                    throw;
+                }
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException or IOException)
             {
