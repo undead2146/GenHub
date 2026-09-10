@@ -580,5 +580,4 @@ public sealed class ContentDownloadCoordinatorTests
 
         Assert.False(coordinator.HasActiveDownloads);
     }
-
 }
