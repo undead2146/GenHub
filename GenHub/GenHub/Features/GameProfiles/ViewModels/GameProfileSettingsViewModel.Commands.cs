@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.GameProfiles;
@@ -215,25 +216,8 @@ public partial class GameProfileSettingsViewModel
             itemToRemove.IsEnabled = false;
             EnabledContent.Remove(itemToRemove);
 
-            if (itemToRemove.ContentType == SelectedContentType && itemToRemove.GameType == GameTypeFilter)
-            {
-                var alreadyInAvailable = AvailableContent.FirstOrDefault(a => a.ManifestId.Value == itemToRemove.ManifestId.Value);
-                if (alreadyInAvailable == null)
-                {
-                    AvailableContent.Add(itemToRemove);
-                }
-                else
-                {
-                    alreadyInAvailable.IsEnabled = false;
-                }
-            }
-
-            if (itemToRemove.ContentType == ContentType.GameInstallation &&
-                SelectedGameInstallation?.ManifestId.Value == itemToRemove.ManifestId.Value)
-            {
-                SelectedGameInstallation = null;
-                _logger?.LogInformation("Cleared SelectedGameInstallation");
-            }
+            UpdateAvailableContentOnDisable(itemToRemove);
+            UpdateSelectedInstallationOnDisable(itemToRemove);
 
             StatusMessage = $"Disabled {itemToRemove.DisplayName}";
             _logger?.LogInformation("Disabled content {ContentName} from profile", itemToRemove.DisplayName);
@@ -245,6 +229,41 @@ public partial class GameProfileSettingsViewModel
         }
 
         await Task.CompletedTask;
+    }
+
+    private void UpdateAvailableContentOnDisable(ContentDisplayItem itemToRemove)
+    {
+        if (itemToRemove.ContentType != SelectedContentType || itemToRemove.GameType != GameTypeFilter)
+        {
+            return;
+        }
+
+        var alreadyInAvailable = AvailableContent.FirstOrDefault(a => a.ManifestId.Value == itemToRemove.ManifestId.Value);
+        if (alreadyInAvailable == null)
+        {
+            AvailableContent.Add(itemToRemove);
+        }
+        else
+        {
+            alreadyInAvailable.IsEnabled = false;
+        }
+    }
+
+    private void UpdateSelectedInstallationOnDisable(ContentDisplayItem itemToRemove)
+    {
+        if (itemToRemove.ContentType == ContentType.GameInstallation &&
+            SelectedGameInstallation?.ManifestId.Value == itemToRemove.ManifestId.Value)
+        {
+            SelectedGameInstallation = null;
+            _logger?.LogInformation("Cleared SelectedGameInstallation");
+        }
+        else if (itemToRemove.ContentType is ContentType.GameClient or ContentType.Mod &&
+                 SelectedGameInstallation != null &&
+                 EnabledContent.All(e => e.ContentType is not (ContentType.GameClient or ContentType.Mod)))
+        {
+            SelectedGameInstallation = null;
+            _logger?.LogInformation("Auto-disabled SelectedGameInstallation as no GameClient or Mod remains enabled");
+        }
     }
 
     [RelayCommand]
@@ -339,7 +358,11 @@ public partial class GameProfileSettingsViewModel
                 return;
             }
 
-            if (SelectedGameInstallation == null)
+            var enabledItems = EnabledContent.Where(c => c.IsEnabled).ToList();
+            var isStandaloneProfile = ToolProfileHelper.IsToolProfile(
+                enabledItems.Select(c => (c.ManifestId.Value, c.ContentType)));
+
+            if (SelectedGameInstallation == null && !isStandaloneProfile)
             {
                 StatusMessage = "Please select a game installation";
                 return;
@@ -351,12 +374,11 @@ public partial class GameProfileSettingsViewModel
                 return;
             }
 
-            var hasLaunchableContent = EnabledContent.Any(c =>
-                c.IsEnabled &&
-                (c.ContentType == ContentType.GameInstallation ||
-                 c.ContentType == ContentType.GameClient ||
-                 c.ContentType == ContentType.Executable ||
-                 c.ContentType == ContentType.ModdingTool));
+            var hasLaunchableContent = enabledItems.Any(c =>
+                c.ContentType == ContentType.GameInstallation ||
+                c.ContentType == ContentType.GameClient ||
+                c.ContentType == ContentType.Executable ||
+                c.ContentType == ContentType.ModdingTool);
 
             if (!hasLaunchableContent)
             {
@@ -368,7 +390,7 @@ public partial class GameProfileSettingsViewModel
                 return;
             }
 
-            var enabledContentIds = EnabledContent.Where(c => c.IsEnabled).Select(c => c.ManifestId.Value).ToList();
+            var enabledContentIds = enabledItems.Select(c => c.ManifestId.Value).ToList();
 
             if (_manifestPool != null)
             {
@@ -417,12 +439,15 @@ public partial class GameProfileSettingsViewModel
             return;
         }
 
+        var isStandaloneProfile = ToolProfileHelper.IsToolProfile(
+            EnabledContent.Where(c => c.IsEnabled).Select(c => (c.ManifestId.Value, c.ContentType)));
+
         var createRequest = new CreateProfileRequest
         {
             Name = Name,
             Description = Description,
-            GameInstallationId = SelectedGameInstallation?.SourceId,
-            GameClientId = SelectedGameInstallation?.GameClientId,
+            GameInstallationId = isStandaloneProfile ? null : SelectedGameInstallation?.SourceId,
+            GameClientId = isStandaloneProfile ? null : SelectedGameInstallation?.GameClientId,
             WorkspaceStrategy = SelectedWorkspaceStrategy,
             EnabledContentIds = enabledContentIds,
             CommandLineArguments = CommandLineArguments,
@@ -664,12 +689,15 @@ public partial class GameProfileSettingsViewModel
 
     private UpdateProfileRequest BuildUpdateRequest(List<string> enabledContentIds, UpdateProfileRequest? gameSettings)
     {
+        var isStandaloneProfile = ToolProfileHelper.IsToolProfile(
+            EnabledContent.Where(c => c.IsEnabled).Select(c => (c.ManifestId.Value, c.ContentType)));
+
         var updateRequest = new UpdateProfileRequest
         {
             Name = Name,
             Description = Description,
             ThemeColor = ColorValue,
-            GameInstallationId = SelectedGameInstallation?.SourceId,
+            GameInstallationId = isStandaloneProfile ? null : SelectedGameInstallation?.SourceId,
             WorkspaceStrategy = OriginalWorkspaceStrategy.HasValue && SelectedWorkspaceStrategy != OriginalWorkspaceStrategy.Value
                 ? SelectedWorkspaceStrategy
                 : null,
