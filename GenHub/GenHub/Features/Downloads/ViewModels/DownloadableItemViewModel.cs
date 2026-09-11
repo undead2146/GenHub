@@ -248,7 +248,7 @@ public abstract partial class DownloadableItemViewModel : ObservableObject, IDow
     /// <summary>
     /// Gets the checksum string to display.
     /// </summary>
-    public string? ChecksumDisplay => Sha256Hash ?? Md5Hash;
+    public string? ChecksumDisplay => string.IsNullOrWhiteSpace(Sha256Hash) ? Md5Hash : Sha256Hash;
 
     /// <summary>
     /// Gets or sets the download count.
@@ -485,35 +485,6 @@ public abstract partial class DownloadableItemViewModel : ObservableObject, IDow
         else if (!IsExpanded && _fetchCts != null)
         {
             await _fetchCts.CancelAsync();
-        }
-    }
-
-    /// <summary>
-    /// Copies the MD5 hash to the system clipboard.
-    /// </summary>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    [RelayCommand]
-    public async Task CopyMd5Async()
-    {
-        if (string.IsNullOrEmpty(Md5Hash))
-        {
-            return;
-        }
-
-        try
-        {
-            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            {
-                var topLevel = TopLevel.GetTopLevel(desktop.MainWindow);
-                if (topLevel?.Clipboard != null)
-                {
-                    await topLevel.Clipboard.SetTextAsync(Md5Hash);
-                }
-            }
-        }
-        catch
-        {
-            // Clipboard access fallback ignored
         }
     }
 

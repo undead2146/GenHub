@@ -1,4 +1,6 @@
 using System;
+using System.IO;
+using System.Reflection;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using GenHub.Common.ViewModels;
@@ -61,11 +63,11 @@ public class ViewLocator : IDataTemplate
             {
                 // Ignore assembly scan errors for unloaded dependencies
             }
-            catch (System.IO.FileNotFoundException)
+            catch (FileNotFoundException)
             {
                 // Ignore assembly scan errors for unloaded dependencies
             }
-            catch (System.Reflection.ReflectionTypeLoadException)
+            catch (ReflectionTypeLoadException)
             {
                 // Ignore assembly scan errors for unloaded dependencies
             }

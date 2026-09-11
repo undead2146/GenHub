@@ -1,5 +1,8 @@
 using System;
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows.Input;
 using Markdown.Avalonia.Utils;
 
@@ -36,7 +39,7 @@ public sealed class SafeMarkdownHyperlinkCommand : ICommand
         {
             DefaultHyperlinkCommand.GoTo(safeUri.AbsoluteUri);
         }
-        catch (System.ComponentModel.Win32Exception)
+        catch (Win32Exception)
         {
             // Silently ignore browser launch errors.
         }
@@ -44,11 +47,19 @@ public sealed class SafeMarkdownHyperlinkCommand : ICommand
         {
             // Silently ignore browser launch errors.
         }
-        catch (System.IO.IOException)
+        catch (IOException)
         {
             // Silently ignore browser launch errors.
         }
         catch (NotSupportedException)
+        {
+            // Silently ignore browser launch errors.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Silently ignore browser launch errors.
+        }
+        catch (ExternalException)
         {
             // Silently ignore browser launch errors.
         }

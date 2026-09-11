@@ -88,9 +88,9 @@ public static class ModDBCategoryMapper
     }
 
     /// <summary>
-    /// Keyword rules for mapping friendly category names to <see cref="ContentType"/>.
+    /// High-priority keyword rules evaluated before mod match heuristics.
     /// </summary>
-    private static readonly (string[] Substrings, ContentType Type)[] CategoryKeywordRules =
+    private static readonly (string[] Substrings, ContentType Type)[] PreModKeywordRules =
     [
         (["game client", "gameclient"], ContentType.GameClient),
         (["game installation", "gameinstallation"], ContentType.GameInstallation),
@@ -98,12 +98,25 @@ public static class ModDBCategoryMapper
         (["executable", "exe"], ContentType.Executable),
         (["trailer", "movie", "video"], ContentType.Video),
         (["tool", "sdk", "source code"], ContentType.ModdingTool),
-        (["full version", "demo"], ContentType.Mod),
+    ];
+
+    /// <summary>
+    /// Post-mod keyword rules evaluated after mod match heuristics but before generic map/mission fallbacks.
+    /// </summary>
+    private static readonly (string[] Substrings, ContentType Type)[] PostModKeywordRules =
+    [
         (["patch", "script"], ContentType.Patch),
         (["trainer"], ContentType.Addon),
         (["multiplayer map", "singleplayer map"], ContentType.Map),
         (["map pack", "mappack"], ContentType.MapPack),
-        (["prefab"], ContentType.Map),
+    ];
+
+    /// <summary>
+    /// Fallback keyword rules evaluated after bare 'maps' token matching.
+    /// </summary>
+    private static readonly (string[] Substrings, ContentType Type)[] FallbackKeywordRules =
+    [
+        (["map", "prefab"], ContentType.Map),
         (["mission"], ContentType.Mission),
         (["skin", "gui", "hud"], ContentType.Skin),
         (["language"], ContentType.LanguagePack),
@@ -150,12 +163,9 @@ public static class ModDBCategoryMapper
 
     private static ContentType MapByKeywords(string lower)
     {
-        foreach (var (keywords, type) in CategoryKeywordRules)
+        if (TryMatchRule(PreModKeywordRules, lower, out var preModType))
         {
-            if (keywords.Any(keyword => lower.Contains(keyword, StringComparison.Ordinal)))
-            {
-                return type;
-            }
+            return preModType;
         }
 
         if (IsIdeMatch(lower))
@@ -163,17 +173,44 @@ public static class ModDBCategoryMapper
             return ContentType.ModdingTool;
         }
 
-        if (IsModMatch(lower))
+        if (lower.Contains("full version", StringComparison.Ordinal) ||
+            lower.Contains("demo", StringComparison.Ordinal) ||
+            IsModMatch(lower))
         {
             return ContentType.Mod;
         }
 
-        if (lower == "maps" || lower.Contains("map"))
+        if (TryMatchRule(PostModKeywordRules, lower, out var postModType))
         {
-            return ContentType.Map;
+            return postModType;
+        }
+
+        if (lower == "maps")
+        {
+            return ContentType.MapPack;
+        }
+
+        if (TryMatchRule(FallbackKeywordRules, lower, out var fallbackType))
+        {
+            return fallbackType;
         }
 
         return ContentType.Addon;
+    }
+
+    private static bool TryMatchRule((string[] Substrings, ContentType Type)[] rules, string lower, out ContentType matchedType)
+    {
+        foreach (var (keywords, type) in rules)
+        {
+            if (keywords.Any(keyword => lower.Contains(keyword, StringComparison.Ordinal)))
+            {
+                matchedType = type;
+                return true;
+            }
+        }
+
+        matchedType = ContentType.Addon;
+        return false;
     }
 
     private static bool IsIdeMatch(string s) =>

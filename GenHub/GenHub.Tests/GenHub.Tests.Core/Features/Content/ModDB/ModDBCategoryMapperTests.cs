@@ -70,7 +70,10 @@ public class ModDBCategoryMapperTests
     [InlineData("Content Bundle", ContentType.ContentBundle)]
     [InlineData("Executable", ContentType.Executable)]
     [InlineData("Map Pack", ContentType.MapPack)]
+    [InlineData("maps", ContentType.MapPack)]
     [InlineData("Mission", ContentType.Mission)]
+    [InlineData("language mod", ContentType.Mod)]
+    [InlineData("map mission", ContentType.Map)]
     public void MapCategoryByName_MapsNamesCorrectly(string categoryName, ContentType expected)
     {
         var result = ModDBCategoryMapper.MapCategoryByName(categoryName);

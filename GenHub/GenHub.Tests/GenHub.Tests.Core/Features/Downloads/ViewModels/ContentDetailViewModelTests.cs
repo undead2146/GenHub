@@ -2079,4 +2079,26 @@ public sealed class ContentDetailViewModelTests
         Assert.Equal(ContentConstants.Md5ChecksumTitle, item.ChecksumTitle);
         Assert.Equal("098f6bcd4621d373cade4e832627b4f6", item.ChecksumDisplay);
     }
+
+    /// <summary>
+    /// Verifies that when a downloadable item has an empty SHA-256 string,
+    /// it correctly falls back to displaying the valid MD5 checksum.
+    /// </summary>
+    [Fact]
+    public void DownloadableItem_WithEmptySha256AndValidMd5_DisplaysMd5Checksum()
+    {
+        // Arrange
+        var item = new ReleaseItemViewModel
+        {
+            Sha256Hash = string.Empty,
+            Md5Hash = "098f6bcd4621d373cade4e832627b4f6",
+        };
+
+        // Assert
+        Assert.False(item.HasSha256Hash);
+        Assert.True(item.HasMd5Hash);
+        Assert.True(item.HasChecksum);
+        Assert.Equal(ContentConstants.Md5ChecksumTitle, item.ChecksumTitle);
+        Assert.Equal("098f6bcd4621d373cade4e832627b4f6", item.ChecksumDisplay);
+    }
 }

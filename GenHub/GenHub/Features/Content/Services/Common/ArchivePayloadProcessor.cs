@@ -1202,8 +1202,8 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         var stream0ExceededCap = false;
         try
         {
-            var nonDisp = new NonDisposingStream(stream);
-            var z0 = new SharpCompress.Compressors.Deflate.ZlibStream(nonDisp, SharpCompress.Compressors.CompressionMode.Decompress);
+            using var nonDisp = new NonDisposingStream(stream);
+            using var z0 = new SharpCompress.Compressors.Deflate.ZlibStream(nonDisp, SharpCompress.Compressors.CompressionMode.Decompress);
             var buf0 = new byte[8192];
             var stream0Bytes = 0L;
             int r0 = 0;
@@ -1262,8 +1262,8 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         if (byte0 == 0x78)
         {
             // ZLib stream
-            var nonDisp = new NonDisposingStream(stream);
-            var z = new SharpCompress.Compressors.Deflate.ZlibStream(nonDisp, SharpCompress.Compressors.CompressionMode.Decompress);
+            using var nonDisp = new NonDisposingStream(stream);
+            using var z = new SharpCompress.Compressors.Deflate.ZlibStream(nonDisp, SharpCompress.Compressors.CompressionMode.Decompress);
             CopyStreamWithCap(z, outStream, copyBuffer, ref totalBytesWritten);
             stream.Position = streamStartPos + z.TotalIn;
         }
@@ -1292,8 +1292,8 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         {
             // Legacy SIM ZLib with prefix
             stream.Position = streamStartPos + 1;
-            var nonDisp = new NonDisposingStream(stream);
-            var z = new SharpCompress.Compressors.Deflate.ZlibStream(nonDisp, SharpCompress.Compressors.CompressionMode.Decompress);
+            using var nonDisp = new NonDisposingStream(stream);
+            using var z = new SharpCompress.Compressors.Deflate.ZlibStream(nonDisp, SharpCompress.Compressors.CompressionMode.Decompress);
             CopyStreamWithCap(z, outStream, copyBuffer, ref totalBytesWritten);
             stream.Position = streamStartPos + 1 + z.TotalIn;
         }

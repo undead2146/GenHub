@@ -79,7 +79,7 @@ public partial class GitHubResolver(
                     repo,
                     tag);
 
-                return await ResolveSingleAssetAsync(discoveredItem, owner, repo, tag, singleAsset);
+                return await ResolveSingleAssetAsync(discoveredItem, owner, repo, tag, singleAsset, cancellationToken);
             }
 
             // Otherwise, fetch the full release and include all assets
@@ -90,7 +90,7 @@ public partial class GitHubResolver(
                 return OperationResult<ContentManifest>.CreateFailure(releaseResult.FirstError ?? "Failed to fetch release");
             }
 
-            return await BuildFullReleaseManifestAsync(discoveredItem, owner, repo, releaseResult.Data);
+            return await BuildFullReleaseManifestAsync(discoveredItem, owner, repo, releaseResult.Data, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -218,7 +218,7 @@ public partial class GitHubResolver(
         var assetData = discoveredItem.GetData<GitHubArtifact>();
         if (assetData != null)
         {
-            return await ResolveSingleAssetAsync(discoveredItem, owner, repo, tag, assetData);
+            return await ResolveSingleAssetAsync(discoveredItem, owner, repo, tag, assetData, cancellationToken);
         }
 
         var selectedRelease = await gitHubApiClient.GetReleaseByTagAsync(
@@ -264,7 +264,8 @@ public partial class GitHubResolver(
                 Name = selectedAsset.Name,
                 DownloadUrl = selectedAsset.BrowserDownloadUrl,
                 IsRelease = true,
-            });
+            },
+            cancellationToken);
     }
 
     private async Task<OperationResult<GitHubRelease>> FetchFullReleaseAsync(
@@ -314,11 +315,21 @@ public partial class GitHubResolver(
         return OperationResult<GitHubRelease>.CreateSuccess(release);
     }
 
+    /// <summary>
+    /// Builds a full release manifest including all release assets.
+    /// </summary>
+    /// <param name="discoveredItem">The discovered content search result.</param>
+    /// <param name="owner">The repository owner.</param>
+    /// <param name="repo">The repository name.</param>
+    /// <param name="release">The GitHub release details.</param>
+    /// <param name="cancellationToken">Cancellation token to cancel the operation.</param>
+    /// <returns>An <see cref="OperationResult{ContentManifest}"/> containing the built manifest.</returns>
     private async Task<OperationResult<ContentManifest>> BuildFullReleaseManifestAsync(
         ContentSearchResult discoveredItem,
         string owner,
         string repo,
-        GitHubRelease release)
+        GitHubRelease release,
+        CancellationToken cancellationToken = default)
     {
         var userVersion = ExtractVersionFromReleaseTag(release.TagName);
         var publisherId = owner;
@@ -357,6 +368,8 @@ public partial class GitHubResolver(
 
         foreach (var asset in release.Assets)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             logger.LogDebug(
                 "Adding asset: {AssetName} ({AssetUrl})",
                 asset.Name,
@@ -389,13 +402,22 @@ public partial class GitHubResolver(
     /// <summary>
     /// Resolves a single release asset into a ContentManifest.
     /// </summary>
+    /// <param name="discoveredItem">The discovered content search result.</param>
+    /// <param name="owner">The repository owner.</param>
+    /// <param name="repo">The repository name.</param>
+    /// <param name="tag">The release tag.</param>
+    /// <param name="asset">The target release asset.</param>
+    /// <param name="cancellationToken">Cancellation token to cancel the operation.</param>
+    /// <returns>An <see cref="OperationResult{ContentManifest}"/> containing the built manifest.</returns>
     private async Task<OperationResult<ContentManifest>> ResolveSingleAssetAsync(
         ContentSearchResult discoveredItem,
         string owner,
         string repo,
         string tag,
-        GitHubArtifact asset)
+        GitHubArtifact asset,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         try
         {
             // Extract variant from asset name (e.g., "English" from "0_ImprovedMenusEnglish.big")
