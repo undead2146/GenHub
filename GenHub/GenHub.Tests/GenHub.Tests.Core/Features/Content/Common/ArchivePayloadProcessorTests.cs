@@ -685,10 +685,8 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
             }
 
             var entry2 = archive.CreateEntry("game2.big");
-            using (var writer2 = new StreamWriter(entry2.Open()))
-            {
-                await writer2.WriteAsync("payload2");
-            }
+            using var writer2 = new StreamWriter(entry2.Open());
+            await writer2.WriteAsync("payload2");
         }
 
         using var cts = new CancellationTokenSource();

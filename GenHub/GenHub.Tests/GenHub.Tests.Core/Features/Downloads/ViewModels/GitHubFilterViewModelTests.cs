@@ -44,9 +44,7 @@ public sealed class GitHubFilterViewModelTests
     [Fact]
     public void SelectedAuthor_ActivatesFilter_AndAppliesToQuery()
     {
-        var vm = new GitHubFilterViewModel();
-
-        vm.SelectedAuthor = "TheSuperHackers";
+        var vm = new GitHubFilterViewModel { SelectedAuthor = "TheSuperHackers" };
 
         Assert.True(vm.HasActiveFilters);
         Assert.Contains("Author: TheSuperHackers", vm.GetActiveFilterSummary());

@@ -1237,7 +1237,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
 
     private static void CopyStreamWithCap(Stream source, Stream destination, byte[] copyBuffer, ref long totalBytesWritten)
     {
-        int read;
+        int read = 0;
         while ((read = source.Read(copyBuffer, 0, copyBuffer.Length)) > 0)
         {
             totalBytesWritten += read;
