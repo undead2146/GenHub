@@ -847,6 +847,14 @@ public sealed partial class DownloadsBrowserViewModel(
         }
     }
 
+    private static List<ContentGridItemViewModel> SnapshotInFlight(PublisherInFlightOperation inFlight)
+    {
+        lock (inFlight.SyncRoot)
+        {
+            return inFlight.ResolvedItems.ToList();
+        }
+    }
+
     private void HandleSelectedPublisherChanged(PublisherItemViewModel? value)
     {
         if (value == null)
@@ -1188,12 +1196,7 @@ public sealed partial class DownloadsBrowserViewModel(
                 var retainedItems = new HashSet<ContentGridItemViewModel>(_browseCache.Values.SelectMany(s => s.Items));
                 foreach (var inFlight in _inFlightOperations.Values)
                 {
-                    List<ContentGridItemViewModel> inFlightSnapshot = [];
-                    lock (inFlight.SyncRoot)
-                    {
-                        inFlightSnapshot = inFlight.ResolvedItems.ToList();
-                    }
-
+                    var inFlightSnapshot = SnapshotInFlight(inFlight);
                     retainedItems.UnionWith(inFlightSnapshot);
                 }
 
@@ -1953,11 +1956,7 @@ public sealed partial class DownloadsBrowserViewModel(
                     if (_inFlightOperations.Remove(item.PublisherId, out var inFlight))
                     {
                         inFlight.Cts.Cancel();
-                        List<ContentGridItemViewModel> inFlightSnapshot;
-                        lock (inFlight.SyncRoot)
-                        {
-                            inFlightSnapshot = inFlight.ResolvedItems.ToList();
-                        }
+                        var inFlightSnapshot = SnapshotInFlight(inFlight);
 
                         foreach (var vm in inFlightSnapshot)
                         {
