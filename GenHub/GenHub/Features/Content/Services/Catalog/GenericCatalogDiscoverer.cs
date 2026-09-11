@@ -179,10 +179,10 @@ public class GenericCatalogDiscoverer(
         // Filter by search text
         if (!string.IsNullOrWhiteSpace(query.SearchTerm))
         {
-            var searchLower = query.SearchTerm.ToLowerInvariant();
-            var matchesName = content.Name?.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ?? false;
-            var matchesDescription = content.Description?.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ?? false;
-            var matchesTags = content.Tags?.Any(t => t?.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ?? false) ?? false;
+            var searchTerm = query.SearchTerm;
+            var matchesName = content.Name?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) == true;
+            var matchesDescription = content.Description?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) == true;
+            var matchesTags = content.Tags?.Any(t => t?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) == true) == true;
 
             if (!matchesName && !matchesDescription && !matchesTags)
             {
@@ -720,7 +720,7 @@ public class GenericCatalogDiscoverer(
         PopulatePresentation(searchResult, contentItem, release, contentNamesById);
         AttachResolverMetadata(searchResult, catalog, contentItem, resolvedRelease);
 
-        if (contentItem.ContentType == ContentType.ContentBundle || (release.Dependencies != null && release.Dependencies.Count > 0))
+        if (contentItem.ContentType == ContentType.ContentBundle || release.Dependencies is { Count: > 0 })
         {
             var components = CatalogBundleComponentBuilder.Build(catalog, contentItem, release);
             searchResult.ResolverMetadata[CatalogConstants.BundleComponentsJsonMetadataKey] =
@@ -852,7 +852,7 @@ public class GenericCatalogDiscoverer(
 
         AttachResolverMetadata(sibling, catalog, contentItem, singleArtifactRelease);
 
-        if (contentItem.ContentType == ContentType.ContentBundle || (context.OriginalRelease.Dependencies != null && context.OriginalRelease.Dependencies.Count > 0))
+        if (contentItem.ContentType == ContentType.ContentBundle || context.OriginalRelease.Dependencies is { Count: > 0 })
         {
             var components = CatalogBundleComponentBuilder.Build(catalog, contentItem, context.OriginalRelease);
             sibling.ResolverMetadata[CatalogConstants.BundleComponentsJsonMetadataKey] =

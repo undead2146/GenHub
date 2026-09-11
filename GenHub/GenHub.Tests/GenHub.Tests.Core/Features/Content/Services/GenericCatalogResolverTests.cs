@@ -314,7 +314,6 @@ public sealed class GenericCatalogResolverTests
                 It.IsAny<bool>(),
                 It.IsAny<bool>()))
             .Callback<ManifestId, string, ContentType, DependencyInstallBehavior, string, string, List<string>?, bool, List<ManifestId>?, List<GameType>?, bool, bool>((id, name, type, behavior, min, max, comp, excl, conf, games, minInc, maxInc) =>
-            {
                 builtManifest.Dependencies.Add(new ContentDependency
                 {
                     Id = id,
@@ -325,8 +324,7 @@ public sealed class GenericCatalogResolverTests
                     CompatibleVersions = comp ?? [],
                     MinInclusive = minInc,
                     MaxInclusive = maxInc,
-                });
-            })
+                }))
             .Returns(builderMock.Object);
 
         var resolver = new GenericCatalogResolver(
@@ -416,7 +414,6 @@ public sealed class GenericCatalogResolverTests
                 It.IsAny<bool>(),
                 It.IsAny<bool>()))
             .Callback<ManifestId, string, ContentType, DependencyInstallBehavior, string, string, List<string>?, bool, List<ManifestId>?, List<GameType>?, bool, bool>((id, name, type, behavior, min, max, comp, excl, conf, games, minInc, maxInc) =>
-            {
                 builtManifest.Dependencies.Add(new ContentDependency
                 {
                     Id = id,
@@ -427,8 +424,7 @@ public sealed class GenericCatalogResolverTests
                     CompatibleVersions = comp ?? [],
                     MinInclusive = minInc,
                     MaxInclusive = maxInc,
-                });
-            })
+                }))
             .Returns(builderMock.Object);
 
         var resolver = new GenericCatalogResolver(
@@ -664,7 +660,6 @@ public sealed class GenericCatalogResolverTests
                 It.IsAny<bool>(),
                 It.IsAny<bool>()))
             .Callback<ManifestId, string, ContentType, DependencyInstallBehavior, string, string, List<string>?, bool, List<ManifestId>?, List<GameType>?, bool, bool>((id, name, type, behavior, min, max, comp, excl, conf, games, minInc, maxInc) =>
-            {
                 builtManifest.Dependencies.Add(new ContentDependency
                 {
                     Id = id,
@@ -675,8 +670,7 @@ public sealed class GenericCatalogResolverTests
                     CompatibleVersions = comp ?? [],
                     MinInclusive = minInc,
                     MaxInclusive = maxInc,
-                });
-            })
+                }))
             .Returns(builderMock.Object);
 
         var resolver = new GenericCatalogResolver(
@@ -907,7 +901,6 @@ public sealed class GenericCatalogResolverTests
                 It.IsAny<bool>(),
                 It.IsAny<bool>()))
             .Callback<ManifestId, string, ContentType, DependencyInstallBehavior, string, string, List<string>?, bool, List<ManifestId>?, List<GameType>?, bool, bool>((id, name, type, behavior, min, max, comp, excl, conf, games, minInc, maxInc) =>
-            {
                 builtManifest.Dependencies.Add(new ContentDependency
                 {
                     Id = id,
@@ -918,8 +911,7 @@ public sealed class GenericCatalogResolverTests
                     CompatibleVersions = comp ?? [],
                     MinInclusive = minInc,
                     MaxInclusive = maxInc,
-                });
-            })
+                }))
             .Returns(builderMock.Object);
 
         var resolver = new GenericCatalogResolver(
@@ -1245,7 +1237,7 @@ public sealed class GenericCatalogResolverTests
     [InlineData("<2.0.0 <3.0.0", "", "2.0.0", null, true, false)]
     [InlineData("vv1.5", "1.5", "1.5", "1.5", true, true)]
     [InlineData("1..0", "", "", null, true, true)]
-    public async Task ResolveAsync_ParsesVersionConstraintsCorrectly(
+    public async Task ResolveAsync_ParsesVersionConstraintsCorrectlyAsync(
         string constraint,
         string expectedMin,
         string expectedMax,

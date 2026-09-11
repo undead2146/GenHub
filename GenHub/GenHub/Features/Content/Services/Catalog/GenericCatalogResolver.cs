@@ -746,7 +746,7 @@ public partial class GenericCatalogResolver(
         ReleaseArtifact? primaryArtifact,
         IReadOnlyDictionary<string, string>? artifactHashes)
     {
-        if (artifactHashes != null && artifactHashes.Count > 0)
+        if (artifactHashes is { Count: > 0 })
         {
             foreach (var file in manifest.Files)
             {
@@ -825,7 +825,7 @@ public partial class GenericCatalogResolver(
         ReleaseArtifact? primaryArtifact)
     {
         var artifactHashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (release.Artifacts != null && release.Artifacts.Count > 0)
+        if (release.Artifacts is { Count: > 0 })
         {
             var usedFilenames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 

@@ -157,9 +157,9 @@ public class ManifestDiscoveryService(
             }
 
             if (dependency.CompatibleVersions.Count > 0 &&
-                !dependency.CompatibleVersions.Any(cv =>
-                    string.Equals(cv, dependencyManifest.Version, StringComparison.OrdinalIgnoreCase) ||
-                    CatalogManifestIdentity.CompareVersions(cv, dependencyManifest.Version) == 0))
+                dependency.CompatibleVersions.All(cv =>
+                    !string.Equals(cv, dependencyManifest.Version, StringComparison.OrdinalIgnoreCase) &&
+                    CatalogManifestIdentity.CompareVersions(cv, dependencyManifest.Version) != 0))
             {
                 logger.LogWarning(
                     "Dependency {DependencyId} version {Version} is not in compatible versions list [{CompatibleVersions}]",

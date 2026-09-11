@@ -339,7 +339,7 @@ public partial class SubscriptionConfirmationViewModel(
                 Added = existingSub?.Added ?? DateTime.UtcNow,
                 TrustLevel = existingSub?.TrustLevel ?? TrustLevel.Untrusted, // community sources start untrusted
                 AvatarUrl = _parsedCatalog.Publisher.AvatarUrl,
-                AutoUpdate = existingSub?.AutoUpdate ?? false,
+                AutoUpdate = existingSub?.AutoUpdate == true,
                 NotifyNewReleases = existingSub?.NotifyNewReleases ?? true,
                 CachedCatalogHash = existingSub?.CachedCatalogHash,
                 LastFetched = existingSub?.LastFetched,
