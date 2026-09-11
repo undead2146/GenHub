@@ -391,8 +391,8 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
         // Arrange
         Directory.CreateDirectory(_stagingDirectory);
         var datArchivePath = Path.Combine(_stagingDirectory, "10zh.dat");
-        using (var archive = ZipFile.Open(datArchivePath, ZipArchiveMode.Create))
         {
+            using var archive = ZipFile.Open(datArchivePath, ZipArchiveMode.Create);
             var entry = archive.CreateEntry("ZH/game.dat");
             using var writer = new StreamWriter(entry.Open());
             await writer.WriteAsync("ZH game binary");
@@ -776,7 +776,7 @@ public sealed class ArchivePayloadProcessorTests : IDisposable
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ExtractArchivesSafelyAsync_WithSyntheticSmartInstallMakerExecutable_ExtractsAndNormalizesSuccessfully()
+    public async Task ExtractArchivesSafelyAsync_WithSyntheticSmartInstallMakerExecutable_ExtractsAndNormalizesSuccessfullyAsync()
     {
         // Arrange
         Directory.CreateDirectory(_stagingDirectory);

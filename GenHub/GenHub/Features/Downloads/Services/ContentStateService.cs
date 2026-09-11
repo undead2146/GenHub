@@ -284,8 +284,7 @@ public sealed partial class ContentStateService(
     {
         return IsGitHubPublisher(item.ProviderName) ||
                string.Equals(item.ProviderName, PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase) ||
-               (item.ResolverMetadata != null &&
-                item.ResolverMetadata.ContainsKey(GitHubConstants.OwnerMetadataKey));
+               item.ResolverMetadata?.ContainsKey(GitHubConstants.OwnerMetadataKey) == true;
     }
 
     /// <summary>
@@ -1030,8 +1029,7 @@ public sealed partial class ContentStateService(
         if (!string.IsNullOrWhiteSpace(item.Id) &&
             !string.IsNullOrWhiteSpace(manifest.OriginalContentId) && (
             string.Equals(manifest.OriginalContentId, item.Id, StringComparison.OrdinalIgnoreCase) ||
-            (item.ResolverMetadata != null &&
-             item.ResolverMetadata.TryGetValue(ContentConstants.ParentContentIdMetadataKey, out var parentId) &&
+            (item.ResolverMetadata?.TryGetValue(ContentConstants.ParentContentIdMetadataKey, out var parentId) == true &&
              string.Equals(manifest.OriginalContentId, parentId, StringComparison.OrdinalIgnoreCase))))
         {
             return true;
@@ -1126,8 +1124,7 @@ public sealed partial class ContentStateService(
         var providerName = SanitizeSegmentForManifest(item.ProviderName, UnknownSegment) ?? UnknownSegment;
         if (IsGitHubPublisher(providerName))
         {
-            if (item.ResolverMetadata != null &&
-                item.ResolverMetadata.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) &&
+            if (item.ResolverMetadata?.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) == true &&
                 !string.IsNullOrWhiteSpace(owner))
             {
                 providerName = SanitizeSegmentForManifest(owner, providerName) ?? providerName;
@@ -1142,7 +1139,7 @@ public sealed partial class ContentStateService(
             ?? SanitizeSegmentForManifest(item.Id, UnknownSegment)
             ?? UnknownSegment;
 
-        string prospectiveId;
+        string prospectiveId = string.Empty;
         try
         {
             prospectiveId = hasRealDate
@@ -1165,8 +1162,7 @@ public sealed partial class ContentStateService(
 
     private static DateTime? TryExtractDateFromContentItem(ContentSearchResult item)
     {
-        if (item.ResolverMetadata != null &&
-            item.ResolverMetadata.TryGetValue(GitHubConstants.TagMetadataKey, out var tag) &&
+        if (item.ResolverMetadata?.TryGetValue(GitHubConstants.TagMetadataKey, out var tag) == true &&
             TryExtractDateFromString(tag) is { } tagDate)
         {
             return tagDate;
@@ -1230,13 +1226,12 @@ public sealed partial class ContentStateService(
         return manifests.FirstOrDefault(manifest =>
             (!string.IsNullOrEmpty(manifest.OriginalContentId) && (
                 string.Equals(manifest.OriginalContentId, item.Id, StringComparison.OrdinalIgnoreCase) ||
-                (item.ResolverMetadata != null &&
-                 item.ResolverMetadata.TryGetValue(ContentConstants.ParentContentIdMetadataKey, out var parentId) &&
+                (item.ResolverMetadata?.TryGetValue(ContentConstants.ParentContentIdMetadataKey, out var parentId) == true &&
                  string.Equals(manifest.OriginalContentId, parentId, StringComparison.OrdinalIgnoreCase)))) ||
             (!string.IsNullOrWhiteSpace(item.SelectedDownloadUrl) && (
-                (manifest.Files != null && manifest.Files.Any(file =>
+                (manifest.Files?.Any(file =>
                     !string.IsNullOrWhiteSpace(file.DownloadUrl) &&
-                    string.Equals(file.DownloadUrl, item.SelectedDownloadUrl, StringComparison.OrdinalIgnoreCase))) ||
+                    string.Equals(file.DownloadUrl, item.SelectedDownloadUrl, StringComparison.OrdinalIgnoreCase)) == true) ||
                 (!string.IsNullOrWhiteSpace(manifest.Publisher?.ContentIndexUrl) &&
                     string.Equals(manifest.Publisher.ContentIndexUrl, item.SelectedDownloadUrl, StringComparison.OrdinalIgnoreCase)))));
     }
@@ -1276,40 +1271,52 @@ public sealed partial class ContentStateService(
             return false;
         }
 
+        if (!IsGitHubAuthorCompatible(manifest, item))
+        {
+            return false;
+        }
+
+        if (!IsGitHubUrlMatch(manifest, item.SourceUrl))
+        {
+            return false;
+        }
+
+        return IsGitHubVariantMatch(manifest, item);
+    }
+
+    private static bool IsGitHubAuthorCompatible(ContentManifest manifest, ContentSearchResult item)
+    {
         var manifestAuthor = manifest.Publisher?.Name;
         var itemAuthor = item.AuthorName;
-        if (item.ResolverMetadata != null &&
-            item.ResolverMetadata.TryGetValue(GitHubConstants.OwnerMetadataKey, out var metadataOwner) &&
+        if (item.ResolverMetadata?.TryGetValue(GitHubConstants.OwnerMetadataKey, out var metadataOwner) == true &&
             !string.IsNullOrWhiteSpace(metadataOwner))
         {
             itemAuthor = metadataOwner;
         }
 
-        if (!string.IsNullOrWhiteSpace(manifestAuthor) &&
-            !string.IsNullOrWhiteSpace(itemAuthor) &&
-            !string.Equals(manifestAuthor, itemAuthor, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
+        return string.IsNullOrWhiteSpace(manifestAuthor) ||
+               string.IsNullOrWhiteSpace(itemAuthor) ||
+               string.Equals(manifestAuthor, itemAuthor, StringComparison.OrdinalIgnoreCase);
+    }
 
+    private static bool IsGitHubUrlMatch(ContentManifest manifest, string? sourceUrl)
+    {
         var website = NormalizeGitHubUrl(manifest.Publisher?.Website);
         var supportUrl = NormalizeGitHubUrl(manifest.Publisher?.SupportUrl);
         var changelog = NormalizeGitHubUrl(manifest.Metadata?.ChangelogUrl);
-        var cleanSource = NormalizeGitHubUrl(item.SourceUrl);
+        var cleanSource = NormalizeGitHubUrl(sourceUrl);
 
-        bool urlMatches = (!string.IsNullOrEmpty(website) && string.Equals(website, cleanSource, StringComparison.OrdinalIgnoreCase)) ||
-                          (!string.IsNullOrEmpty(supportUrl) && string.Equals(supportUrl, cleanSource, StringComparison.OrdinalIgnoreCase)) ||
-                          (!string.IsNullOrEmpty(changelog) && (changelog.Equals(cleanSource, StringComparison.OrdinalIgnoreCase) || changelog.StartsWith(cleanSource.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase)));
+        return (!string.IsNullOrEmpty(website) && string.Equals(website, cleanSource, StringComparison.OrdinalIgnoreCase)) ||
+               (!string.IsNullOrEmpty(supportUrl) && string.Equals(supportUrl, cleanSource, StringComparison.OrdinalIgnoreCase)) ||
+               (!string.IsNullOrEmpty(changelog) && (changelog.Equals(cleanSource, StringComparison.OrdinalIgnoreCase) || changelog.StartsWith(cleanSource.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase)));
+    }
 
-        if (!urlMatches)
-        {
-            return false;
-        }
-
+    private static bool IsGitHubVariantMatch(ContentManifest manifest, ContentSearchResult item)
+    {
         var itemVariant = ExtractVariantToken(item.Name) ?? ExtractVariantToken(item.Id);
         var manifestVariant = ExtractVariantToken(manifest.Name) ?? ExtractVariantToken(manifest.Id.Value);
 
-        if (string.IsNullOrEmpty(manifestVariant) && !string.IsNullOrEmpty(itemVariant) && manifest.Files != null && manifest.Files.Count > 0)
+        if (string.IsNullOrEmpty(manifestVariant) && !string.IsNullOrEmpty(itemVariant) && manifest.Files?.Count > 0)
         {
             manifestVariant = manifest.Files
                 .Select(f => ExtractVariantToken(f.RelativePath))
@@ -1321,12 +1328,7 @@ public sealed partial class ContentStateService(
             return string.Equals(itemVariant, manifestVariant, StringComparison.OrdinalIgnoreCase);
         }
 
-        if (!string.IsNullOrEmpty(itemVariant) || !string.IsNullOrEmpty(manifestVariant))
-        {
-            return false;
-        }
-
-        return true;
+        return string.IsNullOrEmpty(itemVariant) && string.IsNullOrEmpty(manifestVariant);
     }
 
     private static string NormalizeGitHubUrl(string? url)

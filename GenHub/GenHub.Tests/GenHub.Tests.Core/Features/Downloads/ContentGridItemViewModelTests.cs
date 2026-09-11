@@ -326,7 +326,7 @@ public sealed class ContentGridItemViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task RefreshVariantStatesAsync_WhenUpdateTargetNotDownloaded_PreservesUpdateAvailableState()
+    public async Task RefreshVariantStatesAsync_WhenUpdateTargetNotDownloaded_PreservesUpdateAvailableStateAsync()
     {
         // Arrange
         var searchResult = new ContentSearchResult

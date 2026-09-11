@@ -396,11 +396,6 @@ public sealed partial class DownloadsBrowserViewModel(
                 continue;
             }
 
-            // Identify which items are locally installed on disk.
-            // Items that are actually installed come in with Downloaded state or have an acquired variant,
-            // or were previously reconciled with an UpdateTargetVm.
-            // An item that arrived with UpdateAvailable and UpdateTargetVm == null received UpdateAvailable
-            // from ContentStateService purely because an older release was installed locally; it is NOT installed itself.
             var installedItems = new HashSet<ContentGridItemViewModel>();
             foreach (var item in familyItems)
             {
@@ -412,106 +407,8 @@ public sealed partial class DownloadsBrowserViewModel(
                 }
             }
 
-            // Reset any uninstalled prospective items: they should be NotDownloaded, not UpdateAvailable or Downloaded.
-            foreach (var item in familyItems)
-            {
-                if (installedItems.Contains(item))
-                {
-                    continue;
-                }
-
-                foreach (var variant in item.Variants)
-                {
-                    if (variant.CurrentState is ContentState.UpdateAvailable or ContentState.Downloaded)
-                    {
-                        variant.CurrentState = ContentState.NotDownloaded;
-                    }
-                }
-
-                if (item.CurrentState is ContentState.UpdateAvailable or ContentState.Downloaded)
-                {
-                    if (item.SelectedVariant != null)
-                    {
-                        item.CurrentState = item.SelectedVariant.CurrentState;
-                        item.IsDownloaded = item.SelectedVariant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable;
-                    }
-                    else
-                    {
-                        item.CurrentState = ContentState.NotDownloaded;
-                        item.IsDownloaded = false;
-                    }
-                }
-
-                item.UpdateTargetVm = null;
-                item.NotifyStateChanged();
-            }
-
-            var newestItem = familyItems[0];
-            bool newestNeedsDownload = !installedItems.Contains(newestItem);
-
-            // Reconcile installed items
-            foreach (var item in familyItems)
-            {
-                if (!installedItems.Contains(item))
-                {
-                    continue;
-                }
-
-                if (newestNeedsDownload && item != newestItem)
-                {
-                    // An update to newestItem is available for this installed older release.
-                    foreach (var variant in item.Variants)
-                    {
-                        if (variant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable)
-                        {
-                            variant.CurrentState = ContentState.UpdateAvailable;
-                        }
-                    }
-
-                    if (item.SelectedVariant != null)
-                    {
-                        item.CurrentState = item.SelectedVariant.CurrentState;
-                        item.IsDownloaded = item.SelectedVariant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable;
-                    }
-                    else
-                    {
-                        item.CurrentState = ContentState.UpdateAvailable;
-                        item.IsDownloaded = true;
-                    }
-
-                    item.UpdateTargetVm = item.CurrentState == ContentState.UpdateAvailable ? newestItem : null;
-                    item.NotifyStateChanged();
-                }
-                else
-                {
-                    // Either newestItem is already installed or this item IS the newest item.
-                    // No update can be offered.
-                    foreach (var variant in item.Variants)
-                    {
-                        if (variant.CurrentState == ContentState.UpdateAvailable)
-                        {
-                            variant.CurrentState = ContentState.Downloaded;
-                        }
-                    }
-
-                    if (item.CurrentState == ContentState.UpdateAvailable)
-                    {
-                        if (item.SelectedVariant != null)
-                        {
-                            item.CurrentState = item.SelectedVariant.CurrentState;
-                            item.IsDownloaded = item.SelectedVariant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable;
-                        }
-                        else
-                        {
-                            item.CurrentState = ContentState.Downloaded;
-                            item.IsDownloaded = true;
-                        }
-                    }
-
-                    item.UpdateTargetVm = null;
-                    item.NotifyStateChanged();
-                }
-            }
+            ResetUninstalledFamilyItems(familyItems, installedItems);
+            ReconcileInstalledFamilyItems(familyItems, installedItems, familyItems[0]);
         }
     }
 
@@ -522,8 +419,7 @@ public sealed partial class DownloadsBrowserViewModel(
     /// <returns>A string identifying the content family, or null if it cannot be grouped.</returns>
     internal static string? GetContentFamilyKey(ContentGridItemViewModel vm)
     {
-        if (vm.SearchResult.ResolverMetadata != null &&
-            vm.SearchResult.ResolverMetadata.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) &&
+        if (vm.SearchResult.ResolverMetadata?.TryGetValue(GitHubConstants.OwnerMetadataKey, out var owner) == true &&
             vm.SearchResult.ResolverMetadata.TryGetValue(GitHubConstants.RepoMetadataKey, out var repo) &&
             !string.IsNullOrWhiteSpace(owner) && !string.IsNullOrWhiteSpace(repo))
         {
@@ -586,6 +482,115 @@ public sealed partial class DownloadsBrowserViewModel(
         lock (_cacheLock)
         {
             _inFlightOperations[publisherId] = inFlightOp;
+        }
+    }
+
+    private static void ResetUninstalledFamilyItems(
+        IEnumerable<ContentGridItemViewModel> items,
+        HashSet<ContentGridItemViewModel> installedItems)
+    {
+        foreach (var item in items)
+        {
+            if (installedItems.Contains(item))
+            {
+                continue;
+            }
+
+            foreach (var variant in item.Variants)
+            {
+                if (variant.CurrentState is ContentState.UpdateAvailable or ContentState.Downloaded)
+                {
+                    variant.CurrentState = ContentState.NotDownloaded;
+                }
+            }
+
+            if (item.CurrentState is ContentState.UpdateAvailable or ContentState.Downloaded)
+            {
+                if (item.SelectedVariant != null)
+                {
+                    item.CurrentState = item.SelectedVariant.CurrentState;
+                    item.IsDownloaded = item.SelectedVariant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable;
+                }
+                else
+                {
+                    item.CurrentState = ContentState.NotDownloaded;
+                    item.IsDownloaded = false;
+                }
+            }
+
+            item.UpdateTargetVm = null;
+            item.NotifyStateChanged();
+        }
+    }
+
+    private static void ReconcileInstalledFamilyItems(
+        IEnumerable<ContentGridItemViewModel> items,
+        HashSet<ContentGridItemViewModel> installedItems,
+        ContentGridItemViewModel newestItem)
+    {
+        bool newestNeedsDownload = !installedItems.Contains(newestItem);
+
+        foreach (var item in items)
+        {
+            if (!installedItems.Contains(item))
+            {
+                continue;
+            }
+
+            if (newestNeedsDownload && item != newestItem)
+            {
+                // An update to newestItem is available for this installed older release.
+                foreach (var variant in item.Variants)
+                {
+                    if (variant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable)
+                    {
+                        variant.CurrentState = ContentState.UpdateAvailable;
+                    }
+                }
+
+                if (item.SelectedVariant != null)
+                {
+                    item.CurrentState = item.SelectedVariant.CurrentState;
+                    item.IsDownloaded = item.SelectedVariant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable;
+                }
+                else
+                {
+                    item.CurrentState = ContentState.UpdateAvailable;
+                    item.IsDownloaded = true;
+                }
+
+                item.UpdateTargetVm = item.CurrentState == ContentState.UpdateAvailable ? newestItem : null;
+                item.NotifyStateChanged();
+            }
+            else
+            {
+                // Either newestItem is already installed or this item IS the newest item.
+                // No update can be offered.
+                foreach (var variant in item.Variants)
+                {
+                    if (variant.CurrentState == ContentState.UpdateAvailable)
+                    {
+                        variant.CurrentState = ContentState.Downloaded;
+                    }
+                }
+
+                if (item.CurrentState == ContentState.UpdateAvailable)
+                {
+                    if (item.SelectedVariant != null)
+                    {
+                        item.CurrentState = item.SelectedVariant.CurrentState;
+                        item.IsDownloaded = item.SelectedVariant.CurrentState is ContentState.Downloaded or ContentState.UpdateAvailable;
+                    }
+                    else
+                    {
+                        item.CurrentState = ContentState.Downloaded;
+                        item.IsDownloaded = true;
+                    }
+                }
+
+                item.UpdateTargetVm = null;
+                item.NotifyStateChanged();
+            }
         }
     }
 
@@ -653,7 +658,7 @@ public sealed partial class DownloadsBrowserViewModel(
             var provider = !string.IsNullOrWhiteSpace(primaryItem.ProviderName) ? primaryItem.ProviderName : ContentConstants.DefaultContentFallbackId;
             var variantId = !string.IsNullOrWhiteSpace(v.Id) ? v.Id : ContentConstants.DefaultContentFallbackId;
             var composedName = $"{lastSegment}-{variantId}";
-            if (!composedName.Any(char.IsLetterOrDigit))
+            if (composedName.All(c => !char.IsLetterOrDigit(c)))
             {
                 composedName = $"{lastSegment}-{ContentConstants.DefaultContentFallbackId}";
             }
@@ -900,7 +905,7 @@ public sealed partial class DownloadsBrowserViewModel(
             if (_inFlightOperations.TryGetValue(value.PublisherId, out var inFlight))
             {
                 // Attach UI to ongoing in-flight background operation
-                List<ContentGridItemViewModel> itemsSoFar;
+                List<ContentGridItemViewModel> itemsSoFar = [];
                 lock (inFlight.SyncRoot)
                 {
                     inFlight.ActiveRequestId = _activeRequestId;
@@ -1168,7 +1173,7 @@ public sealed partial class DownloadsBrowserViewModel(
                 {
                     oldInFlight.Cts.Cancel();
                     oldInFlight.Cts.Dispose();
-                    List<ContentGridItemViewModel> oldSnapshot;
+                    List<ContentGridItemViewModel> oldSnapshot = [];
                     lock (oldInFlight.SyncRoot)
                     {
                         oldSnapshot = oldInFlight.ResolvedItems.ToList();
@@ -1183,7 +1188,7 @@ public sealed partial class DownloadsBrowserViewModel(
                 var retainedItems = new HashSet<ContentGridItemViewModel>(_browseCache.Values.SelectMany(s => s.Items));
                 foreach (var inFlight in _inFlightOperations.Values)
                 {
-                    List<ContentGridItemViewModel> inFlightSnapshot;
+                    List<ContentGridItemViewModel> inFlightSnapshot = [];
                     lock (inFlight.SyncRoot)
                     {
                         inFlightSnapshot = inFlight.ResolvedItems.ToList();
@@ -1414,7 +1419,7 @@ public sealed partial class DownloadsBrowserViewModel(
             return false;
         }
 
-        return _activeRequestId == requestId || (inFlightOp != null && inFlightOp.ActiveRequestId == _activeRequestId);
+        return _activeRequestId == requestId || inFlightOp?.ActiveRequestId == _activeRequestId;
     }
 
     private HashSet<string> CollectExistingContentIds()
@@ -1484,7 +1489,7 @@ public sealed partial class DownloadsBrowserViewModel(
             RunOnUi(() =>
             {
                 if (IsCurrentActiveOperation(requestId, publisherId, inFlightOp) &&
-                    !ContentItems.Any(existing => string.Equals(existing.Id, vm.Id, StringComparison.OrdinalIgnoreCase)))
+                    ContentItems.All(existing => !string.Equals(existing.Id, vm.Id, StringComparison.OrdinalIgnoreCase)))
                 {
                     ContentItems.Add(vm);
                 }
@@ -1948,7 +1953,7 @@ public sealed partial class DownloadsBrowserViewModel(
                     if (_inFlightOperations.Remove(item.PublisherId, out var inFlight))
                     {
                         inFlight.Cts.Cancel();
-                        List<ContentGridItemViewModel> inFlightSnapshot;
+                        List<ContentGridItemViewModel> inFlightSnapshot = [];
                         lock (inFlight.SyncRoot)
                         {
                             inFlightSnapshot = inFlight.ResolvedItems.ToList();
@@ -2104,13 +2109,11 @@ public sealed partial class DownloadsBrowserViewModel(
                 await HandleSuccessfulAcquisitionAsync(item, result.Data);
                 return true;
             }
-            else
-            {
-                var errorMsg = result.FirstError ?? "Unknown error";
-                logger.LogError("Failed to download {ItemName}: {Error}", item.Name, errorMsg);
-                item.DownloadStatus = $"{ContentConstants.ErrorStatusPrefix}{errorMsg}";
-                return false;
-            }
+
+            var errorMsg = result.FirstError ?? "Unknown error";
+            logger.LogError("Failed to download {ItemName}: {Error}", item.Name, errorMsg);
+            item.DownloadStatus = $"{ContentConstants.ErrorStatusPrefix}{errorMsg}";
+            return false;
         }
         catch (OperationCanceledException ex)
         {

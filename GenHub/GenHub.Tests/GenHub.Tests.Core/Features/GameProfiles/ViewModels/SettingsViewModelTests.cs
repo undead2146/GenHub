@@ -925,10 +925,7 @@ public class SettingsViewModelTests
                 It.IsAny<string>(),
                 It.IsAny<int?>(),
                 It.IsAny<bool>()))
-            .Callback<string, string, int?, bool>((title, message, duration, closable) =>
-            {
-                capturedWarningMessage = message;
-            });
+            .Callback<string, string, int?, bool>((title, message, duration, closable) => capturedWarningMessage = message);
 
         var viewModel = CreateViewModel();
 
@@ -1053,6 +1050,7 @@ public class SettingsViewModelTests
 
             // Lock logFile2 exclusively
             using var lockStream = new FileStream(logFile2, System.IO.FileMode.Open, System.IO.FileAccess.ReadWrite, System.IO.FileShare.None);
+            Assert.NotNull(lockStream);
 
             // Act
             await viewModel.ClearLogsCommand.ExecuteAsync(null);

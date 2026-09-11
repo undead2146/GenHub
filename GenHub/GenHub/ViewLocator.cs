@@ -33,7 +33,15 @@ public class ViewLocator : IDataTemplate
                         break;
                     }
                 }
-                catch (Exception ex) when (ex is TypeLoadException or System.IO.FileNotFoundException or System.Reflection.ReflectionTypeLoadException)
+                catch (TypeLoadException)
+                {
+                    // Ignore assembly scan errors for unloaded dependencies
+                }
+                catch (System.IO.FileNotFoundException)
+                {
+                    // Ignore assembly scan errors for unloaded dependencies
+                }
+                catch (System.Reflection.ReflectionTypeLoadException)
                 {
                     // Ignore assembly scan errors for unloaded dependencies
                 }

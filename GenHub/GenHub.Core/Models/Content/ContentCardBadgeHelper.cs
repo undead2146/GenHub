@@ -35,11 +35,11 @@ public static partial class ContentCardBadgeHelper
             return GitHubFallbackCovers[0];
         }
 
-        uint hash = 2166136261;
+        uint hash = 2_166_136_261;
         foreach (var c in owner.Trim().ToLowerInvariant())
         {
             hash ^= c;
-            hash *= 16777619;
+            hash *= 16_777_619;
         }
 
         return GitHubFallbackCovers[hash % (uint)GitHubFallbackCovers.Length];

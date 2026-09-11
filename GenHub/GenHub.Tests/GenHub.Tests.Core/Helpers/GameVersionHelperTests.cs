@@ -17,13 +17,13 @@ public class GameVersionHelperTests
     [Theory]
     [InlineData("082826", 828260)]
     [InlineData("082826_QFE1", 828261)]
-    [InlineData("101525_QFE2", 1015252)]
-    [InlineData("111825_QFE2", 1118252)]
-    [InlineData("121525_QFE1", 1215251)]
+    [InlineData("101525_QFE2", 1_015_252)]
+    [InlineData("111825_QFE2", 1_118_252)]
+    [InlineData("121525_QFE1", 1_215_251)]
     [InlineData("060526_QFE1", 605261)]
     [InlineData("042826_QFE3", 428263)]
-    [InlineData("101525_QFE10", 1015260)]
-    [InlineData("011526_QFE1_EAC_X86", 11526186)]
+    [InlineData("101525_QFE10", 1_015_260)]
+    [InlineData("011526_QFE1_EAC_X86", 11_526_186)]
     public void GetGeneralsOnlineManifestIdComponent_MatchesEstablishedEncoding(string version, int expected)
     {
         Assert.Equal(expected, GameVersionHelper.GetGeneralsOnlineManifestIdComponent(version));
@@ -59,7 +59,7 @@ public class GameVersionHelperTests
     [Fact]
     public void GetGeneralsOnlineManifestIdComponent_FallsBackForUnrecognizedVersion()
     {
-        Assert.Equal(20260116, GameVersionHelper.GetGeneralsOnlineManifestIdComponent("2026-01-16"));
+        Assert.Equal(20_260_116, GameVersionHelper.GetGeneralsOnlineManifestIdComponent("2026-01-16"));
     }
 
     /// <summary>
@@ -69,10 +69,10 @@ public class GameVersionHelperTests
     /// <param name="version">The malformed or overflowing version string.</param>
     /// <param name="expected">The expected fallback component.</param>
     [Theory]
-    [InlineData("101525_QFE-1", 1015251)]
-    [InlineData("101525_QFE+1", 1015251)]
-    [InlineData("101525_QFE2147483647", 1015252147)]
-    [InlineData("101525_QFE9999999999", 1015259999)]
+    [InlineData("101525_QFE-1", 1_015_251)]
+    [InlineData("101525_QFE+1", 1_015_251)]
+    [InlineData("101525_QFE2147483647", 1_015_252_147)]
+    [InlineData("101525_QFE9999999999", 1_015_259_999)]
     public void GetGeneralsOnlineManifestIdComponent_FallsBackForMalformedOrOverflowingQfe(string version, int expected)
     {
         Assert.Equal(expected, GameVersionHelper.GetGeneralsOnlineManifestIdComponent(version));
@@ -84,9 +84,9 @@ public class GameVersionHelperTests
     /// <param name="version">The version string.</param>
     /// <param name="expected">The expected integer date representation.</param>
     [Theory]
-    [InlineData("2025-11-07", 20251107)]
-    [InlineData("weekly-2025-11-21", 20251121)]
-    [InlineData("1.20260116", 20260116)]
+    [InlineData("2025-11-07", 20_251_107)]
+    [InlineData("weekly-2025-11-21", 20_251_121)]
+    [InlineData("1.20260116", 20_260_116)]
     public void ExtractVersionFromVersionString_ParsesEightDigitDate(string version, int expected)
     {
         Assert.Equal(expected, GameVersionHelper.ExtractVersionFromVersionString(version));

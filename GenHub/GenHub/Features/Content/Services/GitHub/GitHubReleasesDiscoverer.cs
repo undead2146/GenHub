@@ -289,7 +289,7 @@ public partial class GitHubReleasesDiscoverer(IGitHubApiClient gitHubClient, ILo
             result.ResolverMetadata["asset-name"] = assetName;
             var matchingAsset = request.Release.Assets?.FirstOrDefault(a =>
                 string.Equals(a.Name, assetName, StringComparison.OrdinalIgnoreCase));
-            if (matchingAsset != null && matchingAsset.Size > 0)
+            if (matchingAsset?.Size > 0)
             {
                 result.DownloadSize = matchingAsset.Size;
             }

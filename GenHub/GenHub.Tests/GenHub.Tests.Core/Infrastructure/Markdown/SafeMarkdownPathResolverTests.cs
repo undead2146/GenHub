@@ -25,7 +25,7 @@ public sealed class SafeMarkdownPathResolverTests
     [InlineData("relative/image.png")]
     [InlineData("../parent/image.png")]
     [InlineData("")]
-    public async Task ResolveImageResource_NonHttpPaths_ReturnsNull(string path)
+    public async Task ResolveImageResource_NonHttpPaths_ReturnsNullAsync(string path)
     {
         var resultTask = _resolver.ResolveImageResource(path);
         Assert.NotNull(resultTask);

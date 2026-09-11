@@ -36,7 +36,19 @@ public sealed class SafeMarkdownHyperlinkCommand : ICommand
         {
             DefaultHyperlinkCommand.GoTo(safeUri.AbsoluteUri);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // Silently ignore browser launch errors.
+        }
+        catch (InvalidOperationException)
+        {
+            // Silently ignore browser launch errors.
+        }
+        catch (System.IO.IOException)
+        {
+            // Silently ignore browser launch errors.
+        }
+        catch (NotSupportedException)
         {
             // Silently ignore browser launch errors.
         }

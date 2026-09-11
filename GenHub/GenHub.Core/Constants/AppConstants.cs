@@ -15,7 +15,7 @@ public static class AppConstants
 
     private static readonly Lazy<string> _appVersion = new(() =>
     {
-        var assembly = Assembly.GetExecutingAssembly();
+        var assembly = typeof(AppConstants).Assembly;
         return assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
             ?.InformationalVersion
@@ -236,7 +236,7 @@ public static class AppConstants
     /// </summary>
     private static string? GetAssemblyMetadata(string key)
     {
-        var assembly = Assembly.GetExecutingAssembly();
+        var assembly = typeof(AppConstants).Assembly;
         return assembly
             .GetCustomAttributes<AssemblyMetadataAttribute>()
             .FirstOrDefault(a => a.Key == key)

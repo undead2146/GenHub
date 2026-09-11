@@ -331,14 +331,12 @@ public class SuperHackersProfileReconcilerTests
         _contentOrchestratorMock
             .Setup(x => x.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()))
             .Callback<ContentSearchResult, IProgress<ContentAcquisitionProgress>?, CancellationToken>((_, progress, _) =>
-            {
                 progress?.Report(new ContentAcquisitionProgress
                 {
                     Phase = GenHub.Core.Models.Content.ContentAcquisitionPhase.Downloading,
                     ProgressPercentage = 100,
                     CurrentOperation = "generalszh.zip (1/1) - 100%",
-                });
-            })
+                }))
             .ReturnsAsync(OperationResult<ContentManifest>.CreateSuccess(
                 new ContentManifest { Id = manifestId, Version = latestVersion, ContentType = GenHub.Core.Models.Enums.ContentType.GameClient }));
 

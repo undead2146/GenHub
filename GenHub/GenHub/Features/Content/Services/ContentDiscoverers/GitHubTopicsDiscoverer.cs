@@ -676,7 +676,7 @@ public partial class GitHubTopicsDiscoverer(
             "chinese", "japanese", "korean", "italian", "portuguese",
         };
 
-        if (languagePatterns.Any(lang => lower.Contains(lang)))
+        if (languagePatterns.Any(lower.Contains))
         {
             return "language";
         }

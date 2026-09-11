@@ -1435,7 +1435,7 @@ public class ContentStateServiceTests
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task GetStateAsync_WhenGitHubLanguageVariantDownloaded_OnlyMatchesMatchingVariant()
+    public async Task GetStateAsync_WhenGitHubLanguageVariantDownloaded_OnlyMatchesMatchingVariantAsync()
     {
         // Stored manifest for English variant (manifest relative path has English)
         var manifestEnglish = new ContentManifest

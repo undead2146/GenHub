@@ -87,6 +87,28 @@ public static class ModDBCategoryMapper
     }
 
     /// <summary>
+    /// Keyword rules for mapping friendly category names to <see cref="ContentType"/>.
+    /// </summary>
+    private static readonly (string[] Substrings, ContentType Type)[] CategoryKeywordRules =
+    [
+        (["game client", "gameclient"], ContentType.GameClient),
+        (["game installation", "gameinstallation"], ContentType.GameInstallation),
+        (["content bundle", "contentbundle"], ContentType.ContentBundle),
+        (["executable", "exe"], ContentType.Executable),
+        (["trailer", "movie", "video"], ContentType.Video),
+        (["tool", "sdk", "source code"], ContentType.ModdingTool),
+        (["full version", "demo"], ContentType.Mod),
+        (["patch", "script"], ContentType.Patch),
+        (["trainer"], ContentType.Addon),
+        (["multiplayer map", "singleplayer map"], ContentType.Map),
+        (["map pack", "mappack"], ContentType.MapPack),
+        (["prefab"], ContentType.Map),
+        (["mission"], ContentType.Mission),
+        (["skin", "gui", "hud"], ContentType.Skin),
+        (["language"], ContentType.LanguagePack),
+    ];
+
+    /// <summary>
     /// Maps a friendly category name (from text scraping or provider metadata) to ContentType.
     /// </summary>
     /// <param name="categoryName">The category name (e.g., &quot;Full Version&quot;, &quot;GameClient&quot;, &quot;Multiplayer Map&quot;).</param>
@@ -99,6 +121,17 @@ public static class ModDBCategoryMapper
         }
 
         var trimmed = categoryName.Trim();
+        if (TryMapExactEnum(trimmed, out var exactParsed))
+        {
+            return exactParsed;
+        }
+
+        var lower = trimmed.ToLowerInvariant();
+        return MapByKeywords(lower);
+    }
+
+    private static bool TryMapExactEnum(string trimmed, out ContentType result)
+    {
         var normalized = trimmed.Replace(" ", string.Empty).Replace("-", string.Empty);
         if (normalized.Length > 0 &&
             !char.IsDigit(normalized[0]) &&
@@ -106,49 +139,48 @@ public static class ModDBCategoryMapper
             Enum.IsDefined(exactParsed) &&
             exactParsed != ContentType.UnknownContentType)
         {
-            return exactParsed;
+            result = exactParsed;
+            return true;
         }
 
-        var lower = trimmed.ToLowerInvariant();
-
-        return lower switch
-        {
-            var s when s.Contains("game client") || s.Contains("gameclient") => ContentType.GameClient,
-            var s when s.Contains("game installation") || s.Contains("gameinstallation") => ContentType.GameInstallation,
-            var s when s.Contains("content bundle") || s.Contains("contentbundle") => ContentType.ContentBundle,
-            var s when s.Contains("executable") || s.Contains("exe") => ContentType.Executable,
-
-            var s when s.Contains("trailer") => ContentType.Video,
-            var s when s.Contains("movie") => ContentType.Video,
-            var s when s.Contains("video") => ContentType.Video,
-
-            var s when s.Contains("tool") => ContentType.ModdingTool,
-            var s when s.Contains("sdk") => ContentType.ModdingTool,
-            var s when s == "ide" || s.Contains(" ide") || s.Contains("ide ") || s.Contains("-ide") || s.Contains("ide-") => ContentType.ModdingTool,
-            var s when s.Contains("source code") => ContentType.ModdingTool,
-
-            var s when s.Contains("full version") => ContentType.Mod,
-            var s when s.Contains("demo") => ContentType.Mod,
-            var s when s == "mod" || s == "mods" || s.StartsWith("mod ") || s.EndsWith(" mod") => ContentType.Mod,
-            var s when s.Contains("patch") => ContentType.Patch,
-            var s when s.Contains("script") => ContentType.Patch,
-            var s when s.Contains("trainer") => ContentType.Addon,
-
-            var s when s.Contains("multiplayer map") => ContentType.Map,
-            var s when s.Contains("singleplayer map") => ContentType.Map,
-            var s when s.Contains("map pack") || s.Contains("mappack") || s == "maps" => ContentType.MapPack,
-            var s when s.Contains("map") => ContentType.Map,
-            var s when s.Contains("prefab") => ContentType.Map,
-
-            var s when s.Contains("mission") => ContentType.Mission,
-
-            var s when s.Contains("skin") => ContentType.Skin,
-            var s when s.Contains("gui") => ContentType.Skin,
-            var s when s.Contains("hud") => ContentType.Skin,
-
-            var s when s.Contains("language") => ContentType.LanguagePack,
-
-            _ => ContentType.Addon,
-        };
+        result = ContentType.Addon;
+        return false;
     }
+
+    private static ContentType MapByKeywords(string lower)
+    {
+        foreach (var (keywords, type) in CategoryKeywordRules)
+        {
+            foreach (var keyword in keywords)
+            {
+                if (lower.Contains(keyword))
+                {
+                    return type;
+                }
+            }
+        }
+
+        if (IsIdeMatch(lower))
+        {
+            return ContentType.ModdingTool;
+        }
+
+        if (IsModMatch(lower))
+        {
+            return ContentType.Mod;
+        }
+
+        if (lower == "maps" || lower.Contains("map"))
+        {
+            return ContentType.Map;
+        }
+
+        return ContentType.Addon;
+    }
+
+    private static bool IsIdeMatch(string s) =>
+        s == "ide" || s.Contains(" ide") || s.Contains("ide ") || s.Contains("-ide") || s.Contains("ide-");
+
+    private static bool IsModMatch(string s) =>
+        s == "mod" || s == "mods" || s.StartsWith("mod ") || s.EndsWith(" mod");
 }

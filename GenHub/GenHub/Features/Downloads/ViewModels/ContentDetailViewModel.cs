@@ -1855,7 +1855,7 @@ public partial class ContentDetailViewModel(
                 var provider = !string.IsNullOrWhiteSpace(searchResult.ProviderName) ? searchResult.ProviderName : ContentConstants.DefaultContentFallbackId;
                 var variantId = !string.IsNullOrWhiteSpace(v.Id) ? v.Id : ContentConstants.DefaultContentFallbackId;
                 var composedName = $"{baseSegment}-{variantId}";
-                if (!composedName.Any(char.IsLetterOrDigit))
+                if (composedName.All(c => !char.IsLetterOrDigit(c)))
                 {
                     composedName = $"{baseSegment}-{ContentConstants.DefaultContentFallbackId}";
                 }
@@ -2050,14 +2050,9 @@ public partial class ContentDetailViewModel(
             if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName, message.ParentContentId))
             {
                 IsDownloading = false;
-                if (!message.Success && !string.IsNullOrEmpty(message.ErrorMessage))
-                {
-                    DownloadStatusMessage = $"{ContentConstants.ErrorStatusPrefix}{message.ErrorMessage}";
-                }
-                else
-                {
-                    DownloadStatusMessage = null;
-                }
+                DownloadStatusMessage = !message.Success && !string.IsNullOrEmpty(message.ErrorMessage)
+                    ? $"{ContentConstants.ErrorStatusPrefix}{message.ErrorMessage}"
+                    : null;
 
                 _ = LoadInitialStateAsync();
             }
@@ -3747,16 +3742,14 @@ public partial class ContentDetailViewModel(
                 onDownloadCompleted?.Invoke(manifest);
                 return true;
             }
-            else
-            {
-                var errorMsg = result.FirstError ?? "Unknown error";
-                DownloadStatusMessage = $"{ContentConstants.ErrorStatusPrefix}{errorMsg}";
 
-                // Surface the failure as a toast so the user sees actionable text (e.g. the ModDB
-                // WAF block message) instead of only the inline status label.
-                notificationService.ShowError("Download failed", errorMsg);
-                return false;
-            }
+            var errorMsg = result.FirstError ?? "Unknown error";
+            DownloadStatusMessage = $"{ContentConstants.ErrorStatusPrefix}{errorMsg}";
+
+            // Surface the failure as a toast so the user sees actionable text (e.g. the ModDB
+            // WAF block message) instead of only the inline status label.
+            notificationService.ShowError("Download failed", errorMsg);
+            return false;
         }
         catch (OperationCanceledException ex)
         {

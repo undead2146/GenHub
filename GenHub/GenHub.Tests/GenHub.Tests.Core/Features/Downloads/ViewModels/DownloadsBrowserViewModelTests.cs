@@ -688,7 +688,7 @@ public class DownloadsBrowserViewModelTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task DownloadContentAsync_WhenCoordinatorProvided_RoutesThroughCoordinator()
+    public async Task DownloadContentAsync_WhenCoordinatorProvided_RoutesThroughCoordinatorAsync()
     {
         // Arrange
         var coordinator = new Mock<IContentDownloadCoordinator>();
@@ -1192,7 +1192,7 @@ public class DownloadsBrowserViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task UpdateContentCommand_WhenPublisherReconcilerIsAvailable_InvokesReconciler()
+    public async Task UpdateContentCommand_WhenPublisherReconcilerIsAvailable_InvokesReconcilerAsync()
     {
         // Arrange
         var reconcilerMock = new Mock<IPublisherReconciler>();
@@ -1232,7 +1232,7 @@ public class DownloadsBrowserViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task UpdateContentCommand_WhenNoPublisherReconciler_FallsBackToDownload()
+    public async Task UpdateContentCommand_WhenNoPublisherReconciler_FallsBackToDownloadAsync()
     {
         // Arrange
         var orchestratorMock = new Mock<IContentOrchestrator>();
@@ -1298,7 +1298,7 @@ public class DownloadsBrowserViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task UpdateContentCommand_WhenPublisherReconcilerReturnsNoReconciliation_FallsBackToDownload()
+    public async Task UpdateContentCommand_WhenPublisherReconcilerReturnsNoReconciliation_FallsBackToDownloadAsync()
     {
         // Arrange
         var orchestratorMock = new Mock<IContentOrchestrator>();
@@ -1419,7 +1419,7 @@ public class DownloadsBrowserViewModelTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ViewContentCommand_WithSelectedVariant_PreservesVariantInDetailView()
+    public async Task ViewContentCommand_WithSelectedVariant_PreservesVariantInDetailViewAsync()
     {
         // Arrange
         var tabRegistryMock = new Mock<ITabProviderRegistry>();

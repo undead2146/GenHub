@@ -27,7 +27,7 @@ public sealed class ProfileSelectionViewModelTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task LoadProfilesAsync_PopulatesCompatibleAndOtherProfiles_BasedOnTargetGame()
+    public async Task LoadProfilesAsync_PopulatesCompatibleAndOtherProfiles_BasedOnTargetGameAsync()
     {
         // Arrange
         var profileManagerMock = new Mock<IGameProfileManager>();
@@ -82,7 +82,7 @@ public sealed class ProfileSelectionViewModelTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task SelectProfileCommand_SingleManifest_CallsSingleOverloadAndCloses()
+    public async Task SelectProfileCommand_SingleManifest_CallsSingleOverloadAndClosesAsync()
     {
         // Arrange
         var profileManagerMock = new Mock<IGameProfileManager>();
@@ -138,7 +138,7 @@ public sealed class ProfileSelectionViewModelTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task SelectProfileCommand_BundleManifests_CallsListOverloadAndCloses()
+    public async Task SelectProfileCommand_BundleManifests_CallsListOverloadAndClosesAsync()
     {
         // Arrange
         var profileManagerMock = new Mock<IGameProfileManager>();
@@ -195,7 +195,7 @@ public sealed class ProfileSelectionViewModelTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task SelectProfileCommand_Failure_SetsErrorMessageAndDoesNotClose()
+    public async Task SelectProfileCommand_Failure_SetsErrorMessageAndDoesNotCloseAsync()
     {
         // Arrange
         var profileManagerMock = new Mock<IGameProfileManager>();
@@ -289,7 +289,7 @@ public sealed class ProfileSelectionViewModelTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task TooltipProperties_ReflectContentName()
+    public async Task TooltipProperties_ReflectContentNameAsync()
     {
         var profileManagerMock = new Mock<IGameProfileManager>();
         profileManagerMock

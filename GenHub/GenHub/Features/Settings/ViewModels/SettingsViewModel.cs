@@ -1298,7 +1298,6 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             }
             else
             {
-                string partialDetails;
                 var casDetail = casOutcome switch
                 {
                     CasCleanupOutcome.Disabled => "CAS cleanup was skipped (disabled)",
@@ -1306,18 +1305,12 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
                     _ => null,
                 };
 
-                if (!userDataDeleted && casDetail != null)
+                var partialDetails = (!userDataDeleted, casDetail) switch
                 {
-                    partialDetails = $"some user data was kept and {casDetail}";
-                }
-                else if (casDetail != null)
-                {
-                    partialDetails = casDetail;
-                }
-                else
-                {
-                    partialDetails = "some user data was kept";
-                }
+                    (true, not null) => $"some user data was kept and {casDetail}",
+                    (false, not null) => casDetail,
+                    _ => "some user data was kept",
+                };
 
                 _notificationService.ShowWarning(
                     "Data Partially Deleted",

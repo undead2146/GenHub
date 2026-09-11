@@ -50,7 +50,15 @@ public sealed class SafeMarkdownPathResolver : IPathResolver
             await using var stream = await response.Content.ReadAsStreamAsync(cts.Token).ConfigureAwait(false);
             return await ReadCappedStreamAsync(stream, cts.Token).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException or IOException)
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+        catch (IOException)
         {
             return null;
         }
@@ -62,7 +70,7 @@ public sealed class SafeMarkdownPathResolver : IPathResolver
         try
         {
             var buffer = new byte[81920];
-            int bytesRead;
+            int bytesRead = 0;
             long totalBytes = 0;
             while ((bytesRead = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false)) > 0)
             {

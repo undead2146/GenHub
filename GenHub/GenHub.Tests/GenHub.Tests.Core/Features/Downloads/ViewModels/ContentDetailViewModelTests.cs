@@ -1528,7 +1528,7 @@ public sealed class ContentDetailViewModelTests
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ReconcileReleases_WhenOlderReleaseDownloadedAndNewerNotDownloaded_MarksUpdateAvailable()
+    public async Task ReconcileReleases_WhenOlderReleaseDownloadedAndNewerNotDownloaded_MarksUpdateAvailableAsync()
     {
         // Arrange
         var searchResult = new ContentSearchResult
@@ -1910,7 +1910,7 @@ public sealed class ContentDetailViewModelTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task Initialize_WithInitialVariantManifestId_RetainsSelectedVariant()
+    public async Task Initialize_WithInitialVariantManifestId_RetainsSelectedVariantAsync()
     {
         // Arrange: Item with multiple variants (720p, 1080p, Russian)
         var searchResult = new ContentSearchResult
@@ -1956,7 +1956,7 @@ public sealed class ContentDetailViewModelTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task SelectVariantByManifestId_CalledBeforeInitialization_AppliesVariantWhenLoaded()
+    public async Task SelectVariantByManifestId_CalledBeforeInitialization_AppliesVariantWhenLoadedAsync()
     {
         // Arrange
         var searchResult = new ContentSearchResult
@@ -2000,7 +2000,7 @@ public sealed class ContentDetailViewModelTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task Initialize_WithSelectedVariantInResolverMetadata_RetainsSelectedVariant()
+    public async Task Initialize_WithSelectedVariantInResolverMetadata_RetainsSelectedVariantAsync()
     {
         // Arrange
         var searchResult = new ContentSearchResult

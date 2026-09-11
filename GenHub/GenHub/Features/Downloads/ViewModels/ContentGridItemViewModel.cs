@@ -561,18 +561,13 @@ public sealed partial class ContentGridItemViewModel(
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            HasActiveDownloads = downloadCoordinator?.HasActiveDownloads ?? false;
+            HasActiveDownloads = downloadCoordinator?.HasActiveDownloads == true;
             if (IsMatchingDownloadMessage(message.ContentKey, message.ContentId, message.ProviderName, message.ContentName, message.ParentContentId))
             {
                 IsDownloading = false;
-                if (!message.Success && !string.IsNullOrEmpty(message.ErrorMessage))
-                {
-                    DownloadStatus = $"{ContentConstants.ErrorStatusPrefix}{message.ErrorMessage}";
-                }
-                else
-                {
-                    DownloadStatus = string.Empty;
-                }
+                DownloadStatus = !message.Success && !string.IsNullOrEmpty(message.ErrorMessage)
+                    ? $"{ContentConstants.ErrorStatusPrefix}{message.ErrorMessage}"
+                    : string.Empty;
             }
         });
     }
@@ -712,14 +707,9 @@ public sealed partial class ContentGridItemViewModel(
 
             if (isForThisContent && !HasBundleComponents)
             {
-                if (e.NewState == ContentState.Downloaded && UpdateTargetVm != null && !UpdateTargetVm.IsDownloaded)
-                {
-                    CurrentState = ContentState.UpdateAvailable;
-                }
-                else
-                {
-                    CurrentState = e.NewState;
-                }
+                CurrentState = e.NewState == ContentState.Downloaded && UpdateTargetVm != null && !UpdateTargetVm.IsDownloaded
+                    ? ContentState.UpdateAvailable
+                    : e.NewState;
 
                 switch (CurrentState)
                 {
@@ -961,14 +951,9 @@ public sealed partial class ContentGridItemViewModel(
             }
 
             var mainState = await contentStateService.GetStateAsync(SearchResult);
-            if (mainState == ContentState.Downloaded && UpdateTargetVm != null && !isTargetDownloaded)
-            {
-                CurrentState = ContentState.UpdateAvailable;
-            }
-            else
-            {
-                CurrentState = mainState;
-            }
+            CurrentState = mainState == ContentState.Downloaded && UpdateTargetVm != null && !isTargetDownloaded
+                ? ContentState.UpdateAvailable
+                : mainState;
 
             IsDownloaded = mainState is ContentState.Downloaded or ContentState.UpdateAvailable;
         }
