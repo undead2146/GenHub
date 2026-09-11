@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using GenHub.Core.Models.Enums;
 
 namespace GenHub.Core.Models.ModDB;
@@ -151,12 +152,9 @@ public static class ModDBCategoryMapper
     {
         foreach (var (keywords, type) in CategoryKeywordRules)
         {
-            foreach (var keyword in keywords)
+            if (keywords.Any(keyword => lower.Contains(keyword, StringComparison.Ordinal)))
             {
-                if (lower.Contains(keyword))
-                {
-                    return type;
-                }
+                return type;
             }
         }
 

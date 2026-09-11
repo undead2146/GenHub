@@ -1953,7 +1953,7 @@ public sealed partial class DownloadsBrowserViewModel(
                     if (_inFlightOperations.Remove(item.PublisherId, out var inFlight))
                     {
                         inFlight.Cts.Cancel();
-                        List<ContentGridItemViewModel> inFlightSnapshot = [];
+                        List<ContentGridItemViewModel> inFlightSnapshot;
                         lock (inFlight.SyncRoot)
                         {
                             inFlightSnapshot = inFlight.ResolvedItems.ToList();
