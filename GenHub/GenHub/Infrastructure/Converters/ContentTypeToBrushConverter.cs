@@ -18,15 +18,15 @@ public class ContentTypeToBrushConverter : IValueConverter
     /// </summary>
     public static readonly ContentTypeToBrushConverter Instance = new();
 
-    private static readonly SolidColorBrush GameClientBrush = new SolidColorBrush(Color.Parse(UiConstants.ContentTypeGameClientColor));
-    private static readonly SolidColorBrush ModBrush = new SolidColorBrush(Color.Parse(UiConstants.ContentTypeModColor));
-    private static readonly SolidColorBrush PatchBrush = new SolidColorBrush(Color.Parse(UiConstants.ContentTypePatchColor));
-    private static readonly SolidColorBrush MapBrush = new SolidColorBrush(Color.Parse(UiConstants.ContentTypeMapColor));
-    private static readonly SolidColorBrush AddonBrush = new SolidColorBrush(Color.Parse(UiConstants.ContentTypeAddonColor));
-    private static readonly SolidColorBrush ToolBrush = new SolidColorBrush(Color.Parse(UiConstants.ContentTypeToolColor));
-    private static readonly SolidColorBrush BundleBrush = new SolidColorBrush(Color.Parse(UiConstants.ContentTypeBundleColor));
-    private static readonly SolidColorBrush MissionBrush = new SolidColorBrush(Color.Parse(UiConstants.ContentTypeMissionColor));
-    private static readonly SolidColorBrush SkinBrush = new SolidColorBrush(Color.Parse(UiConstants.ContentTypeSkinColor));
+    private static readonly SolidColorBrush GameClientBrush = new(Color.Parse(UiConstants.ContentTypeGameClientColor));
+    private static readonly SolidColorBrush ModBrush = new(Color.Parse(UiConstants.ContentTypeModColor));
+    private static readonly SolidColorBrush PatchBrush = new(Color.Parse(UiConstants.ContentTypePatchColor));
+    private static readonly SolidColorBrush MapBrush = new(Color.Parse(UiConstants.ContentTypeMapColor));
+    private static readonly SolidColorBrush AddonBrush = new(Color.Parse(UiConstants.ContentTypeAddonColor));
+    private static readonly SolidColorBrush ToolBrush = new(Color.Parse(UiConstants.ContentTypeToolColor));
+    private static readonly SolidColorBrush BundleBrush = new(Color.Parse(UiConstants.ContentTypeBundleColor));
+    private static readonly SolidColorBrush MissionBrush = new(Color.Parse(UiConstants.ContentTypeMissionColor));
+    private static readonly SolidColorBrush SkinBrush = new(Color.Parse(UiConstants.ContentTypeSkinColor));
 
     /// <summary>
     /// Converts a ContentType to a SolidColorBrush.

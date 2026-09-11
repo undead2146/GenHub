@@ -1193,27 +1193,20 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         return names;
     }
 
-    private static int ExtractModernSmartInstallMakerPayload(
+    private static void SkipModernSmartInstallMakerStream0(
         Stream stream,
         long payloadOffset,
-        IReadOnlyList<string> fileNames,
-        string extractRoot,
-        IProgress<ContentAcquisitionProgress>? progress,
-        ILogger logger,
-        CancellationToken cancellationToken)
+        ILogger logger)
     {
-        var extractedCount = 0;
         stream.Position = payloadOffset;
-
-        // Skip stream 0 (uninstaller info script)
         var stream0ExceededCap = false;
         try
         {
-            var nonDisp = new NonDisposingStream(stream);
-            var z0 = new SharpCompress.Compressors.Deflate.ZlibStream(nonDisp, SharpCompress.Compressors.CompressionMode.Decompress);
+            using var nonDisp = new NonDisposingStream(stream);
+            using var z0 = new SharpCompress.Compressors.Deflate.ZlibStream(nonDisp, SharpCompress.Compressors.CompressionMode.Decompress);
             var buf0 = new byte[8192];
             var stream0Bytes = 0L;
-            int r0;
+            int r0 = 0;
             while ((r0 = z0.Read(buf0, 0, buf0.Length)) > 0)
             {
                 stream0Bytes += r0;
@@ -1240,6 +1233,90 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
         {
             throw new InvalidDataException("Smart Install Maker stream 0 script exceeds maximum allowed size.");
         }
+    }
+
+    private static void CopyStreamWithCap(Stream source, Stream destination, byte[] copyBuffer, ref long totalBytesWritten)
+    {
+        int read = 0;
+        while ((read = source.Read(copyBuffer, 0, copyBuffer.Length)) > 0)
+        {
+            totalBytesWritten += read;
+            if (totalBytesWritten > CatalogConstants.MaxZipUncompressedSizeBytes)
+            {
+                throw new InvalidDataException($"Archive exceeds maximum uncompressed size of {CatalogConstants.MaxZipUncompressedSizeBytes} bytes");
+            }
+
+            destination.Write(copyBuffer, 0, read);
+        }
+    }
+
+    private static void DecompressModernSimEntry(
+        Stream stream,
+        Stream outStream,
+        byte[] copyBuffer,
+        ref long totalBytesWritten,
+        int byte0,
+        int byte1,
+        long streamStartPos)
+    {
+        if (byte0 == 0x78)
+        {
+            // ZLib stream
+            using var nonDisp = new NonDisposingStream(stream);
+            using var z = new SharpCompress.Compressors.Deflate.ZlibStream(nonDisp, SharpCompress.Compressors.CompressionMode.Decompress);
+            CopyStreamWithCap(z, outStream, copyBuffer, ref totalBytesWritten);
+            stream.Position = streamStartPos + z.TotalIn;
+        }
+        else if (byte0 == 0x42 && byte1 == 0x5A)
+        {
+            // BZip2 stream ('BZ')
+            using var bz = SharpCompress.Compressors.BZip2.BZip2Stream.Create(
+                stream,
+                SharpCompress.Compressors.CompressionMode.Decompress,
+                decompressConcatenated: false,
+                leaveOpen: true);
+            CopyStreamWithCap(bz, outStream, copyBuffer, ref totalBytesWritten);
+        }
+        else if (byte0 == 2)
+        {
+            // Legacy SIM BZip2 with prefix
+            stream.Position = streamStartPos + 1;
+            using var bz = SharpCompress.Compressors.BZip2.BZip2Stream.Create(
+                stream,
+                SharpCompress.Compressors.CompressionMode.Decompress,
+                decompressConcatenated: false,
+                leaveOpen: true);
+            CopyStreamWithCap(bz, outStream, copyBuffer, ref totalBytesWritten);
+        }
+        else if (byte0 == 1)
+        {
+            // Legacy SIM ZLib with prefix
+            stream.Position = streamStartPos + 1;
+            using var nonDisp = new NonDisposingStream(stream);
+            using var z = new SharpCompress.Compressors.Deflate.ZlibStream(nonDisp, SharpCompress.Compressors.CompressionMode.Decompress);
+            CopyStreamWithCap(z, outStream, copyBuffer, ref totalBytesWritten);
+            stream.Position = streamStartPos + 1 + z.TotalIn;
+        }
+        else
+        {
+            // Raw uncompressed copy. Modern SIM headers do not provide per-entry uncompressed lengths,
+            // so stored (uncompressed) entries copy to EOF under the format invariant that any stored payload
+            // is the final or sole file in the archive.
+            CopyStreamWithCap(stream, outStream, copyBuffer, ref totalBytesWritten);
+        }
+    }
+
+    private static int ExtractModernSmartInstallMakerPayload(
+        Stream stream,
+        long payloadOffset,
+        IReadOnlyList<string> fileNames,
+        string extractRoot,
+        IProgress<ContentAcquisitionProgress>? progress,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        var extractedCount = 0;
+        SkipModernSmartInstallMakerStream0(stream, payloadOffset, logger);
 
         var copyBuffer = new byte[65536];
         long totalBytesWritten = 0;
@@ -1290,108 +1367,7 @@ public class ArchivePayloadProcessor(ILogger<ArchivePayloadProcessor> logger) : 
 
             stream.Position = streamStartPos;
             using var outStream = File.Create(destinationPath);
-
-            if (byte0 == 0x78)
-            {
-                // ZLib stream
-                var nonDisp = new NonDisposingStream(stream);
-                var z = new SharpCompress.Compressors.Deflate.ZlibStream(nonDisp, SharpCompress.Compressors.CompressionMode.Decompress);
-
-                var rZ = 0;
-                while ((rZ = z.Read(copyBuffer, 0, copyBuffer.Length)) > 0)
-                {
-                    totalBytesWritten += rZ;
-                    if (totalBytesWritten > CatalogConstants.MaxZipUncompressedSizeBytes)
-                    {
-                        throw new InvalidDataException($"Archive exceeds maximum uncompressed size of {CatalogConstants.MaxZipUncompressedSizeBytes} bytes");
-                    }
-
-                    outStream.Write(copyBuffer, 0, rZ);
-                }
-
-                stream.Position = streamStartPos + z.TotalIn;
-            }
-            else if (byte0 == 0x42 && byte1 == 0x5A)
-            {
-                // BZip2 stream ('BZ')
-                using var bz = SharpCompress.Compressors.BZip2.BZip2Stream.Create(
-                    stream,
-                    SharpCompress.Compressors.CompressionMode.Decompress,
-                    decompressConcatenated: false,
-                    leaveOpen: true);
-
-                var rBz = 0;
-                while ((rBz = bz.Read(copyBuffer, 0, copyBuffer.Length)) > 0)
-                {
-                    totalBytesWritten += rBz;
-                    if (totalBytesWritten > CatalogConstants.MaxZipUncompressedSizeBytes)
-                    {
-                        throw new InvalidDataException($"Archive exceeds maximum uncompressed size of {CatalogConstants.MaxZipUncompressedSizeBytes} bytes");
-                    }
-
-                    outStream.Write(copyBuffer, 0, rBz);
-                }
-            }
-            else if (byte0 == 2)
-            {
-                // Legacy SIM BZip2 with prefix
-                stream.Position = streamStartPos + 1;
-                using var bz = SharpCompress.Compressors.BZip2.BZip2Stream.Create(
-                    stream,
-                    SharpCompress.Compressors.CompressionMode.Decompress,
-                    decompressConcatenated: false,
-                    leaveOpen: true);
-
-                var rBz = 0;
-                while ((rBz = bz.Read(copyBuffer, 0, copyBuffer.Length)) > 0)
-                {
-                    totalBytesWritten += rBz;
-                    if (totalBytesWritten > CatalogConstants.MaxZipUncompressedSizeBytes)
-                    {
-                        throw new InvalidDataException($"Archive exceeds maximum uncompressed size of {CatalogConstants.MaxZipUncompressedSizeBytes} bytes");
-                    }
-
-                    outStream.Write(copyBuffer, 0, rBz);
-                }
-            }
-            else if (byte0 == 1)
-            {
-                // Legacy SIM ZLib with prefix
-                stream.Position = streamStartPos + 1;
-                var nonDisp = new NonDisposingStream(stream);
-                var z = new SharpCompress.Compressors.Deflate.ZlibStream(nonDisp, SharpCompress.Compressors.CompressionMode.Decompress);
-
-                var rZ = 0;
-                while ((rZ = z.Read(copyBuffer, 0, copyBuffer.Length)) > 0)
-                {
-                    totalBytesWritten += rZ;
-                    if (totalBytesWritten > CatalogConstants.MaxZipUncompressedSizeBytes)
-                    {
-                        throw new InvalidDataException($"Archive exceeds maximum uncompressed size of {CatalogConstants.MaxZipUncompressedSizeBytes} bytes");
-                    }
-
-                    outStream.Write(copyBuffer, 0, rZ);
-                }
-
-                stream.Position = streamStartPos + 1 + z.TotalIn;
-            }
-            else
-            {
-                // Raw uncompressed copy. Modern SIM headers do not provide per-entry uncompressed lengths,
-                // so stored (uncompressed) entries copy to EOF under the format invariant that any stored payload
-                // is the final or sole file in the archive.
-                var rRaw = 0;
-                while ((rRaw = stream.Read(copyBuffer, 0, copyBuffer.Length)) > 0)
-                {
-                    totalBytesWritten += rRaw;
-                    if (totalBytesWritten > CatalogConstants.MaxZipUncompressedSizeBytes)
-                    {
-                        throw new InvalidDataException($"Archive exceeds maximum uncompressed size of {CatalogConstants.MaxZipUncompressedSizeBytes} bytes");
-                    }
-
-                    outStream.Write(copyBuffer, 0, rRaw);
-                }
-            }
+            DecompressModernSimEntry(stream, outStream, copyBuffer, ref totalBytesWritten, byte0, byte1, streamStartPos);
 
             outStream.Flush();
             var fileLength = new FileInfo(destinationPath).Length;

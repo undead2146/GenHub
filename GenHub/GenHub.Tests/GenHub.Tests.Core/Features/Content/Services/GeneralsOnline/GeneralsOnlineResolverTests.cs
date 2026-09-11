@@ -59,7 +59,7 @@ public class GeneralsOnlineResolverTests
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task ResolveAsync_WithTypedReleaseData_ReturnsSuccessWithManifest()
+    public async Task ResolveAsync_WithTypedReleaseData_ReturnsSuccessWithManifestAsync()
     {
         var release = new GeneralsOnlineRelease
         {
@@ -96,7 +96,7 @@ public class GeneralsOnlineResolverTests
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task ResolveAsync_WithoutTypedReleaseData_ReconstructsFromVersion_ReturnsSuccess()
+    public async Task ResolveAsync_WithoutTypedReleaseData_ReconstructsFromVersion_ReturnsSuccessAsync()
     {
         var searchResult = new ContentSearchResult
         {
@@ -115,7 +115,7 @@ public class GeneralsOnlineResolverTests
         Assert.NotNull(result.Data);
         Assert.Equal("082826_QFE1", result.Data.Version);
         Assert.NotNull(result.Data.Files);
-        Assert.Contains(result.Data.Files, f => f.DownloadUrl != null && f.DownloadUrl.Contains("GeneralsOnline_portable_082826_QFE1.zip"));
+        Assert.Contains(result.Data.Files, f => f.DownloadUrl?.Contains("GeneralsOnline_portable_082826_QFE1.zip") == true);
     }
 
     /// <summary>
@@ -123,7 +123,7 @@ public class GeneralsOnlineResolverTests
     /// </summary>
     /// <returns>A completed task.</returns>
     [Fact]
-    public async Task ResolveAsync_WithoutReleaseDataAndWithoutVersion_ReturnsFailure()
+    public async Task ResolveAsync_WithoutReleaseDataAndWithoutVersion_ReturnsFailureAsync()
     {
         var searchResult = new ContentSearchResult
         {

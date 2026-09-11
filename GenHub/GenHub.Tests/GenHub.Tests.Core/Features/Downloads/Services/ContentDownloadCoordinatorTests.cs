@@ -468,4 +468,116 @@ public sealed class ContentDownloadCoordinatorTests
             WeakReferenceMessenger.Default.Unregister<ContentDownloadCompletedMessage>(coordinator);
         }
     }
+
+    /// <summary>
+    /// Verifies that when a download is cancelled by its waiter and then immediately retried,
+    /// the coordinator waits for the cancelled download to unwind before starting a fresh acquire,
+    /// rather than running concurrent acquires for the same key (Finding 3).
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task DownloadContentAsync_WhenCancelledAndImmediatelyRetried_AwaitsUnwindAndStartsFreshAcquireAsync()
+    {
+        // Arrange
+        var orchestratorMock = new Mock<IContentOrchestrator>();
+        var stateServiceMock = new Mock<IContentStateService>();
+        var notificationServiceMock = new Mock<INotificationService>();
+
+        var testManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.0.retry.mod.test"),
+            Name = "Retry Mod",
+        };
+
+        var firstTcs = new TaskCompletionSource<OperationResult<ContentManifest>>();
+        var secondTcs = new TaskCompletionSource<OperationResult<ContentManifest>>();
+        var callCount = 0;
+
+        orchestratorMock
+            .Setup(x => x.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()))
+            .Returns<ContentSearchResult, IProgress<ContentAcquisitionProgress>?, CancellationToken>((_, _, ct) =>
+            {
+                var current = Interlocked.Increment(ref callCount);
+                if (current == 1)
+                {
+                    ct.Register(() => firstTcs.TrySetCanceled(ct));
+                    return firstTcs.Task;
+                }
+
+                return secondTcs.Task;
+            });
+
+        var coordinator = new ContentDownloadCoordinator(
+            orchestratorMock.Object,
+            stateServiceMock.Object,
+            notificationServiceMock.Object,
+            NullLogger<ContentDownloadCoordinator>.Instance);
+
+        var searchResult = new ContentSearchResult
+        {
+            Id = "retry_test_1",
+            Name = "Retry Mod",
+            ProviderName = "ModDB",
+        };
+
+        // Act 1: Start first download and cancel it immediately
+        using var cts1 = new CancellationTokenSource();
+        var downloadTask1 = coordinator.DownloadContentAsync(searchResult, cancellationToken: cts1.Token);
+        cts1.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => downloadTask1);
+
+        // Act 2: Immediately retry the same download
+        var downloadTask2 = coordinator.DownloadContentAsync(searchResult);
+
+        // Complete the second acquire
+        secondTcs.SetResult(OperationResult<ContentManifest>.CreateSuccess(testManifest));
+        var result = await downloadTask2;
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Equal(testManifest.Id, result.Data?.Id);
+        Assert.Equal(2, callCount);
+    }
+
+    /// <summary>
+    /// Verifies that HasActiveDownloads returns true while a download is in-flight and false otherwise.
+    /// </summary>
+    /// <returns>A task representing the test.</returns>
+    [Fact]
+    public async Task HasActiveDownloads_TracksInFlightAcquisitionStateAsync()
+    {
+        var orchestratorMock = new Mock<IContentOrchestrator>();
+        var stateServiceMock = new Mock<IContentStateService>();
+        var notificationServiceMock = new Mock<INotificationService>();
+
+        var testManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.1.github.addon.improvedmenusenglish"),
+            Name = "ImprovedMenus (English)",
+        };
+
+        var tcs = new TaskCompletionSource<OperationResult<ContentManifest>>();
+        orchestratorMock
+            .Setup(x => x.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()))
+            .Returns(tcs.Task);
+
+        var coordinator = new ContentDownloadCoordinator(
+            orchestratorMock.Object,
+            stateServiceMock.Object,
+            notificationServiceMock.Object,
+            NullLogger<ContentDownloadCoordinator>.Instance);
+
+        Assert.False(coordinator.HasActiveDownloads);
+
+        var sr = new ContentSearchResult { Id = "test-1", Name = "Test" };
+        var downloadTask = coordinator.DownloadContentAsync(sr);
+
+        Assert.True(coordinator.HasActiveDownloads);
+
+        tcs.SetResult(OperationResult<ContentManifest>.CreateSuccess(testManifest));
+        await downloadTask;
+
+        Assert.False(coordinator.HasActiveDownloads);
+    }
 }

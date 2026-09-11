@@ -148,7 +148,7 @@ public sealed class ContentStateServiceCatalogIdentityTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task GetStateAsync_WhenDifferentGitHubAuthorsPublishSameContent_DoesNotShareDownloadedState()
+    public async Task GetStateAsync_WhenDifferentGitHubAuthorsPublishSameContent_DoesNotShareDownloadedStateAsync()
     {
         var poolMock = new Mock<IContentManifestPool>();
 

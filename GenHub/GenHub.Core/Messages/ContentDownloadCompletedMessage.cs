@@ -11,7 +11,8 @@ public sealed record ContentDownloadCompletedMessage(
     string? ProviderName,
     string? ContentName,
     bool Success,
-    string? ErrorMessage = null)
+    string? ErrorMessage = null,
+    string? ParentContentId = null)
 {
     /// <summary>
     /// Checks whether this download message matches the specified content item.

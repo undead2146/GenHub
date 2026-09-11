@@ -210,7 +210,7 @@ public class GeneralsOnlineJsonCatalogParser(
             return null;
         }
 
-        string fileName;
+        string fileName = string.Empty;
         try
         {
             if (Uri.TryCreate(downloadUrl, UriKind.Absolute, out var uri))

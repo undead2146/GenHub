@@ -9,7 +9,8 @@ public sealed record ContentDownloadStartedMessage(
     string ContentKey,
     string? ContentId,
     string? ProviderName,
-    string? ContentName)
+    string? ContentName,
+    string? ParentContentId = null)
 {
     /// <summary>
     /// Checks whether this download message matches the specified content item.

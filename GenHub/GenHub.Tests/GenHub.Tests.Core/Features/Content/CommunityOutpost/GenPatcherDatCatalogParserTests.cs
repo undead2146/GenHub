@@ -39,7 +39,7 @@ public class GenPatcherDatCatalogParserTests
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ParseAsync_ControlBarPro_PopulatesVariantsAndGroupId()
+    public async Task ParseAsync_ControlBarPro_PopulatesVariantsAndGroupIdAsync()
     {
         var content = "2.13                ;;\n" +
                       "cbpx 000500000 mirror1 /files/cbpx.zip\n";
@@ -70,7 +70,7 @@ public class GenPatcherDatCatalogParserTests
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ParseAsync_Hotkeys_PopulatesLanguageVariantsWithTargetGames()
+    public async Task ParseAsync_Hotkeys_PopulatesLanguageVariantsWithTargetGamesAsync()
     {
         var content = "2.13                ;;\n" +
                       "hlei 000020000 mirror1 /files/hlei.zip\n";
@@ -105,7 +105,7 @@ public class GenPatcherDatCatalogParserTests
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ParseAsync_ItemWithoutVariants_DoesNotPopulateVariants()
+    public async Task ParseAsync_ItemWithoutVariants_DoesNotPopulateVariantsAsync()
     {
         var content = "2.13                ;;\n" +
                       "gent 000100000 mirror1 /files/gent.zip\n";

@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Providers;
+using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Providers;
 using GenHub.Core.Models.Results;
 using Microsoft.Extensions.Logging;
@@ -139,28 +140,80 @@ public class JsonPublisherCatalogParser(ILogger<JsonPublisherCatalogParser> logg
 
         foreach (var dep in release.Dependencies)
         {
-            if (dep == null)
+            ValidateSingleDependency(content, release, dep, itemsById, hostPublisherId, errors);
+        }
+    }
+
+    private static void ValidateSingleDependency(
+        CatalogContentItem content,
+        ContentRelease release,
+        CatalogDependency? dep,
+        Dictionary<string, CatalogContentItem> itemsById,
+        string? hostPublisherId,
+        List<string> errors)
+    {
+        if (dep == null)
+        {
+            errors.Add($"Content '{content.Id}' v{release.Version} has null dependency");
+            return;
+        }
+
+        if (!ValidateDependencyContentType(content, dep, errors))
+        {
+            return;
+        }
+
+        ValidateDependencyPublisher(content, dep, itemsById, hostPublisherId, errors);
+    }
+
+    private static bool ValidateDependencyContentType(
+        CatalogContentItem content,
+        CatalogDependency dep,
+        List<string> errors)
+    {
+        if (string.IsNullOrWhiteSpace(dep.ContentType))
+        {
+            return !CatalogManifestIdentity.IsBaseGameDependency(dep);
+        }
+
+        if (!CatalogManifestIdentity.TryParseDeclaredContentType(dep.ContentType, out var parsedType))
+        {
+            errors.Add($"Dependency '{dep.ContentId}' in '{content.Id}' specifies invalid contentType '{dep.ContentType}'");
+            return false;
+        }
+
+        if (CatalogManifestIdentity.IsBaseGameDependency(dep))
+        {
+            if (parsedType != ContentType.GameInstallation)
             {
-                errors.Add($"Content '{content.Id}' v{release.Version} has null dependency");
-                continue;
+                errors.Add($"Base game dependency '{dep.ContentId}' in '{content.Id}' cannot declare non-GameInstallation contentType '{dep.ContentType}'");
             }
 
-            if (CatalogManifestIdentity.IsBaseGameDependency(dep))
-            {
-                continue;
-            }
+            return false;
+        }
 
-            if (!string.IsNullOrWhiteSpace(dep.ContentId) &&
-                itemsById.TryGetValue(dep.ContentId, out var sibling))
-            {
-                var expectedPublisherType = CatalogManifestIdentity.ResolveDeclaredPublisherType(sibling);
-                if (!string.IsNullOrWhiteSpace(dep.PublisherId) &&
-                    !dep.PublisherId.Equals(expectedPublisherType, StringComparison.OrdinalIgnoreCase) &&
-                    !dep.PublisherId.Equals(hostPublisherId, StringComparison.OrdinalIgnoreCase))
-                {
-                    errors.Add($"Dependency '{dep.ContentId}' in '{content.Id}' specifies publisherId '{dep.PublisherId}' which does not match sibling's declared publisherType '{expectedPublisherType}' or host catalog id '{hostPublisherId}'");
-                }
-            }
+        return true;
+    }
+
+    private static void ValidateDependencyPublisher(
+        CatalogContentItem content,
+        CatalogDependency dep,
+        Dictionary<string, CatalogContentItem> itemsById,
+        string? hostPublisherId,
+        List<string> errors)
+    {
+        if (string.IsNullOrWhiteSpace(dep.ContentId) ||
+            !itemsById.TryGetValue(dep.ContentId, out var sibling))
+        {
+            return;
+        }
+
+        var expectedPublisherType = CatalogManifestIdentity.ResolveDeclaredPublisherType(sibling);
+        if (!string.IsNullOrWhiteSpace(dep.PublisherId) &&
+            !dep.PublisherId.Equals(expectedPublisherType, StringComparison.OrdinalIgnoreCase) &&
+            !dep.PublisherId.Equals(hostPublisherId, StringComparison.OrdinalIgnoreCase))
+        {
+            errors.Add($"Dependency '{dep.ContentId}' in '{content.Id}' specifies publisherId '{dep.PublisherId}' which does not match sibling's declared publisherType '{expectedPublisherType}' or host catalog id '{hostPublisherId}'");
         }
     }
 

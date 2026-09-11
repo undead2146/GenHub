@@ -74,6 +74,8 @@ public sealed partial class ProfileSelectionViewModel(
     public IReadOnlyList<string> ContentManifestIds { get; private set; } = [];
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AddToProfileTooltip))]
+    [NotifyPropertyChangedFor(nameof(CreateProfileTooltip))]
     private string? _contentName;
 
     [ObservableProperty]
@@ -111,6 +113,20 @@ public sealed partial class ProfileSelectionViewModel(
     /// (i.e. only incompatible profiles are available).
     /// </summary>
     public bool HasOnlyIncompatibleProfiles => OtherProfiles.Count > 0 && CompatibleProfiles.Count == 0;
+
+    /// <summary>
+    /// Gets the tooltip text for adding content to a profile.
+    /// </summary>
+    public string AddToProfileTooltip => !string.IsNullOrWhiteSpace(ContentName)
+        ? $"Add {ContentName} to this profile"
+        : "Add this content to this profile";
+
+    /// <summary>
+    /// Gets the tooltip text for creating a new profile with this content.
+    /// </summary>
+    public string CreateProfileTooltip => !string.IsNullOrWhiteSpace(ContentName)
+        ? $"Create a new profile with {ContentName}"
+        : "Create a new profile with this content";
 
     /// <summary>
     /// Gets a summary of the profile counts.
@@ -256,6 +272,7 @@ public sealed partial class ProfileSelectionViewModel(
         }
         catch (ObjectDisposedException)
         {
+            // Ignore if CTS is already disposed.
         }
 
         _cts.Dispose();
@@ -361,11 +378,11 @@ public sealed partial class ProfileSelectionViewModel(
                 WasSuccessful = false;
             }
         }
-        catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+        catch (OperationCanceledException ex) when (_cts.IsCancellationRequested)
         {
             WasCancelled = true;
             WasSuccessful = false;
-            logger.LogInformation("Adding content to profile '{ProfileName}' was cancelled", profile.Name);
+            logger.LogInformation(ex, "Adding content to profile '{ProfileName}' was cancelled", profile.Name);
         }
         catch (System.Exception ex)
         {
@@ -390,6 +407,7 @@ public sealed partial class ProfileSelectionViewModel(
         }
         catch (ObjectDisposedException)
         {
+            // Ignore if CTS is already disposed.
         }
 
         RequestClose?.Invoke(this, EventArgs.Empty);
@@ -465,11 +483,11 @@ public sealed partial class ProfileSelectionViewModel(
                 WasSuccessful = false;
             }
         }
-        catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+        catch (OperationCanceledException ex) when (_cts.IsCancellationRequested)
         {
             WasCancelled = true;
             WasSuccessful = false;
-            logger.LogInformation("Profile creation with content was cancelled");
+            logger.LogInformation(ex, "Profile creation with content was cancelled");
         }
         catch (System.Exception ex)
         {

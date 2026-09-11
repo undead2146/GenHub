@@ -2,6 +2,7 @@ using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
+using GenHub.Core.Models.Providers;
 using GenHub.Core.Models.Results;
 using GenHub.Core.Models.Results.Content;
 using GenHub.Features.Downloads.Services;
@@ -1262,6 +1263,64 @@ public class ContentStateServiceTests
     }
 
     /// <summary>
+    /// Verifies that when a newer SuperHackers release is discovered against an older installed release,
+    /// ContentStateService correctly returns NotDownloaded because in multi-release feeds, each release is its own card
+    /// and the prospective uninstalled card must not display UpdateAvailable.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task GetStateAsync_NewerSuperHackersRelease_ReturnsNotDownloadedAsync()
+    {
+        // Arrange: Installed release is weekly-2026-08-21
+        var installedManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.082126.thesuperhackers.gameclient.zerohour"),
+            Name = "GeneralsGameCode weekly-2026-08-21 — Zero Hour",
+            Version = "weekly-2026-08-21",
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+            OriginalProviderName = PublisherTypeConstants.TheSuperHackers,
+            Publisher = new PublisherInfo
+            {
+                PublisherType = PublisherTypeConstants.TheSuperHackers,
+                Website = "https://github.com/TheSuperHackers/GeneralsGameCode",
+            },
+        };
+
+        // Prospective release is newer: weekly-2026-08-28
+        var item = new ContentSearchResult
+        {
+            Id = "github.TheSuperHackers.GeneralsGameCode.weekly-2026-08-28.zerohour",
+            Name = "GeneralsGameCode weekly-2026-08-28 — Zero Hour",
+            ProviderName = PublisherTypeConstants.TheSuperHackers,
+            ContentType = ContentType.GameClient,
+            TargetGame = GameType.ZeroHour,
+            Version = "weekly-2026-08-28",
+            LastUpdated = new DateTime(2026, 8, 28, 0, 0, 0, DateTimeKind.Utc),
+            ResolverMetadata =
+            {
+                [GitHubConstants.OwnerMetadataKey] = "TheSuperHackers",
+                [GitHubConstants.RepoMetadataKey] = "GeneralsGameCode",
+                [GitHubConstants.TagMetadataKey] = "weekly-2026-08-28",
+            },
+        };
+
+        var pool = new Mock<IContentManifestPool>();
+        pool.Setup(p => p.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([installedManifest]));
+        pool.Setup(p => p.IsManifestAcquiredAsync(It.IsAny<ManifestId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ManifestId id, CancellationToken _) => OperationResult<bool>.CreateSuccess(id == installedManifest.Id));
+
+        var service = new ContentStateService(pool.Object, NullLogger<ContentStateService>.Instance);
+
+        // Act
+        var state = await service.GetStateAsync(item);
+
+        // Assert: Uninstalled prospective card must be NotDownloaded, never UpdateAvailable
+        Assert.Equal(ContentState.NotDownloaded, state);
+    }
+
+    /// <summary>
     /// Verifies that when a newer Generals Online release is discovered against an older installed release,
     /// ContentStateService correctly returns UpdateAvailable rather than Downloaded.
     /// </summary>
@@ -1327,13 +1386,35 @@ public class ContentStateServiceTests
     }
 
     /// <summary>
-    /// Verifies that CompareVersions correctly orders multi-digit suffixes (e.g. QFE10 > QFE2).
+    /// Verifies that CompareVersions correctly orders multi-digit suffixes (e.g. QFE10 > QFE2 and QFE10 > QFE9).
     /// </summary>
     [Fact]
     public void CompareVersions_PrefixedOrSuffixedNumericVersions_OrdersNumerically()
     {
         Assert.True(ContentStateService.CompareVersions("QFE10", "QFE2") > 0);
         Assert.True(ContentStateService.CompareVersions("QFE2", "QFE10") < 0);
+        Assert.True(ContentStateService.CompareVersions("QFE10", "QFE9") > 0);
+        Assert.True(ContentStateService.CompareVersions("QFE9", "QFE10") < 0);
+        Assert.Equal(0, ContentStateService.CompareVersions("beta2", "beta.2"));
+        Assert.Equal(0, ContentStateService.CompareVersions("beta2", "beta-2"));
+        Assert.True(ContentStateService.CompareVersions("beta.10", "beta2") > 0);
+        Assert.True(ContentStateService.CompareVersions("beta2", "beta.10") < 0);
+    }
+
+    /// <summary>
+    /// Verifies that distinct alpha prefixes do not collapse onto the same numeric version segment in CatalogManifestIdentity.
+    /// </summary>
+    [Fact]
+    public void ExtractVersionNumber_DistinctAlphaPrefixes_DoNotCollideOntoSameNumericValue()
+    {
+        var idBeta2 = CatalogManifestIdentity.ExtractVersionNumber("beta2");
+        var idRc2 = CatalogManifestIdentity.ExtractVersionNumber("rc2");
+        var id2 = CatalogManifestIdentity.ExtractVersionNumber("2");
+
+        Assert.Equal(2, id2);
+        Assert.NotEqual(id2, idBeta2);
+        Assert.NotEqual(id2, idRc2);
+        Assert.NotEqual(idBeta2, idRc2);
     }
 
     /// <summary>
@@ -1345,6 +1426,78 @@ public class ContentStateServiceTests
         Assert.True(ContentStateService.CompareVersions("1.0", null) > 0);
         Assert.True(ContentStateService.CompareVersions(null, "1.0") < 0);
         Assert.Equal(0, ContentStateService.CompareVersions(null, string.Empty));
+    }
+
+    /// <summary>
+    /// Verifies that when a GitHub release with language variants (e.g. ImprovedMenus) has only one
+    /// language variant installed (e.g. English), only the English card is marked Downloaded, while
+    /// the Russian and Spanish sibling cards remain NotDownloaded.
+    /// </summary>
+    /// <returns>A completed task.</returns>
+    [Fact]
+    public async Task GetStateAsync_WhenGitHubLanguageVariantDownloaded_OnlyMatchesMatchingVariantAsync()
+    {
+        // Stored manifest for English variant (manifest relative path has English)
+        var manifestEnglish = new ContentManifest
+        {
+            Id = ManifestId.Create("1.1.github.addon.improvedmenusenglish"),
+            Name = "ImprovedMenus (English)",
+            ContentType = ContentType.Addon,
+            TargetGame = GameType.ZeroHour,
+            Publisher = new PublisherInfo
+            {
+                PublisherType = "github",
+                Website = "https://github.com/ElTioRata/ImprovedMenus",
+            },
+            Files =
+            [
+                new ManifestFile { RelativePath = "ImprovedMenusEnglish.big" },
+            ],
+        };
+
+        var pool = new Mock<IContentManifestPool>();
+        pool.Setup(p => p.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([manifestEnglish]));
+        pool.Setup(p => p.IsManifestAcquiredAsync(manifestEnglish.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(true));
+        pool.Setup(p => p.IsManifestAcquiredAsync(It.Is<ManifestId>(m => m.Value != manifestEnglish.Id.Value), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<bool>.CreateSuccess(false));
+
+        var service = new ContentStateService(pool.Object, NullLogger<ContentStateService>.Instance);
+
+        var cardEnglish = new ContentSearchResult
+        {
+            Id = "github.eltiorata.improvedmenus.v1.1.english",
+            Name = "ImprovedMenus (English)",
+            ProviderName = "github",
+            ContentType = ContentType.Addon,
+            TargetGame = GameType.ZeroHour,
+            SourceUrl = "https://github.com/ElTioRata/ImprovedMenus",
+        };
+
+        var cardRussian = new ContentSearchResult
+        {
+            Id = "github.eltiorata.improvedmenus.v1.1.russian",
+            Name = "ImprovedMenus (Russian)",
+            ProviderName = "github",
+            ContentType = ContentType.Addon,
+            TargetGame = GameType.ZeroHour,
+            SourceUrl = "https://github.com/ElTioRata/ImprovedMenus",
+        };
+
+        var cardSpanish = new ContentSearchResult
+        {
+            Id = "github.eltiorata.improvedmenus.v1.1.spanish",
+            Name = "ImprovedMenus (Spanish)",
+            ProviderName = "github",
+            ContentType = ContentType.Addon,
+            TargetGame = GameType.ZeroHour,
+            SourceUrl = "https://github.com/ElTioRata/ImprovedMenus",
+        };
+
+        Assert.Equal(ContentState.Downloaded, await service.GetStateAsync(cardEnglish));
+        Assert.Equal(ContentState.NotDownloaded, await service.GetStateAsync(cardRussian));
+        Assert.Equal(ContentState.NotDownloaded, await service.GetStateAsync(cardSpanish));
     }
 
     private static ContentSearchResult CreateSuperHackersCard(GameType gameType)

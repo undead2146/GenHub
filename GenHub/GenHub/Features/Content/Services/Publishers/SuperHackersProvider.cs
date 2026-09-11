@@ -103,142 +103,15 @@ public class SuperHackersProvider(
                         repo,
                         cancellationToken);
 
-                    if (latestRelease != null &&
-                        (string.IsNullOrWhiteSpace(query.SearchTerm) ||
-                         latestRelease.Name?.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase) == true ||
-                         repo.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase) ||
-                         displayName.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase) ||
-                         latestRelease.Body?.Contains(query.SearchTerm, StringComparison.OrdinalIgnoreCase) == true))
+                    if (latestRelease != null && MatchesSearchTerm(latestRelease, repo, displayName, query.SearchTerm))
                     {
                         if (repo.Equals(SuperHackersConstants.GeneralsGameCodeRepo, StringComparison.OrdinalIgnoreCase))
                         {
-                            var baseName = !string.IsNullOrWhiteSpace(latestRelease.Name)
-                                ? latestRelease.Name
-                                : $"{displayName} {latestRelease.TagName}";
-                            var tag = latestRelease.TagName ?? LatestTagFallback;
-                            var variantGroupId = SuperHackersConstants.GetGameClientVariantGroupId(tag);
-                            var userVersion = SuperHackersConstants.ExtractVersionFromReleaseTag(tag);
-
-                            var variants = new List<ContentVariantInfo>
-                            {
-                                new ContentVariantInfo
-                                {
-                                    Id = $"github.{owner}.{repo}.{tag}.{SuperHackersConstants.ZeroHourSuffix}",
-                                    Name = $"{baseName} — {SuperHackersConstants.ZeroHourDisplayName}",
-                                    ManifestId = ManifestIdGenerator.GeneratePublisherContentId(
-                                        PublisherTypeConstants.TheSuperHackers,
-                                        ContentType.GameClient,
-                                        SuperHackersConstants.ZeroHourSuffix,
-                                        userVersion),
-                                    VariantType = "game-type",
-                                    IsDefault = true,
-                                    TargetGame = GameType.ZeroHour,
-                                },
-                                new ContentVariantInfo
-                                {
-                                    Id = $"github.{owner}.{repo}.{tag}.{SuperHackersConstants.GeneralsSuffix}",
-                                    Name = $"{baseName} — {SuperHackersConstants.GeneralsDisplayName}",
-                                    ManifestId = ManifestIdGenerator.GeneratePublisherContentId(
-                                        PublisherTypeConstants.TheSuperHackers,
-                                        ContentType.GameClient,
-                                        SuperHackersConstants.GeneralsSuffix,
-                                        userVersion),
-                                    VariantType = "game-type",
-                                    IsDefault = false,
-                                    TargetGame = GameType.Generals,
-                                },
-                            };
-
-                            var gameTypes = new[]
-                            {
-                                (GameType.ZeroHour, SuperHackersConstants.ZeroHourSuffix, SuperHackersConstants.ZeroHourDisplayName),
-                                (GameType.Generals, SuperHackersConstants.GeneralsSuffix, SuperHackersConstants.GeneralsDisplayName),
-                            };
-
-                            foreach (var (gType, suffix, gName) in gameTypes)
-                            {
-                                if (query.TargetGame.HasValue && query.TargetGame.Value != gType)
-                                {
-                                    continue;
-                                }
-
-                                var card = new ContentSearchResult
-                                {
-                                    Id = $"github.{owner}.{repo}.{tag}.{suffix}",
-                                    Name = $"{baseName} — {gName}",
-                                    Description = string.IsNullOrEmpty(latestRelease.Body)
-                                        ? $"{gName} game client from TheSuperHackers."
-                                        : latestRelease.Body,
-                                    Version = GameVersionHelper.StripVersionPrefix(tag),
-                                    AuthorName = !string.IsNullOrWhiteSpace(latestRelease.Author) ? latestRelease.Author : SuperHackersConstants.PublisherName,
-                                    ContentType = ContentType.GameClient,
-                                    TargetGame = gType,
-                                    IsInferred = false,
-                                    ProviderName = SourceName,
-                                    RequiresResolution = true,
-                                    ResolverId = SuperHackersConstants.ResolverId,
-                                    SourceUrl = latestRelease.HtmlUrl,
-                                    IconUrl = PublisherInfoConstants.TheSuperHackers.LogoSource,
-                                    LastUpdated = latestRelease.PublishedAt?.DateTime ?? latestRelease.CreatedAt.DateTime,
-                                    VariantGroupId = variantGroupId,
-                                    VariantFamilyName = baseName,
-                                    Variants = variants,
-                                    ResolverMetadata =
-                                    {
-                                        [GitHubConstants.OwnerMetadataKey] = owner,
-                                        [GitHubConstants.RepoMetadataKey] = repo,
-                                        [GitHubConstants.TagMetadataKey] = latestRelease.TagName ?? LatestTagFallback,
-                                        ["VariantCount"] = "2",
-                                        ["RequestedGameType"] = gType.ToString(),
-                                    },
-                                };
-
-                                var assetName = FindSuperHackersAssetName(latestRelease.Assets, gType);
-                                if (!string.IsNullOrEmpty(assetName))
-                                {
-                                    card.ResolverMetadata["asset-name"] = assetName;
-                                }
-
-                                card.SetData(latestRelease);
-                                results.Add(card);
-                            }
+                            results.AddRange(CreateGameClientCards(owner, repo, displayName, latestRelease, query));
                         }
                         else
                         {
-                            var manifestId = ManifestIdGenerator.GenerateGitHubContentId(
-                                owner,
-                                repo,
-                                contentType,
-                                latestRelease.TagName);
-
-                            var resolvedTargetGame = targetGame ?? query.TargetGame ?? GameType.ZeroHour;
-
-                            var result = new ContentSearchResult
-                            {
-                                Id = manifestId,
-                                Name = !string.IsNullOrWhiteSpace(latestRelease.Name) ? latestRelease.Name : $"{displayName} {latestRelease.TagName}",
-                                Description = latestRelease.Body ?? "SuperHackers release - details available after resolution",
-                                Version = latestRelease.TagName ?? LatestTagFallback,
-                                AuthorName = owner,
-                                ContentType = contentType,
-                                TargetGame = resolvedTargetGame,
-                                IsInferred = false,
-                                ProviderName = SourceName,
-                                RequiresResolution = true,
-                                ResolverId = SuperHackersConstants.ResolverId,
-                                SourceUrl = latestRelease.HtmlUrl,
-                                IconUrl = PublisherInfoConstants.TheSuperHackers.LogoSource,
-                                LastUpdated = latestRelease.PublishedAt?.DateTime ?? latestRelease.CreatedAt.DateTime,
-                                ResolverMetadata =
-                                {
-                                    [GitHubConstants.OwnerMetadataKey] = owner,
-                                    [GitHubConstants.RepoMetadataKey] = repo,
-                                    [GitHubConstants.TagMetadataKey] = latestRelease.TagName ?? LatestTagFallback,
-                                },
-                            };
-
-                            result.SetData(latestRelease);
-                            results.Add(result);
+                            results.Add(CreateReleaseCard(owner, repo, contentType, targetGame, displayName, latestRelease, query));
                         }
                     }
                 }
@@ -380,6 +253,15 @@ public class SuperHackersProvider(
         }
     }
 
+    private static bool MatchesSearchTerm(GitHubRelease release, string repo, string displayName, string? searchTerm)
+    {
+        return string.IsNullOrWhiteSpace(searchTerm) ||
+               release.Name?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) == true ||
+               repo.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+               displayName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+               release.Body?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) == true;
+    }
+
     private static string? FindSuperHackersAssetName(IEnumerable<GitHubReleaseAsset>? assets, GameType gameType)
     {
         if (assets == null)
@@ -408,5 +290,152 @@ public class SuperHackersProvider(
                 ?.Name,
             _ => null,
         };
+    }
+
+    private IEnumerable<ContentSearchResult> CreateGameClientCards(
+        string owner,
+        string repo,
+        string displayName,
+        GitHubRelease latestRelease,
+        ContentSearchQuery query)
+    {
+        var baseName = !string.IsNullOrWhiteSpace(latestRelease.Name)
+            ? latestRelease.Name
+            : $"{displayName} {latestRelease.TagName}";
+        var tag = latestRelease.TagName ?? LatestTagFallback;
+        var variantGroupId = SuperHackersConstants.GetGameClientVariantGroupId(tag);
+        var userVersion = SuperHackersConstants.ExtractVersionFromReleaseTag(tag);
+
+        var variants = new List<ContentVariantInfo>
+        {
+            new ContentVariantInfo
+            {
+                Id = $"github.{owner}.{repo}.{tag}.{SuperHackersConstants.ZeroHourSuffix}",
+                Name = $"{baseName} — {SuperHackersConstants.ZeroHourDisplayName}",
+                ManifestId = ManifestIdGenerator.GeneratePublisherContentId(
+                    PublisherTypeConstants.TheSuperHackers,
+                    ContentType.GameClient,
+                    SuperHackersConstants.ZeroHourSuffix,
+                    userVersion),
+                VariantType = "game-type",
+                IsDefault = true,
+                TargetGame = GameType.ZeroHour,
+            },
+            new ContentVariantInfo
+            {
+                Id = $"github.{owner}.{repo}.{tag}.{SuperHackersConstants.GeneralsSuffix}",
+                Name = $"{baseName} — {SuperHackersConstants.GeneralsDisplayName}",
+                ManifestId = ManifestIdGenerator.GeneratePublisherContentId(
+                    PublisherTypeConstants.TheSuperHackers,
+                    ContentType.GameClient,
+                    SuperHackersConstants.GeneralsSuffix,
+                    userVersion),
+                VariantType = "game-type",
+                IsDefault = false,
+                TargetGame = GameType.Generals,
+            },
+        };
+
+        var gameTypes = new[]
+        {
+            (GameType.ZeroHour, SuperHackersConstants.ZeroHourSuffix, SuperHackersConstants.ZeroHourDisplayName),
+            (GameType.Generals, SuperHackersConstants.GeneralsSuffix, SuperHackersConstants.GeneralsDisplayName),
+        };
+
+        var cards = new List<ContentSearchResult>();
+        foreach (var (gType, suffix, gName) in gameTypes)
+        {
+            if (query.TargetGame.HasValue && query.TargetGame.Value != gType)
+            {
+                continue;
+            }
+
+            var card = new ContentSearchResult
+            {
+                Id = $"github.{owner}.{repo}.{tag}.{suffix}",
+                Name = $"{baseName} — {gName}",
+                Description = string.IsNullOrEmpty(latestRelease.Body)
+                    ? $"{gName} game client from TheSuperHackers."
+                    : latestRelease.Body,
+                Version = GameVersionHelper.StripVersionPrefix(tag),
+                AuthorName = !string.IsNullOrWhiteSpace(latestRelease.Author) ? latestRelease.Author : SuperHackersConstants.PublisherName,
+                ContentType = ContentType.GameClient,
+                TargetGame = gType,
+                IsInferred = false,
+                ProviderName = SourceName,
+                RequiresResolution = true,
+                ResolverId = SuperHackersConstants.ResolverId,
+                SourceUrl = latestRelease.HtmlUrl,
+                IconUrl = PublisherInfoConstants.TheSuperHackers.LogoSource,
+                LastUpdated = latestRelease.PublishedAt?.DateTime ?? latestRelease.CreatedAt.DateTime,
+                VariantGroupId = variantGroupId,
+                VariantFamilyName = baseName,
+                Variants = variants,
+                ResolverMetadata =
+                {
+                    [GitHubConstants.OwnerMetadataKey] = owner,
+                    [GitHubConstants.RepoMetadataKey] = repo,
+                    [GitHubConstants.TagMetadataKey] = latestRelease.TagName ?? LatestTagFallback,
+                    ["VariantCount"] = "2",
+                    ["RequestedGameType"] = gType.ToString(),
+                },
+            };
+
+            var assetName = FindSuperHackersAssetName(latestRelease.Assets, gType);
+            if (!string.IsNullOrEmpty(assetName))
+            {
+                card.ResolverMetadata["asset-name"] = assetName;
+            }
+
+            card.SetData(latestRelease);
+            cards.Add(card);
+        }
+
+        return cards;
+    }
+
+    private ContentSearchResult CreateReleaseCard(
+        string owner,
+        string repo,
+        ContentType contentType,
+        GameType? targetGame,
+        string displayName,
+        GitHubRelease latestRelease,
+        ContentSearchQuery query)
+    {
+        var manifestId = ManifestIdGenerator.GenerateGitHubContentId(
+            owner,
+            repo,
+            contentType,
+            latestRelease.TagName);
+
+        var resolvedTargetGame = targetGame ?? query.TargetGame ?? GameType.ZeroHour;
+
+        var result = new ContentSearchResult
+        {
+            Id = manifestId,
+            Name = !string.IsNullOrWhiteSpace(latestRelease.Name) ? latestRelease.Name : $"{displayName} {latestRelease.TagName}",
+            Description = latestRelease.Body ?? "SuperHackers release - details available after resolution",
+            Version = latestRelease.TagName ?? LatestTagFallback,
+            AuthorName = owner,
+            ContentType = contentType,
+            TargetGame = resolvedTargetGame,
+            IsInferred = false,
+            ProviderName = SourceName,
+            RequiresResolution = true,
+            ResolverId = SuperHackersConstants.ResolverId,
+            SourceUrl = latestRelease.HtmlUrl,
+            IconUrl = PublisherInfoConstants.TheSuperHackers.LogoSource,
+            LastUpdated = latestRelease.PublishedAt?.DateTime ?? latestRelease.CreatedAt.DateTime,
+            ResolverMetadata =
+            {
+                [GitHubConstants.OwnerMetadataKey] = owner,
+                [GitHubConstants.RepoMetadataKey] = repo,
+                [GitHubConstants.TagMetadataKey] = latestRelease.TagName ?? LatestTagFallback,
+            },
+        };
+
+        result.SetData(latestRelease);
+        return result;
     }
 }

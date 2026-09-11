@@ -67,7 +67,7 @@ public class GeneralsOnlinePatchNotesService(IHttpClientFactory httpClientFactor
         sb.AppendLine();
         foreach (var change in changes)
         {
-            sb.AppendLine($"• {change}");
+            sb.AppendLine($"- {change}");
         }
 
         return sb.ToString().TrimEnd();

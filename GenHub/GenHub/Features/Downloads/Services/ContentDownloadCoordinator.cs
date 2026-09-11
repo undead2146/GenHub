@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Messaging;
+using GenHub.Core.Constants;
 using GenHub.Core.Extensions;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Notifications;
@@ -42,6 +44,10 @@ public sealed class ContentDownloadCoordinator(
 
         public string LastStatusMessage { get; set; } = string.Empty;
 
+        public ContentSearchResult? SearchResult { get; set; }
+
+        public string? ParentContentId { get; set; }
+
         public object Lock { get; } = new();
 
         public void Dispose()
@@ -67,6 +73,9 @@ public sealed class ContentDownloadCoordinator(
     }
 
     /// <inheritdoc />
+    public bool HasActiveDownloads => !_inFlightDownloads.IsEmpty;
+
+    /// <inheritdoc />
     public bool IsDownloading(ContentSearchResult searchResult)
     {
         if (searchResult == null)
@@ -74,26 +83,7 @@ public sealed class ContentDownloadCoordinator(
             return false;
         }
 
-        var key = GetDownloadKey(searchResult);
-        if (_inFlightDownloads.TryGetValue(key, out var inFlight) &&
-            !inFlight.InternalCts.IsCancellationRequested &&
-            !inFlight.Task.IsCompleted)
-        {
-            return true;
-        }
-
-        if (!string.IsNullOrWhiteSpace(searchResult.Name))
-        {
-            var nameKey = $"{searchResult.ProviderName}::{searchResult.Name}";
-            if (_inFlightDownloads.TryGetValue(nameKey, out inFlight) &&
-                !inFlight.InternalCts.IsCancellationRequested &&
-                !inFlight.Task.IsCompleted)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return FindInFlightDownload(searchResult) != null;
     }
 
     /// <inheritdoc />
@@ -107,27 +97,19 @@ public sealed class ContentDownloadCoordinator(
             return false;
         }
 
-        var key = GetDownloadKey(searchResult);
-        if (!_inFlightDownloads.TryGetValue(key, out var inFlight) && !string.IsNullOrWhiteSpace(searchResult.Name))
+        var inFlight = FindInFlightDownload(searchResult);
+        if (inFlight == null)
         {
-            var nameKey = $"{searchResult.ProviderName}::{searchResult.Name}";
-            _inFlightDownloads.TryGetValue(nameKey, out inFlight);
+            return false;
         }
 
-        if (inFlight != null &&
-            !inFlight.InternalCts.IsCancellationRequested &&
-            !inFlight.Task.IsCompleted)
+        lock (inFlight.Lock)
         {
-            lock (inFlight.Lock)
-            {
-                progressPercentage = inFlight.LastProgressPercentage;
-                statusMessage = inFlight.LastStatusMessage;
-            }
-
-            return true;
+            progressPercentage = inFlight.LastProgressPercentage;
+            statusMessage = inFlight.LastStatusMessage;
         }
 
-        return false;
+        return true;
     }
 
     /// <inheritdoc />
@@ -139,47 +121,15 @@ public sealed class ContentDownloadCoordinator(
         ArgumentNullException.ThrowIfNull(searchResult);
 
         var key = GetDownloadKey(searchResult);
-
-        var inFlight = GetOrCreateInFlightDownload(key, out var isInitiator);
-
         Action<ContentAcquisitionProgress>? callback = progress != null ? progress.Report : null;
+
+        var (inFlight, isInitiator) = await GetOrCreateInFlightDownloadAsync(key, searchResult, cancellationToken);
+
         AttachProgressCallback(inFlight, callback);
 
         if (isInitiator)
         {
-            var multiplexedProgress = new Progress<ContentAcquisitionProgress>(p =>
-            {
-                var status = p.FormatProgressStatus();
-                lock (inFlight.Lock)
-                {
-                    inFlight.LastProgressPercentage = p.ProgressPercentage;
-                    inFlight.LastStatusMessage = status;
-                }
-
-                Action<ContentAcquisitionProgress>? callbacks;
-                lock (inFlight.Lock)
-                {
-                    callbacks = inFlight.ProgressCallbacks;
-                }
-
-                callbacks?.Invoke(p);
-
-                try
-                {
-                    WeakReferenceMessenger.Default.Send(new ContentDownloadProgressMessage(
-                        key,
-                        searchResult.Id,
-                        searchResult.ProviderName,
-                        searchResult.Name,
-                        p.ProgressPercentage,
-                        status));
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "Failed to broadcast ContentDownloadProgressMessage for {Key}", key);
-                }
-            });
-
+            var multiplexedProgress = CreateMultiplexedProgress(inFlight, searchResult, key);
             _ = StartDownloadTaskAsync(inFlight, searchResult, key, multiplexedProgress);
         }
 
@@ -200,6 +150,49 @@ public sealed class ContentDownloadCoordinator(
             await reg.DisposeAsync();
             DecrementWaiterAndCancelIfEmpty(inFlight, ref unregistered);
             DetachProgressCallback(inFlight, callback);
+        }
+    }
+
+    private static bool IsInFlightActive(InFlightDownload inFlight) =>
+        !inFlight.InternalCts.IsCancellationRequested && !inFlight.Task.IsCompleted;
+
+    private static bool MatchesInFlightDownload(InFlightDownload download, ContentSearchResult searchResult)
+    {
+        if (!IsInFlightActive(download))
+        {
+            return false;
+        }
+
+        return download.SearchResult != null &&
+            DownloadMessageMatchHelper.Matches(
+                null,
+                download.SearchResult.Id,
+                download.SearchResult.ProviderName,
+                download.SearchResult.Name,
+                searchResult);
+    }
+
+    private static void IncrementWaiterCount(InFlightDownload inFlight)
+    {
+        lock (inFlight.Lock)
+        {
+            inFlight.WaiterCount++;
+        }
+    }
+
+    private static async Task AwaitPreviousCancelledTaskAsync(Task task, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await task.WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Previous task cancelled; proceed to retry in the loop to start a fresh acquire.
+        }
+        catch (Exception)
+        {
+            // Previous task failed; proceed to retry in the loop to start a fresh acquire.
         }
     }
 
@@ -251,29 +244,114 @@ public sealed class ContentDownloadCoordinator(
         }
     }
 
-    private InFlightDownload GetOrCreateInFlightDownload(string key, out bool isInitiator)
+    private InFlightDownload? FindInFlightDownload(ContentSearchResult searchResult)
     {
-        lock (_inFlightDownloads)
+        var key = GetDownloadKey(searchResult);
+        if (_inFlightDownloads.TryGetValue(key, out var inFlight) && IsInFlightActive(inFlight))
         {
-            if (!_inFlightDownloads.TryGetValue(key, out var inFlight) ||
-                inFlight.InternalCts.IsCancellationRequested ||
-                inFlight.Task.IsCompleted)
+            return inFlight;
+        }
+
+        if (!string.IsNullOrWhiteSpace(searchResult.Name))
+        {
+            var nameKey = $"{searchResult.ProviderName}::{searchResult.Name}";
+            if (_inFlightDownloads.TryGetValue(nameKey, out inFlight) && IsInFlightActive(inFlight))
             {
-                inFlight = new InFlightDownload();
-                isInitiator = true;
-                _inFlightDownloads[key] = inFlight;
+                return inFlight;
             }
-            else
+        }
+
+        return _inFlightDownloads.Values.FirstOrDefault(download => MatchesInFlightDownload(download, searchResult));
+    }
+
+    private async Task<(InFlightDownload InFlight, bool IsInitiator)> GetOrCreateInFlightDownloadAsync(
+        string key,
+        ContentSearchResult searchResult,
+        CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            Task? previousCancelledTask = null;
+
+            lock (_inFlightDownloads)
             {
-                isInitiator = false;
+                if (_inFlightDownloads.TryGetValue(key, out var existing) && !existing.Task.IsCompleted)
+                {
+                    if (existing.InternalCts.IsCancellationRequested)
+                    {
+                        // The previous download was cancelled by its waiter(s) but is still unwinding.
+                        // Wait for it to complete outside the lock before launching a fresh acquire.
+                        previousCancelledTask = existing.Task;
+                    }
+                    else
+                    {
+                        // Existing active download: join it as a waiter
+                        IncrementWaiterCount(existing);
+                        return (existing, false);
+                    }
+                }
+                else
+                {
+                    searchResult.ResolverMetadata.TryGetValue(ContentConstants.ParentContentIdMetadataKey, out var parentContentId);
+                    var inFlight = new InFlightDownload
+                    {
+                        SearchResult = searchResult,
+                        ParentContentId = parentContentId,
+                    };
+                    _inFlightDownloads[key] = inFlight;
+                    IncrementWaiterCount(inFlight);
+                    return (inFlight, true);
+                }
             }
 
+            if (previousCancelledTask != null)
+            {
+                await AwaitPreviousCancelledTaskAsync(previousCancelledTask, cancellationToken);
+            }
+        }
+    }
+
+    private Progress<ContentAcquisitionProgress> CreateMultiplexedProgress(
+        InFlightDownload inFlight,
+        ContentSearchResult searchResult,
+        string key)
+    {
+        return new Progress<ContentAcquisitionProgress>(p =>
+        {
+            var status = p.FormatProgressStatus();
+            Action<ContentAcquisitionProgress>? callbacks;
             lock (inFlight.Lock)
             {
-                inFlight.WaiterCount++;
+                inFlight.LastProgressPercentage = p.ProgressPercentage;
+                inFlight.LastStatusMessage = status;
+                callbacks = inFlight.ProgressCallbacks;
             }
 
-            return inFlight;
+            callbacks?.Invoke(p);
+
+            BroadcastDownloadProgress(key, searchResult, p.ProgressPercentage, status);
+        });
+    }
+
+    private void BroadcastDownloadProgress(string key, ContentSearchResult searchResult, double progressPercentage, string status)
+    {
+        searchResult.ResolverMetadata.TryGetValue(ContentConstants.ParentContentIdMetadataKey, out var parentContentId);
+        try
+        {
+            WeakReferenceMessenger.Default.Send(new ContentDownloadProgressMessage(
+                key,
+                searchResult.Id,
+                searchResult.ProviderName,
+                searchResult.Name,
+                progressPercentage,
+                status,
+                parentContentId));
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to broadcast ContentDownloadProgressMessage for {Key}", key);
         }
     }
 
@@ -283,13 +361,16 @@ public sealed class ContentDownloadCoordinator(
         string key,
         IProgress<ContentAcquisitionProgress> progress)
     {
+        searchResult.ResolverMetadata.TryGetValue(ContentConstants.ParentContentIdMetadataKey, out var parentContentId);
+
         try
         {
             WeakReferenceMessenger.Default.Send(new ContentDownloadStartedMessage(
                 key,
                 searchResult.Id,
                 searchResult.ProviderName,
-                searchResult.Name));
+                searchResult.Name,
+                parentContentId));
         }
         catch (Exception ex)
         {
@@ -334,7 +415,8 @@ public sealed class ContentDownloadCoordinator(
                     searchResult.ProviderName,
                     searchResult.Name,
                     success,
-                    errorMessage));
+                    errorMessage,
+                    parentContentId));
             }
             catch (Exception ex)
             {

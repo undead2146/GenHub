@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
@@ -327,11 +329,11 @@ public interface IContentManifestBuilder
     IContentManifestBuilder AddPatchFile(string targetRelativePath, string patchSourceFile);
 
     /// <summary>
-    /// Sets the relative path of the main launch executable for this manifest.
+    /// Sets the declared entry point executable for this manifest.
     /// </summary>
     /// <param name="entryPoint">The relative path of the entry point file.</param>
     /// <returns>The builder instance for chaining.</returns>
-    IContentManifestBuilder WithEntryPoint(string entryPoint);
+    IContentManifestBuilder WithEntryPoint(string? entryPoint);
 
     /// <summary>
     /// Explicitly sets the manifest ID, bypassing automatic generation.

@@ -321,6 +321,49 @@ public sealed class ContentGridItemViewModelTests
         Assert.Equal(expected, viewModel.EffectiveIsDownloaded);
     }
 
+    /// <summary>
+    /// Verifies that RefreshVariantStates preserves UpdateAvailable when an update target is set and not downloaded.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task RefreshVariantStatesAsync_WhenUpdateTargetNotDownloaded_PreservesUpdateAvailableStateAsync()
+    {
+        // Arrange
+        var searchResult = new ContentSearchResult
+        {
+            Id = "older-release",
+            Name = "Older Release",
+            Version = "1.0",
+        };
+        var targetResult = new ContentSearchResult
+        {
+            Id = "newer-release",
+            Name = "Newer Release",
+            Version = "2.0",
+        };
+
+        var stateService = new Mock<IContentStateService>();
+        stateService.Setup(s => s.GetStateAsync(searchResult, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ContentState.Downloaded);
+        stateService.Setup(s => s.GetStateAsync(targetResult, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ContentState.NotDownloaded);
+
+        var viewModel = CreateViewModel(searchResult, stateService.Object);
+        var targetVm = CreateViewModel(targetResult, stateService.Object);
+
+        viewModel.UpdateTargetVm = targetVm;
+        viewModel.CurrentState = ContentState.UpdateAvailable;
+
+        // Act
+        await viewModel.RefreshVariantStatesAsync();
+
+        // Assert
+        Assert.Equal(ContentState.UpdateAvailable, viewModel.CurrentState);
+        Assert.True(viewModel.ShowUpdateButton);
+        Assert.True(viewModel.ShowAddToProfileButton);
+        Assert.False(viewModel.ShowDownloadButton);
+    }
+
     private static void MarkAllSelectedDownloaded(ContentGridItemViewModel viewModel)
     {
         foreach (var component in viewModel.BundleComponents)
@@ -405,9 +448,9 @@ public sealed class ContentGridItemViewModelTests
         return searchResult;
     }
 
-    private static ContentGridItemViewModel CreateViewModel(ContentSearchResult searchResult) =>
+    private static ContentGridItemViewModel CreateViewModel(ContentSearchResult searchResult, IContentStateService? stateService = null) =>
         new(
             searchResult,
-            new Mock<IContentStateService>().Object,
+            stateService ?? new Mock<IContentStateService>().Object,
             new Mock<ILogger<ContentGridItemViewModel>>().Object);
 }

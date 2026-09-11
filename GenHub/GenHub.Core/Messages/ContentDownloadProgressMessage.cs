@@ -11,7 +11,8 @@ public sealed record ContentDownloadProgressMessage(
     string? ProviderName,
     string? ContentName,
     double ProgressPercentage,
-    string StatusMessage)
+    string StatusMessage,
+    string? ParentContentId = null)
 {
     /// <summary>
     /// Checks whether this download message matches the specified content item.
