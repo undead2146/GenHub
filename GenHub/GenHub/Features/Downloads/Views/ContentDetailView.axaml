@@ -611,12 +611,12 @@
                                                                     </StackPanel>
 
                                                                     <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,0,0,0"
-                                                                                IsVisible="{Binding HasMd5Hash}">
-                                                                        <TextBlock Text="MD5 Checksum" FontSize="11" Foreground="{DynamicResource TextSecondary}" />
+                                                                                IsVisible="{Binding HasChecksum}">
+                                                                        <TextBlock Text="{Binding ChecksumTitle}" FontSize="11" Foreground="{DynamicResource TextSecondary}" />
                                                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                                                            <TextBlock Text="{Binding Md5Hash}" FontSize="12" FontFamily="Consolas, Monospace" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="140"/>
-                                                                            <Button Content="Copy" Command="{Binding CopyMd5Command}" Padding="6,2" FontSize="10"
-                                                                                    Background="{DynamicResource SurfaceElevatedBrush}" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Cursor="Hand" ToolTip.Tip="Copy MD5 hash"/>
+                                                                            <TextBlock Text="{Binding ChecksumDisplay}" FontSize="12" FontFamily="Consolas, Monospace" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="140"/>
+                                                                            <Button Content="Copy" Command="{Binding CopyChecksumCommand}" Padding="6,2" FontSize="10"
+                                                                                    Background="{DynamicResource SurfaceElevatedBrush}" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Cursor="Hand" ToolTip.Tip="Copy checksum"/>
                                                                         </StackPanel>
                                                                     </StackPanel>
                                                                 </Grid>
@@ -979,12 +979,12 @@
                                                                     </StackPanel>
 
                                                                     <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,0,0,0"
-                                                                                IsVisible="{Binding HasMd5Hash}">
-                                                                        <TextBlock Text="MD5 Checksum" FontSize="11" Foreground="{DynamicResource TextSecondary}" />
+                                                                                IsVisible="{Binding HasChecksum}">
+                                                                        <TextBlock Text="{Binding ChecksumTitle}" FontSize="11" Foreground="{DynamicResource TextSecondary}" />
                                                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                                                            <TextBlock Text="{Binding Md5Hash}" FontSize="12" FontFamily="Consolas, Monospace" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="140"/>
-                                                                            <Button Content="Copy" Command="{Binding CopyMd5Command}" Padding="6,2" FontSize="10"
-                                                                                    Background="{DynamicResource SurfaceElevatedBrush}" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Cursor="Hand" ToolTip.Tip="Copy MD5 hash"/>
+                                                                            <TextBlock Text="{Binding ChecksumDisplay}" FontSize="12" FontFamily="Consolas, Monospace" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="140"/>
+                                                                            <Button Content="Copy" Command="{Binding CopyChecksumCommand}" Padding="6,2" FontSize="10"
+                                                                                    Background="{DynamicResource SurfaceElevatedBrush}" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Cursor="Hand" ToolTip.Tip="Copy checksum"/>
                                                                         </StackPanel>
                                                                     </StackPanel>
                                                                 </Grid>

@@ -567,7 +567,7 @@ public sealed partial class ContentGridItemViewModel(
                 IsDownloading = false;
                 if (!message.Success && !string.IsNullOrEmpty(message.ErrorMessage))
                 {
-                    DownloadStatus = $"Error: {message.ErrorMessage}";
+                    DownloadStatus = $"{ContentConstants.ErrorStatusPrefix}{message.ErrorMessage}";
                 }
                 else
                 {

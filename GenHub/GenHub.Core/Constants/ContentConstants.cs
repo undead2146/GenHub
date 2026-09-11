@@ -1,3 +1,5 @@
+using GenHub.Core.Models.Enums;
+
 namespace GenHub.Core.Constants;
 
 /// <summary>
@@ -201,4 +203,99 @@ public static class ContentConstants
     /// Release categorization keyword indicating a standalone release.
     /// </summary>
     public const string StandaloneKeyword = "standalone";
+
+    /// <summary>
+    /// Global default game type when no target game is explicitly specified.
+    /// </summary>
+    public const GameType DefaultGameType = GameType.ZeroHour;
+
+    /// <summary>
+    /// Category identifier for static publisher feeds.
+    /// </summary>
+    public const string CategoryStatic = "static";
+
+    /// <summary>
+    /// Category identifier for dynamic publisher feeds.
+    /// </summary>
+    public const string CategoryDynamic = "dynamic";
+
+    /// <summary>
+    /// Game identifier segment for Generals in catalog manifests and variant resolution.
+    /// </summary>
+    public const string GeneralsGameSegment = "generals";
+
+    /// <summary>
+    /// Game identifier segment for Zero Hour in catalog manifests and variant resolution.
+    /// </summary>
+    public const string ZeroHourGameSegment = "zerohour";
+
+    /// <summary>
+    /// Default display title for MD5 checksum.
+    /// </summary>
+    public const string Md5ChecksumTitle = "MD5 Checksum";
+
+    /// <summary>
+    /// Default display title for SHA-256 checksum.
+    /// </summary>
+    public const string Sha256ChecksumTitle = "SHA-256 Checksum";
+
+    /// <summary>
+    /// Fallback release name when file name is missing.
+    /// </summary>
+    public const string UnknownReleaseName = "Unknown Release";
+
+    /// <summary>
+    /// Fallback addon name when file name is missing.
+    /// </summary>
+    public const string UnknownAddonName = "Unknown Addon";
+
+    /// <summary>
+    /// Status message displayed when all selected items have already been downloaded.
+    /// </summary>
+    public const string AllSelectedContentLoadedStatusMessage = "All selected content is already downloaded";
+
+    /// <summary>
+    /// Status message displayed when attempting an operation before content is downloaded.
+    /// </summary>
+    public const string PleaseDownloadFirstStatusMessage = "Please download first";
+
+    /// <summary>
+    /// Status message displayed when content download was cancelled.
+    /// </summary>
+    public const string DownloadCancelledStatusMessage = "Download cancelled";
+
+    /// <summary>
+    /// Status message displayed when content download failed.
+    /// </summary>
+    public const string DownloadFailedStatusMessage = "Download failed";
+
+    /// <summary>
+    /// Status message displayed while selecting a profile.
+    /// </summary>
+    public const string SelectingProfileStatusMessage = "Selecting profile...";
+
+    /// <summary>
+    /// Status message displayed when no application window is available to host a dialog.
+    /// </summary>
+    public const string ErrorNoWindowStatusMessage = "Error: No window";
+
+    /// <summary>
+    /// Status prefix used for reporting download errors.
+    /// </summary>
+    public const string ErrorStatusPrefix = "Error: ";
+
+    /// <summary>
+    /// Status prefix used for reporting in-progress downloads.
+    /// </summary>
+    public const string DownloadingStatusPrefix = "Downloading ";
+
+    /// <summary>
+    /// Status prefix used when content has been added to a profile.
+    /// </summary>
+    public const string AddedToProfileStatusPrefix = "Added to ";
+
+    /// <summary>
+    /// Status prefix used when an operation failed.
+    /// </summary>
+    public const string FailedStatusPrefix = "Failed: ";
 }

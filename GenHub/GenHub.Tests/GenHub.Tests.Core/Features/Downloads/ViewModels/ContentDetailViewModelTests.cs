@@ -2037,4 +2037,46 @@ public sealed class ContentDetailViewModelTests
         Assert.NotNull(viewModel.SelectedVariant);
         Assert.Equal("1.0.communityoutpost.addon.cbpx-1080p", viewModel.SelectedVariant.ManifestId);
     }
+
+    /// <summary>
+    /// Verifies that when a downloadable item has a SHA-256 hash,
+    /// the checksum metadata and title are accurately configured for SHA-256 rather than MD5.
+    /// </summary>
+    [Fact]
+    public void DownloadableItem_WithSha256_ConfiguresSha256ChecksumProperties()
+    {
+        // Arrange
+        var item = new ReleaseItemViewModel
+        {
+            Sha256Hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        };
+
+        // Assert
+        Assert.True(item.HasSha256Hash);
+        Assert.False(item.HasMd5Hash);
+        Assert.True(item.HasChecksum);
+        Assert.Equal(ContentConstants.Sha256ChecksumTitle, item.ChecksumTitle);
+        Assert.Equal("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", item.ChecksumDisplay);
+    }
+
+    /// <summary>
+    /// Verifies that when a downloadable item has an MD5 hash,
+    /// the checksum metadata and title are accurately configured for MD5.
+    /// </summary>
+    [Fact]
+    public void DownloadableItem_WithMd5_ConfiguresMd5ChecksumProperties()
+    {
+        // Arrange
+        var item = new ReleaseItemViewModel
+        {
+            Md5Hash = "098f6bcd4621d373cade4e832627b4f6",
+        };
+
+        // Assert
+        Assert.False(item.HasSha256Hash);
+        Assert.True(item.HasMd5Hash);
+        Assert.True(item.HasChecksum);
+        Assert.Equal(ContentConstants.Md5ChecksumTitle, item.ChecksumTitle);
+        Assert.Equal("098f6bcd4621d373cade4e832627b4f6", item.ChecksumDisplay);
+    }
 }

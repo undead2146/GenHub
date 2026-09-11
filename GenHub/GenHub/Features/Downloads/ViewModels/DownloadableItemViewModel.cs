@@ -10,6 +10,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using GenHub.Core.Constants;
 using GenHub.Core.Helpers;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Parsers;
@@ -209,12 +210,45 @@ public abstract partial class DownloadableItemViewModel : ObservableObject, IDow
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasMd5Hash))]
+    [NotifyPropertyChangedFor(nameof(HasChecksum))]
+    [NotifyPropertyChangedFor(nameof(ChecksumTitle))]
+    [NotifyPropertyChangedFor(nameof(ChecksumDisplay))]
     private string? _md5Hash;
 
     /// <summary>
     /// Gets a value indicating whether an MD5 checksum hash is present.
     /// </summary>
     public bool HasMd5Hash => !string.IsNullOrWhiteSpace(Md5Hash);
+
+    /// <summary>
+    /// Gets or sets the SHA-256 checksum hash.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSha256Hash))]
+    [NotifyPropertyChangedFor(nameof(HasChecksum))]
+    [NotifyPropertyChangedFor(nameof(ChecksumTitle))]
+    [NotifyPropertyChangedFor(nameof(ChecksumDisplay))]
+    private string? _sha256Hash;
+
+    /// <summary>
+    /// Gets a value indicating whether a SHA-256 checksum hash is present.
+    /// </summary>
+    public bool HasSha256Hash => !string.IsNullOrWhiteSpace(Sha256Hash);
+
+    /// <summary>
+    /// Gets a value indicating whether any checksum hash (MD5 or SHA-256) is present.
+    /// </summary>
+    public bool HasChecksum => HasSha256Hash || HasMd5Hash;
+
+    /// <summary>
+    /// Gets the display title for the checksum.
+    /// </summary>
+    public string ChecksumTitle => HasSha256Hash ? ContentConstants.Sha256ChecksumTitle : ContentConstants.Md5ChecksumTitle;
+
+    /// <summary>
+    /// Gets the checksum string to display.
+    /// </summary>
+    public string? ChecksumDisplay => Sha256Hash ?? Md5Hash;
 
     /// <summary>
     /// Gets or sets the download count.
@@ -474,6 +508,36 @@ public abstract partial class DownloadableItemViewModel : ObservableObject, IDow
                 if (topLevel?.Clipboard != null)
                 {
                     await topLevel.Clipboard.SetTextAsync(Md5Hash);
+                }
+            }
+        }
+        catch
+        {
+            // Clipboard access fallback ignored
+        }
+    }
+
+    /// <summary>
+    /// Copies the checksum (SHA-256 or MD5) to the system clipboard.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [RelayCommand]
+    public async Task CopyChecksumAsync()
+    {
+        var hash = ChecksumDisplay;
+        if (string.IsNullOrEmpty(hash))
+        {
+            return;
+        }
+
+        try
+        {
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                var topLevel = TopLevel.GetTopLevel(desktop.MainWindow);
+                if (topLevel?.Clipboard != null)
+                {
+                    await topLevel.Clipboard.SetTextAsync(hash);
                 }
             }
         }

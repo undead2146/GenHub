@@ -63,8 +63,63 @@ public sealed partial class DownloadsBrowserViewModel(
     IContentDownloadCoordinator? downloadCoordinator = null,
     IPublisherReconcilerRegistry? reconcilerRegistry = null) : ObservableObject, IDisposable
 {
-    private const string CategoryStatic = "static";
-    private const string CategoryDynamic = "dynamic";
+    /// <summary>
+    /// Tracks an in-flight background default browse operation so switching away
+    /// allows the fetch to complete into cache, and switching back can attach to it.
+    /// </summary>
+    internal sealed class PublisherInFlightOperation(
+        string publisherId,
+        ContentSearchQuery query,
+        CancellationTokenSource cts)
+    {
+        /// <summary>Gets the publisher identifier.</summary>
+        public string PublisherId { get; } = publisherId;
+
+        /// <summary>Gets the search query used for this operation.</summary>
+        public ContentSearchQuery Query { get; } = query;
+
+        /// <summary>Gets the cancellation token source for this operation.</summary>
+        public CancellationTokenSource Cts { get; } = cts;
+
+        /// <summary>Gets the sync root for thread-safe list operations.</summary>
+        public object SyncRoot { get; } = new();
+
+        /// <summary>Gets the list of items resolved so far.</summary>
+        public List<ContentGridItemViewModel> ResolvedItems { get; } = [];
+
+        /// <summary>Gets or sets a value indicating whether the operation has completed.</summary>
+        public bool IsCompleted { get; set; }
+
+        /// <summary>Gets or sets a value indicating whether more items are available from the provider.</summary>
+        public bool HasMoreItems { get; set; }
+
+        /// <summary>Gets or sets the current UI request ID attached to this in-flight operation.</summary>
+        public int ActiveRequestId { get; set; }
+    }
+
+    /// <summary>
+    /// Snapshot of a publisher's browse state so switching back does not re-run discovery.
+    /// </summary>
+    private sealed class PublisherBrowseState
+    {
+        /// <summary>Gets or sets the grid item view models that were displayed.</summary>
+        public List<ContentGridItemViewModel> Items { get; set; } = [];
+
+        /// <summary>Gets or sets the page counter at the time of the snapshot.</summary>
+        public int CurrentPage { get; set; } = 1;
+
+        /// <summary>Gets or sets a value indicating whether more items could be loaded.</summary>
+        public bool CanLoadMore { get; set; }
+
+        /// <summary>Gets or sets the search term for this publisher.</summary>
+        public string SearchTerm { get; set; } = string.Empty;
+
+        /// <summary>Gets or sets a value indicating whether a custom search query was active.</summary>
+        public bool HasCustomQuery { get; set; }
+
+        /// <summary>Gets or sets the active detail view model for this publisher.</summary>
+        public ContentDetailViewModel? ActiveDetailViewModel { get; set; }
+    }
 
     private readonly Dictionary<string, IFilterPanelViewModel> _filterViewModels = [];
     private readonly Dictionary<string, PublisherBrowseState> _browseCache = [];
@@ -176,6 +231,11 @@ public sealed partial class DownloadsBrowserViewModel(
     /// Gets a value indicating whether the detail view is currently visible.
     /// </summary>
     public bool IsDetailViewVisible => SelectedContent != null;
+
+    /// <summary>
+    /// Gets the current active request ID (for testing).
+    /// </summary>
+    internal int ActiveRequestId => _activeRequestId;
 
     /// <summary>
     /// Ensures built-in publishers exist, then reloads subscribed catalogs from disk.
@@ -517,11 +577,6 @@ public sealed partial class DownloadsBrowserViewModel(
     }
 
     /// <summary>
-    /// Gets the current active request ID (for testing).
-    /// </summary>
-    internal int ActiveRequestId => _activeRequestId;
-
-    /// <summary>
     /// Injects an in-flight operation for unit testing.
     /// </summary>
     /// <param name="publisherId">The publisher ID to attach.</param>
@@ -756,22 +811,22 @@ public sealed partial class DownloadsBrowserViewModel(
                 PublisherTypeConstants.GeneralsOnline,
                 PublisherInfoConstants.GeneralsOnline.Name,
                 PublisherInfoConstants.GeneralsOnline.LogoSource,
-                CategoryStatic),
+                ContentConstants.CategoryStatic),
             new PublisherItemViewModel(
                 PublisherTypeConstants.TheSuperHackers,
                 PublisherInfoConstants.TheSuperHackers.Name,
                 PublisherInfoConstants.TheSuperHackers.LogoSource,
-                CategoryStatic),
+                ContentConstants.CategoryStatic),
             new PublisherItemViewModel(
                 CommunityOutpostConstants.PublisherType,
                 PublisherInfoConstants.CommunityOutpost.Name,
                 PublisherInfoConstants.CommunityOutpost.LogoSource,
-                CategoryStatic),
+                ContentConstants.CategoryStatic),
             new PublisherItemViewModel(
                 GitHubTopicsConstants.PublisherType,
                 PublisherInfoConstants.GitHub.Name,
                 PublisherInfoConstants.GitHub.LogoSource,
-                CategoryDynamic),
+                ContentConstants.CategoryDynamic),
         ];
     }
 
@@ -1049,7 +1104,7 @@ public sealed partial class DownloadsBrowserViewModel(
                 SearchTerm = SearchTerm,
                 Take = effectivePageSize,
                 Page = CurrentPage,
-                TargetGame = GameType.ZeroHour, // Global default
+                TargetGame = ContentConstants.DefaultGameType,
             };
 
             // Apply active filters from filter panel
@@ -2053,20 +2108,20 @@ public sealed partial class DownloadsBrowserViewModel(
             {
                 var errorMsg = result.FirstError ?? "Unknown error";
                 logger.LogError("Failed to download {ItemName}: {Error}", item.Name, errorMsg);
-                item.DownloadStatus = $"Error: {errorMsg}";
+                item.DownloadStatus = $"{ContentConstants.ErrorStatusPrefix}{errorMsg}";
                 return false;
             }
         }
         catch (OperationCanceledException ex)
         {
             logger.LogInformation(ex, "Download cancelled for: {Name}", item.Name);
-            item.DownloadStatus = "Download cancelled";
+            item.DownloadStatus = ContentConstants.DownloadCancelledStatusMessage;
             return false;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error downloading content: {Name}", item.Name);
-            item.DownloadStatus = $"Error: {ex.Message}";
+            item.DownloadStatus = $"{ContentConstants.ErrorStatusPrefix}{ex.Message}";
             return false;
         }
         finally
@@ -2136,7 +2191,7 @@ public sealed partial class DownloadsBrowserViewModel(
         var targets = BundleComponentViewModel.GetRequiredDownloadTargets(item.BundleComponents);
         if (targets.Count == 0)
         {
-            item.DownloadStatus = "All selected content is already downloaded";
+            item.DownloadStatus = ContentConstants.AllSelectedContentLoadedStatusMessage;
             await item.RefreshBundleComponentStatesAsync();
             return;
         }
@@ -2150,7 +2205,7 @@ public sealed partial class DownloadsBrowserViewModel(
         foreach (var target in targets)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            item.DownloadStatus = $"Downloading {target.Name} ({completed + 1}/{targets.Count})...";
+            item.DownloadStatus = $"{ContentConstants.DownloadingStatusPrefix}{target.Name} ({completed + 1}/{targets.Count})...";
             item.DownloadProgress = (int)(completed * 100.0 / targets.Count);
 
             var progress = new Progress<ContentAcquisitionProgress>(p =>
@@ -2176,7 +2231,7 @@ public sealed partial class DownloadsBrowserViewModel(
             {
                 var errorMsg = result.FirstError ?? "Unknown error";
                 logger.LogError("Failed to download bundle member {ItemName}: {Error}", target.Name, errorMsg);
-                item.DownloadStatus = $"Error: {errorMsg}";
+                item.DownloadStatus = $"{ContentConstants.ErrorStatusPrefix}{errorMsg}";
                 notificationService.ShowError("Download Failed", $"Failed to download {target.Name}: {errorMsg}");
                 return;
             }
@@ -2217,7 +2272,7 @@ public sealed partial class DownloadsBrowserViewModel(
 
         if (!item.EffectiveIsDownloaded && item.EffectiveCurrentState is not (ContentState.Downloaded or ContentState.UpdateAvailable))
         {
-            item.DownloadStatus = "Please download first";
+            item.DownloadStatus = ContentConstants.PleaseDownloadFirstStatusMessage;
             notificationService.ShowError("Cannot Add to Profile", "Please download the content first before adding it to a profile.");
             logger.LogWarning("Cannot add content to profile: content '{Name}' is not downloaded", item.Name);
             return;
@@ -2236,7 +2291,7 @@ public sealed partial class DownloadsBrowserViewModel(
                     _vmCts.Token);
                 if (bundleIds.Count == 0)
                 {
-                    item.DownloadStatus = "Please download first";
+                    item.DownloadStatus = ContentConstants.PleaseDownloadFirstStatusMessage;
                     notificationService.ShowError(
                         "Cannot Add to Profile",
                         "Download every selected bundle item (including the chosen variants) before adding them to a profile.");
@@ -2271,7 +2326,7 @@ public sealed partial class DownloadsBrowserViewModel(
                 if (string.IsNullOrEmpty(manifestId))
                 {
                     // Content hasn't been downloaded yet
-                    item.DownloadStatus = "Please download first";
+                    item.DownloadStatus = ContentConstants.PleaseDownloadFirstStatusMessage;
                     notificationService.ShowError("Cannot Add to Profile", "Please download the content first before adding it to a profile.");
                     logger.LogWarning("Cannot add content to profile: no manifest found for '{ContentName}'", item.Name);
                     return;
@@ -2281,7 +2336,7 @@ public sealed partial class DownloadsBrowserViewModel(
             logger.LogInformation("Adding content '{ContentName}' (Manifest: {ManifestId}) to profile", item.Name, manifestId);
 
             // Show profile selection dialog
-            item.DownloadStatus = "Selecting profile...";
+            item.DownloadStatus = ContentConstants.SelectingProfileStatusMessage;
 
             var manifestPool = serviceProvider.GetRequiredService(typeof(IContentManifestPool)) as IContentManifestPool
                 ?? throw new InvalidOperationException("IContentManifestPool service not found");
@@ -2317,14 +2372,14 @@ public sealed partial class DownloadsBrowserViewModel(
             else
             {
                 logger.LogWarning("No main window found to show profile selection dialog");
-                item.DownloadStatus = "Error: No window";
+                item.DownloadStatus = ContentConstants.ErrorNoWindowStatusMessage;
                 return;
             }
 
             // Check the result
             if (profileSelectionVm.WasSuccessful && !string.IsNullOrEmpty(profileSelectionVm.SelectedProfileName))
             {
-                item.DownloadStatus = $"Added to {profileSelectionVm.SelectedProfileName}";
+                item.DownloadStatus = $"{ContentConstants.AddedToProfileStatusPrefix}{profileSelectionVm.SelectedProfileName}";
                 notificationService.ShowSuccess(
                     "Added to Profile",
                     $"'{item.Name}' has been added to profile '{profileSelectionVm.SelectedProfileName}'.");
@@ -2348,7 +2403,7 @@ public sealed partial class DownloadsBrowserViewModel(
             }
             else if (!profileSelectionVm.WasSuccessful && !profileSelectionVm.WasCancelled && !string.IsNullOrEmpty(profileSelectionVm.ErrorMessage))
             {
-                item.DownloadStatus = $"Failed: {profileSelectionVm.ErrorMessage}";
+                item.DownloadStatus = $"{ContentConstants.FailedStatusPrefix}{profileSelectionVm.ErrorMessage}";
                 notificationService.ShowError(
                     "Failed to Add to Profile",
                     profileSelectionVm.ErrorMessage);
@@ -2369,7 +2424,7 @@ public sealed partial class DownloadsBrowserViewModel(
         }
         catch (Exception ex)
         {
-            item.DownloadStatus = $"Error: {ex.Message}";
+            item.DownloadStatus = $"{ContentConstants.ErrorStatusPrefix}{ex.Message}";
             notificationService.ShowError(
                 "Error Adding to Profile",
                 $"An unexpected error occurred: {ex.Message}");
@@ -2408,63 +2463,5 @@ public sealed partial class DownloadsBrowserViewModel(
             logger.LogError(ex, "Failed to open manifests directory");
             notificationService.ShowError("Error", $"Failed to open manifests directory: {ex.Message}", 5000);
         }
-    }
-
-    /// <summary>
-    /// Tracks an in-flight background default browse operation so switching away
-    /// allows the fetch to complete into cache, and switching back can attach to it.
-    /// </summary>
-    internal sealed class PublisherInFlightOperation(
-        string publisherId,
-        ContentSearchQuery query,
-        CancellationTokenSource cts)
-    {
-        /// <summary>Gets the publisher identifier.</summary>
-        public string PublisherId { get; } = publisherId;
-
-        /// <summary>Gets the search query used for this operation.</summary>
-        public ContentSearchQuery Query { get; } = query;
-
-        /// <summary>Gets the cancellation token source for this operation.</summary>
-        public CancellationTokenSource Cts { get; } = cts;
-
-        /// <summary>Gets the sync root for thread-safe list operations.</summary>
-        public object SyncRoot { get; } = new();
-
-        /// <summary>Gets the list of items resolved so far.</summary>
-        public List<ContentGridItemViewModel> ResolvedItems { get; } = [];
-
-        /// <summary>Gets or sets a value indicating whether the operation has completed.</summary>
-        public bool IsCompleted { get; set; }
-
-        /// <summary>Gets or sets a value indicating whether more items are available from the provider.</summary>
-        public bool HasMoreItems { get; set; }
-
-        /// <summary>Gets or sets the current UI request ID attached to this in-flight operation.</summary>
-        public int ActiveRequestId { get; set; }
-    }
-
-    /// <summary>
-    /// Snapshot of a publisher's browse state so switching back does not re-run discovery.
-    /// </summary>
-    private sealed class PublisherBrowseState
-    {
-        /// <summary>Gets or sets the grid item view models that were displayed.</summary>
-        public List<ContentGridItemViewModel> Items { get; set; } = [];
-
-        /// <summary>Gets or sets the page counter at the time of the snapshot.</summary>
-        public int CurrentPage { get; set; } = 1;
-
-        /// <summary>Gets or sets a value indicating whether more items could be loaded.</summary>
-        public bool CanLoadMore { get; set; }
-
-        /// <summary>Gets or sets the search term for this publisher.</summary>
-        public string SearchTerm { get; set; } = string.Empty;
-
-        /// <summary>Gets or sets a value indicating whether a custom search query was active.</summary>
-        public bool HasCustomQuery { get; set; }
-
-        /// <summary>Gets or sets the active detail view model for this publisher.</summary>
-        public ContentDetailViewModel? ActiveDetailViewModel { get; set; }
     }
 }

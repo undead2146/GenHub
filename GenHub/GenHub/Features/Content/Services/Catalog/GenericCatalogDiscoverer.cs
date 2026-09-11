@@ -38,8 +38,6 @@ public class GenericCatalogDiscoverer(
     IVersionSelector versionSelector,
     IGitHubApiClient gitHubClient) : IContentDiscoverer
 {
-    private const string GeneralsGameSegment = "generals";
-    private const string ZeroHourGameSegment = "zerohour";
     private const string GameTypeVariantAxis = "game-type";
     private static readonly ConcurrentDictionary<string, (GitHubRelease Release, DateTime CachedAt)> ReleaseCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, Task<GitHubRelease?>> PendingReleaseFetches = new(StringComparer.OrdinalIgnoreCase);
@@ -239,12 +237,12 @@ public class GenericCatalogDiscoverer(
             return null;
         }
 
-        if (string.Equals(variant, GeneralsGameSegment, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(variant, ContentConstants.GeneralsGameSegment, StringComparison.OrdinalIgnoreCase))
         {
             return GameType.Generals;
         }
 
-        if (string.Equals(variant, ZeroHourGameSegment, StringComparison.OrdinalIgnoreCase) ||
+        if (string.Equals(variant, ContentConstants.ZeroHourGameSegment, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(variant, "Zero Hour", StringComparison.OrdinalIgnoreCase))
         {
             return GameType.ZeroHour;
@@ -514,7 +512,7 @@ public class GenericCatalogDiscoverer(
             a.Name.Contains("_zh", StringComparison.OrdinalIgnoreCase));
 
         var genAsset = latestRelease.Assets?.FirstOrDefault(a =>
-            a.Name.Contains(GeneralsGameSegment, StringComparison.OrdinalIgnoreCase) &&
+            a.Name.Contains(ContentConstants.GeneralsGameSegment, StringComparison.OrdinalIgnoreCase) &&
             !a.Name.Contains("generalszh", StringComparison.OrdinalIgnoreCase) &&
             !a.Name.Contains("zerohour", StringComparison.OrdinalIgnoreCase) &&
             !a.Name.Contains("zero-hour", StringComparison.OrdinalIgnoreCase) &&
@@ -573,7 +571,7 @@ public class GenericCatalogDiscoverer(
                         new CatalogDependency
                         {
                             PublisherId = "ea",
-                            ContentId = item.TargetGame == GameType.Generals ? GeneralsGameSegment : ZeroHourGameSegment,
+                            ContentId = item.TargetGame == GameType.Generals ? ContentConstants.GeneralsGameSegment : ContentConstants.ZeroHourGameSegment,
                             VersionConstraint = item.TargetGame == GameType.Generals ? "1.08" : "1.04",
                             ContentType = ContentType.GameInstallation.ToString(),
                             IsOptional = false,
@@ -894,7 +892,7 @@ public class GenericCatalogDiscoverer(
                     return new CatalogDependency
                     {
                         PublisherId = dep.PublisherId ?? "ea",
-                        ContentId = siblingTargetGame == GameType.Generals ? GeneralsGameSegment : ZeroHourGameSegment,
+                        ContentId = siblingTargetGame == GameType.Generals ? ContentConstants.GeneralsGameSegment : ContentConstants.ZeroHourGameSegment,
                         VersionConstraint = siblingTargetGame == GameType.Generals ? "1.08" : "1.04",
                         ContentType = ContentType.GameInstallation.ToString(),
                         IsOptional = dep.IsOptional,

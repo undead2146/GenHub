@@ -1551,8 +1551,8 @@ public partial class ContentDetailViewModel(
         {
             var gameSuffix = sibling.TargetGame switch
             {
-                GameType.Generals => "generals",
-                GameType.ZeroHour => "zerohour",
+                GameType.Generals => ContentConstants.GeneralsGameSegment,
+                GameType.ZeroHour => ContentConstants.ZeroHourGameSegment,
                 _ => null,
             };
             if (gameSuffix != null)
@@ -1561,8 +1561,8 @@ public partial class ContentDetailViewModel(
                     v.Id.EndsWith($".{gameSuffix}", StringComparison.OrdinalIgnoreCase) ||
                     v.Id.EndsWith($"-{gameSuffix}", StringComparison.OrdinalIgnoreCase) ||
                     v.Name.Contains(gameSuffix, StringComparison.OrdinalIgnoreCase) ||
-                    (sibling.TargetGame == GameType.ZeroHour && v.Name.Contains("Zero Hour", StringComparison.OrdinalIgnoreCase)) ||
-                    (sibling.TargetGame == GameType.Generals && v.Name.Contains("Generals", StringComparison.OrdinalIgnoreCase) && !v.Name.Contains("Zero Hour", StringComparison.OrdinalIgnoreCase)));
+                    (sibling.TargetGame == GameType.ZeroHour && v.Name.Contains(GameClientConstants.ZeroHourShortName, StringComparison.OrdinalIgnoreCase)) ||
+                    (sibling.TargetGame == GameType.Generals && v.Name.Contains(GameClientConstants.GeneralsShortName, StringComparison.OrdinalIgnoreCase) && !v.Name.Contains(GameClientConstants.ZeroHourShortName, StringComparison.OrdinalIgnoreCase)));
             }
         }
 
@@ -2052,7 +2052,7 @@ public partial class ContentDetailViewModel(
                 IsDownloading = false;
                 if (!message.Success && !string.IsNullOrEmpty(message.ErrorMessage))
                 {
-                    DownloadStatusMessage = $"Error: {message.ErrorMessage}";
+                    DownloadStatusMessage = $"{ContentConstants.ErrorStatusPrefix}{message.ErrorMessage}";
                 }
                 else
                 {
@@ -2991,7 +2991,8 @@ public partial class ContentDetailViewModel(
             Uploader = uploader,
             Filename = filename,
             FullDescription = description,
-            Md5Hash = primaryArtifact?.Sha256,
+            Sha256Hash = primaryArtifact?.Sha256,
+            Md5Hash = null,
             IsDetailsLoaded = true,
         };
 
@@ -3506,7 +3507,7 @@ public partial class ContentDetailViewModel(
         {
             if (!_disposed)
             {
-                DownloadStatusMessage = "All selected content is already downloaded";
+                DownloadStatusMessage = ContentConstants.AllSelectedContentLoadedStatusMessage;
             }
 
             await RefreshBundleComponentStatesAsync();
@@ -3523,7 +3524,7 @@ public partial class ContentDetailViewModel(
                 cancellationToken.ThrowIfCancellationRequested();
                 if (!_disposed)
                 {
-                    DownloadStatusMessage = $"Downloading {target.Name} ({completed + 1}/{targets.Count})...";
+                    DownloadStatusMessage = $"{ContentConstants.DownloadingStatusPrefix}{target.Name} ({completed + 1}/{targets.Count})...";
                 }
 
                 var progress = new Progress<ContentAcquisitionProgress>(p =>
@@ -3547,7 +3548,7 @@ public partial class ContentDetailViewModel(
                 {
                     if (!_disposed)
                     {
-                        DownloadStatusMessage = result.FirstError ?? "Download failed";
+                        DownloadStatusMessage = result.FirstError ?? ContentConstants.DownloadFailedStatusMessage;
                     }
 
                     return;
@@ -3749,7 +3750,7 @@ public partial class ContentDetailViewModel(
             else
             {
                 var errorMsg = result.FirstError ?? "Unknown error";
-                DownloadStatusMessage = $"Error: {errorMsg}";
+                DownloadStatusMessage = $"{ContentConstants.ErrorStatusPrefix}{errorMsg}";
 
                 // Surface the failure as a toast so the user sees actionable text (e.g. the ModDB
                 // WAF block message) instead of only the inline status label.
@@ -3762,7 +3763,7 @@ public partial class ContentDetailViewModel(
             logger.LogInformation(ex, "Download cancelled for: {Name}", targetContent.Name);
             if (!_disposed)
             {
-                DownloadStatusMessage = "Download cancelled";
+                DownloadStatusMessage = ContentConstants.DownloadCancelledStatusMessage;
             }
 
             return false;
@@ -3772,7 +3773,7 @@ public partial class ContentDetailViewModel(
             logger.LogError(ex, "Error downloading content: {Name}", targetContent.Name);
             if (!_disposed)
             {
-                DownloadStatusMessage = $"Error: {ex.Message}";
+                DownloadStatusMessage = $"{ContentConstants.ErrorStatusPrefix}{ex.Message}";
             }
 
             return false;
@@ -4532,7 +4533,7 @@ public partial class ContentDetailViewModel(
         ReleaseItemViewModel releaseItem = new()
         {
             Id = Guid.NewGuid().ToString(),
-            Name = file.Name ?? "Unknown Release",
+            Name = file.Name ?? ContentConstants.UnknownReleaseName,
             Version = file.Version,
             ReleaseDate = file.ReleaseDate ?? file.UploadDate,
             FileSize = file.SizeBytes ?? 0,
@@ -4604,7 +4605,7 @@ public partial class ContentDetailViewModel(
         AddonItemViewModel addonItem = new()
         {
             Id = Guid.NewGuid().ToString(),
-            Name = file.Name ?? "Unknown Addon",
+            Name = file.Name ?? ContentConstants.UnknownAddonName,
             ReleaseDate = file.ReleaseDate ?? file.UploadDate,
             FileSize = file.SizeBytes ?? 0,
             SizeDisplay = file.SizeDisplay,
