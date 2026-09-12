@@ -109,15 +109,39 @@ public partial class CommunityOutpostDiscoverer(
 
             var results = new List<ContentSearchResult>();
 
+            // Cap catalog timeout to at most 8 seconds to prevent long hangs on unresponsive networks
+            catalogTimeout = Math.Clamp(catalogTimeout, 1, 8);
+
             using var client = httpClientFactory.CreateClient();
             client.Timeout = TimeSpan.FromSeconds(catalogTimeout);
 
             // First, discover the Community Patch GameClient from legi.cc/patch
-            var communityPatchResult = await DiscoverCommunityPatchAsync(client, patchPageUrl, provider, cancellationToken);
+            var (communityPatchResult, patchHostFailed) = await DiscoverCommunityPatchAsync(client, patchPageUrl, provider, cancellationToken);
             if (communityPatchResult != null && MatchesQuery(communityPatchResult, query))
             {
                 results.Add(communityPatchResult);
                 logger.LogInformation("Discovered Community Patch: {Version}", communityPatchResult.Version);
+            }
+
+            // If the host failed to connect and the catalog URL is on the same host, avoid hanging on a second connection
+            bool sameHost = Uri.TryCreate(patchPageUrl, UriKind.Absolute, out var patchUri) &&
+                           Uri.TryCreate(catalogUrl, UriKind.Absolute, out var catalogUri) &&
+                           string.Equals(patchUri.Host, catalogUri.Host, StringComparison.OrdinalIgnoreCase);
+
+            if (patchHostFailed && sameHost)
+            {
+                logger.LogWarning(
+                    "Skipping catalog fetch from {CatalogUrl} because host {Host} was unreachable",
+                    catalogUrl,
+                    patchUri?.Host);
+
+                EnsureOfficialClients(results, query, provider);
+
+                return OperationResult<ContentDiscoveryResult>.CreateSuccess(new ContentDiscoveryResult
+                {
+                    Items = results,
+                    HasMoreItems = false,
+                });
             }
 
             // Then, fetch and parse the catalog using the appropriate parser
@@ -131,7 +155,9 @@ public partial class CommunityOutpostDiscoverer(
                 {
                     logger.LogError("No parser found for catalog format '{Format}'", provider.CatalogFormat);
 
-                    // Return success with just community patch if parser fails
+                    // Return success with just community patch and official clients if parser fails
+                    EnsureOfficialClients(results, query, provider);
+
                     return OperationResult<ContentDiscoveryResult>.CreateSuccess(new ContentDiscoveryResult
                     {
                         Items = results,
@@ -277,9 +303,9 @@ public partial class CommunityOutpostDiscoverer(
         // Check search term
         if (!string.IsNullOrWhiteSpace(query.SearchTerm))
         {
-            var term = query.SearchTerm.ToLowerInvariant();
-            var nameMatches = result.Name?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false;
-            var descMatches = result.Description?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false;
+            var term = query.SearchTerm;
+            var nameMatches = result.Name?.Contains(term, StringComparison.OrdinalIgnoreCase) == true;
+            var descMatches = result.Description?.Contains(term, StringComparison.OrdinalIgnoreCase) == true;
             var tagMatches = result.Tags.Any(t => t.Contains(term, StringComparison.OrdinalIgnoreCase));
 
             if (!nameMatches && !descMatches && !tagMatches)
@@ -322,7 +348,7 @@ public partial class CommunityOutpostDiscoverer(
     /// <summary>
     /// Discovers the Community Patch (TheSuperHackers Patch Build) from legi.cc/patch.
     /// </summary>
-    private async Task<ContentSearchResult?> DiscoverCommunityPatchAsync(
+    private async Task<(ContentSearchResult? Result, bool HostFailed)> DiscoverCommunityPatchAsync(
         HttpClient client,
         string patchPageUrl,
         ProviderDefinition? provider,
@@ -350,7 +376,7 @@ public partial class CommunityOutpostDiscoverer(
             if (!downloadUrlMatch.Success)
             {
                 logger.LogWarning("Could not find Community Patch download link on {Url}", patchPageUrl);
-                return null;
+                return (null, false);
             }
 
             logger.LogInformation("Community Patch regex matched successfully");
@@ -415,12 +441,27 @@ public partial class CommunityOutpostDiscoverer(
             result.ResolverMetadata["downloadUrl"] = downloadUrl;
             result.ResolverMetadata["category"] = "CommunityPatch";
 
-            return result;
+            return (result, false);
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
+        {
+            logger.LogWarning(ex, "Failed to reach Community Patch page from {Url} (host unreachable)", patchPageUrl);
+            return (null, true);
+        }
+        catch (TimeoutException ex)
+        {
+            logger.LogWarning(ex, "Timed out reaching Community Patch page from {Url} (host unresponsive)", patchPageUrl);
+            return (null, true);
+        }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning(ex, "Timed out reaching Community Patch page from {Url} (host unresponsive)", patchPageUrl);
+            return (null, true);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "Failed to discover Community Patch from {Url}", patchPageUrl);
-            return null;
+            return (null, false);
         }
     }
 
@@ -493,7 +534,7 @@ public partial class CommunityOutpostDiscoverer(
                 DownloadSize = item.FileSize,
                 RequiresResolution = true,
                 ResolverId = CommunityOutpostConstants.PublisherId,
-                LastUpdated = DateTime.Now, // dl.dat doesn't include timestamps
+                LastUpdated = DateTime.UtcNow, // dl.dat doesn't include timestamps
 
                 // Use publisher logo as default content icon
                 IconUrl = CommunityOutpostConstants.LogoSource,
