@@ -391,7 +391,7 @@ public sealed partial class DownloadsBrowserViewModel(
 
             var familyItems = family
                 .OrderByDescending(it => it.SearchResult.LastUpdated ?? DateTime.MinValue)
-                .ThenByDescending(it => it.SearchResult.Version, Comparer<string?>.Create(ContentStateService.CompareVersions))
+                .ThenByDescending(it => it.SearchResult.Version, Comparer<string?>.Create((a, b) => ContentStateService.CompareVersions(a, b, family.Any(f => string.Equals(f.SearchResult.ProviderName, PublisherTypeConstants.GeneralsOnline, StringComparison.OrdinalIgnoreCase)))))
                 .ToList();
             if (familyItems.Count <= 1)
             {
@@ -1725,7 +1725,10 @@ public sealed partial class DownloadsBrowserViewModel(
             if (!result.Success)
             {
                 logger.LogWarning("Reconciler failed for {PublisherId}: {Error}", publisherId, result.FirstError);
+                targetItem.DownloadStatus = $"{ContentConstants.ErrorStatusPrefix}{result.FirstError ?? ContentConstants.UpdateFailedStatusMessage}";
             }
+
+            return false;
         }
 
         return await DownloadContentAsync(targetItem, ct);
@@ -1944,7 +1947,7 @@ public sealed partial class DownloadsBrowserViewModel(
                         {
                             var state = await contentStateService.GetStateAsync(match.SearchResult, _vmCts.Token);
                             var isDownloaded = state is ContentState.Downloaded or ContentState.UpdateAvailable;
-                            if (isDownloaded && (string.IsNullOrEmpty(match.SearchResult.Id) || !ManifestIdValidator.IsValid(match.SearchResult.Id, out _)))
+                            if (state == ContentState.Downloaded && (string.IsNullOrEmpty(match.SearchResult.Id) || !ManifestIdValidator.IsValid(match.SearchResult.Id, out _)))
                             {
                                 var manifestId = await contentStateService.GetLocalManifestIdAsync(match.SearchResult, _vmCts.Token);
                                 if (!string.IsNullOrEmpty(manifestId))
@@ -1953,11 +1956,13 @@ public sealed partial class DownloadsBrowserViewModel(
                                 }
                             }
 
+                            await match.RefreshVariantStatesAsync().ConfigureAwait(false);
                             RunOnUi(() =>
                             {
                                 match.CurrentState = state;
                                 match.IsDownloaded = isDownloaded;
                                 match.NotifyStateChanged();
+                                ReconcileReleaseUpdateStates(ContentItems);
                             });
                         }
                     }

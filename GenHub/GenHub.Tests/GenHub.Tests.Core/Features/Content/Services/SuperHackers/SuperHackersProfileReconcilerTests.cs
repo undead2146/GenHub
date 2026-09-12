@@ -147,7 +147,7 @@ public class SuperHackersProfileReconcilerTests
         _userSettingsServiceMock.Setup(x => x.Get()).Returns(settings);
 
         _dialogServiceMock
-            .Setup(x => x.ShowUpdateOptionDialogAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .Setup(x => x.ShowUpdateOptionDialogAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>()))
             .ReturnsAsync(new UpdateDialogResult { Action = "Skip" });
 
         _userSettingsServiceMock

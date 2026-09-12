@@ -270,6 +270,16 @@ public static class ContentConstants
     public const string DownloadFailedStatusMessage = "Download failed";
 
     /// <summary>
+    /// Status message displayed when content update failed.
+    /// </summary>
+    public const string UpdateFailedStatusMessage = "Failed to update content";
+
+    /// <summary>
+    /// Status message displayed when content update was cancelled or failed.
+    /// </summary>
+    public const string UpdateCancelledOrFailedStatusMessage = "Update was canceled or failed.";
+
+    /// <summary>
     /// Status message displayed while selecting a profile.
     /// </summary>
     public const string SelectingProfileStatusMessage = "Selecting profile...";

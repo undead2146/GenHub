@@ -5,6 +5,7 @@ using GenHub.Core.Interfaces.Providers;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GeneralsOnline;
 using GenHub.Core.Models.Manifest;
+using GenHub.Core.Services.Providers.VersionSchemes;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -84,6 +85,8 @@ public class GeneralsOnlineManifestFactory(
             Version = release.Version,
             ContentType = ContentType.GameClient,
             TargetGame = GameType.ZeroHour,
+            OriginalProviderName = PublisherTypeConstants.GeneralsOnline,
+            OriginalContentId = $"{GeneralsOnlineConstants.ContentIdPrefix}{release.Version}",
             Publisher = new PublisherInfo
             {
                 Name = GeneralsOnlineConstants.PublisherName,
@@ -234,7 +237,18 @@ public class GeneralsOnlineManifestFactory(
         return await UpdateManifestsWithExtractedFiles(manifests, installationPath, cancellationToken);
     }
 
-    private static int ParseVersionForManifestId(string version) => GameVersionHelper.GetGeneralsOnlineManifestIdComponent(version);
+    private static int ParseVersionForManifestId(string version)
+    {
+        var scheme = new MmddyyQfeVersionScheme();
+        if (scheme.TryParse(version, out var parsed) && parsed.Components.Count > 3 && parsed.Components[3] > 9)
+        {
+            throw new ArgumentException(
+                $"Generals Online version '{version}' has a QFE value ({parsed.Components[3]}) exceeding 9, which cannot be encoded into a 7-digit legacy manifest ID without year collision.",
+                nameof(version));
+        }
+
+        return GameVersionHelper.GetGeneralsOnlineManifestIdComponent(version);
+    }
 
     /// <summary>
     /// Determines whether a manifest-relative path is the named file at the archive root.
@@ -335,6 +349,8 @@ public class GeneralsOnlineManifestFactory(
             Version = release.Version,
             ContentType = ContentType.Patch,
             TargetGame = GameType.ZeroHour,
+            OriginalProviderName = PublisherTypeConstants.GeneralsOnline,
+            OriginalContentId = $"{GeneralsOnlineConstants.ContentIdPrefix}{release.Version}",
             Publisher = new PublisherInfo
             {
                 Name = GeneralsOnlineConstants.PublisherName,
@@ -388,6 +404,8 @@ public class GeneralsOnlineManifestFactory(
             Version = release.Version,
             ContentType = ContentType.MapPack,
             TargetGame = GameType.ZeroHour,
+            OriginalProviderName = PublisherTypeConstants.GeneralsOnline,
+            OriginalContentId = $"{GeneralsOnlineConstants.ContentIdPrefix}{release.Version}",
             Publisher = new PublisherInfo
             {
                 Name = GeneralsOnlineConstants.PublisherName,
@@ -429,6 +447,13 @@ public class GeneralsOnlineManifestFactory(
         var version = originalManifest.Version ?? GeneralsOnlineConstants.UnknownVersion;
         var userVersion = ParseVersionForManifestId(version);
 
+        var originalProviderName = !string.IsNullOrEmpty(originalManifest.OriginalProviderName)
+            ? originalManifest.OriginalProviderName
+            : PublisherTypeConstants.GeneralsOnline;
+        var originalContentId = !string.IsNullOrEmpty(originalManifest.OriginalContentId)
+            ? originalManifest.OriginalContentId
+            : $"{GeneralsOnlineConstants.ContentIdPrefix}{version}";
+
         // Get URLs from provider definition (prefer original manifest metadata if available)
         var provider = providerLoader.GetProvider(PublisherTypeConstants.GeneralsOnline);
         var websiteUrl = provider?.Endpoints.WebsiteUrl ?? GeneralsOnlineConstants.WebsiteUrl;
@@ -463,6 +488,8 @@ public class GeneralsOnlineManifestFactory(
             Version = version,
             ContentType = ContentType.GameClient,
             TargetGame = GameType.ZeroHour,
+            OriginalProviderName = originalProviderName,
+            OriginalContentId = originalContentId,
             Publisher = publisherInfo,
             Metadata = new ContentMetadata
             {
@@ -494,6 +521,8 @@ public class GeneralsOnlineManifestFactory(
             Version = version,
             ContentType = ContentType.MapPack,
             TargetGame = GameType.ZeroHour,
+            OriginalProviderName = originalProviderName,
+            OriginalContentId = originalContentId,
             Publisher = publisherInfo,
             Metadata = new ContentMetadata
             {
@@ -524,6 +553,8 @@ public class GeneralsOnlineManifestFactory(
             Version = version,
             ContentType = ContentType.Patch,
             TargetGame = GameType.ZeroHour,
+            OriginalProviderName = originalProviderName,
+            OriginalContentId = originalContentId,
             Publisher = publisherInfo,
             Metadata = new ContentMetadata
             {
@@ -598,6 +629,8 @@ public class GeneralsOnlineManifestFactory(
                 Version = manifest.Version,
                 ContentType = manifest.ContentType,
                 TargetGame = manifest.TargetGame,
+                OriginalProviderName = manifest.OriginalProviderName,
+                OriginalContentId = manifest.OriginalContentId,
                 Publisher = manifest.Publisher,
                 Metadata = manifest.Metadata,
                 Files = manifestFiles,

@@ -68,6 +68,28 @@ public class GeneralsOnlineManifestFactoryTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies that <see cref="GeneralsOnlineManifestFactory.CreateManifests"/> throws <see cref="ArgumentException"/>
+    /// when the QFE value in the version string exceeds 9, preventing ambiguous legacy manifest IDs.
+    /// </summary>
+    [Fact]
+    public void CreateManifests_WithQfeExceedingNine_ThrowsArgumentException()
+    {
+        // Arrange
+        var release = new GeneralsOnlineRelease
+        {
+            Version = "101525_QFE10",
+            ReleaseDate = DateTime.UtcNow,
+            PortableUrl = "https://example.com/GeneralsOnline_portable_101525_QFE10.zip",
+            PortableSize = 1048576,
+            Changelog = "https://example.com/changelog",
+        };
+
+        // Act & Assert
+        var ex = Assert.Throws<ArgumentException>(() => _factory.CreateManifests(release));
+        Assert.Contains("exceeding 9", ex.Message);
+    }
+
+    /// <summary>
     /// Verifies that <see cref="GeneralsOnlineManifestFactory.CreateManifests"/> generates 3 manifests:
     /// 60Hz GameClient, QuickMatch MapPack, and GeneralsOnlineGameData data patch.
     /// </summary>

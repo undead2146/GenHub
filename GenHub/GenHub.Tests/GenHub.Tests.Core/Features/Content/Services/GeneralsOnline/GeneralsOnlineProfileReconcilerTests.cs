@@ -9,6 +9,7 @@ using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Dialogs;
 using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.GameClients;
 using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Results;
@@ -64,6 +65,8 @@ public class GeneralsOnlineProfileReconcilerTests
 
         _profileManagerMock.Setup(x => x.GetAllProfilesAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.FromResult(ProfileOperationResult<IReadOnlyList<GameProfile>>.CreateSuccess([])));
+        _profileManagerMock.Setup(x => x.CreateProfileAsync(It.IsAny<CreateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(new GameProfile { Id = "default-created-id", Name = "Default Created Profile" }));
 
         _reconciler = new GeneralsOnlineProfileReconciler(
             NullLogger<GeneralsOnlineProfileReconciler>.Instance,
@@ -315,11 +318,337 @@ public class GeneralsOnlineProfileReconcilerTests
         Assert.False(result.Data);
 
         _dialogServiceMock.Verify(
-            x => x.ShowUpdateOptionDialogAsync(It.IsAny<string>(), It.IsAny<string>()),
+            x => x.ShowUpdateOptionDialogAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>()),
             Times.Never);
 
         _contentOrchestratorMock.Verify(
             x => x.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    /// <summary>
+    /// Verifies that when the user skips the update dialog, the reconciler returns false and does not acquire content.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task CheckAndReconcileIfNeededAsync_WhenUserSkipsDialog_ReturnsSuccessFalseAndDoesNotAcquireAsync()
+    {
+        // Arrange
+        string latestVersion = "0.0.99";
+        _updateServiceMock.Setup(x => x.CheckForUpdatesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ContentUpdateCheckResult.CreateUpdateAvailable(latestVersion, "0.0.1"));
+
+        var settings = new UserSettings();
+        _userSettingsServiceMock.Setup(x => x.Get()).Returns(settings);
+
+        _dialogServiceMock.Setup(x => x.ShowUpdateOptionDialogAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>()))
+            .ReturnsAsync(new UpdateDialogResult { Action = "Skip", IsDoNotAskAgain = false });
+
+        // Act
+        var result = await _reconciler.CheckAndReconcileIfNeededAsync("profile1", CancellationToken.None);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.False(result.Data);
+
+        _contentOrchestratorMock.Verify(
+            x => x.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    /// <summary>
+    /// Verifies that when the user specifies DeleteOldVersions is false, old manifests are not removed.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task CheckAndReconcileIfNeededAsync_WhenUserDisablesDeleteOldVersions_DoesNotDeleteOldManifestsAsync()
+    {
+        // Arrange
+        string latestVersion = "0.0.99";
+        _updateServiceMock.Setup(x => x.CheckForUpdatesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ContentUpdateCheckResult.CreateUpdateAvailable(latestVersion, "0.0.1"));
+
+        var settings = new UserSettings();
+        _userSettingsServiceMock.Setup(x => x.Get()).Returns(settings);
+
+        _dialogServiceMock.Setup(x => x.ShowUpdateOptionDialogAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>()))
+            .ReturnsAsync(new UpdateDialogResult
+            {
+                Action = "Update",
+                Strategy = UpdateStrategy.ReplaceCurrent,
+                DeleteOldVersions = false,
+            });
+
+        var oldManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.82826.generalsonline.gameclient.30hz"),
+            Name = "Generals Online Client (30Hz)",
+            Version = "0.0.1",
+        };
+        var newManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.82827.generalsonline.gameclient.30hz"),
+            Name = "Generals Online Client (30Hz)",
+            Version = latestVersion,
+        };
+
+        _manifestPoolMock.SetupSequence(x => x.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([oldManifest]))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([oldManifest, newManifest]));
+
+        _contentOrchestratorMock.Setup(
+                x => x.SearchAsync(It.IsAny<ContentSearchQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(
+            [
+                new() { Name = "New GO Version", Version = latestVersion },
+            ]));
+
+        _contentOrchestratorMock.Setup(x => x.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest>.CreateSuccess(newManifest));
+
+        _reconciliationServiceMock
+            .Setup(x => x.OrchestrateBulkUpdateAsync(
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ReconciliationResult>.CreateSuccess(new ReconciliationResult(1, 0)));
+
+        // Act
+        var result = await _reconciler.CheckAndReconcileIfNeededAsync("profile1", CancellationToken.None);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.True(result.Data);
+
+        _reconciliationServiceMock.Verify(
+            x => x.OrchestrateBulkRemovalAsync(It.IsAny<IEnumerable<ManifestId>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    /// <summary>
+    /// When zero profiles exist and CreateNewProfile is selected, should create a fresh profile.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Fact]
+    public async Task CheckAndReconcile_WhenZeroProfilesExist_AndCreateNewProfileSelected_ShouldCreateFreshProfileAsync()
+    {
+        // Arrange
+        string latestVersion = "1.101525";
+        _updateServiceMock.Setup(x => x.CheckForUpdatesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ContentUpdateCheckResult.CreateUpdateAvailable(latestVersion, "1.101524"));
+
+        var settings = new UserSettings();
+        settings.SetAutoUpdatePreference(GeneralsOnlineConstants.PublisherType, true);
+        var sub = settings.GetOrCreateSubscription(GeneralsOnlineConstants.PublisherType);
+        sub.PreferredUpdateStrategy = UpdateStrategy.CreateNewProfile;
+        sub.DeleteOldVersions = false;
+
+        _userSettingsServiceMock.Setup(x => x.Get())
+            .Returns(settings);
+
+        var newClientManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.101525.generalsonline.gameclient.60hz"),
+            Name = "GeneralsOnline",
+            Version = latestVersion,
+            ContentType = ContentType.GameClient,
+            Publisher = new PublisherInfo { PublisherType = GeneralsOnlineConstants.PublisherType },
+        };
+
+        _manifestPoolMock.SetupSequence(x => x.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([]))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([newClientManifest]))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([newClientManifest]));
+
+        _contentOrchestratorMock.Setup(
+                x => x.SearchAsync(It.IsAny<ContentSearchQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(
+            [
+                new() { Name = "New GO Version", Version = latestVersion },
+            ]));
+
+        _contentOrchestratorMock.Setup(x => x.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest>.CreateSuccess(newClientManifest));
+
+        _profileManagerMock.Setup(x => x.GetAllProfilesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<IReadOnlyList<GameProfile>>.CreateSuccess([]));
+
+        CreateProfileRequest? capturedRequest = null;
+        _profileManagerMock.Setup(x => x.CreateProfileAsync(It.IsAny<CreateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<CreateProfileRequest, CancellationToken>((req, _) => capturedRequest = req)
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(new GameProfile { Id = "fresh-1", Name = "GeneralsOnline" }));
+
+        // Act
+        var result = await _reconciler.CheckAndReconcileIfNeededAsync(string.Empty, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.NotNull(capturedRequest);
+        Assert.Equal($"GeneralsOnline v{latestVersion}", capturedRequest.Name);
+        Assert.Equal(GeneralsOnlineConstants.LogoSource, capturedRequest.IconPath);
+        Assert.Equal(GeneralsOnlineConstants.CoverSource, capturedRequest.CoverPath);
+        Assert.Equal(GeneralsOnlineConstants.ThemeColor, capturedRequest.ThemeColor);
+    }
+
+    /// <summary>
+    /// When a profile has an existing messy version suffix, formatting for CreateNewProfile strips redundant suffixes cleanly.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Fact]
+    public async Task CheckAndReconcile_WhenProfileHasMessyVersionSuffix_ShouldFormatNameCleanlyAsync()
+    {
+        // Arrange
+        string latestVersion = "1.101525";
+        _updateServiceMock.Setup(x => x.CheckForUpdatesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ContentUpdateCheckResult.CreateUpdateAvailable(latestVersion, "1.101524"));
+
+        var settings = new UserSettings();
+        settings.SetAutoUpdatePreference(GeneralsOnlineConstants.PublisherType, true);
+        var sub = settings.GetOrCreateSubscription(GeneralsOnlineConstants.PublisherType);
+        sub.PreferredUpdateStrategy = UpdateStrategy.CreateNewProfile;
+        sub.DeleteOldVersions = false;
+
+        _userSettingsServiceMock.Setup(x => x.Get())
+            .Returns(settings);
+
+        var oldClientManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.101524.generalsonline.gameclient.60hz"),
+            Version = "1.101524",
+            ContentType = ContentType.GameClient,
+            Publisher = new PublisherInfo { PublisherType = GeneralsOnlineConstants.PublisherType },
+        };
+
+        var newClientManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.101525.generalsonline.gameclient.60hz"),
+            Name = "GeneralsOnline",
+            Version = latestVersion,
+            ContentType = ContentType.GameClient,
+            Publisher = new PublisherInfo { PublisherType = GeneralsOnlineConstants.PublisherType },
+        };
+
+        _manifestPoolMock.SetupSequence(x => x.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([oldClientManifest]))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([oldClientManifest, newClientManifest]))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([oldClientManifest, newClientManifest]));
+
+        _contentOrchestratorMock.Setup(
+                x => x.SearchAsync(It.IsAny<ContentSearchQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(
+            [
+                new() { Name = "New GO Version", Version = latestVersion },
+            ]));
+
+        _contentOrchestratorMock.Setup(x => x.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest>.CreateSuccess(newClientManifest));
+
+        var messyProfile = new GameProfile
+        {
+            Id = "p1",
+            Name = "GeneralsOnline v032926 (v082826_QFE1)",
+            GameClient = new GameClient { Id = oldClientManifest.Id.Value, PublisherType = GeneralsOnlineConstants.PublisherType },
+        };
+
+        _profileManagerMock.Setup(x => x.GetAllProfilesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<IReadOnlyList<GameProfile>>.CreateSuccess([messyProfile]));
+
+        CreateProfileRequest? capturedRequest = null;
+        _profileManagerMock.Setup(x => x.CreateProfileAsync(It.IsAny<CreateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<CreateProfileRequest, CancellationToken>((req, _) => capturedRequest = req)
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(new GameProfile { Id = "p2", Name = "GeneralsOnline v1.101525" }));
+
+        // Act
+        var result = await _reconciler.CheckAndReconcileIfNeededAsync(string.Empty, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.NotNull(capturedRequest);
+        Assert.Equal($"GeneralsOnline v{latestVersion}", capturedRequest.Name);
+    }
+
+    /// <summary>
+    /// When CreateNewProfile is selected, old preserved profiles should not be mutated or renamed by EnforceMapPackDependency.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Fact]
+    public async Task CheckAndReconcile_WhenCreateNewProfileSelected_ShouldNotMutatePreservedOldProfilesAsync()
+    {
+        // Arrange
+        string latestVersion = "1.101525";
+        _updateServiceMock.Setup(x => x.CheckForUpdatesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ContentUpdateCheckResult.CreateUpdateAvailable(latestVersion, "1.101524"));
+
+        var settings = new UserSettings();
+        settings.SetAutoUpdatePreference(GeneralsOnlineConstants.PublisherType, true);
+        var sub = settings.GetOrCreateSubscription(GeneralsOnlineConstants.PublisherType);
+        sub.PreferredUpdateStrategy = UpdateStrategy.CreateNewProfile;
+        sub.DeleteOldVersions = false;
+
+        _userSettingsServiceMock.Setup(x => x.Get())
+            .Returns(settings);
+
+        var oldClientManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.101524.generalsonline.gameclient.60hz"),
+            Version = "1.101524",
+            ContentType = ContentType.GameClient,
+            Publisher = new PublisherInfo { PublisherType = GeneralsOnlineConstants.PublisherType },
+        };
+
+        var newClientManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.101525.generalsonline.gameclient.60hz"),
+            Name = "GeneralsOnline",
+            Version = latestVersion,
+            ContentType = ContentType.GameClient,
+            Publisher = new PublisherInfo { PublisherType = GeneralsOnlineConstants.PublisherType },
+        };
+
+        var newMapPackManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.101525.generalsonline.mappack.quickmatch-maps"),
+            Version = latestVersion,
+            ContentType = ContentType.MapPack,
+            Publisher = new PublisherInfo { PublisherType = GeneralsOnlineConstants.PublisherType },
+        };
+
+        _manifestPoolMock.SetupSequence(x => x.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([oldClientManifest]))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([oldClientManifest, newClientManifest, newMapPackManifest]))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([oldClientManifest, newClientManifest, newMapPackManifest]));
+
+        _contentOrchestratorMock.Setup(
+                x => x.SearchAsync(It.IsAny<ContentSearchQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(
+            [
+                new() { Name = "New GO Version", Version = latestVersion },
+            ]));
+
+        _contentOrchestratorMock.Setup(x => x.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest>.CreateSuccess(newClientManifest));
+
+        var oldProfile = new GameProfile
+        {
+            Id = "old-profile-id",
+            Name = "GeneralsOnline v1.101524",
+            GameClient = new GameClient { Id = oldClientManifest.Id.Value, PublisherType = GeneralsOnlineConstants.PublisherType },
+            EnabledContentIds = ["1.101524.generalsonline.mappack.quickmatch-maps"],
+        };
+
+        _profileManagerMock.Setup(x => x.GetAllProfilesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<IReadOnlyList<GameProfile>>.CreateSuccess([oldProfile]));
+
+        _profileManagerMock.Setup(x => x.CreateProfileAsync(It.IsAny<CreateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(new GameProfile { Id = "new-profile-id", Name = $"GeneralsOnline v{latestVersion}" }));
+
+        // Act
+        var result = await _reconciler.CheckAndReconcileIfNeededAsync(string.Empty, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.Success);
+        _profileManagerMock.Verify(
+            x => x.UpdateProfileAsync("old-profile-id", It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 }
