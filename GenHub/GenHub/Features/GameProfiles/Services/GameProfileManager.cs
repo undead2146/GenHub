@@ -135,6 +135,7 @@ public class GameProfileManager(
                 CoverPath = request.CoverPath,
                 CommandLineArguments = request.CommandLineArguments ?? string.Empty,
                 GameSpyIPAddress = request.GameSpyIPAddress,
+                UseSteamLaunch = request.UseSteamLaunch,
             };
 
             // Load settings only for regular game profiles (Tool profiles don't have game settings)
@@ -618,6 +619,11 @@ public class GameProfileManager(
         profile.GameInstallationId = request.GameInstallationId ?? profile.GameInstallationId;
         profile.ToolContentId = request.ToolContentId ?? profile.ToolContentId;
         profile.CommandLineArguments = request.CommandLineArguments ?? profile.CommandLineArguments;
+
+        if (request.UseSteamLaunch.HasValue)
+        {
+            profile.UseSteamLaunch = request.UseSteamLaunch.Value;
+        }
 
         if (request.ActiveWorkspaceId != null)
         {

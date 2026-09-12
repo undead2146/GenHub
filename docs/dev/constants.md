@@ -1672,7 +1672,7 @@ Constants specifically for the Replay Manager feature.
 
 | Constant                       | Value                                 | Description                                                                 |
 | ------------------------------ | ------------------------------------- | --------------------------------------------------------------------------- |
-| `MaxReplaySizeBytes`           | `1048576` (1MB)                       | Maximum size for a single replay file                                       |
+| `MaxReplaySizeBytes`           | `10485760` (10MB)                     | Maximum size for a single replay file                                       |
 | `MaxZipEntries`                | `100`                                 | Maximum allowed entries in a replay ZIP archive                             |
 | `MaxAggregateUncompressedBytes`| `52428800` (50MB)                     | Maximum aggregate uncompressed bytes for replay ZIP archives                |
 | `MaxCompressionRatio`          | `50.0`                                | Maximum compression ratio allowed for replay ZIP archives                   |
@@ -1686,6 +1686,16 @@ Constants specifically for the Replay Manager feature.
 | `UploadCategory`               | `"replays"`                           | Category identifier for replay uploads                                      |
 | `WindowsMockPathSegment`       | `"\\Mock\\"`                          | Mock path separator indicator for demo environments on Windows              |
 | `UnixMockPathSegment`          | `"/Mock/"`                            | Mock path separator indicator for demo environments on Unix                 |
+| `RetailZeroHourExeCrcFirstDecade` | `"0xDA2B4B18"` | Hexadecimal Exe CRC string for retail Zero Hour CD / First Decade |
+| `RetailZeroHourExeCrcFirstDecadeValue` | `0xDA2B4B18` | Numeric Exe CRC for retail Zero Hour CD / First Decade |
+| `RetailZeroHourExeCrcSteam` | `"0x401D89EA"` | Hexadecimal Exe CRC string for retail Zero Hour Steam / EA App |
+| `RetailZeroHourExeCrcSteamValue` | `0x401D89EA` | Numeric Exe CRC for retail Zero Hour Steam / EA App |
+| `RetailGeneralsExeCrcFirstDecade` | `"0x1C96366F"` | Hexadecimal Exe CRC string for retail Generals CD |
+| `RetailGeneralsExeCrcFirstDecadeValue` | `0x1C96366F` | Numeric Exe CRC for retail Generals CD |
+| `RetailGeneralsExeCrcSteam` | `"0x27533BB0"` | Hexadecimal Exe CRC string for retail Generals Steam / EA App |
+| `RetailGeneralsExeCrcSteamValue` | `0x27533BB0` | Numeric Exe CRC for retail Generals Steam / EA App |
+| `GeneralsOnlineContentIdPattern` | `"GeneralsOnline_{0}"` | Composite content ID pattern for GeneralsOnline client content |
+| `ThirdPartyClientContentIdPattern` | `"Client_{0}_{1}"` | Composite content ID pattern for third-party client content |
 
 ---
 
