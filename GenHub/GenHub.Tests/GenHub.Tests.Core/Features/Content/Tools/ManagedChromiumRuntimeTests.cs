@@ -102,6 +102,40 @@ public sealed class ManagedChromiumRuntimeTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies lifecycle callbacks are invoked when Chromium installation starts and succeeds.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task EnsureInstalledAsync_WhenInstalling_InvokesLifecycleCallbacksAsync()
+    {
+        // Arrange
+        var executablePath = Path.Combine(_runtimeDirectory, "chromium.exe");
+        var startingCalled = false;
+        bool? completedSuccess = null;
+        var chromium = new Mock<IBrowserType>(MockBehavior.Strict);
+        chromium.SetupGet(browser => browser.ExecutablePath).Returns(executablePath);
+        var runtime = new ManagedChromiumRuntime(
+            _runtimeDirectory,
+            _ =>
+            {
+                Directory.CreateDirectory(_runtimeDirectory);
+                File.WriteAllText(executablePath, "browser");
+                return 0;
+            },
+            _ => Task.FromResult(true),
+            new Mock<ILogger>().Object,
+            onInstallStarting: () => startingCalled = true,
+            onInstallCompleted: success => completedSuccess = success);
+
+        // Act
+        await runtime.EnsureInstalledAsync(chromium.Object, default);
+
+        // Assert
+        Assert.True(startingCalled);
+        Assert.True(completedSuccess);
+    }
+
+    /// <summary>
     /// Verifies declining the install consent dialog cancels provisioning without downloading.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>

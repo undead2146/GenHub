@@ -1149,6 +1149,10 @@ public sealed class PlaywrightService(
             var playwright = await EnsureManagedPlaywrightAsync(cancellationToken);
             Directory.CreateDirectory(profileDir);
 
+            NotifyBrowserWindowOpening(
+                "Opening ModDB Browser",
+                "A browser window is opening to load ModDB content. Please do not close it.");
+
             var context = await playwright.Chromium.LaunchPersistentContextAsync(
                 profileDir,
                 new BrowserTypeLaunchPersistentContextOptions
@@ -1373,7 +1377,31 @@ public sealed class PlaywrightService(
             Path.Combine(configurationProvider.GetApplicationDataPath(), DirectoryNames.BrowserRuntime),
             Microsoft.Playwright.Program.Main,
             RequestManagedChromiumInstallConsentAsync,
-            logger);
+            logger,
+            onInstallStarting: () =>
+            {
+                notificationService?.ShowInfo(
+                    "Installing Web Browser Runtime",
+                    "Downloading managed Chromium runtime (~240 MB)...",
+                    NotificationDurations.VeryLong);
+            },
+            onInstallCompleted: success =>
+            {
+                if (success)
+                {
+                    notificationService?.ShowSuccess(
+                        "Web Browser Runtime Installed",
+                        "Managed Chromium runtime installation completed.",
+                        NotificationDurations.Medium);
+                }
+                else
+                {
+                    notificationService?.ShowError(
+                        "Web Browser Runtime Installation Failed",
+                        "Failed to install managed Chromium runtime.",
+                        NotificationDurations.Long);
+                }
+            });
 
         return Interlocked.CompareExchange(ref managedChromiumRuntime, newRuntime, null) ?? newRuntime;
     }
@@ -1512,6 +1540,10 @@ public sealed class PlaywrightService(
                             "ModDB verification is open in Chromium for {Url}. Waiting for the user to complete it.",
                             url);
                         verificationObserved = true;
+                        notificationService?.ShowWarning(
+                            "ModDB Verification Required",
+                            "A browser window was opened for Cloudflare verification. Please complete the verification in the browser to continue.",
+                            NotificationDurations.VeryLong);
                     }
                 }
                 else if (ready)
@@ -1519,6 +1551,10 @@ public sealed class PlaywrightService(
                     if (verificationObserved)
                     {
                         logger.LogInformation("ModDB verification completed; parsing content from {Url}", url);
+                        notificationService?.ShowSuccess(
+                            "ModDB Verification Cleared",
+                            "Verification completed successfully.",
+                            NotificationDurations.Medium);
                     }
 
                     return;
@@ -1656,10 +1692,10 @@ public sealed class PlaywrightService(
         System.Diagnostics.Stopwatch stopwatch,
         CancellationToken cancellationToken)
     {
-        if (usePersistentModDbProfile && !IsHttpsModDbUrl(download.Url))
+        if (usePersistentModDbProfile && !IsModDbHost(download.Url))
         {
-            logger.LogWarning("Download URL {DownloadUrl} is not a valid HTTPS ModDB URL. Aborting download.", download.Url);
-            throw new InvalidOperationException($"Download URL '{download.Url}' must be an HTTPS ModDB URL for persistent profile.");
+            logger.LogWarning("Download URL {DownloadUrl} is not a valid ModDB URL. Aborting download.", download.Url);
+            throw new InvalidOperationException($"Download URL '{download.Url}' must be a ModDB URL for persistent profile.");
         }
 
         if (File.Exists(configuration.DestinationPath) && configuration.OverwriteExisting)

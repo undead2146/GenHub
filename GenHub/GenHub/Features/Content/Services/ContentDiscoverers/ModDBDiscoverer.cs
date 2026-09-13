@@ -12,6 +12,7 @@ using AngleSharp.Dom;
 using GenHub.Core.Constants;
 using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Content;
+using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Tools;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
@@ -31,7 +32,8 @@ namespace GenHub.Features.Content.Services.ContentDiscoverers;
 public partial class ModDBDiscoverer(
     ILogger<ModDBDiscoverer> logger,
     IPlaywrightService playwrightService,
-    IHttpClientFactory httpClientFactory) : IContentDiscoverer
+    IHttpClientFactory httpClientFactory,
+    INotificationService? notificationService = null) : IContentDiscoverer
 {
     private const string UnknownValue = "Unknown";
 
@@ -986,6 +988,10 @@ public partial class ModDBDiscoverer(
                             "[ModDB] Cloudflare challenge is blocking {Url} (title: '{Title}'). Waiting for the user to solve it in the browser window.",
                             url,
                             title);
+                        notificationService?.ShowWarning(
+                            "ModDB Verification Required",
+                            "A browser window was opened for Cloudflare verification. Please complete the verification in the browser to continue.",
+                            NotificationDurations.VeryLong);
                         try
                         {
                             await page.BringToFrontAsync();
@@ -1005,6 +1011,10 @@ public partial class ModDBDiscoverer(
                     if (challengeObserved)
                     {
                         logger.LogInformation("[ModDB] Cloudflare challenge cleared for {Url}; parsing the listing.", url);
+                        notificationService?.ShowSuccess(
+                            "ModDB Verification Cleared",
+                            "Verification completed successfully.",
+                            NotificationDurations.Medium);
                     }
 
                     return (true, challengeObserved);
@@ -1019,6 +1029,15 @@ public partial class ModDBDiscoverer(
                     var hasPageContainer = await page.QuerySelectorAsync("div#sitecontainer, div#body, div.panes, div.column, div.main, footer, form") != null;
                     if (hasPageContainer)
                     {
+                        if (challengeObserved)
+                        {
+                            logger.LogInformation("[ModDB] Cloudflare challenge cleared for {Url}; parsing the listing.", url);
+                            notificationService?.ShowSuccess(
+                                "ModDB Verification Cleared",
+                                "Verification completed successfully.",
+                                NotificationDurations.Medium);
+                        }
+
                         // Page is fully rendered with 0 matching items. Do not spin polling for items.
                         return (true, challengeObserved);
                     }

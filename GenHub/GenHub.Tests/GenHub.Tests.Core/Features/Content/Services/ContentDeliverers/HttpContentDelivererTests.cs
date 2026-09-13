@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
+using GenHub.Core.Interfaces.Tools;
 using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
@@ -89,6 +90,125 @@ public class HttpContentDelivererTests
             secondResult.Data.Should().BeSameAs(secondManifest);
             secondResult.Data!.Files.Should().ContainSingle(f => f.RelativePath == "second.dat");
             secondResult.Data.Files.Should().NotContain(f => f.RelativePath == "first.dat");
+        }
+        finally
+        {
+            Directory.Delete(targetDirectory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that ModDB download URLs are routed through <see cref="IPlaywrightService"/> instead of <see cref="IDownloadService"/>.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task DeliverContentAsync_WithModDbUrl_RoutesThroughPlaywrightServiceAsync()
+    {
+        var targetDirectory = CreateTargetDirectory();
+        const string relativePath = "mod.zip";
+        var manifest = new ContentManifest
+        {
+            Id = new ManifestId("moddb-mod"),
+            Name = "ModDB Test Mod",
+            Version = "1.0",
+            Files =
+            [
+                new ManifestFile
+                {
+                    RelativePath = relativePath,
+                    DownloadUrl = "https://www.moddb.com/downloads/start/12345",
+                    SourceType = ContentSourceType.RemoteDownload,
+                }
+            ],
+        };
+
+        var downloadService = new Mock<IDownloadService>(MockBehavior.Strict);
+        var playwrightService = new Mock<IPlaywrightService>();
+        var expectedDestinationPath = Path.GetFullPath(relativePath, Path.GetFullPath(targetDirectory));
+
+        playwrightService
+            .Setup(p => p.DownloadFileAsync(
+                It.Is<DownloadConfiguration>(c => c.Url == new Uri("https://www.moddb.com/downloads/start/12345") && c.DestinationPath == expectedDestinationPath),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((DownloadConfiguration config, CancellationToken _) =>
+            {
+                File.WriteAllText(config.DestinationPath, "mod content");
+                return DownloadResult.CreateSuccess(
+                    config.DestinationPath,
+                    11,
+                    TimeSpan.FromMilliseconds(100),
+                    hashVerified: false);
+            });
+
+        var deliverer = new HttpContentDeliverer(
+            downloadService.Object,
+            Mock.Of<ILogger<HttpContentDeliverer>>(),
+            playwrightService.Object);
+
+        try
+        {
+            var result = await deliverer.DeliverContentAsync(manifest, targetDirectory);
+
+            result.Success.Should().BeTrue();
+            File.Exists(expectedDestinationPath).Should().BeTrue();
+            playwrightService.Verify(
+                p => p.DownloadFileAsync(
+                    It.Is<DownloadConfiguration>(c => c.Url == new Uri("https://www.moddb.com/downloads/start/12345")),
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+        finally
+        {
+            Directory.Delete(targetDirectory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that ModDB download URLs fall back to <see cref="IDownloadService"/> when <see cref="IPlaywrightService"/> is null.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task DeliverContentAsync_WithModDbUrlAndNullPlaywright_FallsBackToDownloadServiceAsync()
+    {
+        var targetDirectory = CreateTargetDirectory();
+        const string relativePath = "fallback.zip";
+        var manifest = new ContentManifest
+        {
+            Id = new ManifestId("moddb-mod-fallback"),
+            Name = "ModDB Fallback Mod",
+            Version = "1.0",
+            Files =
+            [
+                new ManifestFile
+                {
+                    RelativePath = relativePath,
+                    DownloadUrl = "https://www.moddb.com/downloads/start/99999",
+                    SourceType = ContentSourceType.RemoteDownload,
+                }
+            ],
+        };
+
+        var downloadService = CreateSuccessfulDownloadService();
+        var deliverer = new HttpContentDeliverer(
+            downloadService.Object,
+            Mock.Of<ILogger<HttpContentDeliverer>>(),
+            playwrightService: null);
+        var expectedDestinationPath = Path.GetFullPath(relativePath, Path.GetFullPath(targetDirectory));
+
+        try
+        {
+            var result = await deliverer.DeliverContentAsync(manifest, targetDirectory);
+
+            result.Success.Should().BeTrue();
+            File.Exists(expectedDestinationPath).Should().BeTrue();
+            downloadService.Verify(
+                d => d.DownloadFileAsync(
+                    new Uri("https://www.moddb.com/downloads/start/99999"),
+                    expectedDestinationPath,
+                    It.IsAny<string?>(),
+                    It.IsAny<IProgress<DownloadProgress>?>(),
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
         }
         finally
         {

@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
+using GenHub.Core.Interfaces.Tools;
+using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
@@ -18,8 +20,12 @@ namespace GenHub.Features.Content.Services.ContentDeliverers;
 /// Delivers remote HTTP content.
 /// Pure delivery - downloads and extracts content.
 /// </summary>
-public class HttpContentDeliverer(IDownloadService downloadService, ILogger<HttpContentDeliverer> logger) : IContentDeliverer
+public class HttpContentDeliverer(
+    IDownloadService downloadService,
+    ILogger<HttpContentDeliverer> logger,
+    IPlaywrightService? playwrightService = null) : IContentDeliverer
 {
+
     /// <inheritdoc />
     public string SourceName => ContentSourceNames.HttpDeliverer;
 
@@ -81,8 +87,27 @@ public class HttpContentDeliverer(IDownloadService downloadService, ILogger<Http
                 });
 
                 // Download the file
-                var downloadResult = await downloadService.DownloadFileAsync(
-                    new Uri(file.DownloadUrl!), localPath, file.Hash, null, cancellationToken);
+                DownloadResult downloadResult;
+                if (Uri.TryCreate(file.DownloadUrl, UriKind.Absolute, out var fileUri) &&
+                    (fileUri.Host.Equals(ModDBConstants.Domain, StringComparison.OrdinalIgnoreCase) ||
+                     fileUri.Host.EndsWith("." + ModDBConstants.Domain, StringComparison.OrdinalIgnoreCase)) &&
+                    playwrightService != null)
+                {
+                    logger.LogInformation("Routing ModDB download through Playwright for {Url}", file.DownloadUrl);
+                    var downloadConfig = new DownloadConfiguration
+                    {
+                        Url = fileUri,
+                        DestinationPath = localPath,
+                        ExpectedHash = file.Hash,
+                        OverwriteExisting = true,
+                    };
+                    downloadResult = await playwrightService.DownloadFileAsync(downloadConfig, cancellationToken);
+                }
+                else
+                {
+                    downloadResult = await downloadService.DownloadFileAsync(
+                        new Uri(file.DownloadUrl!), localPath, file.Hash, null, cancellationToken);
+                }
 
                 if (!downloadResult.Success)
                 {
