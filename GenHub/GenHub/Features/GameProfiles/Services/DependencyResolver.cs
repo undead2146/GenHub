@@ -270,15 +270,17 @@ public class DependencyResolver(
             return true;
         }
 
+        var isGameClientOrInstall = declaredType.Equals(ManifestConstants.GameClientContentTypeName, StringComparison.OrdinalIgnoreCase) ||
+            declaredType.Equals(ContentType.GameInstallation.ToManifestIdString(), StringComparison.OrdinalIgnoreCase);
+
+        if (isGameClientOrInstall)
+        {
+            return AreGameVariantsCompatible(declaredName, acquiredName);
+        }
+
         if (acquiredName.StartsWith(declaredName + ManifestConstants.VariantSeparator, StringComparison.OrdinalIgnoreCase))
         {
             return true;
-        }
-
-        if (declaredType.Equals(ManifestConstants.GameClientContentTypeName, StringComparison.OrdinalIgnoreCase) ||
-            declaredType.Equals(ContentType.GameInstallation.ToManifestIdString(), StringComparison.OrdinalIgnoreCase))
-        {
-            return AreGameVariantsCompatible(declaredName, acquiredName);
         }
 
         if (IsPatchOrGameData(declaredType) && IsPatchOrGameDataName(declaredName) && IsPatchOrGameDataName(acquiredName))
@@ -339,8 +341,30 @@ public class DependencyResolver(
             return false;
         }
 
-        return true;
+        // 60Hz tickrate variants are incompatible with standard 30Hz game clients and replays
+        var isDeclared60Hz = Is60HzIdentifier(declaredName);
+        var isAcquired60Hz = Is60HzIdentifier(acquiredName);
+        if (isDeclared60Hz != isAcquired60Hz)
+        {
+            return false;
+        }
+
+        if (acquiredName.StartsWith(declaredName + ManifestConstants.VariantSeparator, StringComparison.OrdinalIgnoreCase) ||
+            declaredName.StartsWith(acquiredName + ManifestConstants.VariantSeparator, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return (isDeclaredZeroHour && isAcquiredZeroHour) || (isDeclaredGenerals && isAcquiredGenerals);
     }
+
+    private static bool Is60HzIdentifier(string name) =>
+        name.Contains("60hz", StringComparison.OrdinalIgnoreCase) ||
+        name.Contains("60fps", StringComparison.OrdinalIgnoreCase) ||
+        name.EndsWith("-60", StringComparison.OrdinalIgnoreCase) ||
+        name.Contains("-60-", StringComparison.OrdinalIgnoreCase) ||
+        name.EndsWith("_60", StringComparison.OrdinalIgnoreCase) ||
+        name.Contains("_60_", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsPatchOrGameDataName(string name) =>
         name.Equals(ManifestConstants.ZeroHourContentName, StringComparison.OrdinalIgnoreCase) ||

@@ -167,7 +167,7 @@ public sealed class ReplayDirectoryServiceTests
         Assert.NotNull(result.Data);
         Assert.Equal("profile-zh-1", replay.MatchingProfileId);
         Assert.Equal(ReplayCompatibilityStatus.Compatible, replay.CompatibilityStatus);
-        Assert.Equal("Ready to Play", replay.CompatibilityBadgeText);
+        Assert.Equal("Profile Ready", replay.CompatibilityBadgeText);
     }
 
     /// <summary>
@@ -359,7 +359,7 @@ public sealed class ReplayDirectoryServiceTests
             MatchingProfileId = "zh-sh",
             MatchingProfileName = "ZH SuperHackers",
         };
-        Assert.Equal("Ready to Play", compatibleReplay.CompatibilityBadgeText);
+        Assert.Equal("Profile Ready", compatibleReplay.CompatibilityBadgeText);
         Assert.Contains("ZH SuperHackers", compatibleReplay.CompatibilityTooltip);
 
         // RequiresProfile state
@@ -1316,7 +1316,7 @@ public sealed class ReplayDirectoryServiceTests
             Assert.True(result.Success, result.FirstError ?? "No error");
             Assert.Equal(ReplayCompatibilityStatus.Compatible, replay.CompatibilityStatus);
             Assert.Equal("83cf88bdf7854d2da504b422b1d4e01e", replay.MatchingProfileId);
-            Assert.Equal("Ready to Play", replay.CompatibilityBadgeText);
+            Assert.Equal("Profile Ready", replay.CompatibilityBadgeText);
         }
         finally
         {
@@ -1482,7 +1482,7 @@ public sealed class ReplayDirectoryServiceTests
     /// Verifies that ResolveCompatibility does not assign an existing profile when its client version differs.
     /// </summary>
     [Fact]
-    public void ResolveCompatibility_WhenExistingProfileHasDifferentClientVersion_DoesNotMatchOlderProfile()
+    public async Task ResolveCompatibility_WhenExistingProfileHasDifferentClientVersion_DoesNotMatchOlderProfile()
     {
         var replay = new ReplayFile
         {
@@ -1540,7 +1540,7 @@ public sealed class ReplayDirectoryServiceTests
             NullLogger<ReplayDirectoryService>.Instance);
 
         // With only older profile in list, should not match
-        service.ResolveCompatibility(replay, new HashSet<string>(), [olderProfile]);
+        await service.ResolveCompatibilityAsync(replay, new HashSet<string>(), [olderProfile]);
         Assert.NotEqual("older-go-profile-060526", replay.MatchingProfileId);
         Assert.NotEqual(ReplayCompatibilityStatus.Compatible, replay.CompatibilityStatus);
 
@@ -1578,7 +1578,7 @@ public sealed class ReplayDirectoryServiceTests
             },
         };
 
-        service.ResolveCompatibility(replay2, new HashSet<string>(), [matchingProfile]);
+        await service.ResolveCompatibilityAsync(replay2, new HashSet<string>(), [matchingProfile]);
         Assert.Equal("matching-go-profile-082826", replay2.MatchingProfileId);
         Assert.Equal(ReplayCompatibilityStatus.Compatible, replay2.CompatibilityStatus);
     }
@@ -1587,7 +1587,7 @@ public sealed class ReplayDirectoryServiceTests
     /// Verifies that ResolveCompatibility sets Unknown status when either ExeCrc or IniCrc is missing.
     /// </summary>
     [Fact]
-    public void ResolveCompatibility_WhenIniCrcOrExeCrcMissing_SetsUnknownStatus()
+    public async Task ResolveCompatibility_WhenIniCrcOrExeCrcMissing_SetsUnknownStatus()
     {
         var service = new ReplayDirectoryService(
             _mockHeaderParser.Object,
@@ -1609,7 +1609,7 @@ public sealed class ReplayDirectoryServiceTests
             },
         };
 
-        service.ResolveCompatibility(replayNoIni, new HashSet<string>(), []);
+        await service.ResolveCompatibilityAsync(replayNoIni, new HashSet<string>(), []);
         Assert.Equal(ReplayCompatibilityStatus.Unknown, replayNoIni.CompatibilityStatus);
 
         var replayNoExe = new ReplayFile
@@ -1626,7 +1626,7 @@ public sealed class ReplayDirectoryServiceTests
             },
         };
 
-        service.ResolveCompatibility(replayNoExe, new HashSet<string>(), []);
+        await service.ResolveCompatibilityAsync(replayNoExe, new HashSet<string>(), []);
         Assert.Equal(ReplayCompatibilityStatus.Unknown, replayNoExe.CompatibilityStatus);
     }
 
@@ -2690,7 +2690,7 @@ public sealed class ReplayDirectoryServiceTests
     /// Verifies that ResolveCompatibility resolves to RequiresProfile when the client manifest is installed in acquiredIds but no profile exists.
     /// </summary>
     [Fact]
-    public void ResolveCompatibility_WhenClientInstalledButNoProfile_ResolvesToRequiresProfile()
+    public async Task ResolveCompatibility_WhenClientInstalledButNoProfile_ResolvesToRequiresProfile()
     {
         var replay = new ReplayFile
         {
@@ -2732,7 +2732,7 @@ public sealed class ReplayDirectoryServiceTests
             "1.20260821.thesuperhackers.gameclient.zerohour",
         };
 
-        service.ResolveCompatibility(replay, acquiredIds, []);
+        await service.ResolveCompatibilityAsync(replay, acquiredIds, []);
 
         Assert.Equal(ReplayCompatibilityStatus.RequiresProfile, replay.CompatibilityStatus);
         Assert.Null(replay.MatchingProfileId);
@@ -2743,7 +2743,7 @@ public sealed class ReplayDirectoryServiceTests
     /// Verifies that ResolveCompatibility resolves to Downloadable when client is not installed but has a CDN URL or third-party manifest ID.
     /// </summary>
     [Fact]
-    public void ResolveCompatibility_WhenNotInstalledAndHasCdnUrlOrNonRetailManifest_ResolvesToDownloadable()
+    public async Task ResolveCompatibility_WhenNotInstalledAndHasCdnUrlOrNonRetailManifest_ResolvesToDownloadable()
     {
         var replay = new ReplayFile
         {
@@ -2781,7 +2781,7 @@ public sealed class ReplayDirectoryServiceTests
             _mockScopeFactory.Object,
             NullLogger<ReplayDirectoryService>.Instance);
 
-        service.ResolveCompatibility(replay, new HashSet<string>(), []);
+        await service.ResolveCompatibilityAsync(replay, new HashSet<string>(), []);
 
         Assert.Equal(ReplayCompatibilityStatus.Downloadable, replay.CompatibilityStatus);
         Assert.Null(replay.MatchingProfileId);
@@ -2792,7 +2792,7 @@ public sealed class ReplayDirectoryServiceTests
     /// Verifies that ResolveCompatibility resolves to Orphaned when a retail client is not installed on the system and has no CDN URL.
     /// </summary>
     [Fact]
-    public void ResolveCompatibility_WhenRetailClientNotInstalled_ResolvesToOrphaned()
+    public async Task ResolveCompatibility_WhenRetailClientNotInstalled_ResolvesToOrphaned()
     {
         var replay = new ReplayFile
         {
@@ -2830,7 +2830,7 @@ public sealed class ReplayDirectoryServiceTests
             _mockScopeFactory.Object,
             NullLogger<ReplayDirectoryService>.Instance);
 
-        service.ResolveCompatibility(replay, new HashSet<string>(), []);
+        await service.ResolveCompatibilityAsync(replay, new HashSet<string>(), []);
 
         Assert.Equal(ReplayCompatibilityStatus.Orphaned, replay.CompatibilityStatus);
         Assert.Null(replay.MatchingProfileId);
@@ -2838,10 +2838,11 @@ public sealed class ReplayDirectoryServiceTests
     }
 
     /// <summary>
-    /// Verifies that when an exact pair is missing, but base client is known and user has a local acquired manifest matching the INI CRC, compatibility is resolved.
+    /// Verifies that when an exact pair is missing, base client is not stitched to a local acquired manifest.
+    /// Under the engine rule, exact (exeCRC, iniCRC) pair is required.
     /// </summary>
     [Fact]
-    public void ResolveCompatibility_WhenExactPairMissing_MatchesLocalAcquiredManifest_ResolvesSuccessfully()
+    public async Task ResolveCompatibility_WhenExactPairMissing_DoesNotStitchLocalAcquiredManifest_ResolvesToOrphaned()
     {
         var replay = new ReplayFile
         {
@@ -2905,18 +2906,18 @@ public sealed class ReplayDirectoryServiceTests
             "1.828261.generalsonline.patch.gamedata",
         };
 
-        service.ResolveCompatibility(replay, acquiredIds, []);
+        await service.ResolveCompatibilityAsync(replay, acquiredIds, []);
 
-        Assert.Equal(ReplayCompatibilityStatus.RequiresProfile, replay.CompatibilityStatus);
-        Assert.NotNull(replay.MatchedClient);
-        Assert.Equal("1.828261.generalsonline.patch.gamedata", replay.MatchedClient.DataPatchManifestId);
+        Assert.Equal(ReplayCompatibilityStatus.Orphaned, replay.CompatibilityStatus);
+        Assert.Null(replay.MatchedClient);
     }
 
     /// <summary>
-    /// Verifies that when an exact pair is missing, but base client and catalog data patch are known, resolves to Downloadable.
+    /// Verifies that when an exact pair is missing, catalog data patches are not stitched across base clients.
+    /// Under the engine rule, exact (exeCRC, iniCRC) pair is required.
     /// </summary>
     [Fact]
-    public void ResolveCompatibility_WhenExactPairMissing_MatchesCatalogDataPatch_ResolvesToDownloadable()
+    public async Task ResolveCompatibility_WhenExactPairMissing_DoesNotStitchCatalogDataPatch_ResolvesToOrphaned()
     {
         var replay = new ReplayFile
         {
@@ -2975,19 +2976,17 @@ public sealed class ReplayDirectoryServiceTests
             _mockScopeFactory.Object,
             NullLogger<ReplayDirectoryService>.Instance);
 
-        service.ResolveCompatibility(replay, new HashSet<string>(), []);
+        await service.ResolveCompatibilityAsync(replay, new HashSet<string>(), []);
 
-        Assert.Equal(ReplayCompatibilityStatus.Downloadable, replay.CompatibilityStatus);
-        Assert.NotNull(replay.MatchedClient);
-        Assert.Equal("1.101.thesuperhackers.patch.gamedata", replay.MatchedClient.DataPatchManifestId);
+        Assert.Equal(ReplayCompatibilityStatus.Orphaned, replay.CompatibilityStatus);
+        Assert.Null(replay.MatchedClient);
     }
 
     /// <summary>
-    /// Verifies that when a replay has a GeneralsOnline Exe CRC and Vanilla 1.04 INI CRC (0xFEAAE3F3),
-    /// compatibility does not discard baseClient, resolving to Vanilla 1.04 INI rather than unmapped.
+    /// Verifies that when an exact pair is not in the catalog, a replay is not stitched to a base client with vanilla INI.
     /// </summary>
     [Fact]
-    public void ResolveCompatibility_WhenGeneralsOnlineClientWithVanillaIni_ResolvesWithoutDroppingBaseClient()
+    public async Task ResolveCompatibility_WhenGeneralsOnlineClientWithVanillaIni_WhenExactPairNotInCatalog_ResolvesToOrphaned()
     {
         var replay = new ReplayFile
         {
@@ -3035,13 +3034,10 @@ public sealed class ReplayDirectoryServiceTests
             "1.329261.generalsonline.gameclient.zerohour",
         };
 
-        service.ResolveCompatibility(replay, acquiredIds, []);
+        await service.ResolveCompatibilityAsync(replay, acquiredIds, []);
 
-        Assert.Equal(ReplayCompatibilityStatus.RequiresProfile, replay.CompatibilityStatus);
-        Assert.NotNull(replay.MatchedClient);
-        Assert.Equal("generalsonline", replay.MatchedClient.Publisher);
-        Assert.Equal("032926_QFE1", replay.MatchedClient.Version);
-        Assert.Equal("Vanilla 1.04 INI", replay.MatchedClient.DataPatchName);
+        Assert.Equal(ReplayCompatibilityStatus.Orphaned, replay.CompatibilityStatus);
+        Assert.Null(replay.MatchedClient);
     }
 
     /// <summary>
@@ -3049,7 +3045,7 @@ public sealed class ReplayDirectoryServiceTests
     /// and no matching catalog date does not resolve via heuristic to GeneralsOnline.
     /// </summary>
     [Fact]
-    public void ResolveCompatibility_WhenUnknownModernReplayWithoutPatternOrDateMatch_DoesNotMatchGeneralsOnlineViaHeuristic()
+    public async Task ResolveCompatibility_WhenUnknownModernReplayWithoutPatternOrDateMatch_DoesNotMatchGeneralsOnlineViaHeuristic()
     {
         var replay = new ReplayFile
         {
@@ -3096,7 +3092,7 @@ public sealed class ReplayDirectoryServiceTests
             _mockScopeFactory.Object,
             NullLogger<ReplayDirectoryService>.Instance);
 
-        service.ResolveCompatibility(replay, [], []);
+        await service.ResolveCompatibilityAsync(replay, [], []);
 
         Assert.Equal(ReplayCompatibilityStatus.Orphaned, replay.CompatibilityStatus);
         Assert.Null(replay.MatchedClient);
@@ -3104,10 +3100,10 @@ public sealed class ReplayDirectoryServiceTests
 
     /// <summary>
     /// Verifies that when exact CRC pair is missing, a replay matching GeneralsOnline pattern
-    /// and modern build timestamp resolves via heuristic to GeneralsOnline with Vanilla 1.04 INI.
+    /// is NOT heuristically mapped to the latest GO client and instead resolves to Orphaned.
     /// </summary>
     [Fact]
-    public void ResolveCompatibility_WhenGeneralsOnlineLadderReplayAndModernBuildTime_ResolvesViaHeuristic()
+    public async Task ResolveCompatibility_WhenGeneralsOnlineLadderReplayWithoutExactCrc_DoesNotResolveViaHeuristic_ResolvesToOrphaned()
     {
         var replay = new ReplayFile
         {
@@ -3159,15 +3155,11 @@ public sealed class ReplayDirectoryServiceTests
             "1.329262.generalsonline.gameclient.zerohour",
         };
 
-        service.ResolveCompatibility(replay, acquiredIds, []);
+        await service.ResolveCompatibilityAsync(replay, acquiredIds, []);
 
-        Assert.Equal(ReplayCompatibilityStatus.RequiresProfile, replay.CompatibilityStatus);
-        Assert.NotNull(replay.MatchedClient);
-        Assert.Equal("generalsonline", replay.MatchedClient.Publisher);
-        Assert.Equal("032926_QFE2", replay.MatchedClient.Version);
-        Assert.Equal("Vanilla 1.04 INI", replay.MatchedClient.DataPatchName);
+        Assert.Equal(ReplayCompatibilityStatus.Orphaned, replay.CompatibilityStatus);
+        Assert.Null(replay.MatchedClient);
     }
-
     /// <summary>
     /// Verifies that CreateProfileForReplayAsync uses the custom game client when one is provided.
     /// </summary>
@@ -3466,11 +3458,11 @@ public sealed class ReplayDirectoryServiceTests
     }
 
     /// <summary>
-    /// Verifies that when replay CRC is not in registry, but an existing profile game client executable has matching CRC,
-    /// ResolveCompatibility resolves compatibility to that profile.
+    /// Verifies that when custom profile executable and INI CRCs match the replay,
+    /// ResolveCompatibilityAsync resolves compatibility to that profile.
     /// </summary>
     [Fact]
-    public void ResolveCompatibility_WhenCustomProfileExecutableCrcMatches_ResolvesToCompatibleProfile()
+    public async Task ResolveCompatibility_WhenCustomProfileExecutableCrcMatches_ResolvesToCompatibleProfile()
     {
         var tempExe = Path.GetTempFileName();
         try
@@ -3507,10 +3499,15 @@ public sealed class ReplayDirectoryServiceTests
                 GameClient = profileClient,
             };
 
+            var tempDir = Path.GetDirectoryName(tempExe) ?? string.Empty;
+
             var crcCalcMock = new Mock<IGameCrcCalculatorService>();
             crcCalcMock
                 .Setup(c => c.CalculateExeCrcAsync(tempExe, It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(OperationResult<string>.CreateSuccess("0x88BEB180"));
+            crcCalcMock
+                .Setup(c => c.CalculateIniCrcAsync(tempDir, GameType.ZeroHour, It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(OperationResult<string>.CreateSuccess("0xFEAAE3F3"));
 
             CrcMappingEntry? nullEntry = null;
             _mockCrcRegistry
@@ -3532,7 +3529,7 @@ public sealed class ReplayDirectoryServiceTests
 
             var acquiredIds = new HashSet<string> { "custom-cp-client" };
 
-            service.ResolveCompatibility(replay, acquiredIds, [profile]);
+            await service.ResolveCompatibilityAsync(replay, acquiredIds, [profile]);
 
             Assert.Equal(ReplayCompatibilityStatus.Compatible, replay.CompatibilityStatus);
             Assert.Equal("custom-cp-profile-id", replay.MatchingProfileId);

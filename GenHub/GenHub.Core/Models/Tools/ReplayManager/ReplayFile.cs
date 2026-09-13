@@ -78,7 +78,7 @@ public sealed class ReplayFile : IExportableFile
     public string FormattedSize => FormatFileSize(SizeInBytes);
 
     /// <summary>
-    /// Gets a value indicating whether this replay is ready to play with an existing compatible profile.
+    /// Gets a value indicating whether this replay is ready to launch with an existing compatible profile.
     /// </summary>
     public bool CanPlay => CompatibilityStatus == ReplayCompatibilityStatus.Compatible && !string.IsNullOrEmpty(MatchingProfileId);
 
@@ -133,7 +133,7 @@ public sealed class ReplayFile : IExportableFile
     /// </summary>
     public string CompatibilityBadgeText => CompatibilityStatus switch
     {
-        ReplayCompatibilityStatus.Compatible => "Ready to Play",
+        ReplayCompatibilityStatus.Compatible => "Profile Ready",
         ReplayCompatibilityStatus.RequiresProfile => "Profile Needed",
         ReplayCompatibilityStatus.Downloadable => "Download Required",
         ReplayCompatibilityStatus.Orphaned => "Custom / Unmapped",
@@ -146,7 +146,7 @@ public sealed class ReplayFile : IExportableFile
     public string CompatibilityTooltip => CompatibilityStatus switch
     {
         ReplayCompatibilityStatus.Compatible =>
-            $"Profile '{MatchingProfileName ?? MatchedClient?.Description ?? UnknownValue}' is ready with matching client and data patch. Click 'Play' to watch this replay.",
+            $"Profile '{MatchingProfileName ?? MatchedClient?.Description ?? UnknownValue}' is configured with matching client and data patch. Click 'Launch' to start the game, then select this replay in-game.",
         ReplayCompatibilityStatus.RequiresProfile =>
             $"Game client and patch for '{MatchedClient?.Description ?? UnknownValue}' are available. Click 'Create Profile' to configure a dedicated profile.",
         ReplayCompatibilityStatus.Downloadable =>
@@ -157,11 +157,11 @@ public sealed class ReplayFile : IExportableFile
     };
 
     /// <summary>
-    /// Gets the user-friendly tooltip for the Play Replay button showing which profile will be launched.
+    /// Gets the user-friendly tooltip for the Launch Replay button showing which profile will be launched.
     /// </summary>
     public string PlayButtonTooltip => CompatibilityStatus == ReplayCompatibilityStatus.Compatible && !string.IsNullOrEmpty(MatchingProfileName)
-        ? $"Launch profile '{MatchingProfileName}' to watch this replay (Right-click to select a different profile)"
-        : "Select or configure a profile to play this replay";
+        ? $"Launch profile '{MatchingProfileName}' configured for this replay (select replay in-game)"
+        : "Select or configure a profile to launch this replay";
 
     private static string FormatFileSize(long bytes) => bytes switch
     {

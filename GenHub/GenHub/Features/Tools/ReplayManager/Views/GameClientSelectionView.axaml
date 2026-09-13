@@ -13,7 +13,7 @@
         WindowStartupLocation="CenterOwner"
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaChromeHints="NoChrome"
-        ExtendClientAreaTitleBarHeightHint="40"
+        ExtendClientAreaTitleBarHeightHint="-1"
         Background="{DynamicResource SurfaceBackgroundBrush}">
 
     <Grid RowDefinitions="40,*">

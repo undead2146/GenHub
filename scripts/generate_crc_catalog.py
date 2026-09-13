@@ -332,9 +332,12 @@ def inspect_archive_binary(download_url: str, binary_patterns: list[str]) -> tup
                             exe_crc = compute_buffer_crc(binary_bytes)
                             sha256 = compute_buffer_sha256(binary_bytes)
                             break
-                if not ini_crc and base_name in ("generals.ini",):
+                if not ini_crc and base_name == "generals.ini":
                     ini_bytes = zf.read(name)
                     ini_crc = compute_sage_xfer_crc(ini_bytes)
+
+                if exe_crc and ini_crc:
+                    break
 
             return exe_crc, sha256, ini_crc
     except (OSError, zipfile.BadZipFile, http.client.HTTPException, zlib.error, EOFError) as e:
@@ -691,9 +694,9 @@ def merge_catalogs(existing: list[dict], crawled: list[dict]) -> list[dict]:
             existing_entry = merged.pop(matched_key)
             _update_existing_entry(existing_entry, item_copy)
             merged[entry_key(existing_entry)] = existing_entry
-        elif not item_copy.get("exeCrc"):
+        elif not item_copy.get("exeCrc") or not item_copy.get("iniCrc"):
             print(
-                f"Validation warning: skipping crawled entry {m_id} without exeCrc (run with --inspect-binaries to populate CRCs)",
+                f"Validation warning: skipping crawled entry {m_id} without complete CRCs (exeCrc={item_copy.get('exeCrc')}, iniCrc={item_copy.get('iniCrc')}) (run with --inspect-binaries to populate CRCs)",
                 file=sys.stderr,
             )
         else:

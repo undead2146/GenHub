@@ -26,7 +26,7 @@
   <Grid RowDefinitions="Auto,*,Auto,Auto" MinWidth="600"
         VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
     <!-- Header/Tabs & Toolbar -->
-    <Border Grid.Row="0" Background="{DynamicResource CardBackground}" CornerRadius="12" Margin="0,0,0,16" Padding="6" BoxShadow="0 4 12 0 #20000000">
+    <Border Grid.Row="0" Background="{DynamicResource CardBackground}" CornerRadius="12" Margin="0,0,0,16" Padding="6" BoxShadow="{DynamicResource CardBoxShadow}">
       <Grid ColumnDefinitions="Auto,*,Auto,Auto">
         <!-- Game Tabs -->
         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
@@ -89,7 +89,7 @@
 
     <!-- Replay List & Overlays -->
     <Panel Grid.Row="1">
-      <Border Background="{DynamicResource CardBackground}" CornerRadius="12" ClipToBounds="True" BoxShadow="0 4 12 0 #20000000">
+      <Border Background="{DynamicResource CardBackground}" CornerRadius="12" ClipToBounds="True" BoxShadow="{DynamicResource CardBoxShadow}">
         <DataGrid Name="ReplaysGrid"
                   ItemsSource="{Binding CurrentReplays}"
                   SelectionMode="Extended"
@@ -129,7 +129,7 @@
                 </DataTemplate>
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
-            <DataGridTemplateColumn Header="Client / Build" Width="*" MinWidth="130" MaxWidth="220">
+            <DataGridTemplateColumn Header="Client / Build" Width="*" MinWidth="130">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate>
                   <TextBlock Text="{Binding ClientAndPatchDisplay}"
@@ -166,11 +166,11 @@
             </DataGridTemplateColumn>
             <DataGridTextColumn Header="Size" Binding="{Binding FormattedSize}" Width="Auto" MinWidth="65" IsReadOnly="True" />
             <DataGridTextColumn Header="Modified" Binding="{Binding LastModified, StringFormat={}{0:yyyy-MM-dd HH:mm}}" Width="Auto" MinWidth="115" IsReadOnly="True" />
-            <DataGridTemplateColumn Width="Auto" MinWidth="140" Header="Actions">
+            <DataGridTemplateColumn Width="Auto" MinWidth="165" CanUserResize="False" Header="Actions">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate>
                   <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <!-- Play Button: Visible ONLY when CanPlay (profile is configured and ready) -->
+                    <!-- Launch Button: Visible ONLY when CanPlay (profile is configured and ready) -->
                     <Button Classes="Primary" Padding="8,4"
                             Command="{Binding $parent[UserControl].((vm:ReplayManagerViewModel)DataContext).LaunchReplayCommand}"
                             CommandParameter="{Binding}"
@@ -189,11 +189,11 @@
                       </Button.ContextFlyout>
                       <StackPanel Orientation="Horizontal" Spacing="4">
                         <PathIcon Data="{StaticResource ToolIcon.Play}" Width="11" Height="11" VerticalAlignment="Center"/>
-                        <TextBlock Text="Play" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <TextBlock Text="Launch" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
                       </StackPanel>
                     </Button>
 
-                    <!-- Setup Button: Primary action when client/patch download is required (Play is hidden) -->
+                    <!-- Setup Button: Primary action when client/patch download is required (Launch is hidden) -->
                     <Button Classes="Primary" Padding="8,4"
                             Command="{Binding $parent[UserControl].((vm:ReplayManagerViewModel)DataContext).ExecuteDirectProfileCreationCommand}"
                             CommandParameter="{Binding}"
@@ -206,7 +206,7 @@
                       </StackPanel>
                     </Button>
 
-                    <!-- Profile Button: Primary when a profile is needed/missing, or secondary when replay can already play -->
+                    <!-- Profile Button: Primary when a profile is needed/missing, or secondary when replay can already launch -->
                     <Button Classes="Secondary" Padding="8,4"
                             Command="{Binding $parent[UserControl].((vm:ReplayManagerViewModel)DataContext).SelectClientAndCreateProfileCommand}"
                             CommandParameter="{Binding}"
@@ -257,10 +257,10 @@
       </Border>
 
       <!-- Loading Overlay -->
-      <Border Background="#99000000" IsVisible="{Binding IsBusy}" CornerRadius="12">
+      <Border Background="{DynamicResource OverlayScrimBrush}" IsVisible="{Binding IsBusy}" CornerRadius="12">
         <Border Background="{DynamicResource CardBackground}" CornerRadius="12" Padding="24,20"
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                BoxShadow="0 8 24 0 #40000000" MinWidth="300" MaxWidth="400"
+                BoxShadow="{DynamicResource DialogBoxShadow}" MinWidth="300" MaxWidth="400"
                 HorizontalAlignment="Center" VerticalAlignment="Center">
           <StackPanel Spacing="12">
             <TextBlock Text="{Binding StatusMessage}" HorizontalAlignment="Center" FontWeight="SemiBold"
@@ -279,7 +279,7 @@
     </Panel>
 
     <!-- Action Bar -->
-    <Border Grid.Row="2" Background="{DynamicResource CardBackground}" CornerRadius="12" Margin="0,16,0,0" Padding="12" BoxShadow="0 4 12 0 #20000000">
+    <Border Grid.Row="2" Background="{DynamicResource CardBackground}" CornerRadius="12" Margin="0,16,0,0" Padding="12" BoxShadow="{DynamicResource CardBoxShadow}">
       <Grid ColumnDefinitions="Auto,*,Auto" MinWidth="400">
         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
           <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
@@ -337,7 +337,7 @@
                    Placement="Bottom" PlacementTarget="{Binding $parent[StackPanel]}"
                    IsLightDismissEnabled="False">
               <Border Background="{DynamicResource DetailsBackground}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10"
-                      Padding="14" MinWidth="340" MaxHeight="400" BoxShadow="0 10 28 0 #99000000">
+                      Padding="14" MinWidth="340" MaxHeight="400" BoxShadow="{DynamicResource FlyoutBoxShadow}">
                 <Grid RowDefinitions="Auto,*">
                   <Grid Grid.Row="1">
                     <ScrollViewer IsVisible="{Binding UploadHistory.Count}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">

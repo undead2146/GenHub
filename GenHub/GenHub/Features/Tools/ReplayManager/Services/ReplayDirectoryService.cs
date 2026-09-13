@@ -73,10 +73,6 @@ public sealed class ReplayDirectoryService(
         string? CustomClientManifestId);
 
     private static readonly TimeSpan ReplayFileNameRegexTimeout = TimeSpan.FromMilliseconds(250);
-    private static readonly Regex GeneralsOnlineFileNameRegex = new(
-        @"^match_\d+_user_[a-fA-F0-9]+_replay\.rep$",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        ReplayFileNameRegexTimeout);
 
     private static readonly ConcurrentDictionary<string, (DateTime LastWriteTimeUtc, string Crc)> ExeCrcCache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -488,6 +484,12 @@ public sealed class ReplayDirectoryService(
     /// <summary>
     /// Asynchronously finds all compatible profiles for a replay file by preloading executable CRCs without blocking the UI thread.
     /// </summary>
+    /// <param name="profiles">The available game profiles to evaluate.</param>
+    /// <param name="replay">The replay file to match against.</param>
+    /// <param name="logger">Optional logger instance.</param>
+    /// <param name="crcCalculator">Optional game CRC calculator service.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>A list of compatible game profiles.</returns>
     internal static async Task<List<GameProfile>> FindCompatibleProfilesAsync(
         IEnumerable<GameProfile> profiles,
         ReplayFile replay,
@@ -556,6 +558,17 @@ public sealed class ReplayDirectoryService(
         string? dataPatchManifestId,
         string? expectedVersion = null)
     {
+        var reqClientPublisher = ExtractPublisherFromManifestId(clientManifestId);
+        var profileClientPublisher = profile.GameClient?.PublisherType ?? ExtractPublisherFromManifestId(profile.GameClient?.Id);
+
+        if (!string.IsNullOrEmpty(reqClientPublisher) &&
+            !string.IsNullOrEmpty(profileClientPublisher) &&
+            !string.Equals(reqClientPublisher, ManifestConstants.AnyPublisherToken, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(reqClientPublisher, profileClientPublisher, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         var clientMatches = string.Equals(profile.GameClient?.Id, clientManifestId, StringComparison.OrdinalIgnoreCase) ||
                             profile.EnabledContentIds?.Any(id => string.Equals(id, clientManifestId, StringComparison.OrdinalIgnoreCase)) == true ||
                             (DependencyResolver.HasCompatibleCatalogIdentity(clientManifestId, profile.GameClient?.Id) &&
@@ -571,8 +584,22 @@ public sealed class ReplayDirectoryService(
 
         if (!string.IsNullOrEmpty(dataPatchManifestId))
         {
+            var reqPatchPublisher = ExtractPublisherFromManifestId(dataPatchManifestId);
+            if (!string.IsNullOrEmpty(reqClientPublisher) &&
+                !string.IsNullOrEmpty(reqPatchPublisher) &&
+                !string.Equals(reqPatchPublisher, ManifestConstants.AnyPublisherToken, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(reqClientPublisher, reqPatchPublisher, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
             return profile.EnabledContentIds?.Any(id =>
                 HasMatchingDataPatchId(dataPatchManifestId, id)) == true;
+        }
+
+        if (HasAnyEnabledDataPatches(profile))
+        {
+            return false;
         }
 
         return true;
@@ -727,14 +754,80 @@ public sealed class ReplayDirectoryService(
     }
 
     /// <summary>
-    /// Resolves the compatibility status and matching profile for the specified replay file.
+    /// Preloads executable CRCs for the given game profiles into cache asynchronously.
     /// </summary>
-    /// <param name="replay">The replay file.</param>
-    /// <param name="acquiredIds">The set of acquired manifest IDs.</param>
-    /// <param name="profiles">The list of existing profiles.</param>
-    internal void ResolveCompatibility(ReplayFile replay, HashSet<string> acquiredIds, IReadOnlyList<GameProfile> profiles)
+    /// <param name="profiles">The collection of profiles to preload CRCs for.</param>
+    /// <param name="crcCalculator">The game CRC calculator service.</param>
+    /// <param name="logger">Optional logger instance.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>A task representing the preload operation.</returns>
+    internal static async Task PreloadProfileExeCrcsAsync(
+        IEnumerable<GameProfile> profiles,
+        IGameCrcCalculatorService? crcCalculator,
+        ILogger? logger = null,
+        CancellationToken ct = default)
     {
-        ResolveCompatibilityAsync(replay, acquiredIds, profiles, CancellationToken.None).GetAwaiter().GetResult();
+        if (crcCalculator == null)
+        {
+            return;
+        }
+
+        foreach (var profile in profiles)
+        {
+            if (ct.IsCancellationRequested)
+            {
+                break;
+            }
+
+            var exePath = ResolveProfileFullExePath(profile.GameClient);
+            if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
+            {
+                await GetOrCalculateProfileExeCrcAsync(exePath, crcCalculator, logger, ct);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Computes or retrieves from cache the executable CRC for a given game client executable.
+    /// </summary>
+    /// <param name="exePath">Path to the game client executable.</param>
+    /// <param name="crcCalculator">The game CRC calculator service.</param>
+    /// <param name="logger">Optional logger instance.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The calculated CRC string formatted as 0xXXXXXXXX, or null if calculation failed.</returns>
+    internal static async Task<string?> GetOrCalculateProfileExeCrcAsync(
+        string exePath,
+        IGameCrcCalculatorService crcCalculator,
+        ILogger? logger = null,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var fileInfo = new FileInfo(exePath);
+            if (!fileInfo.Exists)
+            {
+                return null;
+            }
+
+            var lastWrite = fileInfo.LastWriteTimeUtc;
+            if (ExeCrcCache.TryGetValue(exePath, out var cached) && cached.LastWriteTimeUtc == lastWrite)
+            {
+                return cached.Crc;
+            }
+
+            var calcResult = await crcCalculator.CalculateExeCrcAsync(exePath, ct: ct);
+            if (calcResult.Success && !string.IsNullOrEmpty(calcResult.Data))
+            {
+                ExeCrcCache[exePath] = (lastWrite, calcResult.Data);
+                return calcResult.Data;
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger?.LogWarning(ex, "[ReplayManager] Error calculating executable CRC for {ExePath}", exePath);
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -766,51 +859,13 @@ public sealed class ReplayDirectoryService(
             return;
         }
 
-        // Secondary resolution: When exact (exeCRC, iniCRC) pair is not in catalog, check if base client matches
-        if (crcMappingRegistry.TryGetEntryByExeCrc(exeCrcStr, out var baseClient) && baseClient != null)
-        {
-            var resolvedEntry = ResolveSecondaryBaseClientEntry(baseClient, iniCrcStr, acquiredIds);
-            ResolveMatchedClientCompatibility(replay, resolvedEntry, acquiredIds, profiles, logger, crcCalculator);
-            return;
-        }
-
-        // Step 5: Heuristic fallback for third-party / GeneralsOnline replays by filename pattern or build timestamp
-        if (TryResolveGeneralsOnlineHeuristic(replay, out var heuristicClient) && heuristicClient != null)
-        {
-            var resolvedEntry = ResolveSecondaryHeuristicEntry(heuristicClient, exeCrcStr, iniCrcStr);
-            ResolveMatchedClientCompatibility(replay, resolvedEntry, acquiredIds, profiles, logger, crcCalculator);
-            return;
-        }
-
-        // Step 6: Dynamic check for existing profile game clients matching the replay executable CRC
-        if (await TryResolveProfileByExeCrcAsync(replay, profiles, ct) is { } dynamicEntry)
+        if (await TryResolveProfileByLiveCalculatedCrcsAsync(replay, profiles, ct) is { } dynamicEntry)
         {
             ResolveMatchedClientCompatibility(replay, dynamicEntry, acquiredIds, profiles, logger, crcCalculator);
             return;
         }
 
-        // Step 7: Dynamic check for acquired ContentManifest matching the replay executable CRC
-        if (TryResolveAcquiredManifestByCrc(replay, acquiredIds, out var manifestEntry) && manifestEntry != null)
-        {
-            ResolveMatchedClientCompatibility(replay, manifestEntry, acquiredIds, profiles, logger, crcCalculator);
-            return;
-        }
-
         ResolveUnmappedClientCompatibility(replay, profiles);
-    }
-
-    private static CrcMappingEntry ResolveSecondaryHeuristicEntry(CrcMappingEntry heuristicClient, string exeCrcStr, string iniCrcStr)
-    {
-        var normalizedIni = NormalizeCrcHex(iniCrcStr);
-        var isVanillaIni = IsVanillaZeroHourIni(normalizedIni);
-
-        return heuristicClient with
-        {
-            ExeCrc = exeCrcStr,
-            IniCrc = iniCrcStr,
-            DataPatchManifestId = isVanillaIni ? null : heuristicClient.DataPatchManifestId,
-            DataPatchName = isVanillaIni ? ReplayManagerConstants.Vanilla104IniName : (heuristicClient.DataPatchName ?? $"Custom INI ({normalizedIni})"),
-        };
     }
 
     private static bool IsProfileCandidateCompatible(
@@ -821,17 +876,6 @@ public sealed class ReplayDirectoryService(
         if (p.GameClient?.GameType != ctx.GameVersion)
         {
             return false;
-        }
-
-        if (IsDedicatedToThisReplay(p, replay, ctx.TargetLogger))
-        {
-            return true;
-        }
-
-        if (!string.IsNullOrEmpty(replay?.MatchingProfileId) &&
-            string.Equals(p.Id, replay.MatchingProfileId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
         }
 
         if (ctx.IsRetailMatch)
@@ -1494,16 +1538,17 @@ public sealed class ReplayDirectoryService(
                 HasMatchingDataPatchId(dataPatchManifestId, id)) == true;
         }
 
-        var hasCustomDataPatch = profile.EnabledContentIds?.Any(id =>
+        return !HasAnyEnabledDataPatches(profile);
+    }
+
+    private static bool HasAnyEnabledDataPatches(GameProfile profile) =>
+        profile.EnabledContentIds?.Any(id =>
             id.Contains(ManifestConstants.GameDataManifestSegment, StringComparison.OrdinalIgnoreCase) ||
             id.Contains(ManifestConstants.DataPatchManifestSegment, StringComparison.OrdinalIgnoreCase) ||
             id.Contains(ManifestConstants.CommunityManifestSegment, StringComparison.OrdinalIgnoreCase) ||
             id.Contains(ManifestConstants.ModManifestSegment, StringComparison.OrdinalIgnoreCase)) == true;
 
-        return !hasCustomDataPatch;
-    }
-
-    private static string ExtractPublisherFromManifestId(string manifestId)
+    private static string ExtractPublisherFromManifestId(string? manifestId)
     {
         if (string.IsNullOrWhiteSpace(manifestId))
         {
@@ -1886,25 +1931,6 @@ public sealed class ReplayDirectoryService(
         }
     }
 
-    private static long ParseVersionSegments(string? version)
-    {
-        if (string.IsNullOrEmpty(version))
-        {
-            return 0;
-        }
-
-        long score = 0;
-        foreach (var part in version.Split('.', '_', '-'))
-        {
-            if (int.TryParse(part, out var num))
-            {
-                score = (score * 10000) + num;
-            }
-        }
-
-        return score;
-    }
-
     private static string GetReplayClientDisplayName(CrcMappingEntry? matchedClient, string defaultName)
     {
         if (matchedClient == null)
@@ -2140,49 +2166,10 @@ public sealed class ReplayDirectoryService(
             ReplayFileNameRegexTimeout);
     }
 
-    private static CrcMappingEntry ResolveHeuristicClientEntry(CrcMappingEntry heuristicClient, string exeCrc, string? iniCrc)
-    {
-        var normalizedIni = !string.IsNullOrEmpty(iniCrc) ? NormalizeCrcHex(iniCrc) : string.Empty;
-        var isVanillaIni = string.IsNullOrEmpty(normalizedIni) || IsVanillaZeroHourIni(normalizedIni);
-
-        return heuristicClient with
-        {
-            ExeCrc = exeCrc,
-            IniCrc = iniCrc ?? heuristicClient.IniCrc,
-            DataPatchManifestId = isVanillaIni ? null : heuristicClient.DataPatchManifestId,
-            DataPatchName = isVanillaIni ? ReplayManagerConstants.Vanilla104IniName : (heuristicClient.DataPatchName ?? $"Custom INI ({normalizedIni})"),
-        };
-    }
-
     private static bool IsVanillaZeroHourIni(string normalizedIni)
     {
         return string.Equals(normalizedIni, ReplayManagerConstants.VanillaZeroHourIniCrcEnglish, StringComparison.OrdinalIgnoreCase) ||
                string.Equals(normalizedIni, ReplayManagerConstants.VanillaZeroHourIniCrcGerman, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsVanillaIni(string normalizedIni, string? baseClientIniCrc = null)
-    {
-        return IsVanillaZeroHourIni(normalizedIni) ||
-               (baseClientIniCrc != null && string.Equals(normalizedIni, NormalizeCrcHex(baseClientIniCrc), StringComparison.OrdinalIgnoreCase)) ||
-               string.Equals(normalizedIni, ReplayManagerConstants.VanillaGeneralsIniCrcGerman, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsGeneralsOnlinePattern(string? fileName, string? versionStr)
-    {
-        if (!string.IsNullOrEmpty(fileName) &&
-            (GeneralsOnlineFileNameRegex.IsMatch(fileName) || fileName.Contains(GeneralsOnlineConstants.PublisherType, StringComparison.OrdinalIgnoreCase)))
-        {
-            return true;
-        }
-
-        return !string.IsNullOrEmpty(versionStr) && versionStr.Contains(GeneralsOnlineConstants.PublisherType, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static CrcMappingEntry? TryMatchGeneralsOnlineByBuildDate(List<CrcMappingEntry> entries, string buildTime)
-    {
-        return entries.FirstOrDefault(e =>
-            (!string.IsNullOrEmpty(e.BuildDate) && IsBuildDateMatching(e.BuildDate, buildTime)) ||
-            (!string.IsNullOrEmpty(e.Version) && buildTime.Contains(e.Version, StringComparison.OrdinalIgnoreCase)));
     }
 
     private static string? ResolveProfileFullExePath(GameClient? client)
@@ -2709,153 +2696,12 @@ public sealed class ReplayDirectoryService(
             return;
         }
 
-        // 1. Exact match
         if (!string.IsNullOrEmpty(iniCrc) &&
             crcMappingRegistry.TryGetEntry(exeCrc, iniCrc, out var resolvedMatch) &&
             resolvedMatch != null)
         {
             replay.MatchedClient = resolvedMatch;
-            return;
         }
-
-        // 2. Secondary resolution: Base client by Exe CRC
-        if (crcMappingRegistry.TryGetEntryByExeCrc(exeCrc, out var baseClient) && baseClient != null)
-        {
-            replay.MatchedClient = ResolveBaseClientEntry(baseClient, iniCrc);
-            return;
-        }
-
-        // 3. Heuristic resolution for GeneralsOnline replays
-        if (TryResolveGeneralsOnlineHeuristic(replay, out var heuristicClient) && heuristicClient != null)
-        {
-            replay.MatchedClient = ResolveHeuristicClientEntry(heuristicClient, exeCrc, iniCrc);
-        }
-    }
-
-    private CrcMappingEntry ResolveBaseClientEntry(CrcMappingEntry baseClient, string? iniCrc)
-    {
-        var normalizedIni = !string.IsNullOrEmpty(iniCrc) ? NormalizeCrcHex(iniCrc) : string.Empty;
-
-        if (!string.IsNullOrEmpty(iniCrc) &&
-            crcMappingRegistry.TryGetEntryByIniCrc(iniCrc, out var catalogEntry) &&
-            !string.IsNullOrEmpty(catalogEntry?.DataPatchManifestId))
-        {
-            return baseClient with
-            {
-                IniCrc = iniCrc,
-                DataPatchManifestId = catalogEntry.DataPatchManifestId,
-                DataPatchName = catalogEntry.DataPatchName,
-                DataPatchCdnUrl = catalogEntry.DataPatchCdnUrl,
-            };
-        }
-
-        var isVanilla = string.IsNullOrEmpty(normalizedIni) || IsVanillaIni(normalizedIni, baseClient.IniCrc);
-        return baseClient with
-        {
-            IniCrc = iniCrc ?? baseClient.IniCrc,
-            DataPatchManifestId = null,
-            DataPatchName = isVanilla ? ReplayManagerConstants.Vanilla104IniName : $"Custom INI ({normalizedIni})",
-            DataPatchCdnUrl = null,
-        };
-    }
-
-    private CrcMappingEntry ResolveSecondaryBaseClientEntry(CrcMappingEntry baseClient, string iniCrcStr, HashSet<string> acquiredIds)
-    {
-        var normalizedIni = NormalizeCrcHex(iniCrcStr);
-
-        // Step 1: Check if user has a corresponding local ContentManifest matching the INI CRC (e.g. 1.828261.generalsonline.patch.gamedata)
-        var localMatchingManifestId = FindLocalMatchingManifestId(acquiredIds, iniCrcStr, normalizedIni);
-        if (!string.IsNullOrEmpty(localMatchingManifestId))
-        {
-            crcMappingRegistry.TryGetEntryByIniCrc(iniCrcStr, out var knownEntry);
-            return baseClient with
-            {
-                IniCrc = iniCrcStr,
-                DataPatchManifestId = localMatchingManifestId,
-                DataPatchName = knownEntry?.DataPatchName ?? $"Local Game Data ({normalizedIni})",
-                DataPatchCdnUrl = knownEntry?.DataPatchCdnUrl,
-            };
-        }
-
-        // Step 2: Check if catalog has a known data patch mapping for this INI CRC (e.g. TheSuperHackers 1.0.0/1.0.1 or GeneralsOnline)
-        if (crcMappingRegistry.TryGetEntryByIniCrc(iniCrcStr, out var catalogEntry) &&
-            !string.IsNullOrEmpty(catalogEntry?.DataPatchManifestId))
-        {
-            return baseClient with
-            {
-                IniCrc = iniCrcStr,
-                DataPatchManifestId = catalogEntry.DataPatchManifestId,
-                DataPatchName = catalogEntry.DataPatchName,
-                DataPatchCdnUrl = catalogEntry.DataPatchCdnUrl,
-            };
-        }
-
-        // Step 3 & 4: Check if INI is vanilla Zero Hour/Generals or custom
-        var isVanilla = IsVanillaIni(normalizedIni, baseClient.IniCrc);
-        return baseClient with
-        {
-            IniCrc = iniCrcStr,
-            DataPatchManifestId = null,
-            DataPatchName = isVanilla ? ReplayManagerConstants.Vanilla104IniName : $"Custom INI ({normalizedIni})",
-            DataPatchCdnUrl = null,
-        };
-    }
-
-    private string? FindLocalMatchingManifestId(HashSet<string> acquiredIds, string iniCrcStr, string normalizedIni)
-    {
-        return acquiredIds.FirstOrDefault(id =>
-            id.Split('.').Any(token => string.Equals(token, normalizedIni, StringComparison.OrdinalIgnoreCase)) ||
-            (crcMappingRegistry.TryGetEntryByIniCrc(iniCrcStr, out var knownEntry) &&
-             !string.IsNullOrEmpty(knownEntry?.DataPatchManifestId) &&
-             (string.Equals(id, knownEntry.DataPatchManifestId, StringComparison.OrdinalIgnoreCase) ||
-              HasMatchingDataPatchId(knownEntry.DataPatchManifestId, id))));
-    }
-
-    private bool TryResolveGeneralsOnlineHeuristic(ReplayFile replay, out CrcMappingEntry? matchedEntry)
-    {
-        matchedEntry = null;
-
-        var isGeneralsOnlinePattern = IsGeneralsOnlinePattern(replay.FileName, replay.Metadata?.VersionString);
-        var buildTime = replay.Metadata?.BuildTimeString;
-
-        var allEntries = crcMappingRegistry.GetAllEntries();
-        if (allEntries == null)
-        {
-            return false;
-        }
-
-        var generalsOnlineEntries = allEntries
-            .Where(e => string.Equals(e.Publisher, PublisherTypeConstants.GeneralsOnline, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        if (generalsOnlineEntries.Count == 0)
-        {
-            return false;
-        }
-
-        // 1. Try to match by explicit build date or version when build time is available
-        if (!string.IsNullOrEmpty(buildTime))
-        {
-            var dateMatch = TryMatchGeneralsOnlineByBuildDate(generalsOnlineEntries, buildTime);
-            if (dateMatch != null)
-            {
-                matchedEntry = dateMatch;
-                return true;
-            }
-        }
-
-        // 2. If it is a GeneralsOnline pattern replay, fall back to the most recent GeneralsOnline entry
-        if (isGeneralsOnlinePattern)
-        {
-            matchedEntry = generalsOnlineEntries
-                .OrderByDescending(e => e.BuildDate ?? string.Empty)
-                .ThenByDescending(e => ParseVersionSegments(e.Version))
-                .ThenByDescending(e => e.Version ?? string.Empty, StringComparer.OrdinalIgnoreCase)
-                .First();
-            return true;
-        }
-
-        return false;
     }
 
     private async Task EnsureValidProfileReferenceAsync(ReplayFile replay, CancellationToken ct)
@@ -2907,12 +2753,14 @@ public sealed class ReplayDirectoryService(
         }
     }
 
-    private async Task<CrcMappingEntry?> TryResolveProfileByExeCrcAsync(
+    private async Task<CrcMappingEntry?> TryResolveProfileByLiveCalculatedCrcsAsync(
         ReplayFile replay,
         IReadOnlyList<GameProfile> profiles,
         CancellationToken ct)
     {
-        if (crcCalculator == null || replay.Metadata == null || string.IsNullOrEmpty(replay.Metadata.FormattedExeCrc))
+        if (crcCalculator == null || replay.Metadata == null ||
+            string.IsNullOrEmpty(replay.Metadata.FormattedExeCrc) ||
+            string.IsNullOrEmpty(replay.Metadata.FormattedIniCrc))
         {
             return null;
         }
@@ -2922,71 +2770,55 @@ public sealed class ReplayDirectoryService(
 
         foreach (var profile in profiles.Where(p => p.GameClient?.GameType == replay.GameVersion))
         {
-            if (await TryMatchProfileExeCrcAsync(profile, replay, targetExeCrc, targetIniCrc, ct) is { } entry)
-            {
-                return entry;
-            }
-        }
-
-        return null;
-    }
-
-    internal static async Task PreloadProfileExeCrcsAsync(
-        IEnumerable<GameProfile> profiles,
-        IGameCrcCalculatorService? crcCalculator,
-        ILogger? logger = null,
-        CancellationToken ct = default)
-    {
-        if (crcCalculator == null)
-        {
-            return;
-        }
-
-        foreach (var profile in profiles)
-        {
             if (ct.IsCancellationRequested)
             {
                 break;
             }
 
             var exePath = ResolveProfileFullExePath(profile.GameClient);
-            if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
+            if (string.IsNullOrEmpty(exePath) || !File.Exists(exePath))
             {
-                await GetOrCalculateProfileExeCrcAsync(exePath, crcCalculator, logger, ct);
-            }
-        }
-    }
-
-    internal static async Task<string?> GetOrCalculateProfileExeCrcAsync(
-        string exePath,
-        IGameCrcCalculatorService crcCalculator,
-        ILogger? logger = null,
-        CancellationToken ct = default)
-    {
-        try
-        {
-            var fileInfo = new FileInfo(exePath);
-            if (!fileInfo.Exists)
-            {
-                return null;
+                continue;
             }
 
-            var lastWrite = fileInfo.LastWriteTimeUtc;
-            if (ExeCrcCache.TryGetValue(exePath, out var cached) && cached.LastWriteTimeUtc == lastWrite)
+            var calculatedExeCrc = await GetOrCalculateProfileExeCrcAsync(exePath, ct);
+            if (string.IsNullOrEmpty(calculatedExeCrc) ||
+                !IsProfileCrcMatching(calculatedExeCrc, targetExeCrc, replay.GameVersion, IsCommunityPatchProfile(profile)))
             {
-                return cached.Crc;
+                continue;
             }
 
-            var calcResult = await crcCalculator.CalculateExeCrcAsync(exePath, ct: ct);
-            if (calcResult.Success && !string.IsNullOrEmpty(calcResult.Data))
+            var gameRoot = Path.GetDirectoryName(exePath) ?? string.Empty;
+            if (string.IsNullOrEmpty(gameRoot) || !Directory.Exists(gameRoot))
             {
-                ExeCrcCache[exePath] = (lastWrite, calcResult.Data);
-                return calcResult.Data;
+                continue;
             }
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger?.LogWarning(ex, "[ReplayManager] Error calculating executable CRC for {ExePath}", exePath);
+
+            try
+            {
+                var iniResult = await crcCalculator.CalculateIniCrcAsync(gameRoot, profile.GameClient!.GameType, ct: ct);
+                if (iniResult.Success && !string.IsNullOrEmpty(iniResult.Data))
+                {
+                    var normalizedCalcIni = NormalizeCrcHex(iniResult.Data);
+                    var normalizedTargetIni = NormalizeCrcHex(targetIniCrc);
+                    if (string.Equals(normalizedCalcIni, normalizedTargetIni, StringComparison.OrdinalIgnoreCase))
+                    {
+                        logger.LogInformation(
+                            "[ReplayManager] Discovered matching profile '{ProfileName}' for replay '{ReplayFile}' via exact live calculated CRCs: exe='{ExeCrc}', ini='{IniCrc}' ({ExePath})",
+                            profile.Name,
+                            replay.FileName,
+                            targetExeCrc,
+                            targetIniCrc,
+                            exePath);
+
+                        return CreateMatchedProfileEntry(profile, replay, targetExeCrc, targetIniCrc);
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "[ReplayManager] Failed to calculate live INI CRC for profile '{ProfileName}' at '{GameRoot}'", profile.Name, gameRoot);
+            }
         }
 
         return null;
@@ -3015,10 +2847,19 @@ public sealed class ReplayDirectoryService(
 
         foreach (var profile in allProfiles.Where(p => p.GameClient?.GameType == replay.GameVersion && !compatibleIds.Contains(p.Id)))
         {
-            if (!string.IsNullOrEmpty(dataPatchManifestId) &&
-                profile.EnabledContentIds?.Any(id => HasMatchingDataPatchId(dataPatchManifestId, id)) != true)
+            if (!string.IsNullOrEmpty(dataPatchManifestId))
             {
-                continue;
+                if (profile.EnabledContentIds?.Any(id => HasMatchingDataPatchId(dataPatchManifestId, id)) != true)
+                {
+                    continue;
+                }
+            }
+            else
+            {
+                if (HasAnyEnabledDataPatches(profile))
+                {
+                    continue;
+                }
             }
 
             if (await TryMatchProfileExeCrcAsync(profile, replay, targetExeCrc, ct))
@@ -3051,6 +2892,31 @@ public sealed class ReplayDirectoryService(
         if (!string.IsNullOrEmpty(calculatedCrc) &&
             IsProfileCrcMatching(calculatedCrc, targetExeCrc, replay.GameVersion, IsCommunityPatchProfile(profile)))
         {
+            if (crcCalculator != null && !string.IsNullOrEmpty(replay.Metadata?.FormattedIniCrc))
+            {
+                var gameRoot = Path.GetDirectoryName(exePath) ?? string.Empty;
+                if (Directory.Exists(gameRoot))
+                {
+                    try
+                    {
+                        var iniResult = await crcCalculator.CalculateIniCrcAsync(gameRoot, profile.GameClient!.GameType, ct: ct);
+                        if (iniResult.Success && !string.IsNullOrEmpty(iniResult.Data))
+                        {
+                            var normalizedCalcIni = NormalizeCrcHex(iniResult.Data);
+                            var normalizedTargetIni = NormalizeCrcHex(replay.Metadata.FormattedIniCrc);
+                            if (!string.Equals(normalizedCalcIni, normalizedTargetIni, StringComparison.OrdinalIgnoreCase))
+                            {
+                                return false;
+                            }
+                        }
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        logger.LogWarning(ex, "[ReplayManager] Could not calculate INI CRC for profile '{ProfileId}'", profile.Id);
+                    }
+                }
+            }
+
             logger.LogInformation(
                 "[ReplayManager] Discovered matching profile '{ProfileName}' for replay '{ReplayFile}' via executable CRC '{ExeCrc}' ({ExePath})",
                 profile.Name,
@@ -3062,145 +2928,13 @@ public sealed class ReplayDirectoryService(
         }
 
         return false;
-    }
-
-    private async Task<CrcMappingEntry?> TryMatchProfileExeCrcAsync(
-        GameProfile profile,
-        ReplayFile replay,
-        string targetExeCrc,
-        string? targetIniCrc,
-        CancellationToken ct)
-    {
-        var exePath = ResolveProfileFullExePath(profile.GameClient);
-        if (string.IsNullOrEmpty(exePath) || !File.Exists(exePath))
-        {
-            return null;
-        }
-
-        if (!string.IsNullOrEmpty(replay.MatchedClient?.DataPatchManifestId) &&
-            profile.EnabledContentIds?.Any(id => HasMatchingDataPatchId(replay.MatchedClient.DataPatchManifestId, id)) != true)
-        {
-            return null;
-        }
-
-        var calculatedCrc = await GetOrCalculateProfileExeCrcAsync(exePath, ct);
-        if (!string.IsNullOrEmpty(calculatedCrc) &&
-            IsProfileCrcMatching(calculatedCrc, targetExeCrc, replay.GameVersion, IsCommunityPatchProfile(profile)))
-        {
-            logger.LogInformation(
-                "[ReplayManager] Discovered matching profile '{ProfileName}' for replay '{ReplayFile}' via executable CRC '{ExeCrc}' ({ExePath})",
-                profile.Name,
-                replay.FileName,
-                targetExeCrc,
-                exePath);
-
-            return CreateMatchedProfileEntry(profile, replay, targetExeCrc, targetIniCrc);
-        }
-
-        return null;
     }
 
     private void ResolveUnmappedClientCompatibility(ReplayFile replay, IReadOnlyList<GameProfile> profiles)
     {
         replay.MatchedClient = null;
-        var replayBaseName = Path.GetFileNameWithoutExtension(replay.FileName);
-        var expectedReplayTag = $"(Replay: {replayBaseName})";
-
-        var unmappedCandidates = profiles
-            .Where(p => p.GameClient?.GameType == replay.GameVersion)
-            .OrderByDescending(p =>
-            {
-                if (!string.IsNullOrEmpty(replay.MatchingProfileId) &&
-                    string.Equals(p.Id, replay.MatchingProfileId, StringComparison.OrdinalIgnoreCase))
-                {
-                    return 2000;
-                }
-
-                var nameMatches = !string.IsNullOrEmpty(p.Name) && !string.IsNullOrEmpty(replayBaseName) &&
-                    p.Name.Contains(expectedReplayTag, StringComparison.OrdinalIgnoreCase);
-                var descMatches = MatchesReplayFileName(p.Description, replay.FileName, logger);
-
-                if (nameMatches || descMatches)
-                {
-                    return 1000;
-                }
-
-                var clientName = p.GameClient?.Name ?? string.Empty;
-                if (clientName.Contains("Patch", StringComparison.OrdinalIgnoreCase) ||
-                    clientName.Contains("Community", StringComparison.OrdinalIgnoreCase) ||
-                    clientName.Contains("Recovery", StringComparison.OrdinalIgnoreCase) ||
-                    p.Name.Contains("Patch", StringComparison.OrdinalIgnoreCase) ||
-                    p.Name.Contains("Community", StringComparison.OrdinalIgnoreCase) ||
-                    p.Name.Contains("Recovery", StringComparison.OrdinalIgnoreCase))
-                {
-                    return 250;
-                }
-
-                return 0;
-            })
-            .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(p => p.Id, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var unmappedProfile = unmappedCandidates.FirstOrDefault(p =>
-            (!string.IsNullOrEmpty(replay.MatchingProfileId) && string.Equals(p.Id, replay.MatchingProfileId, StringComparison.OrdinalIgnoreCase)) ||
-            MatchesReplayFileName(p.Description, replay.FileName, logger) ||
-            (!string.IsNullOrEmpty(p.Name) && !string.IsNullOrEmpty(replayBaseName) && p.Name.Contains(expectedReplayTag, StringComparison.OrdinalIgnoreCase)));
-
-        if (unmappedProfile != null)
-        {
-            replay.MatchingProfileId = unmappedProfile.Id;
-            replay.MatchingProfileName = unmappedProfile.Name;
-            replay.CompatibilityStatus = ReplayCompatibilityStatus.Compatible;
-        }
-        else
-        {
-            replay.MatchingProfileId = null;
-            replay.MatchingProfileName = null;
-            replay.CompatibilityStatus = ReplayCompatibilityStatus.Orphaned;
-        }
-    }
-
-    private bool TryResolveAcquiredManifestByCrc(
-        ReplayFile replay,
-        HashSet<string> acquiredIds,
-        out CrcMappingEntry? manifestEntry)
-    {
-        manifestEntry = null;
-        var exeCrc = replay.Metadata?.FormattedExeCrc;
-        var iniCrc = replay.Metadata?.FormattedIniCrc;
-        if (string.IsNullOrEmpty(exeCrc))
-        {
-            return false;
-        }
-
-        var normalizedExe = NormalizeCrcHex(exeCrc);
-
-        var matchingManifestId = acquiredIds.FirstOrDefault(id =>
-            id.Contains(".gameclient.", StringComparison.OrdinalIgnoreCase) &&
-            (id.Split('.').Any(token => string.Equals(token, normalizedExe, StringComparison.OrdinalIgnoreCase)) ||
-             id.Contains(exeCrc, StringComparison.OrdinalIgnoreCase)));
-
-        if (!string.IsNullOrEmpty(matchingManifestId))
-        {
-            var publisher = ExtractPublisherFromManifestId(matchingManifestId);
-            var normalizedIni = !string.IsNullOrEmpty(iniCrc) ? NormalizeCrcHex(iniCrc) : string.Empty;
-            var isVanilla = IsVanillaZeroHourIni(normalizedIni);
-
-            manifestEntry = new CrcMappingEntry
-            {
-                Publisher = publisher,
-                ManifestId = matchingManifestId,
-                ExeCrc = exeCrc,
-                IniCrc = iniCrc ?? string.Empty,
-                Description = $"Acquired Client ({publisher})",
-                Version = "Custom",
-                DataPatchManifestId = isVanilla ? null : FindLocalMatchingManifestId(acquiredIds, iniCrc ?? string.Empty, normalizedIni),
-                DataPatchName = isVanilla ? ReplayManagerConstants.Vanilla104IniName : $"Data Patch ({normalizedIni})",
-            };
-            return true;
-        }
-
-        return false;
+        replay.MatchingProfileId = null;
+        replay.MatchingProfileName = null;
+        replay.CompatibilityStatus = ReplayCompatibilityStatus.Orphaned;
     }
 }

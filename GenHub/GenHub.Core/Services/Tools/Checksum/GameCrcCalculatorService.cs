@@ -95,7 +95,7 @@ public sealed class GameCrcCalculatorService : IGameCrcCalculatorService
         {
             throw;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return OperationResult<string>.CreateFailure($"Failed to calculate executable CRC: {ex.Message}");
         }
@@ -150,7 +150,7 @@ public sealed class GameCrcCalculatorService : IGameCrcCalculatorService
         {
             throw;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return OperationResult<string>.CreateFailure($"Failed to calculate INI CRC: {ex.Message}");
         }
