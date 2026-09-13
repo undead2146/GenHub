@@ -3393,6 +3393,8 @@ public partial class ContentDetailViewModel(
             return;
         }
 
+        DownloadStatusMessage = string.Empty;
+
         if (_updateAction != null)
         {
             var task = _updateAction(cancellationToken);

@@ -20,7 +20,7 @@ public static class PublisherInfoConstants
     /// <summary>
     /// Publisher display name for local installations.
     /// </summary>
-    public const string LocalPublisherName = "Local";
+    public const string LocalInstallationPublisherName = "Local";
 
     private static readonly (string[] Keywords, string LogoSource)[] LogoRules =
     [
@@ -57,7 +57,7 @@ public static class PublisherInfoConstants
         public const string SupportUrl = "https://help.steampowered.com";
 
         /// <summary>Logo source for Steam.</summary>
-        public const string LogoSource = "avares://GenHub/Assets/Logos/steam-logo.png";
+        public const string LogoSource = ""; // Placeholder until asset lands
     }
 
     /// <summary>
@@ -75,7 +75,7 @@ public static class PublisherInfoConstants
         public const string SupportUrl = "https://help.ea.com";
 
         /// <summary>Logo source for EA App.</summary>
-        public const string LogoSource = "avares://GenHub/Assets/Logos/ea-logo.png";
+        public const string LogoSource = ""; // Placeholder until asset lands
     }
 
     /// <summary>
@@ -93,7 +93,7 @@ public static class PublisherInfoConstants
         public const string SupportUrl = "https://help.ea.com";
 
         /// <summary>Logo source for The First Decade.</summary>
-        public const string LogoSource = "avares://GenHub/Assets/Logos/ea-logo.png";
+        public const string LogoSource = ""; // Placeholder until asset lands
     }
 
     /// <summary>

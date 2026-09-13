@@ -473,7 +473,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
                 // But SKIP if the publisher is "Local" - we want NO version for local content
                 if (string.IsNullOrEmpty(_gameVersion) &&
                     !string.IsNullOrEmpty(gameProfile.GameClient.Version) &&
-                    !string.Equals(_publisher, PublisherInfoConstants.LocalPublisherName, StringComparison.OrdinalIgnoreCase))
+                    !string.Equals(_publisher, PublisherInfoConstants.LocalInstallationPublisherName, StringComparison.OrdinalIgnoreCase))
                 {
                     // Normalize version to handle Unknown, Auto-Updated, and Automatically added cases
                     var version = gameProfile.GameClient.Version;
@@ -671,7 +671,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
             PublisherTypeConstants.GeneralsOnline => "Generals Online",
             PublisherTypeConstants.TheSuperHackers => "The Super Hackers",
             CommunityOutpostConstants.PublisherType => "Community Outpost",
-            "local" => PublisherInfoConstants.LocalPublisherName,
+            "local" => PublisherInfoConstants.LocalInstallationPublisherName,
             _ => fallback,
         };
 
@@ -950,7 +950,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
         // But SKIP if the publisher is "Local"
         if (string.IsNullOrEmpty(GameVersion) &&
             !string.IsNullOrEmpty(gameClient.Version) &&
-            !string.Equals(Publisher, PublisherInfoConstants.LocalPublisherName, StringComparison.OrdinalIgnoreCase))
+            !string.Equals(Publisher, PublisherInfoConstants.LocalInstallationPublisherName, StringComparison.OrdinalIgnoreCase))
         {
             var version = gameClient.Version;
             GameVersion = IsZeroOrPlaceholderVersion(version) ? string.Empty : version;

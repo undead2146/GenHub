@@ -784,4 +784,99 @@ public class GeneralsOnlineProfileReconcilerTests
         Assert.DoesNotContain("1.1015251.generalsonline.mod.stale", result);
         Assert.Equal(result.Distinct(StringComparer.OrdinalIgnoreCase).Count(), result.Count);
     }
+
+    /// <summary>
+    /// Verifies that when replace/in-place strategy is used, the existing profile is updated via UpdateProfileAsync
+    /// with the renamed version and CreateProfileAsync is never called.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Fact]
+    public async Task CheckAndReconcile_WhenReplaceStrategySelected_UpdatesExistingProfileAndNeverCreatesAsync()
+    {
+        // Arrange
+        string latestVersion = "1.101525";
+        _updateServiceMock.Setup(x => x.CheckForUpdatesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ContentUpdateCheckResult.CreateUpdateAvailable(latestVersion, "1.101524"));
+
+        var settings = new UserSettings();
+        settings.SetAutoUpdatePreference(GeneralsOnlineConstants.PublisherType, true);
+        var sub = settings.GetOrCreateSubscription(GeneralsOnlineConstants.PublisherType);
+        sub.PreferredUpdateStrategy = UpdateStrategy.ReplaceCurrent;
+        sub.DeleteOldVersions = true;
+
+        _userSettingsServiceMock.Setup(x => x.Get())
+            .Returns(settings);
+
+        var oldClientManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.101524.generalsonline.gameclient.60hz"),
+            Version = "1.101524",
+            ContentType = ContentType.GameClient,
+            Publisher = new PublisherInfo { PublisherType = GeneralsOnlineConstants.PublisherType },
+        };
+
+        var newClientManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.101525.generalsonline.gameclient.60hz"),
+            Name = "GeneralsOnline",
+            Version = latestVersion,
+            ContentType = ContentType.GameClient,
+            Publisher = new PublisherInfo { PublisherType = GeneralsOnlineConstants.PublisherType },
+        };
+
+        var newMapPackManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.101525.generalsonline.mappack.quickmatch-maps"),
+            Version = latestVersion,
+            ContentType = ContentType.MapPack,
+            Publisher = new PublisherInfo { PublisherType = GeneralsOnlineConstants.PublisherType },
+        };
+
+        _manifestPoolMock.SetupSequence(x => x.GetAllManifestsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([oldClientManifest]))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([oldClientManifest, newClientManifest, newMapPackManifest]))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentManifest>>.CreateSuccess([oldClientManifest, newClientManifest, newMapPackManifest]));
+
+        _contentOrchestratorMock.Setup(
+                x => x.SearchAsync(It.IsAny<ContentSearchQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IEnumerable<ContentSearchResult>>.CreateSuccess(
+            [
+                new() { Name = "New GO Version", Version = latestVersion },
+            ]));
+
+        _contentOrchestratorMock.Setup(x => x.AcquireContentAsync(It.IsAny<ContentSearchResult>(), It.IsAny<IProgress<ContentAcquisitionProgress>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ContentManifest>.CreateSuccess(newClientManifest));
+
+        _reconciliationServiceMock.Setup(x => x.OrchestrateBulkUpdateAsync(It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<ReconciliationResult>.CreateSuccess(new ReconciliationResult(1, 0)));
+
+        var existingProfile = new GameProfile
+        {
+            Id = "existing-profile-id",
+            Name = "GeneralsOnline v1.101524",
+            GameClient = new GameClient { Id = newClientManifest.Id.Value, PublisherType = GeneralsOnlineConstants.PublisherType },
+            EnabledContentIds = ["1.101524.generalsonline.mappack.quickmatch-maps"],
+        };
+
+        _profileManagerMock.Setup(x => x.GetAllProfilesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<IReadOnlyList<GameProfile>>.CreateSuccess([existingProfile]));
+
+        _profileManagerMock.Setup(x => x.UpdateProfileAsync(It.IsAny<string>(), It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<GameProfile>.CreateSuccess(existingProfile));
+
+        // Act
+        var result = await _reconciler.CheckAndReconcileIfNeededAsync(string.Empty, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.Success);
+        _profileManagerMock.Verify(
+            x => x.UpdateProfileAsync(
+                "existing-profile-id",
+                It.Is<UpdateProfileRequest>(req => req.Name == $"GeneralsOnline v{latestVersion}"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        _profileManagerMock.Verify(
+            x => x.CreateProfileAsync(It.IsAny<CreateProfileRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
 }

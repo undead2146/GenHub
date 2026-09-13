@@ -452,4 +452,30 @@ public class GeneralsOnlineManifestFactoryTests : IDisposable
         var zipFile = Assert.Single(gameClient.Files);
         Assert.Equal(expectedHash, zipFile.Hash);
     }
+
+    /// <summary>
+    /// Verifies that CreateManifests generates manifest IDs matching the frozen legacy encoding
+    /// for tagged and digit-bearing versions (e.g. EAC and X86 builds).
+    /// </summary>
+    [Theory]
+    [InlineData("042826_QFE3_EAC", "1.428263.generalsonline.gameclient.60hz")]
+    [InlineData("011526_QFE1_EAC_X86", "1.11526186.generalsonline.gameclient.60hz")]
+    public void CreateManifests_WithTaggedVersion_GeneratesExpectedManifestIdComponent(string version, string expectedClientId)
+    {
+        // Arrange
+        var release = new GeneralsOnlineRelease
+        {
+            Version = version,
+            ReleaseDate = DateTime.UtcNow,
+            PortableUrl = "https://example.com/test.zip",
+        };
+
+        // Act
+        var manifests = _factory.CreateManifests(release);
+        var gameClient = manifests.FirstOrDefault(m => m.ContentType == ContentType.GameClient);
+
+        // Assert
+        Assert.NotNull(gameClient);
+        Assert.Equal(expectedClientId, gameClient.Id.Value);
+    }
 }
