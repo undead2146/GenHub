@@ -3160,6 +3160,7 @@ public sealed class ReplayDirectoryServiceTests
         Assert.Equal(ReplayCompatibilityStatus.Orphaned, replay.CompatibilityStatus);
         Assert.Null(replay.MatchedClient);
     }
+
     /// <summary>
     /// Verifies that CreateProfileForReplayAsync uses the custom game client when one is provided.
     /// </summary>

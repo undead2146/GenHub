@@ -349,14 +349,14 @@ public sealed partial class GameClientSelectionViewModel(
     private static bool IsCommunityPatchManifest(ContentManifest manifest)
     {
         var hasMatchingTag = manifest.Metadata?.Tags is { } tags &&
-                             tags.Any(t => string.Equals(t, "community-patch", StringComparison.OrdinalIgnoreCase) ||
-                                           string.Equals(t, "thesuperhackers", StringComparison.OrdinalIgnoreCase));
+                             tags.Any(t => string.Equals(t, ReplayManagerConstants.CommunityPatchHyphenatedKeyword, StringComparison.OrdinalIgnoreCase) ||
+                                           string.Equals(t, PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase));
 
-        return manifest.Id.Value.Contains("community-patch", StringComparison.OrdinalIgnoreCase) ||
-               manifest.Id.Value.Contains("communitypatch", StringComparison.OrdinalIgnoreCase) ||
-               manifest.Name.Contains("Community Patch", StringComparison.OrdinalIgnoreCase) ||
+        return manifest.Id.Value.Contains(ReplayManagerConstants.CommunityPatchHyphenatedKeyword, StringComparison.OrdinalIgnoreCase) ||
+               manifest.Id.Value.Contains(ReplayManagerConstants.CommunityPatchKeyword, StringComparison.OrdinalIgnoreCase) ||
+               manifest.Name.Contains(ReplayManagerConstants.CommunityPatchDisplayName, StringComparison.OrdinalIgnoreCase) ||
                hasMatchingTag ||
-               manifest.Id.Value.Contains(".thesuperhackers.gameclient.", StringComparison.OrdinalIgnoreCase) ||
+               manifest.Id.Value.Contains(ReplayManagerConstants.TheSuperHackersGameClientSegment, StringComparison.OrdinalIgnoreCase) ||
                (string.Equals(manifest.Publisher?.PublisherType, PublisherTypeConstants.CommunityOutpost, StringComparison.OrdinalIgnoreCase) &&
                 manifest.ContentType == ContentType.GameClient);
     }
@@ -365,14 +365,14 @@ public sealed partial class GameClientSelectionViewModel(
     {
         return IsCommunityPatchManifest(manifest) ||
                string.Equals(manifest.Version, ReplayManagerConstants.ZeroHourRetailVersion, StringComparison.OrdinalIgnoreCase) ||
-               manifest.Id.Value.Contains(".10zh.", StringComparison.OrdinalIgnoreCase) ||
+               manifest.Id.Value.Contains(ReplayManagerConstants.ZeroHourManifestSegment, StringComparison.OrdinalIgnoreCase) ||
                manifest.Name.Contains(ReplayManagerConstants.ZeroHourRetailVersion, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsGenerals108Manifest(ContentManifest manifest)
     {
         return string.Equals(manifest.Version, ReplayManagerConstants.GeneralsRetailVersion, StringComparison.OrdinalIgnoreCase) ||
-               manifest.Id.Value.Contains(".10gn.", StringComparison.OrdinalIgnoreCase) ||
+               manifest.Id.Value.Contains(ReplayManagerConstants.GeneralsManifestSegment, StringComparison.OrdinalIgnoreCase) ||
                manifest.Name.Contains(ReplayManagerConstants.GeneralsRetailVersion, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -582,7 +582,7 @@ public sealed partial class GameClientSelectionViewModel(
         }
 
         var isRetailMatch = IsRetailExeCrcMatch(targetGame, replay?.ExeCrc ?? 0, ReplayExeCrc);
-        var retailName = targetGame == GameType.ZeroHour ? "Retail 1.04" : "Retail 1.0";
+        var retailName = targetGame == GameType.ZeroHour ? ReplayManagerConstants.RetailZeroHourClientName : ReplayManagerConstants.RetailGeneralsClientName;
         var retailClient = new GameClient
         {
             Id = string.Empty,
@@ -757,7 +757,7 @@ public sealed partial class GameClientSelectionViewModel(
         {
             Id = manifest.Id.Value,
             Name = manifest.Name,
-            Version = manifest.Version ?? "1.0",
+            Version = manifest.Version ?? ReplayManagerConstants.DefaultManifestVersion,
             PublisherType = manifest.Publisher?.PublisherType ?? "Custom",
             GameType = targetGame,
         };
@@ -778,7 +778,7 @@ public sealed partial class GameClientSelectionViewModel(
             Client: client,
             ManifestId: manifest.Id.Value,
             Name: displayName,
-            Version: manifest.Version ?? "1.0",
+            Version: manifest.Version ?? ReplayManagerConstants.DefaultManifestVersion,
             Publisher: publisherName,
             Category: category,
             ExecutablePath: string.Empty,
@@ -974,7 +974,7 @@ public sealed partial class GameClientSelectionViewModel(
             Client: client,
             ManifestId: client.Id,
             Name: clientName,
-            Version: client.Version ?? "Base",
+            Version: client.Version ?? ReplayManagerConstants.BaseInstallationVersion,
             Publisher: client.PublisherType ?? $"{installation.InstallationType}",
             Category: isCrcMatch ? ReplayManagerConstants.CrcCompatibleCategory : ReplayManagerConstants.BaseInstallationCategory,
             ExecutablePath: fullExePath,

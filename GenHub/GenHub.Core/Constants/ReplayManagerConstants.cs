@@ -309,6 +309,41 @@ public static class ReplayManagerConstants
     public const string GeneralsRetailVersion = "1.08";
 
     /// <summary>
+    /// Default display name for the retail Zero Hour client.
+    /// </summary>
+    public const string RetailZeroHourClientName = "Retail 1.04";
+
+    /// <summary>
+    /// Default display name for the retail Generals client.
+    /// </summary>
+    public const string RetailGeneralsClientName = "Retail 1.0";
+
+    /// <summary>
+    /// Identifier segment for TheSuperHackers game clients.
+    /// </summary>
+    public const string TheSuperHackersGameClientSegment = ".thesuperhackers.gameclient.";
+
+    /// <summary>
+    /// Identifier segment for Zero Hour manifests.
+    /// </summary>
+    public const string ZeroHourManifestSegment = ".10zh.";
+
+    /// <summary>
+    /// Identifier segment for Generals manifests.
+    /// </summary>
+    public const string GeneralsManifestSegment = ".10gn.";
+
+    /// <summary>
+    /// Default fallback version for catalog manifests.
+    /// </summary>
+    public const string DefaultManifestVersion = "1.0";
+
+    /// <summary>
+    /// Fallback version for base game installation clients.
+    /// </summary>
+    public const string BaseInstallationVersion = "Base";
+
+    /// <summary>
     /// Default update polling interval for checking new CRC catalog releases (24 hours).
     /// </summary>
     public static readonly TimeSpan DefaultCatalogUpdateInterval = TimeSpan.FromHours(24);
