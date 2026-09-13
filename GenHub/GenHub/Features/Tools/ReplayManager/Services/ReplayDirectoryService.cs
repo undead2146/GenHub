@@ -801,6 +801,7 @@ public sealed class ReplayDirectoryService(
         ILogger? logger = null,
         CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(crcCalculator);
         try
         {
             var fileInfo = new FileInfo(exePath);
@@ -2827,8 +2828,11 @@ public sealed class ReplayDirectoryService(
     private Task PreloadProfileExeCrcsAsync(IEnumerable<GameProfile> profiles, CancellationToken ct) =>
         PreloadProfileExeCrcsAsync(profiles, crcCalculator, logger, ct);
 
-    private Task<string?> GetOrCalculateProfileExeCrcAsync(string exePath, CancellationToken ct) =>
-        GetOrCalculateProfileExeCrcAsync(exePath, crcCalculator!, logger, ct);
+    private Task<string?> GetOrCalculateProfileExeCrcAsync(string exePath, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(crcCalculator);
+        return GetOrCalculateProfileExeCrcAsync(exePath, crcCalculator, logger, ct);
+    }
 
     private async Task AppendCrcCompatibleProfilesAsync(
         List<GameProfile> compatible,

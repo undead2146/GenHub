@@ -200,6 +200,10 @@ public partial class CommunityOutpostDiscoverer(
                 HasMoreItems = false, // Catalog based, all items returned at once
             });
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to discover Community Outpost content");

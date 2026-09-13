@@ -1022,7 +1022,12 @@ public sealed partial class GameClientSelectionViewModel(
             return cached.Crc;
         }
 
-        var calcRes = await crcCalculator!.CalculateExeCrcAsync(fullExePath, ct: ct);
+        if (crcCalculator == null)
+        {
+            return null;
+        }
+
+        var calcRes = await crcCalculator.CalculateExeCrcAsync(fullExePath, ct: ct);
         if (calcRes.Success && !string.IsNullOrEmpty(calcRes.Data))
         {
             _exeCrcCache[fullExePath] = (lastWrite, calcRes.Data);
