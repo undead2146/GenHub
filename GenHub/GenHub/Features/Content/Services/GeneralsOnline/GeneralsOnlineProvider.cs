@@ -70,7 +70,7 @@ public class GeneralsOnlineProvider(
             if (!contentId.StartsWith(GeneralsOnlineConstants.ContentIdPrefix, StringComparison.OrdinalIgnoreCase))
             {
                 return OperationResult<ContentManifest>.CreateFailure(
-                    $"Invalid contentId format: '{contentId}'. Expected format: 'GeneralsOnline_{{version}}'");
+                    $"Invalid contentId format: '{contentId}'. Expected format: '{GeneralsOnlineConstants.ContentIdPrefix}{{version}}'");
             }
 
             var version = contentId.Substring(GeneralsOnlineConstants.ContentIdPrefix.Length);

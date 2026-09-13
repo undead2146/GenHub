@@ -17,6 +17,11 @@ public static class PublisherInfoConstants
     /// </summary>
     public const string DefaultGenHubIconSource = "avares://GenHub/Assets/Icons/generalshub-icon.png";
 
+    /// <summary>
+    /// Publisher display name for local installations.
+    /// </summary>
+    public const string LocalPublisherName = "Local";
+
     private static readonly (string[] Keywords, string LogoSource)[] LogoRules =
     [
         (["communityoutpost", "community outpost", "community-outpost"], CommunityOutpost.LogoSource),
@@ -52,7 +57,7 @@ public static class PublisherInfoConstants
         public const string SupportUrl = "https://help.steampowered.com";
 
         /// <summary>Logo source for Steam.</summary>
-        public const string LogoSource = ""; // Placeholder/System managed
+        public const string LogoSource = "avares://GenHub/Assets/Logos/steam-logo.png";
     }
 
     /// <summary>
@@ -64,13 +69,13 @@ public static class PublisherInfoConstants
         public const string Name = "EA App";
 
         /// <summary>Website URL for EA App.</summary>
-        public const string Website = "https://www.ea.com";
+        public const string Website = "https://www.ea.com/ea-app";
 
         /// <summary>Support URL for EA App.</summary>
         public const string SupportUrl = "https://help.ea.com";
 
         /// <summary>Logo source for EA App.</summary>
-        public const string LogoSource = ""; // Placeholder/System managed
+        public const string LogoSource = "avares://GenHub/Assets/Logos/ea-logo.png";
     }
 
     /// <summary>
@@ -82,13 +87,13 @@ public static class PublisherInfoConstants
         public const string Name = "The First Decade";
 
         /// <summary>Website URL for The First Decade.</summary>
-        public const string Website = "https://westwood.com";
+        public const string Website = "https://www.ea.com";
 
-        /// <summary>Support URL for The First Decade (empty).</summary>
-        public const string SupportUrl = "";
+        /// <summary>Support URL for The First Decade.</summary>
+        public const string SupportUrl = "https://help.ea.com";
 
         /// <summary>Logo source for The First Decade.</summary>
-        public const string LogoSource = ""; // Placeholder/System managed
+        public const string LogoSource = "avares://GenHub/Assets/Logos/ea-logo.png";
     }
 
     /// <summary>

@@ -389,9 +389,12 @@ public sealed partial class DownloadsBrowserViewModel(
                 continue;
             }
 
+            var isGeneralsOnline = family.Any(f =>
+                string.Equals(f.SearchResult.ProviderName, PublisherTypeConstants.GeneralsOnline, StringComparison.OrdinalIgnoreCase));
+
             var familyItems = family
                 .OrderByDescending(it => it.SearchResult.LastUpdated ?? DateTime.MinValue)
-                .ThenByDescending(it => it.SearchResult.Version, Comparer<string?>.Create((a, b) => ContentStateService.CompareVersions(a, b, family.Any(f => string.Equals(f.SearchResult.ProviderName, PublisherTypeConstants.GeneralsOnline, StringComparison.OrdinalIgnoreCase)))))
+                .ThenByDescending(it => it.SearchResult.Version, Comparer<string?>.Create((a, b) => ContentStateService.CompareVersions(a, b, isGeneralsOnline)))
                 .ToList();
             if (familyItems.Count <= 1)
             {

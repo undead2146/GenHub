@@ -160,6 +160,11 @@ public static class ContentConstants
     public const string FileContentIdPrefix = "file:";
 
     /// <summary>
+    /// Suffix/marker in manifest IDs identifying a GameInstallation manifest.
+    /// </summary>
+    public const string InstallationManifestIdMarker = "-installation";
+
+    /// <summary>
     /// Status message displayed when content download is initiated.
     /// </summary>
     public const string StartingDownloadStatusMessage = "Starting download...";

@@ -3409,7 +3409,7 @@ public partial class ContentDetailViewModel(
 
             if (_disposed || !success)
             {
-                if (!success && !_disposed)
+                if (!success && !_disposed && string.IsNullOrWhiteSpace(DownloadStatusMessage))
                 {
                     DownloadStatusMessage = ContentConstants.UpdateCancelledOrFailedStatusMessage;
                 }
@@ -3435,7 +3435,7 @@ public partial class ContentDetailViewModel(
             var success = await ExecuteDownloadFlowAsync(_updateTargetSearchResult, cancellationToken);
             if (_disposed || !success)
             {
-                if (!success && !_disposed)
+                if (!success && !_disposed && string.IsNullOrWhiteSpace(DownloadStatusMessage))
                 {
                     DownloadStatusMessage = ContentConstants.UpdateCancelledOrFailedStatusMessage;
                 }

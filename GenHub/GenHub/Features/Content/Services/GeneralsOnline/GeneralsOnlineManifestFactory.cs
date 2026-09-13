@@ -41,6 +41,8 @@ public class GeneralsOnlineManifestFactory(
         bool IsMap,
         bool IsGameData);
 
+    private static readonly MmddyyQfeVersionScheme GeneralsOnlineVersionScheme = new();
+
     /// <inheritdoc />
     public string PublisherId => PublisherTypeConstants.GeneralsOnline;
 
@@ -239,12 +241,22 @@ public class GeneralsOnlineManifestFactory(
 
     private static int ParseVersionForManifestId(string version)
     {
-        var scheme = new MmddyyQfeVersionScheme();
-        if (scheme.TryParse(version, out var parsed) && parsed.Components.Count > 3 && parsed.Components[3] > 9)
+        var scheme = GeneralsOnlineVersionScheme;
+        if (scheme.TryParse(version, out var parsed))
         {
-            throw new ArgumentException(
-                $"Generals Online version '{version}' has a QFE value ({parsed.Components[3]}) exceeding 9, which cannot be encoded into a 7-digit legacy manifest ID without year collision.",
-                nameof(version));
+            if (parsed.Components.Count > 3 && parsed.Components[3] > 9)
+            {
+                throw new ArgumentException(
+                    $"Generals Online version '{version}' has a QFE value ({parsed.Components[3]}) exceeding 9, which cannot be encoded into a 7-digit legacy manifest ID without year collision.",
+                    nameof(version));
+            }
+
+            var year = (int)(parsed.Components[0] % 100);
+            var month = (int)parsed.Components[1];
+            var day = (int)parsed.Components[2];
+            var qfe = parsed.Components.Count > 3 ? (int)parsed.Components[3] : 0;
+            var mmddyy = (month * 10000) + (day * 100) + year;
+            return (mmddyy * 10) + qfe;
         }
 
         return GameVersionHelper.GetGeneralsOnlineManifestIdComponent(version);

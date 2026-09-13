@@ -650,6 +650,9 @@ public class GeneralsOnlineProfileReconcilerTests
         _profileManagerMock.Verify(
             x => x.UpdateProfileAsync("old-profile-id", It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
+        _profileManagerMock.Verify(
+            x => x.CreateProfileAsync(It.IsAny<CreateProfileRequest>(), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     /// <summary>
@@ -680,5 +683,105 @@ public class GeneralsOnlineProfileReconcilerTests
         _dialogServiceMock.Verify(
             x => x.ShowUpdateOptionDialogAsync(It.IsAny<string>(), It.IsAny<string>(), false),
             Times.Once);
+    }
+
+    /// <summary>
+    /// Verifies that FormatUpdatedProfileName does not append a duplicate suffix when the candidate matches the current name.
+    /// </summary>
+    [Fact]
+    public void FormatUpdatedProfileName_WhenCandidateMatchesOriginalName_ReturnsOriginalNameWithoutCollisionSuffix()
+    {
+        var existingNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Generals Online v101525_QFE2",
+            "Generals Online v101525_QFE2 (2)",
+        };
+
+        var result = GeneralsOnlineProfileReconciler.FormatUpdatedProfileName(
+            "Generals Online v101525_QFE2",
+            "101525_QFE2",
+            existingNames);
+
+        Assert.Equal("Generals Online v101525_QFE2", result);
+    }
+
+    /// <summary>
+    /// Verifies that FormatUpdatedProfileName appends a unique suffix when cloning even if the candidate matches the source profile name.
+    /// </summary>
+    [Fact]
+    public void FormatUpdatedProfileName_WhenCloningAndCandidateMatchesOriginalName_AppendsSuffix()
+    {
+        var existingNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Generals Online v101525_QFE2",
+        };
+
+        var result = GeneralsOnlineProfileReconciler.FormatUpdatedProfileName(
+            "Generals Online v101525_QFE2",
+            "101525_QFE2",
+            existingNames,
+            allowSameAsOriginal: false);
+
+        Assert.Equal("Generals Online v101525_QFE2 (2)", result);
+    }
+
+    /// <summary>
+    /// Verifies that FormatUpdatedProfileName generates a unique name with suffix when colliding with another existing profile.
+    /// </summary>
+    [Fact]
+    public void FormatUpdatedProfileName_WhenCollidingWithOtherProfile_AppendsSuffix()
+    {
+        var existingNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Generals Online v101525_QFE3",
+        };
+
+        var result = GeneralsOnlineProfileReconciler.FormatUpdatedProfileName(
+            "Generals Online v101525_QFE2",
+            "101525_QFE3",
+            existingNames);
+
+        Assert.Equal("Generals Online v101525_QFE3 (2)", result);
+    }
+
+    /// <summary>
+    /// Verifies that ResolveUpdatedEnabledContent drops stale unmapped GeneralsOnline content and deduplicates.
+    /// </summary>
+    [Fact]
+    public void ResolveUpdatedEnabledContent_DropsStaleUnmappedGeneralsOnlineContentAndDeduplicates()
+    {
+        var profile = new GameProfile
+        {
+            EnabledContentIds = new List<string>
+            {
+                "1.100.steam.gameinstallation.zerohour",
+                "1.1015251.generalsonline.gameclient.30hz",
+                "1.1015251.generalsonline.mod.stale",
+                "non-go-custom-content",
+            },
+        };
+
+        var mapping = new Dictionary<string, string>
+        {
+            { "1.1015251.generalsonline.gameclient.30hz", "1.1015252.generalsonline.gameclient.30hz" },
+        };
+
+        var newManifest = new ContentManifest
+        {
+            Id = ManifestId.Create("1.1015252.generalsonline.mappack.quickmatch-maps"),
+            Version = "101525_QFE2",
+        };
+
+        var result = GeneralsOnlineProfileReconciler.ResolveUpdatedEnabledContent(
+            profile,
+            mapping,
+            [newManifest]);
+
+        Assert.Contains("1.100.steam.gameinstallation.zerohour", result);
+        Assert.Contains("non-go-custom-content", result);
+        Assert.Contains("1.1015252.generalsonline.gameclient.30hz", result);
+        Assert.Contains("1.1015252.generalsonline.mappack.quickmatch-maps", result);
+        Assert.DoesNotContain("1.1015251.generalsonline.mod.stale", result);
+        Assert.Equal(result.Distinct(StringComparer.OrdinalIgnoreCase).Count(), result.Count);
     }
 }

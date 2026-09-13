@@ -33,7 +33,7 @@ namespace GenHub.Features.Content.Services.GeneralsOnline;
 /// When an update is found, this service updates all profiles using GeneralsOnline,
 /// removes old manifests and CAS content, and prepares profiles for the new version.
 /// </summary>
-[SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "Primary constructor injects required dependencies for Generals Online reconciliation.")]
+[method: SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "Primary constructor injects required dependencies for Generals Online reconciliation.")]
 public partial class GeneralsOnlineProfileReconciler(
     ILogger<GeneralsOnlineProfileReconciler> logger,
     IGeneralsOnlineUpdateService updateService,
@@ -186,7 +186,11 @@ public partial class GeneralsOnlineProfileReconciler(
     /// <param name="newVersion">The new version string.</param>
     /// <param name="existingNames">Set of already existing profile names to prevent collisions.</param>
     /// <returns>A formatted, unique profile name.</returns>
-    private static string FormatUpdatedProfileName(string originalName, string newVersion, HashSet<string> existingNames)
+    internal static string FormatUpdatedProfileName(
+        string originalName,
+        string newVersion,
+        HashSet<string> existingNames,
+        bool allowSameAsOriginal = true)
     {
         var baseName = originalName.Trim();
         while (true)
@@ -201,14 +205,15 @@ public partial class GeneralsOnlineProfileReconciler(
         }
 
         var candidate = $"{baseName} v{newVersion}";
-        if (string.Equals(candidate, originalName, StringComparison.OrdinalIgnoreCase))
+        if (allowSameAsOriginal && string.Equals(candidate, originalName.Trim(), StringComparison.OrdinalIgnoreCase))
         {
             return originalName;
         }
 
         var finalName = candidate;
         int suffix = 2;
-        while (existingNames.Contains(finalName))
+        while (existingNames.Contains(finalName) &&
+               (!allowSameAsOriginal || !string.Equals(finalName, originalName.Trim(), StringComparison.OrdinalIgnoreCase)))
         {
             finalName = $"{candidate} ({suffix++})";
         }
@@ -374,7 +379,7 @@ public partial class GeneralsOnlineProfileReconciler(
 
         var executableFile = newClientManifest?.Files?.FirstOrDefault(f =>
             f.RelativePath?.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) == true);
-        var relativeExe = executableFile?.RelativePath ?? "GeneralsOnline.exe";
+        var relativeExe = executableFile?.RelativePath ?? GeneralsOnlineConstants.DefaultExecutableFileName;
         var exePath = !string.IsNullOrEmpty(workingDir)
             ? Path.Combine(workingDir, relativeExe)
             : (profile.GameClient?.ExecutablePath ?? relativeExe);
@@ -397,7 +402,7 @@ public partial class GeneralsOnlineProfileReconciler(
     /// <summary>
     /// Resolves updated enabled content IDs mapping old manifests to new ones and preserving non-GeneralsOnline content.
     /// </summary>
-    private static List<string> ResolveUpdatedEnabledContent(
+    internal static List<string> ResolveUpdatedEnabledContent(
         Core.Models.GameProfile.GameProfile profile,
         Dictionary<string, string> manifestMapping,
         List<ContentManifest> newManifests)
@@ -411,7 +416,7 @@ public partial class GeneralsOnlineProfileReconciler(
                 {
                     newEnabledContent.Add(newId);
                 }
-                else
+                else if (!id.Contains($".{GeneralsOnlineConstants.PublisherType}.", StringComparison.OrdinalIgnoreCase))
                 {
                     // Keep non-GO content
                     newEnabledContent.Add(id);
@@ -425,7 +430,7 @@ public partial class GeneralsOnlineProfileReconciler(
                 .Select(m => m.Id.Value)
                 .Where(id => !newEnabledContent.Contains(id, StringComparer.OrdinalIgnoreCase)));
 
-        return newEnabledContent;
+        return newEnabledContent.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     /// <summary>
@@ -780,12 +785,7 @@ public partial class GeneralsOnlineProfileReconciler(
         if (profilesUpdated == 0)
         {
             var allProfiles = await profileManager.GetAllProfilesAsync(cancellationToken);
-            var hasAnyRelevant = allProfiles.Data?.Any(p =>
-                (p.GameClient != null && string.Equals(p.GameClient.PublisherType, GeneralsOnlineConstants.PublisherType, StringComparison.OrdinalIgnoreCase)) ||
-                (p.GameClient != null && p.GameClient.Id.Contains($".{GeneralsOnlineConstants.PublisherType}.", StringComparison.OrdinalIgnoreCase)) ||
-                (p.EnabledContentIds is { } enabled && enabled.Any(id => id.Contains($".{GeneralsOnlineConstants.PublisherType}.", StringComparison.OrdinalIgnoreCase)))) == true;
-
-            if (!hasAnyRelevant)
+            if (!HasRelevantGeneralsOnlineProfiles(allProfiles.Data))
             {
                 logger.LogInformation("[GO Reconciler] No relevant profiles found during replace update. Creating fresh profile.");
                 var freshResult = await CreateFreshGeneralsOnlineProfileAsync(newManifests, newVersion, cancellationToken);
@@ -807,6 +807,22 @@ public partial class GeneralsOnlineProfileReconciler(
         }
 
         return OperationResult<(int, bool, Dictionary<string, string>?)>.CreateSuccess((profilesUpdated, anyFailure, manifestMapping));
+    }
+
+    private static bool HasRelevantGeneralsOnlineProfiles(IEnumerable<Core.Models.GameProfile.GameProfile>? profiles) =>
+        profiles?.Any(IsProfileRelevantToGeneralsOnline) == true;
+
+    private static bool IsProfileRelevantToGeneralsOnline(Core.Models.GameProfile.GameProfile profile)
+    {
+        if (profile.GameClient != null &&
+            (string.Equals(profile.GameClient.PublisherType, GeneralsOnlineConstants.PublisherType, StringComparison.OrdinalIgnoreCase) ||
+             profile.GameClient.Id.Contains($".{GeneralsOnlineConstants.PublisherType}.", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        return profile.EnabledContentIds is { } enabled &&
+               enabled.Any(id => id.Contains($".{GeneralsOnlineConstants.PublisherType}.", StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task HandleOldManifestsAndCleanupAsync(
@@ -1081,7 +1097,7 @@ public partial class GeneralsOnlineProfileReconciler(
             }
 
             // If profile name had an old version, update it to the new version
-            var updatedName = FormatUpdatedProfileName(profile.Name, newVersion, existingProfileNames);
+            var updatedName = FormatUpdatedProfileName(profile.Name, newVersion, existingProfileNames, allowSameAsOriginal: true);
             if (!string.Equals(updatedName, profile.Name, StringComparison.Ordinal))
             {
                 updateRequest.Name = updatedName;
@@ -1151,7 +1167,7 @@ public partial class GeneralsOnlineProfileReconciler(
         var installationPath = installation?.ZeroHourPath ?? string.Empty;
         var executableFile = newClientManifest?.Files?.FirstOrDefault(f =>
             f.RelativePath?.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) == true);
-        var relativeExe = executableFile?.RelativePath ?? "GeneralsOnline.exe";
+        var relativeExe = executableFile?.RelativePath ?? GeneralsOnlineConstants.DefaultExecutableFileName;
         var exePath = !string.IsNullOrEmpty(installationPath)
             ? Path.Combine(installationPath, relativeExe)
             : relativeExe;
@@ -1264,7 +1280,7 @@ public partial class GeneralsOnlineProfileReconciler(
 
         foreach (var profile in relevantProfiles)
         {
-            var targetProfileName = FormatUpdatedProfileName(profile.Name, newVersion, existingProfileNames);
+            var targetProfileName = FormatUpdatedProfileName(profile.Name, newVersion, existingProfileNames, allowSameAsOriginal: false);
 
             try
             {

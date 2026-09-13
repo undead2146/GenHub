@@ -40,6 +40,7 @@ public sealed partial class ContentStateService(
     private const string UnknownSegment = "unknown";
     private const string FileSchemePrefix = ContentConstants.FileContentIdPrefix;
     private const int MaxSessionDownloadsEntries = 1000;
+    private static readonly MmddyyQfeVersionScheme GeneralsOnlineVersionScheme = new();
 
     /// <summary>Matches any non-alphanumeric character, mirroring ManifestIdGenerator.Normalize.</summary>
     [GeneratedRegex("[^a-zA-Z0-9]")]
@@ -487,8 +488,9 @@ public sealed partial class ContentStateService(
     {
         var prospectiveSegments = prospectiveId.Split('.');
         var localSegments = localId.Split('.');
-        bool isGoPublisher = (prospectiveSegments.Length == 5 && IsCompatiblePublisherAlias(prospectiveSegments[2], PublisherTypeConstants.GeneralsOnline)) ||
-                             (localSegments.Length == 5 && IsCompatiblePublisherAlias(localSegments[2], PublisherTypeConstants.GeneralsOnline));
+        bool isGoProspective = prospectiveSegments.Length == 5 && IsCompatiblePublisherAlias(prospectiveSegments[2], PublisherTypeConstants.GeneralsOnline);
+        bool isGoLocal = localSegments.Length == 5 && IsCompatiblePublisherAlias(localSegments[2], PublisherTypeConstants.GeneralsOnline);
+        bool isGoPublisher = isGoProspective && isGoLocal;
 
         // 1. If human-readable version strings are available on both sides, compare them first.
         if (CompareVersionStrings(prospectiveVersionStr, localVersionStr, out var stringCompareResult, isGoPublisher))
@@ -569,13 +571,11 @@ public sealed partial class ContentStateService(
             return 0;
         }
 
-        if (isGeneralsOnline)
+        if (isGeneralsOnline &&
+            GeneralsOnlineVersionScheme.TryParse(cleanedA, out var cvA) &&
+            GeneralsOnlineVersionScheme.TryParse(cleanedB, out var cvB))
         {
-            var goScheme = new MmddyyQfeVersionScheme();
-            if (goScheme.TryParse(cleanedA, out var cvA) && goScheme.TryParse(cleanedB, out var cvB))
-            {
-                return cvA.CompareTo(cvB);
-            }
+            return cvA.CompareTo(cvB);
         }
 
         if (Version.TryParse(cleanedA, out var vA) && Version.TryParse(cleanedB, out var vB))
@@ -631,14 +631,12 @@ public sealed partial class ContentStateService(
             return true;
         }
 
-        if (isGeneralsOnline)
+        if (isGeneralsOnline &&
+            GeneralsOnlineVersionScheme.TryParse(cleanedP, out var cvP) &&
+            GeneralsOnlineVersionScheme.TryParse(cleanedL, out var cvL))
         {
-            var goScheme = new MmddyyQfeVersionScheme();
-            if (goScheme.TryParse(cleanedP, out var cvP) && goScheme.TryParse(cleanedL, out var cvL))
-            {
-                isNewer = cvP > cvL;
-                return true;
-            }
+            isNewer = cvP > cvL;
+            return true;
         }
 
         if (Version.TryParse(cleanedP, out var vP) && Version.TryParse(cleanedL, out var vL))
@@ -698,40 +696,30 @@ public sealed partial class ContentStateService(
         }
 
         var datePart = raw[..^1];
-        int month = 0, day = 0, year = 0;
         if (datePart.Length == 5)
         {
-            if (!int.TryParse(datePart.AsSpan(0, 1), NumberStyles.None, CultureInfo.InvariantCulture, out month) ||
-                !int.TryParse(datePart.AsSpan(1, 2), NumberStyles.None, CultureInfo.InvariantCulture, out day) ||
-                !int.TryParse(datePart.AsSpan(3, 2), NumberStyles.None, CultureInfo.InvariantCulture, out year))
-            {
-                return false;
-            }
-        }
-        else
-        {
-            if (!int.TryParse(datePart.AsSpan(0, 2), NumberStyles.None, CultureInfo.InvariantCulture, out month) ||
-                !int.TryParse(datePart.AsSpan(2, 2), NumberStyles.None, CultureInfo.InvariantCulture, out day) ||
-                !int.TryParse(datePart.AsSpan(4, 2), NumberStyles.None, CultureInfo.InvariantCulture, out year))
-            {
-                return false;
-            }
+            datePart = $"0{datePart}";
         }
 
-        if (month < 1 || month > 12 || day < 1 || day > 31)
+        if (datePart.Length != 6)
         {
             return false;
         }
 
-        try
-        {
-            date = new DateTime(2000, month, day, 0, 0, 0, DateTimeKind.Utc).AddYears(year);
-            return true;
-        }
-        catch (ArgumentOutOfRangeException)
+        // Match the publisher's 2000-2099 century policy used by MmddyyQfeVersionScheme
+        var fourDigitYearDate = $"{datePart[..4]}20{datePart[4..]}";
+        if (!DateTime.TryParseExact(
+                fourDigitYearDate,
+                "MMddyyyy",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var parsedDate))
         {
             return false;
         }
+
+        date = DateTime.SpecifyKind(parsedDate, DateTimeKind.Utc);
+        return true;
     }
 
     // Architecture note: Extrapolate publisher-specific variant state matching heuristics (e.g. IsSuperHackersVariant
@@ -1087,12 +1075,15 @@ public sealed partial class ContentStateService(
     {
         var segA = a.Id.Value.Split('.');
         var segB = b.Id.Value.Split('.');
-        bool isGeneralsOnline = (segA.Length == 5 && IsCompatiblePublisherAlias(segA[2], PublisherTypeConstants.GeneralsOnline)) ||
-                                (segB.Length == 5 && IsCompatiblePublisherAlias(segB[2], PublisherTypeConstants.GeneralsOnline)) ||
-                                IsCompatiblePublisherAlias(a.Publisher?.PublisherType ?? string.Empty, PublisherTypeConstants.GeneralsOnline) ||
-                                IsCompatiblePublisherAlias(b.Publisher?.PublisherType ?? string.Empty, PublisherTypeConstants.GeneralsOnline) ||
-                                IsCompatiblePublisherAlias(a.OriginalProviderName ?? string.Empty, PublisherTypeConstants.GeneralsOnline) ||
-                                IsCompatiblePublisherAlias(b.OriginalProviderName ?? string.Empty, PublisherTypeConstants.GeneralsOnline);
+        bool isGoA = (segA.Length == 5 && IsCompatiblePublisherAlias(segA[2], PublisherTypeConstants.GeneralsOnline)) ||
+                     IsCompatiblePublisherAlias(a.Publisher?.PublisherType ?? string.Empty, PublisherTypeConstants.GeneralsOnline) ||
+                     IsCompatiblePublisherAlias(a.OriginalProviderName ?? string.Empty, PublisherTypeConstants.GeneralsOnline);
+
+        bool isGoB = (segB.Length == 5 && IsCompatiblePublisherAlias(segB[2], PublisherTypeConstants.GeneralsOnline)) ||
+                     IsCompatiblePublisherAlias(b.Publisher?.PublisherType ?? string.Empty, PublisherTypeConstants.GeneralsOnline) ||
+                     IsCompatiblePublisherAlias(b.OriginalProviderName ?? string.Empty, PublisherTypeConstants.GeneralsOnline);
+
+        bool isGeneralsOnline = isGoA && isGoB;
 
         if (!string.IsNullOrWhiteSpace(a.Version) && !string.IsNullOrWhiteSpace(b.Version))
         {

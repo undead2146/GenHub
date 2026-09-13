@@ -440,7 +440,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
         if (profile is GameProfile gameProfile)
         {
             // First try to get info from enabled GameInstallation manifests (look for "-installation" suffix)
-            var installationManifestId = gameProfile.EnabledContentIds?.FirstOrDefault(id => id.Contains("-installation"));
+            var installationManifestId = gameProfile.EnabledContentIds?.FirstOrDefault(id => id.Contains(ContentConstants.InstallationManifestIdMarker, StringComparison.OrdinalIgnoreCase));
             if (!string.IsNullOrEmpty(installationManifestId))
             {
                 // We use this to check for color/branding mostly?
@@ -462,7 +462,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
                         _publisher = MapPublisherName(pub, gameProfile.GameClient.PublisherType);
                         ApplyPublisherBranding(pub);
                     }
-                    else if (gameProfile.GameClient.Name.Contains("GeneralsOnline", StringComparison.OrdinalIgnoreCase))
+                    else if (gameProfile.GameClient.Name.Contains(GeneralsOnlineConstants.ClientName, StringComparison.OrdinalIgnoreCase))
                     {
                         _publisher = PublisherInfoConstants.GeneralsOnline.Name;
                         ApplyPublisherBranding(PublisherTypeConstants.GeneralsOnline);
@@ -473,7 +473,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
                 // But SKIP if the publisher is "Local" - we want NO version for local content
                 if (string.IsNullOrEmpty(_gameVersion) &&
                     !string.IsNullOrEmpty(gameProfile.GameClient.Version) &&
-                    !string.Equals(_publisher, "Local", StringComparison.OrdinalIgnoreCase))
+                    !string.Equals(_publisher, PublisherInfoConstants.LocalPublisherName, StringComparison.OrdinalIgnoreCase))
                 {
                     // Normalize version to handle Unknown, Auto-Updated, and Automatically added cases
                     var version = gameProfile.GameClient.Version;
@@ -671,7 +671,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
             PublisherTypeConstants.GeneralsOnline => "Generals Online",
             PublisherTypeConstants.TheSuperHackers => "The Super Hackers",
             CommunityOutpostConstants.PublisherType => "Community Outpost",
-            "local" => "Local",
+            "local" => PublisherInfoConstants.LocalPublisherName,
             _ => fallback,
         };
 
@@ -827,7 +827,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
         // If that failed or looked generic, try enabled content
         if (string.IsNullOrEmpty(installationSource) || installationSource == "Available" || installationSource == "Unknown")
         {
-            var installManifestId = gameProfile.EnabledContentIds?.FirstOrDefault(id => id.Contains("-installation"));
+            var installManifestId = gameProfile.EnabledContentIds?.FirstOrDefault(id => id.Contains(ContentConstants.InstallationManifestIdMarker, StringComparison.OrdinalIgnoreCase));
             if (!string.IsNullOrEmpty(installManifestId))
             {
                 installationSource = GetPublisherNameFromId(installManifestId);
@@ -925,6 +925,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
     {
         GameVersion = string.Empty;
         Publisher = string.Empty;
+        ContentType = string.Empty;
 
         if (gameProfile.GameClient != null)
         {
@@ -949,7 +950,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
         // But SKIP if the publisher is "Local"
         if (string.IsNullOrEmpty(GameVersion) &&
             !string.IsNullOrEmpty(gameClient.Version) &&
-            !string.Equals(Publisher, "Local", StringComparison.OrdinalIgnoreCase))
+            !string.Equals(Publisher, PublisherInfoConstants.LocalPublisherName, StringComparison.OrdinalIgnoreCase))
         {
             var version = gameClient.Version;
             GameVersion = IsZeroOrPlaceholderVersion(version) ? string.Empty : version;
@@ -973,7 +974,7 @@ public partial class GameProfileItemViewModel : ViewModelBase
 
     private void ResolveFromInstallationManifest(IReadOnlyList<string>? enabledContentIds)
     {
-        var installationManifestId = enabledContentIds?.FirstOrDefault(id => id.Contains("-installation"));
+        var installationManifestId = enabledContentIds?.FirstOrDefault(id => id.Contains(ContentConstants.InstallationManifestIdMarker, StringComparison.OrdinalIgnoreCase));
         if (!string.IsNullOrEmpty(installationManifestId))
         {
             ExtractManifestInfo(installationManifestId);

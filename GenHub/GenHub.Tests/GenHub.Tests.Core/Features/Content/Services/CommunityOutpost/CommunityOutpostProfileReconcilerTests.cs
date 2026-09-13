@@ -148,10 +148,6 @@ public class CommunityOutpostProfileReconcilerTests
             .Setup(x => x.ShowUpdateOptionDialogAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>()))
             .ReturnsAsync(new UpdateDialogResult { Action = "Skip" });
 
-        _userSettingsServiceMock
-            .Setup(x => x.TryUpdateAndSaveAsync(It.IsAny<Func<UserSettings, bool>>()))
-            .ReturnsAsync(true);
-
         var result = await _reconciler.CheckAndReconcileIfNeededAsync("profile1");
 
         Assert.True(result.Success);

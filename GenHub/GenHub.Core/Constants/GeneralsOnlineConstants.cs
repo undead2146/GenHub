@@ -19,6 +19,9 @@ public static class GeneralsOnlineConstants
     /// <summary>Client name and identifier prefix for GeneralsOnline.</summary>
     public const string ClientName = "GeneralsOnline";
 
+    /// <summary>Default executable file name for Generals Online clients.</summary>
+    public const string DefaultExecutableFileName = "GeneralsOnline.exe";
+
     /// <summary>Full content description.</summary>
     public const string Description = "Community-driven multiplayer service for C&C Generals Zero Hour. Features 60Hz tick rate, automatic updates, and improved stability.";
 
