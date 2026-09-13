@@ -81,48 +81,20 @@ public class ModDBContentProvider(
     }
 
     /// <inheritdoc />
-    protected override async Task<OperationResult<ContentManifest>> PrepareContentInternalAsync(
+    protected override Task<OperationResult<ContentManifest>> PrepareContentInternalAsync(
         ContentManifest manifest,
         string workingDirectory,
         IProgress<ContentAcquisitionProgress>? progress,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            Logger.LogDebug("Preparing ModDB content for manifest {ManifestId}", manifest.Id);
+        Logger.LogInformation("Preparing ModDB content: {ManifestId} ({Name})", manifest.Id, manifest.Name);
 
-            var allFilesInCas = manifest.Files.Count > 0 && manifest.Files.All(f =>
-                f.SourceType == ContentSourceType.ContentAddressable &&
-                !string.IsNullOrEmpty(f.Hash));
-
-            if (allFilesInCas)
-            {
-                Logger.LogInformation(
-                    "All {Count} file(s) of {ManifestId} are already stored in CAS; skipping delivery",
-                    manifest.Files.Count,
-                    manifest.Id);
-                return OperationResult<ContentManifest>.CreateSuccess(manifest);
-            }
-
-            if (!Deliverer.CanDeliver(manifest))
-            {
-                return OperationResult<ContentManifest>.CreateFailure($"Cannot deliver content for manifest {manifest.Id}");
-            }
-
-            var deliveryResult = await Deliverer.DeliverContentAsync(manifest, workingDirectory, progress, cancellationToken);
-            if (!deliveryResult.Success)
-            {
-                return OperationResult<ContentManifest>.CreateFailure($"ModDB content delivery failed: {deliveryResult.FirstError}");
-            }
-
-            var deliveredManifest = deliveryResult.Data ?? manifest;
-            Logger.LogInformation("Successfully delivered ModDB content {ManifestId} to {WorkingDirectory}", deliveredManifest.Id, workingDirectory);
-            return OperationResult<ContentManifest>.CreateSuccess(deliveredManifest);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to prepare ModDB content for manifest {ManifestId}", manifest.Id);
-            return OperationResult<ContentManifest>.CreateFailure($"ModDB content preparation failed: {ex.Message}");
-        }
+        return DeliverAndEnrichContentAsync(
+            _httpDeliverer,
+            _manifestFactory,
+            manifest,
+            workingDirectory,
+            progress,
+            cancellationToken);
     }
 }

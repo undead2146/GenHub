@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Core.Constants;
@@ -79,8 +80,39 @@ public partial class ModDBFilterViewModel : FilterPanelViewModelBase
     /// </summary>
     public ObservableCollection<FilterOption> SortOptions { get; } = [];
 
+    /// <summary>
+    /// Gets a value indicating whether the Downloads section is selected.
+    /// </summary>
+    public bool IsDownloadsSelected => SelectedSection == ModDBSection.Downloads;
+
+    /// <summary>
+    /// Gets a value indicating whether the Addons section is selected.
+    /// </summary>
+    public bool IsAddonsSelected => SelectedSection == ModDBSection.Addons;
+
+    /// <summary>
+    /// Gets a value indicating whether the Mods section is selected.
+    /// </summary>
+    public bool IsModsSelected => SelectedSection == ModDBSection.Mods;
+
+    /// <summary>
+    /// Gets a value indicating whether to show the Category filter (Downloads and Mods sections).
+    /// </summary>
+    public bool ShowCategoryFilter => SelectedSection is ModDBSection.Downloads or ModDBSection.Mods;
+
+    /// <summary>
+    /// Gets a value indicating whether to show the Addon Category filter (Downloads, Mods, and Addons sections).
+    /// </summary>
+    public bool ShowAddonCategoryFilter => SelectedSection is ModDBSection.Downloads or ModDBSection.Mods or ModDBSection.Addons;
+
+    /// <summary>
+    /// Gets a value indicating whether to show the License filter (Addons section only).
+    /// </summary>
+    public bool ShowLicenseFilter => SelectedSection == ModDBSection.Addons;
+
     /// <inheritdoc />
     public override bool HasActiveFilters =>
+        SelectedSection != ModDBSection.Downloads ||
         !string.IsNullOrEmpty(SelectedCategory) ||
         !string.IsNullOrEmpty(SelectedAddonCategory) ||
         !string.IsNullOrEmpty(SelectedLicense) ||
@@ -95,9 +127,9 @@ public partial class ModDBFilterViewModel : FilterPanelViewModelBase
         // Set the section for URL building
         baseQuery.ModDBSection = SelectedSection switch
         {
-            ModDBSection.Mods => "mods",
-            ModDBSection.Addons => "addons",
-            _ => "downloads",
+            ModDBSection.Mods => ModDBConstants.ModsSection,
+            ModDBSection.Addons => ModDBConstants.AddonsSection,
+            _ => ModDBConstants.DownloadsSection,
         };
 
         // Apply Category filter (for Downloads and Mods sections)
@@ -137,41 +169,47 @@ public partial class ModDBFilterViewModel : FilterPanelViewModelBase
     /// <inheritdoc />
     public override void ClearFilters()
     {
-        SelectedCategory = null;
-        SelectedAddonCategory = null;
-        SelectedLicense = null;
-        SelectedTimeframe = null;
-        SelectedSort = ModDBConstants.DefaultSort;
-        NotifyFiltersChanged();
+        SelectedSection = ModDBSection.Downloads;
+        ClearDropdownFilters();
         OnFiltersCleared();
     }
 
     /// <inheritdoc />
     public override IEnumerable<string> GetActiveFilterSummary()
     {
+        if (SelectedSection != ModDBSection.Downloads)
+        {
+            yield return $"Section: {SelectedSection}";
+        }
+
         if (!string.IsNullOrEmpty(SelectedCategory))
         {
-            yield return $"Category: {SelectedCategory}";
+            var match = CategoryOptions.FirstOrDefault(o => o.Value == SelectedCategory);
+            yield return $"Category: {match?.DisplayName ?? SelectedCategory}";
         }
 
         if (!string.IsNullOrEmpty(SelectedAddonCategory))
         {
-            yield return $"Addon: {SelectedAddonCategory}";
+            var match = AddonCategoryOptions.FirstOrDefault(o => o.Value == SelectedAddonCategory);
+            yield return $"Addon: {match?.DisplayName ?? SelectedAddonCategory}";
         }
 
         if (!string.IsNullOrEmpty(SelectedLicense))
         {
-            yield return $"License: {SelectedLicense}";
+            var match = LicenseOptions.FirstOrDefault(o => o.Value == SelectedLicense);
+            yield return $"License: {match?.DisplayName ?? SelectedLicense}";
         }
 
         if (!string.IsNullOrEmpty(SelectedTimeframe))
         {
-            yield return $"Time: {SelectedTimeframe}";
+            var match = TimeframeOptions.FirstOrDefault(o => o.Value == SelectedTimeframe);
+            yield return $"Time: {match?.DisplayName ?? SelectedTimeframe}";
         }
 
         if (!string.IsNullOrEmpty(SelectedSort) && !string.Equals(SelectedSort, ModDBConstants.DefaultSort, StringComparison.OrdinalIgnoreCase))
         {
-            yield return $"Sort: {SelectedSort}";
+            var match = SortOptions.FirstOrDefault(o => o.Value == SelectedSort);
+            yield return $"Sort: {match?.DisplayName ?? SelectedSort}";
         }
     }
 
@@ -198,6 +236,17 @@ public partial class ModDBFilterViewModel : FilterPanelViewModelBase
     partial void OnSelectedSortChanged(string? value)
     {
         NotifyFiltersChanged();
+    }
+
+    partial void OnSelectedSectionChanged(ModDBSection value)
+    {
+        NotifyFiltersChanged();
+        OnPropertyChanged(nameof(ShowCategoryFilter));
+        OnPropertyChanged(nameof(ShowAddonCategoryFilter));
+        OnPropertyChanged(nameof(ShowLicenseFilter));
+        OnPropertyChanged(nameof(IsDownloadsSelected));
+        OnPropertyChanged(nameof(IsAddonsSelected));
+        OnPropertyChanged(nameof(IsModsSelected));
     }
 
     [RelayCommand]
@@ -233,52 +282,24 @@ public partial class ModDBFilterViewModel : FilterPanelViewModelBase
     [RelayCommand]
     private void SetSection(ModDBSection section)
     {
-        if (SelectedSection == section) return;
+        if (SelectedSection == section)
+        {
+            return;
+        }
 
         SelectedSection = section;
-        ClearFilters();
+        ClearDropdownFilters();
     }
 
-    partial void OnSelectedSectionChanged(ModDBSection value)
+    private void ClearDropdownFilters()
     {
+        SelectedCategory = null;
+        SelectedAddonCategory = null;
+        SelectedLicense = null;
+        SelectedTimeframe = null;
+        SelectedSort = ModDBConstants.DefaultSort;
         NotifyFiltersChanged();
-        OnPropertyChanged(nameof(ShowCategoryFilter));
-        OnPropertyChanged(nameof(ShowAddonCategoryFilter));
-        OnPropertyChanged(nameof(ShowLicenseFilter));
-        OnPropertyChanged(nameof(IsDownloadsSelected));
-        OnPropertyChanged(nameof(IsAddonsSelected));
-        OnPropertyChanged(nameof(IsModsSelected));
     }
-
-    /// <summary>
-    /// Gets a value indicating whether the Downloads section is selected.
-    /// </summary>
-    public bool IsDownloadsSelected => SelectedSection == ModDBSection.Downloads;
-
-    /// <summary>
-    /// Gets a value indicating whether the Addons section is selected.
-    /// </summary>
-    public bool IsAddonsSelected => SelectedSection == ModDBSection.Addons;
-
-    /// <summary>
-    /// Gets a value indicating whether the Mods section is selected.
-    /// </summary>
-    public bool IsModsSelected => SelectedSection == ModDBSection.Mods;
-
-    /// <summary>
-    /// Gets a value indicating whether to show the Category filter (Downloads and Mods sections).
-    /// </summary>
-    public bool ShowCategoryFilter => SelectedSection is ModDBSection.Downloads or ModDBSection.Mods;
-
-    /// <summary>
-    /// Gets a value indicating whether to show the Addon Category filter (Downloads, Mods, and Addons sections).
-    /// </summary>
-    public bool ShowAddonCategoryFilter => SelectedSection is ModDBSection.Downloads or ModDBSection.Mods or ModDBSection.Addons;
-
-    /// <summary>
-    /// Gets a value indicating whether to show the License filter (Addons section only).
-    /// </summary>
-    public bool ShowLicenseFilter => SelectedSection == ModDBSection.Addons;
 
     private void InitializeDownloadsFilters()
     {

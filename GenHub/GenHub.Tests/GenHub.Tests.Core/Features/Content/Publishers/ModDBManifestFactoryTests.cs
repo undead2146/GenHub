@@ -11,7 +11,6 @@ using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Providers;
-using GenHub.Core.Interfaces.Storage;
 using GenHub.Core.Interfaces.Tools;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
@@ -68,6 +67,7 @@ public sealed class ModDBManifestFactoryTests : IDisposable
         var manifest = Assert.Single(manifests);
         var file = Assert.Single(manifest.Files);
         Assert.Equal(Path.Combine("Data", "GenSpeed.ini"), file.RelativePath);
+        Assert.Equal(ContentSourceType.ExtractedPackage, file.SourceType);
         Assert.False(System.IO.File.Exists(archivePath));
         Assert.True(System.IO.File.Exists(Path.Combine(_stagingDirectory, "Data", "GenSpeed.ini")));
     }
@@ -103,7 +103,67 @@ public sealed class ModDBManifestFactoryTests : IDisposable
         // Assert
         var file = Assert.Single(manifest.Files);
         Assert.Equal(Path.Combine("Lemuria", "Lemuria.map"), file.RelativePath);
+        Assert.Equal(ContentSourceType.ExtractedPackage, file.SourceType);
         Assert.Equal(ContentInstallTarget.UserMapsDirectory, file.InstallTarget);
+    }
+
+    /// <summary>
+    /// Verifies that if the extracted content directory does not exist, CreateManifestsFromExtractedContentAsync
+    /// returns the original manifest instead of an empty list.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task CreateManifestsFromExtractedContentAsync_ExtractedDirectoryDoesNotExist_ReturnsOriginalManifestAsync()
+    {
+        // Arrange
+        var factory = CreateFactory();
+        var nonExistentPath = Path.Combine(_stagingDirectory, "does-not-exist");
+        var original = new ContentManifest
+        {
+            Id = "1.0.moddb.mod.test",
+            Name = "Test",
+            ContentType = ContentType.Mod,
+        };
+
+        // Act
+        var manifests = await factory.CreateManifestsFromExtractedContentAsync(original, nonExistentPath);
+
+        // Assert
+        var manifest = Assert.Single(manifests);
+        Assert.Same(original, manifest);
+    }
+
+    /// <summary>
+    /// Verifies that CreateManifestAsync stages remote files with RemoteDownload source type.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Fact]
+    public async Task CreateManifestAsync_StagesFilesWithRemoteDownloadSourceTypeAsync()
+    {
+        // Arrange
+        var factory = CreateFactory(CreateManifestBuilder);
+        var mapDetails = new GenHub.Core.Models.ModDB.MapDetails(
+            Name: "Test Map",
+            Description: "Test Description",
+            Author: "Tester",
+            PreviewImage: "https://example.com/icon.png",
+            Screenshots: [],
+            FileSize: 1024,
+            DownloadCount: 10,
+            SubmissionDate: new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            DownloadUrl: "https://www.moddb.com/downloads/start/12345",
+            TargetGame: GameType.ZeroHour,
+            ContentType: ContentType.Map,
+            FileType: ".zip",
+            AdditionalFiles: null);
+
+        // Act
+        var manifest = await factory.CreateManifestAsync(mapDetails, "https://www.moddb.com/addons/test-map");
+
+        // Assert
+        var file = Assert.Single(manifest.Files);
+        Assert.Equal(ContentSourceType.RemoteDownload, file.SourceType);
+        Assert.Equal("https://www.moddb.com/downloads/start/12345", file.DownloadUrl);
     }
 
     /// <summary>
@@ -473,10 +533,6 @@ public sealed class ModDBManifestFactoryTests : IDisposable
         return new ModDBManifestFactory(
             builderFactory ?? (() => new Mock<IContentManifestBuilder>().Object),
             new Mock<IProviderDefinitionLoader>().Object,
-            new Mock<ICasService>().Object,
-            new Mock<IConfigurationProviderService>().Object,
-            new Mock<IHttpClientFactory>().Object,
-            new Mock<IPlaywrightService>().Object,
             hashProvider.Object,
             payloadProcessor,
             new Mock<ILogger<ModDBManifestFactory>>().Object);

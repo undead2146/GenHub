@@ -193,6 +193,48 @@ public sealed class ModDBOrderingTests
         Assert.EndsWith(".zip", file.RelativePath, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Verifies that OrderDiscoveredResults preserves server-side ordering for visit-desc, rating-desc,
+    /// or DownloadCount/Rating/Relevance sorts.
+    /// </summary>
+    /// <param name="sortParam">The raw sort query parameter.</param>
+    /// <param name="sortOrder">The sort order enum.</param>
+    [Theory]
+    [InlineData(ModDBConstants.SortVisitDesc, ContentSortField.None)]
+    [InlineData(ModDBConstants.SortRatingDesc, ContentSortField.None)]
+    [InlineData(null, ContentSortField.DownloadCount)]
+    [InlineData(null, ContentSortField.Rating)]
+    [InlineData(null, ContentSortField.Relevance)]
+    public void OrderDiscoveredResults_PreservesProviderOrdering_ForServerSortedQueries(string? sortParam, ContentSortField sortOrder)
+    {
+        // Arrange: first item has an older date, second item has a newer date
+        var item1 = new ContentSearchResult
+        {
+            Id = "item1",
+            Name = "Item 1",
+            LastUpdated = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+        };
+        var item2 = new ContentSearchResult
+        {
+            Id = "item2",
+            Name = "Item 2",
+            LastUpdated = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+        };
+
+        var query = new ContentSearchQuery
+        {
+            Sort = sortParam ?? string.Empty,
+            SortOrder = sortOrder,
+        };
+
+        // Act
+        var ordered = GenHub.Features.Content.Services.ContentDiscoverers.ModDBDiscoverer.OrderDiscoveredResults([item1, item2], query);
+
+        // Assert: provider ordering is preserved, NOT re-sorted by LastUpdated date
+        Assert.Equal("item1", ordered[0].Id);
+        Assert.Equal("item2", ordered[1].Id);
+    }
+
     private static ModDBManifestFactory CreateFactory(Func<IContentManifestBuilder>? manifestBuilderFactory = null)
     {
         var hashProvider = new Mock<IFileHashProvider>();
@@ -204,10 +246,6 @@ public sealed class ModDBOrderingTests
         return new ModDBManifestFactory(
             manifestBuilderFactory ?? (() => new Mock<IContentManifestBuilder>().Object),
             new Mock<IProviderDefinitionLoader>().Object,
-            new Mock<ICasService>().Object,
-            new Mock<IConfigurationProviderService>().Object,
-            new Mock<IHttpClientFactory>().Object,
-            new Mock<IPlaywrightService>().Object,
             hashProvider.Object,
             payloadProcessor,
             new Mock<ILogger<ModDBManifestFactory>>().Object);

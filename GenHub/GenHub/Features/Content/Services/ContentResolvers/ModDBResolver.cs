@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Parsers;
 using GenHub.Core.Models.Enums;
@@ -31,7 +32,7 @@ public class ModDBResolver(
     ILogger<ModDBResolver> logger) : IContentResolver
 {
     /// <inheritdoc />
-    public string ResolverId => "ModDB";
+    public string ResolverId => ModDBConstants.ResolverId;
 
     /// <inheritdoc />
     public async Task<OperationResult<ContentManifest>> ResolveAsync(
@@ -83,6 +84,10 @@ public class ModDBResolver(
                 primaryFile.ReleaseDate?.ToString("yyyy-MM-dd") ?? "unknown");
 
             return OperationResult<ContentManifest>.CreateSuccess(manifest);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (HttpRequestException ex)
         {
@@ -174,15 +179,18 @@ public class ModDBResolver(
 
     private static void ApplyManifestTags(ContentManifest manifest, DownloadableFile primaryFile)
     {
-        if (manifest.Metadata == null || !primaryFile.ReleaseDate.HasValue)
+        if (manifest.Metadata == null)
         {
             return;
         }
 
-        var releaseDateTag = $"release-date:{primaryFile.ReleaseDate.Value:yyyy-MM-dd}";
-        if (!manifest.Metadata.Tags.Contains(releaseDateTag))
+        if (primaryFile.ReleaseDate.HasValue)
         {
-            manifest.Metadata.Tags.Add(releaseDateTag);
+            var releaseDateTag = $"release-date:{primaryFile.ReleaseDate.Value:yyyy-MM-dd}";
+            if (!manifest.Metadata.Tags.Contains(releaseDateTag))
+            {
+                manifest.Metadata.Tags.Add(releaseDateTag);
+            }
         }
 
         var sectionTypeTag = $"section:{primaryFile.FileSectionType.ToString().ToLowerInvariant()}";
@@ -210,8 +218,8 @@ public class ModDBResolver(
             .OfType<string>()
             .ToList();
 
-        // Use file's release date or fallback to context release date or current date
-        var releaseDate = file.ReleaseDate ?? file.UploadDate ?? context.ReleaseDate ?? DateTime.UtcNow;
+        // Use file's release date or fallback to context release date, discovered item, or stable epoch sentinel
+        var releaseDate = file.ReleaseDate ?? file.UploadDate ?? context.ReleaseDate ?? discoveredItem.LastUpdated ?? new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         // Use preview image from context or discovered item
         var previewImage = context.IconUrl ?? discoveredItem.IconUrl ?? string.Empty;

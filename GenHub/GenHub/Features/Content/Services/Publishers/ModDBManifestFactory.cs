@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
@@ -12,9 +10,6 @@ using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Manifest;
 using GenHub.Core.Interfaces.Providers;
-using GenHub.Core.Interfaces.Storage;
-using GenHub.Core.Interfaces.Tools;
-using GenHub.Core.Models.Common;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Manifest;
@@ -22,7 +17,6 @@ using GenHub.Core.Models.ModDB;
 using GenHub.Core.Utilities;
 using Microsoft.Extensions.Logging;
 using SharpCompress.Archives;
-using SharpCompress.Common;
 using Slugify;
 using MapDetails = GenHub.Core.Models.ModDB.MapDetails;
 
@@ -33,14 +27,9 @@ namespace GenHub.Features.Content.Services.Publishers;
 /// Generates manifest IDs following the format: 1.YYYYMMDD.moddb.{contentType}.{contentName}.
 /// Uses ManifestIdGenerator with release date for unique versioning.
 /// </summary>
-[SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "Injected dependencies for content resolution and manifest processing")]
-public partial class ModDBManifestFactory(
+public class ModDBManifestFactory(
     Func<IContentManifestBuilder> manifestBuilderFactory,
     IProviderDefinitionLoader providerLoader,
-    ICasService casService,
-    IConfigurationProviderService configurationProvider,
-    IHttpClientFactory httpClientFactory,
-    IPlaywrightService playwrightService,
     IFileHashProvider hashProvider,
     IArchivePayloadProcessor archivePayloadProcessor,
     ILogger<ModDBManifestFactory> logger) : IPublisherManifestFactory
@@ -100,7 +89,7 @@ public partial class ModDBManifestFactory(
         if (!Directory.Exists(extractedDirectory))
         {
             logger.LogWarning("Extracted directory does not exist: {Directory}", extractedDirectory);
-            return [];
+            return [originalManifest];
         }
 
         // Playwright saves a download to the requested destination path. ModDB's redirect often
@@ -159,7 +148,7 @@ public partial class ModDBManifestFactory(
             files.Add(new ManifestFile
             {
                 RelativePath = relativePath,
-                SourceType = ContentSourceType.ContentAddressable,
+                SourceType = ContentSourceType.ExtractedPackage,
                 InstallTarget = originalManifest.ContentType is ContentType.Map or ContentType.MapPack
                     ? ContentInstallTarget.UserMapsDirectory
                     : ContentInstallTarget.Workspace,
@@ -255,7 +244,7 @@ public partial class ModDBManifestFactory(
 
         // 4. Generate manifest ID with release date using ManifestIdGenerator
         var manifestId = ManifestIdGenerator.GeneratePublisherContentId(
-            "moddb",
+            ModDBConstants.PublisherPrefix,
             details.ContentType,
             contentName,
             releaseDate);
@@ -300,7 +289,7 @@ public partial class ModDBManifestFactory(
         var addedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         var primaryFileName = BuildPrimaryFileName(details);
-        await manifest.AddRemoteFileAsync(primaryFileName, details.DownloadUrl);
+        await manifest.AddRemoteFileAsync(primaryFileName, details.DownloadUrl, ContentSourceType.RemoteDownload);
         addedUrls.Add(details.DownloadUrl);
 
         // Add any additional files discovered on the page (e.g. patches, mirrors, addons)
@@ -312,7 +301,7 @@ public partial class ModDBManifestFactory(
                     continue;
 
                 var fileName = SanitizeFileName(file.Name ?? ModDBConstants.DefaultDownloadFilename);
-                await manifest.AddRemoteFileAsync(fileName, file.DownloadUrl);
+                await manifest.AddRemoteFileAsync(fileName, file.DownloadUrl, ContentSourceType.RemoteDownload);
                 addedUrls.Add(file.DownloadUrl);
             }
         }
@@ -480,15 +469,7 @@ public partial class ModDBManifestFactory(
 
         // Remove invalid path characters
         var invalidChars = Path.GetInvalidFileNameChars();
-        var sanitized = string.Join("_", fileName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
-
-        // Ensure the filename has an extension
-        if (!Path.HasExtension(sanitized))
-        {
-            sanitized += ".zip"; // Default to .zip for ModDB downloads
-        }
-
-        return sanitized;
+        return string.Join("_", fileName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
     }
 
     /// <summary>
@@ -525,150 +506,6 @@ public partial class ModDBManifestFactory(
     {
         var extension = Path.GetExtension(filePath);
         return extension.Length > 1 && extension.All(character => character == '.' || char.IsLetterOrDigit(character));
-    }
-
-    /// <summary>
-    /// Extracts a filename from a download URL.
-    /// </summary>
-    /// <param name="downloadUrl">The download URL.</param>
-    /// <returns>The extracted filename.</returns>
-    private string ExtractFileNameFromUrl(string downloadUrl)
-    {
-        try
-        {
-            // Try to get filename from URL path
-            var uri = new Uri(downloadUrl);
-            var fileName = Path.GetFileName(uri.LocalPath);
-
-            if (!string.IsNullOrWhiteSpace(fileName))
-            {
-                return fileName;
-            }
-        }
-        catch (UriFormatException ex)
-        {
-            logger.LogWarning(ex, "Invalid download URL format: {Url}", downloadUrl);
-        }
-
-        // Fallback: generate a generic filename
-        return ModDBConstants.DefaultDownloadFilename;
-    }
-
-    /// <summary>
-    /// Follows the download URL redirect to extract the actual filename.
-    /// </summary>
-    private async Task<string> ResolveActualFilenameAsync(string downloadUrl, string fallbackName, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var client = httpClientFactory.CreateClient(ModDBConstants.PublisherPrefix);
-            using var request = new HttpRequestMessage(HttpMethod.Head, downloadUrl);
-            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-
-            // Generate final URL after redirects if any
-            var finalUrl = response.RequestMessage?.RequestUri?.ToString() ?? downloadUrl;
-
-            // Check Content-Disposition first
-            if (response.Content.Headers.ContentDisposition != null)
-            {
-                var contentDisposition = response.Content.Headers.ContentDisposition;
-                var filename = contentDisposition.FileNameStar ?? contentDisposition.FileName;
-
-                if (!string.IsNullOrEmpty(filename))
-                {
-                    filename = filename.Trim('"');
-                    return SanitizeFileName(filename);
-                }
-            }
-
-            // Fallback to ExtractFileNameFromUrl with final URL
-            string extracted = ExtractFileNameFromUrl(finalUrl);
-            if (!string.Equals(extracted, ModDBConstants.DefaultDownloadFilename, StringComparison.OrdinalIgnoreCase))
-            {
-                return SanitizeFileName(extracted);
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to resolve actual filename for {Url}. Using fallback.", downloadUrl);
-        }
-
-        // Final fallback: Use the sanitized fallback name
-        return !string.IsNullOrEmpty(fallbackName) && fallbackName != ModDBConstants.DefaultContentName
-            ? SanitizeFileName(fallbackName)
-            : ModDBConstants.DefaultDownloadFilename;
-    }
-
-    /// <summary>
-    /// Downloads a file, stores it in CAS, and adds it to the manifest with computed hash.
-    /// </summary>
-    /// <param name="builder">The manifest builder.</param>
-    /// <param name="relativePath">The relative path for the file in the manifest.</param>
-    /// <param name="downloadUrl">The URL to download from.</param>
-    /// <param name="refererUrl">Optional referer URL for the download request.</param>
-    private async Task DownloadAndAddFileAsync(
-        IContentManifestBuilder builder,
-        string relativePath,
-        string downloadUrl,
-        string? refererUrl)
-    {
-        logger.LogInformation(
-            "Starting download: URL={Url}, Filename={Filename}, Referer={Referer}",
-            downloadUrl,
-            relativePath,
-            refererUrl ?? "(none)");
-
-        var tempDir = Path.Combine(configurationProvider.GetApplicationDataPath(), DirectoryNames.Temp);
-        if (!Directory.Exists(tempDir)) Directory.CreateDirectory(tempDir);
-
-        var tempFilePath = Path.Combine(tempDir, $"{Guid.NewGuid()}{Path.GetExtension(relativePath)}");
-
-        var downloadConfig = new DownloadConfiguration
-        {
-            Url = new Uri(downloadUrl),
-            DestinationPath = tempFilePath,
-            OverwriteExisting = true,
-        };
-
-        if (!string.IsNullOrEmpty(refererUrl))
-        {
-            downloadConfig.Headers.Add("Referer", refererUrl);
-            logger.LogDebug("Added Referer header: {Referer}", refererUrl);
-        }
-
-        // ModDB is Cloudflare-protected. The persistent browser profile contains the user's
-        // clearance cookie, so downloading through it is required; raw HTTP cannot reuse it.
-        logger.LogDebug("Initiating protected ModDB download to temp file: {TempPath}", tempFilePath);
-        var downloadResult = await playwrightService.DownloadFileAsync(downloadConfig);
-        if (!downloadResult.Success)
-        {
-            logger.LogError("Failed to download file from {DownloadUrl}: {Error}", downloadUrl, downloadResult.FirstError);
-            var error = $"Failed to download file from {downloadUrl}: {downloadResult.FirstError}";
-            throw new InvalidOperationException(error);
-        }
-
-        logger.LogDebug("Download completed, file size: {Size} bytes", new FileInfo(tempFilePath).Length);
-
-        // Store in CAS
-        var storeResult = await casService.StoreContentAsync(tempFilePath, ContentType.Mod);
-        if (!storeResult.Success)
-        {
-            if (File.Exists(tempFilePath)) File.Delete(tempFilePath);
-            logger.LogError("Failed to store content in CAS: {Error}", storeResult.FirstError);
-            var error = $"Failed to store content in CAS: {storeResult.FirstError}";
-            throw new InvalidOperationException(error);
-        }
-
-        var hash = storeResult.Data;
-        var fileSize = new FileInfo(tempFilePath).Length;
-
-        logger.LogDebug("Content stored in CAS with hash: {Hash}, size: {Size}", hash, fileSize);
-
-        // Cleanup temp file after successful store
-        if (File.Exists(tempFilePath)) File.Delete(tempFilePath);
-
-        await builder.AddContentAddressableFileAsync(relativePath, hash, fileSize);
-        logger.LogInformation("Added content-addressable file to manifest: {RelativePath}", relativePath);
     }
 
     private bool IsSupportedArchive(string filePath)

@@ -149,10 +149,9 @@ public partial class ModDBDiscoverer(
                 ChallengeDetected = challengeDetected,
             });
         }
-        catch (OperationCanceledException ex)
+        catch (OperationCanceledException)
         {
-            logger.LogInformation(ex, "ModDB discovery cancelled");
-            return OperationResult<ContentDiscoveryResult>.CreateFailure(ex.Message);
+            throw;
         }
         catch (Exception ex)
         {
@@ -226,6 +225,42 @@ public partial class ModDBDiscoverer(
 
         var segments = uri.AbsolutePath.TrimEnd('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
         return IsDetailPathSegments(segments);
+    }
+
+    /// <summary>
+    /// Orders discovered search results based on the search query sort parameters.
+    /// </summary>
+    /// <param name="results">The raw search results.</param>
+    /// <param name="query">The search query containing sort settings.</param>
+    /// <returns>The ordered list of search results.</returns>
+    internal static List<ContentSearchResult> OrderDiscoveredResults(List<ContentSearchResult> results, ContentSearchQuery query)
+    {
+        var sortParam = query.Sort;
+        if (string.Equals(sortParam, ModDBConstants.SortVisitDesc, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(sortParam, ModDBConstants.SortRatingDesc, StringComparison.OrdinalIgnoreCase) ||
+            query.SortOrder is ContentSortField.DownloadCount or ContentSortField.Rating or ContentSortField.Relevance)
+        {
+            return results;
+        }
+
+        if (string.Equals(sortParam, ModDBConstants.SortNameAsc, StringComparison.OrdinalIgnoreCase) ||
+            query.SortOrder == ContentSortField.Name)
+        {
+            return results.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        if (string.Equals(sortParam, ModDBConstants.SortNameDesc, StringComparison.OrdinalIgnoreCase))
+        {
+            return results.OrderByDescending(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        if (string.Equals(sortParam, ModDBConstants.SortDateAsc, StringComparison.OrdinalIgnoreCase))
+        {
+            return results.OrderBy(r => r.LastUpdated ?? DateTime.MaxValue).ToList();
+        }
+
+        // Default: newest first (date-desc)
+        return results.OrderByDescending(r => r.LastUpdated ?? DateTime.MinValue).ToList();
     }
 
     /// <summary>
@@ -365,29 +400,6 @@ public partial class ModDBDiscoverer(
                host.EndsWith(".moddb.com", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static List<ContentSearchResult> OrderDiscoveredResults(List<ContentSearchResult> results, ContentSearchQuery query)
-    {
-        var sortParam = query.Sort;
-        if (string.Equals(sortParam, ModDBConstants.SortNameAsc, StringComparison.OrdinalIgnoreCase) ||
-            query.SortOrder == ContentSortField.Name)
-        {
-            return results.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList();
-        }
-
-        if (string.Equals(sortParam, ModDBConstants.SortNameDesc, StringComparison.OrdinalIgnoreCase))
-        {
-            return results.OrderByDescending(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList();
-        }
-
-        if (string.Equals(sortParam, ModDBConstants.SortDateAsc, StringComparison.OrdinalIgnoreCase))
-        {
-            return results.OrderBy(r => r.LastUpdated ?? DateTime.MaxValue).ToList();
-        }
-
-        // Default: newest first (date-desc)
-        return results.OrderByDescending(r => r.LastUpdated ?? DateTime.MinValue).ToList();
-    }
-
     private static List<string> DetermineSectionsToSearch(ContentSearchQuery query)
     {
         // Use explicit section from query if provided
@@ -462,35 +474,6 @@ public partial class ModDBDiscoverer(
             ContentSortField.DateCreated => ModDBConstants.SortDateDesc,
             _ => ModDBConstants.DefaultSort,
         };
-    }
-
-    private static string? MapContentTypeToCategory(ContentType contentType, string section)
-    {
-        if (section == ModDBConstants.DownloadsSection)
-        {
-            return contentType switch
-            {
-                ContentType.Mod => ModDBConstants.CategoryFullVersion,
-                ContentType.Patch => ModDBConstants.CategoryPatch,
-                ContentType.Video => ModDBConstants.CategoryMovie,
-                ContentType.ModdingTool => ModDBConstants.CategoryMappingTool,
-                ContentType.LanguagePack => ModDBConstants.CategoryLanguagePack,
-                _ => null,
-            };
-        }
-
-        if (section == "addons")
-        {
-            return contentType switch
-            {
-                ContentType.Map => ModDBConstants.AddonMultiplayerMap,
-                ContentType.Skin => ModDBConstants.AddonPlayerSkin,
-                ContentType.LanguagePack => ModDBConstants.AddonLanguageSounds,
-                _ => null,
-            };
-        }
-
-        return null;
     }
 
     private static ContentSearchResult? ParseContentItem(AngleSharp.Dom.IElement item, GameType gameType, string section)
@@ -731,7 +714,8 @@ public partial class ModDBDiscoverer(
     private static List<ContentSearchResult> ParseDocumentSearchResults(
         IDocument document,
         GameType gameType,
-        string section)
+        string section,
+        ILogger logger)
     {
         List<ContentSearchResult> results = [];
         var contentItems = document.QuerySelectorAll(ModDBConstants.DefaultListItemSelector);
@@ -746,9 +730,9 @@ public partial class ModDBDiscoverer(
                     results.Add(searchResult);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore parse errors for individual items
+                logger.LogDebug(ex, "Failed to parse individual ModDB item, skipping");
             }
         }
 
@@ -765,7 +749,7 @@ public partial class ModDBDiscoverer(
     {
         if (url.Contains(ModDBConstants.AddonsSegment, StringComparison.OrdinalIgnoreCase))
         {
-            return "addons";
+            return ModDBConstants.AddonsSection;
         }
 
         if (url.Contains(ModDBConstants.DownloadsSegment, StringComparison.OrdinalIgnoreCase))
@@ -947,7 +931,7 @@ public partial class ModDBDiscoverer(
                 return ([], false, keepPageOpenForVerification, challengeObserved);
             }
 
-            var results = ParseDocumentSearchResults(document, gameType, section);
+            var results = ParseDocumentSearchResults(document, gameType, section, logger);
             if (results.Count == 0)
             {
                 logger.LogWarning("[ModDB] Scrape returned no items for section '{Section}'", section);
@@ -1216,7 +1200,7 @@ public partial class ModDBDiscoverer(
             }
 
             // If not a detail page or if it's a listing page (e.g. /downloads, /addons, /mods/{slug}/downloads), parse listing items
-            var listingItems = ParseDocumentSearchResults(document, gameType, section);
+            var listingItems = ParseDocumentSearchResults(document, gameType, section, logger);
             if (listingItems.Count > 0)
             {
                 var hasMore = HasMorePages(document);

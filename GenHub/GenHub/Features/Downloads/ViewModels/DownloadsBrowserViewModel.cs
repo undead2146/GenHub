@@ -141,6 +141,7 @@ public sealed partial class DownloadsBrowserViewModel(
     private int _activeRequestId;
     private string? _lastPopulatedPublisherId;
     private bool _hasCustomQuery;
+    private bool _suppressPublisherChangedRefresh;
     private bool _disposed;
     private bool _builtInPublishersInitialized;
 
@@ -925,6 +926,12 @@ public sealed partial class DownloadsBrowserViewModel(
         // Switch filter panel
         SwitchFilterPanel(value.PublisherId);
 
+        if (_suppressPublisherChangedRefresh)
+        {
+            _lastPopulatedPublisherId = value.PublisherId;
+            return;
+        }
+
         // Detach UI collection and detail view immediately so previous publisher's cards vanish from UI without disposing cached objects
         ContentItems = [];
         SelectedContent = null;
@@ -1087,7 +1094,16 @@ public sealed partial class DownloadsBrowserViewModel(
             var moddbPublisher = Publishers.FirstOrDefault(p => p.PublisherId == ModDBConstants.PublisherType);
             if (moddbPublisher != null)
             {
-                SelectedPublisher = moddbPublisher;
+                try
+                {
+                    _suppressPublisherChangedRefresh = true;
+                    SelectedPublisher = moddbPublisher;
+                }
+                finally
+                {
+                    _suppressPublisherChangedRefresh = false;
+                }
+
                 SearchTerm = savedSearchTerm;
                 _hasCustomQuery = true;
                 CurrentPage = 1;

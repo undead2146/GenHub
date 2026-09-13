@@ -51,7 +51,8 @@ public sealed class ModDBFilterViewModelTests
     }
 
     /// <summary>
-    /// Verifies that switching sections updates visibility properties and clears active filters.
+    /// Verifies that switching sections updates visibility properties and clears individual filter selections,
+    /// while treating non-Downloads sections as an active filter.
     /// </summary>
     [Fact]
     public void SetSection_SwitchesSectionAndClearsFilters()
@@ -70,11 +71,12 @@ public sealed class ModDBFilterViewModelTests
         Assert.False(viewModel.ShowCategoryFilter);
         Assert.True(viewModel.ShowAddonCategoryFilter);
         Assert.True(viewModel.ShowLicenseFilter);
-        Assert.False(viewModel.HasActiveFilters);
+        Assert.Null(viewModel.SelectedCategory);
+        Assert.True(viewModel.HasActiveFilters);
     }
 
     /// <summary>
-    /// Verifies that clearing filters resets all selections.
+    /// Verifies that clearing filters resets all selections including the section.
     /// </summary>
     [Fact]
     public void ClearFilters_ResetsSelections()
@@ -87,12 +89,14 @@ public sealed class ModDBFilterViewModelTests
             SelectedTimeframe = "3",
             SelectedSort = ModDBConstants.SortRatingDesc,
         };
+        viewModel.SetSectionCommand.Execute(ModDBSection.Addons);
 
         Assert.True(viewModel.HasActiveFilters);
 
         viewModel.ClearFilters();
 
         Assert.False(viewModel.HasActiveFilters);
+        Assert.Equal(ModDBSection.Downloads, viewModel.SelectedSection);
         Assert.True(string.IsNullOrEmpty(viewModel.SelectedCategory));
         Assert.True(string.IsNullOrEmpty(viewModel.SelectedAddonCategory));
         Assert.True(string.IsNullOrEmpty(viewModel.SelectedLicense));
@@ -101,7 +105,7 @@ public sealed class ModDBFilterViewModelTests
     }
 
     /// <summary>
-    /// Verifies that active filter summaries are correctly generated.
+    /// Verifies that active filter summaries are correctly generated using display names.
     /// </summary>
     [Fact]
     public void GetActiveFilterSummary_ReturnsSummaryItems()
@@ -114,7 +118,21 @@ public sealed class ModDBFilterViewModelTests
 
         var summaries = viewModel.GetActiveFilterSummary().ToList();
 
-        Assert.Contains("Category: 1", summaries);
-        Assert.Contains($"Sort: {ModDBConstants.SortRatingDesc}", summaries);
+        Assert.Contains("Category: Releases", summaries);
+        Assert.Contains("Sort: Highest Rated", summaries);
+    }
+
+    /// <summary>
+    /// Verifies that non-default sections are reported in the active filter summary.
+    /// </summary>
+    [Fact]
+    public void GetActiveFilterSummary_WithNonDefaultSection_IncludesSectionInSummary()
+    {
+        var viewModel = new ModDBFilterViewModel();
+        viewModel.SetSectionCommand.Execute(ModDBSection.Addons);
+
+        var summaries = viewModel.GetActiveFilterSummary().ToList();
+
+        Assert.Contains("Section: Addons", summaries);
     }
 }
