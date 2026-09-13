@@ -102,7 +102,6 @@ internal sealed class ManagedChromiumRuntime(
             }
             catch (OperationCanceledException)
             {
-                onInstallCompleted?.Invoke(false);
                 throw;
             }
             catch (Exception ex)

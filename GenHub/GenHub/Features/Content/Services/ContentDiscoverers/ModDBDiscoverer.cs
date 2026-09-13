@@ -966,6 +966,18 @@ public partial class ModDBDiscoverer(
         var challengeObserved = false;
         var deadline = DateTime.UtcNow.AddMilliseconds(ModDBConstants.VerificationWaitTimeoutMs);
 
+        void NotifyChallengeClearedIfObserved()
+        {
+            if (challengeObserved)
+            {
+                logger.LogInformation("[ModDB] Cloudflare challenge cleared for {Url}; parsing the listing.", url);
+                notificationService?.ShowSuccess(
+                    "ModDB Verification Cleared",
+                    "Verification completed successfully.",
+                    NotificationDurations.Medium);
+            }
+        }
+
         while (DateTime.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -1008,15 +1020,7 @@ public partial class ModDBDiscoverer(
 
                 if (await page.QuerySelectorAsync(ModDBConstants.DefaultListItemSelector) != null)
                 {
-                    if (challengeObserved)
-                    {
-                        logger.LogInformation("[ModDB] Cloudflare challenge cleared for {Url}; parsing the listing.", url);
-                        notificationService?.ShowSuccess(
-                            "ModDB Verification Cleared",
-                            "Verification completed successfully.",
-                            NotificationDurations.Medium);
-                    }
-
+                    NotifyChallengeClearedIfObserved();
                     return (true, challengeObserved);
                 }
 
@@ -1029,14 +1033,7 @@ public partial class ModDBDiscoverer(
                     var hasPageContainer = await page.QuerySelectorAsync("div#sitecontainer, div#body, div.panes, div.column, div.main, footer, form") != null;
                     if (hasPageContainer)
                     {
-                        if (challengeObserved)
-                        {
-                            logger.LogInformation("[ModDB] Cloudflare challenge cleared for {Url}; parsing the listing.", url);
-                            notificationService?.ShowSuccess(
-                                "ModDB Verification Cleared",
-                                "Verification completed successfully.",
-                                NotificationDurations.Medium);
-                        }
+                        NotifyChallengeClearedIfObserved();
 
                         // Page is fully rendered with 0 matching items. Do not spin polling for items.
                         return (true, challengeObserved);

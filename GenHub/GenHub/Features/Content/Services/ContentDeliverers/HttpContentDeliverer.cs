@@ -98,7 +98,6 @@ public class HttpContentDeliverer(
                     {
                         Url = fileUri,
                         DestinationPath = localPath,
-                        ExpectedHash = file.Hash,
                         OverwriteExisting = true,
                     };
                     downloadResult = await playwrightService.DownloadFileAsync(downloadConfig, cancellationToken);

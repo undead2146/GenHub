@@ -1149,9 +1149,10 @@ public sealed class PlaywrightService(
             var playwright = await EnsureManagedPlaywrightAsync(cancellationToken);
             Directory.CreateDirectory(profileDir);
 
+            var profileLabel = Path.GetFileName(profileDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
             NotifyBrowserWindowOpening(
-                "Opening ModDB Browser",
-                "A browser window is opening to load ModDB content. Please do not close it.");
+                $"Opening {profileLabel} Browser",
+                $"A browser window is opening to load {profileLabel} content. Please do not close it.");
 
             var context = await playwright.Chromium.LaunchPersistentContextAsync(
                 profileDir,
@@ -1379,23 +1380,23 @@ public sealed class PlaywrightService(
             RequestManagedChromiumInstallConsentAsync,
             logger,
             onInstallStarting: () => notificationService?.ShowInfo(
-                "Installing Web Browser Runtime",
-                "Downloading managed Chromium runtime (~240 MB)...",
+                ModDBConstants.ChromiumInstallTitle,
+                ModDBConstants.ChromiumDownloadingMessage,
                 NotificationDurations.VeryLong),
             onInstallCompleted: success =>
             {
                 if (success)
                 {
                     notificationService?.ShowSuccess(
-                        "Web Browser Runtime Installed",
-                        "Managed Chromium runtime installation completed.",
+                        ModDBConstants.ChromiumReadyTitle,
+                        ModDBConstants.ChromiumReadyMessage,
                         NotificationDurations.Medium);
                 }
                 else
                 {
                     notificationService?.ShowError(
-                        "Web Browser Runtime Installation Failed",
-                        "Failed to install managed Chromium runtime.",
+                        ModDBConstants.ChromiumInstallFailedTitle,
+                        ModDBConstants.ChromiumInstallFailedMessage,
                         NotificationDurations.Long);
                 }
             });

@@ -136,6 +136,36 @@ public sealed class ManagedChromiumRuntimeTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies lifecycle completion callback is not invoked when Chromium installation is canceled.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task EnsureInstalledAsync_WhenCanceled_DoesNotInvokeCompletedCallbackAsync()
+    {
+        // Arrange
+        var executablePath = Path.Combine(_runtimeDirectory, "chromium.exe");
+        var startingCalled = false;
+        bool? completedSuccess = null;
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var chromium = new Mock<IBrowserType>(MockBehavior.Strict);
+        chromium.SetupGet(browser => browser.ExecutablePath).Returns(executablePath);
+        var runtime = new ManagedChromiumRuntime(
+            _runtimeDirectory,
+            _ => 0,
+            _ => Task.FromResult(true),
+            new Mock<ILogger>().Object,
+            onInstallStarting: () => startingCalled = true,
+            onInstallCompleted: success => completedSuccess = success);
+
+        // Act & Assert
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runtime.EnsureInstalledAsync(chromium.Object, cts.Token));
+        Assert.False(startingCalled);
+        Assert.Null(completedSuccess);
+    }
+
+    /// <summary>
     /// Verifies declining the install consent dialog cancels provisioning without downloading.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
