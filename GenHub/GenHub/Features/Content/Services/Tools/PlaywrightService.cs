@@ -391,7 +391,7 @@ public sealed class PlaywrightService(
             logger.LogInformation("Starting Playwright download from {Url}", configuration.Url);
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-            var isModDb = IsModDbHost(configuration.Url);
+            var isModDb = IsModDbOrDbolicalHost(configuration.Url);
             var usePersistentModDbProfile = isModDb && configuration.Url.Scheme == Uri.UriSchemeHttps;
 
             if (isModDb && !usePersistentModDbProfile)
@@ -523,16 +523,16 @@ public sealed class PlaywrightService(
         !string.IsNullOrWhiteSpace(title) &&
         ModDBConstants.BotProtectionTitleMarkers.Any(marker => title.Contains(marker, StringComparison.OrdinalIgnoreCase));
 
-    private static bool IsModDbHost(Uri uri) =>
+    private static bool IsModDbOrDbolicalHost(Uri uri) =>
         ModDBConstants.IsModDbOrDbolicalUri(uri);
 
-    private static bool IsModDbHost(string url) =>
-        Uri.TryCreate(url, UriKind.Absolute, out var uri) && IsModDbHost(uri);
+    private static bool IsModDbOrDbolicalHost(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) && IsModDbOrDbolicalHost(uri);
 
-    private static bool IsHttpsModDbUrl(string url) =>
+    private static bool IsHttpsModDbOrDbolicalUrl(string url) =>
         Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
         uri.Scheme == Uri.UriSchemeHttps &&
-        IsModDbHost(uri);
+        IsModDbOrDbolicalHost(uri);
 
     private static async Task<IDocument> OpenDocumentAsync(string html, CancellationToken cancellationToken)
     {
@@ -564,9 +564,9 @@ public sealed class PlaywrightService(
                 throw new ArgumentException($"Invalid URL (must be absolute HTTP/HTTPS): {url}", nameof(urls));
             }
 
-            if (string.Equals(profileName, ModDBConstants.BrowserProfileName, StringComparison.OrdinalIgnoreCase) && !IsHttpsModDbUrl(url))
+            if (string.Equals(profileName, ModDBConstants.BrowserProfileName, StringComparison.OrdinalIgnoreCase) && !IsHttpsModDbOrDbolicalUrl(url))
             {
-                throw new ArgumentException($"URL is not permitted for profile '{profileName}' (must be HTTPS ModDB): {url}", nameof(urls));
+                throw new ArgumentException($"URL is not permitted for profile '{profileName}' (must be HTTPS ModDB or DBolical): {url}", nameof(urls));
             }
         }
     }
@@ -1451,9 +1451,9 @@ public sealed class PlaywrightService(
             throw new ArgumentException($"Invalid URL (must be absolute HTTP/HTTPS): {url}", nameof(url));
         }
 
-        if (string.Equals(profileName, ModDBConstants.BrowserProfileName, StringComparison.OrdinalIgnoreCase) && !IsHttpsModDbUrl(url))
+        if (string.Equals(profileName, ModDBConstants.BrowserProfileName, StringComparison.OrdinalIgnoreCase) && !IsHttpsModDbOrDbolicalUrl(url))
         {
-            throw new ArgumentException($"URL is not permitted for profile '{profileName}' (must be HTTPS ModDB): {url}", nameof(url));
+            throw new ArgumentException($"URL is not permitted for profile '{profileName}' (must be HTTPS ModDB or DBolical): {url}", nameof(url));
         }
 
         logger.LogDebug("Fetching HTML (persistent profile '{Profile}') from {Url}", profileName, url);
@@ -1487,7 +1487,7 @@ public sealed class PlaywrightService(
             WaitUntil = WaitUntilState.DOMContentLoaded,
         });
 
-        if (IsModDbHost(url))
+        if (IsModDbOrDbolicalHost(url))
         {
             await WaitForModDbContentAsync(page, url, cancellationToken);
         }
@@ -1688,7 +1688,7 @@ public sealed class PlaywrightService(
         System.Diagnostics.Stopwatch stopwatch,
         CancellationToken cancellationToken)
     {
-        if (usePersistentModDbProfile && !IsModDbHost(download.Url))
+        if (usePersistentModDbProfile && !IsModDbOrDbolicalHost(download.Url))
         {
             logger.LogWarning("Download URL {DownloadUrl} is not a valid ModDB or DBolical URL. Aborting download.", download.Url);
             throw new InvalidOperationException($"Download URL '{download.Url}' must be a ModDB or DBolical URL for persistent profile.");
