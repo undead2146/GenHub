@@ -499,6 +499,7 @@ public sealed class ReplayDirectoryServiceTests
     /// <summary>
     /// Verifies that FindCompatibleProfiles strictly excludes candidate profiles whose executable binary CRC does not match the replay executable CRC.
     /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
     public async Task FindCompatibleProfiles_WhenProfileExeCrcMismatchesReplayExeCrc_ExcludesProfileAsync()
     {
@@ -561,6 +562,7 @@ public sealed class ReplayDirectoryServiceTests
     /// <summary>
     /// Verifies that FindCompatibleProfiles includes candidate profiles when executable binary CRC matches target CRC.
     /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
     public async Task FindCompatibleProfiles_WhenProfileExeCrcMatchesReplayExeCrc_IncludesProfileAsync()
     {
@@ -1481,8 +1483,9 @@ public sealed class ReplayDirectoryServiceTests
     /// <summary>
     /// Verifies that ResolveCompatibility does not assign an existing profile when its client version differs.
     /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ResolveCompatibility_WhenExistingProfileHasDifferentClientVersion_DoesNotMatchOlderProfile()
+    public async Task ResolveCompatibility_WhenExistingProfileHasDifferentClientVersion_DoesNotMatchOlderProfileAsync()
     {
         var replay = new ReplayFile
         {
@@ -1586,8 +1589,9 @@ public sealed class ReplayDirectoryServiceTests
     /// <summary>
     /// Verifies that ResolveCompatibility sets Unknown status when either ExeCrc or IniCrc is missing.
     /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ResolveCompatibility_WhenIniCrcOrExeCrcMissing_SetsUnknownStatus()
+    public async Task ResolveCompatibility_WhenIniCrcOrExeCrcMissing_SetsUnknownStatusAsync()
     {
         var service = new ReplayDirectoryService(
             _mockHeaderParser.Object,
@@ -2689,8 +2693,9 @@ public sealed class ReplayDirectoryServiceTests
     /// <summary>
     /// Verifies that ResolveCompatibility resolves to RequiresProfile when the client manifest is installed in acquiredIds but no profile exists.
     /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ResolveCompatibility_WhenClientInstalledButNoProfile_ResolvesToRequiresProfile()
+    public async Task ResolveCompatibility_WhenClientInstalledButNoProfile_ResolvesToRequiresProfileAsync()
     {
         var replay = new ReplayFile
         {
@@ -2742,8 +2747,9 @@ public sealed class ReplayDirectoryServiceTests
     /// <summary>
     /// Verifies that ResolveCompatibility resolves to Downloadable when client is not installed but has a CDN URL or third-party manifest ID.
     /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ResolveCompatibility_WhenNotInstalledAndHasCdnUrlOrNonRetailManifest_ResolvesToDownloadable()
+    public async Task ResolveCompatibility_WhenNotInstalledAndHasCdnUrlOrNonRetailManifest_ResolvesToDownloadableAsync()
     {
         var replay = new ReplayFile
         {
@@ -2791,8 +2797,9 @@ public sealed class ReplayDirectoryServiceTests
     /// <summary>
     /// Verifies that ResolveCompatibility resolves to Orphaned when a retail client is not installed on the system and has no CDN URL.
     /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ResolveCompatibility_WhenRetailClientNotInstalled_ResolvesToOrphaned()
+    public async Task ResolveCompatibility_WhenRetailClientNotInstalled_ResolvesToOrphanedAsync()
     {
         var replay = new ReplayFile
         {
@@ -2841,8 +2848,9 @@ public sealed class ReplayDirectoryServiceTests
     /// Verifies that when an exact pair is missing, base client is not stitched to a local acquired manifest.
     /// Under the engine rule, exact (exeCRC, iniCRC) pair is required.
     /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ResolveCompatibility_WhenExactPairMissing_DoesNotStitchLocalAcquiredManifest_ResolvesToOrphaned()
+    public async Task ResolveCompatibility_WhenExactPairMissing_DoesNotStitchLocalAcquiredManifest_ResolvesToOrphanedAsync()
     {
         var replay = new ReplayFile
         {
@@ -2916,8 +2924,9 @@ public sealed class ReplayDirectoryServiceTests
     /// Verifies that when an exact pair is missing, catalog data patches are not stitched across base clients.
     /// Under the engine rule, exact (exeCRC, iniCRC) pair is required.
     /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ResolveCompatibility_WhenExactPairMissing_DoesNotStitchCatalogDataPatch_ResolvesToOrphaned()
+    public async Task ResolveCompatibility_WhenExactPairMissing_DoesNotStitchCatalogDataPatch_ResolvesToOrphanedAsync()
     {
         var replay = new ReplayFile
         {
@@ -2985,8 +2994,9 @@ public sealed class ReplayDirectoryServiceTests
     /// <summary>
     /// Verifies that when an exact pair is not in the catalog, a replay is not stitched to a base client with vanilla INI.
     /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ResolveCompatibility_WhenGeneralsOnlineClientWithVanillaIni_WhenExactPairNotInCatalog_ResolvesToOrphaned()
+    public async Task ResolveCompatibility_WhenGeneralsOnlineClientWithVanillaIni_WhenExactPairNotInCatalog_ResolvesToOrphanedAsync()
     {
         var replay = new ReplayFile
         {
@@ -3044,8 +3054,9 @@ public sealed class ReplayDirectoryServiceTests
     /// Verifies that an unknown replay with modern build time but no GeneralsOnline filename/version pattern
     /// and no matching catalog date does not resolve via heuristic to GeneralsOnline.
     /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ResolveCompatibility_WhenUnknownModernReplayWithoutPatternOrDateMatch_DoesNotMatchGeneralsOnlineViaHeuristic()
+    public async Task ResolveCompatibility_WhenUnknownModernReplayWithoutPatternOrDateMatch_DoesNotMatchGeneralsOnlineViaHeuristicAsync()
     {
         var replay = new ReplayFile
         {
@@ -3102,8 +3113,9 @@ public sealed class ReplayDirectoryServiceTests
     /// Verifies that when exact CRC pair is missing, a replay matching GeneralsOnline pattern
     /// is NOT heuristically mapped to the latest GO client and instead resolves to Orphaned.
     /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ResolveCompatibility_WhenGeneralsOnlineLadderReplayWithoutExactCrc_DoesNotResolveViaHeuristic_ResolvesToOrphaned()
+    public async Task ResolveCompatibility_WhenGeneralsOnlineLadderReplayWithoutExactCrc_DoesNotResolveViaHeuristic_ResolvesToOrphanedAsync()
     {
         var replay = new ReplayFile
         {
@@ -3462,8 +3474,9 @@ public sealed class ReplayDirectoryServiceTests
     /// Verifies that when custom profile executable and INI CRCs match the replay,
     /// ResolveCompatibilityAsync resolves compatibility to that profile.
     /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
     [Fact]
-    public async Task ResolveCompatibility_WhenCustomProfileExecutableCrcMatches_ResolvesToCompatibleProfile()
+    public async Task ResolveCompatibility_WhenCustomProfileExecutableCrcMatches_ResolvesToCompatibleProfileAsync()
     {
         var tempExe = Path.GetTempFileName();
         try

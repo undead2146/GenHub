@@ -311,6 +311,29 @@ def check_url_exists(url: str, timeout: int = 5) -> bool:
         return False
 
 
+def _extract_archive_crcs(zf: zipfile.ZipFile, binary_patterns: list[str]) -> tuple[str, str, str]:
+    """Extracts executable CRC32, SHA256, and INI CRC from an open zip archive."""
+    exe_crc = ""
+    sha256 = ""
+    ini_crc = ""
+    pattern_set = {p.lower() for p in binary_patterns}
+
+    for name in zf.namelist():
+        base_name = os.path.basename(name).lower()
+        if not exe_crc and base_name in pattern_set:
+            binary_bytes = zf.read(name)
+            exe_crc = compute_buffer_crc(binary_bytes)
+            sha256 = compute_buffer_sha256(binary_bytes)
+        if not ini_crc and base_name == "generals.ini":
+            ini_bytes = zf.read(name)
+            ini_crc = compute_sage_xfer_crc(ini_bytes)
+
+        if exe_crc and ini_crc:
+            break
+
+    return exe_crc, sha256, ini_crc
+
+
 def inspect_archive_binary(download_url: str, binary_patterns: list[str]) -> tuple[str, str, str]:
     """Downloads archive into memory and extracts CRC32, SHA256, and INI CRC."""
     req = urllib.request.Request(download_url, headers={"User-Agent": "GenHub-Replay-Crawler"})
@@ -319,27 +342,7 @@ def inspect_archive_binary(download_url: str, binary_patterns: list[str]) -> tup
             archive_data = resp.read()
 
         with zipfile.ZipFile(io.BytesIO(archive_data)) as zf:
-            exe_crc = ""
-            sha256 = ""
-            ini_crc = ""
-
-            for name in zf.namelist():
-                base_name = os.path.basename(name).lower()
-                if not exe_crc:
-                    for pattern in binary_patterns:
-                        if base_name == pattern.lower():
-                            binary_bytes = zf.read(name)
-                            exe_crc = compute_buffer_crc(binary_bytes)
-                            sha256 = compute_buffer_sha256(binary_bytes)
-                            break
-                if not ini_crc and base_name == "generals.ini":
-                    ini_bytes = zf.read(name)
-                    ini_crc = compute_sage_xfer_crc(ini_bytes)
-
-                if exe_crc and ini_crc:
-                    break
-
-            return exe_crc, sha256, ini_crc
+            return _extract_archive_crcs(zf, binary_patterns)
     except (OSError, zipfile.BadZipFile, http.client.HTTPException, zlib.error, EOFError) as e:
         print(f"Warning: could not inspect archive {download_url}: {e}", file=sys.stderr)
         return "", "", ""
@@ -658,6 +661,43 @@ def normalize_manifest_id(m_id: str) -> str:
     return re.sub(r"^1\.(\d{5})0\.generalsonline\.", r"1.\1.generalsonline.", m_id)
 
 
+def _merge_crawled_item(merged: dict, item: dict, entry_key_fn) -> None:
+    """Merges a single crawled item into the accumulated catalog mapping."""
+    m_id = item.get("manifestId")
+    if not m_id:
+        return
+
+    item_copy = dict(item)
+    item_copy["manifestId"] = normalize_manifest_id(item_copy["manifestId"])
+    m_id = item_copy["manifestId"]
+    key = entry_key_fn(item_copy)
+
+    if key in merged:
+        _update_existing_entry(merged[key], item_copy)
+        return
+
+    matched_key = _find_compatible_catalog_key(merged, m_id, key, item_copy)
+    if matched_key:
+        existing_entry = merged.pop(matched_key)
+        _update_existing_entry(existing_entry, item_copy)
+        merged[entry_key_fn(existing_entry)] = existing_entry
+        return
+
+    if not item_copy.get("exeCrc") or not item_copy.get("iniCrc"):
+        print(
+            f"Validation warning: skipping crawled entry {m_id} without complete CRCs (exeCrc={item_copy.get('exeCrc')}, iniCrc={item_copy.get('iniCrc')}) (run with --inspect-binaries to populate CRCs)",
+            file=sys.stderr,
+        )
+        return
+
+    if any(k[0] == m_id for k in merged):
+        print(
+            f"Validation warning: duplicate manifestId {m_id} with distinct CRC key {key}",
+            file=sys.stderr,
+        )
+    merged[key] = dict(item_copy)
+
+
 def merge_catalogs(existing: list[dict], crawled: list[dict]) -> list[dict]:
     """Merges new crawled entries into existing catalog, preserving known CRCs and hashes."""
     def entry_key(entry: dict) -> tuple[str, str, str]:
@@ -678,34 +718,7 @@ def merge_catalogs(existing: list[dict], crawled: list[dict]) -> list[dict]:
         merged[entry_key(entry_copy)] = entry_copy
 
     for item in crawled:
-        m_id = item.get("manifestId")
-        if not m_id:
-            continue
-        item_copy = dict(item)
-        item_copy["manifestId"] = normalize_manifest_id(item_copy["manifestId"])
-        m_id = item_copy["manifestId"]
-        key = entry_key(item_copy)
-        if key in merged:
-            _update_existing_entry(merged[key], item_copy)
-            continue
-
-        matched_key = _find_compatible_catalog_key(merged, m_id, key, item_copy)
-        if matched_key:
-            existing_entry = merged.pop(matched_key)
-            _update_existing_entry(existing_entry, item_copy)
-            merged[entry_key(existing_entry)] = existing_entry
-        elif not item_copy.get("exeCrc") or not item_copy.get("iniCrc"):
-            print(
-                f"Validation warning: skipping crawled entry {m_id} without complete CRCs (exeCrc={item_copy.get('exeCrc')}, iniCrc={item_copy.get('iniCrc')}) (run with --inspect-binaries to populate CRCs)",
-                file=sys.stderr,
-            )
-        else:
-            if any(k[0] == m_id for k in merged):
-                print(
-                    f"Validation warning: duplicate manifestId {m_id} with distinct CRC key {key}",
-                    file=sys.stderr,
-                )
-            merged[key] = dict(item_copy)
+        _merge_crawled_item(merged, item, entry_key)
 
     return list(merged.values())
 

@@ -866,7 +866,7 @@ public sealed class ReplayDirectoryService(
             return;
         }
 
-        ResolveUnmappedClientCompatibility(replay, profiles);
+        ResolveUnmappedClientCompatibility(replay);
     }
 
     private static bool IsProfileCandidateCompatible(
@@ -1613,6 +1613,14 @@ public sealed class ReplayDirectoryService(
         replay.MatchingProfileId = null;
         replay.MatchingProfileName = null;
         replay.CompatibilityStatus = ReplayCompatibilityStatus.Unknown;
+    }
+
+    private static void ResolveUnmappedClientCompatibility(ReplayFile replay)
+    {
+        replay.MatchedClient = null;
+        replay.MatchingProfileId = null;
+        replay.MatchingProfileName = null;
+        replay.CompatibilityStatus = ReplayCompatibilityStatus.Orphaned;
     }
 
     private static GameInstallation? ResolveInstallation(
@@ -2776,53 +2784,81 @@ public sealed class ReplayDirectoryService(
                 break;
             }
 
-            var exePath = ResolveProfileFullExePath(profile.GameClient);
-            if (string.IsNullOrEmpty(exePath) || !File.Exists(exePath))
+            var matched = await TryMatchLiveProfileCrcAsync(profile, replay, targetExeCrc, targetIniCrc, ct);
+            if (matched != null)
             {
-                continue;
-            }
-
-            var calculatedExeCrc = await GetOrCalculateProfileExeCrcAsync(exePath, ct);
-            if (string.IsNullOrEmpty(calculatedExeCrc) ||
-                !IsProfileCrcMatching(calculatedExeCrc, targetExeCrc, replay.GameVersion, IsCommunityPatchProfile(profile)))
-            {
-                continue;
-            }
-
-            var gameRoot = Path.GetDirectoryName(exePath) ?? string.Empty;
-            if (string.IsNullOrEmpty(gameRoot) || !Directory.Exists(gameRoot))
-            {
-                continue;
-            }
-
-            try
-            {
-                var iniResult = await crcCalculator.CalculateIniCrcAsync(gameRoot, profile.GameClient!.GameType, ct: ct);
-                if (iniResult.Success && !string.IsNullOrEmpty(iniResult.Data))
-                {
-                    var normalizedCalcIni = NormalizeCrcHex(iniResult.Data);
-                    var normalizedTargetIni = NormalizeCrcHex(targetIniCrc);
-                    if (string.Equals(normalizedCalcIni, normalizedTargetIni, StringComparison.OrdinalIgnoreCase))
-                    {
-                        logger.LogInformation(
-                            "[ReplayManager] Discovered matching profile '{ProfileName}' for replay '{ReplayFile}' via exact live calculated CRCs: exe='{ExeCrc}', ini='{IniCrc}' ({ExePath})",
-                            profile.Name,
-                            replay.FileName,
-                            targetExeCrc,
-                            targetIniCrc,
-                            exePath);
-
-                        return CreateMatchedProfileEntry(profile, replay, targetExeCrc, targetIniCrc);
-                    }
-                }
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger.LogWarning(ex, "[ReplayManager] Failed to calculate live INI CRC for profile '{ProfileName}' at '{GameRoot}'", profile.Name, gameRoot);
+                return matched;
             }
         }
 
         return null;
+    }
+
+    private async Task<CrcMappingEntry?> TryMatchLiveProfileCrcAsync(
+        GameProfile profile,
+        ReplayFile replay,
+        string targetExeCrc,
+        string targetIniCrc,
+        CancellationToken ct)
+    {
+        var exePath = ResolveProfileFullExePath(profile.GameClient);
+        if (string.IsNullOrEmpty(exePath) || !File.Exists(exePath))
+        {
+            return null;
+        }
+
+        var calculatedExeCrc = await GetOrCalculateProfileExeCrcAsync(exePath, ct);
+        if (string.IsNullOrEmpty(calculatedExeCrc) ||
+            !IsProfileCrcMatching(calculatedExeCrc, targetExeCrc, replay.GameVersion, IsCommunityPatchProfile(profile)))
+        {
+            return null;
+        }
+
+        var gameRoot = Path.GetDirectoryName(exePath) ?? string.Empty;
+        if (string.IsNullOrEmpty(gameRoot) || !Directory.Exists(gameRoot))
+        {
+            return null;
+        }
+
+        if (await IsLiveIniCrcMatchAsync(profile, gameRoot, targetIniCrc, ct))
+        {
+            logger.LogInformation(
+                "[ReplayManager] Discovered matching profile '{ProfileName}' for replay '{ReplayFile}' via exact live calculated CRCs: exe='{ExeCrc}', ini='{IniCrc}' ({ExePath})",
+                profile.Name,
+                replay.FileName,
+                targetExeCrc,
+                targetIniCrc,
+                exePath);
+
+            return CreateMatchedProfileEntry(profile, replay, targetExeCrc, targetIniCrc);
+        }
+
+        return null;
+    }
+
+    private async Task<bool> IsLiveIniCrcMatchAsync(
+        GameProfile profile,
+        string gameRoot,
+        string targetIniCrc,
+        CancellationToken ct)
+    {
+        try
+        {
+            var iniResult = await crcCalculator!.CalculateIniCrcAsync(gameRoot, profile.GameClient!.GameType, ct: ct);
+            if (!iniResult.Success || string.IsNullOrEmpty(iniResult.Data))
+            {
+                return false;
+            }
+
+            var normalizedCalcIni = NormalizeCrcHex(iniResult.Data);
+            var normalizedTargetIni = NormalizeCrcHex(targetIniCrc);
+            return string.Equals(normalizedCalcIni, normalizedTargetIni, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "[ReplayManager] Failed to calculate live INI CRC for profile '{ProfileName}' at '{GameRoot}'", profile.Name, gameRoot);
+            return false;
+        }
     }
 
     private Task PreloadProfileExeCrcsAsync(IEnumerable<GameProfile> profiles, CancellationToken ct) =>
@@ -2886,59 +2922,70 @@ public sealed class ReplayDirectoryService(
             return false;
         }
 
-        if (!string.IsNullOrEmpty(replay.MatchedClient?.DataPatchManifestId) &&
-            profile.EnabledContentIds?.Any(id => HasMatchingDataPatchId(replay.MatchedClient.DataPatchManifestId, id)) != true)
+        var dataPatchId = replay.MatchedClient?.DataPatchManifestId;
+        if (!string.IsNullOrEmpty(dataPatchId) &&
+            profile.EnabledContentIds?.Any(id => HasMatchingDataPatchId(dataPatchId, id)) != true)
         {
             return false;
         }
 
         var calculatedCrc = await GetOrCalculateProfileExeCrcAsync(exePath, ct);
-        if (!string.IsNullOrEmpty(calculatedCrc) &&
-            IsProfileCrcMatching(calculatedCrc, targetExeCrc, replay.GameVersion, IsCommunityPatchProfile(profile)))
+        if (string.IsNullOrEmpty(calculatedCrc) ||
+            !IsProfileCrcMatching(calculatedCrc, targetExeCrc, replay.GameVersion, IsCommunityPatchProfile(profile)))
         {
-            if (crcCalculator != null && !string.IsNullOrEmpty(replay.Metadata?.FormattedIniCrc))
+            return false;
+        }
+
+        if (await IsIniCrcMismatchAsync(profile, exePath, replay.Metadata?.FormattedIniCrc, ct))
+        {
+            return false;
+        }
+
+        logger.LogInformation(
+            "[ReplayManager] Discovered matching profile '{ProfileName}' for replay '{ReplayFile}' via executable CRC '{ExeCrc}' ({ExePath})",
+            profile.Name,
+            replay.FileName,
+            targetExeCrc,
+            exePath);
+
+        return true;
+    }
+
+    private async Task<bool> IsIniCrcMismatchAsync(
+        GameProfile profile,
+        string exePath,
+        string? targetIniCrc,
+        CancellationToken ct)
+    {
+        if (crcCalculator == null || string.IsNullOrEmpty(targetIniCrc))
+        {
+            return false;
+        }
+
+        var gameRoot = Path.GetDirectoryName(exePath) ?? string.Empty;
+        if (!Directory.Exists(gameRoot))
+        {
+            return false;
+        }
+
+        try
+        {
+            var iniResult = await crcCalculator.CalculateIniCrcAsync(gameRoot, profile.GameClient!.GameType, ct: ct);
+            if (iniResult.Success && !string.IsNullOrEmpty(iniResult.Data))
             {
-                var gameRoot = Path.GetDirectoryName(exePath) ?? string.Empty;
-                if (Directory.Exists(gameRoot))
+                var normalizedCalcIni = NormalizeCrcHex(iniResult.Data);
+                var normalizedTargetIni = NormalizeCrcHex(targetIniCrc);
+                if (!string.Equals(normalizedCalcIni, normalizedTargetIni, StringComparison.OrdinalIgnoreCase))
                 {
-                    try
-                    {
-                        var iniResult = await crcCalculator.CalculateIniCrcAsync(gameRoot, profile.GameClient!.GameType, ct: ct);
-                        if (iniResult.Success && !string.IsNullOrEmpty(iniResult.Data))
-                        {
-                            var normalizedCalcIni = NormalizeCrcHex(iniResult.Data);
-                            var normalizedTargetIni = NormalizeCrcHex(replay.Metadata.FormattedIniCrc);
-                            if (!string.Equals(normalizedCalcIni, normalizedTargetIni, StringComparison.OrdinalIgnoreCase))
-                            {
-                                return false;
-                            }
-                        }
-                    }
-                    catch (Exception ex) when (ex is not OperationCanceledException)
-                    {
-                        logger.LogWarning(ex, "[ReplayManager] Could not calculate INI CRC for profile '{ProfileId}'", profile.Id);
-                    }
+                    return true;
                 }
             }
-
-            logger.LogInformation(
-                "[ReplayManager] Discovered matching profile '{ProfileName}' for replay '{ReplayFile}' via executable CRC '{ExeCrc}' ({ExePath})",
-                profile.Name,
-                replay.FileName,
-                targetExeCrc,
-                exePath);
-
-            return true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "[ReplayManager] Could not calculate INI CRC for profile '{ProfileId}'", profile.Id);
         }
 
         return false;
-    }
-
-    private void ResolveUnmappedClientCompatibility(ReplayFile replay, IReadOnlyList<GameProfile> profiles)
-    {
-        replay.MatchedClient = null;
-        replay.MatchingProfileId = null;
-        replay.MatchingProfileName = null;
-        replay.CompatibilityStatus = ReplayCompatibilityStatus.Orphaned;
     }
 }

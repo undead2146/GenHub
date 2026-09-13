@@ -429,18 +429,6 @@ public partial class GameProfileLauncherViewModel(
         });
     }
 
-    private static void RunOnUi(Action action)
-    {
-        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
-        {
-            action();
-        }
-        else
-        {
-            Avalonia.Threading.Dispatcher.UIThread.Post(action);
-        }
-    }
-
     /// <summary>
     /// Called when the tab is activated/navigated to.
     /// Resets the header state to expanded.
@@ -484,6 +472,18 @@ public partial class GameProfileLauncherViewModel(
         }
 
         return copyName;
+    }
+
+    private static void RunOnUi(Action action)
+    {
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        {
+            action();
+        }
+        else
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(action);
+        }
     }
 
     private static Window? GetMainWindow()
