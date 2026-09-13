@@ -71,9 +71,19 @@ public static class UriConstants
     public const string ZeroHourIconFilename = "zerohour-icon.png";
 
     /// <summary>
+    /// Substring marker for Zero Hour icon asset.
+    /// </summary>
+    public const string ZeroHourIconMarker = "zerohour-icon";
+
+    /// <summary>
     /// Filename for GenHub default icon.
     /// </summary>
     public const string GenHubIconFilename = "generalshub-icon.png";
+
+    /// <summary>
+    /// Substring marker for GenHub default icon asset.
+    /// </summary>
+    public const string GenHubIconMarker = "generalshub-icon";
 
     /// <summary>
     /// Filename for Steam platform icon.
@@ -116,6 +126,11 @@ public static class UriConstants
     /// Filename for Zero Hour cover.
     /// </summary>
     public const string ZeroHourCoverFilename = "zerohour-cover.png";
+
+    /// <summary>
+    /// Substring marker for Zero Hour cover asset.
+    /// </summary>
+    public const string ZeroHourCoverMarker = "zerohour-cover";
 
     // Logo Path Constants
 
