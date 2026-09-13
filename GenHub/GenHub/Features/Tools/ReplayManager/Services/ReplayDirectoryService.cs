@@ -907,21 +907,21 @@ public sealed class ReplayDirectoryService(
             return true;
         }
 
-        if (crcCalculator == null)
-        {
-            return false;
-        }
-
         var exePath = ResolveProfileFullExePath(profile.GameClient);
         if (string.IsNullOrEmpty(exePath) || !File.Exists(exePath))
         {
-            return false;
+            return crcCalculator == null;
         }
 
         try
         {
             var crc = GetCachedExeCrc(exePath);
-            return !string.IsNullOrEmpty(crc) && IsExeCrcCompatible(crc, targetExeCrc);
+            if (string.IsNullOrEmpty(crc))
+            {
+                return crcCalculator == null;
+            }
+
+            return IsExeCrcCompatible(crc, targetExeCrc);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
