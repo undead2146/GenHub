@@ -1378,13 +1378,10 @@ public sealed class PlaywrightService(
             Microsoft.Playwright.Program.Main,
             RequestManagedChromiumInstallConsentAsync,
             logger,
-            onInstallStarting: () =>
-            {
-                notificationService?.ShowInfo(
-                    "Installing Web Browser Runtime",
-                    "Downloading managed Chromium runtime (~240 MB)...",
-                    NotificationDurations.VeryLong);
-            },
+            onInstallStarting: () => notificationService?.ShowInfo(
+                "Installing Web Browser Runtime",
+                "Downloading managed Chromium runtime (~240 MB)...",
+                NotificationDurations.VeryLong),
             onInstallCompleted: success =>
             {
                 if (success)
