@@ -32,11 +32,13 @@ public sealed class ModDBFilterViewModelTests
     [Fact]
     public void ApplyFilters_WithFilters_CopiesModDBSpecificQueryValues()
     {
-        var viewModel = new ModDBFilterViewModel();
-        viewModel.SelectedCategory = "1";
-        viewModel.SelectedAddonCategory = "101";
-        viewModel.SelectedTimeframe = "2";
-        viewModel.SelectedSort = ModDBConstants.SortRatingDesc;
+        var viewModel = new ModDBFilterViewModel
+        {
+            SelectedCategory = "1",
+            SelectedAddonCategory = "101",
+            SelectedTimeframe = "2",
+            SelectedSort = ModDBConstants.SortRatingDesc,
+        };
 
         var query = viewModel.ApplyFilters(new ContentSearchQuery());
 
@@ -54,8 +56,10 @@ public sealed class ModDBFilterViewModelTests
     [Fact]
     public void SetSection_SwitchesSectionAndClearsFilters()
     {
-        var viewModel = new ModDBFilterViewModel();
-        viewModel.SelectedCategory = "1";
+        var viewModel = new ModDBFilterViewModel
+        {
+            SelectedCategory = "1",
+        };
         Assert.True(viewModel.HasActiveFilters);
 
         viewModel.SetSectionCommand.Execute(ModDBSection.Addons);
@@ -75,12 +79,14 @@ public sealed class ModDBFilterViewModelTests
     [Fact]
     public void ClearFilters_ResetsSelections()
     {
-        var viewModel = new ModDBFilterViewModel();
-        viewModel.SelectedCategory = "1";
-        viewModel.SelectedAddonCategory = "100";
-        viewModel.SelectedLicense = "8";
-        viewModel.SelectedTimeframe = "3";
-        viewModel.SelectedSort = ModDBConstants.SortRatingDesc;
+        var viewModel = new ModDBFilterViewModel
+        {
+            SelectedCategory = "1",
+            SelectedAddonCategory = "100",
+            SelectedLicense = "8",
+            SelectedTimeframe = "3",
+            SelectedSort = ModDBConstants.SortRatingDesc,
+        };
 
         Assert.True(viewModel.HasActiveFilters);
 
@@ -100,9 +106,11 @@ public sealed class ModDBFilterViewModelTests
     [Fact]
     public void GetActiveFilterSummary_ReturnsSummaryItems()
     {
-        var viewModel = new ModDBFilterViewModel();
-        viewModel.SelectedCategory = "1";
-        viewModel.SelectedSort = ModDBConstants.SortRatingDesc;
+        var viewModel = new ModDBFilterViewModel
+        {
+            SelectedCategory = "1",
+            SelectedSort = ModDBConstants.SortRatingDesc,
+        };
 
         var summaries = viewModel.GetActiveFilterSummary().ToList();
 
