@@ -699,11 +699,12 @@ public partial class GeneralsOnlineProfileReconciler(
     private async Task<(bool Proceed, UpdateStrategy Strategy, bool ShouldDeleteOldVersions)> PromptUserForUpdateStrategyAsync(
         string latestVersion,
         UpdateStrategy fallbackStrategy,
-        bool fallbackDeleteOldVersions = true)
+        bool fallbackDeleteOldVersions)
     {
         var dialogResult = await dialogService.ShowUpdateOptionDialogAsync(
             "Generals Online Update Available",
-            $"A new version of **Generals Online** is available ({latestVersion}).\n\nHow do you want to apply this update?");
+            $"A new version of **Generals Online** is available ({latestVersion}).\n\nHow do you want to apply this update?",
+            fallbackDeleteOldVersions);
 
         if (dialogResult == null)
         {

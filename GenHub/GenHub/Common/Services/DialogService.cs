@@ -104,7 +104,7 @@ public class DialogService(ISessionPreferenceService sessionPreferenceService) :
     }
 
     /// <inheritdoc/>
-    public async Task<UpdateDialogResult?> ShowUpdateOptionDialogAsync(string title, string message, bool initialDeleteOldVersions = true)
+    public async Task<UpdateDialogResult?> ShowUpdateOptionDialogAsync(string title, string message, bool initialDeleteOldVersions)
     {
         var viewModel = new UpdateOptionDialogViewModel
         {

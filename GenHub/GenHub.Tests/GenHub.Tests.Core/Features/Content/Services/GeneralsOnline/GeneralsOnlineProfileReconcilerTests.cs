@@ -651,4 +651,34 @@ public class GeneralsOnlineProfileReconcilerTests
             x => x.UpdateProfileAsync("old-profile-id", It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
+
+    /// <summary>
+    /// Verifies that the reconciler forwards the persisted DeleteOldVersions preference to the update dialog.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task CheckAndReconcileIfNeededAsync_WhenPromptingUser_ForwardsPersistedDeleteOldVersionsPreferenceAsync()
+    {
+        // Arrange
+        string latestVersion = "0.0.99";
+        _updateServiceMock.Setup(x => x.CheckForUpdatesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ContentUpdateCheckResult.CreateUpdateAvailable(latestVersion, "0.0.1"));
+
+        var settings = new UserSettings();
+        var subscription = settings.GetOrCreateSubscription(GeneralsOnlineConstants.PublisherType);
+        subscription.DeleteOldVersions = false;
+        _userSettingsServiceMock.Setup(x => x.Get()).Returns(settings);
+
+        _dialogServiceMock.Setup(x => x.ShowUpdateOptionDialogAsync(It.IsAny<string>(), It.IsAny<string>(), false))
+            .ReturnsAsync(new UpdateDialogResult { Action = "Skip", IsDoNotAskAgain = false });
+
+        // Act
+        var result = await _reconciler.CheckAndReconcileIfNeededAsync("profile1", CancellationToken.None);
+
+        // Assert
+        Assert.True(result.Success);
+        _dialogServiceMock.Verify(
+            x => x.ShowUpdateOptionDialogAsync(It.IsAny<string>(), It.IsAny<string>(), false),
+            Times.Once);
+    }
 }

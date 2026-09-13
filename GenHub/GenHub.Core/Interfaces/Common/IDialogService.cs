@@ -45,5 +45,5 @@ public interface IDialogService
     /// <param name="message">The dialog message.</param>
     /// <param name="initialDeleteOldVersions">The initial delete old versions checkbox state.</param>
     /// <returns>The result of the dialog interaction.</returns>
-    Task<UpdateDialogResult?> ShowUpdateOptionDialogAsync(string title, string message, bool initialDeleteOldVersions = true);
+    Task<UpdateDialogResult?> ShowUpdateOptionDialogAsync(string title, string message, bool initialDeleteOldVersions);
 }

@@ -484,7 +484,8 @@ public class CommunityOutpostProfileReconciler(
 
         var dialogResult = await dialogService.ShowUpdateOptionDialogAsync(
             "Community Patch Update Available",
-            $"A new version of the **Community Patch** is available ({updateResult.LatestVersion}).\n\nHow do you want to apply this update?");
+            $"A new version of the **Community Patch** is available ({updateResult.LatestVersion}).\n\nHow do you want to apply this update?",
+            shouldDeleteOldVersions);
 
         if (dialogResult == null)
         {
