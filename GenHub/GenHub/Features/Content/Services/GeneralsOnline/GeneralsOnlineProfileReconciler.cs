@@ -176,15 +176,13 @@ public partial class GeneralsOnlineProfileReconciler(
         }
     }
 
-    [GeneratedRegex(@"\s*(?:\([vV]?[\w\.\-]+(?:\s*QFE\d+)?\)|\b[vV]\d+[\w\.\-]*)\s*$", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: 2000)]
-    private static partial Regex VersionSuffixRegex();
-
     /// <summary>
     /// Formats an updated profile name by stripping existing version suffixes and appending the new version.
     /// </summary>
     /// <param name="originalName">The existing profile name.</param>
     /// <param name="newVersion">The new version string.</param>
     /// <param name="existingNames">Set of already existing profile names to prevent collisions.</param>
+    /// <param name="allowSameAsOriginal">Whether the updated name is allowed to match the original profile name without appending a collision suffix.</param>
     /// <returns>A formatted, unique profile name.</returns>
     internal static string FormatUpdatedProfileName(
         string originalName,
@@ -220,6 +218,47 @@ public partial class GeneralsOnlineProfileReconciler(
 
         return finalName;
     }
+
+    /// <summary>
+    /// Resolves updated enabled content IDs mapping old manifests to new ones and preserving non-GeneralsOnline content.
+    /// </summary>
+    /// <param name="profile">The game profile being updated.</param>
+    /// <param name="manifestMapping">Mapping from old manifest IDs to new manifest IDs.</param>
+    /// <param name="newManifests">The new manifests being applied in the update.</param>
+    /// <returns>A list of updated enabled content IDs.</returns>
+    internal static List<string> ResolveUpdatedEnabledContent(
+        Core.Models.GameProfile.GameProfile profile,
+        Dictionary<string, string> manifestMapping,
+        List<ContentManifest> newManifests)
+    {
+        var newEnabledContent = new List<string>();
+        if (profile.EnabledContentIds != null)
+        {
+            foreach (var id in profile.EnabledContentIds)
+            {
+                if (manifestMapping.TryGetValue(id, out var newId))
+                {
+                    newEnabledContent.Add(newId);
+                }
+                else if (!id.Contains($".{GeneralsOnlineConstants.PublisherType}.", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Keep non-GO content
+                    newEnabledContent.Add(id);
+                }
+            }
+        }
+
+        // Ensure all new GO manifests (e.g. MapPack) are included
+        newEnabledContent.AddRange(
+            newManifests
+                .Select(m => m.Id.Value)
+                .Where(id => !newEnabledContent.Contains(id, StringComparer.OrdinalIgnoreCase)));
+
+        return newEnabledContent.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    [GeneratedRegex(@"\s*(?:\([vV]?[\w\.\-]+(?:\s*QFE\d+)?\)|\b[vV]\d+[\w\.\-]*)\s*$", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: 2000)]
+    private static partial Regex VersionSuffixRegex();
 
     /// <summary>
     /// Checks if two manifests refer to the same variant (30hz, 60hz, quickmatch-maps, or gamedata).
@@ -400,40 +439,6 @@ public partial class GeneralsOnlineProfileReconciler(
     }
 
     /// <summary>
-    /// Resolves updated enabled content IDs mapping old manifests to new ones and preserving non-GeneralsOnline content.
-    /// </summary>
-    internal static List<string> ResolveUpdatedEnabledContent(
-        Core.Models.GameProfile.GameProfile profile,
-        Dictionary<string, string> manifestMapping,
-        List<ContentManifest> newManifests)
-    {
-        var newEnabledContent = new List<string>();
-        if (profile.EnabledContentIds != null)
-        {
-            foreach (var id in profile.EnabledContentIds)
-            {
-                if (manifestMapping.TryGetValue(id, out var newId))
-                {
-                    newEnabledContent.Add(newId);
-                }
-                else if (!id.Contains($".{GeneralsOnlineConstants.PublisherType}.", StringComparison.OrdinalIgnoreCase))
-                {
-                    // Keep non-GO content
-                    newEnabledContent.Add(id);
-                }
-            }
-        }
-
-        // Ensure all new GO manifests (e.g. MapPack) are included
-        newEnabledContent.AddRange(
-            newManifests
-                .Select(m => m.Id.Value)
-                .Where(id => !newEnabledContent.Contains(id, StringComparer.OrdinalIgnoreCase)));
-
-        return newEnabledContent.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-    }
-
-    /// <summary>
     /// Builds a CreateProfileRequest cloning the existing profile's settings with the updated client and content.
     /// </summary>
     private static Core.Models.GameProfile.CreateProfileRequest BuildCloneProfileRequest(
@@ -526,6 +531,22 @@ public partial class GeneralsOnlineProfileReconciler(
             GoRenderLimitFramerate = profile.GoRenderLimitFramerate,
             GoRenderStatsOverlay = profile.GoRenderStatsOverlay,
         };
+    }
+
+    private static bool HasRelevantGeneralsOnlineProfiles(IEnumerable<Core.Models.GameProfile.GameProfile>? profiles) =>
+        profiles?.Any(IsProfileRelevantToGeneralsOnline) == true;
+
+    private static bool IsProfileRelevantToGeneralsOnline(Core.Models.GameProfile.GameProfile profile)
+    {
+        if (profile.GameClient != null &&
+            (string.Equals(profile.GameClient.PublisherType, GeneralsOnlineConstants.PublisherType, StringComparison.OrdinalIgnoreCase) ||
+             profile.GameClient.Id.Contains($".{GeneralsOnlineConstants.PublisherType}.", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        return profile.EnabledContentIds is { } enabled &&
+               enabled.Any(id => id.Contains($".{GeneralsOnlineConstants.PublisherType}.", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -807,22 +828,6 @@ public partial class GeneralsOnlineProfileReconciler(
         }
 
         return OperationResult<(int, bool, Dictionary<string, string>?)>.CreateSuccess((profilesUpdated, anyFailure, manifestMapping));
-    }
-
-    private static bool HasRelevantGeneralsOnlineProfiles(IEnumerable<Core.Models.GameProfile.GameProfile>? profiles) =>
-        profiles?.Any(IsProfileRelevantToGeneralsOnline) == true;
-
-    private static bool IsProfileRelevantToGeneralsOnline(Core.Models.GameProfile.GameProfile profile)
-    {
-        if (profile.GameClient != null &&
-            (string.Equals(profile.GameClient.PublisherType, GeneralsOnlineConstants.PublisherType, StringComparison.OrdinalIgnoreCase) ||
-             profile.GameClient.Id.Contains($".{GeneralsOnlineConstants.PublisherType}.", StringComparison.OrdinalIgnoreCase)))
-        {
-            return true;
-        }
-
-        return profile.EnabledContentIds is { } enabled &&
-               enabled.Any(id => id.Contains($".{GeneralsOnlineConstants.PublisherType}.", StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task HandleOldManifestsAndCleanupAsync(

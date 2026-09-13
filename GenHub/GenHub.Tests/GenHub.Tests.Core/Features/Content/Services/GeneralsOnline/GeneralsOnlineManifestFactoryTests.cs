@@ -457,6 +457,8 @@ public class GeneralsOnlineManifestFactoryTests : IDisposable
     /// Verifies that CreateManifests generates manifest IDs matching the frozen legacy encoding
     /// for tagged and digit-bearing versions (e.g. EAC and X86 builds).
     /// </summary>
+    /// <param name="version">The Generals Online release version string to parse.</param>
+    /// <param name="expectedClientId">The expected legacy manifest ID.</param>
     [Theory]
     [InlineData("042826_QFE3_EAC", "1.428263.generalsonline.gameclient.60hz")]
     [InlineData("011526_QFE1_EAC_X86", "1.11526186.generalsonline.gameclient.60hz")]
