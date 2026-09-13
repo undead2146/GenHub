@@ -867,6 +867,11 @@ public sealed partial class DownloadsBrowserViewModel(
                 PublisherInfoConstants.AODMaps.Name,
                 PublisherInfoConstants.AODMaps.LogoSource,
                 ContentConstants.CategoryDynamic),
+            new PublisherItemViewModel(
+                ModDBConstants.PublisherType,
+                PublisherInfoConstants.ModDB.Name,
+                PublisherInfoConstants.ModDB.LogoSource,
+                ContentConstants.CategoryDynamic),
         ];
     }
 
@@ -1075,6 +1080,23 @@ public sealed partial class DownloadsBrowserViewModel(
     [RelayCommand]
     private async Task SearchAsync()
     {
+        if (ModDBDiscoverer.TryNormalizeModDBUrl(SearchTerm, out _) &&
+            SelectedPublisher?.PublisherId != ModDBConstants.PublisherType)
+        {
+            var savedSearchTerm = SearchTerm;
+            var moddbPublisher = Publishers.FirstOrDefault(p => p.PublisherId == ModDBConstants.PublisherType);
+            if (moddbPublisher != null)
+            {
+                SelectedPublisher = moddbPublisher;
+                SearchTerm = savedSearchTerm;
+                _hasCustomQuery = true;
+                CurrentPage = 1;
+                Interlocked.Increment(ref _activeRequestId);
+                await RefreshContentAsync();
+                return;
+            }
+        }
+
         _hasCustomQuery = !string.IsNullOrWhiteSpace(SearchTerm) || (CurrentFilterViewModel != null && CurrentFilterViewModel.HasActiveFilters);
         CurrentPage = 1;
         Interlocked.Increment(ref _activeRequestId);
@@ -1851,6 +1873,7 @@ public sealed partial class DownloadsBrowserViewModel(
             GitHubTopicsConstants.PublisherType => contentDiscoverers.OfType<GenHub.Features.Content.Services.ContentDiscoverers.GitHubTopicsDiscoverer>().FirstOrDefault(),
             CNCLabsConstants.PublisherType => contentDiscoverers.OfType<CNCLabsMapDiscoverer>().FirstOrDefault(),
             AODMapsConstants.PublisherType => contentDiscoverers.OfType<AODMapsDiscoverer>().FirstOrDefault(),
+            ModDBConstants.PublisherType => contentDiscoverers.OfType<ModDBDiscoverer>().FirstOrDefault(),
 
             // User-subscribed GenHub catalogs (and later definition-resolved endpoints)
             _ => _subscribedDiscoverers.TryGetValue(publisherId, out var subscribed) ? subscribed : null,
@@ -2135,6 +2158,7 @@ public sealed partial class DownloadsBrowserViewModel(
         _filterViewModels[GitHubTopicsConstants.PublisherType] = new GitHubFilterViewModel();
         _filterViewModels[CNCLabsConstants.PublisherType] = new CNCLabsFilterViewModel();
         _filterViewModels[AODMapsConstants.PublisherType] = new AODMapsFilterViewModel();
+        _filterViewModels[ModDBConstants.PublisherType] = new ModDBFilterViewModel();
     }
 
     [RelayCommand]
