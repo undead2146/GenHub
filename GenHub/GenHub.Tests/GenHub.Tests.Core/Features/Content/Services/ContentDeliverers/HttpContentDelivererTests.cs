@@ -70,6 +70,73 @@ public class HttpContentDelivererTests
     }
 
     /// <summary>
+    /// Verifies that DBolical CDN download URLs are routed through <see cref="IPlaywrightService"/> instead of <see cref="IDownloadService"/>.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task DeliverContentAsync_WithDBolicalUrl_RoutesThroughPlaywrightServiceAsync()
+    {
+        var targetDirectory = CreateTargetDirectory();
+        const string relativePath = "mod.zip";
+        const string dbolicalUrl = "https://fmt1.dl.dbolical.com/dl/2026/08/01/GeneralsUndone_v1.0.zip?st=token&e=123";
+        var manifest = new ContentManifest
+        {
+            Id = new ManifestId("dbolical-mod"),
+            Name = "DBolical Test Mod",
+            Version = "1.0",
+            Files =
+            [
+                new ManifestFile
+                {
+                    RelativePath = relativePath,
+                    DownloadUrl = dbolicalUrl,
+                    SourceType = ContentSourceType.RemoteDownload,
+                }
+            ],
+        };
+
+        var downloadService = new Mock<IDownloadService>(MockBehavior.Strict);
+        var playwrightService = new Mock<IPlaywrightService>();
+        var expectedDestinationPath = Path.GetFullPath(relativePath, Path.GetFullPath(targetDirectory));
+
+        playwrightService
+            .Setup(p => p.DownloadFileAsync(
+                It.Is<DownloadConfiguration>(c => c.Url == new Uri(dbolicalUrl) && c.DestinationPath == expectedDestinationPath),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((DownloadConfiguration config, CancellationToken _) =>
+            {
+                File.WriteAllText(config.DestinationPath, "dbolical content");
+                return DownloadResult.CreateSuccess(
+                    config.DestinationPath,
+                    16,
+                    TimeSpan.FromMilliseconds(100),
+                    hashVerified: false);
+            });
+
+        var deliverer = new HttpContentDeliverer(
+            downloadService.Object,
+            Mock.Of<ILogger<HttpContentDeliverer>>(),
+            playwrightService.Object);
+
+        try
+        {
+            var result = await deliverer.DeliverContentAsync(manifest, targetDirectory);
+
+            result.Success.Should().BeTrue();
+            File.Exists(expectedDestinationPath).Should().BeTrue();
+            playwrightService.Verify(
+                p => p.DownloadFileAsync(
+                    It.Is<DownloadConfiguration>(c => c.Url == new Uri(dbolicalUrl)),
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+        finally
+        {
+            Directory.Delete(targetDirectory, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// Verifies that repeated delivery calls return only their own manifest state.
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>

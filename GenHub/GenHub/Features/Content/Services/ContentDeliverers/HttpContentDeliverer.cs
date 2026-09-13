@@ -89,8 +89,7 @@ public class HttpContentDeliverer(
                 // Download the file
                 DownloadResult downloadResult;
                 if (Uri.TryCreate(file.DownloadUrl, UriKind.Absolute, out var fileUri) &&
-                    (fileUri.Host.Equals(ModDBConstants.Domain, StringComparison.OrdinalIgnoreCase) ||
-                     fileUri.Host.EndsWith("." + ModDBConstants.Domain, StringComparison.OrdinalIgnoreCase)) &&
+                    ModDBConstants.IsModDbOrDbolicalUri(fileUri) &&
                     playwrightService != null)
                 {
                     logger.LogInformation("Routing ModDB download through Playwright for {Url}", file.DownloadUrl);

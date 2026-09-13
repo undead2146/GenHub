@@ -1,3 +1,4 @@
+using System;
 using System.Diagnostics.CodeAnalysis;
 
 namespace GenHub.Core.Constants;
@@ -12,6 +13,9 @@ public static class ModDBConstants
 
     /// <summary>Domain name for ModDB.</summary>
     public const string Domain = "moddb.com";
+
+    /// <summary>Domain name for DBolical (ModDB parent network and CDN download mirrors).</summary>
+    public const string DBolicalDomain = "dbolical.com";
 
     /// <summary>Base URL for ModDB website.</summary>
     public const string BaseUrl = "https://www.moddb.com";
@@ -589,4 +593,39 @@ public static class ModDBConstants
         "Verify you are human",
         "Cloudflare",
     ];
+
+    // ===== Helper Methods =====
+
+    /// <summary>
+    /// Checks whether the specified URI belongs to the ModDB or DBolical network (including CDN download mirrors).
+    /// </summary>
+    /// <param name="uri">The URI to evaluate.</param>
+    /// <returns><see langword="true"/> if the URI uses HTTP/HTTPS and its host belongs to moddb.com, dbolical.com, or their subdomains; otherwise <see langword="false"/>.</returns>
+    public static bool IsModDbOrDbolicalUri(Uri? uri)
+    {
+        if (uri == null || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            return false;
+        }
+
+        return IsModDbOrDbolicalHost(uri.Host);
+    }
+
+    /// <summary>
+    /// Checks whether the specified host belongs to the ModDB or DBolical network (including CDN download mirrors).
+    /// </summary>
+    /// <param name="host">The host name to evaluate.</param>
+    /// <returns><see langword="true"/> if the host is moddb.com, dbolical.com, or any of their subdomains; otherwise <see langword="false"/>.</returns>
+    public static bool IsModDbOrDbolicalHost(string? host)
+    {
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            return false;
+        }
+
+        return host.Equals(Domain, StringComparison.OrdinalIgnoreCase) ||
+               host.EndsWith("." + Domain, StringComparison.OrdinalIgnoreCase) ||
+               host.Equals(DBolicalDomain, StringComparison.OrdinalIgnoreCase) ||
+               host.EndsWith("." + DBolicalDomain, StringComparison.OrdinalIgnoreCase);
+    }
 }

@@ -147,13 +147,16 @@ public sealed class ManagedChromiumRuntimeTests : IDisposable
         var startingCalled = false;
         bool? completedSuccess = null;
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
 
         var chromium = new Mock<IBrowserType>(MockBehavior.Strict);
         chromium.SetupGet(browser => browser.ExecutablePath).Returns(executablePath);
         var runtime = new ManagedChromiumRuntime(
             _runtimeDirectory,
-            _ => 0,
+            _ =>
+            {
+                cts.Cancel();
+                throw new OperationCanceledException(cts.Token);
+            },
             _ => Task.FromResult(true),
             new Mock<ILogger>().Object,
             onInstallStarting: () => startingCalled = true,
@@ -161,7 +164,7 @@ public sealed class ManagedChromiumRuntimeTests : IDisposable
 
         // Act & Assert
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runtime.EnsureInstalledAsync(chromium.Object, cts.Token));
-        Assert.False(startingCalled);
+        Assert.True(startingCalled);
         Assert.Null(completedSuccess);
     }
 

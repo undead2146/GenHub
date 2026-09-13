@@ -524,9 +524,7 @@ public sealed class PlaywrightService(
         ModDBConstants.BotProtectionTitleMarkers.Any(marker => title.Contains(marker, StringComparison.OrdinalIgnoreCase));
 
     private static bool IsModDbHost(Uri uri) =>
-        (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
-        (uri.Host.Equals("moddb.com", StringComparison.OrdinalIgnoreCase) ||
-         uri.Host.EndsWith(".moddb.com", StringComparison.OrdinalIgnoreCase));
+        ModDBConstants.IsModDbOrDbolicalUri(uri);
 
     private static bool IsModDbHost(string url) =>
         Uri.TryCreate(url, UriKind.Absolute, out var uri) && IsModDbHost(uri);
@@ -987,7 +985,7 @@ public sealed class PlaywrightService(
 
         logger.LogInformation("Download did not start automatically within 5s. Attempting to find fallback link...");
 
-        const string FallbackSelector = "a[href*='media.moddb.com'], a[href*='files.moddb.com'], a#download, a.download, a.btn-download, a.buttondownload, a[href*='/mirror/'], a[href*='/downloads/start/'], a[href*='/addons/start/']";
+        const string FallbackSelector = "a[href*='media.moddb.com'], a[href*='files.moddb.com'], a[href*='dl.dbolical.com'], a[href*='dbolical.com'], a#download, a.download, a.btn-download, a.buttondownload, a[href*='/mirror/'], a[href*='/downloads/start/'], a[href*='/addons/start/']";
 
         IElementHandle? fallbackLink = null;
         try
@@ -1026,7 +1024,7 @@ public sealed class PlaywrightService(
         {
             try
             {
-                var startPageFallback = await page.QuerySelectorAsync("a:has-text('click here'), a:has-text('Click here'), a[href*='media.moddb.com'], a[href*='files.moddb.com'], a[href*='/mirror/']");
+                var startPageFallback = await page.QuerySelectorAsync("a:has-text('click here'), a:has-text('Click here'), a[href*='media.moddb.com'], a[href*='files.moddb.com'], a[href*='dl.dbolical.com'], a[href*='dbolical.com'], a[href*='/mirror/']");
                 if (startPageFallback != null)
                 {
                     var startText = await startPageFallback.InnerTextAsync();
@@ -1692,8 +1690,8 @@ public sealed class PlaywrightService(
     {
         if (usePersistentModDbProfile && !IsModDbHost(download.Url))
         {
-            logger.LogWarning("Download URL {DownloadUrl} is not a valid ModDB URL. Aborting download.", download.Url);
-            throw new InvalidOperationException($"Download URL '{download.Url}' must be a ModDB URL for persistent profile.");
+            logger.LogWarning("Download URL {DownloadUrl} is not a valid ModDB or DBolical URL. Aborting download.", download.Url);
+            throw new InvalidOperationException($"Download URL '{download.Url}' must be a ModDB or DBolical URL for persistent profile.");
         }
 
         if (File.Exists(configuration.DestinationPath) && configuration.OverwriteExisting)
