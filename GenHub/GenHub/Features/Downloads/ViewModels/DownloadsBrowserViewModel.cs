@@ -929,6 +929,7 @@ public sealed partial class DownloadsBrowserViewModel(
         if (_suppressPublisherChangedRefresh)
         {
             _lastPopulatedPublisherId = value.PublisherId;
+            SelectedContent = null;
             return;
         }
 

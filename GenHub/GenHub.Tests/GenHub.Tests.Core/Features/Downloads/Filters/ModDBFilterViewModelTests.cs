@@ -81,15 +81,13 @@ public sealed class ModDBFilterViewModelTests
     [Fact]
     public void ClearFilters_ResetsSelections()
     {
-        var viewModel = new ModDBFilterViewModel
-        {
-            SelectedCategory = "1",
-            SelectedAddonCategory = "100",
-            SelectedLicense = "8",
-            SelectedTimeframe = "3",
-            SelectedSort = ModDBConstants.SortRatingDesc,
-        };
+        var viewModel = new ModDBFilterViewModel();
         viewModel.SetSectionCommand.Execute(ModDBSection.Addons);
+        viewModel.SelectedCategory = "1";
+        viewModel.SelectedAddonCategory = "100";
+        viewModel.SelectedLicense = "8";
+        viewModel.SelectedTimeframe = "3";
+        viewModel.SelectedSort = ModDBConstants.SortRatingDesc;
 
         Assert.True(viewModel.HasActiveFilters);
 
