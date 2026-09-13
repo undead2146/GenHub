@@ -626,9 +626,6 @@ public sealed class ReplayDirectoryService(
         return (client.Id is { } id1 && id1.Contains(ReplayManagerConstants.CommunityPatchHyphenatedKeyword, StringComparison.OrdinalIgnoreCase)) ||
                (client.Id is { } id2 && id2.Contains(ReplayManagerConstants.CommunityPatchKeyword, StringComparison.OrdinalIgnoreCase)) ||
                (client.Name is { } name && name.Contains(ReplayManagerConstants.CommunityPatchDisplayName, StringComparison.OrdinalIgnoreCase)) ||
-               string.Equals(client.PublisherType, PublisherTypeConstants.CommunityOutpost, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(client.PublisherType, PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase) ||
-               (client.ExecutablePath is { } exePath && exePath.EndsWith(GameClientConstants.SuperHackersZeroHourExecutable, StringComparison.OrdinalIgnoreCase)) ||
                (p.EnabledContentIds is { } contentIds && contentIds.Any(id => id.Contains(ReplayManagerConstants.CommunityPatchHyphenatedKeyword, StringComparison.OrdinalIgnoreCase) || id.Contains(ReplayManagerConstants.CommunityPatchKeyword, StringComparison.OrdinalIgnoreCase)));
     }
 
@@ -881,16 +878,16 @@ public sealed class ReplayDirectoryService(
 
         if (ctx.IsRetailMatch)
         {
+            if (!IsProfileExeCrcMatching(p, ctx.TargetExeCrc, ctx.CrcCalc, ctx.TargetLogger))
+            {
+                return false;
+            }
+
             if (ctx.GameVersion == GameType.ZeroHour &&
                 (string.IsNullOrEmpty(ctx.TargetExeCrc) || IsZeroHourRetailExeCrc(ctx.TargetExeCrc)) &&
                 IsCommunityPatchProfile(p))
             {
                 return IsProfileMatchingCommunityPatch(p, ctx.DataPatchManifestId);
-            }
-
-            if (!IsProfileExeCrcMatching(p, ctx.TargetExeCrc, ctx.CrcCalc, ctx.TargetLogger))
-            {
-                return false;
             }
 
             return IsProfileMatchingRetail(p, ctx.DataPatchManifestId);
@@ -905,9 +902,14 @@ public sealed class ReplayDirectoryService(
         IGameCrcCalculatorService? crcCalculator,
         ILogger? logger)
     {
-        if (crcCalculator == null || string.IsNullOrEmpty(targetExeCrc))
+        if (string.IsNullOrEmpty(targetExeCrc))
         {
             return true;
+        }
+
+        if (crcCalculator == null)
+        {
+            return false;
         }
 
         var exePath = ResolveProfileFullExePath(profile.GameClient);
@@ -971,13 +973,24 @@ public sealed class ReplayDirectoryService(
     private static bool IsProfileCrcMatching(
         string calculatedCrc,
         string targetExeCrc,
-        GameType gameVersion,
-        bool isCommunityPatch)
+        GameType gameVersion)
     {
-        return string.Equals(calculatedCrc, targetExeCrc, StringComparison.OrdinalIgnoreCase) ||
-               (IsZeroHourRetailExeCrc(calculatedCrc) && IsZeroHourRetailExeCrc(targetExeCrc)) ||
-               (IsGeneralsRetailExeCrc(calculatedCrc) && IsGeneralsRetailExeCrc(targetExeCrc)) ||
-               (gameVersion == GameType.ZeroHour && IsZeroHourRetailExeCrc(targetExeCrc) && isCommunityPatch);
+        if (string.Equals(calculatedCrc, targetExeCrc, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (gameVersion == GameType.ZeroHour)
+        {
+            return IsZeroHourRetailExeCrc(calculatedCrc) && IsZeroHourRetailExeCrc(targetExeCrc);
+        }
+
+        if (gameVersion == GameType.Generals)
+        {
+            return IsGeneralsRetailExeCrc(calculatedCrc) && IsGeneralsRetailExeCrc(targetExeCrc);
+        }
+
+        return false;
     }
 
     private static bool IsProfileMatchingCommunityPatch(GameProfile profile, string? dataPatchManifestId)
@@ -1502,7 +1515,6 @@ public sealed class ReplayDirectoryService(
             return acquiredIds.Any(id =>
                 id.Contains("community-patch", StringComparison.OrdinalIgnoreCase) ||
                 id.Contains("communitypatch", StringComparison.OrdinalIgnoreCase) ||
-                id.Contains(".thesuperhackers.gameclient.zerohour", StringComparison.OrdinalIgnoreCase) ||
                 id.Contains(".10zh.", StringComparison.OrdinalIgnoreCase));
         }
 
@@ -2809,7 +2821,7 @@ public sealed class ReplayDirectoryService(
 
         var calculatedExeCrc = await GetOrCalculateProfileExeCrcAsync(exePath, ct);
         if (string.IsNullOrEmpty(calculatedExeCrc) ||
-            !IsProfileCrcMatching(calculatedExeCrc, targetExeCrc, replay.GameVersion, IsCommunityPatchProfile(profile)))
+            !IsProfileCrcMatching(calculatedExeCrc, targetExeCrc, replay.GameVersion))
         {
             return null;
         }
@@ -2931,7 +2943,7 @@ public sealed class ReplayDirectoryService(
 
         var calculatedCrc = await GetOrCalculateProfileExeCrcAsync(exePath, ct);
         if (string.IsNullOrEmpty(calculatedCrc) ||
-            !IsProfileCrcMatching(calculatedCrc, targetExeCrc, replay.GameVersion, IsCommunityPatchProfile(profile)))
+            !IsProfileCrcMatching(calculatedCrc, targetExeCrc, replay.GameVersion))
         {
             return false;
         }

@@ -199,24 +199,24 @@ public static class ReplayManagerConstants
     public const uint RetailZeroHourExeCrcSteamValue = 0x401D89EA;
 
     /// <summary>
-    /// Hexadecimal Exe CRC string representing retail Generals 1.08 CD build ("0x1C96366F").
+    /// Hexadecimal Exe CRC string representing retail Generals 1.08 CD / First Decade build ("0x89C1F821").
     /// </summary>
-    public const string RetailGeneralsExeCrcFirstDecade = "0x1C96366F";
+    public const string RetailGeneralsExeCrcFirstDecade = "0x89C1F821";
 
     /// <summary>
-    /// Numeric Exe CRC representing retail Generals 1.08 CD build (0x1C96366F).
+    /// Numeric Exe CRC representing retail Generals 1.08 CD / First Decade build (0x89C1F821).
     /// </summary>
-    public const uint RetailGeneralsExeCrcFirstDecadeValue = 0x1C96366F;
+    public const uint RetailGeneralsExeCrcFirstDecadeValue = 0x89C1F821;
 
     /// <summary>
-    /// Hexadecimal Exe CRC string representing retail Generals 1.08 Steam / EA App build ("0x27533BB0").
+    /// Hexadecimal Exe CRC string representing retail Generals 1.08 Steam / EA App build ("0x1C96366F").
     /// </summary>
-    public const string RetailGeneralsExeCrcSteam = "0x27533BB0";
+    public const string RetailGeneralsExeCrcSteam = "0x1C96366F";
 
     /// <summary>
-    /// Numeric Exe CRC representing retail Generals 1.08 Steam / EA App build (0x27533BB0).
+    /// Numeric Exe CRC representing retail Generals 1.08 Steam / EA App build (0x1C96366F).
     /// </summary>
-    public const uint RetailGeneralsExeCrcSteamValue = 0x27533BB0;
+    public const uint RetailGeneralsExeCrcSteamValue = 0x1C96366F;
 
     /// <summary>
     /// Composite content ID pattern for GeneralsOnline client content.

@@ -350,15 +350,12 @@ public sealed partial class GameClientSelectionViewModel(
     {
         var hasMatchingTag = manifest.Metadata?.Tags is { } tags &&
                              tags.Any(t => string.Equals(t, ReplayManagerConstants.CommunityPatchHyphenatedKeyword, StringComparison.OrdinalIgnoreCase) ||
-                                           string.Equals(t, PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase));
+                                           string.Equals(t, ReplayManagerConstants.CommunityPatchKeyword, StringComparison.OrdinalIgnoreCase));
 
         return manifest.Id.Value.Contains(ReplayManagerConstants.CommunityPatchHyphenatedKeyword, StringComparison.OrdinalIgnoreCase) ||
                manifest.Id.Value.Contains(ReplayManagerConstants.CommunityPatchKeyword, StringComparison.OrdinalIgnoreCase) ||
                manifest.Name.Contains(ReplayManagerConstants.CommunityPatchDisplayName, StringComparison.OrdinalIgnoreCase) ||
-               hasMatchingTag ||
-               manifest.Id.Value.Contains(ReplayManagerConstants.TheSuperHackersGameClientSegment, StringComparison.OrdinalIgnoreCase) ||
-               (string.Equals(manifest.Publisher?.PublisherType, PublisherTypeConstants.CommunityOutpost, StringComparison.OrdinalIgnoreCase) &&
-                manifest.ContentType == ContentType.GameClient);
+               hasMatchingTag;
     }
 
     private static bool IsZeroHour104Manifest(ContentManifest manifest)
@@ -378,12 +375,7 @@ public sealed partial class GameClientSelectionViewModel(
 
     private static bool MatchesManifestHexOrTag(ContentManifest manifest, string? replayExeCrc)
     {
-        if (string.IsNullOrEmpty(replayExeCrc))
-        {
-            return false;
-        }
-
-        var rawHex = replayExeCrc.TrimStart('0', 'x', 'X');
+        var rawHex = NormalizeHex(replayExeCrc);
         if (string.IsNullOrEmpty(rawHex))
         {
             return false;
@@ -391,6 +383,22 @@ public sealed partial class GameClientSelectionViewModel(
 
         return manifest.Id.Value.Contains(rawHex, StringComparison.OrdinalIgnoreCase) ||
                (manifest.Metadata?.Tags is { } tags && tags.Any(t => string.Equals(t, rawHex, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static string NormalizeHex(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed[2..];
+        }
+
+        return trimmed.ToUpperInvariant();
     }
 
     private static bool IsCommunityPatchClient(GameClient client)
@@ -402,10 +410,7 @@ public sealed partial class GameClientSelectionViewModel(
 
         return (client.Id is { } id1 && id1.Contains(ReplayManagerConstants.CommunityPatchHyphenatedKeyword, StringComparison.OrdinalIgnoreCase)) ||
                (client.Id is { } id2 && id2.Contains(ReplayManagerConstants.CommunityPatchKeyword, StringComparison.OrdinalIgnoreCase)) ||
-               (client.Name is { } name && name.Contains(ReplayManagerConstants.CommunityPatchDisplayName, StringComparison.OrdinalIgnoreCase)) ||
-               string.Equals(client.PublisherType, PublisherTypeConstants.CommunityOutpost, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(client.PublisherType, PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase) ||
-               (client.ExecutablePath is { } exePath && exePath.EndsWith(GameClientConstants.SuperHackersZeroHourExecutable, StringComparison.OrdinalIgnoreCase));
+               (client.Name is { } name && name.Contains(ReplayManagerConstants.CommunityPatchDisplayName, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsReplayZeroHour104(GameType targetGame, string? replayExeCrc, CrcMappingEntry? matchedClient)

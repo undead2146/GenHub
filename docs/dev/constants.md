@@ -1695,10 +1695,10 @@ Constants specifically for the Replay Manager feature.
 | `RetailZeroHourExeCrcFirstDecadeValue` | `0xDA2B4B18` | Numeric Exe CRC for retail Zero Hour CD / First Decade |
 | `RetailZeroHourExeCrcSteam` | `"0x401D89EA"` | Hexadecimal Exe CRC string for retail Zero Hour Steam / EA App |
 | `RetailZeroHourExeCrcSteamValue` | `0x401D89EA` | Numeric Exe CRC for retail Zero Hour Steam / EA App |
-| `RetailGeneralsExeCrcFirstDecade` | `"0x1C96366F"` | Hexadecimal Exe CRC string for retail Generals CD |
-| `RetailGeneralsExeCrcFirstDecadeValue` | `0x1C96366F` | Numeric Exe CRC for retail Generals CD |
-| `RetailGeneralsExeCrcSteam` | `"0x27533BB0"` | Hexadecimal Exe CRC string for retail Generals Steam / EA App |
-| `RetailGeneralsExeCrcSteamValue` | `0x27533BB0` | Numeric Exe CRC for retail Generals Steam / EA App |
+| `RetailGeneralsExeCrcFirstDecade` | `"0x89C1F821"` | Hexadecimal Exe CRC string for retail Generals CD / First Decade |
+| `RetailGeneralsExeCrcFirstDecadeValue` | `0x89C1F821` | Numeric Exe CRC for retail Generals CD / First Decade |
+| `RetailGeneralsExeCrcSteam` | `"0x1C96366F"` | Hexadecimal Exe CRC string for retail Generals Steam / EA App |
+| `RetailGeneralsExeCrcSteamValue` | `0x1C96366F` | Numeric Exe CRC for retail Generals Steam / EA App |
 | `GeneralsOnlineContentIdPattern` | `"GeneralsOnline_{0}"` | Composite content ID pattern for GeneralsOnline client content |
 | `ThirdPartyClientContentIdPattern` | `"Client_{0}_{1}"` | Composite content ID pattern for third-party client content |
 

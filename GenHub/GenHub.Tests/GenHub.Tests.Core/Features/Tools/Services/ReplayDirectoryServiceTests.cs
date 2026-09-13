@@ -2138,6 +2138,127 @@ public sealed class ReplayDirectoryServiceTests
     }
 
     /// <summary>
+    /// Verifies that FindMatchingProfile does not match a TheSuperHackers weekly profile to a retail 1.04 replay.
+    /// </summary>
+    [Fact]
+    public void FindMatchingProfile_WhenRetailReplay_DoesNotMatchTheSuperHackersWeeklyProfile()
+    {
+        var replay = new ReplayFile
+        {
+            FileName = "00000000.rep",
+            FullPath = "/replays/00000000.rep",
+            SizeInBytes = 1024,
+            LastModified = DateTime.UtcNow,
+            GameVersion = GameType.ZeroHour,
+            MatchedClient = new CrcMappingEntry
+            {
+                Publisher = "retail",
+                ManifestId = "1.104.retail.gameclient.zerohour",
+                Version = "1.04",
+                ExeCrc = ReplayManagerConstants.RetailZeroHourExeCrcSteam,
+            },
+            Metadata = new ReplayMetadata
+            {
+                ExeCrc = ReplayManagerConstants.RetailZeroHourExeCrcSteamValue,
+                IniCrc = 0x76B251A3,
+            },
+        };
+
+        var tshProfile = new GameProfile
+        {
+            Id = "tsh-weekly-id",
+            Name = "TheSuperHackers ZeroHour Weekly",
+            GameClient = new GameClient
+            {
+                Id = "1.20260821.thesuperhackers.gameclient.zerohour",
+                GameType = GameType.ZeroHour,
+                PublisherType = PublisherTypeConstants.TheSuperHackers,
+                ExecutablePath = GameClientConstants.SuperHackersZeroHourExecutable,
+            },
+            EnabledContentIds = ["1.20260821.thesuperhackers.gameclient.zerohour"],
+        };
+
+        var match = ReplayDirectoryService.FindMatchingProfile(
+            [tshProfile],
+            GameType.ZeroHour,
+            "1.104.retail.gameclient.zerohour",
+            null,
+            replay);
+
+        Assert.Null(match);
+    }
+
+    /// <summary>
+    /// Verifies that FindCompatibleProfiles excludes a TheSuperHackers weekly profile with a non-retail EXE CRC for a retail 1.04 replay.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task FindCompatibleProfilesAsync_WhenProfileIsTheSuperHackersWeekly_ExcludesProfileForRetailReplayAsync()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "genhub_test_tsh_weekly_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var fakeExePath = Path.Combine(tempDir, "generalszh.exe");
+        File.WriteAllText(fakeExePath, "fake-binary-content");
+
+        try
+        {
+            var replay = new ReplayFile
+            {
+                FileName = "RetailZH104.rep",
+                FullPath = "/test/RetailZH104.rep",
+                SizeInBytes = 2048,
+                LastModified = DateTime.UtcNow,
+                GameVersion = GameType.ZeroHour,
+                MatchedClient = new CrcMappingEntry
+                {
+                    ManifestId = "1.104.retail.gameclient.zerohour",
+                    ExeCrc = ReplayManagerConstants.RetailZeroHourExeCrcSteam,
+                },
+                Metadata = new ReplayMetadata
+                {
+                    ExeCrc = ReplayManagerConstants.RetailZeroHourExeCrcSteamValue,
+                    IniCrc = 0x76B251A3,
+                },
+            };
+
+            var tshProfile = new GameProfile
+            {
+                Id = "tsh-profile",
+                Name = "TheSuperHackers Weekly Profile",
+                GameClient = new GameClient
+                {
+                    Id = "1.20260821.thesuperhackers.gameclient.zerohour",
+                    GameType = GameType.ZeroHour,
+                    PublisherType = PublisherTypeConstants.TheSuperHackers,
+                    ExecutablePath = fakeExePath,
+                },
+                EnabledContentIds = ["1.20260821.thesuperhackers.gameclient.zerohour"],
+            };
+
+            var mockCrcCalc = new Mock<IGameCrcCalculatorService>();
+            mockCrcCalc
+                .Setup(c => c.CalculateExeCrcAsync(fakeExePath, It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(OperationResult<string>.CreateSuccess("0x27533BB0"));
+
+            var profiles = new List<GameProfile> { tshProfile };
+            var results = await ReplayDirectoryService.FindCompatibleProfilesAsync(
+                profiles,
+                replay,
+                null,
+                mockCrcCalc.Object);
+
+            Assert.Empty(results);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    /// <summary>
     /// Verifies that LaunchReplayAsync clears incompatible profile reference and creates a compatible profile when the referenced profile is third-party but the replay is retail.
     /// </summary>
     /// <returns>A task representing the asynchronous unit test.</returns>
