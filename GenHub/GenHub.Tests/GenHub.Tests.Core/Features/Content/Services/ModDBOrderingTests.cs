@@ -47,9 +47,6 @@ public sealed class ModDBOrderingTests
         };
 
         // Assert
-        Assert.Equal(ModDBConstants.DefaultSort, filter.Sort);
-        Assert.Equal(ModDBConstants.SortDateDesc, filter.Sort);
-
         var queryString = filter.ToQueryString();
         Assert.Contains("sort=date-desc", queryString, StringComparison.Ordinal);
         Assert.Contains("kw=contra", queryString, StringComparison.Ordinal);

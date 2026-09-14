@@ -228,7 +228,7 @@ public class ModDBResolver(
         var description = context.Description ?? discoveredItem.Description ?? string.Empty;
 
         // Use author from context or discovered item
-        var author = context.Developer ?? discoveredItem.AuthorName ?? "unknown";
+        var author = context.Developer ?? discoveredItem.AuthorName ?? ModDBConstants.DefaultAuthor;
 
         // The page title is the user-facing content name. The file name is retained separately
         // as FileType's extension so the manifest can stage the real archive name (for example

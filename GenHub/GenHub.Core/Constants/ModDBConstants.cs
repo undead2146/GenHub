@@ -21,7 +21,7 @@ public static class ModDBConstants
     public const string BaseUrl = "https://www.moddb.com";
 
     /// <summary>Domain name fragment for ModDB URLs.</summary>
-    public const string DomainFragment = "moddb.com";
+    public const string DomainFragment = Domain;
 
     /// <summary>URL path fragment identifying mods.</summary>
     public const string ModsPathFragment = "/mods/";
@@ -90,29 +90,11 @@ public static class ModDBConstants
     /// <summary>Addons section name.</summary>
     public const string AddonsSection = "addons";
 
-    /// <summary>Articles URL path segment.</summary>
-    public const string ArticlesSegment = "/articles";
-
     /// <summary>Games URL path segment.</summary>
     public const string GamesSegment = "/games/";
 
     /// <summary>Games section name.</summary>
     public const string GamesSection = "games";
-
-    /// <summary>News URL path segment.</summary>
-    public const string NewsSegment = "/news";
-
-    /// <summary>Tutorials URL path segment.</summary>
-    public const string TutorialsSegment = "/tutorials";
-
-    /// <summary>Videos URL path segment.</summary>
-    public const string VideosSegment = "/videos";
-
-    /// <summary>Images URL path segment.</summary>
-    public const string ImagesSegment = "/images";
-
-    /// <summary>Reviews URL path segment.</summary>
-    public const string ReviewsSegment = "/reviews";
 
     /// <summary>Placeholder blank gif image filename.</summary>
     public const string BlankGifFileName = "blank.gif";
@@ -130,9 +112,6 @@ public static class ModDBConstants
 
     /// <summary>Canonical lowercase identifier for ModDB.</summary>
     public const string CanonicalIdentifier = "moddb";
-
-    /// <summary>Canonical identifier string for ModDB.</summary>
-    public const string ModDbKey = CanonicalIdentifier;
 
     /// <summary>Publisher prefix for ModDB content (to be combined with author: moddb-{author}).</summary>
     public const string PublisherPrefix = CanonicalIdentifier;
@@ -308,6 +287,9 @@ public static class ModDBConstants
 
     // Downloads Section - Releases
 
+    /// <summary>Category: Releases.</summary>
+    public const string CategoryReleases = "1";
+
     /// <summary>Category: Full Version (Mod).</summary>
     public const string CategoryFullVersion = "2";
 
@@ -325,6 +307,9 @@ public static class ModDBConstants
 
     // Downloads Section - Media
 
+    /// <summary>Category: Media.</summary>
+    public const string CategoryMedia = "6";
+
     /// <summary>Category: Trailer (Video).</summary>
     public const string CategoryTrailer = "7";
 
@@ -341,6 +326,9 @@ public static class ModDBConstants
     public const string CategoryWallpaper = "10";
 
     // Downloads Section - Tools
+
+    /// <summary>Category: Tools.</summary>
+    public const string CategoryTools = "11";
 
     /// <summary>Category: Archive Tool.</summary>
     public const string CategoryArchiveTool = "20";
@@ -369,7 +357,16 @@ public static class ModDBConstants
     /// <summary>Category: Source Code.</summary>
     public const string CategorySourceCode = "26";
 
+    /// <summary>Category: RTX Remix.</summary>
+    public const string CategoryRTXRemix = "31";
+
+    /// <summary>Category: RTX.conf.</summary>
+    public const string CategoryRTXConf = "32";
+
     // Downloads Section - Miscellaneous
+
+    /// <summary>Category: Miscellaneous.</summary>
+    public const string CategoryMiscellaneous = "21";
 
     /// <summary>Category: Guide.</summary>
     public const string CategoryGuide = "22";
@@ -385,6 +382,9 @@ public static class ModDBConstants
 
     // Addons Section - Maps
 
+    /// <summary>Addon Category: Maps.</summary>
+    public const string AddonMaps = "100";
+
     /// <summary>Addon Category: Multiplayer Map.</summary>
     public const string AddonMultiplayerMap = "101";
 
@@ -395,6 +395,9 @@ public static class ModDBConstants
     public const string AddonPrefab = "103";
 
     // Addons Section - Models
+
+    /// <summary>Addon Category: Models.</summary>
+    public const string AddonModels = "104";
 
     /// <summary>Addon Category: Player Model.</summary>
     public const string AddonPlayerModel = "106";
@@ -413,6 +416,9 @@ public static class ModDBConstants
 
     // Addons Section - Skins
 
+    /// <summary>Addon Category: Skins.</summary>
+    public const string AddonSkins = "110";
+
     /// <summary>Addon Category: Player Skin.</summary>
     public const string AddonPlayerSkin = "112";
 
@@ -430,6 +436,9 @@ public static class ModDBConstants
 
     // Addons Section - Audio
 
+    /// <summary>Addon Category: Audio.</summary>
+    public const string AddonAudio = "116";
+
     /// <summary>Addon Category: Music.</summary>
     public const string AddonMusic = "117";
 
@@ -443,6 +452,9 @@ public static class ModDBConstants
     public const string AddonAudioPack = "118";
 
     // Addons Section - Graphics
+
+    /// <summary>Addon Category: Graphics.</summary>
+    public const string AddonGraphics = "123";
 
     /// <summary>Addon Category: Decal.</summary>
     public const string AddonDecal = "124";
@@ -461,6 +473,35 @@ public static class ModDBConstants
 
     /// <summary>Addon Category: Texture.</summary>
     public const string AddonTexture = "129";
+
+    // ===== License Values =====
+
+    /// <summary>License: Commercial.</summary>
+    public const string LicenseCommercial = "1";
+
+    /// <summary>License: Creative Commons.</summary>
+    public const string LicenseCreativeCommons = "2";
+
+    /// <summary>License: Proprietary.</summary>
+    public const string LicenseProprietary = "3";
+
+    /// <summary>License: Public Domain.</summary>
+    public const string LicensePublicDomain = "4";
+
+    /// <summary>License: GPL.</summary>
+    public const string LicenseGPL = "5";
+
+    /// <summary>License: L-GPL.</summary>
+    public const string LicenseLGPL = "6";
+
+    /// <summary>License: BSD.</summary>
+    public const string LicenseBSD = "7";
+
+    /// <summary>License: MIT.</summary>
+    public const string LicenseMIT = "8";
+
+    /// <summary>License: Zlib.</summary>
+    public const string LicenseZlib = "9";
 
     // ===== Metadata Keys =====
 
@@ -551,6 +592,20 @@ public static class ModDBConstants
 
     /// <summary>Timeframe: Year or older.</summary>
     public const string TimeframeYearOrOlder = "5";
+
+    // ===== Cloudflare Verification Notifications =====
+
+    /// <summary>Title for the ModDB Cloudflare verification required toast.</summary>
+    public const string VerificationRequiredTitle = "ModDB Verification Required";
+
+    /// <summary>Message for the ModDB Cloudflare verification required toast.</summary>
+    public const string VerificationRequiredMessage = "A browser window was opened for Cloudflare verification. Please complete the verification in the browser to continue.";
+
+    /// <summary>Title for the ModDB Cloudflare verification cleared toast.</summary>
+    public const string VerificationClearedTitle = "ModDB Verification Cleared";
+
+    /// <summary>Message for the ModDB Cloudflare verification cleared toast.</summary>
+    public const string VerificationClearedMessage = "Verification completed successfully.";
 
     // ===== Managed Chromium Runtime Notifications =====
 

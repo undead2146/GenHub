@@ -391,17 +391,17 @@ public sealed class PlaywrightService(
             logger.LogInformation("Starting Playwright download from {Url}", configuration.Url);
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-            var isModDb = IsModDbOrDbolicalHost(configuration.Url);
-            var usePersistentModDbProfile = isModDb && configuration.Url.Scheme == Uri.UriSchemeHttps;
+            var isModDbOrDbolical = IsModDbOrDbolicalHost(configuration.Url);
+            var usePersistentModDbOrDbolicalProfile = isModDbOrDbolical && configuration.Url.Scheme == Uri.UriSchemeHttps;
 
-            if (isModDb && !usePersistentModDbProfile)
+            if (isModDbOrDbolical && !usePersistentModDbOrDbolicalProfile)
             {
                 logger.LogDebug("Download URL {Url} uses HTTP; persistent ModDB profile will not be used.", configuration.Url);
             }
 
             // Headed ModDB profile is shared with FetchPersistentHtmlAsync / multi-URL sweeps —
             // serialize so a download cannot relaunch Chromium while a section page is mid-Goto.
-            var isOuterSession = usePersistentModDbProfile && !_isInPersistentSession.Value;
+            var isOuterSession = usePersistentModDbOrDbolicalProfile && !_isInPersistentSession.Value;
             if (isOuterSession)
             {
                 await _persistentFetchLock.WaitAsync(cancellationToken);
@@ -410,7 +410,7 @@ public sealed class PlaywrightService(
 
             try
             {
-                return await DownloadFileCoreAsync(configuration, usePersistentModDbProfile, stopwatch, cancellationToken);
+                return await DownloadFileCoreAsync(configuration, usePersistentModDbOrDbolicalProfile, stopwatch, cancellationToken);
             }
             finally
             {
@@ -985,7 +985,7 @@ public sealed class PlaywrightService(
 
         logger.LogInformation("Download did not start automatically within 5s. Attempting to find fallback link...");
 
-        const string FallbackSelector = "a[href*='media.moddb.com'], a[href*='files.moddb.com'], a[href*='dl.dbolical.com'], a[href*='dbolical.com'], a#download, a.download, a.btn-download, a.buttondownload, a[href*='/mirror/'], a[href*='/downloads/start/'], a[href*='/addons/start/']";
+        const string FallbackSelector = "a[href*='media.moddb.com'], a[href*='files.moddb.com'], a[href*='dl.dbolical.com'], a[href*='.dbolical.com/'], a#download, a.download, a.btn-download, a.buttondownload, a[href*='/mirror/'], a[href*='/downloads/start/'], a[href*='/addons/start/']";
 
         IElementHandle? fallbackLink = null;
         try
@@ -1147,7 +1147,10 @@ public sealed class PlaywrightService(
             var playwright = await EnsureManagedPlaywrightAsync(cancellationToken);
             Directory.CreateDirectory(profileDir);
 
-            var profileLabel = Path.GetFileName(profileDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            var profileDirName = Path.GetFileName(profileDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            var profileLabel = string.Equals(profileDirName, ModDBConstants.CanonicalIdentifier, StringComparison.OrdinalIgnoreCase)
+                ? "ModDB"
+                : profileDirName;
             NotifyBrowserWindowOpening(
                 $"Opening {profileLabel} Browser",
                 $"A browser window is opening to load {profileLabel} content. Please do not close it.");
@@ -1537,8 +1540,8 @@ public sealed class PlaywrightService(
                             url);
                         verificationObserved = true;
                         notificationService?.ShowWarning(
-                            "ModDB Verification Required",
-                            "A browser window was opened for Cloudflare verification. Please complete the verification in the browser to continue.",
+                            ModDBConstants.VerificationRequiredTitle,
+                            ModDBConstants.VerificationRequiredMessage,
                             NotificationDurations.VeryLong);
                     }
                 }
@@ -1548,8 +1551,8 @@ public sealed class PlaywrightService(
                     {
                         logger.LogInformation("ModDB verification completed; parsing content from {Url}", url);
                         notificationService?.ShowSuccess(
-                            "ModDB Verification Cleared",
-                            "Verification completed successfully.",
+                            ModDBConstants.VerificationClearedTitle,
+                            ModDBConstants.VerificationClearedMessage,
                             NotificationDurations.Medium);
                     }
 
@@ -1688,10 +1691,10 @@ public sealed class PlaywrightService(
         System.Diagnostics.Stopwatch stopwatch,
         CancellationToken cancellationToken)
     {
-        if (usePersistentModDbProfile && !IsModDbOrDbolicalHost(download.Url))
+        if (usePersistentModDbProfile && !IsHttpsModDbOrDbolicalUrl(download.Url))
         {
-            logger.LogWarning("Download URL {DownloadUrl} is not a valid ModDB or DBolical URL. Aborting download.", download.Url);
-            throw new InvalidOperationException($"Download URL '{download.Url}' must be a ModDB or DBolical URL for persistent profile.");
+            logger.LogWarning("Download URL {DownloadUrl} is not a valid HTTPS ModDB or DBolical URL. Aborting download.", download.Url);
+            throw new InvalidOperationException($"Download URL '{download.Url}' must be a secure HTTPS ModDB or DBolical URL for persistent profile.");
         }
 
         if (File.Exists(configuration.DestinationPath) && configuration.OverwriteExisting)

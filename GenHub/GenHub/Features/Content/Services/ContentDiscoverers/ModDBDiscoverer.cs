@@ -169,19 +169,18 @@ public partial class ModDBDiscoverer(
     /// <returns>The extracted slug identifier or a generated fallback GUID string.</returns>
     internal static string ExtractModDBIdFromUrl(string url)
     {
-        try
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Segments.Length > 0)
         {
-            var uri = new Uri(url);
+            var segment = uri.Segments[^1].Trim('/');
+            if (!string.IsNullOrEmpty(segment))
+            {
+                return segment;
+            }
+        }
 
-            // http://.../mods/contra
-            // http://.../downloads/contra-009
-            var segments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            return segments.Length > 0 ? segments[^1] : Guid.NewGuid().ToString();
-        }
-        catch
-        {
-            return Guid.NewGuid().ToString();
-        }
+        using var sha = System.Security.Cryptography.SHA256.Create();
+        var hash = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(url ?? string.Empty));
+        return Convert.ToHexString(hash)[..16].ToLowerInvariant();
     }
 
     /// <summary>
@@ -367,11 +366,19 @@ public partial class ModDBDiscoverer(
         return false;
     }
 
+    private static readonly string[] ValidPathPrefixes =
+    [
+        ModDBConstants.ModsPathFragment,
+        ModDBConstants.GamesSegment,
+        ModDBConstants.DownloadsSegment,
+        ModDBConstants.AddonsSegment,
+    ];
+
     private static bool TryNormalizeDomainModDBUrl(string trimmed, [NotNullWhen(true)] out string? normalizedUrl)
     {
         normalizedUrl = null;
-        if ((trimmed.StartsWith("moddb.com", StringComparison.OrdinalIgnoreCase) ||
-             trimmed.StartsWith("www.moddb.com", StringComparison.OrdinalIgnoreCase)) &&
+        if ((trimmed.StartsWith(ModDBConstants.Domain, StringComparison.OrdinalIgnoreCase) ||
+             trimmed.StartsWith("www." + ModDBConstants.Domain, StringComparison.OrdinalIgnoreCase)) &&
             Uri.TryCreate("https://" + trimmed, UriKind.Absolute, out var uri) &&
             IsModDBHost(uri.Host))
         {
@@ -385,8 +392,7 @@ public partial class ModDBDiscoverer(
     private static bool TryNormalizeRelativeModDBUrl(string trimmed, [NotNullWhen(true)] out string? normalizedUrl)
     {
         normalizedUrl = null;
-        var validPrefixes = new[] { "/mods/", "/games/", "/downloads/", "/addons/" };
-        if (validPrefixes.Any(p => trimmed.StartsWith(p, StringComparison.OrdinalIgnoreCase)) &&
+        if (ValidPathPrefixes.Any(p => trimmed.StartsWith(p, StringComparison.OrdinalIgnoreCase)) &&
             Uri.TryCreate(ModDBConstants.BaseUrl.TrimEnd('/') + trimmed, UriKind.Absolute, out var uri))
         {
             normalizedUrl = uri.AbsoluteUri;
@@ -398,8 +404,7 @@ public partial class ModDBDiscoverer(
 
     private static bool IsModDBHost(string host)
     {
-        return host.Equals("moddb.com", StringComparison.OrdinalIgnoreCase) ||
-               host.EndsWith(".moddb.com", StringComparison.OrdinalIgnoreCase);
+        return ModDBConstants.IsModDbOrDbolicalHost(host);
     }
 
     private static List<string> DetermineSectionsToSearch(ContentSearchQuery query)
@@ -440,10 +445,17 @@ public partial class ModDBDiscoverer(
             filter.Category = query.ModDBCategory;
         }
 
-        // Apply AddonCategory filter (for categoryaddon param)
+        // Apply AddonCategory filter (for categoryaddon param in Downloads or category param in Addons)
         if (!string.IsNullOrWhiteSpace(query.ModDBAddonCategory))
         {
-            filter.AddonCategory = query.ModDBAddonCategory;
+            if (string.Equals(query.ModDBSection, ModDBConstants.AddonsSection, StringComparison.OrdinalIgnoreCase))
+            {
+                filter.Category = query.ModDBAddonCategory;
+            }
+            else
+            {
+                filter.AddonCategory = query.ModDBAddonCategory;
+            }
         }
 
         // Apply License filter
@@ -573,17 +585,9 @@ public partial class ModDBDiscoverer(
             ?? img.GetAttribute("src")
             ?? string.Empty;
 
-        if (!string.IsNullOrEmpty(iconUrl) && iconUrl.Contains("blank.gif", StringComparison.OrdinalIgnoreCase))
-        {
-            iconUrl = img.GetAttribute("data-src")
-                ?? img.GetAttribute("data-original")
-                ?? img.GetAttribute("data-lazy-src")
-                ?? string.Empty;
-        }
-
         if (!string.IsNullOrEmpty(iconUrl))
         {
-            if (iconUrl.Contains("blank.gif", StringComparison.OrdinalIgnoreCase))
+            if (iconUrl.Contains(ModDBConstants.BlankGifFileName, StringComparison.OrdinalIgnoreCase))
             {
                 iconUrl = string.Empty;
             }
@@ -698,7 +702,11 @@ public partial class ModDBDiscoverer(
         }
 
         return title.Contains("Just a moment", StringComparison.OrdinalIgnoreCase)
-            || title.Contains("Attention Required", StringComparison.OrdinalIgnoreCase);
+            || title.Contains("Attention Required", StringComparison.OrdinalIgnoreCase)
+            || title.Contains("Please wait", StringComparison.OrdinalIgnoreCase)
+            || title.Contains("Verifying you are human", StringComparison.OrdinalIgnoreCase)
+            || title.Contains("Checking your browser", StringComparison.OrdinalIgnoreCase)
+            || title.Contains("Cloudflare", StringComparison.OrdinalIgnoreCase);
     }
 
     [GeneratedRegex(@"(https?://[^/]+/mods/[^/]+)")]
@@ -801,7 +809,7 @@ public partial class ModDBDiscoverer(
 
         if (string.IsNullOrWhiteSpace(title))
         {
-            title = ExtractModDBIdFromUrl(url);
+            return null;
         }
 
         var authorLink = document.QuerySelector("a[href*='/members/'], a[href*='/company/'], span.by a, span.author a, .subheading a, td.content.name span.author a");
@@ -871,7 +879,7 @@ public partial class ModDBDiscoverer(
             // capped at ten items and made the verified catalogue appear to regress. The browser
             // page stays open for the user to complete Cloudflare, then a refresh loads the real
             // paginated list from the persisted clearance profile.
-            return ([], true, keepOpen, true);
+            return ([], false, keepOpen, true);
         }
 
         if (scrapeResults.Count > 0)
@@ -924,7 +932,9 @@ public partial class ModDBDiscoverer(
                 section,
                 url);
 
+            cancellationToken.ThrowIfCancellationRequested();
             await page.GotoAsync(url, new PageGotoOptions { Timeout = ModDBConstants.DefaultGotoTimeout, WaitUntil = WaitUntilState.Commit });
+            cancellationToken.ThrowIfCancellationRequested();
 
             var (document, keepPageOpen, challengeObserved) = await LoadPageDocumentAsync(page, url, cancellationToken);
             if (document == null)
@@ -972,8 +982,8 @@ public partial class ModDBDiscoverer(
             {
                 logger.LogInformation("[ModDB] Cloudflare challenge cleared for {Url}; parsing the listing.", url);
                 notificationService?.ShowSuccess(
-                    "ModDB Verification Cleared",
-                    "Verification completed successfully.",
+                    ModDBConstants.VerificationClearedTitle,
+                    ModDBConstants.VerificationClearedMessage,
                     NotificationDurations.Medium);
             }
         }
@@ -1001,8 +1011,8 @@ public partial class ModDBDiscoverer(
                             url,
                             title);
                         notificationService?.ShowWarning(
-                            "ModDB Verification Required",
-                            "A browser window was opened for Cloudflare verification. Please complete the verification in the browser to continue.",
+                            ModDBConstants.VerificationRequiredTitle,
+                            ModDBConstants.VerificationRequiredMessage,
                             NotificationDurations.VeryLong);
                         try
                         {
@@ -1030,7 +1040,7 @@ public partial class ModDBDiscoverer(
                 if (string.Equals(readyState, "complete", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(readyState, "interactive", StringComparison.OrdinalIgnoreCase))
                 {
-                    var hasPageContainer = await page.QuerySelectorAsync("div#sitecontainer, div#body, div.panes, div.column, div.main, footer, form") != null;
+                    var hasPageContainer = await page.QuerySelectorAsync("div#sitecontainer, div#body, div.panes, div.column, div.main, footer") != null;
                     if (hasPageContainer)
                     {
                         NotifyChallengeClearedIfObserved();
@@ -1175,6 +1185,10 @@ public partial class ModDBDiscoverer(
                 results.Add(result);
             }
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "[ModDB] RSS fallback failed for section '{Section}'", section);
@@ -1193,7 +1207,9 @@ public partial class ModDBDiscoverer(
         try
         {
             logger.LogInformation("[ModDB] Navigating directly to requested URL: {Url}", url);
+            cancellationToken.ThrowIfCancellationRequested();
             await page.GotoAsync(url, new PageGotoOptions { Timeout = ModDBConstants.DefaultGotoTimeout, WaitUntil = WaitUntilState.Commit });
+            cancellationToken.ThrowIfCancellationRequested();
 
             var (document, keepPageOpen, challengeObserved) = await LoadPageDocumentAsync(page, url, cancellationToken);
             if (document == null)

@@ -133,4 +133,44 @@ public sealed class ModDBFilterViewModelTests
 
         Assert.Contains("Section: Addons", summaries);
     }
+
+    /// <summary>
+    /// Verifies that when Addons section is active, SelectedAddonCategory maps to ModDBCategory on the search query.
+    /// </summary>
+    [Fact]
+    public void ApplyFilters_AddonsSection_MapsAddonCategoryToModDBCategory()
+    {
+        var viewModel = new ModDBFilterViewModel();
+        viewModel.SetSectionCommand.Execute(ModDBSection.Addons);
+        viewModel.SelectedAddonCategory = ModDBConstants.AddonMaps;
+
+        var query = viewModel.ApplyFilters(new ContentSearchQuery());
+
+        Assert.Equal(ModDBConstants.AddonsSection, query.ModDBSection);
+        Assert.Equal(ModDBConstants.AddonMaps, query.ModDBCategory);
+        Assert.Null(query.ModDBAddonCategory);
+    }
+
+    /// <summary>
+    /// Verifies that re-invoking SetSection with the current section re-raises property changes for toggle button bindings.
+    /// </summary>
+    [Fact]
+    public void SetSection_SameSection_RaisesPropertyChanged()
+    {
+        var viewModel = new ModDBFilterViewModel();
+        var raisedProperties = new System.Collections.Generic.List<string>();
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != null)
+            {
+                raisedProperties.Add(e.PropertyName);
+            }
+        };
+
+        viewModel.SetSectionCommand.Execute(ModDBSection.Downloads);
+
+        Assert.Contains(nameof(ModDBFilterViewModel.IsDownloadsSelected), raisedProperties);
+        Assert.Contains(nameof(ModDBFilterViewModel.IsAddonsSelected), raisedProperties);
+        Assert.Contains(nameof(ModDBFilterViewModel.IsModsSelected), raisedProperties);
+    }
 }

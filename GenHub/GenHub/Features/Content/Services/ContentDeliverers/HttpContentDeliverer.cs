@@ -87,25 +87,7 @@ public class HttpContentDeliverer(
                 });
 
                 // Download the file
-                DownloadResult downloadResult;
-                if (Uri.TryCreate(file.DownloadUrl, UriKind.Absolute, out var fileUri) &&
-                    ModDBConstants.IsModDbOrDbolicalUri(fileUri) &&
-                    playwrightService != null)
-                {
-                    logger.LogInformation("Routing ModDB download through Playwright for {Url}", file.DownloadUrl);
-                    var downloadConfig = new DownloadConfiguration
-                    {
-                        Url = fileUri,
-                        DestinationPath = localPath,
-                        OverwriteExisting = true,
-                    };
-                    downloadResult = await playwrightService.DownloadFileAsync(downloadConfig, cancellationToken);
-                }
-                else
-                {
-                    downloadResult = await downloadService.DownloadFileAsync(
-                        new Uri(file.DownloadUrl!), localPath, file.Hash, null, cancellationToken);
-                }
+                var downloadResult = await DownloadFileAsync(file, localPath, cancellationToken);
 
                 if (!downloadResult.Success)
                 {
@@ -173,5 +155,28 @@ public class HttpContentDeliverer(
         }
 
         return targetPath;
+    }
+
+    private async Task<DownloadResult> DownloadFileAsync(
+        ManifestFile file,
+        string localPath,
+        CancellationToken cancellationToken)
+    {
+        if (Uri.TryCreate(file.DownloadUrl, UriKind.Absolute, out var fileUri) &&
+            ModDBConstants.IsModDbOrDbolicalUri(fileUri) &&
+            playwrightService != null)
+        {
+            logger.LogInformation("Routing ModDB download through Playwright for {Url}", file.DownloadUrl);
+            var downloadConfig = new DownloadConfiguration
+            {
+                Url = fileUri,
+                DestinationPath = localPath,
+                OverwriteExisting = true,
+            };
+            return await playwrightService.DownloadFileAsync(downloadConfig, cancellationToken);
+        }
+
+        return await downloadService.DownloadFileAsync(
+            new Uri(file.DownloadUrl!), localPath, file.Hash, null, cancellationToken);
     }
 }

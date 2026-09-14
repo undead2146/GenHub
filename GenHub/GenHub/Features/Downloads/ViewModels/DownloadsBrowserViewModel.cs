@@ -1095,6 +1095,20 @@ public sealed partial class DownloadsBrowserViewModel(
             var moddbPublisher = Publishers.FirstOrDefault(p => p.PublisherId == ModDBConstants.PublisherType);
             if (moddbPublisher != null)
             {
+                // Restore outgoing publisher's original search term before triggering SelectedPublisher change,
+                // so the outgoing publisher's cached browse state is not polluted with the pasted ModDB URL.
+                string? restoredSearchTerm = null;
+                lock (_cacheLock)
+                {
+                    if (!string.IsNullOrEmpty(_lastPopulatedPublisherId) &&
+                        _browseCache.TryGetValue(_lastPopulatedPublisherId, out var state))
+                    {
+                        restoredSearchTerm = state.SearchTerm;
+                    }
+                }
+
+                SearchTerm = restoredSearchTerm ?? string.Empty;
+
                 try
                 {
                     _suppressPublisherChangedRefresh = true;
