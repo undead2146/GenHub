@@ -531,7 +531,6 @@ public static partial class ContentCardBadgeHelper
     {
         ArgumentNullException.ThrowIfNull(result);
         return (result.ProviderName?.Equals(ModDBConstants.PublisherDisplayName, StringComparison.OrdinalIgnoreCase) == true) ||
-               (result.ProviderName?.Equals(ModDBConstants.PublisherType, StringComparison.OrdinalIgnoreCase) == true) ||
                (result.ResolverId?.Contains(ModDBConstants.PublisherPrefix, StringComparison.OrdinalIgnoreCase) == true) ||
                (result.Id?.Contains(ModDBConstants.PublisherPrefix, StringComparison.OrdinalIgnoreCase) == true) ||
                (!string.IsNullOrEmpty(result.SourceUrl) &&

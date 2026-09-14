@@ -610,10 +610,16 @@ public sealed partial class ContentGridItemViewModel(
         var canChangeType = ContentCardBadgeHelper.CanChangeContentType(SearchResult);
         if (segments.Length != 5 ||
             (!string.Equals(segments[2], SearchResult.ProviderName, StringComparison.OrdinalIgnoreCase) &&
-             !ContentStateService.IsCompatiblePublisherAlias(segments[2], SearchResult.ProviderName)) ||
-            (!canChangeType && !string.Equals(segments[3], SearchResult.ContentType.ToString(), StringComparison.OrdinalIgnoreCase)))
+             !ContentStateService.IsCompatiblePublisherAlias(segments[2], SearchResult.ProviderName)))
         {
             return false;
+        }
+
+        var typeMatches = string.Equals(segments[3], SearchResult.ContentType.ToString(), StringComparison.OrdinalIgnoreCase);
+        var hasExplicitType = SearchResult.ResolverMetadata?.ContainsKey(ContentConstants.ExplicitContentTypeMetadataKey) == true;
+        if (!typeMatches && (!canChangeType || !hasExplicitType))
+        {
+            return MatchesResolverMetadata(e);
         }
 
         var manifestNormName = ContentStateService.NormalizeSegment(segments[4]);
@@ -679,12 +685,11 @@ public sealed partial class ContentGridItemViewModel(
         if (!string.IsNullOrEmpty(e.ManifestId))
         {
             var segments = e.ManifestId.Split('.');
-            var canChangeType = SearchResult != null && ContentCardBadgeHelper.CanChangeContentType(SearchResult);
             if (segments.Length == 5 &&
                 SearchResult != null && !string.IsNullOrEmpty(SearchResult.ProviderName) &&
                 (string.Equals(segments[2], SearchResult.ProviderName, StringComparison.OrdinalIgnoreCase) ||
                  ContentStateService.IsCompatiblePublisherAlias(segments[2], SearchResult.ProviderName)) &&
-                (canChangeType || string.Equals(segments[3], SearchResult.ContentType.ToString(), StringComparison.OrdinalIgnoreCase)))
+                string.Equals(segments[3], SearchResult.ContentType.ToString(), StringComparison.OrdinalIgnoreCase))
             {
                 publisherMatches = true;
             }

@@ -1248,7 +1248,26 @@ public partial class ContentDetailViewModel(
     /// Awaits any in-flight content-type persist started by the Type dropdown.
     /// </summary>
     /// <returns>A task that completes when persistence finishes.</returns>
-    protected Task WaitForContentTypePersistAsync() => _contentTypePersistTask ?? Task.CompletedTask;
+    protected async Task WaitForContentTypePersistAsync()
+    {
+        Task? task;
+        lock (_contentTypePersistLock)
+        {
+            task = _contentTypePersistTask;
+        }
+
+        if (task != null)
+        {
+            try
+            {
+                await task.ConfigureAwait(false);
+            }
+            catch
+            {
+                // Persistence failures are already logged in PersistContentTypeChangeAsync
+            }
+        }
+    }
 
     /// <summary>
     /// Disposes unmanaged and managed resources.
@@ -4238,26 +4257,6 @@ public partial class ContentDetailViewModel(
         }
     }
 
-    private async Task AwaitContentTypePersistAsync()
-    {
-        Task? task;
-        lock (_contentTypePersistLock)
-        {
-            task = _contentTypePersistTask;
-        }
-
-        if (task != null)
-        {
-            try
-            {
-                await task.ConfigureAwait(false);
-            }
-            catch
-            {
-                // Persistence failures are already logged in PersistContentTypeChangeAsync
-            }
-        }
-    }
 
     /// <summary>
     /// Persists a post-download content-type correction to the stored manifest.
@@ -4362,7 +4361,7 @@ public partial class ContentDetailViewModel(
     [RelayCommand]
     private async Task AddToProfileAsync()
     {
-        await AwaitContentTypePersistAsync();
+        await WaitForContentTypePersistAsync();
 
         if (HasBundleComponents)
         {
