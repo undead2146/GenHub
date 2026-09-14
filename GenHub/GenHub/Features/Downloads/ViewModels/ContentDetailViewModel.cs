@@ -87,7 +87,6 @@ public partial class ContentDetailViewModel(
     private readonly object _contentTypePersistLock = new();
     private readonly CancellationTokenSource _cts = new();
     private readonly List<Task> _pendingRowStateTasks = [];
-    private readonly Func<CancellationToken, Task>? _updateAction = updateAction;
     private ContentSearchResult? _updateTargetSearchResult = updateTargetSearchResult;
     private bool _initialIsUpdateAvailable = isUpdateAvailable ?? (updateTargetSearchResult != null);
     private string? _pendingSelectedVariantManifestId = initialVariantManifestId;
@@ -148,16 +147,6 @@ public partial class ContentDetailViewModel(
     [NotifyPropertyChangedFor(nameof(CanDownload))]
     [NotifyPropertyChangedFor(nameof(CanUpdate))]
     private bool _hasActiveDownloads;
-
-    /// <summary>
-    /// Gets a value indicating whether this item can start a download.
-    /// </summary>
-    public bool CanDownload => !IsDownloading && !HasActiveDownloads;
-
-    /// <summary>
-    /// Gets a value indicating whether this item can start an update.
-    /// </summary>
-    public bool CanUpdate => !IsDownloading && !HasActiveDownloads;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowDownloadButton))]
@@ -314,6 +303,16 @@ public partial class ContentDetailViewModel(
     private ObservableCollection<CustomTabDefinition> _customTabs = [];
 
     // ===== Properties =====
+
+    /// <summary>
+    /// Gets a value indicating whether this item can start a download.
+    /// </summary>
+    public bool CanDownload => !IsDownloading && !HasActiveDownloads;
+
+    /// <summary>
+    /// Gets a value indicating whether this item can start an update.
+    /// </summary>
+    public bool CanUpdate => !IsDownloading && !HasActiveDownloads;
 
     /// <summary>
     /// Gets the content search result this detail view is displaying.
@@ -1303,18 +1302,13 @@ public partial class ContentDetailViewModel(
     /// </summary>
     private static string? GetFileNameFromUrl(string url)
     {
-        try
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
         {
-            var uri = new Uri(url);
             var fileName = Path.GetFileName(uri.LocalPath);
             if (!string.IsNullOrWhiteSpace(fileName) && fileName.Contains('.'))
             {
                 return fileName;
             }
-        }
-        catch
-        {
-            // Ignore parsing errors
         }
 
         return null;
@@ -2617,8 +2611,7 @@ public partial class ContentDetailViewModel(
         var parsedTitle = parsedPage.Context?.Title ?? string.Empty;
         if (parsedPage.Sections.Count == 0 &&
             (string.IsNullOrWhiteSpace(parsedTitle) ||
-             parsedTitle.Contains("Just a moment", StringComparison.OrdinalIgnoreCase) ||
-             parsedTitle.Contains("Attention Required", StringComparison.OrdinalIgnoreCase)))
+             ModDBConstants.BotProtectionTitleMarkers.Any(marker => parsedTitle.Contains(marker, StringComparison.OrdinalIgnoreCase))))
         {
             logger.LogWarning(
                 "Parsed page for {Url} looks like a bot-protection challenge (title: '{Title}'); ignoring it",
@@ -3395,9 +3388,9 @@ public partial class ContentDetailViewModel(
 
         DownloadStatusMessage = string.Empty;
 
-        if (_updateAction != null)
+        if (updateAction != null)
         {
-            var task = _updateAction(cancellationToken);
+            var task = updateAction(cancellationToken);
             bool success;
             if (task is Task<bool> boolTask)
             {
@@ -3925,7 +3918,7 @@ public partial class ContentDetailViewModel(
             var detailUrl = file.DetailsUrl ?? file.DownloadUrl;
             if (!string.IsNullOrWhiteSpace(detailUrl))
             {
-                rowSearchResult.ResolverMetadata[ModDBConstants.ContentIdMetadataKey] = ExtractModDbIdFromUrl(detailUrl);
+                rowSearchResult.ResolverMetadata[ModDBConstants.ContentIdMetadataKey] = ModDbHelper.ExtractModDbIdFromUrl(detailUrl);
             }
             else
             {
@@ -4993,17 +4986,4 @@ public partial class ContentDetailViewModel(
                  a.Name.Trim().Contains(trimmedSearchName, StringComparison.OrdinalIgnoreCase)));
     }
 
-    private string ExtractModDbIdFromUrl(string url)
-    {
-        try
-        {
-            var uri = new Uri(url);
-            var segments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            return segments.Length > 0 ? segments[^1] : Guid.NewGuid().ToString();
-        }
-        catch
-        {
-            return Guid.NewGuid().ToString();
-        }
-    }
 }
