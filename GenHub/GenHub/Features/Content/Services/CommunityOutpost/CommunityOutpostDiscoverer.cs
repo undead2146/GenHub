@@ -123,72 +123,16 @@ public partial class CommunityOutpostDiscoverer(
                 logger.LogInformation("Discovered Community Patch: {Version}", communityPatchResult.Version);
             }
 
-            // If the host failed to connect and the catalog URL is on the same host, avoid hanging on a second connection
-            bool sameHost = Uri.TryCreate(patchPageUrl, UriKind.Absolute, out var patchUri) &&
-                           Uri.TryCreate(catalogUrl, UriKind.Absolute, out var catalogUri) &&
-                           string.Equals(patchUri.Host, catalogUri.Host, StringComparison.OrdinalIgnoreCase);
-
-            if (patchHostFailed && sameHost)
+            if (patchHostFailed && TryGetSameHost(patchPageUrl, catalogUrl, out var unreachableHost))
             {
                 logger.LogWarning(
                     "Skipping catalog fetch from {CatalogUrl} because host {Host} was unreachable",
                     catalogUrl,
-                    patchUri?.Host);
-
-                EnsureOfficialClients(results, query, provider);
-
-                return OperationResult<ContentDiscoveryResult>.CreateSuccess(new ContentDiscoveryResult
-                {
-                    Items = results,
-                    HasMoreItems = false,
-                });
+                    unreachableHost);
             }
-
-            // Then, fetch and parse the catalog using the appropriate parser
-            try
+            else
             {
-                var catalogContent = await client.GetStringAsync(catalogUrl, cancellationToken);
-
-                // Get the catalog parser for this provider's format
-                var parser = catalogParserFactory.GetParser(provider.CatalogFormat);
-                if (parser == null)
-                {
-                    logger.LogError("No parser found for catalog format '{Format}'", provider.CatalogFormat);
-
-                    // Return success with just community patch and official clients if parser fails
-                    EnsureOfficialClients(results, query, provider);
-
-                    return OperationResult<ContentDiscoveryResult>.CreateSuccess(new ContentDiscoveryResult
-                    {
-                        Items = results,
-                        HasMoreItems = false,
-                    });
-                }
-
-                // Parse the catalog - the parser uses GenPatcherContentRegistry for metadata
-                var parseResult = await parser.ParseAsync(catalogContent, provider, cancellationToken);
-                if (parseResult.Success && parseResult.Data != null)
-                {
-                    var catalogResults = parseResult.Data.Where(r => MatchesQuery(r, query)).ToList();
-                    results.AddRange(catalogResults);
-
-                    logger.LogInformation(
-                        "Found {ItemCount} content items from catalog (after filtering: {FilteredCount})",
-                        parseResult.Data.Count(),
-                        catalogResults.Count);
-                }
-                else
-                {
-                    logger.LogWarning("Failed to parse catalog: {Error}", parseResult.FirstError);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to fetch/parse GenPatcher catalog, returning Community Patch only");
+                await FetchAndAppendCatalogResultsAsync(client, catalogUrl, provider, query, results, cancellationToken);
             }
 
             // Ensure official game clients are present (fallback if missing from catalog)
@@ -212,6 +156,65 @@ public partial class CommunityOutpostDiscoverer(
         {
             logger.LogError(ex, "Failed to discover Community Outpost content");
             return OperationResult<ContentDiscoveryResult>.CreateFailure($"Discovery failed: {ex.Message}");
+        }
+    }
+
+    private static bool TryGetSameHost(string url1, string url2, out string? host)
+    {
+        if (Uri.TryCreate(url1, UriKind.Absolute, out var uri1) &&
+            Uri.TryCreate(url2, UriKind.Absolute, out var uri2) &&
+            string.Equals(uri1.Host, uri2.Host, StringComparison.OrdinalIgnoreCase))
+        {
+            host = uri1.Host;
+            return true;
+        }
+
+        host = null;
+        return false;
+    }
+
+    private async Task FetchAndAppendCatalogResultsAsync(
+        HttpClient client,
+        string catalogUrl,
+        ProviderDefinition provider,
+        ContentSearchQuery query,
+        List<ContentSearchResult> results,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var catalogContent = await client.GetStringAsync(catalogUrl, cancellationToken);
+
+            var parser = catalogParserFactory.GetParser(provider.CatalogFormat);
+            if (parser == null)
+            {
+                logger.LogError("No parser found for catalog format '{Format}'", provider.CatalogFormat);
+                return;
+            }
+
+            var parseResult = await parser.ParseAsync(catalogContent, provider, cancellationToken);
+            if (parseResult.Success && parseResult.Data != null)
+            {
+                var catalogResults = parseResult.Data.Where(r => MatchesQuery(r, query)).ToList();
+                results.AddRange(catalogResults);
+
+                logger.LogInformation(
+                    "Found {ItemCount} content items from catalog (after filtering: {FilteredCount})",
+                    parseResult.Data.Count(),
+                    catalogResults.Count);
+            }
+            else
+            {
+                logger.LogWarning("Failed to parse catalog: {Error}", parseResult.FirstError);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to fetch/parse GenPatcher catalog, returning Community Patch only");
         }
     }
 
