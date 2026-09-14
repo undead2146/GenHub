@@ -1,14 +1,14 @@
+using GenHub.Core.Constants;
+using GenHub.Core.Interfaces.Tools.Checksum;
+using GenHub.Core.Models.Enums;
+using GenHub.Core.Models.Results;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using GenHub.Core.Constants;
-using GenHub.Core.Interfaces.Tools.Checksum;
-using GenHub.Core.Models.Enums;
-using GenHub.Core.Models.Results;
-using Microsoft.Extensions.Logging;
 
 namespace GenHub.Core.Services.Tools.Checksum;
 
@@ -17,9 +17,33 @@ namespace GenHub.Core.Services.Tools.Checksum;
 /// </summary>
 public sealed class GameCrcCalculatorService : IGameCrcCalculatorService
 {
-    private readonly ILogger<GameCrcCalculatorService>? _logger;
+    private sealed class FreshnessAccumulator
+    {
+        public long MaxTicks { get; private set; }
+
+        public long TotalLength { get; private set; }
+
+        public int FileCount { get; private set; }
+
+        public void ObserveTicks(long ticks)
+        {
+            if (ticks > MaxTicks)
+            {
+                MaxTicks = ticks;
+            }
+        }
+
+        public void AddFile(FileInfo file)
+        {
+            ObserveTicks(file.LastWriteTimeUtc.Ticks);
+            TotalLength += file.Length;
+            FileCount++;
+        }
+    }
+
     private static readonly ConcurrentDictionary<string, (DateTime LastWriteTimeUtc, long FileLength, long SkirmishTicks, long SkirmishLength, long MpTicks, long MpLength, string Crc)> ExeCrcCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, (long MaxTicks, long TotalLength, int FileCount, string Crc)> IniCrcCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ILogger<GameCrcCalculatorService>? _logger;
 
     /// <summary>
     /// Clears both executable and INI CRC caches.
@@ -215,9 +239,8 @@ public sealed class GameCrcCalculatorService : IGameCrcCalculatorService
         int? minor,
         GameType? gameType = null)
     {
-        int detectedMajor = 0;
-        int detectedMinor = 0;
-
+        int detectedMajor;
+        int detectedMinor;
         if (PeVersionExtractor.TryExtract(exeBytes, out int extractedMajor, out int extractedMinor) ||
             PeVersionExtractor.TryExtractFromVersionInfo(executablePath, out extractedMajor, out extractedMinor))
         {
@@ -297,94 +320,88 @@ public sealed class GameCrcCalculatorService : IGameCrcCalculatorService
         IReadOnlyList<string>? sideloadPaths,
         string? modPath)
     {
-        long maxTicks = 0;
-        long totalLength = 0;
-        int fileCount = 0;
+        var accumulator = new FreshnessAccumulator();
 
-        void UpdateFromPath(string path, bool recursive)
-        {
-            if (string.IsNullOrWhiteSpace(path))
-            {
-                return;
-            }
-
-            try
-            {
-                if (File.Exists(path))
-                {
-                    var fi = new FileInfo(path);
-                    if (fi.LastWriteTimeUtc.Ticks > maxTicks)
-                    {
-                        maxTicks = fi.LastWriteTimeUtc.Ticks;
-                    }
-
-                    totalLength += fi.Length;
-                    fileCount++;
-                }
-                else if (Directory.Exists(path))
-                {
-                    var di = new DirectoryInfo(path);
-                    if (di.LastWriteTimeUtc.Ticks > maxTicks)
-                    {
-                        maxTicks = di.LastWriteTimeUtc.Ticks;
-                    }
-
-                    var searchOpt = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
-                    foreach (var file in di.EnumerateFiles(SageChecksumConstants.BigFileSearchPattern, searchOpt))
-                    {
-                        if (file.LastWriteTimeUtc.Ticks > maxTicks)
-                        {
-                            maxTicks = file.LastWriteTimeUtc.Ticks;
-                        }
-
-                        totalLength += file.Length;
-                        fileCount++;
-                    }
-
-                    var dataIniPath = Path.Combine(path, "Data", "INI");
-                    if (Directory.Exists(dataIniPath))
-                    {
-                        var dataIniInfo = new DirectoryInfo(dataIniPath);
-                        if (dataIniInfo.LastWriteTimeUtc.Ticks > maxTicks)
-                        {
-                            maxTicks = dataIniInfo.LastWriteTimeUtc.Ticks;
-                        }
-
-                        foreach (var file in dataIniInfo.EnumerateFiles("*", SearchOption.AllDirectories))
-                        {
-                            if (file.LastWriteTimeUtc.Ticks > maxTicks)
-                            {
-                                maxTicks = file.LastWriteTimeUtc.Ticks;
-                            }
-
-                            totalLength += file.Length;
-                            fileCount++;
-                        }
-                    }
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // Suppress transient I/O exceptions during signature calculation
-            }
-        }
-
-        UpdateFromPath(gameRootPath, recursive: true);
+        UpdateFreshnessFromPath(accumulator, gameRootPath);
 
         if (sideloadPaths != null)
         {
             foreach (var sideload in sideloadPaths)
             {
-                UpdateFromPath(sideload, recursive: true);
+                UpdateFreshnessFromPath(accumulator, sideload);
             }
         }
 
         if (!string.IsNullOrWhiteSpace(modPath))
         {
-            UpdateFromPath(modPath, recursive: true);
+            UpdateFreshnessFromPath(accumulator, modPath);
         }
 
-        return (maxTicks, totalLength, fileCount);
+        return (accumulator.MaxTicks, accumulator.TotalLength, accumulator.FileCount);
+    }
+
+    private static void UpdateFreshnessFromPath(FreshnessAccumulator accumulator, string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        try
+        {
+            if (File.Exists(path))
+            {
+                UpdateFreshnessFromFile(accumulator, path);
+            }
+            else if (Directory.Exists(path))
+            {
+                UpdateFreshnessFromDirectory(accumulator, path);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Suppress transient I/O exceptions during signature calculation
+        }
+    }
+
+    private static void UpdateFreshnessFromFile(FreshnessAccumulator accumulator, string filePath)
+    {
+        var fi = new FileInfo(filePath);
+        accumulator.AddFile(fi);
+    }
+
+    private static void UpdateFreshnessFromDirectory(FreshnessAccumulator accumulator, string directoryPath)
+    {
+        var di = new DirectoryInfo(directoryPath);
+        accumulator.ObserveTicks(di.LastWriteTimeUtc.Ticks);
+
+        UpdateFreshnessFromBigFiles(accumulator, di);
+        UpdateFreshnessFromDataIni(accumulator, directoryPath);
+    }
+
+    private static void UpdateFreshnessFromBigFiles(FreshnessAccumulator accumulator, DirectoryInfo directoryInfo)
+    {
+        foreach (var file in directoryInfo.EnumerateFiles(SageChecksumConstants.BigFileSearchPattern, SearchOption.AllDirectories))
+        {
+            accumulator.AddFile(file);
+        }
+    }
+
+    private static void UpdateFreshnessFromDataIni(FreshnessAccumulator accumulator, string directoryPath)
+    {
+        var dataIniPath = Path.Combine(directoryPath, "Data", "INI");
+        if (!Directory.Exists(dataIniPath))
+        {
+            return;
+        }
+
+        var dataIniInfo = new DirectoryInfo(dataIniPath);
+        accumulator.ObserveTicks(dataIniInfo.LastWriteTimeUtc.Ticks);
+
+        foreach (var file in dataIniInfo.EnumerateFiles("*", SearchOption.AllDirectories))
+        {
+            accumulator.AddFile(file);
+        }
     }
 
     private static bool AddScriptFiles(LegacyChecksum crc, string root)
