@@ -123,7 +123,8 @@ public class HttpContentDeliverer(
             foreach (var file in manifest.Files.Where(f => f.IsRequired && !string.IsNullOrEmpty(f.DownloadUrl)))
             {
                 if (!Uri.TryCreate(file.DownloadUrl, UriKind.Absolute, out var uri) ||
-                    !(uri.Scheme == "http" || uri.Scheme == "https"))
+                    !(uri.Scheme == "http" || uri.Scheme == "https") ||
+                    (ModDBConstants.IsModDbOrDbolicalUri(uri) && uri.Scheme != Uri.UriSchemeHttps))
                 {
                     return Task.FromResult(OperationResult<bool>.CreateSuccess(false));
                 }
@@ -177,6 +178,7 @@ public class HttpContentDeliverer(
                     Url = fileUri,
                     DestinationPath = localPath,
                     OverwriteExisting = true,
+                    ExpectedHash = file.Hash,
                 };
                 return await playwrightService.DownloadFileAsync(downloadConfig, cancellationToken);
             }

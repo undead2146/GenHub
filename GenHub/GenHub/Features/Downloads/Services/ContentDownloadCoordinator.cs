@@ -449,9 +449,15 @@ public sealed class ContentDownloadCoordinator(
                 var originalContentId = searchResult.Id ?? string.Empty;
                 searchResult.UpdateId(manifest.Id.Value);
 
+                string? moddbId = null;
+                if (searchResult.ResolverMetadata?.TryGetValue(ModDBConstants.ContentIdMetadataKey, out var mid) == true)
+                {
+                    moddbId = mid;
+                }
+
                 // Update state. The event carries both the original catalog ID and the manifest ID
                 // so every subscriber can match regardless of which ID it currently holds.
-                contentStateService.NotifyStateChanged(originalContentId, ContentState.Downloaded, manifest.Id.Value);
+                contentStateService.NotifyStateChanged(originalContentId, ContentState.Downloaded, manifest.Id.Value, moddbId);
 
                 string? parentContentId = null;
                 if (searchResult.ResolverMetadata?.TryGetValue(ContentConstants.ParentContentIdMetadataKey, out var pid) == true)
@@ -462,7 +468,7 @@ public sealed class ContentDownloadCoordinator(
                 if (!string.IsNullOrWhiteSpace(parentContentId) &&
                     !string.Equals(parentContentId, originalContentId, StringComparison.OrdinalIgnoreCase))
                 {
-                    contentStateService.NotifyStateChanged(parentContentId, ContentState.Downloaded, manifest.Id.Value);
+                    contentStateService.NotifyStateChanged(parentContentId, ContentState.Downloaded, manifest.Id.Value, moddbId);
                 }
 
                 // Notify other components

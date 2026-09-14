@@ -16,7 +16,7 @@ public sealed class ModDBDirectUrlSearchTests
     /// <param name="expectedUrl">The expected normalized URL.</param>
     [Theory]
     [InlineData("https://www.moddb.com/mods/rise-of-the-reds", "https://www.moddb.com/mods/rise-of-the-reds")]
-    [InlineData("http://moddb.com/downloads/contra-009", "http://moddb.com/downloads/contra-009")]
+    [InlineData("http://moddb.com/downloads/contra-009", "https://moddb.com/downloads/contra-009")]
     [InlineData("www.moddb.com/mods/shockwave/addons/maps", "https://www.moddb.com/mods/shockwave/addons/maps")]
     [InlineData("moddb.com/games/cc-generals-zero-hour/downloads", "https://moddb.com/games/cc-generals-zero-hour/downloads")]
     [InlineData("/mods/rise-of-the-reds", "https://www.moddb.com/mods/rise-of-the-reds")]

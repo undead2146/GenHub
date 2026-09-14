@@ -9,6 +9,7 @@ using AngleSharp;
 using AngleSharp.Dom;
 using Avalonia.Threading;
 using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Tools;
@@ -1750,11 +1751,32 @@ public sealed class PlaywrightService(
         var fileInfo = new FileInfo(configuration.DestinationPath);
         logger.LogInformation("Playwright download completed: {Path}, Size: {Size}", configuration.DestinationPath, fileInfo.Length);
 
+        var hashVerified = false;
+        if (!string.IsNullOrWhiteSpace(configuration.ExpectedHash))
+        {
+            var actualHash = await DownloadSecurityValidator.ComputeSha256Async(configuration.DestinationPath, cancellationToken);
+            if (!string.Equals(actualHash, configuration.ExpectedHash, StringComparison.OrdinalIgnoreCase))
+            {
+                logger.LogWarning(
+                    "Hash mismatch for downloaded file {Path}. Expected: {Expected}, Actual: {Actual}",
+                    configuration.DestinationPath,
+                    configuration.ExpectedHash,
+                    actualHash);
+                CleanPartialOutputFile(configuration.DestinationPath);
+                return DownloadResult.CreateFailure(
+                    $"File hash mismatch. Expected {configuration.ExpectedHash}, got {actualHash}.",
+                    fileInfo.Length,
+                    stopwatch.Elapsed);
+            }
+
+            hashVerified = true;
+        }
+
         return DownloadResult.CreateSuccess(
             configuration.DestinationPath,
             fileInfo.Length,
             stopwatch.Elapsed,
-            hashVerified: false);
+            hashVerified: hashVerified);
     }
 
     private void CleanPartialOutputFile(string destinationPath)

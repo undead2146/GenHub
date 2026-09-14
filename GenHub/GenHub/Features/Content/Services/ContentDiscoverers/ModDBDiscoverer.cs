@@ -417,7 +417,7 @@ public partial class ModDBDiscoverer(
             Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) &&
             IsModDBHost(uri.Host))
         {
-            normalizedUrl = uri.AbsoluteUri;
+            normalizedUrl = new UriBuilder(uri) { Scheme = Uri.UriSchemeHttps, Port = -1 }.Uri.AbsoluteUri;
             return true;
         }
 

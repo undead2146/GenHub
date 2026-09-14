@@ -2297,8 +2297,14 @@ public sealed partial class DownloadsBrowserViewModel(
         item.CurrentState = ContentState.Downloaded;
         item.IsDownloaded = true;
 
+        string? moddbId = null;
+        if (item.SearchResult.ResolverMetadata?.TryGetValue(ModDBConstants.ContentIdMetadataKey, out var mid) == true)
+        {
+            moddbId = mid;
+        }
+
         // Notify ContentStateService that state has changed (catalog ID + manifest ID)
-        contentStateService.NotifyStateChanged(originalContentId, ContentState.Downloaded, manifest.Id.Value);
+        contentStateService.NotifyStateChanged(originalContentId, ContentState.Downloaded, manifest.Id.Value, moddbId);
 
         // Re-read every sibling so checkmarks stay accurate if acquisition produced
         // a different on-disk identity than the catalog key (e.g. SuperHackers).
@@ -2382,7 +2388,13 @@ public sealed partial class DownloadsBrowserViewModel(
                 component.MarkDownloaded(originalContentId, result.Data.Id.Value);
             }
 
-            contentStateService.NotifyStateChanged(originalContentId, ContentState.Downloaded, result.Data.Id.Value);
+            string? moddbId = null;
+            if (item.SearchResult.ResolverMetadata?.TryGetValue(ModDBConstants.ContentIdMetadataKey, out var mid) == true)
+            {
+                moddbId = mid;
+            }
+
+            contentStateService.NotifyStateChanged(originalContentId, ContentState.Downloaded, result.Data.Id.Value, moddbId);
             completed++;
         }
 
