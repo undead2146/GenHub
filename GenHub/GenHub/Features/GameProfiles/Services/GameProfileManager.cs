@@ -43,9 +43,9 @@ public class GameProfileManager(
             }
 
             // Validate request
-            if (string.IsNullOrWhiteSpace(request.Name))
+            if (!TryValidateProfileName(request.Name, out var nameValidationError))
             {
-                return ProfileOperationResult<GameProfile>.CreateFailure("Profile name cannot be empty");
+                return ProfileOperationResult<GameProfile>.CreateFailure(nameValidationError!);
             }
 
             // Detect if this is a Tool profile using centralized helper

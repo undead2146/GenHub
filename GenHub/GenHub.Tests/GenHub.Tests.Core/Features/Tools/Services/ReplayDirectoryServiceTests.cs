@@ -3770,33 +3770,6 @@ public sealed class ReplayDirectoryServiceTests
     };
 
     /// <summary>
-    /// Verifies that BuildReplayProfileName generates the expected format when within length limits.
-    /// </summary>
-    [Fact]
-    public void BuildReplayProfileName_WhenWithinLimit_ReturnsExpectedFormat()
-    {
-        var result = ReplayDirectoryService.BuildReplayProfileName("GeneralsOnline 032926_QFE1", "match_12345.rep");
-        Assert.Equal("GeneralsOnline 032926_QFE1 (Replay: match_12345)", result);
-    }
-
-    /// <summary>
-    /// Verifies that BuildReplayProfileName truncates and never exceeds the specified maximum length limit.
-    /// </summary>
-    [Fact]
-    public void BuildReplayProfileName_WhenExceedingLimit_TruncatesProperlyWithinLimit()
-    {
-        var longClientTitle = new string('C', 80);
-        var longReplayName = new string('R', 80) + ".rep";
-
-        var result = ReplayDirectoryService.BuildReplayProfileName(longClientTitle, longReplayName, 50);
-
-        Assert.True(result.Length <= 50);
-        Assert.StartsWith("C", result);
-        Assert.Contains("(Replay: ", result);
-        Assert.EndsWith(")", result);
-    }
-
-    /// <summary>
     /// Verifies that ReplayFile.ClientAndPatchDisplay displays the friendly INI patch name when the replay is unmapped but INI CRC is known.
     /// </summary>
     [Fact]
@@ -3806,6 +3779,9 @@ public sealed class ReplayDirectoryServiceTests
         {
             FileName = "TWTF.rep",
             FullPath = "/replays/TWTF.rep",
+            SizeInBytes = 2048,
+            LastModified = DateTime.UtcNow,
+            GameVersion = GameType.ZeroHour,
             MatchedClient = null,
             MatchedIniPatchName = "Vanilla 1.04 INI",
             Metadata = new ReplayMetadata
@@ -3830,6 +3806,9 @@ public sealed class ReplayDirectoryServiceTests
         {
             FileName = "GeneralsOnlineMatch.rep",
             FullPath = "/replays/GeneralsOnlineMatch.rep",
+            SizeInBytes = 2048,
+            LastModified = DateTime.UtcNow,
+            GameVersion = GameType.ZeroHour,
             MatchedClient = new CrcMappingEntry
             {
                 Description = "GeneralsOnline 032926_QFE1",
@@ -3858,6 +3837,8 @@ public sealed class ReplayDirectoryServiceTests
         {
             FileName = "UnknownWithVanillaIni.rep",
             FullPath = "/replays/UnknownWithVanillaIni.rep",
+            SizeInBytes = 2048,
+            LastModified = DateTime.UtcNow,
             GameVersion = GameType.ZeroHour,
             Metadata = new ReplayMetadata
             {
@@ -3896,4 +3877,181 @@ public sealed class ReplayDirectoryServiceTests
         Assert.Equal("Vanilla 1.04 INI", replay.MatchedIniPatchName);
         Assert.Equal("Unmapped Build (Jan 01 2026 10:00:00) • Vanilla 1.04 INI", replay.ClientAndPatchDisplay);
     }
+
+    /// <summary>
+    /// Verifies that BuildReplayProfileName generates the standard format when lengths are within bounds.
+    /// </summary>
+    [Fact]
+    public void BuildReplayProfileName_WhenNormalLength_ReturnsExpectedFormat()
+    {
+        var name = ReplayDirectoryService.BuildReplayProfileName("Zero Hour", "Match1.rep");
+        Assert.Equal("Zero Hour (Replay: Match1)", name);
+        Assert.True(name.Length <= ProfileConstants.MaxProfileNameLength);
+    }
+
+    /// <summary>
+    /// Verifies that BuildReplayProfileName truncates overlong replay names so that the profile name does not exceed MaxProfileNameLength.
+    /// </summary>
+    [Fact]
+    public void BuildReplayProfileName_WhenReplayFileNameExceedsLimit_TruncatesToMaxLength()
+    {
+        var longReplayName = new string('a', 150) + ".rep";
+        var name = ReplayDirectoryService.BuildReplayProfileName("Zero Hour", longReplayName);
+
+        Assert.True(name.Length <= ProfileConstants.MaxProfileNameLength);
+        Assert.StartsWith("Zero Hour (Replay: ", name);
+        Assert.EndsWith(")", name);
+    }
+
+    /// <summary>
+    /// Verifies that BuildReplayProfileName respects MaxProfileNameLength when both client title and replay name are long.
+    /// </summary>
+    [Fact]
+    public void BuildReplayProfileName_WhenBothClientTitleAndReplayNameAreLong_RespectsMaxLength()
+    {
+        var longTitle = new string('T', 80);
+        var longReplay = new string('R', 80) + ".rep";
+        var name = ReplayDirectoryService.BuildReplayProfileName(longTitle, longReplay);
+
+        Assert.True(name.Length <= ProfileConstants.MaxProfileNameLength);
+        Assert.Contains("(Replay: ", name);
+        Assert.EndsWith(")", name);
+    }
+
+    /// <summary>
+    /// Verifies that BuildReplayProfileName clamps correctly when a custom maximum length is specified.
+    /// </summary>
+    [Fact]
+    public void BuildReplayProfileName_WithCustomMaxLength_ClampsAccurately()
+    {
+        var name = ReplayDirectoryService.BuildReplayProfileName("My Long Custom Title", "My Long Replay Name.rep", maxLength: 30);
+        Assert.True(name.Length <= 30);
+        Assert.EndsWith(")", name);
+    }
+
+    /// <summary>
+    /// Verifies that CreateProfileForReplayAsync ensures the profile request name does not exceed the maximum profile name length.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task CreateProfileForReplayAsync_WhenReplayFileNameIsLong_ProfileNameDoesNotExceedMaxLimitAsync()
+    {
+        var longBaseName = new string('x', 120);
+        var replay = new ReplayFile
+        {
+            FileName = $"{longBaseName}.rep",
+            FullPath = $"/replays/{longBaseName}.rep",
+            SizeInBytes = 2048,
+            LastModified = DateTime.UtcNow,
+            GameVersion = GameType.ZeroHour,
+            Metadata = new ReplayMetadata
+            {
+                ExeCrc = 0x401D89EA,
+                IniCrc = 0x76B251A3,
+            },
+            MatchedClient = new CrcMappingEntry
+            {
+                ExeCrc = "0x401D89EA",
+                IniCrc = "0x76B251A3",
+                ManifestId = "1.104.steam.gameclient.zerohour",
+                Publisher = "steam",
+                GameType = "ZeroHour",
+                Version = "1.04",
+            },
+        };
+
+        var steamClient = new GameClient
+        {
+            Id = "1.104.steam.gameclient.zerohour",
+            Name = "Command and Conquer Generals Zero Hour (Steam)",
+            Version = "1.04",
+            GameType = GameType.ZeroHour,
+            PublisherType = "Steam",
+            InstallationId = "steam-inst-1",
+            ExecutablePath = "/steam/generalszh.exe",
+            WorkingDirectory = "/steam",
+        };
+
+        var installation = new GameInstallation("/steam", GameInstallationType.Steam)
+        {
+            Id = "steam-inst-1",
+            HasZeroHour = true,
+            ZeroHourPath = "/steam",
+            AvailableGameClients = [steamClient],
+        };
+
+        _mockDependencyResolver
+            .Setup(r => r.ResolveDependenciesAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IEnumerable<string> ids, CancellationToken _) => new HashSet<string>(ids));
+
+        _mockInstallationService
+            .Setup(s => s.GetAllInstallationsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<IReadOnlyList<GameInstallation>>.CreateSuccess([installation]));
+
+        _mockProfileManager
+            .Setup(p => p.GetAllProfilesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProfileOperationResult<IReadOnlyList<GameProfile>>.CreateSuccess([]));
+
+        CreateProfileRequest? capturedRequest = null;
+        _mockProfileManager
+            .Setup(p => p.CreateProfileAsync(It.IsAny<CreateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<CreateProfileRequest, CancellationToken>((req, _) => capturedRequest = req)
+            .ReturnsAsync((CreateProfileRequest req, CancellationToken _) =>
+                ProfileOperationResult<GameProfile>.CreateSuccess(new GameProfile { Id = "long-name-profile", Name = req.Name }));
+
+        var service = new ReplayDirectoryService(
+            _mockHeaderParser.Object,
+            _mockCrcRegistry.Object,
+            _mockScopeFactory.Object,
+            NullLogger<ReplayDirectoryService>.Instance);
+
+        var result = await service.CreateProfileForReplayAsync(replay);
+
+        Assert.True(result.Success);
+        Assert.NotNull(capturedRequest);
+        Assert.True(capturedRequest.Name.Length <= ProfileConstants.MaxProfileNameLength);
+    }
+
+    /// <summary>
+    /// Verifies that FindMatchingProfile matches a profile whose name was truncated due to the maximum length limit.
+    /// </summary>
+    [Fact]
+    public void FindMatchingProfile_WhenProfileNameIsTruncated_MatchesReplay()
+    {
+        var longBaseName = "super_long_replay_match_file_name_that_causes_the_profile_name_to_be_truncated_completely";
+        var replay = new ReplayFile
+        {
+            FileName = $"{longBaseName}.rep",
+            FullPath = $"/replays/{longBaseName}.rep",
+            SizeInBytes = 1024,
+            LastModified = DateTime.UtcNow,
+            GameVersion = GameType.ZeroHour,
+        };
+
+        var truncatedProfileName = ReplayDirectoryService.BuildReplayProfileName("Zero Hour", replay.FileName);
+        Assert.True(truncatedProfileName.Length <= ProfileConstants.MaxProfileNameLength);
+
+        var truncatedProfile = new GameProfile
+        {
+            Id = "truncated-profile-id",
+            Name = truncatedProfileName,
+            GameClient = new GameClient
+            {
+                Id = "1.104.steam.gameclient.zerohour",
+                GameType = GameType.ZeroHour,
+                PublisherType = "steam",
+            },
+        };
+
+        var match = ReplayDirectoryService.FindMatchingProfile(
+            [truncatedProfile],
+            GameType.ZeroHour,
+            "1.104.steam.gameclient.zerohour",
+            null,
+            replay);
+
+        Assert.NotNull(match);
+        Assert.Equal("truncated-profile-id", match.Id);
+    }
+
 }

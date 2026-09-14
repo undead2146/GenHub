@@ -1431,7 +1431,7 @@ public sealed class ReplayDirectoryService(
     /// <param name="replayFileName">The replay filename or full path.</param>
     /// <param name="maxLength">The maximum allowed profile name length.</param>
     /// <returns>A formatted profile name within the length limit.</returns>
-    internal static string BuildReplayProfileName(
+    public static string BuildReplayProfileName(
         string clientTitle,
         string replayFileName,
         int maxLength = ProfileConstants.MaxProfileNameLength)
