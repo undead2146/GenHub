@@ -1754,17 +1754,15 @@ public sealed class PlaywrightService(
         var hashVerified = false;
         if (!string.IsNullOrWhiteSpace(configuration.ExpectedHash))
         {
-            var actualHash = await DownloadSecurityValidator.ComputeSha256Async(configuration.DestinationPath, cancellationToken);
-            if (!string.Equals(actualHash, configuration.ExpectedHash, StringComparison.OrdinalIgnoreCase))
+            var (success, errorMessage) = await VerifyDownloadedFileHashAsync(
+                configuration.DestinationPath,
+                configuration.ExpectedHash,
+                cancellationToken);
+
+            if (!success)
             {
-                logger.LogWarning(
-                    "Hash mismatch for downloaded file {Path}. Expected: {Expected}, Actual: {Actual}",
-                    configuration.DestinationPath,
-                    configuration.ExpectedHash,
-                    actualHash);
-                CleanPartialOutputFile(configuration.DestinationPath);
                 return DownloadResult.CreateFailure(
-                    $"File hash mismatch. Expected {configuration.ExpectedHash}, got {actualHash}.",
+                    errorMessage ?? "File hash mismatch.",
                     fileInfo.Length,
                     stopwatch.Elapsed);
             }
@@ -1777,6 +1775,36 @@ public sealed class PlaywrightService(
             fileInfo.Length,
             stopwatch.Elapsed,
             hashVerified: hashVerified);
+    }
+
+    private async Task<(bool Success, string? ErrorMessage)> VerifyDownloadedFileHashAsync(
+        string destinationPath,
+        string expectedHash,
+        CancellationToken cancellationToken)
+    {
+        string actualHash;
+        try
+        {
+            actualHash = await DownloadSecurityValidator.ComputeSha256Async(destinationPath, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            CleanPartialOutputFile(destinationPath);
+            throw;
+        }
+
+        if (!string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning(
+                "Hash mismatch for downloaded file {Path}. Expected: {Expected}, Actual: {Actual}",
+                destinationPath,
+                expectedHash,
+                actualHash);
+            CleanPartialOutputFile(destinationPath);
+            return (false, $"File hash mismatch. Expected {expectedHash}, got {actualHash}.");
+        }
+
+        return (true, null);
     }
 
     private void CleanPartialOutputFile(string destinationPath)

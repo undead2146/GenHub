@@ -2389,7 +2389,7 @@ public sealed partial class DownloadsBrowserViewModel(
             }
 
             string? moddbId = null;
-            if (item.SearchResult.ResolverMetadata?.TryGetValue(ModDBConstants.ContentIdMetadataKey, out var mid) == true)
+            if (target.ResolverMetadata?.TryGetValue(ModDBConstants.ContentIdMetadataKey, out var mid) == true)
             {
                 moddbId = mid;
             }

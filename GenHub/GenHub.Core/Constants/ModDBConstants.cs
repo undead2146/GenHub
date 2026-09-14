@@ -652,11 +652,6 @@ public static class ModDBConstants
         "Cloudflare",
     ];
 
-    /// <summary>
-    /// Keywords found in browser page titles indicating a Cloudflare or bot-protection challenge page.
-    /// </summary>
-    public static readonly string[] ChallengeTitleKeywords = BotProtectionTitleMarkers;
-
     // ===== Helper Methods =====
 
     /// <summary>
@@ -671,7 +666,7 @@ public static class ModDBConstants
             return false;
         }
 
-        return ChallengeTitleKeywords.Any(keyword => title.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+        return BotProtectionTitleMarkers.Any(keyword => title.Contains(keyword, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

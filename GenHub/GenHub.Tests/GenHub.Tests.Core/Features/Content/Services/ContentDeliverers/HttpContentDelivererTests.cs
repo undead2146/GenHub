@@ -184,6 +184,7 @@ public class HttpContentDelivererTests
                 {
                     RelativePath = relativePath,
                     DownloadUrl = "https://www.moddb.com/downloads/start/12345",
+                    Hash = "expected-sha256-hash",
                     SourceType = ContentSourceType.RemoteDownload,
                 }
             ],
@@ -220,7 +221,9 @@ public class HttpContentDelivererTests
             File.Exists(expectedDestinationPath).Should().BeTrue();
             playwrightService.Verify(
                 p => p.DownloadFileAsync(
-                    It.Is<DownloadConfiguration>(c => c.Url == new Uri("https://www.moddb.com/downloads/start/12345")),
+                    It.Is<DownloadConfiguration>(c =>
+                        c.Url == new Uri("https://www.moddb.com/downloads/start/12345") &&
+                        c.ExpectedHash == "expected-sha256-hash"),
                     It.IsAny<CancellationToken>()),
                 Times.Once);
         }
@@ -324,6 +327,76 @@ public class HttpContentDelivererTests
         {
             Directory.Delete(targetDirectory, recursive: true);
         }
+    }
+
+    /// <summary>
+    /// Verifies that <see cref="HttpContentDeliverer.ValidateContentAsync"/> rejects insecure HTTP ModDB or DBolical URLs.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task ValidateContentAsync_WithInsecureHttpModDbUrl_ReturnsFalseAsync()
+    {
+        var manifest = new ContentManifest
+        {
+            Id = new ManifestId("moddb-insecure-validate"),
+            Name = "ModDB Insecure Validate",
+            Version = "1.0",
+            Files =
+            [
+                new ManifestFile
+                {
+                    RelativePath = "insecure.zip",
+                    DownloadUrl = "http://www.moddb.com/downloads/start/99999",
+                    SourceType = ContentSourceType.RemoteDownload,
+                    IsRequired = true,
+                },
+            ],
+        };
+
+        var deliverer = new HttpContentDeliverer(
+            Mock.Of<IDownloadService>(),
+            Mock.Of<ILogger<HttpContentDeliverer>>(),
+            Mock.Of<IPlaywrightService>());
+
+        var result = await deliverer.ValidateContentAsync(manifest);
+
+        result.Success.Should().BeTrue();
+        result.Data.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Verifies that <see cref="HttpContentDeliverer.ValidateContentAsync"/> accepts secure HTTPS ModDB or DBolical URLs.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task ValidateContentAsync_WithSecureHttpsModDbUrl_ReturnsTrueAsync()
+    {
+        var manifest = new ContentManifest
+        {
+            Id = new ManifestId("moddb-secure-validate"),
+            Name = "ModDB Secure Validate",
+            Version = "1.0",
+            Files =
+            [
+                new ManifestFile
+                {
+                    RelativePath = "secure.zip",
+                    DownloadUrl = "https://www.moddb.com/downloads/start/99999",
+                    SourceType = ContentSourceType.RemoteDownload,
+                    IsRequired = true,
+                },
+            ],
+        };
+
+        var deliverer = new HttpContentDeliverer(
+            Mock.Of<IDownloadService>(),
+            Mock.Of<ILogger<HttpContentDeliverer>>(),
+            Mock.Of<IPlaywrightService>());
+
+        var result = await deliverer.ValidateContentAsync(manifest);
+
+        result.Success.Should().BeTrue();
+        result.Data.Should().BeTrue();
     }
 
     /// <summary>
