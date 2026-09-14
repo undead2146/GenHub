@@ -146,15 +146,16 @@ public class DependencyResolver(
     /// <inheritdoc/>
     public async Task<DependencyResolutionResult> ResolveDependenciesWithManifestsAsync(IEnumerable<string> contentIds, CancellationToken cancellationToken = default)
     {
+        var idList = contentIds as IList<string> ?? contentIds.ToList();
         var resolvedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var resolvedManifests = new List<ContentManifest>();
         var missingContentIds = new List<string>();
         var warnings = new List<string>();
-        var toProcess = new Queue<string>(contentIds);
+        var toProcess = new Queue<string>(idList);
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var ancestorMap = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var id in contentIds)
+        foreach (var id in idList)
         {
             ancestorMap[id] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }

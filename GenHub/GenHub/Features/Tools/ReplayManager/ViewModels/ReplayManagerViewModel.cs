@@ -62,7 +62,7 @@ public partial class ReplayManagerViewModel(
     IRecipient<ProfileListUpdatedMessage>,
     IDisposable
 {
-    private readonly HashSet<string> _runningProfileIds = new(StringComparer.OrdinalIgnoreCase);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> _runningProfiles = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
     private int _pendingReloadRequests;
     private bool _messengerRegistered;
@@ -212,28 +212,23 @@ public partial class ReplayManagerViewModel(
     /// <inheritdoc />
     public void Receive(ProfileLaunchedMessage message)
     {
-        lock (_runningProfileIds)
-        {
-            _runningProfileIds.Add(message.ProfileId);
-        }
+        _runningProfiles[message.ProfileId] = message.ProcessId;
     }
 
     /// <inheritdoc />
     public void Receive(ProfileStoppedMessage message)
     {
-        lock (_runningProfileIds)
+        if (message.ProcessId == 0 ||
+            (_runningProfiles.TryGetValue(message.ProfileId, out var pid) && pid == message.ProcessId))
         {
-            _runningProfileIds.Remove(message.ProfileId);
+            _runningProfiles.TryRemove(message.ProfileId, out _);
         }
     }
 
     /// <inheritdoc />
     public void Receive(ProfileDeletedMessage message)
     {
-        lock (_runningProfileIds)
-        {
-            _runningProfileIds.Remove(message.ProfileId);
-        }
+        _runningProfiles.TryRemove(message.ProfileId, out _);
 
         Dispatcher.UIThread.Post(async () =>
         {
@@ -1082,10 +1077,13 @@ public partial class ReplayManagerViewModel(
         try
         {
             using var scope = serviceProvider.CreateScope();
+            using var cts = new CancellationTokenSource();
             var clientVm = ActivatorUtilities.CreateInstance<GameClientSelectionViewModel>(scope.ServiceProvider);
-            var loadTask = clientVm.LoadClientsForReplayAsync(replay.GameVersion, replay);
+            var loadTask = clientVm.LoadClientsForReplayAsync(replay.GameVersion, replay, cts.Token);
 
             var dialog = new GameClientSelectionView(clientVm);
+            dialog.Closed += (_, _) => cts.Cancel();
+
             var mainWindow = Avalonia.Application.Current?.ApplicationLifetime is
                 IClassicDesktopStyleApplicationLifetime desktop
                     ? desktop.MainWindow
@@ -1096,7 +1094,15 @@ public partial class ReplayManagerViewModel(
                 await dialog.ShowDialog(mainWindow);
             }
 
-            await loadTask;
+            try
+            {
+                await loadTask;
+            }
+            catch (OperationCanceledException)
+            {
+                // Ignored - cancelled when dialog closed
+            }
+
             return await ApplySelectedClientToReplayAsync(replay, clientVm);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -1215,7 +1221,7 @@ public partial class ReplayManagerViewModel(
         var compatibleProfiles = await directoryService.GetCompatibleProfilesForReplayAsync(replay);
         var totalProfilesForGame = await GetProfileCountForGameAsync(replay.GameVersion);
 
-        if (compatibleProfiles.Count > 1 || totalProfilesForGame > 1)
+        if (compatibleProfiles.Count > 1 || totalProfilesForGame is null or > 1)
         {
             await SelectProfileAndLaunchReplayAsync(replay);
             return;
@@ -1234,7 +1240,7 @@ public partial class ReplayManagerViewModel(
         await LaunchReplayWithProfileAsync(replay, targetProfileId);
     }
 
-    private async Task<int> GetProfileCountForGameAsync(GameType gameType)
+    private async Task<int?> GetProfileCountForGameAsync(GameType gameType, CancellationToken ct = default)
     {
         try
         {
@@ -1244,7 +1250,7 @@ public partial class ReplayManagerViewModel(
                 var profileManager = scope.ServiceProvider.GetService<IGameProfileManager>();
                 if (profileManager != null)
                 {
-                    var result = await profileManager.GetAllProfilesAsync();
+                    var result = await profileManager.GetAllProfilesAsync(ct);
                     if (result.Success && result.Data != null)
                     {
                         return result.Data.Count(p => p.GameClient?.GameType == gameType);
@@ -1254,10 +1260,10 @@ public partial class ReplayManagerViewModel(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogDebug(ex, "Failed to retrieve profile count for {GameType}", gameType);
+            logger.LogWarning(ex, "Failed to retrieve profile count for {GameType}", gameType);
         }
 
-        return 0;
+        return null;
     }
 
     /// <summary>
@@ -1364,17 +1370,11 @@ public partial class ReplayManagerViewModel(
             var isRunning = await directoryService.IsProfileRunningAsync(profileId);
             if (!isRunning)
             {
-                lock (_runningProfileIds)
-                {
-                    _runningProfileIds.Remove(profileId);
-                }
+                _runningProfiles.TryRemove(profileId, out _);
             }
             else
             {
-                lock (_runningProfileIds)
-                {
-                    _runningProfileIds.Add(profileId);
-                }
+                _runningProfiles.TryAdd(profileId, 0);
 
                 notificationService.ShowWarning(
                     "Game Running",

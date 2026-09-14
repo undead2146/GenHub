@@ -193,14 +193,14 @@ public static class CatalogManifestIdentity
         var publisher = dependency.PublisherId ?? string.Empty;
         var contentId = dependency.ContentId ?? string.Empty;
         var isEaOrAny = publisher.Equals(PublisherTypeConstants.Ea, StringComparison.OrdinalIgnoreCase) ||
-                        publisher.Equals("any", StringComparison.OrdinalIgnoreCase);
+                        publisher.Equals(ManifestConstants.AnyPublisherToken, StringComparison.OrdinalIgnoreCase);
         if (!isEaOrAny)
         {
             return false;
         }
 
-        return contentId.Equals("zerohour", StringComparison.OrdinalIgnoreCase) ||
-               contentId.Equals("generals", StringComparison.OrdinalIgnoreCase);
+        return contentId.Equals(ManifestConstants.ZeroHourContentName, StringComparison.OrdinalIgnoreCase) ||
+               contentId.Equals(ManifestConstants.GeneralsContentName, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

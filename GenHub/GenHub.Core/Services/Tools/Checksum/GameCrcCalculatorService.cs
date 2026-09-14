@@ -8,6 +8,7 @@ using GenHub.Core.Constants;
 using GenHub.Core.Interfaces.Tools.Checksum;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.Results;
+using Microsoft.Extensions.Logging;
 
 namespace GenHub.Core.Services.Tools.Checksum;
 
@@ -16,7 +17,18 @@ namespace GenHub.Core.Services.Tools.Checksum;
 /// </summary>
 public sealed class GameCrcCalculatorService : IGameCrcCalculatorService
 {
-    private readonly ConcurrentDictionary<string, (DateTime LastWriteTimeUtc, long FileLength, long SkirmishTicks, long SkirmishLength, long MpTicks, long MpLength, string Crc)> _exeCrcCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ILogger<GameCrcCalculatorService>? _logger;
+    private static readonly ConcurrentDictionary<string, (DateTime LastWriteTimeUtc, long FileLength, long SkirmishTicks, long SkirmishLength, long MpTicks, long MpLength, string Crc)> ExeCrcCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, string> IniCrcCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="GameCrcCalculatorService"/> class.
+    /// </summary>
+    /// <param name="logger">Optional logger instance.</param>
+    public GameCrcCalculatorService(ILogger<GameCrcCalculatorService>? logger = null)
+    {
+        _logger = logger;
+    }
 
     /// <inheritdoc/>
     public Task<OperationResult<string>> CalculateExeCrcAsync(
@@ -48,7 +60,7 @@ public sealed class GameCrcCalculatorService : IGameCrcCalculatorService
             var scriptsSig = GetScriptsSignature(root);
             var cacheKey = $"{fileInfo.FullName}|{gameRootPath}|{major}|{minor}|{gameType}";
 
-            if (_exeCrcCache.TryGetValue(cacheKey, out var cached) &&
+            if (ExeCrcCache.TryGetValue(cacheKey, out var cached) &&
                 cached.LastWriteTimeUtc == fileInfo.LastWriteTimeUtc &&
                 cached.FileLength == fileInfo.Length &&
                 cached.SkirmishTicks == scriptsSig.SkirmishTicks &&
@@ -80,12 +92,13 @@ public sealed class GameCrcCalculatorService : IGameCrcCalculatorService
                     AddVersionBytes(crc, resolvedMajor, resolvedMinor);
 
                     bool scriptsReadSuccessfully = AddScriptFiles(crc, root);
+                    if (!scriptsReadSuccessfully)
+                    {
+                        return OperationResult<string>.CreateFailure($"Failed to read script files for executable CRC calculation in '{root}'.");
+                    }
 
                     var calculatedCrc = $"0x{crc.Value:X8}";
-                    if (scriptsReadSuccessfully)
-                    {
-                        _exeCrcCache[cacheKey] = (fileInfo.LastWriteTimeUtc, fileInfo.Length, scriptsSig.SkirmishTicks, scriptsSig.SkirmishLength, scriptsSig.MpTicks, scriptsSig.MpLength, calculatedCrc);
-                    }
+                    ExeCrcCache[cacheKey] = (fileInfo.LastWriteTimeUtc, fileInfo.Length, scriptsSig.SkirmishTicks, scriptsSig.SkirmishLength, scriptsSig.MpTicks, scriptsSig.MpLength, calculatedCrc);
 
                     return OperationResult<string>.CreateSuccess(calculatedCrc);
                 },
@@ -114,6 +127,14 @@ public sealed class GameCrcCalculatorService : IGameCrcCalculatorService
             return OperationResult<string>.CreateFailure($"Game root directory not found at '{gameRootPath}'.");
         }
 
+        var sideloadsPart = sideloadPaths != null && sideloadPaths.Count > 0 ? string.Join(';', sideloadPaths) : string.Empty;
+        var cacheKey = $"{gameRootPath}|{gameType}|{sideloadsPart}|{modPath}";
+
+        if (IniCrcCache.TryGetValue(cacheKey, out var cachedIni))
+        {
+            return OperationResult<string>.CreateSuccess(cachedIni);
+        }
+
         try
         {
             return await Task.Run(
@@ -122,7 +143,7 @@ public sealed class GameCrcCalculatorService : IGameCrcCalculatorService
                     ct.ThrowIfCancellationRequested();
 
                     bool isZeroHour = gameType == GameType.ZeroHour;
-                    var vfs = new SageVirtualFileSystem(gameRootPath, isZeroHour, cancellationToken: ct);
+                    var vfs = new SageVirtualFileSystem(gameRootPath, isZeroHour, _logger, cancellationToken: ct);
                     var crc = new XferChecksum();
 
                     var order = isZeroHour
@@ -142,7 +163,9 @@ public sealed class GameCrcCalculatorService : IGameCrcCalculatorService
                         LoadOrderStep(order[i], vfs, crc);
                     }
 
-                    return OperationResult<string>.CreateSuccess($"0x{crc.Value:X8}");
+                    var calculated = $"0x{crc.Value:X8}";
+                    IniCrcCache[cacheKey] = calculated;
+                    return OperationResult<string>.CreateSuccess(calculated);
                 },
                 ct);
         }

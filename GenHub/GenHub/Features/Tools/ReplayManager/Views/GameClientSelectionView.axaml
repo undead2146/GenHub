@@ -8,6 +8,7 @@
         x:Class="GenHub.Features.Tools.ReplayManager.Views.GameClientSelectionView"
         x:DataType="vm:GameClientSelectionViewModel"
         Title="Select Game Client"
+        Icon="avares://GenHub/Assets/Icons/generalshub-icon.png"
         Width="820" Height="640"
         MinWidth="600" MinHeight="460"
         WindowStartupLocation="CenterOwner"

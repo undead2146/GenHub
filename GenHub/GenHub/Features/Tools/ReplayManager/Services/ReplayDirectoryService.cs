@@ -75,6 +75,7 @@ public sealed class ReplayDirectoryService(
     private static readonly TimeSpan ReplayFileNameRegexTimeout = TimeSpan.FromMilliseconds(250);
 
     private static readonly ConcurrentDictionary<string, (DateTime LastWriteTimeUtc, string Crc)> ExeCrcCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, string> IniCrcCache = new(StringComparer.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public string GetReplayDirectory(GameType version)
@@ -2810,13 +2811,20 @@ public sealed class ReplayDirectoryService(
     {
         try
         {
-            var iniResult = await crcCalculator!.CalculateIniCrcAsync(gameRoot, profile.GameClient!.GameType, ct: ct);
-            if (!iniResult.Success || string.IsNullOrEmpty(iniResult.Data))
+            var cacheKey = $"{gameRoot}|{profile.GameClient?.GameType}";
+            if (!IniCrcCache.TryGetValue(cacheKey, out var calculatedIni))
             {
-                return false;
+                var iniResult = await crcCalculator!.CalculateIniCrcAsync(gameRoot, profile.GameClient!.GameType, ct: ct);
+                if (!iniResult.Success || string.IsNullOrEmpty(iniResult.Data))
+                {
+                    return false;
+                }
+
+                calculatedIni = iniResult.Data;
+                IniCrcCache[cacheKey] = calculatedIni;
             }
 
-            var normalizedCalcIni = NormalizeCrcHex(iniResult.Data);
+            var normalizedCalcIni = NormalizeCrcHex(calculatedIni);
             var normalizedTargetIni = NormalizeCrcHex(targetIniCrc);
             return string.Equals(normalizedCalcIni, normalizedTargetIni, StringComparison.OrdinalIgnoreCase);
         }

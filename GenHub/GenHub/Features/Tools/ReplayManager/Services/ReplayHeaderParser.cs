@@ -128,10 +128,32 @@ public sealed class ReplayHeaderParser(ILogger<ReplayHeaderParser> logger) : IRe
             return OperationResult<ReplayMetadata>.CreateFailure("Unterminated UTF-16 replay title string in replay header.");
         }
 
-        // 3. Skip SYSTEMTIME timestamp structure
+        // 3. Read SYSTEMTIME timestamp structure
         if (offset + ReplayManagerConstants.ReplayHeaderSystemTimeSizeBytes > bytesRead)
         {
             return OperationResult<ReplayMetadata>.CreateFailure("Truncated replay header before version string.");
+        }
+
+        DateTime? gameDate = null;
+        try
+        {
+            var year = BitConverter.ToUInt16(buffer, offset);
+            var month = BitConverter.ToUInt16(buffer, offset + 2);
+            var day = BitConverter.ToUInt16(buffer, offset + 6);
+            var hour = BitConverter.ToUInt16(buffer, offset + 8);
+            var minute = BitConverter.ToUInt16(buffer, offset + 10);
+            var second = BitConverter.ToUInt16(buffer, offset + 12);
+            var millisecond = BitConverter.ToUInt16(buffer, offset + 14);
+
+            if (year >= 1990 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= DateTime.DaysInMonth(year, month) &&
+                hour <= 23 && minute <= 59 && second <= 59 && millisecond <= 999)
+            {
+                gameDate = new DateTime(year, month, day, hour, minute, second, millisecond, DateTimeKind.Utc);
+            }
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            // Ignored - invalid timestamp in replay header
         }
 
         offset += ReplayManagerConstants.ReplayHeaderSystemTimeSizeBytes;
@@ -180,6 +202,7 @@ public sealed class ReplayHeaderParser(ILogger<ReplayHeaderParser> logger) : IRe
             VersionNumber = versionNumber,
             ExeCrc = exeCrc,
             IniCrc = iniCrc,
+            GameDate = gameDate,
             MapName = mapName,
             Players = players,
         };

@@ -831,16 +831,7 @@ public sealed partial class GameClientSelectionViewModel(
             return true;
         }
 
-        var isReplayZh104 = TargetGame == GameType.ZeroHour &&
-                            (IsRetailExeCrc(ReplayExeCrc, GameType.ZeroHour) ||
-                             string.Equals(matchedClient?.Version, ReplayManagerConstants.ZeroHourRetailVersion, StringComparison.OrdinalIgnoreCase));
-
-        if (isReplayZh104 && IsCommunityPatchClient(client))
-        {
-            return true;
-        }
-
-        return false;
+        return IsReplayZeroHour104(TargetGame, ReplayExeCrc, matchedClient) && IsCommunityPatchClient(client);
     }
 
     private async Task ProcessProfileClientAsync(

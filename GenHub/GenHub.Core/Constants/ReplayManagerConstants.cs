@@ -316,7 +316,7 @@ public static class ReplayManagerConstants
     /// <summary>
     /// Default display name for the retail Generals client.
     /// </summary>
-    public const string RetailGeneralsClientName = "Retail 1.0";
+    public const string RetailGeneralsClientName = "Retail 1.08";
 
     /// <summary>
     /// Identifier segment for Zero Hour manifests.

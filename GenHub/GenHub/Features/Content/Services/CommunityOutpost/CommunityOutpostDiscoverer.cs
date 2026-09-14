@@ -110,7 +110,7 @@ public partial class CommunityOutpostDiscoverer(
             var results = new List<ContentSearchResult>();
 
             // Cap catalog timeout to at most 8 seconds to prevent long hangs on unresponsive networks
-            catalogTimeout = Math.Clamp(catalogTimeout, 1, 8);
+            catalogTimeout = Math.Clamp(catalogTimeout, CommunityOutpostCatalogConstants.MinCatalogTimeoutSeconds, CommunityOutpostCatalogConstants.MaxCatalogTimeoutSeconds);
 
             using var client = httpClientFactory.CreateClient();
             client.Timeout = TimeSpan.FromSeconds(catalogTimeout);

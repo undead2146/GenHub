@@ -21,6 +21,7 @@ using GenHub.Features.GameProfiles.ViewModels;
 using GenHub.Features.GameProfiles.ViewModels.Wizard;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Avalonia.Headless.XUnit;
 using Moq;
 
 namespace GenHub.Tests.Core.Features.GameProfiles.ViewModels;
@@ -527,7 +528,7 @@ public class GameProfileLauncherViewModelTests
     /// <summary>
     /// Verifies that receiving ProfileLaunchedMessage updates the matching profile's IsProcessRunning and ProcessId properties.
     /// </summary>
-    [Fact]
+    [AvaloniaFact]
     public void Receive_ProfileLaunchedMessage_UpdatesIsProcessRunningAndProcessId()
     {
         var vm = CreateViewModelWithMockDependencies();
@@ -548,7 +549,7 @@ public class GameProfileLauncherViewModelTests
     /// <summary>
     /// Verifies that receiving ProfileStoppedMessage clears IsProcessRunning and resets ProcessId to 0.
     /// </summary>
-    [Fact]
+    [AvaloniaFact]
     public void Receive_ProfileStoppedMessage_ClearsIsProcessRunningAndProcessId()
     {
         var vm = CreateViewModelWithMockDependencies();
@@ -573,7 +574,7 @@ public class GameProfileLauncherViewModelTests
     /// <summary>
     /// Verifies that receiving ProfileStoppedMessage with mismatched PID is ignored as stale.
     /// </summary>
-    [Fact]
+    [AvaloniaFact]
     public void Receive_ProfileStoppedMessage_WithMismatchedProcessId_IgnoresStaleStop()
     {
         var vm = CreateViewModelWithMockDependencies();

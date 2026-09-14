@@ -1,5 +1,7 @@
 using System;
 using System.Buffers.Binary;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text;
 
@@ -58,6 +60,28 @@ public static class BigArchiveReader
         }
 
         return entries;
+    }
+
+    /// <summary>
+    /// Attempts to read and index the directory table from a .BIG archive file without throwing on corruption or invalid format.
+    /// </summary>
+    /// <param name="archivePath">The path to the .BIG archive.</param>
+    /// <param name="entries">When this method returns, contains the indexed archive entries if successful; otherwise, <c>null</c>.</param>
+    /// <returns><c>true</c> if the archive index was successfully read; otherwise, <c>false</c>.</returns>
+    public static bool TryReadIndex(
+        string archivePath,
+        [NotNullWhen(true)] out Dictionary<string, BigArchiveEntry>? entries)
+    {
+        try
+        {
+            entries = ReadIndex(archivePath);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or NotSupportedException)
+        {
+            entries = null;
+            return false;
+        }
     }
 
     /// <summary>

@@ -143,6 +143,7 @@ public sealed class MapImportService(
 
         foreach (var filePath in expandedPaths)
         {
+            string? mapDirPath = null;
             try
             {
                 if (IsArchiveFile(filePath))
@@ -169,7 +170,7 @@ public sealed class MapImportService(
 
                 // Import single .map file: create a folder named after the map
                 var mapName = Path.GetFileNameWithoutExtension(filePath);
-                var mapDirPath = GetUniqueDirectoryPath(Path.Combine(targetDir, mapName));
+                mapDirPath = GetUniqueDirectoryPath(Path.Combine(targetDir, mapName));
                 Directory.CreateDirectory(mapDirPath);
 
                 var destPath = Path.Combine(mapDirPath, Path.GetFileName(filePath));
@@ -239,6 +240,11 @@ public sealed class MapImportService(
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                if (!string.IsNullOrEmpty(mapDirPath))
+                {
+                    DeleteDirectoryBestEffort(mapDirPath);
+                }
+
                 logger.LogError(ex, "Failed to import map: {Path}", filePath);
                 result.Errors.Add($"Failed to import {Path.GetFileName(filePath)}: {ex.Message}");
             }

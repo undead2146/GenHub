@@ -212,7 +212,6 @@ public class ProfileLauncherFacade(
             // 1. Profile is deleted
             // 2. Content changes require workspace refresh
             logger.LogInformation("Successfully stopped profile {ProfileId}", profileId);
-            WeakReferenceMessenger.Default.Send(new ProfileStoppedMessage(profileId, launch.ProcessInfo.ProcessId));
             return ProfileOperationResult<bool>.CreateSuccess(true);
         }
         catch (Exception ex)
@@ -722,13 +721,13 @@ public class ProfileLauncherFacade(
             }
 
             var resolvedInstallationResult = await ResolveOrRebindInstallationAsync(profile, cancellationToken);
-            if (resolvedInstallationResult.Failed)
+            if (resolvedInstallationResult.Failed || resolvedInstallationResult.Data == null)
             {
-                logger.LogError("[Launch] Installation resolution failed: {Error}", resolvedInstallationResult.FirstError);
+                logger.LogError("[Launch] Installation resolution failed: {Error}", resolvedInstallationResult.FirstError ?? "Resolved installation data was null.");
                 return ProfileOperationResult<GameLaunchInfo>.CreateFailure(resolvedInstallationResult.FirstError ?? "Could not resolve game installation for profile");
             }
 
-            var resolvedInstallation = resolvedInstallationResult.Data!;
+            var resolvedInstallation = resolvedInstallationResult.Data;
             logger.LogDebug(
                 "[Launch] Bound to game installation: {InstallationId} at {Path}",
                 resolvedInstallation.Id,

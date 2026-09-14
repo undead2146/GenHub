@@ -842,7 +842,22 @@ def _load_existing_mappings(output_path: str, base_mappings: list[dict]) -> list
         with open(output_path, "r", encoding="utf-8") as f:
             loaded = json.load(f)
             if isinstance(loaded, dict) and "mappings" in loaded and isinstance(loaded["mappings"], list):
-                return loaded["mappings"]
+                existing = loaded["mappings"]
+                existing_keys = {
+                    (e.get("manifestId"), normalize_hex(e.get("exeCrc", "")), normalize_hex(e.get("iniCrc", "")))
+                    for e in existing
+                }
+                for base in base_mappings:
+                    if base.get("cdnUrl") is None:
+                        base_key = (
+                            base.get("manifestId"),
+                            normalize_hex(base.get("exeCrc", "")),
+                            normalize_hex(base.get("iniCrc", "")),
+                        )
+                        if base_key not in existing_keys:
+                            existing.append(dict(base))
+                            existing_keys.add(base_key)
+                return existing
             else:
                 print(f"Warning: existing catalog at {output_path} is not an object containing a 'mappings' list; falling back to base mappings.", file=sys.stderr)
     except (OSError, ValueError) as e:

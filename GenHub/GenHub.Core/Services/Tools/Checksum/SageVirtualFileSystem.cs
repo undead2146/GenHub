@@ -19,6 +19,18 @@ public sealed class SageVirtualFileSystem
         Mod = 2,
     }
 
+    private static readonly EnumerationOptions BigFileEnumerationOptions = new()
+    {
+        RecurseSubdirectories = true,
+        MatchCasing = MatchCasing.CaseInsensitive,
+    };
+
+    private static readonly EnumerationOptions IniFileEnumerationOptions = new()
+    {
+        RecurseSubdirectories = true,
+        MatchCasing = MatchCasing.CaseInsensitive,
+    };
+
     private readonly List<string> _looseRoots = [];
     private readonly Dictionary<string, (BigArchiveEntry Entry, ArchiveTier Tier)> _archiveEntries = new(StringComparer.OrdinalIgnoreCase);
     private readonly ILogger? _logger;
@@ -45,7 +57,7 @@ public sealed class SageVirtualFileSystem
             return;
         }
 
-        var bigFiles = Directory.GetFiles(gameRoot, SageChecksumConstants.BigFileSearchPattern, SearchOption.AllDirectories);
+        var bigFiles = Directory.GetFiles(gameRoot, SageChecksumConstants.BigFileSearchPattern, BigFileEnumerationOptions);
         Array.Sort(bigFiles, (a, b) =>
         {
             string relA = Path.GetRelativePath(gameRoot, a).Replace('/', '\\');
@@ -80,7 +92,7 @@ public sealed class SageVirtualFileSystem
         if (Directory.Exists(path))
         {
             _looseRoots.Add(path);
-            var bigFiles = Directory.GetFiles(path, SageChecksumConstants.BigFileSearchPattern, SearchOption.AllDirectories);
+            var bigFiles = Directory.GetFiles(path, SageChecksumConstants.BigFileSearchPattern, BigFileEnumerationOptions);
             Array.Sort(bigFiles, StringComparer.OrdinalIgnoreCase);
             foreach (string bigFile in bigFiles)
             {
@@ -90,6 +102,10 @@ public sealed class SageVirtualFileSystem
         else if (File.Exists(path) && path.EndsWith(SageChecksumConstants.BigFileExtension, StringComparison.OrdinalIgnoreCase))
         {
             AddArchive(path, ArchiveTier.Sideload);
+        }
+        else
+        {
+            _logger?.LogWarning("[VFS] Sideload path '{Path}' does not exist or is not a valid directory or .big archive.", path);
         }
     }
 
@@ -107,7 +123,7 @@ public sealed class SageVirtualFileSystem
         if (Directory.Exists(path))
         {
             _looseRoots.Add(path);
-            var bigFiles = Directory.GetFiles(path, SageChecksumConstants.BigFileSearchPattern, SearchOption.AllDirectories);
+            var bigFiles = Directory.GetFiles(path, SageChecksumConstants.BigFileSearchPattern, BigFileEnumerationOptions);
             Array.Sort(bigFiles, StringComparer.OrdinalIgnoreCase);
             foreach (string bigFile in bigFiles)
             {
@@ -117,6 +133,10 @@ public sealed class SageVirtualFileSystem
         else if (File.Exists(path) && path.EndsWith(SageChecksumConstants.BigFileExtension, StringComparison.OrdinalIgnoreCase))
         {
             AddArchive(path, ArchiveTier.Mod);
+        }
+        else
+        {
+            _logger?.LogWarning("[VFS] Mod path '{Path}' does not exist or is not a valid directory or .big archive.", path);
         }
     }
 
@@ -183,7 +203,7 @@ public sealed class SageVirtualFileSystem
 
             try
             {
-                var discovered = Directory.GetFiles(looseDir, SageChecksumConstants.IniFileSearchPattern, SearchOption.AllDirectories);
+                var discovered = Directory.GetFiles(looseDir, SageChecksumConstants.IniFileSearchPattern, IniFileEnumerationOptions);
                 foreach (string file in discovered)
                 {
                     if (!file.EndsWith(SageChecksumConstants.IniFileExtension, StringComparison.OrdinalIgnoreCase))
@@ -216,30 +236,27 @@ public sealed class SageVirtualFileSystem
 
     private void AddArchive(string archivePath, ArchiveTier tier)
     {
-        try
+        if (!BigArchiveReader.TryReadIndex(archivePath, out var entries))
         {
-            var entries = BigArchiveReader.ReadIndex(archivePath);
-            string newBaseName = Path.GetFileName(archivePath);
+            _logger?.LogWarning("Skipping invalid or unreadable archive at {Path}", archivePath);
+            return;
+        }
 
-            foreach (var (key, entry) in entries)
+        string newBaseName = Path.GetFileName(archivePath);
+        foreach (var (key, entry) in entries)
+        {
+            if (!_archiveEntries.TryGetValue(key, out var incumbent) || tier > incumbent.Tier)
             {
-                if (!_archiveEntries.TryGetValue(key, out var incumbent) || tier > incumbent.Tier)
+                _archiveEntries[key] = (entry, tier);
+            }
+            else if (tier == incumbent.Tier)
+            {
+                string incumbentBaseName = Path.GetFileName(incumbent.Entry.ArchivePath);
+                if (string.Compare(newBaseName, incumbentBaseName, StringComparison.OrdinalIgnoreCase) < 0)
                 {
                     _archiveEntries[key] = (entry, tier);
                 }
-                else if (tier == incumbent.Tier)
-                {
-                    string incumbentBaseName = Path.GetFileName(incumbent.Entry.ArchivePath);
-                    if (string.Compare(newBaseName, incumbentBaseName, StringComparison.OrdinalIgnoreCase) < 0)
-                    {
-                        _archiveEntries[key] = (entry, tier);
-                    }
-                }
             }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or NotSupportedException)
-        {
-            _logger?.LogWarning(ex, "Skipping invalid archive at {Path}", archivePath);
         }
     }
 }

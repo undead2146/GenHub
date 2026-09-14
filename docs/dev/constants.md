@@ -341,6 +341,21 @@ Constants related to manifest ID generation, validation, and file operations.
 | `SimpleIdPrefix`               | `"simple"`           | Prefix for simple test IDs                                                            |
 | `GeneralsManifestVersion`      | `"1.08"`             | Version string for Generals game installation manifests (dots removed in IDs: "108")  |
 | `ZeroHourManifestVersion`      | `"1.04"`             | Version string for Zero Hour game installation manifests (dots removed in IDs: "104") |
+| `AnyPublisherToken`            | `"any"`              | Wildcard token representing any publisher in dependency declarations                  |
+| `GeneralsContentName`          | `"generals"`         | Content name for Generals game segment                                                |
+| `ZeroHourContentName`          | `"zerohour"`         | Content name for Zero Hour game segment                                                |
+| `ZeroHourHyphenContentName`    | `"zero-hour"`        | Content name for Zero Hour with hyphen                                                |
+| `ZeroHourSpacedContentName`    | `"zero hour"`        | Content name for Zero Hour with space                                                 |
+| `ZeroHourShortContentName`     | `"zh"`               | Short content name for Zero Hour segment                                              |
+| `GeneralsZeroHourContentName`  | `"generalszh"`       | Content name for combined Generals Zero Hour segment                                  |
+| `GameClientContentTypeName`    | `"gameclient"`       | Content type name for game client segment                                             |
+| `GameDataContentTypeName`      | `"gamedata"`         | Content type name for game data segment                                               |
+| `SixtyHzKeyword`               | `"60hz"`             | Content keyword for 60Hz variant segment                                              |
+| `SixtyFpsKeyword`              | `"60fps"`            | Content keyword for 60fps variant segment                                             |
+| `SixtyHzHyphenSuffix`          | `"-60"`              | Content suffix for 60Hz hyphen variant segment                                        |
+| `MinManifestSegments`          | `5`                  | Minimum number of segments in manifest ID (must be exactly 5)                         |
+| `ManifestIdSegmentSeparator`   | `'.'`                | Separator character for manifest ID segments                                          |
+| `VariantSeparator`             | `"-"`                | Separator used to append variant identifiers to content names                         |
 
 ### Manifest Validation
 
@@ -492,6 +507,7 @@ Well-known publisher type identifiers for content sources. Uses lowercase string
 | Constant         | Value              | Description                       |
 | ---------------- | ------------------ | --------------------------------- |
 | `EaApp`          | `"eaapp"`          | EA App (formerly Origin) platform |
+| `Ea`             | `"ea"`             | Official Electronic Arts publisher identifier |
 | `Steam`          | `"steam"`          | Steam platform                    |
 | `Retail`         | `"retail"`         | Retail/physical installation      |
 | `TheFirstDecade` | `"thefirstdecade"` | The First Decade compilation      |
@@ -504,6 +520,8 @@ Well-known publisher type identifiers for content sources. Uses lowercase string
 | ------------------ | -------------------- | ---------------------------------- |
 | `GeneralsOnline`   | `"generalsonline"`   | Generals Online community platform |
 | `CommunityOutpost` | `"communityoutpost"` | Community Outpost platform         |
+| `TheSuperHackers`  | `"thesuperhackers"`  | The Super Hackers community publisher |
+| `LegacySuperHackers`| `"superhackers"`   | Legacy alias for The Super Hackers community publisher |
 | `ModDb`            | `"moddb"`            | ModDB hosting platform             |
 | `CncLabs`          | `"cnclabs"`          | C&C Labs community site            |
 
@@ -1087,6 +1105,8 @@ Publisher types are **string-based** (not an enum) for extensibility. Any string
 | ------------------ | -------------------- | --------------------------------------------------------- |
 | `GeneralsOnline`   | `"generalsonline"`   | Generals Online community launcher (auto-updates clients) |
 | `CommunityOutpost` | `"communityoutpost"` | Community Outpost platform                                |
+| `TheSuperHackers`  | `"thesuperhackers"`  | The Super Hackers community publisher                     |
+| `LegacySuperHackers`| `"superhackers"`   | Legacy alias for The Super Hackers community publisher    |
 | `ModDb`            | `"moddb"`            | ModDB hosting platform                                    |
 | `CncLabs`          | `"cnclabs"`          | C&C Labs community site                                   |
 
