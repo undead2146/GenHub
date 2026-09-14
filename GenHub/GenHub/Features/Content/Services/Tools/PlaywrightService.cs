@@ -520,8 +520,7 @@ public sealed class PlaywrightService(
     }
 
     private static bool IsModDbVerificationPage(string? title) =>
-        !string.IsNullOrWhiteSpace(title) &&
-        ModDBConstants.BotProtectionTitleMarkers.Any(marker => title.Contains(marker, StringComparison.OrdinalIgnoreCase));
+        ModDBConstants.IsChallengePageTitle(title);
 
     private static bool IsModDbOrDbolicalHost(Uri uri) =>
         ModDBConstants.IsModDbOrDbolicalUri(uri);

@@ -1933,7 +1933,7 @@ public sealed class ContentDetailViewModelTests
         Assert.Equal(ContentType.ModdingTool, searchResult.ContentType);
         Assert.Equal(ContentType.ModdingTool, viewModel.ContentType);
         Assert.True(searchResult.ResolverMetadata.TryGetValue(ContentConstants.ExplicitContentTypeMetadataKey, out var explicitFlag));
-        Assert.Equal("true", explicitFlag);
+        Assert.Equal(ContentConstants.ExplicitContentTypeEnabledValue, explicitFlag);
 
         // Download in progress
         viewModel.IsDownloading = true;
@@ -2012,8 +2012,8 @@ public sealed class ContentDetailViewModelTests
         // Act: change to standalone ModdingTool
         viewModel.SelectedContentType = ContentType.ModdingTool;
 
-        // Give the queued background persist task a moment to finish
-        await Task.Delay(100);
+        // Wait deterministically for the queued background persist to finish
+        await viewModel.AwaitContentTypePersistAsync();
 
         // Assert
         Assert.NotNull(persistedManifest);

@@ -37,8 +37,6 @@ public class ModDBContentProvider(
     private readonly IContentDeliverer _httpDeliverer = deliverers.FirstOrDefault(d => d.SourceName?.Equals(ContentSourceNames.HttpDeliverer, StringComparison.OrdinalIgnoreCase) == true)
         ?? throw new ArgumentException("HTTP deliverer not found", nameof(deliverers));
 
-    private readonly ModDBManifestFactory _manifestFactory = manifestFactory ?? throw new ArgumentNullException(nameof(manifestFactory));
-
     /// <inheritdoc />
     public override string SourceName => "ModDB";
 
@@ -91,7 +89,7 @@ public class ModDBContentProvider(
 
         return DeliverAndEnrichContentAsync(
             _httpDeliverer,
-            _manifestFactory,
+            manifestFactory,
             manifest,
             workingDirectory,
             progress,

@@ -62,6 +62,14 @@ public partial class ModDBDiscoverer(
         "login",
     };
 
+    private static readonly string[] ValidPathPrefixes =
+    [
+        ModDBConstants.ModsPathFragment,
+        ModDBConstants.GamesSegment,
+        ModDBConstants.DownloadsSegment,
+        ModDBConstants.AddonsSegment,
+    ];
+
     /// <inheritdoc />
     public string SourceName => ModDBConstants.DiscovererSourceName;
 
@@ -166,7 +174,7 @@ public partial class ModDBDiscoverer(
     /// Extracts the ModDB identifier slug from a ModDB URL.
     /// </summary>
     /// <param name="url">The ModDB page or download URL.</param>
-    /// <returns>The extracted slug identifier or a generated fallback GUID string.</returns>
+    /// <returns>The extracted slug identifier or a 16-character SHA-256 hash of the URL when no slug can be extracted.</returns>
     internal static string ExtractModDBIdFromUrl(string url)
     {
         if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Segments.Length > 0)
@@ -365,14 +373,6 @@ public partial class ModDBDiscoverer(
 
         return false;
     }
-
-    private static readonly string[] ValidPathPrefixes =
-    [
-        ModDBConstants.ModsPathFragment,
-        ModDBConstants.GamesSegment,
-        ModDBConstants.DownloadsSegment,
-        ModDBConstants.AddonsSegment,
-    ];
 
     private static bool TryNormalizeDomainModDBUrl(string trimmed, [NotNullWhen(true)] out string? normalizedUrl)
     {
@@ -694,20 +694,8 @@ public partial class ModDBDiscoverer(
     /// </summary>
     /// <param name="title">The browser page title to inspect.</param>
     /// <returns><see langword="true"/> if the title looks like a bot-protection challenge.</returns>
-    private static bool IsChallengePage(string? title)
-    {
-        if (string.IsNullOrWhiteSpace(title))
-        {
-            return false;
-        }
-
-        return title.Contains("Just a moment", StringComparison.OrdinalIgnoreCase)
-            || title.Contains("Attention Required", StringComparison.OrdinalIgnoreCase)
-            || title.Contains("Please wait", StringComparison.OrdinalIgnoreCase)
-            || title.Contains("Verifying you are human", StringComparison.OrdinalIgnoreCase)
-            || title.Contains("Checking your browser", StringComparison.OrdinalIgnoreCase)
-            || title.Contains("Cloudflare", StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool IsChallengePage(string? title) =>
+        ModDBConstants.IsChallengePageTitle(title);
 
     [GeneratedRegex(@"(https?://[^/]+/mods/[^/]+)")]
     private static partial Regex ParentModUrlRegex();

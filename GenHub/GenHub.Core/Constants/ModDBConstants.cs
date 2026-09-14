@@ -644,12 +644,42 @@ public static class ModDBConstants
     [
         "Just a moment",
         "Attention Required",
-        "Checking your browser",
+        "Please wait",
         "Verify you are human",
+        "Verifying you are human",
+        "Checking your browser",
         "Cloudflare",
     ];
 
+    /// <summary>
+    /// Keywords found in browser page titles indicating a Cloudflare or bot-protection challenge page.
+    /// </summary>
+    public static readonly string[] ChallengeTitleKeywords = BotProtectionTitleMarkers;
+
     // ===== Helper Methods =====
+
+    /// <summary>
+    /// Checks whether the specified page title indicates an interstitial challenge or verification page.
+    /// </summary>
+    /// <param name="title">The browser page title to evaluate.</param>
+    /// <returns><see langword="true"/> if the title contains known challenge keywords; otherwise <see langword="false"/>.</returns>
+    public static bool IsChallengePageTitle(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return false;
+        }
+
+        foreach (var keyword in ChallengeTitleKeywords)
+        {
+            if (title.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// Checks whether the specified URI belongs to the ModDB or DBolical network (including CDN download mirrors).

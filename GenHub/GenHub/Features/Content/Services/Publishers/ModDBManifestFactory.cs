@@ -79,6 +79,9 @@ public class ModDBManifestFactory(
     /// <param name="progress">Progress reporter for tracking progress.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A list of enriched content manifests.</returns>
+    /// <exception cref="InvalidDataException">
+    /// Thrown when ModDB returns an extensionless non-archive payload, no usable files, or only an unextracted installer executable.
+    /// </exception>
     public async Task<List<ContentManifest>> CreateManifestsFromExtractedContentAsync(
         ContentManifest originalManifest,
         string extractedDirectory,

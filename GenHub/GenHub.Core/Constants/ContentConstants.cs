@@ -125,6 +125,11 @@ public static class ContentConstants
     public const string ExplicitContentTypeMetadataKey = "explicitContentType";
 
     /// <summary>
+    /// Sentinel value indicating an explicitly configured content type metadata flag is enabled.
+    /// </summary>
+    public const string ExplicitContentTypeEnabledValue = "true";
+
+    /// <summary>
     /// Number of recent releases and addons to eagerly preload extended details for.
     /// </summary>
     public const int PreloadRecentItemsLimit = 5;

@@ -248,7 +248,7 @@ public class ModDBResolver(
         // honor that selection.
         var contentType = discoveredItem.ContentType;
         var hasExplicitContentType = discoveredItem.ResolverMetadata.TryGetValue(ContentConstants.ExplicitContentTypeMetadataKey, out var explicitTypeVal) &&
-                                     string.Equals(explicitTypeVal, "true", StringComparison.OrdinalIgnoreCase);
+                                     string.Equals(explicitTypeVal, ContentConstants.ExplicitContentTypeEnabledValue, StringComparison.OrdinalIgnoreCase);
 
         if (!hasExplicitContentType)
         {

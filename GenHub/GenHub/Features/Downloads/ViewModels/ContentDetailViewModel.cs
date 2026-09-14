@@ -3216,7 +3216,7 @@ public partial class ContentDetailViewModel(
         }
 
         searchResult.ContentType = value;
-        searchResult.ResolverMetadata[ContentConstants.ExplicitContentTypeMetadataKey] = "true";
+        searchResult.ResolverMetadata[ContentConstants.ExplicitContentTypeMetadataKey] = ContentConstants.ExplicitContentTypeEnabledValue;
         OnPropertyChanged(nameof(ContentType));
 
         // Pre-download: the coordinator reads searchResult.ContentType when building the manifest.
@@ -3917,7 +3917,7 @@ public partial class ContentDetailViewModel(
 
         if (overrideContentType.HasValue || (SelectedDownloadableItem?.File == file && ContentCardBadgeHelper.CanChangeContentType(searchResult)))
         {
-            rowSearchResult.ResolverMetadata[ContentConstants.ExplicitContentTypeMetadataKey] = "true";
+            rowSearchResult.ResolverMetadata[ContentConstants.ExplicitContentTypeMetadataKey] = ContentConstants.ExplicitContentTypeEnabledValue;
         }
 
         if (ContentCardBadgeHelper.IsModDb(searchResult))

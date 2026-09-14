@@ -405,7 +405,7 @@ public sealed class ModDBManifestFactoryTests : IDisposable
             RequiresResolution = true,
             ResolverMetadata =
             {
-                [ContentConstants.ExplicitContentTypeMetadataKey] = "true",
+                [ContentConstants.ExplicitContentTypeMetadataKey] = ContentConstants.ExplicitContentTypeEnabledValue,
             },
             ParsedPageData = new ParsedWebPage(
                 new Uri("https://www.moddb.com/mods/cc-generals-zero-hour-enhanced"),
