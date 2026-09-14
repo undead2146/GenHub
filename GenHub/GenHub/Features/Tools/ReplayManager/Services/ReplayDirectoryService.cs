@@ -1,16 +1,6 @@
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
 using GenHub.Core.Constants;
 using GenHub.Core.Extensions.GameInstallations;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.GameClients;
@@ -33,6 +23,17 @@ using GenHub.Core.Models.Tools.ReplayManager;
 using GenHub.Features.GameProfiles.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace GenHub.Features.Tools.ReplayManager.Services;
 
@@ -74,7 +75,86 @@ public sealed class ReplayDirectoryService(
 
     private static readonly TimeSpan ReplayFileNameRegexTimeout = TimeSpan.FromMilliseconds(250);
 
-    private static readonly ConcurrentDictionary<string, (DateTime LastWriteTimeUtc, string Crc)> ExeCrcCache = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>
+    /// Builds a profile name for a replay that is guaranteed not to exceed the specified maximum length.
+    /// </summary>
+    /// <param name="clientTitle">The display title of the game client.</param>
+    /// <param name="replayFileName">The replay filename or full path.</param>
+    /// <param name="maxLength">The maximum allowed profile name length.</param>
+    /// <returns>A formatted profile name within the length limit.</returns>
+    public static string BuildReplayProfileName(
+        string clientTitle,
+        string replayFileName,
+        int maxLength = ProfileConstants.MaxProfileNameLength)
+    {
+        if (maxLength <= 0)
+        {
+            return string.Empty;
+        }
+
+        var replayBaseName = Path.GetFileNameWithoutExtension(replayFileName);
+        if (string.IsNullOrWhiteSpace(replayBaseName))
+        {
+            replayBaseName = replayFileName ?? string.Empty;
+        }
+
+        var title = string.IsNullOrWhiteSpace(clientTitle) ? ReplayManagerConstants.DefaultGameClientTitle : clientTitle.Trim();
+        var candidate = $"{title} (Replay: {replayBaseName})";
+
+        if (candidate.Length <= maxLength)
+        {
+            return candidate;
+        }
+
+        const string prefixSeparator = " (Replay: ";
+        const string suffix = ")";
+        var overhead = prefixSeparator.Length + suffix.Length; // 11 characters
+
+        if (maxLength <= overhead)
+        {
+            return candidate[..Math.Min(candidate.Length, maxLength)];
+        }
+
+        var availableForNames = maxLength - overhead;
+        int titleLen;
+        int replayLen;
+
+        if (title.Length + replayBaseName.Length <= availableForNames)
+        {
+            titleLen = title.Length;
+            replayLen = replayBaseName.Length;
+        }
+        else
+        {
+            var half = availableForNames / 2;
+            if (title.Length <= half)
+            {
+                titleLen = title.Length;
+                replayLen = availableForNames - titleLen;
+            }
+            else if (replayBaseName.Length <= half)
+            {
+                replayLen = replayBaseName.Length;
+                titleLen = availableForNames - replayLen;
+            }
+            else
+            {
+                titleLen = half;
+                replayLen = availableForNames - half;
+            }
+        }
+
+        var finalTitle = title[..titleLen].TrimEnd();
+        var finalReplay = replayBaseName[..replayLen].TrimEnd();
+
+        var result = $"{finalTitle}{prefixSeparator}{finalReplay}{suffix}";
+        if (result.Length > maxLength)
+        {
+            result = result[..maxLength];
+        }
+
+        return result;
+    }
 
     /// <inheritdoc />
     public string GetReplayDirectory(GameType version)
@@ -751,7 +831,7 @@ public sealed class ReplayDirectoryService(
     }
 
     /// <summary>
-    /// Preloads executable CRCs for the given game profiles into cache asynchronously.
+    /// Preloads executable and INI CRCs for the given game profiles into cache asynchronously.
     /// </summary>
     /// <param name="profiles">The collection of profiles to preload CRCs for.</param>
     /// <param name="crcCalculator">The game CRC calculator service.</param>
@@ -764,24 +844,7 @@ public sealed class ReplayDirectoryService(
         ILogger? logger = null,
         CancellationToken ct = default)
     {
-        if (crcCalculator == null)
-        {
-            return;
-        }
-
-        foreach (var profile in profiles)
-        {
-            if (ct.IsCancellationRequested)
-            {
-                break;
-            }
-
-            var exePath = ResolveProfileFullExePath(profile.GameClient);
-            if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
-            {
-                await GetOrCalculateProfileExeCrcAsync(exePath, crcCalculator, logger, ct);
-            }
-        }
+        await ReplayCrcMatchingHelper.PreloadProfileCrcsAsync(profiles, crcCalculator, logger, ct);
     }
 
     /// <summary>
@@ -798,34 +861,26 @@ public sealed class ReplayDirectoryService(
         ILogger? logger = null,
         CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(crcCalculator);
-        try
-        {
-            var fileInfo = new FileInfo(exePath);
-            if (!fileInfo.Exists)
-            {
-                return null;
-            }
+        return await ReplayCrcMatchingHelper.GetOrCalculateProfileExeCrcAsync(exePath, crcCalculator, logger, ct);
+    }
 
-            var lastWrite = fileInfo.LastWriteTimeUtc;
-            if (ExeCrcCache.TryGetValue(exePath, out var cached) && cached.LastWriteTimeUtc == lastWrite)
-            {
-                return cached.Crc;
-            }
-
-            var calcResult = await crcCalculator.CalculateExeCrcAsync(exePath, ct: ct);
-            if (calcResult.Success && !string.IsNullOrEmpty(calcResult.Data))
-            {
-                ExeCrcCache[exePath] = (lastWrite, calcResult.Data);
-                return calcResult.Data;
-            }
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger?.LogWarning(ex, "[ReplayManager] Error calculating executable CRC for {ExePath}", exePath);
-        }
-
-        return null;
+    /// <summary>
+    /// Computes or retrieves from cache the INI CRC for a given game installation root.
+    /// </summary>
+    /// <param name="gameRoot">Path to the game installation root.</param>
+    /// <param name="gameType">The game type.</param>
+    /// <param name="crcCalculator">The game CRC calculator service.</param>
+    /// <param name="logger">Optional logger instance.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The calculated INI CRC string formatted as 0xXXXXXXXX, or null if calculation failed.</returns>
+    internal static async Task<string?> GetOrCalculateProfileIniCrcAsync(
+        string gameRoot,
+        GameType gameType,
+        IGameCrcCalculatorService crcCalculator,
+        ILogger? logger = null,
+        CancellationToken ct = default)
+    {
+        return await ReplayCrcMatchingHelper.GetOrCalculateProfileIniCrcAsync(gameRoot, gameType, crcCalculator, logger, ct);
     }
 
     /// <summary>
@@ -937,22 +992,8 @@ public sealed class ReplayDirectoryService(
         }
     }
 
-    private static string? GetCachedExeCrc(string exePath)
-    {
-        var fileInfo = new FileInfo(exePath);
-        if (!fileInfo.Exists)
-        {
-            return null;
-        }
-
-        var lastWrite = fileInfo.LastWriteTimeUtc;
-        if (ExeCrcCache.TryGetValue(exePath, out var cached) && cached.LastWriteTimeUtc == lastWrite)
-        {
-            return cached.Crc;
-        }
-
-        return null;
-    }
+    private static string? GetCachedExeCrc(string exePath) =>
+        ReplayCrcMatchingHelper.GetCachedExeCrc(exePath);
 
     private static bool IsExeCrcCompatible(string actualCrc, string targetExeCrc)
     {
@@ -970,12 +1011,10 @@ public sealed class ReplayDirectoryService(
     }
 
     private static bool IsZeroHourRetailExeCrc(string? crc) =>
-        string.Equals(crc, ReplayManagerConstants.RetailZeroHourExeCrcFirstDecade, StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(crc, ReplayManagerConstants.RetailZeroHourExeCrcSteam, StringComparison.OrdinalIgnoreCase);
+        ReplayCrcMatchingHelper.IsZeroHourRetailExeCrc(crc);
 
     private static bool IsGeneralsRetailExeCrc(string? crc) =>
-        string.Equals(crc, ReplayManagerConstants.RetailGeneralsExeCrcFirstDecade, StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(crc, ReplayManagerConstants.RetailGeneralsExeCrcSteam, StringComparison.OrdinalIgnoreCase);
+        ReplayCrcMatchingHelper.IsGeneralsRetailExeCrc(crc);
 
     private static bool IsProfileCrcMatching(
         string calculatedCrc,
@@ -1161,15 +1200,8 @@ public sealed class ReplayDirectoryService(
                replayBaseName.StartsWith(nameReplayPart, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsDedicatedToAnotherReplay(GameProfile profile)
-    {
-        var inDescription = !string.IsNullOrEmpty(profile.Description) &&
-                            profile.Description.Contains("[replay:", StringComparison.OrdinalIgnoreCase);
-        var inName = !string.IsNullOrEmpty(profile.Name) &&
-                     profile.Name.Contains("(Replay:", StringComparison.OrdinalIgnoreCase);
-
-        return inDescription || inName;
-    }
+    private static bool IsDedicatedToAnotherReplay(GameProfile profile) =>
+        ReplayCrcMatchingHelper.IsDedicatedToAnotherReplay(profile);
 
     private static async Task<(GameInstallation? Installation, string? Error)> ResolveAndPrepareInstallationAsync(
         IServiceProvider sp, ReplayFile replay, CancellationToken ct)
@@ -1424,91 +1456,10 @@ public sealed class ReplayDirectoryService(
                 return replay.MatchedClient.Publisher;
             }
 
-            return "Game";
+            return ReplayManagerConstants.DefaultGameClientTitle;
         }
 
         return replay.GameVersion == GameType.ZeroHour ? "Zero Hour" : "Generals";
-    }
-
-    /// <summary>
-    /// Builds a profile name for a replay that is guaranteed not to exceed the specified maximum length.
-    /// </summary>
-    /// <param name="clientTitle">The display title of the game client.</param>
-    /// <param name="replayFileName">The replay filename or full path.</param>
-    /// <param name="maxLength">The maximum allowed profile name length.</param>
-    /// <returns>A formatted profile name within the length limit.</returns>
-    public static string BuildReplayProfileName(
-        string clientTitle,
-        string replayFileName,
-        int maxLength = ProfileConstants.MaxProfileNameLength)
-    {
-        if (maxLength <= 0)
-        {
-            return string.Empty;
-        }
-
-        var replayBaseName = Path.GetFileNameWithoutExtension(replayFileName);
-        if (string.IsNullOrWhiteSpace(replayBaseName))
-        {
-            replayBaseName = replayFileName ?? string.Empty;
-        }
-
-        var title = string.IsNullOrWhiteSpace(clientTitle) ? "Game" : clientTitle.Trim();
-        var candidate = $"{title} (Replay: {replayBaseName})";
-
-        if (candidate.Length <= maxLength)
-        {
-            return candidate;
-        }
-
-        const string prefixSeparator = " (Replay: ";
-        const string suffix = ")";
-        var overhead = prefixSeparator.Length + suffix.Length; // 11 characters
-
-        if (maxLength <= overhead)
-        {
-            return candidate[..Math.Min(candidate.Length, maxLength)];
-        }
-
-        var availableForNames = maxLength - overhead;
-        int titleLen;
-        int replayLen;
-
-        if (title.Length + replayBaseName.Length <= availableForNames)
-        {
-            titleLen = title.Length;
-            replayLen = replayBaseName.Length;
-        }
-        else
-        {
-            var half = availableForNames / 2;
-            if (title.Length <= half)
-            {
-                titleLen = title.Length;
-                replayLen = availableForNames - titleLen;
-            }
-            else if (replayBaseName.Length <= half)
-            {
-                replayLen = replayBaseName.Length;
-                titleLen = availableForNames - replayLen;
-            }
-            else
-            {
-                titleLen = half;
-                replayLen = availableForNames - half;
-            }
-        }
-
-        var finalTitle = title[..titleLen].TrimEnd();
-        var finalReplay = replayBaseName[..replayLen].TrimEnd();
-
-        var result = $"{finalTitle}{prefixSeparator}{finalReplay}{suffix}";
-        if (result.Length > maxLength)
-        {
-            result = result[..maxLength];
-        }
-
-        return result;
     }
 
     private static CreateProfileRequest BuildReplayProfileRequest(
@@ -1527,7 +1478,7 @@ public sealed class ReplayDirectoryService(
 
         var profileName = BuildReplayProfileName(clientTitle, replay.FileName);
         var description = isUnmapped
-            ? $"[replay:{replay.FileName}] Profile configured for unmapped replay {replay.FileName} (Exe: {replay.Metadata?.FormattedExeCrc ?? "N/A"}, INI: {replay.Metadata?.FormattedIniCrc ?? "N/A"})"
+            ? $"[replay:{replay.FileName}] Profile configured for unmapped replay {replay.FileName} (Exe: {replay.Metadata?.FormattedExeCrc ?? ReplayManagerConstants.NotAvailable}, INI: {replay.Metadata?.FormattedIniCrc ?? ReplayManagerConstants.NotAvailable})"
             : $"[replay:{replay.FileName}] Profile configured for {clientTitle} (Exe: {replay.Metadata?.FormattedExeCrc}, INI: {replay.Metadata?.FormattedIniCrc})";
 
         return new CreateProfileRequest
@@ -1815,38 +1766,11 @@ public sealed class ReplayDirectoryService(
         return false;
     }
 
-    private static string NormalizeCrcHex(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
+    private static string NormalizeCrcHex(string? value) =>
+        ReplayCrcMatchingHelper.NormalizeCrcHex(value);
 
-        var trimmed = value.Trim();
-        if (trimmed.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-        {
-            trimmed = trimmed[2..];
-        }
-
-        return trimmed.ToUpperInvariant();
-    }
-
-    private static string GetDefaultExecutableName(GameType gameVersion, string? publisher)
-    {
-        if (gameVersion == GameType.Generals)
-        {
-            return GameClientConstants.GeneralsExecutable;
-        }
-
-        if (string.Equals(publisher, PublisherTypeConstants.TheSuperHackers, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(publisher, PublisherTypeConstants.LegacySuperHackers, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(publisher, PublisherTypeConstants.CommunityOutpost, StringComparison.OrdinalIgnoreCase))
-        {
-            return GameClientConstants.SuperHackersZeroHourExecutable;
-        }
-
-        return GameClientConstants.ZeroHourExecutable;
-    }
+    private static string GetDefaultExecutableName(GameType gameVersion, string? publisher) =>
+        ReplayCrcMatchingHelper.GetDefaultExecutableName(gameVersion, publisher);
 
     private static bool MatchesReplayFileName(string? description, string fileName, ILogger? logger = null)
     {
@@ -2109,7 +2033,7 @@ public sealed class ReplayDirectoryService(
             gameTypeName,
             defaultVersionInt);
 
-        var clientName = GetReplayClientDisplayName(replay.MatchedClient, "Retail Client");
+        var clientName = GetReplayClientDisplayName(replay.MatchedClient, ReplayManagerConstants.RetailClientDisplayName);
         var gameClient = targetClient ?? new GameClient
         {
             Id = clientManifestId,
@@ -2259,43 +2183,14 @@ public sealed class ReplayDirectoryService(
         return (targetClient, workingDir);
     }
 
-
     private static bool IsVanillaZeroHourIni(string normalizedIni)
     {
         return string.Equals(normalizedIni, ReplayManagerConstants.VanillaZeroHourIniCrcEnglish, StringComparison.OrdinalIgnoreCase) ||
                string.Equals(normalizedIni, ReplayManagerConstants.VanillaZeroHourIniCrcGerman, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string? ResolveProfileFullExePath(GameClient? client)
-    {
-        if (client == null)
-        {
-            return null;
-        }
-
-        var exePath = client.ExecutablePath;
-        if (string.IsNullOrWhiteSpace(exePath))
-        {
-            if (!string.IsNullOrWhiteSpace(client.WorkingDirectory))
-            {
-                var defaultExe = GetDefaultExecutableName(client.GameType, client.PublisherType);
-                var candidate = Path.Combine(client.WorkingDirectory, defaultExe);
-                if (File.Exists(candidate))
-                {
-                    return candidate;
-                }
-            }
-
-            return null;
-        }
-
-        if (!Path.IsPathRooted(exePath) && !string.IsNullOrWhiteSpace(client.WorkingDirectory))
-        {
-            exePath = Path.Combine(client.WorkingDirectory, exePath);
-        }
-
-        return exePath;
-    }
+    private static string? ResolveProfileFullExePath(GameClient? client) =>
+        ReplayCrcMatchingHelper.ResolveProfileFullExePath(client);
 
     private static CrcMappingEntry CreateMatchedProfileEntry(
         GameProfile profile,
@@ -2378,7 +2273,7 @@ public sealed class ReplayDirectoryService(
             ? Path.Combine(workingDir, relativeExePath)
             : relativeExePath;
 
-        var thirdPartyClientName = GetReplayClientDisplayName(replay.MatchedClient, "Third-Party Client");
+        var thirdPartyClientName = GetReplayClientDisplayName(replay.MatchedClient, ReplayManagerConstants.ThirdPartyClientDisplayName);
         var thirdPartyGameClient = new GameClient
         {
             Id = thirdPartyManifestId,
@@ -2681,8 +2576,8 @@ public sealed class ReplayDirectoryService(
             logger.LogInformation(
                 "[ReplayManager] Replay '{ReplayFile}' (Exe: {ExeCrc}, INI: {IniCrc}) is unmapped; creating profile using base {GameVersion} installation",
                 replay.FileName,
-                replay.Metadata?.FormattedExeCrc ?? "N/A",
-                replay.Metadata?.FormattedIniCrc ?? "N/A",
+                replay.Metadata?.FormattedExeCrc ?? ReplayManagerConstants.NotAvailable,
+                replay.Metadata?.FormattedIniCrc ?? ReplayManagerConstants.NotAvailable,
                 replay.GameVersion);
         }
         else
@@ -2937,13 +2832,19 @@ public sealed class ReplayDirectoryService(
     {
         try
         {
-            var iniResult = await crcCalculator!.CalculateIniCrcAsync(gameRoot, profile.GameClient!.GameType, ct: ct);
-            if (!iniResult.Success || string.IsNullOrEmpty(iniResult.Data))
+            var calculatedIni = await ReplayCrcMatchingHelper.GetOrCalculateProfileIniCrcAsync(
+                gameRoot,
+                profile.GameClient!.GameType,
+                crcCalculator!,
+                logger,
+                ct);
+
+            if (string.IsNullOrEmpty(calculatedIni))
             {
                 return false;
             }
 
-            var normalizedCalcIni = NormalizeCrcHex(iniResult.Data);
+            var normalizedCalcIni = NormalizeCrcHex(calculatedIni);
             var normalizedTargetIni = NormalizeCrcHex(targetIniCrc);
             return string.Equals(normalizedCalcIni, normalizedTargetIni, StringComparison.OrdinalIgnoreCase);
         }
@@ -3063,10 +2964,16 @@ public sealed class ReplayDirectoryService(
 
         try
         {
-            var iniResult = await crcCalculator.CalculateIniCrcAsync(gameRoot, profile.GameClient!.GameType, ct: ct);
-            if (iniResult.Success && !string.IsNullOrEmpty(iniResult.Data))
+            var calculatedIni = await ReplayCrcMatchingHelper.GetOrCalculateProfileIniCrcAsync(
+                gameRoot,
+                profile.GameClient!.GameType,
+                crcCalculator,
+                logger,
+                ct);
+
+            if (!string.IsNullOrEmpty(calculatedIni))
             {
-                var normalizedCalcIni = NormalizeCrcHex(iniResult.Data);
+                var normalizedCalcIni = NormalizeCrcHex(calculatedIni);
                 var normalizedTargetIni = NormalizeCrcHex(targetIniCrc);
                 if (!string.Equals(normalizedCalcIni, normalizedTargetIni, StringComparison.OrdinalIgnoreCase))
                 {

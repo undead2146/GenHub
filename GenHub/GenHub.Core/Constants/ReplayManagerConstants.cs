@@ -339,6 +339,26 @@ public static class ReplayManagerConstants
     public const string BaseInstallationVersion = "Base";
 
     /// <summary>
+    /// Fallback title for generic game client.
+    /// </summary>
+    public const string DefaultGameClientTitle = "Game";
+
+    /// <summary>
+    /// Display name for retail client fallback.
+    /// </summary>
+    public const string RetailClientDisplayName = "Retail Client";
+
+    /// <summary>
+    /// Display name for third-party client fallback.
+    /// </summary>
+    public const string ThirdPartyClientDisplayName = "Third-Party Client";
+
+    /// <summary>
+    /// Not available fallback indicator.
+    /// </summary>
+    public const string NotAvailable = "N/A";
+
+    /// <summary>
     /// Default update polling interval for checking new CRC catalog releases (24 hours).
     /// </summary>
     public static readonly TimeSpan DefaultCatalogUpdateInterval = TimeSpan.FromHours(24);

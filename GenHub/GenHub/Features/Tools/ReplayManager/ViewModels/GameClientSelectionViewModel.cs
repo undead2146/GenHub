@@ -1,14 +1,7 @@
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GenHub.Core.Constants;
+using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.GameInstallations;
 using GenHub.Core.Interfaces.GameProfiles;
 using GenHub.Core.Interfaces.Manifest;
@@ -21,6 +14,13 @@ using GenHub.Core.Models.GameProfile;
 using GenHub.Core.Models.Manifest;
 using GenHub.Core.Models.Tools.ReplayManager;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace GenHub.Features.Tools.ReplayManager.ViewModels;
 
@@ -37,7 +37,6 @@ public sealed partial class GameClientSelectionViewModel(
     IGameInstallationService? installationService = null) : ObservableObject
 {
     private readonly List<GameClientCardViewModel> _allClients = [];
-    private readonly ConcurrentDictionary<string, (DateTime LastWriteTimeUtc, string Crc)> _exeCrcCache = new(StringComparer.OrdinalIgnoreCase);
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -61,30 +60,38 @@ public sealed partial class GameClientSelectionViewModel(
     private bool _hasCrcInfo;
 
     [ObservableProperty]
-    private bool _showAllClients;
-
-    [ObservableProperty]
     private bool _hasCompatibleCrcClients;
 
     [ObservableProperty]
     private int _compatibleCount;
 
     [ObservableProperty]
-    private GameType _targetGame;
-
-    [ObservableProperty]
-    private GameClient? _selectedClient;
-
-    [ObservableProperty]
-    private string? _selectedManifestId;
-
-    [ObservableProperty]
-    private bool _wasSuccessful;
+    private bool _showAllClients;
 
     /// <summary>
-    /// Event raised when the dialog window should be closed.
+    /// Event triggered when the dialog should close.
     /// </summary>
     public event EventHandler? RequestClose;
+
+    /// <summary>
+    /// Gets the target game type for this selection session.
+    /// </summary>
+    public GameType TargetGame { get; private set; }
+
+    /// <summary>
+    /// Gets the game client selected by the user, if confirmed.
+    /// </summary>
+    public GameClient? SelectedClient { get; private set; }
+
+    /// <summary>
+    /// Gets the manifest ID associated with the selected client, if known.
+    /// </summary>
+    public string? SelectedManifestId { get; private set; }
+
+    /// <summary>
+    /// Gets a value indicating whether a valid selection was confirmed.
+    /// </summary>
+    public bool WasSuccessful { get; private set; }
 
     /// <summary>
     /// Loads available game clients for the specified replay with CRC-aware matching.
@@ -212,15 +219,13 @@ public sealed partial class GameClientSelectionViewModel(
         if (targetGame == GameType.ZeroHour)
         {
             return exeCrc is ReplayManagerConstants.RetailZeroHourExeCrcFirstDecadeValue or ReplayManagerConstants.RetailZeroHourExeCrcSteamValue ||
-                   string.Equals(replayExeCrc, ReplayManagerConstants.RetailZeroHourExeCrcFirstDecade, StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(replayExeCrc, ReplayManagerConstants.RetailZeroHourExeCrcSteam, StringComparison.OrdinalIgnoreCase);
+                   ReplayCrcMatchingHelper.IsZeroHourRetailExeCrc(replayExeCrc);
         }
 
         if (targetGame == GameType.Generals)
         {
             return exeCrc is ReplayManagerConstants.RetailGeneralsExeCrcFirstDecadeValue or ReplayManagerConstants.RetailGeneralsExeCrcSteamValue ||
-                   string.Equals(replayExeCrc, ReplayManagerConstants.RetailGeneralsExeCrcFirstDecade, StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(replayExeCrc, ReplayManagerConstants.RetailGeneralsExeCrcSteam, StringComparison.OrdinalIgnoreCase);
+                   ReplayCrcMatchingHelper.IsGeneralsRetailExeCrc(replayExeCrc);
         }
 
         return false;
@@ -243,16 +248,6 @@ public sealed partial class GameClientSelectionViewModel(
                            string.Equals(matchedClient.Version.TrimStart('0'), manifest.Version.TrimStart('0'), StringComparison.OrdinalIgnoreCase);
 
         return versionMatch && string.Equals(manifest.Publisher?.PublisherType, matchedClient.Publisher, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsDedicatedToAnotherReplay(GameProfile profile)
-    {
-        var inDescription = !string.IsNullOrEmpty(profile.Description) &&
-                            profile.Description.Contains("[replay:", StringComparison.OrdinalIgnoreCase);
-        var inName = !string.IsNullOrEmpty(profile.Name) &&
-                     profile.Name.Contains("(Replay:", StringComparison.OrdinalIgnoreCase);
-
-        return inDescription || inName;
     }
 
     private static bool IsRetailProfileClient(GameClient client)
@@ -324,28 +319,6 @@ public sealed partial class GameClientSelectionViewModel(
         return installationType is GameInstallationType.Retail or GameInstallationType.Steam or GameInstallationType.EaApp;
     }
 
-    private static bool IsRetailExeCrc(string? crc, GameType gameType)
-    {
-        if (string.IsNullOrEmpty(crc))
-        {
-            return false;
-        }
-
-        if (gameType == GameType.ZeroHour)
-        {
-            return string.Equals(crc, ReplayManagerConstants.RetailZeroHourExeCrcFirstDecade, StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(crc, ReplayManagerConstants.RetailZeroHourExeCrcSteam, StringComparison.OrdinalIgnoreCase);
-        }
-
-        if (gameType == GameType.Generals)
-        {
-            return string.Equals(crc, ReplayManagerConstants.RetailGeneralsExeCrcFirstDecade, StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(crc, ReplayManagerConstants.RetailGeneralsExeCrcSteam, StringComparison.OrdinalIgnoreCase);
-        }
-
-        return false;
-    }
-
     private static bool IsCommunityPatchManifest(ContentManifest manifest)
     {
         var hasMatchingTag = manifest.Metadata?.Tags is { } tags &&
@@ -375,7 +348,7 @@ public sealed partial class GameClientSelectionViewModel(
 
     private static bool MatchesManifestHexOrTag(ContentManifest manifest, string? replayExeCrc)
     {
-        var rawHex = NormalizeHex(replayExeCrc);
+        var rawHex = ReplayCrcMatchingHelper.NormalizeCrcHex(replayExeCrc);
         if (string.IsNullOrEmpty(rawHex))
         {
             return false;
@@ -385,29 +358,8 @@ public sealed partial class GameClientSelectionViewModel(
                (manifest.Metadata?.Tags is { } tags && tags.Any(t => string.Equals(t, rawHex, StringComparison.OrdinalIgnoreCase)));
     }
 
-    private static string NormalizeHex(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        var trimmed = value.Trim();
-        if (trimmed.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-        {
-            trimmed = trimmed[2..];
-        }
-
-        return trimmed.ToUpperInvariant();
-    }
-
     private static bool IsCommunityPatchClient(GameClient client)
     {
-        if (client.GameType is not GameType.ZeroHour and not GameType.Unknown)
-        {
-            return false;
-        }
-
         return (client.Id is { } id1 && id1.Contains(ReplayManagerConstants.CommunityPatchHyphenatedKeyword, StringComparison.OrdinalIgnoreCase)) ||
                (client.Id is { } id2 && id2.Contains(ReplayManagerConstants.CommunityPatchKeyword, StringComparison.OrdinalIgnoreCase)) ||
                (client.Name is { } name && name.Contains(ReplayManagerConstants.CommunityPatchDisplayName, StringComparison.OrdinalIgnoreCase));
@@ -416,14 +368,14 @@ public sealed partial class GameClientSelectionViewModel(
     private static bool IsReplayZeroHour104(GameType targetGame, string? replayExeCrc, CrcMappingEntry? matchedClient)
     {
         return targetGame == GameType.ZeroHour &&
-               (IsRetailExeCrc(replayExeCrc, GameType.ZeroHour) ||
+               (ReplayCrcMatchingHelper.IsRetailExeCrc(replayExeCrc, GameType.ZeroHour) ||
                 string.Equals(matchedClient?.Version, ReplayManagerConstants.ZeroHourRetailVersion, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsReplayGenerals108(GameType targetGame, string? replayExeCrc, CrcMappingEntry? matchedClient)
     {
         return targetGame == GameType.Generals &&
-               (IsRetailExeCrc(replayExeCrc, GameType.Generals) ||
+               (ReplayCrcMatchingHelper.IsRetailExeCrc(replayExeCrc, GameType.Generals) ||
                 string.Equals(matchedClient?.Version, ReplayManagerConstants.GeneralsRetailVersion, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -461,20 +413,11 @@ public sealed partial class GameClientSelectionViewModel(
         return exePath;
     }
 
-    private static bool IsMatchingOrRetailCrc(string? actualCrc, string? targetCrc, GameType targetGame)
-    {
-        if (string.IsNullOrEmpty(actualCrc) || string.IsNullOrEmpty(targetCrc))
-        {
-            return false;
-        }
+    private static bool IsMatchingOrRetailCrc(string? actualCrc, string? targetCrc, GameType targetGame) =>
+        ReplayCrcMatchingHelper.AreExeCrcsEquivalent(actualCrc, targetCrc, targetGame);
 
-        if (string.Equals(actualCrc, targetCrc, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return IsRetailExeCrc(actualCrc, targetGame) && IsRetailExeCrc(targetCrc, targetGame);
-    }
+    private static bool AreExeCrcsEquivalent(string? actualCrc, string? targetCrc, GameType targetGame) =>
+        ReplayCrcMatchingHelper.AreExeCrcsEquivalent(actualCrc, targetCrc, targetGame);
 
     [RelayCommand]
     private void ToggleShowAll()
@@ -763,7 +706,7 @@ public sealed partial class GameClientSelectionViewModel(
             Id = manifest.Id.Value,
             Name = manifest.Name,
             Version = manifest.Version ?? ReplayManagerConstants.DefaultManifestVersion,
-            PublisherType = manifest.Publisher?.PublisherType ?? "Custom",
+            PublisherType = manifest.Publisher?.PublisherType ?? ReplayManagerConstants.CustomPublisher,
             GameType = targetGame,
         };
 
@@ -783,7 +726,7 @@ public sealed partial class GameClientSelectionViewModel(
             Client: client,
             ManifestId: manifest.Id.Value,
             Name: displayName,
-            Version: manifest.Version ?? ReplayManagerConstants.DefaultManifestVersion,
+            Version: client.Version,
             Publisher: publisherName,
             Category: category,
             ExecutablePath: string.Empty,
@@ -817,30 +760,13 @@ public sealed partial class GameClientSelectionViewModel(
         }
     }
 
-    private async Task<bool> IsProfileClientCrcMatchAsync(GameClient client, CrcMappingEntry? matchedClient, CancellationToken ct)
-    {
-        var exePath = client.ExecutablePath ?? string.Empty;
-        if (await CheckExeCrcMatchAsync(exePath, client.WorkingDirectory, ct))
-        {
-            return true;
-        }
-
-        if (!string.IsNullOrEmpty(matchedClient?.ManifestId) &&
-            string.Equals(client.Id, matchedClient.ManifestId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return IsReplayZeroHour104(TargetGame, ReplayExeCrc, matchedClient) && IsCommunityPatchClient(client);
-    }
-
     private async Task ProcessProfileClientAsync(
         GameProfile profile,
         CrcMappingEntry? matchedClient,
         HashSet<string> discoveredKeys,
         CancellationToken ct)
     {
-        if (IsDedicatedToAnotherReplay(profile))
+        if (ReplayCrcMatchingHelper.IsDedicatedToAnotherReplay(profile))
         {
             return;
         }
@@ -855,15 +781,10 @@ public sealed partial class GameClientSelectionViewModel(
             ? client.Name
             : profile.Name;
 
-        var exePath = client.ExecutablePath ?? string.Empty;
+        var exePath = ReplayCrcMatchingHelper.ResolveProfileFullExePath(client) ?? string.Empty;
+
         var dedupeKey = $"{clientName}|{exePath}";
-
         if (!discoveredKeys.Add(dedupeKey))
-        {
-            return;
-        }
-
-        if (!string.IsNullOrEmpty(client.Id) && !discoveredKeys.Add(client.Id))
         {
             return;
         }
@@ -882,13 +803,42 @@ public sealed partial class GameClientSelectionViewModel(
             Client: client,
             ManifestId: client.Id,
             Name: clientName,
-            Version: client.Version ?? "Custom",
+            Version: client.Version ?? ReplayManagerConstants.CustomPublisher,
             Publisher: client.PublisherType ?? ReplayManagerConstants.LocalProfileCategory,
             Category: isCrcMatch ? ReplayManagerConstants.CrcCompatibleCategory : ReplayManagerConstants.LocalProfileCategory,
             ExecutablePath: exePath,
             Description: description,
             OnSelect: OnClientSelected,
             IsCrcMatch: isCrcMatch)));
+    }
+
+    private async Task<bool> IsProfileClientCrcMatchAsync(GameClient client, CrcMappingEntry? matchedClient, CancellationToken ct)
+    {
+        if (matchedClient != null &&
+            !string.IsNullOrEmpty(client.Id) &&
+            string.Equals(client.Id, matchedClient.ManifestId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(client.ExecutablePath) &&
+            await CheckExeCrcMatchAsync(client.ExecutablePath, client.WorkingDirectory, ct))
+        {
+            return true;
+        }
+
+        if (IsReplayZeroHour104(TargetGame, ReplayExeCrc, matchedClient) &&
+            (IsRetailProfileClient(client) || IsCommunityPatchClient(client)))
+        {
+            return true;
+        }
+
+        if (IsReplayGenerals108(TargetGame, ReplayExeCrc, matchedClient) && IsRetailProfileClient(client))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private async Task DiscoverInstallationClientsAsync(
@@ -928,14 +878,6 @@ public sealed partial class GameClientSelectionViewModel(
         }
     }
 
-    private async Task<bool> IsInstallationClientCrcMatchAsync(
-        string fullExePath,
-        string? workingDirectory,
-        CancellationToken ct)
-    {
-        return await CheckExeCrcMatchAsync(fullExePath, workingDirectory, ct);
-    }
-
     private async Task ProcessInstallationClientAsync(
         GameInstallation installation,
         GameClient client,
@@ -955,7 +897,7 @@ public sealed partial class GameClientSelectionViewModel(
         }
 
         var fullExePath = ResolveInstallationExePath(installation, client);
-        var isCrcMatch = await IsInstallationClientCrcMatchAsync(fullExePath, client.WorkingDirectory, ct);
+        var isCrcMatch = await CheckExeCrcMatchAsync(fullExePath, client.WorkingDirectory, ct);
 
         if (isCrcMatch && IsRetailBaseInstallation(installation.InstallationType))
         {
@@ -994,7 +936,7 @@ public sealed partial class GameClientSelectionViewModel(
 
         try
         {
-            var crc = await GetCachedOrCalculatedExeCrcAsync(fullExePath, ct);
+            var crc = await ReplayCrcMatchingHelper.GetOrCalculateProfileExeCrcAsync(fullExePath, crcCalculator, logger, ct);
             return IsMatchingOrRetailCrc(crc, ReplayExeCrc, TargetGame);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -1002,35 +944,6 @@ public sealed partial class GameClientSelectionViewModel(
             logger.LogDebug(ex, "[ReplayManager] Could not calculate CRC for executable: {ExePath}", fullExePath);
             return false;
         }
-    }
-
-    private async Task<string?> GetCachedOrCalculatedExeCrcAsync(string fullExePath, CancellationToken ct)
-    {
-        var fileInfo = new FileInfo(fullExePath);
-        if (!fileInfo.Exists)
-        {
-            return null;
-        }
-
-        var lastWrite = fileInfo.LastWriteTimeUtc;
-        if (_exeCrcCache.TryGetValue(fullExePath, out var cached) && cached.LastWriteTimeUtc == lastWrite)
-        {
-            return cached.Crc;
-        }
-
-        if (crcCalculator == null)
-        {
-            return null;
-        }
-
-        var calcRes = await crcCalculator.CalculateExeCrcAsync(fullExePath, ct: ct);
-        if (calcRes.Success && !string.IsNullOrEmpty(calcRes.Data))
-        {
-            _exeCrcCache[fullExePath] = (lastWrite, calcRes.Data);
-            return calcRes.Data;
-        }
-
-        return null;
     }
 
     private void ApplyFilter()
