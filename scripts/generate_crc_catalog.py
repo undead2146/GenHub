@@ -199,6 +199,21 @@ BASELINE_ENTRIES = [
         "dataPatchCdnUrl": "https://strata.gamereplays.org/storage/versions/ini/500_900_CommunityPatch_CoreINI_81FB5632.big",
     },
     {
+        "exeCrc": "0xB9DB8815",
+        "iniCrc": "0xFEAAE3F3",
+        "sha256": "97288eb5979bb959a4be2da03d09a06144e05bbf2f07ff67dbf8c05769eb07ee",
+        "manifestId": "1.828261.generalsonline.gameclient.zerohour",
+        "dataPatchManifestId": None,
+        "dataPatchName": VANILLA_104_INI,
+        "publisher": "generalsonline",
+        "gameType": "ZeroHour",
+        "version": "082826_QFE1",
+        "buildDate": "2026-08-28",
+        "description": "GeneralsOnline 082826_QFE1",
+        "cdnUrl": "https://cdn.playgenerals.online/GeneralsOnline_portable_082826_QFE1.zip",
+        "dataPatchCdnUrl": None,
+    },
+    {
         "exeCrc": "0xD431009C",
         "iniCrc": "0x5CB7992C",
         "sha256": "fa95e504426b139535b06d2e173f5c7297d668b26f2b36aa76ec674fbcaec71d",
@@ -538,7 +553,8 @@ def build_generalsonline_entry(cand: tuple[str, str, str, str], inspect_binaries
         c_exe, c_sha, c_ini = inspect_archive_binary(url, ["generalsonlinezh_60.exe", "generalsonlinezh.exe"])
         if not c_exe:
             return None
-        exe_crc = c_exe
+        if version_str not in known_sage_crcs:
+            exe_crc = c_exe
         sha256 = c_sha
         if c_ini:
             ini_crc = c_ini
@@ -847,16 +863,27 @@ def _load_existing_mappings(output_path: str, base_mappings: list[dict]) -> list
                     (e.get("manifestId"), normalize_hex(e.get("exeCrc", "")), normalize_hex(e.get("iniCrc", "")))
                     for e in existing
                 }
+                existing_map = {
+                    (e.get("manifestId"), normalize_hex(e.get("iniCrc", ""))): e
+                    for e in existing
+                }
                 for base in base_mappings:
-                    if base.get("cdnUrl") is None:
-                        base_key = (
-                            base.get("manifestId"),
-                            normalize_hex(base.get("exeCrc", "")),
-                            normalize_hex(base.get("iniCrc", "")),
-                        )
-                        if base_key not in existing_keys:
-                            existing.append(dict(base))
-                            existing_keys.add(base_key)
+                    base_key = (
+                        base.get("manifestId"),
+                        normalize_hex(base.get("exeCrc", "")),
+                        normalize_hex(base.get("iniCrc", "")),
+                    )
+                    pair_key = (base.get("manifestId"), normalize_hex(base.get("iniCrc", "")))
+                    if pair_key in existing_map:
+                        existing_entry = existing_map[pair_key]
+                        existing_entry["exeCrc"] = base.get("exeCrc")
+                        if base.get("sha256"):
+                            existing_entry["sha256"] = base.get("sha256")
+                        if base.get("dataPatchName"):
+                            existing_entry["dataPatchName"] = base.get("dataPatchName")
+                    elif base_key not in existing_keys:
+                        existing.append(dict(base))
+                        existing_keys.add(base_key)
                 return existing
             else:
                 print(f"Warning: existing catalog at {output_path} is not an object containing a 'mappings' list; falling back to base mappings.", file=sys.stderr)

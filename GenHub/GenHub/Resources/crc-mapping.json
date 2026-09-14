@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "lastUpdated": "2026-09-14T11:52:01.914286+00:00",
-  "totalEntries": 137,
+  "totalEntries": 138,
   "mappings": [
     {
       "exeCrc": "0x401D89EA",
@@ -1216,7 +1216,7 @@
       "cdnUrl": "https://github.com/TheSuperHackers/GeneralsGameCode/releases/download/weekly-2025-09-22/generals-weekly-2025-09-22.zip"
     },
     {
-      "exeCrc": "0x8B75EFD4",
+      "exeCrc": "0x88BEB180",
       "iniCrc": "0x5CB7992C",
       "sha256": "123ad03667cc45f1f89811ca9705abfca6104673af85c646adeb50595ab89f41",
       "manifestId": "1.213262.generalsonline.gameclient.zerohour",
@@ -1240,7 +1240,7 @@
       "cdnUrl": "https://cdn.playgenerals.online/GeneralsOnline_portable_032926.zip"
     },
     {
-      "exeCrc": "0x874D4220",
+      "exeCrc": "0x45BF602F",
       "iniCrc": "0x5CB7992C",
       "sha256": "e03e98227249ee5ad4236f2b61f3ae6eeda2765dcb95b9c6b5090919e563c89e",
       "manifestId": "1.329261.generalsonline.gameclient.zerohour",
@@ -1252,7 +1252,7 @@
       "cdnUrl": "https://cdn.playgenerals.online/GeneralsOnline_portable_032926_QFE1.zip"
     },
     {
-      "exeCrc": "0x3EAC0C69",
+      "exeCrc": "0xE981A0B4",
       "iniCrc": "0x5CB7992C",
       "sha256": "ff240ed786c8a524c45a03f8c70be687cff6aae1bc05156f2b64cfe6c366549d",
       "manifestId": "1.329262.generalsonline.gameclient.zerohour",
@@ -1264,7 +1264,7 @@
       "cdnUrl": "https://cdn.playgenerals.online/GeneralsOnline_portable_032926_QFE2.zip"
     },
     {
-      "exeCrc": "0xF86CA5B5",
+      "exeCrc": "0x1A5EF2C5",
       "iniCrc": "0x5CB7992C",
       "sha256": "cfaba92da40f476fc7c99696d569d0f802a493651774a441ec952b23b89e528b",
       "manifestId": "1.329263.generalsonline.gameclient.zerohour",
@@ -1276,7 +1276,7 @@
       "cdnUrl": "https://cdn.playgenerals.online/GeneralsOnline_portable_032926_QFE3.zip"
     },
     {
-      "exeCrc": "0x6B3FFB71",
+      "exeCrc": "0x1A5EF2C5",
       "iniCrc": "0x5CB7992C",
       "sha256": "3e4bee6ed67186484ffe48a9e34fbf83394b43e71c75786704fd3ec5c0887e68",
       "manifestId": "1.329264.generalsonline.gameclient.zerohour",
@@ -1288,7 +1288,7 @@
       "cdnUrl": "https://cdn.playgenerals.online/GeneralsOnline_portable_032926_QFE4.zip"
     },
     {
-      "exeCrc": "0x554C58C9",
+      "exeCrc": "0x1A5EF2C5",
       "iniCrc": "0x5CB7992C",
       "sha256": "7375c7137ca5d964c72be474fce33b9c6244223147b69714644ac30b89ec4a57",
       "manifestId": "1.329265.generalsonline.gameclient.zerohour",
@@ -1582,7 +1582,7 @@
       "cdnUrl": "https://cdn.playgenerals.online/GeneralsOnline_portable_032926.zip"
     },
     {
-      "exeCrc": "0x874D4220",
+      "exeCrc": "0x45BF602F",
       "iniCrc": "0xFEAAE3F3",
       "sha256": "e03e98227249ee5ad4236f2b61f3ae6eeda2765dcb95b9c6b5090919e563c89e",
       "manifestId": "1.329261.generalsonline.gameclient.zerohour",
@@ -1595,7 +1595,7 @@
       "cdnUrl": "https://cdn.playgenerals.online/GeneralsOnline_portable_032926_QFE1.zip"
     },
     {
-      "exeCrc": "0x3EAC0C69",
+      "exeCrc": "0xE981A0B4",
       "iniCrc": "0xFEAAE3F3",
       "sha256": "ff240ed786c8a524c45a03f8c70be687cff6aae1bc05156f2b64cfe6c366549d",
       "manifestId": "1.329262.generalsonline.gameclient.zerohour",
@@ -1608,7 +1608,7 @@
       "cdnUrl": "https://cdn.playgenerals.online/GeneralsOnline_portable_032926_QFE2.zip"
     },
     {
-      "exeCrc": "0xF86CA5B5",
+      "exeCrc": "0x1A5EF2C5",
       "iniCrc": "0xFEAAE3F3",
       "sha256": "cfaba92da40f476fc7c99696d569d0f802a493651774a441ec952b23b89e528b",
       "manifestId": "1.329263.generalsonline.gameclient.zerohour",
@@ -1621,7 +1621,7 @@
       "cdnUrl": "https://cdn.playgenerals.online/GeneralsOnline_portable_032926_QFE3.zip"
     },
     {
-      "exeCrc": "0x6B3FFB71",
+      "exeCrc": "0x1A5EF2C5",
       "iniCrc": "0xFEAAE3F3",
       "sha256": "3e4bee6ed67186484ffe48a9e34fbf83394b43e71c75786704fd3ec5c0887e68",
       "manifestId": "1.329264.generalsonline.gameclient.zerohour",
@@ -1634,7 +1634,7 @@
       "cdnUrl": "https://cdn.playgenerals.online/GeneralsOnline_portable_032926_QFE4.zip"
     },
     {
-      "exeCrc": "0x554C58C9",
+      "exeCrc": "0x1A5EF2C5",
       "iniCrc": "0xFEAAE3F3",
       "sha256": "7375c7137ca5d964c72be474fce33b9c6244223147b69714644ac30b89ec4a57",
       "manifestId": "1.329265.generalsonline.gameclient.zerohour",
@@ -1647,7 +1647,7 @@
       "cdnUrl": "https://cdn.playgenerals.online/GeneralsOnline_portable_032926_QFE5.zip"
     },
     {
-      "exeCrc": "0x8B75EFD4",
+      "exeCrc": "0x88BEB180",
       "iniCrc": "0xFEAAE3F3",
       "sha256": "123ad03667cc45f1f89811ca9705abfca6104673af85c646adeb50595ab89f41",
       "manifestId": "1.213262.generalsonline.gameclient.zerohour",
@@ -1672,6 +1672,21 @@
       "buildDate": "2003-02-11",
       "description": "Official Retail Generals 1.08",
       "cdnUrl": null,
+      "dataPatchCdnUrl": null
+    },
+    {
+      "exeCrc": "0xB9DB8815",
+      "iniCrc": "0xFEAAE3F3",
+      "sha256": "97288eb5979bb959a4be2da03d09a06144e05bbf2f07ff67dbf8c05769eb07ee",
+      "manifestId": "1.828261.generalsonline.gameclient.zerohour",
+      "dataPatchManifestId": null,
+      "dataPatchName": "Vanilla 1.04 INI",
+      "publisher": "generalsonline",
+      "gameType": "ZeroHour",
+      "version": "082826_QFE1",
+      "buildDate": "2026-08-28",
+      "description": "GeneralsOnline 082826_QFE1",
+      "cdnUrl": "https://cdn.playgenerals.online/GeneralsOnline_portable_082826_QFE1.zip",
       "dataPatchCdnUrl": null
     }
   ]

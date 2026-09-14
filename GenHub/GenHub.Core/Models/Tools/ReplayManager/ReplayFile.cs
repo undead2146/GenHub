@@ -100,28 +100,45 @@ public sealed class ReplayFile : IExportableFile
     /// <summary>
     /// Gets the user-facing display text for the game client and data patch version.
     /// </summary>
+    /// <summary>
+    /// Gets or sets the recognized data patch or INI configuration name (e.g., "Vanilla 1.04 INI", "CommunityPatch Core INI (81FB5632)").
+    /// </summary>
+    public string? MatchedIniPatchName { get; set; }
+
+    /// <summary>
+    /// Gets the user-facing display text for the game client and data patch version.
+    /// </summary>
     public string ClientAndPatchDisplay
     {
         get
         {
             if (MatchedClient != null)
             {
-                if (!string.IsNullOrWhiteSpace(MatchedClient.DataPatchName))
+                var patch = !string.IsNullOrWhiteSpace(MatchedClient.DataPatchName)
+                    ? MatchedClient.DataPatchName
+                    : MatchedIniPatchName;
+
+                if (!string.IsNullOrWhiteSpace(patch))
                 {
-                    return $"{MatchedClient.Description} • {MatchedClient.DataPatchName}";
+                    return $"{MatchedClient.Description} • {patch}";
                 }
 
                 return MatchedClient.Description;
             }
 
+            var iniDisplay = MatchedIniPatchName;
             if (Metadata != null && (!string.IsNullOrEmpty(Metadata.FormattedExeCrc) || !string.IsNullOrEmpty(Metadata.FormattedIniCrc)))
             {
                 if (!string.IsNullOrEmpty(Metadata.BuildTimeString))
                 {
-                    return $"Unmapped Build ({Metadata.BuildTimeString})";
+                    return !string.IsNullOrWhiteSpace(iniDisplay)
+                        ? $"Unmapped Build ({Metadata.BuildTimeString}) • {iniDisplay}"
+                        : $"Unmapped Build ({Metadata.BuildTimeString})";
                 }
 
-                return $"Custom (Exe: {Metadata.FormattedExeCrc ?? "N/A"}, INI: {Metadata.FormattedIniCrc ?? "N/A"})";
+                return !string.IsNullOrWhiteSpace(iniDisplay)
+                    ? $"Custom (Exe: {Metadata.FormattedExeCrc ?? "N/A"}) • {iniDisplay}"
+                    : $"Custom (Exe: {Metadata.FormattedExeCrc ?? "N/A"}, INI: {Metadata.FormattedIniCrc ?? "N/A"})";
             }
 
             return UnknownValue;

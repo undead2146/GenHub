@@ -3768,4 +3768,132 @@ public sealed class ReplayDirectoryServiceTests
             Publisher = publisher,
         },
     };
+
+    /// <summary>
+    /// Verifies that BuildReplayProfileName generates the expected format when within length limits.
+    /// </summary>
+    [Fact]
+    public void BuildReplayProfileName_WhenWithinLimit_ReturnsExpectedFormat()
+    {
+        var result = ReplayDirectoryService.BuildReplayProfileName("GeneralsOnline 032926_QFE1", "match_12345.rep");
+        Assert.Equal("GeneralsOnline 032926_QFE1 (Replay: match_12345)", result);
+    }
+
+    /// <summary>
+    /// Verifies that BuildReplayProfileName truncates and never exceeds the specified maximum length limit.
+    /// </summary>
+    [Fact]
+    public void BuildReplayProfileName_WhenExceedingLimit_TruncatesProperlyWithinLimit()
+    {
+        var longClientTitle = new string('C', 80);
+        var longReplayName = new string('R', 80) + ".rep";
+
+        var result = ReplayDirectoryService.BuildReplayProfileName(longClientTitle, longReplayName, 50);
+
+        Assert.True(result.Length <= 50);
+        Assert.StartsWith("C", result);
+        Assert.Contains("(Replay: ", result);
+        Assert.EndsWith(")", result);
+    }
+
+    /// <summary>
+    /// Verifies that ReplayFile.ClientAndPatchDisplay displays the friendly INI patch name when the replay is unmapped but INI CRC is known.
+    /// </summary>
+    [Fact]
+    public void ReplayFile_ClientAndPatchDisplay_WhenUnmappedWithKnownIni_DisplaysUnmappedWithIniPatch()
+    {
+        var replay = new ReplayFile
+        {
+            FileName = "TWTF.rep",
+            FullPath = "/replays/TWTF.rep",
+            MatchedClient = null,
+            MatchedIniPatchName = "Vanilla 1.04 INI",
+            Metadata = new ReplayMetadata
+            {
+                ExeCrc = 0x45BF602F,
+                IniCrc = 0xFEAAE3F3,
+                BuildTimeString = "Mar 30 2026 13:48:19",
+            },
+        };
+
+        var display = replay.ClientAndPatchDisplay;
+        Assert.Equal("Unmapped Build (Mar 30 2026 13:48:19) • Vanilla 1.04 INI", display);
+    }
+
+    /// <summary>
+    /// Verifies that ReplayFile.ClientAndPatchDisplay displays MatchedIniPatchName when MatchedClient has no DataPatchName.
+    /// </summary>
+    [Fact]
+    public void ReplayFile_ClientAndPatchDisplay_WhenMatchedClientHasIniFallback_DisplaysMatchedClientWithIniPatch()
+    {
+        var replay = new ReplayFile
+        {
+            FileName = "GeneralsOnlineMatch.rep",
+            FullPath = "/replays/GeneralsOnlineMatch.rep",
+            MatchedClient = new CrcMappingEntry
+            {
+                Description = "GeneralsOnline 032926_QFE1",
+                DataPatchName = null,
+            },
+            MatchedIniPatchName = "Vanilla 1.04 INI",
+            Metadata = new ReplayMetadata
+            {
+                ExeCrc = 0x45BF602F,
+                IniCrc = 0xFEAAE3F3,
+            },
+        };
+
+        var display = replay.ClientAndPatchDisplay;
+        Assert.Equal("GeneralsOnline 032926_QFE1 • Vanilla 1.04 INI", display);
+    }
+
+    /// <summary>
+    /// Verifies that ResolveCompatibilityAsync sets MatchedIniPatchName when INI CRC matches a known catalog patch.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ResolveCompatibility_WhenIniCrcMatchesKnownPatch_PopulatesMatchedIniPatchNameAsync()
+    {
+        var replay = new ReplayFile
+        {
+            FileName = "UnknownWithVanillaIni.rep",
+            FullPath = "/replays/UnknownWithVanillaIni.rep",
+            GameVersion = GameType.ZeroHour,
+            Metadata = new ReplayMetadata
+            {
+                ExeCrc = 0x12345678,
+                IniCrc = 0xFEAAE3F3,
+                BuildTimeString = "Jan 01 2026 10:00:00",
+            },
+        };
+
+        var iniEntry = new CrcMappingEntry
+        {
+            IniCrc = "0xFEAAE3F3",
+            DataPatchName = "Vanilla 1.04 INI",
+        };
+
+        CrcMappingEntry? nullEntry = null;
+        CrcMappingEntry? outIni = iniEntry;
+        _mockCrcRegistry
+            .Setup(r => r.TryGetEntry("0x12345678", "0xFEAAE3F3", out nullEntry))
+            .Returns(false);
+        _mockCrcRegistry
+            .Setup(r => r.TryGetEntryByExeCrc("0x12345678", out nullEntry))
+            .Returns(false);
+        _mockCrcRegistry
+            .Setup(r => r.TryGetEntryByIniCrc("0xFEAAE3F3", out outIni))
+            .Returns(true);
+
+        var service = new ReplayDirectoryService(
+            _mockHeaderParser.Object,
+            _mockCrcRegistry.Object,
+            _mockScopeFactory.Object,
+            NullLogger<ReplayDirectoryService>.Instance);
+
+        await service.ResolveCompatibilityAsync(replay, [], []);
+
+        Assert.Equal("Vanilla 1.04 INI", replay.MatchedIniPatchName);
+        Assert.Equal("Unmapped Build (Jan 01 2026 10:00:00) • Vanilla 1.04 INI", replay.ClientAndPatchDisplay);
+    }
 }

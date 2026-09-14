@@ -851,6 +851,13 @@ public sealed class ReplayDirectoryService(
         var exeCrcStr = replay.Metadata.FormattedExeCrc;
         var iniCrcStr = replay.Metadata.FormattedIniCrc;
 
+        if (crcMappingRegistry.TryGetEntryByIniCrc(iniCrcStr, out var iniMatch) &&
+            iniMatch != null &&
+            !string.IsNullOrWhiteSpace(iniMatch.DataPatchName))
+        {
+            replay.MatchedIniPatchName = iniMatch.DataPatchName;
+        }
+
         if (crcMappingRegistry.TryGetEntry(exeCrcStr, iniCrcStr, out var match) && match != null)
         {
             ResolveMatchedClientCompatibility(replay, match, acquiredIds, profiles, logger, crcCalculator);
@@ -1118,9 +1125,34 @@ public sealed class ReplayDirectoryService(
         }
 
         var replayBaseName = Path.GetFileNameWithoutExtension(replay.FileName);
-        return !string.IsNullOrEmpty(profile.Name) &&
-               !string.IsNullOrEmpty(replayBaseName) &&
-               profile.Name.Contains($"(Replay: {replayBaseName})", StringComparison.OrdinalIgnoreCase);
+        if (!string.IsNullOrEmpty(profile.Name) && !string.IsNullOrEmpty(replayBaseName))
+        {
+            if (profile.Name.Contains($"(Replay: {replayBaseName})", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            // Fallback for truncated replay profile names: if the profile name contains "(Replay: "
+            // and the replay segment in the profile name matches the beginning of replayBaseName.
+            const string replayMarker = "(Replay: ";
+            var markerIdx = profile.Name.IndexOf(replayMarker, StringComparison.OrdinalIgnoreCase);
+            if (markerIdx >= 0)
+            {
+                var contentStart = markerIdx + replayMarker.Length;
+                var closingParenIdx = profile.Name.LastIndexOf(')');
+                if (closingParenIdx > contentStart)
+                {
+                    var nameReplayPart = profile.Name[contentStart..closingParenIdx].TrimEnd();
+                    if (nameReplayPart.Length > 0 &&
+                        replayBaseName.StartsWith(nameReplayPart, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     private static bool IsDedicatedToAnotherReplay(GameProfile profile)
@@ -1392,6 +1424,87 @@ public sealed class ReplayDirectoryService(
         return replay.GameVersion == GameType.ZeroHour ? "Zero Hour" : "Generals";
     }
 
+    /// <summary>
+    /// Builds a profile name for a replay that is guaranteed not to exceed the specified maximum length.
+    /// </summary>
+    /// <param name="clientTitle">The display title of the game client.</param>
+    /// <param name="replayFileName">The replay filename or full path.</param>
+    /// <param name="maxLength">The maximum allowed profile name length.</param>
+    /// <returns>A formatted profile name within the length limit.</returns>
+    internal static string BuildReplayProfileName(
+        string clientTitle,
+        string replayFileName,
+        int maxLength = ProfileConstants.MaxProfileNameLength)
+    {
+        if (maxLength <= 0)
+        {
+            return string.Empty;
+        }
+
+        var replayBaseName = Path.GetFileNameWithoutExtension(replayFileName);
+        if (string.IsNullOrWhiteSpace(replayBaseName))
+        {
+            replayBaseName = replayFileName ?? string.Empty;
+        }
+
+        var title = string.IsNullOrWhiteSpace(clientTitle) ? "Game" : clientTitle.Trim();
+        var candidate = $"{title} (Replay: {replayBaseName})";
+
+        if (candidate.Length <= maxLength)
+        {
+            return candidate;
+        }
+
+        const string prefixSeparator = " (Replay: ";
+        const string suffix = ")";
+        var overhead = prefixSeparator.Length + suffix.Length; // 11 characters
+
+        if (maxLength <= overhead)
+        {
+            return candidate[..Math.Min(candidate.Length, maxLength)];
+        }
+
+        var availableForNames = maxLength - overhead;
+        int titleLen;
+        int replayLen;
+
+        if (title.Length + replayBaseName.Length <= availableForNames)
+        {
+            titleLen = title.Length;
+            replayLen = replayBaseName.Length;
+        }
+        else
+        {
+            var half = availableForNames / 2;
+            if (title.Length <= half)
+            {
+                titleLen = title.Length;
+                replayLen = availableForNames - titleLen;
+            }
+            else if (replayBaseName.Length <= half)
+            {
+                replayLen = replayBaseName.Length;
+                titleLen = availableForNames - replayLen;
+            }
+            else
+            {
+                titleLen = half;
+                replayLen = availableForNames - half;
+            }
+        }
+
+        var finalTitle = title[..titleLen].TrimEnd();
+        var finalReplay = replayBaseName[..replayLen].TrimEnd();
+
+        var result = $"{finalTitle}{prefixSeparator}{finalReplay}{suffix}";
+        if (result.Length > maxLength)
+        {
+            result = result[..maxLength];
+        }
+
+        return result;
+    }
+
     private static CreateProfileRequest BuildReplayProfileRequest(
         ReplayFile replay,
         GameInstallation installation,
@@ -1406,7 +1519,7 @@ public sealed class ReplayDirectoryService(
             ? gameClient.Name
             : GetReplayClientTitle(replay);
 
-        var profileName = $"{clientTitle} (Replay: {Path.GetFileNameWithoutExtension(replay.FileName)})";
+        var profileName = BuildReplayProfileName(clientTitle, replay.FileName);
         var description = isUnmapped
             ? $"[replay:{replay.FileName}] Profile configured for unmapped replay {replay.FileName} (Exe: {replay.Metadata?.FormattedExeCrc ?? "N/A"}, INI: {replay.Metadata?.FormattedIniCrc ?? "N/A"})"
             : $"[replay:{replay.FileName}] Profile configured for {clientTitle} (Exe: {replay.Metadata?.FormattedExeCrc}, INI: {replay.Metadata?.FormattedIniCrc})";
@@ -2669,6 +2782,14 @@ public sealed class ReplayDirectoryService(
         if (string.IsNullOrEmpty(exeCrc))
         {
             return;
+        }
+
+        if (!string.IsNullOrEmpty(iniCrc) &&
+            crcMappingRegistry.TryGetEntryByIniCrc(iniCrc, out var iniMatch) &&
+            iniMatch != null &&
+            !string.IsNullOrWhiteSpace(iniMatch.DataPatchName))
+        {
+            replay.MatchedIniPatchName = iniMatch.DataPatchName;
         }
 
         if (!string.IsNullOrEmpty(iniCrc) &&

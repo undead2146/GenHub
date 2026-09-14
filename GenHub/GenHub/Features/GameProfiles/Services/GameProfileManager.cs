@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Messaging;
+using GenHub.Core.Constants;
 using GenHub.Core.Extensions;
 using GenHub.Core.Helpers;
 using GenHub.Core.Interfaces.GameInstallations;
@@ -406,7 +407,7 @@ public class GameProfileManager(
             return false;
         }
 
-        if (name.Length > 100)
+        if (name.Length > ProfileConstants.MaxProfileNameLength)
         {
             errorMessage = "Profile name is too long.";
             return false;
