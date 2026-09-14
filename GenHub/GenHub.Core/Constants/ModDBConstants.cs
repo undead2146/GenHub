@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 
 namespace GenHub.Core.Constants;
 
@@ -670,15 +671,7 @@ public static class ModDBConstants
             return false;
         }
 
-        foreach (var keyword in ChallengeTitleKeywords)
-        {
-            if (title.Contains(keyword, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return ChallengeTitleKeywords.Any(keyword => title.Contains(keyword, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

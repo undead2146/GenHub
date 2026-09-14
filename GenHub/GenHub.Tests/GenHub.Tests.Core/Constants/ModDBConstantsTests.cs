@@ -106,4 +106,24 @@ public class ModDBConstantsTests
         var uri = new Uri(url);
         ModDBConstants.IsModDbOrDbolicalUri(uri).Should().BeFalse();
     }
+
+    /// <summary>
+    /// Verifies that <see cref="ModDBConstants.IsChallengePageTitle"/> returns true for challenge page titles and false otherwise.
+    /// </summary>
+    /// <param name="title">The page title to test.</param>
+    /// <param name="expected">The expected result.</param>
+    [Theory]
+    [InlineData("Just a moment...", true)]
+    [InlineData("Attention Required! | Cloudflare", true)]
+    [InlineData("Checking your browser before accessing moddb.com", true)]
+    [InlineData("Please wait... Cloudflare Ray ID", true)]
+    [InlineData("C&C Generals: Zero Hour - Mod DB", false)]
+    [InlineData("Downloads - Shockwave mod for C&C Generals Zero Hour", false)]
+    [InlineData("", false)]
+    [InlineData("   ", false)]
+    [InlineData(null, false)]
+    public void IsChallengePageTitle_WithVariousTitles_ShouldReturnExpectedResult(string? title, bool expected)
+    {
+        ModDBConstants.IsChallengePageTitle(title).Should().Be(expected);
+    }
 }
