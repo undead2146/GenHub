@@ -21,6 +21,7 @@ using GenHub.Core.Interfaces.Notifications;
 using GenHub.Core.Interfaces.Parsers;
 using GenHub.Core.Interfaces.Providers;
 using GenHub.Core.Interfaces.Tools;
+using GenHub.Core.Models.CommunityOutpost;
 using GenHub.Core.Models.Content;
 using GenHub.Core.Models.Enums;
 using GenHub.Core.Models.GameProfile;
@@ -650,7 +651,8 @@ public sealed partial class DownloadsBrowserViewModel(
     private static void PopulateSynthesizedVariants(
         ContentGridItemViewModel variantVm,
         ContentSearchResult primaryItem,
-        IList<ContentVariantInfo> singleVariants)
+        IList<ContentVariantInfo> singleVariants,
+        ILogger? logger = null)
     {
         var lastSegment = primaryItem.Id?.Split('.', StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
         if (string.IsNullOrWhiteSpace(lastSegment))
@@ -658,35 +660,53 @@ public sealed partial class DownloadsBrowserViewModel(
             lastSegment = ContentConstants.DefaultContentFallbackId;
         }
 
+        var baseContentCode = GenPatcherContentRegistry.NormalizeContentCode(lastSegment);
+        if (string.IsNullOrEmpty(baseContentCode))
+        {
+            baseContentCode = lastSegment;
+        }
+
         foreach (var v in singleVariants)
         {
             var provider = !string.IsNullOrWhiteSpace(primaryItem.ProviderName) ? primaryItem.ProviderName : ContentConstants.DefaultContentFallbackId;
             var variantId = !string.IsNullOrWhiteSpace(v.Id) ? v.Id : ContentConstants.DefaultContentFallbackId;
-            var composedName = $"{lastSegment}-{variantId}";
+            var composedName = $"{baseContentCode}-{variantId}";
             if (composedName.All(c => !char.IsLetterOrDigit(c)))
             {
-                composedName = $"{lastSegment}-{ContentConstants.DefaultContentFallbackId}";
+                composedName = $"{baseContentCode}-{ContentConstants.DefaultContentFallbackId}";
             }
 
             string manifestId;
-            if (!string.IsNullOrEmpty(v.ManifestId))
+            if (!string.IsNullOrEmpty(v.ManifestId) && ManifestIdValidator.IsValid(v.ManifestId, out _))
             {
                 manifestId = v.ManifestId;
             }
             else
             {
-                try
+                var cleanedProvider = new string(provider.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+                var safeProvider = string.IsNullOrWhiteSpace(cleanedProvider) ? ContentConstants.DefaultContentFallbackId : cleanedProvider;
+
+                var cleanedComposedName = new string(composedName.ToLowerInvariant().Where(c => char.IsLetterOrDigit(c) || c == '-').ToArray()).Trim('-');
+                var safeComposedName = string.IsNullOrWhiteSpace(cleanedComposedName) ? ContentConstants.DefaultContentFallbackId : cleanedComposedName;
+
+                var candidateId = $"{ManifestConstants.DefaultManifestFormatVersion}.0.{safeProvider}.{primaryItem.ContentType.ToManifestIdString()}.{safeComposedName}";
+                if (ManifestIdValidator.IsValid(candidateId, out _))
                 {
-                    manifestId = ManifestIdGenerator.GeneratePublisherContentId(provider, primaryItem.ContentType, composedName, 0);
+                    manifestId = candidateId;
                 }
-                catch (ArgumentException)
+                else
                 {
-                    manifestId = $"{ManifestConstants.DefaultManifestFormatVersion}.0.{ContentConstants.DefaultContentFallbackId}.{primaryItem.ContentType.ToManifestIdString()}.{ContentConstants.DefaultContentFallbackId}";
+                    logger?.LogWarning(
+                        "Synthesized variant candidate ID '{CandidateId}' failed validation for provider '{Provider}', content '{ContentName}'. Falling back to default ID.",
+                        candidateId,
+                        provider,
+                        primaryItem.Name);
+                    manifestId = $"{ManifestConstants.DefaultManifestFormatVersion}.0.{safeProvider}.{primaryItem.ContentType.ToManifestIdString()}.{ContentConstants.DefaultContentFallbackId}";
                 }
             }
 
             var baseName = !string.IsNullOrEmpty(primaryItem.VariantFamilyName) ? primaryItem.VariantFamilyName : primaryItem.Name;
-            var variantName = !string.IsNullOrEmpty(v.Name) && v.Name.StartsWith(baseName, StringComparison.OrdinalIgnoreCase)
+            var variantName = !string.IsNullOrEmpty(v.Name) && (v.Name.StartsWith(baseName, StringComparison.OrdinalIgnoreCase) || v.Name.Contains(baseName, StringComparison.OrdinalIgnoreCase))
                 ? v.Name
                 : $"{baseName} - {v.Name}";
 
@@ -720,7 +740,7 @@ public sealed partial class DownloadsBrowserViewModel(
             var installable = new InstallableVariant
             {
                 Name = !string.IsNullOrWhiteSpace(v.Name) ? v.Name : VariantSwap.ResolveDisplayName(variantSr, v),
-                ManifestId = VariantSwap.ResolveCatalogKey(variantSr, v),
+                ManifestId = manifestId,
                 IconUrl = primaryItem.IconUrl ?? string.Empty,
                 VariantType = v.VariantType ?? string.Empty,
             };
@@ -1623,7 +1643,7 @@ public sealed partial class DownloadsBrowserViewModel(
         {
             if (groupItems.Count == 1 && primaryItem.Variants is { Count: > 0 } singleVariants)
             {
-                PopulateSynthesizedVariants(variantVm, primaryItem, singleVariants);
+                PopulateSynthesizedVariants(variantVm, primaryItem, singleVariants, logger);
             }
             else
             {
@@ -2371,21 +2391,36 @@ public sealed partial class DownloadsBrowserViewModel(
             }
             else
             {
-                // Get the manifest ID - first try from SearchResult, then look up from manifest pool
-                manifestId = item.SearchResult.Id;
+                // Prefer the variant-specific search result if a variant is selected
+                var searchResultToMatch = item.SearchResult;
+                if (item.SelectedVariant != null &&
+                    !string.IsNullOrEmpty(item.SelectedVariant.ManifestId) &&
+                    item.VariantSearchResults.TryGetValue(item.SelectedVariant.ManifestId, out var variantSr))
+                {
+                    searchResultToMatch = variantSr;
+                }
 
-                // A SearchResult ID may be manifest-shaped (5 segments) but still NOT be the on-disk
-                // manifest ID — publishers such as GitHub encode a different content-name in the stored
-                // manifest than the catalog card carries. Validate that the manifest is actually acquired
-                // before trusting the ID; otherwise fall back to the provenance-aware pool lookup.
+                manifestId = searchResultToMatch.Id;
+                if (string.IsNullOrEmpty(manifestId) && item.SelectedVariant != null)
+                {
+                    manifestId = item.SelectedVariant.ManifestId;
+                }
+
                 var trustSearchResultId = !string.IsNullOrEmpty(manifestId)
                     && ManifestIdValidator.IsValid(manifestId, out _)
                     && await contentStateService.GetStateByManifestIdAsync(manifestId, _vmCts.Token) == ContentState.Downloaded;
 
+                if (!trustSearchResultId && !string.IsNullOrEmpty(item.SelectedVariant?.ManifestId))
+                {
+                    manifestId = item.SelectedVariant.ManifestId;
+                    trustSearchResultId = ManifestIdValidator.IsValid(manifestId, out _)
+                        && await contentStateService.GetStateByManifestIdAsync(manifestId, _vmCts.Token) == ContentState.Downloaded;
+                }
+
                 if (!trustSearchResultId)
                 {
-                    logger.LogDebug("SearchResult ID '{Id}' is not an acquired manifest, looking up from pool", manifestId);
-                    manifestId = await contentStateService.GetLocalManifestIdAsync(item.SearchResult, _vmCts.Token);
+                    logger.LogDebug("SearchResult ID '{Id}' is not an acquired manifest, looking up from pool", searchResultToMatch.Id);
+                    manifestId = await contentStateService.GetLocalManifestIdAsync(searchResultToMatch, _vmCts.Token);
                 }
 
                 if (string.IsNullOrEmpty(manifestId))
@@ -2445,9 +2480,6 @@ public sealed partial class DownloadsBrowserViewModel(
             if (profileSelectionVm.WasSuccessful && !string.IsNullOrEmpty(profileSelectionVm.SelectedProfileName))
             {
                 item.DownloadStatus = $"{ContentConstants.AddedToProfileStatusPrefix}{profileSelectionVm.SelectedProfileName}";
-                notificationService.ShowSuccess(
-                    "Added to Profile",
-                    $"'{item.Name}' has been added to profile '{profileSelectionVm.SelectedProfileName}'.");
 
                 // Send profile updated message to notify other components
                 try
@@ -2469,9 +2501,6 @@ public sealed partial class DownloadsBrowserViewModel(
             else if (!profileSelectionVm.WasSuccessful && !profileSelectionVm.WasCancelled && !string.IsNullOrEmpty(profileSelectionVm.ErrorMessage))
             {
                 item.DownloadStatus = $"{ContentConstants.FailedStatusPrefix}{profileSelectionVm.ErrorMessage}";
-                notificationService.ShowError(
-                    "Failed to Add to Profile",
-                    profileSelectionVm.ErrorMessage);
                 logger.LogError("Failed to add content to profile: {Error}", profileSelectionVm.ErrorMessage);
             }
             else
