@@ -849,6 +849,36 @@ def validate_catalog(catalog: dict) -> bool:
     return valid
 
 
+def _merge_base_mappings(existing: list[dict], base_mappings: list[dict]) -> list[dict]:
+    """Merges base mappings into an existing mapping list."""
+    existing_keys = {
+        (e.get("manifestId"), normalize_hex(e.get("exeCrc", "")), normalize_hex(e.get("iniCrc", "")))
+        for e in existing
+    }
+    existing_map = {
+        (e.get("manifestId"), normalize_hex(e.get("iniCrc", ""))): e
+        for e in existing
+    }
+    for base in base_mappings:
+        base_key = (
+            base.get("manifestId"),
+            normalize_hex(base.get("exeCrc", "")),
+            normalize_hex(base.get("iniCrc", "")),
+        )
+        pair_key = (base.get("manifestId"), normalize_hex(base.get("iniCrc", "")))
+        if pair_key in existing_map:
+            existing_entry = existing_map[pair_key]
+            existing_entry["exeCrc"] = base.get("exeCrc")
+            if base.get("sha256"):
+                existing_entry["sha256"] = base.get("sha256")
+            if base.get("dataPatchName"):
+                existing_entry["dataPatchName"] = base.get("dataPatchName")
+        elif base_key not in existing_keys:
+            existing.append(dict(base))
+            existing_keys.add(base_key)
+    return existing
+
+
 def _load_existing_mappings(output_path: str, base_mappings: list[dict]) -> list[dict]:
     """Loads existing mappings from disk if present."""
     if not os.path.exists(output_path):
@@ -858,35 +888,11 @@ def _load_existing_mappings(output_path: str, base_mappings: list[dict]) -> list
         with open(output_path, "r", encoding="utf-8") as f:
             loaded = json.load(f)
             if isinstance(loaded, dict) and "mappings" in loaded and isinstance(loaded["mappings"], list):
-                existing = loaded["mappings"]
-                existing_keys = {
-                    (e.get("manifestId"), normalize_hex(e.get("exeCrc", "")), normalize_hex(e.get("iniCrc", "")))
-                    for e in existing
-                }
-                existing_map = {
-                    (e.get("manifestId"), normalize_hex(e.get("iniCrc", ""))): e
-                    for e in existing
-                }
-                for base in base_mappings:
-                    base_key = (
-                        base.get("manifestId"),
-                        normalize_hex(base.get("exeCrc", "")),
-                        normalize_hex(base.get("iniCrc", "")),
-                    )
-                    pair_key = (base.get("manifestId"), normalize_hex(base.get("iniCrc", "")))
-                    if pair_key in existing_map:
-                        existing_entry = existing_map[pair_key]
-                        existing_entry["exeCrc"] = base.get("exeCrc")
-                        if base.get("sha256"):
-                            existing_entry["sha256"] = base.get("sha256")
-                        if base.get("dataPatchName"):
-                            existing_entry["dataPatchName"] = base.get("dataPatchName")
-                    elif base_key not in existing_keys:
-                        existing.append(dict(base))
-                        existing_keys.add(base_key)
-                return existing
-            else:
-                print(f"Warning: existing catalog at {output_path} is not an object containing a 'mappings' list; falling back to base mappings.", file=sys.stderr)
+                return _merge_base_mappings(loaded["mappings"], base_mappings)
+            print(
+                f"Warning: existing catalog at {output_path} is not an object containing a 'mappings' list; falling back to base mappings.",
+                file=sys.stderr,
+            )
     except (OSError, ValueError) as e:
         print(f"Warning: could not read existing catalog: {e}", file=sys.stderr)
 

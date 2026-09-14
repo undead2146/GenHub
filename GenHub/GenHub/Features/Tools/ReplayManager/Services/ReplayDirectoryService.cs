@@ -1132,27 +1132,33 @@ public sealed class ReplayDirectoryService(
                 return true;
             }
 
-            // Fallback for truncated replay profile names: if the profile name contains "(Replay: "
-            // and the replay segment in the profile name matches the beginning of replayBaseName.
-            const string replayMarker = "(Replay: ";
-            var markerIdx = profile.Name.IndexOf(replayMarker, StringComparison.OrdinalIgnoreCase);
-            if (markerIdx >= 0)
-            {
-                var contentStart = markerIdx + replayMarker.Length;
-                var closingParenIdx = profile.Name.LastIndexOf(')');
-                if (closingParenIdx > contentStart)
-                {
-                    var nameReplayPart = profile.Name[contentStart..closingParenIdx].TrimEnd();
-                    if (nameReplayPart.Length > 0 &&
-                        replayBaseName.StartsWith(nameReplayPart, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return true;
-                    }
-                }
-            }
+            return MatchesTruncatedReplayMarker(profile.Name, replayBaseName);
         }
 
         return false;
+    }
+
+    private static bool MatchesTruncatedReplayMarker(string profileName, string replayBaseName)
+    {
+        // Fallback for truncated replay profile names: if the profile name contains "(Replay: "
+        // and the replay segment in the profile name matches the beginning of replayBaseName.
+        const string replayMarker = "(Replay: ";
+        var markerIdx = profileName.IndexOf(replayMarker, StringComparison.OrdinalIgnoreCase);
+        if (markerIdx < 0)
+        {
+            return false;
+        }
+
+        var contentStart = markerIdx + replayMarker.Length;
+        var closingParenIdx = profileName.LastIndexOf(')');
+        if (closingParenIdx <= contentStart)
+        {
+            return false;
+        }
+
+        var nameReplayPart = profileName[contentStart..closingParenIdx].TrimEnd();
+        return nameReplayPart.Length > 0 &&
+               replayBaseName.StartsWith(nameReplayPart, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsDedicatedToAnotherReplay(GameProfile profile)
