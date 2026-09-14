@@ -372,6 +372,66 @@ public sealed class ModDBManifestFactoryTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies that resolving a ModDB item with explicit content type metadata preserves the
+    /// user-selected content type instead of overriding it with the file category or section default,
+    /// and that standalone content types do not add game installation dependencies.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ModDBResolver_ExplicitContentTypeMetadata_PreservesUserSelectedContentTypeAsync()
+    {
+        // Arrange
+        var playwright = new Mock<IPlaywrightService>(MockBehavior.Strict);
+        var factory = CreateFactory(CreateManifestBuilder);
+        var parser = new ModDBPageParser(
+            playwright.Object,
+            new Mock<ILogger<ModDBPageParser>>().Object);
+        var resolver = new ModDBResolver(
+            factory,
+            parser,
+            new Mock<ILogger<ModDBResolver>>().Object);
+
+        const string directAddonUrl = "https://www.moddb.com/addons/start/305556";
+        var result = new ContentSearchResult
+        {
+            Id = "catalog-parent",
+            Name = "WB World Builder Tool",
+            ProviderName = "ModDB",
+            ContentType = ContentType.ModdingTool,
+            TargetGame = GameType.ZeroHour,
+            SourceUrl = "https://www.moddb.com/mods/cc-generals-zero-hour-enhanced",
+            SelectedDownloadUrl = directAddonUrl,
+            ResolverId = "ModDB",
+            RequiresResolution = true,
+            ResolverMetadata =
+            {
+                [ContentConstants.ExplicitContentTypeMetadataKey] = "true",
+            },
+            ParsedPageData = new ParsedWebPage(
+                new Uri("https://www.moddb.com/mods/cc-generals-zero-hour-enhanced"),
+                new GlobalContext("C&C Generals Zero Hour: Enhanced", "Acoustic Alpha", new DateTime(2024, 3, 28)),
+                [
+                    new DownloadableFile(
+                        Name: "WB_Tool.rar",
+                        Category: "Singleplayer Map",
+                        DownloadUrl: "https://www.moddb.com/mods/cc-generals-zero-hour-enhanced/addons/wb-tool",
+                        DetailsUrl: "https://www.moddb.com/mods/cc-generals-zero-hour-enhanced/addons/wb-tool",
+                        FileSectionType: FileSectionType.Addons),
+                ],
+                PageType.Detail),
+        };
+
+        // Act
+        var resolution = await resolver.ResolveAsync(result);
+
+        // Assert
+        Assert.True(resolution.Success, resolution.FirstError);
+        var manifest = Assert.IsType<ContentManifest>(resolution.Data);
+        Assert.Equal(ContentType.ModdingTool, manifest.ContentType);
+        Assert.DoesNotContain(manifest.Dependencies, d => d.DependencyType == ContentType.GameInstallation);
+    }
+
+    /// <summary>
     /// Guards against creating a profile manifest for an opaque ModDB transport artifact.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>

@@ -244,15 +244,22 @@ public class ModDBResolver(
 
         // A ModDB addons list also contains map files. Its file category is more precise than
         // the parent page's type, so use it when available and only fall back to that parent type
-        // when ModDB did not supply a category.
+        // when ModDB did not supply a category. If the user explicitly configured the content type,
+        // honor that selection.
         var contentType = discoveredItem.ContentType;
-        if (!string.IsNullOrWhiteSpace(file.Category))
+        var hasExplicitContentType = discoveredItem.ResolverMetadata.TryGetValue(ContentConstants.ExplicitContentTypeMetadataKey, out var explicitTypeVal) &&
+                                     string.Equals(explicitTypeVal, "true", StringComparison.OrdinalIgnoreCase);
+
+        if (!hasExplicitContentType)
         {
-            contentType = ModDBCategoryMapper.MapCategoryByName(file.Category);
-        }
-        else if (file.FileSectionType == FileSectionType.Downloads)
-        {
-            contentType = ContentType.Mod;
+            if (!string.IsNullOrWhiteSpace(file.Category))
+            {
+                contentType = ModDBCategoryMapper.MapCategoryByName(file.Category);
+            }
+            else if (file.FileSectionType == FileSectionType.Downloads)
+            {
+                contentType = ContentType.Mod;
+            }
         }
 
         // Use target game from discovered item

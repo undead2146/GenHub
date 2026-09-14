@@ -522,6 +522,35 @@ public static partial class ContentCardBadgeHelper
         return IsGitHub(result) && !IsOfficialProvider(result);
     }
 
+    /// <summary>
+    /// Checks whether the search result belongs to ModDB.
+    /// </summary>
+    /// <param name="result">The search result to check.</param>
+    /// <returns>True if the item belongs to ModDB; otherwise false.</returns>
+    public static bool IsModDb(ContentSearchResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        return (result.ProviderName?.Equals(ModDBConstants.PublisherDisplayName, StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.ProviderName?.Equals(ModDBConstants.PublisherType, StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.ResolverId?.Contains(ModDBConstants.PublisherPrefix, StringComparison.OrdinalIgnoreCase) == true) ||
+               (result.Id?.Contains(ModDBConstants.PublisherPrefix, StringComparison.OrdinalIgnoreCase) == true) ||
+               (!string.IsNullOrEmpty(result.SourceUrl) &&
+                result.SourceUrl.Contains(ModDBConstants.DomainFragment, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Checks whether the search result allows user-defined content type selection and correction.
+    /// Official publishers (Generals Online, Community Outpost, The Super Hackers) lock their content type,
+    /// while community and third-party publishers (Generic GitHub, ModDB) allow user correction.
+    /// </summary>
+    /// <param name="result">The search result to check.</param>
+    /// <returns>True if the item allows changing its content type; otherwise false.</returns>
+    public static bool CanChangeContentType(ContentSearchResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        return !IsOfficialProvider(result) && (IsGenericGitHub(result) || IsModDb(result));
+    }
+
     private static bool HasMetadata(ContentSearchResult result, string key) =>
         result.ResolverMetadata.ContainsKey(key) || result.Metadata.ContainsKey(key);
 

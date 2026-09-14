@@ -120,6 +120,11 @@ public static class ContentConstants
     public const string ParentContentIdMetadataKey = "parentContentId";
 
     /// <summary>
+    /// Metadata key indicating that the content type was explicitly configured by the user or UI selection.
+    /// </summary>
+    public const string ExplicitContentTypeMetadataKey = "explicitContentType";
+
+    /// <summary>
     /// Number of recent releases and addons to eagerly preload extended details for.
     /// </summary>
     public const int PreloadRecentItemsLimit = 5;

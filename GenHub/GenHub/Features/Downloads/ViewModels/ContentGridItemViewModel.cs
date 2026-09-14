@@ -601,16 +601,17 @@ public sealed partial class ContentGridItemViewModel(
 
     private bool MatchesManifestOrMetadata(ContentStateChangedEventArgs e)
     {
-        if (string.IsNullOrEmpty(e.ManifestId))
+        if (string.IsNullOrEmpty(e.ManifestId) || SearchResult == null)
         {
             return false;
         }
 
         var segments = e.ManifestId.Split('.');
+        var canChangeType = ContentCardBadgeHelper.CanChangeContentType(SearchResult);
         if (segments.Length != 5 ||
             (!string.Equals(segments[2], SearchResult.ProviderName, StringComparison.OrdinalIgnoreCase) &&
              !ContentStateService.IsCompatiblePublisherAlias(segments[2], SearchResult.ProviderName)) ||
-            !string.Equals(segments[3], SearchResult.ContentType.ToString(), StringComparison.OrdinalIgnoreCase))
+            (!canChangeType && !string.Equals(segments[3], SearchResult.ContentType.ToString(), StringComparison.OrdinalIgnoreCase)))
         {
             return false;
         }
@@ -678,11 +679,12 @@ public sealed partial class ContentGridItemViewModel(
         if (!string.IsNullOrEmpty(e.ManifestId))
         {
             var segments = e.ManifestId.Split('.');
+            var canChangeType = SearchResult != null && ContentCardBadgeHelper.CanChangeContentType(SearchResult);
             if (segments.Length == 5 &&
                 SearchResult != null && !string.IsNullOrEmpty(SearchResult.ProviderName) &&
                 (string.Equals(segments[2], SearchResult.ProviderName, StringComparison.OrdinalIgnoreCase) ||
                  ContentStateService.IsCompatiblePublisherAlias(segments[2], SearchResult.ProviderName)) &&
-                string.Equals(segments[3], SearchResult.ContentType.ToString(), StringComparison.OrdinalIgnoreCase))
+                (canChangeType || string.Equals(segments[3], SearchResult.ContentType.ToString(), StringComparison.OrdinalIgnoreCase)))
             {
                 publisherMatches = true;
             }

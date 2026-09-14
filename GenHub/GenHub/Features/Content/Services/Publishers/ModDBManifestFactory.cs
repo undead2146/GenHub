@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GenHub.Core.Constants;
+using GenHub.Core.Extensions;
 using GenHub.Core.Interfaces.Common;
 using GenHub.Core.Interfaces.Content;
 using GenHub.Core.Interfaces.Manifest;
@@ -308,8 +309,11 @@ public class ModDBManifestFactory(
 
         logger.LogInformation("{Count} remote file(s) added to the ModDB manifest for staged delivery", addedUrls.Count);
 
-        // 8. Add dependencies based on target game
-        manifest = AddGameDependencies(manifest, details.TargetGame);
+        // 8. Add dependencies based on target game (unless standalone)
+        if (!details.ContentType.IsStandalone())
+        {
+            manifest = AddGameDependencies(manifest, details.TargetGame);
+        }
 
         var builtManifest = manifest.Build();
 
