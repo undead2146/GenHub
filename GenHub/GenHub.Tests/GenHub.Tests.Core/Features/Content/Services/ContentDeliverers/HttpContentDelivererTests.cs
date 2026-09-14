@@ -284,6 +284,49 @@ public class HttpContentDelivererTests
     }
 
     /// <summary>
+    /// Verifies that insecure HTTP ModDB or DBolical download URLs fail and enforce HTTPS.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [Fact]
+    public async Task DeliverContentAsync_WithInsecureHttpModDbUrl_FailsWithHttpsRequirementAsync()
+    {
+        var targetDirectory = CreateTargetDirectory();
+        const string relativePath = "insecure.zip";
+        var manifest = new ContentManifest
+        {
+            Id = new ManifestId("moddb-insecure-mod"),
+            Name = "ModDB Insecure Mod",
+            Version = "1.0",
+            Files =
+            [
+                new ManifestFile
+                {
+                    RelativePath = relativePath,
+                    DownloadUrl = "http://www.moddb.com/downloads/start/99999",
+                    SourceType = ContentSourceType.RemoteDownload,
+                },
+            ],
+        };
+
+        var deliverer = new HttpContentDeliverer(
+            Mock.Of<IDownloadService>(),
+            Mock.Of<ILogger<HttpContentDeliverer>>(),
+            Mock.Of<IPlaywrightService>());
+
+        try
+        {
+            var result = await deliverer.DeliverContentAsync(manifest, targetDirectory);
+
+            result.Success.Should().BeFalse();
+            result.FirstError.Should().Contain("ModDB and DBolical downloads must use HTTPS.");
+        }
+        finally
+        {
+            Directory.Delete(targetDirectory, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// Verifies that user cancellation remains an <see cref="OperationCanceledException"/>.
     /// </summary>
     /// <returns>A task representing the asynchronous test operation.</returns>

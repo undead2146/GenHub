@@ -25,7 +25,6 @@ public class HttpContentDeliverer(
     ILogger<HttpContentDeliverer> logger,
     IPlaywrightService? playwrightService = null) : IContentDeliverer
 {
-
     /// <inheritdoc />
     public string SourceName => ContentSourceNames.HttpDeliverer;
 
@@ -163,17 +162,27 @@ public class HttpContentDeliverer(
         CancellationToken cancellationToken)
     {
         if (Uri.TryCreate(file.DownloadUrl, UriKind.Absolute, out var fileUri) &&
-            ModDBConstants.IsModDbOrDbolicalUri(fileUri) &&
-            playwrightService != null)
+            ModDBConstants.IsModDbOrDbolicalUri(fileUri))
         {
-            logger.LogInformation("Routing ModDB download through Playwright for {Url}", file.DownloadUrl);
-            var downloadConfig = new DownloadConfiguration
+            if (fileUri.Scheme != Uri.UriSchemeHttps)
             {
-                Url = fileUri,
-                DestinationPath = localPath,
-                OverwriteExisting = true,
-            };
-            return await playwrightService.DownloadFileAsync(downloadConfig, cancellationToken);
+                throw new InvalidOperationException("ModDB and DBolical downloads must use HTTPS.");
+            }
+
+            if (playwrightService != null)
+            {
+                logger.LogInformation("Routing ModDB download through Playwright for {Url}", file.DownloadUrl);
+                var downloadConfig = new DownloadConfiguration
+                {
+                    Url = fileUri,
+                    DestinationPath = localPath,
+                    OverwriteExisting = true,
+                };
+                return await playwrightService.DownloadFileAsync(downloadConfig, cancellationToken);
+            }
+
+            return await downloadService.DownloadFileAsync(
+                fileUri, localPath, file.Hash, null, cancellationToken);
         }
 
         return await downloadService.DownloadFileAsync(

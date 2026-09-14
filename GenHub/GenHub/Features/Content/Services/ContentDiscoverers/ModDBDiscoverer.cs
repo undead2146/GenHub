@@ -321,6 +321,56 @@ public partial class ModDBDiscoverer(
         return IsDetailPathSegments(segments);
     }
 
+    /// <summary>
+    /// Builds a <see cref="ModDBFilter"/> from the provided search query and optional search section.
+    /// </summary>
+    /// <param name="query">The search query containing terms, filters, and pagination parameters.</param>
+    /// <param name="section">The target ModDB section being searched, such as "downloads" or "addons".</param>
+    /// <returns>A configured <see cref="ModDBFilter"/> representing the request parameters.</returns>
+    internal static ModDBFilter BuildFilterFromQuery(ContentSearchQuery query, string? section = null)
+    {
+        var filter = new ModDBFilter
+        {
+            Keyword = query.SearchTerm,
+            Page = query.Page ?? 1,
+            Sort = ResolveSort(query),
+        };
+
+        // Apply Category filter (for downloads section)
+        if (!string.IsNullOrWhiteSpace(query.ModDBCategory))
+        {
+            filter.Category = query.ModDBCategory;
+        }
+
+        // Apply AddonCategory filter (for categoryaddon param in Downloads or category param in Addons)
+        if (!string.IsNullOrWhiteSpace(query.ModDBAddonCategory))
+        {
+            var effectiveSection = !string.IsNullOrWhiteSpace(section) ? section : query.ModDBSection;
+            if (string.Equals(effectiveSection, ModDBConstants.AddonsSection, StringComparison.OrdinalIgnoreCase))
+            {
+                filter.Category = query.ModDBAddonCategory;
+            }
+            else
+            {
+                filter.AddonCategory = query.ModDBAddonCategory;
+            }
+        }
+
+        // Apply License filter
+        if (!string.IsNullOrWhiteSpace(query.ModDBLicense))
+        {
+            filter.Licence = query.ModDBLicense;
+        }
+
+        // Apply Timeframe filter
+        if (!string.IsNullOrWhiteSpace(query.ModDBTimeframe))
+        {
+            filter.Timeframe = query.ModDBTimeframe;
+        }
+
+        return filter;
+    }
+
     private static bool IsDetailPathSegments(string[] segments)
     {
         if (segments.Length == 2)
@@ -430,48 +480,6 @@ public partial class ModDBDiscoverer(
         return [ModDBConstants.DownloadsSection, ModDBConstants.AddonsSection];
     }
 
-    private static ModDBFilter BuildFilterFromQuery(ContentSearchQuery query)
-    {
-        var filter = new ModDBFilter
-        {
-            Keyword = query.SearchTerm,
-            Page = query.Page ?? 1,
-            Sort = ResolveSort(query),
-        };
-
-        // Apply Category filter (for downloads section)
-        if (!string.IsNullOrWhiteSpace(query.ModDBCategory))
-        {
-            filter.Category = query.ModDBCategory;
-        }
-
-        // Apply AddonCategory filter (for categoryaddon param in Downloads or category param in Addons)
-        if (!string.IsNullOrWhiteSpace(query.ModDBAddonCategory))
-        {
-            if (string.Equals(query.ModDBSection, ModDBConstants.AddonsSection, StringComparison.OrdinalIgnoreCase))
-            {
-                filter.Category = query.ModDBAddonCategory;
-            }
-            else
-            {
-                filter.AddonCategory = query.ModDBAddonCategory;
-            }
-        }
-
-        // Apply License filter
-        if (!string.IsNullOrWhiteSpace(query.ModDBLicense))
-        {
-            filter.Licence = query.ModDBLicense;
-        }
-
-        // Apply Timeframe filter
-        if (!string.IsNullOrWhiteSpace(query.ModDBTimeframe))
-        {
-            filter.Timeframe = query.ModDBTimeframe;
-        }
-
-        return filter;
-    }
 
     private static string ResolveSort(ContentSearchQuery query)
     {
@@ -911,7 +919,7 @@ public partial class ModDBDiscoverer(
         var keepPageOpenForVerification = false;
         try
         {
-            var filter = BuildFilterFromQuery(query);
+            var filter = BuildFilterFromQuery(query, section);
             var url = BuildSectionUrl(section, gameType, filter);
 
             logger.LogInformation(
