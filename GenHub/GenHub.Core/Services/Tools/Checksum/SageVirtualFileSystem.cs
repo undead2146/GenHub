@@ -148,11 +148,12 @@ public sealed class SageVirtualFileSystem
     public byte[]? Read(string relativePath)
     {
         string normalizedRel = relativePath.Replace('/', '\\');
+        string fsRel = normalizedRel.Replace('\\', Path.DirectorySeparatorChar);
 
         // Check loose roots in reverse order (later sideloads win)
         for (int i = _looseRoots.Count - 1; i >= 0; i--)
         {
-            string loosePath = Path.Combine(_looseRoots[i], normalizedRel);
+            string loosePath = Path.Combine(_looseRoots[i], fsRel);
             if (File.Exists(loosePath))
             {
                 try
@@ -190,12 +191,13 @@ public sealed class SageVirtualFileSystem
     public IReadOnlyList<string> FilesUnder(string dir)
     {
         string normalizedDir = dir.TrimEnd('/', '\\').Replace('/', '\\');
+        string fsDir = normalizedDir.Replace('\\', Path.DirectorySeparatorChar);
         string prefix = normalizedDir.ToLowerInvariant() + "\\";
         var files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (string root in _looseRoots)
         {
-            string looseDir = Path.Combine(root, normalizedDir);
+            string looseDir = Path.Combine(root, fsDir);
             if (!Directory.Exists(looseDir))
             {
                 continue;

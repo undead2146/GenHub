@@ -219,7 +219,7 @@ public partial class ReplayManagerViewModel(
     public void Receive(ProfileStoppedMessage message)
     {
         if (message.ProcessId == 0 ||
-            (_runningProfiles.TryGetValue(message.ProfileId, out var pid) && pid == message.ProcessId))
+            (_runningProfiles.TryGetValue(message.ProfileId, out var pid) && (pid == 0 || pid == message.ProcessId)))
         {
             _runningProfiles.TryRemove(message.ProfileId, out _);
         }

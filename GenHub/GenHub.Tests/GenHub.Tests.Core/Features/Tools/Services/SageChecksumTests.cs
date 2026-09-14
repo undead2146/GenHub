@@ -233,4 +233,50 @@ public sealed class SageChecksumTests
         IniNormalizer.ProcessLines(Encoding.ASCII.GetBytes(sampleIni), lineSpan => checksum.Add(lineSpan));
         Assert.Equal(0xA52E92D5u, checksum.Value);
     }
+
+    /// <summary>
+    /// Verifies that GameCrcCalculatorService invalidates cached INI CRC when game data files are modified.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task CalculateIniCrcAsync_WhenDataChanges_InvalidatesCacheAutomaticallyAsync()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "GenHub_IniCrcTest_" + Guid.NewGuid().ToString("N"));
+        string iniDir = Path.Combine(tempDir, "Data", "INI");
+        Directory.CreateDirectory(iniDir);
+
+        try
+        {
+            GameCrcCalculatorService.ClearCache();
+            var service = new GameCrcCalculatorService();
+            string iniPath = Path.Combine(iniDir, "GameData.ini");
+
+            await File.WriteAllTextAsync(iniPath, "GameData\r\n  Windowed = Yes\r\nEnd\r\n");
+            File.SetLastWriteTimeUtc(iniPath, DateTime.UtcNow.AddMinutes(-10));
+
+            var result1 = await service.CalculateIniCrcAsync(tempDir, GameType.ZeroHour);
+            Assert.True(result1.Success);
+
+            // Second call with untouched files returns cached result
+            var resultCached = await service.CalculateIniCrcAsync(tempDir, GameType.ZeroHour);
+            Assert.True(resultCached.Success);
+            Assert.Equal(result1.Data, resultCached.Data);
+
+            // Modify the INI file with new content and a newer timestamp
+            await File.WriteAllTextAsync(iniPath, "GameData\r\n  Windowed = No\r\n  MaxFPS = 144\r\nEnd\r\n");
+            File.SetLastWriteTimeUtc(iniPath, DateTime.UtcNow);
+
+            var result2 = await service.CalculateIniCrcAsync(tempDir, GameType.ZeroHour);
+            Assert.True(result2.Success);
+            Assert.NotEqual(result1.Data, result2.Data);
+        }
+        finally
+        {
+            GameCrcCalculatorService.ClearCache();
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+        }
+    }
 }

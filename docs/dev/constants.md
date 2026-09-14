@@ -1566,6 +1566,8 @@ Constants related to the Community Outpost (GenPatcher) catalog and metadata.
 - `MirrorsKey`: Metadata key for mirror names display string (`"mirrors"`)
 - `PatchPageUrlEndpoint`: Endpoint key for patch page URL (`"patchPageUrl"`)
 - `DefaultMetadataVersion`: Default version for content metadata (`"1.0"`)
+- `MinCatalogTimeoutSeconds`: Minimum catalog download timeout in seconds (`1`)
+- `MaxCatalogTimeoutSeconds`: Maximum catalog download timeout in seconds (`8`)
 
 ### GeneralsOnlineConstants Class
 

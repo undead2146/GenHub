@@ -19,7 +19,16 @@ public sealed class GameCrcCalculatorService : IGameCrcCalculatorService
 {
     private readonly ILogger<GameCrcCalculatorService>? _logger;
     private static readonly ConcurrentDictionary<string, (DateTime LastWriteTimeUtc, long FileLength, long SkirmishTicks, long SkirmishLength, long MpTicks, long MpLength, string Crc)> ExeCrcCache = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly ConcurrentDictionary<string, string> IniCrcCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, (long MaxTicks, long TotalLength, int FileCount, string Crc)> IniCrcCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Clears both executable and INI CRC caches.
+    /// </summary>
+    public static void ClearCache()
+    {
+        ExeCrcCache.Clear();
+        IniCrcCache.Clear();
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GameCrcCalculatorService"/> class.
@@ -129,10 +138,14 @@ public sealed class GameCrcCalculatorService : IGameCrcCalculatorService
 
         var sideloadsPart = sideloadPaths != null && sideloadPaths.Count > 0 ? string.Join(';', sideloadPaths) : string.Empty;
         var cacheKey = $"{gameRootPath}|{gameType}|{sideloadsPart}|{modPath}";
+        var freshness = GetIniFreshnessSignature(gameRootPath, sideloadPaths, modPath);
 
-        if (IniCrcCache.TryGetValue(cacheKey, out var cachedIni))
+        if (IniCrcCache.TryGetValue(cacheKey, out var cachedIni) &&
+            cachedIni.MaxTicks == freshness.MaxTicks &&
+            cachedIni.TotalLength == freshness.TotalLength &&
+            cachedIni.FileCount == freshness.FileCount)
         {
-            return OperationResult<string>.CreateSuccess(cachedIni);
+            return OperationResult<string>.CreateSuccess(cachedIni.Crc);
         }
 
         try
@@ -164,7 +177,7 @@ public sealed class GameCrcCalculatorService : IGameCrcCalculatorService
                     }
 
                     var calculated = $"0x{crc.Value:X8}";
-                    IniCrcCache[cacheKey] = calculated;
+                    IniCrcCache[cacheKey] = (freshness.MaxTicks, freshness.TotalLength, freshness.FileCount, calculated);
                     return OperationResult<string>.CreateSuccess(calculated);
                 },
                 ct);
@@ -277,6 +290,101 @@ public sealed class GameCrcCalculatorService : IGameCrcCalculatorService
         }
 
         return (sTicks, sLen, mTicks, mLen);
+    }
+
+    private static (long MaxTicks, long TotalLength, int FileCount) GetIniFreshnessSignature(
+        string gameRootPath,
+        IReadOnlyList<string>? sideloadPaths,
+        string? modPath)
+    {
+        long maxTicks = 0;
+        long totalLength = 0;
+        int fileCount = 0;
+
+        void UpdateFromPath(string path, bool recursive)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return;
+            }
+
+            try
+            {
+                if (File.Exists(path))
+                {
+                    var fi = new FileInfo(path);
+                    if (fi.LastWriteTimeUtc.Ticks > maxTicks)
+                    {
+                        maxTicks = fi.LastWriteTimeUtc.Ticks;
+                    }
+
+                    totalLength += fi.Length;
+                    fileCount++;
+                }
+                else if (Directory.Exists(path))
+                {
+                    var di = new DirectoryInfo(path);
+                    if (di.LastWriteTimeUtc.Ticks > maxTicks)
+                    {
+                        maxTicks = di.LastWriteTimeUtc.Ticks;
+                    }
+
+                    var searchOpt = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+                    foreach (var file in di.EnumerateFiles(SageChecksumConstants.BigFileSearchPattern, searchOpt))
+                    {
+                        if (file.LastWriteTimeUtc.Ticks > maxTicks)
+                        {
+                            maxTicks = file.LastWriteTimeUtc.Ticks;
+                        }
+
+                        totalLength += file.Length;
+                        fileCount++;
+                    }
+
+                    var dataIniPath = Path.Combine(path, "Data", "INI");
+                    if (Directory.Exists(dataIniPath))
+                    {
+                        var dataIniInfo = new DirectoryInfo(dataIniPath);
+                        if (dataIniInfo.LastWriteTimeUtc.Ticks > maxTicks)
+                        {
+                            maxTicks = dataIniInfo.LastWriteTimeUtc.Ticks;
+                        }
+
+                        foreach (var file in dataIniInfo.EnumerateFiles("*", SearchOption.AllDirectories))
+                        {
+                            if (file.LastWriteTimeUtc.Ticks > maxTicks)
+                            {
+                                maxTicks = file.LastWriteTimeUtc.Ticks;
+                            }
+
+                            totalLength += file.Length;
+                            fileCount++;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Suppress transient I/O exceptions during signature calculation
+            }
+        }
+
+        UpdateFromPath(gameRootPath, recursive: true);
+
+        if (sideloadPaths != null)
+        {
+            foreach (var sideload in sideloadPaths)
+            {
+                UpdateFromPath(sideload, recursive: true);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(modPath))
+        {
+            UpdateFromPath(modPath, recursive: true);
+        }
+
+        return (maxTicks, totalLength, fileCount);
     }
 
     private static bool AddScriptFiles(LegacyChecksum crc, string root)

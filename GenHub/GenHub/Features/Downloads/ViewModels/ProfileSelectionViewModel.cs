@@ -103,6 +103,21 @@ public sealed partial class ProfileSelectionViewModel(
     [ObservableProperty]
     private bool _isCreateNewRequested;
 
+    [ObservableProperty]
+    private string _dialogTitle = "Select Profile";
+
+    [ObservableProperty]
+    private string _headerTitle = "Select Profile";
+
+    [ObservableProperty]
+    private string _headerSubtitle = "Choose a profile to add this content to, or create a new one";
+
+    [ObservableProperty]
+    private string _actionBadgeText = "Add";
+
+    [ObservableProperty]
+    private string _createProfileCardSubtitle = "Pre-configured with this content";
+
     /// <summary>
     /// Event raised when the dialog should be closed.
     /// </summary>

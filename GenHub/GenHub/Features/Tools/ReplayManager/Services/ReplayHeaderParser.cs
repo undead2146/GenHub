@@ -148,7 +148,7 @@ public sealed class ReplayHeaderParser(ILogger<ReplayHeaderParser> logger) : IRe
             if (year >= 1990 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= DateTime.DaysInMonth(year, month) &&
                 hour <= 23 && minute <= 59 && second <= 59 && millisecond <= 999)
             {
-                gameDate = new DateTime(year, month, day, hour, minute, second, millisecond, DateTimeKind.Utc);
+                gameDate = new DateTime(year, month, day, hour, minute, second, millisecond, DateTimeKind.Unspecified);
             }
         }
         catch (ArgumentOutOfRangeException)

@@ -292,6 +292,49 @@ public sealed class ReplayHeaderParserTests
         Assert.Contains("exceeds maximum allowed size", result.FirstError);
     }
 
+    /// <summary>
+    /// Verifies that valid SYSTEMTIME timestamp is parsed as DateTimeKind.Unspecified to avoid timezone double-shifting.
+    /// </summary>
+    /// <returns>A task representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ParseHeaderAsync_ValidSystemTime_ParsesGameDateWithUnspecifiedKindAsync()
+    {
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream, Encoding.ASCII, leaveOpen: true);
+
+        writer.Write(Encoding.ASCII.GetBytes("GENREP"));
+        writer.Write(new byte[22]);
+        writer.Write(Encoding.Unicode.GetBytes("Timestamp Test" + char.MinValue));
+
+        // SYSTEMTIME: wYear, wMonth, wDayOfWeek, wDay, wHour, wMinute, wSecond, wMilliseconds
+        writer.Write((ushort)2026);
+        writer.Write((ushort)9);
+        writer.Write((ushort)1);
+        writer.Write((ushort)14);
+        writer.Write((ushort)14);
+        writer.Write((ushort)30);
+        writer.Write((ushort)45);
+        writer.Write((ushort)123);
+
+        writer.Write(Encoding.Unicode.GetBytes("1.04" + char.MinValue));
+        writer.Write(Encoding.Unicode.GetBytes("Aug 21 2026" + char.MinValue));
+        writer.Write(20260821u);
+        writer.Write(0x27533BB0u);
+        writer.Write(0x76B251A3u);
+        writer.Write(Encoding.ASCII.GetBytes("M=maps/test/test.map;H=Hank;" + char.MinValue));
+
+        writer.Flush();
+        stream.Position = 0;
+
+        var result = await _parser.ParseHeaderAsync(stream);
+
+        Assert.True(result.Success, string.Join(" ", result.Errors));
+        Assert.NotNull(result.Data);
+        Assert.NotNull(result.Data.GameDate);
+        Assert.Equal(DateTimeKind.Unspecified, result.Data.GameDate.Value.Kind);
+        Assert.Equal(new DateTime(2026, 9, 14, 14, 30, 45, 123, DateTimeKind.Unspecified), result.Data.GameDate.Value);
+    }
+
     private sealed class OversizedStream : MemoryStream
     {
         public override long Length => ReplayManagerConstants.MaxReplaySizeBytes + 1;
